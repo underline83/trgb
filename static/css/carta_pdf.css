@@ -1,0 +1,179 @@
+/* ============================================================
+   CARTA VINI — CSS PDF (WeasyPrint) — v2.03
+   - Logo centrato verticalmente e orizzontalmente (fix 100vh)
+   - Frontespizio, indice, carta
+   - Footer numerazione pagina (esclusa prima)
+   - Producer-block per evitare spezzature brutte
+   ============================================================ */
+
+/* ============================================================
+   PAGINE E FOOTER
+   ============================================================ */
+@page {
+    size: A4;
+    margin: 20mm;
+
+    @bottom-right {
+        content: "Pag. " counter(page);
+        font-size: 9pt;
+        color: #5a4634;
+    }
+}
+
+/* Nessun numero di pagina nella prima pagina */
+@page:first {
+    @bottom-right { content: ""; }
+}
+
+/* ============================================================
+   BODY GENERALE
+   ============================================================ */
+body {
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
+    background: #ffffff;
+    color: #2b2118;
+    font-size: 12pt;
+}
+
+/* FRONTESPIZIO */
+.front-page {
+    page-break-after: always;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.front-logo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 90%;
+    max-width: 380px;
+    margin-bottom: 40px;
+}
+
+.front-title {
+    font-size: 28pt;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.front-subtitle {
+    font-size: 18pt;
+    margin-bottom: 4px;
+}
+
+.front-date {
+    font-size: 14pt;
+    opacity: 0.7;
+    margin-top: 10px;
+}
+
+/* ============================================================
+   INDICE
+   ============================================================ */
+
+.toc-page {
+    page-break-after: always;
+    padding-top: 5mm;
+}
+
+.toc-title {
+    text-align: center;
+    font-size: 18pt;
+    font-weight: 700;
+    margin-bottom: 14pt;
+}
+
+.toc-tipologia {
+    font-size: 14pt;
+    font-weight: 700;
+    margin-top: 12pt;
+}
+
+.toc-regione {
+    font-size: 11.8pt;
+    margin-left: 14pt;
+}
+
+.toc-spacer {
+    height: 6pt;
+}
+
+/* ============================================================
+   CORPO CARTA
+   ============================================================ */
+
+.carta-body {
+    page-break-before: always;
+}
+
+/* Tipologia */
+.tipologia {
+    font-size: 16pt;
+    text-align: center;
+    font-weight: 700;
+    margin-top: 20pt;
+    margin-bottom: 10pt;
+    border-bottom: 1px solid #b89b6d;
+    padding-bottom: 4pt;
+    page-break-before: always;
+}
+
+.tipologia:first-of-type {
+    page-break-before: avoid;
+}
+
+/* Regione */
+.regione {
+    font-size: 13pt;
+    text-align: center;
+    margin-top: 13pt;
+    margin-bottom: 7pt;
+    font-weight: 700;
+    color: #3b2814;
+}
+
+/* Produttore */
+.produttore {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #2b2118;
+    margin-top: 8pt;
+    margin-bottom: 2pt;
+    padding-left: 10pt;
+}
+
+/* Blocco produttore: impedisce spezzature brutte */
+.producer-block {
+    page-break-inside: avoid;
+    margin-bottom: 10pt;
+}
+
+/* Spazio prima del produttore */
+.spacer {
+    height: 4pt;
+}
+
+/* Tabelle vini */
+table.vini {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6pt;
+}
+
+table.vini td {
+    padding: 1.5pt 0;
+    vertical-align: top;
+    font-size: 11pt;
+}
+
+/* Colonne */
+td.vino   { width: 65%; padding-right: 8pt; }
+td.annata { width: 10%; text-align: right; padding-right: 8pt; }
+td.prezzo { width: 10%; text-align: right; }

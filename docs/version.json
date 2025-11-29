@@ -1,0 +1,31 @@
+{
+  "project": "Tre Gobbi Web",
+  "version": "v1.17",
+  "date": "2025-11-12",
+  "modules": {
+    "carta_vini": {
+      "version": "v1.17-stable",
+      "path": "app/routers/vini_router.py",
+      "description": "Modulo importazione Carta Vini con log HTML e console allineato.",
+      "status": "stable",
+      "last_update": "2025-11-12"
+    }
+  },
+  "notes": "Versionamento iniziale del sistema gestionale Tre Gobbi (web)."
+}
+
+{
+  "project": "Tre Gobbi Web",
+  "version": "v1.18",
+  "date": "2025-11-12",
+  "modules": {
+    "carta_vini": {
+      "version": "v1.18-stable",
+      "path": "app/routers/vini_router.py",
+      "description": "Modulo Carta Vini spostato in produzione con route /vini e log stabile.",
+      "status": "stable",
+      "last_update": "2025-11-12"
+    }
+  },
+  "notes": "Modulo Carta Vini portato in produzione, sostituendo /test-vini."
+}

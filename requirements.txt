@@ -1,0 +1,20 @@
+# TRGB Gestionale — requirements (v1.3)
+# Include tutte le dipendenze necessarie lato backend
+
+fastapi
+uvicorn
+python-jose
+passlib[bcrypt]
+
+# Excel / Import
+pandas
+openpyxl
+
+# Upload files
+python-multipart
+
+# PDF generator
+weasyprint
+
+# (Opzionale, ma utile per HTML templating futuro)
+jinja2
