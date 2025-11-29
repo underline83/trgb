@@ -1,9 +1,9 @@
-# TRGB Gestionale — requirements (v1.3)
-# Include tutte le dipendenze necessarie lato backend
+# TRGB Gestionale — requirements (v1.4)
+# Dipendenze backend FastAPI
 
 fastapi
-uvicorn
-python-jose
+uvicorn[standard]
+python-jose[cryptography]
 passlib[bcrypt]
 
 # Excel / Import
@@ -16,5 +16,8 @@ python-multipart
 # PDF generator
 weasyprint
 
-# (Opzionale, ma utile per HTML templating futuro)
+# HTML templating
 jinja2
+
+# Word / DOCX
+python-docx
