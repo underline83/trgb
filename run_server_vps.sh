@@ -72,10 +72,17 @@ fi
 
 echo "✅ DB pronti."
 
-# 7️⃣ Chiudi eventuali processi sulla porta 8000
-if lsof -ti:8000 >/dev/null 2>&1; then
-  echo "🛑 Chiudo processi sulla porta 8000..."
-  kill -9 $(lsof -ti:8000) 2>/dev/null || true
+# 7️⃣ Chiudi eventuali processi sulla porta 8000 (kill infallibile)
+echo "🛑 Controllo processi sulla porta 8000..."
+
+P8000=$(sudo lsof -ti:8000)
+
+if [ -n "$P8000" ]; then
+  echo "🔪 Uccido processi: $P8000"
+  sudo kill -9 $P8000 2>/dev/null || true
+  sleep 1
+else
+  echo "✔ Nessun processo attivo sulla porta 8000."
 fi
 
 # 8️⃣ Avvio backend FastAPI (senza frontend)
