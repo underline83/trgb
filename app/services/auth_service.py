@@ -4,13 +4,9 @@ from app.core import security
 
 USERS = {
     "marco": {
-        "password": security.get_password_hash("marco123"),
+        "password": security.get_password_hash("marco"),
         "role": "admin",
-    },
-    "viewer": {
-        "password": security.get_password_hash("view"),
-        "role": "viewer",
-    },
+    }
 }
 
 def authenticate_user(username: str, password: str):
