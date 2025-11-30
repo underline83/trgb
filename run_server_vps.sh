@@ -2,7 +2,7 @@
 # TRGB Gestionale — Avvio backend su VPS (Ubuntu)
 # - Usa venv-trgb in /home/marco/trgb
 # - Inizializza i DB se mancanti
-# - Uccide processi già attivi su 8000
+# - Uccide processi sulla porta 8000
 # - Avvia uvicorn main:app su 0.0.0.0:8000
 
 PROJECT_DIR="/home/marco/trgb/trgb"
@@ -28,19 +28,19 @@ cd "$PROJECT_DIR" || exit 1
 # 2️⃣ Verifica venv
 if [ ! -d "$VENV_DIR" ]; then
   echo "❌ venv-trgb non trovata in $VENV_DIR"
-  echo "   Crea la venv con: python3 -m venv /home/marco/trgb/venv-trgb"
+  echo "   Crea la venv con:  python3 -m venv /home/marco/trgb/venv-trgb"
   exit 1
 fi
 
 # 3️⃣ Attiva venv
 source "$VENV_DIR/bin/activate"
 
-# 4️⃣ Aggiorna pip e installa dependencies
+# 4️⃣ Aggiorna pip e installa requirements
 echo "📦 Aggiornamento pip + install requirements..."
 $PIP install --upgrade pip
 $PIP install -r "$PROJECT_DIR/requirements.txt"
 
-# 5️⃣ Assicura cartella dati
+# 5️⃣ Assicura la cartella dati
 mkdir -p "$DATA_DIR"
 
 # 6️⃣ Inizializzazione database se mancanti
