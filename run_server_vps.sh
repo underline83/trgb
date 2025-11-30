@@ -69,7 +69,12 @@ EOF
 fi
 
 echo "✅ DB pronti."
+# 7️⃣ Chiudi eventuali processi sulla porta 8000
+if lsof -ti:8000 >/dev/null 2>&1; then
+  echo "🛑 Chiudo processi sulla porta 8000..."
+  kill -9 $(lsof -ti:8000) 2>/dev/null || true
+fi
 
-# 7️⃣ Avvio backend FastAPI (senza frontend)
+# 8. Avvio backend FastAPI (senza frontend)
 echo "🔹 Avvio backend FastAPI su 0.0.0.0:8000..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000
