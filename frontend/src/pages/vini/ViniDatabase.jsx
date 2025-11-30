@@ -4,6 +4,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../../config/api";
 
 export default function ViniDatabase() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -24,7 +25,7 @@ export default function ViniDatabase() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/vini/upload?format=html",
+        `${API_BASE}/vini/upload?format=html`,
         { method: "POST", body: formData }
       );
 

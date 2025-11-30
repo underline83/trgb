@@ -3,8 +3,9 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE } from "../../config/api";
 
-const API_BASE = "http://127.0.0.1:8000/foodcost";
+const FOODCOST_BASE = `${API_BASE}/foodcost`;
 
 export default function RicetteIngredientiPrezzi() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function RicetteIngredientiPrezzi() {
 
   const loadPrezzi = async () => {
     setLoading(true);
-    const r = await fetch(`${API_BASE}/ingredienti/${id}/prezzi`);
+    const r = await fetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`);
     if (!r.ok) {
       setLoading(false);
       return;
@@ -51,7 +52,7 @@ export default function RicetteIngredientiPrezzi() {
       return;
     }
 
-    await fetch(`${API_BASE}/ingredienti/${id}/prezzi`, {
+    await fetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -71,7 +72,7 @@ export default function RicetteIngredientiPrezzi() {
   const deletePrezzo = async (prezzoId) => {
     if (!window.confirm("Eliminare questo prezzo dallo storico?")) return;
 
-    await fetch(`${API_BASE}/prezzi/${prezzoId}`, {
+    await fetch(`${FOODCOST_BASE}/prezzi/${prezzoId}`, {
       method: "DELETE",
     });
 
@@ -106,9 +107,13 @@ export default function RicetteIngredientiPrezzi() {
 
         {ingrediente && (
           <p className="text-neutral-600 mb-6">
-            Unità: <span className="font-semibold">{ingrediente.unita || "–"}</span>{" "}
+            Unità:{" "}
+            <span className="font-semibold">{ingrediente.unita || "–"}</span>{" "}
             {ingrediente.categoria && (
-              <>• Categoria: <span className="font-semibold">{ingrediente.categoria}</span></>
+              <>
+                • Categoria:{" "}
+                <span className="font-semibold">{ingrediente.categoria}</span>
+              </>
             )}
           </p>
         )}
@@ -116,13 +121,17 @@ export default function RicetteIngredientiPrezzi() {
         {/* RIEPILOGO PREZZI */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-inner">
-            <div className="text-sm text-neutral-600 mb-1">Prezzo medio storico</div>
+            <div className="text-sm text-neutral-600 mb-1">
+              Prezzo medio storico
+            </div>
             <div className="text-2xl font-bold text-amber-900">
               {mediaPrezzo != null ? `${mediaPrezzo.toFixed(2)} €/unità` : "—"}
             </div>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 shadow-inner">
-            <div className="text-sm text-neutral-600 mb-1">Ultimo prezzo registrato</div>
+            <div className="text-sm text-neutral-600 mb-1">
+              Ultimo prezzo registrato
+            </div>
             <div className="text-2xl font-bold text-green-900">
               {ultimoPrezzo != null ? `${ultimoPrezzo.toFixed(2)} €/unità` : "—"}
             </div>

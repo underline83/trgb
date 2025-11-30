@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Query Carta Vini ordinata
-File: app/models/vini_query.py
+File: app/repositories/vini_repository.py
 
 Funzioni:
 - load_vini_ordinati() → ritorna lista dei vini ordinati:
@@ -28,7 +28,7 @@ Filtri applicati (da tabella filtri_carta):
 from __future__ import annotations
 from typing import List, Dict, Any, Tuple
 
-from app.models.database import get_connection, init_database
+from app.models.vini_db import get_connection, init_database
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults
 

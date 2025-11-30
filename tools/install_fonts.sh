@@ -1,9 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================
 # TRGB — Installazione Font Locali per PDF (Cormorant + Inter)
 # ============================================================
 
-FONT_DIR="/Volumes/Underline/trgb_web/app/static/fonts"
+set -e
+
+# Directory di questo script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Root del progetto (cartella trgb_web)
+PROJECT_ROOT="${SCRIPT_DIR}/.."
+
+# Cartella fonts usata dall'app (servita da FastAPI come /static/fonts)
+FONT_DIR="${PROJECT_ROOT}/static/fonts"
 mkdir -p "$FONT_DIR"
 
 echo "📚 Installazione font nella cartella:"

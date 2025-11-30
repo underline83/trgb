@@ -27,9 +27,15 @@ from weasyprint import HTML, CSS
 from docx import Document
 from docx.shared import Inches
 
-from app.models.database import get_connection, init_database
+from app.services.carta_vini_service import (
+    build_carta_body_html,
+    build_carta_body_html_htmlsafe,
+    build_carta_toc_html,
+)
+
+from app.models.vini_db import get_connection, init_database
 from app.models.vini_model import clear_vini_table, normalize_dataframe, insert_vini_rows
-from app.models.vini_query import load_vini_ordinati
+from app.repositories.vini_repository import load_vini_ordinati
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
@@ -116,145 +122,6 @@ async def upload_vini(
         "inserite": inserite,
         "errori": errori[:100]
     }
-
-
-# ------------------------------------------------------------
-# BUILDER — CORPO CARTA (PDF)
-# ------------------------------------------------------------
-def build_carta_body_html(rows) -> str:
-    rows = list(rows)
-    if not rows:
-        return "<p><em>Nessun vino da mostrare.</em></p>"
-
-    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
-    def k_reg(r): return resolve_regione(r)
-    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
-
-    html = ""
-
-    for tip, g1 in groupby(rows, k_tip):
-        g1 = list(g1)
-        html += f"<h2 class='tipologia'>{tip}</h2>"
-
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            html += f"<h3 class='regione'>{reg}</h3>"
-
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                html += "<div class='producer-block'>"
-                html += "<div class='spacer'></div>"
-                html += f"<h4 class='produttore'>{prod}</h4>"
-                html += "<table class='vini'><tbody>"
-
-                for r in g3:
-                    desc = r["DESCRIZIONE"] or ""
-                    annata = r["ANNATA"] or ""
-                    prezzo = r["PREZZO"]
-                    if prezzo not in (None, ""):
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                        except Exception:
-                            prezzo = str(prezzo)
-                    else:
-                        prezzo = ""
-
-                    html += (
-                        "<tr>"
-                        f"<td class='vino'>{desc}</td>"
-                        f"<td class='annata'>{annata}</td>"
-                        f"<td class='prezzo'>{prezzo}</td>"
-                        "</tr>"
-                    )
-
-                html += "</tbody></table></div>"
-
-    return html
-
-
-# ------------------------------------------------------------
-# BUILDER — HTML SAFE (PREVIEW)
-# ------------------------------------------------------------
-def build_carta_body_html_htmlsafe(rows) -> str:
-    """Preview HTML identica alla 1.33 (senza producer-block)."""
-    rows = list(rows)
-    if not rows:
-        return "<p><em>Nessun vino.</em></p>"
-
-    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
-    def k_reg(r): return resolve_regione(r)
-    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
-
-    html = ""
-
-    for tip, g1 in groupby(rows, k_tip):
-        g1 = list(g1)
-        html += f"<h2 class='tipologia'>{tip}</h2>"
-
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            html += f"<h3 class='regione'>{reg}</h3>"
-
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                html += "<div class='spacer'></div>"
-                html += f"<h4 class='produttore'>{prod}</h4>"
-                html += "<table class='vini'><tbody>"
-
-                for r in g3:
-                    desc = r["DESCRIZIONE"] or ""
-                    annata = r["ANNATA"] or ""
-                    prezzo = r["PREZZO"]
-                    if prezzo:
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                        except Exception:
-                            prezzo = str(prezzo)
-
-                    html += (
-                        "<tr>"
-                        f"<td class='vino'>{desc}</td>"
-                        f"<td class='annata'>{annata}</td>"
-                        f"<td class='prezzo'>{prezzo}</td>"
-                        "</tr>"
-                    )
-
-                html += "</tbody></table>"
-
-    return html
-
-
-# ------------------------------------------------------------
-# BUILDER — INDICE
-# ------------------------------------------------------------
-def build_carta_toc_html(rows) -> str:
-    rows = list(rows)
-    if not rows:
-        return ""
-
-    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
-    def k_reg(r): return resolve_regione(r)
-
-    html = [
-        "<div class='toc-page'>",
-        "<div class='toc-title'>INDICE</div>"
-    ]
-
-    for tip, g1 in groupby(rows, k_tip):
-        g1 = list(g1)
-        html.append(f"<div class='toc-tipologia'>{tip}</div>")
-
-        seen = set()
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            if reg not in seen:
-                seen.add(reg)
-                html.append(f"<div class='toc-regione'>· {reg}</div>")
-
-        html.append("<div class='toc-spacer'></div>")
-
-    html.append("</div>")
-    return "".join(html)
 
 
 # ------------------------------------------------------------

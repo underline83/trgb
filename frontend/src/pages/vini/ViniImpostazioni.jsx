@@ -1,4 +1,4 @@
-// @version: v2.4-premium-stable
+/// @version: v2.4-premium-stable
 // Impostazioni Carta Vini — UI Vintage TreGobbi (Tailwind)
 // - Mantiene tutta la logica esistente (drag&drop, filtri, reset)
 // - Layout allineato a Home / ViniMenu / ViniCarta / ViniDatabase / ViniVendite
@@ -10,8 +10,7 @@ import {
   Droppable,
   Draggable,
 } from "@hello-pangea/dnd";
-
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "../../config/api";
 
 const api = {
   tipologie: `${API_BASE}/settings/vini/tipologie`,

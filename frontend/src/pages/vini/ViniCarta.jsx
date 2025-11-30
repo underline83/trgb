@@ -4,6 +4,11 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../../config/api";
+
+const CARTA_URL = `${API_BASE}/vini/carta`;
+const CARTA_PDF_URL = `${CARTA_URL}/pdf`;
+const CARTA_DOCX_URL = `${CARTA_URL}/docx`;
 
 export default function ViniCarta() {
   const [loading, setLoading] = useState(false);
@@ -63,7 +68,7 @@ export default function ViniCarta() {
 
           {/* HTML */}
           <a
-            href="http://127.0.0.1:8000/vini/carta"
+            href={CARTA_URL}
             target="_blank"
             rel="noreferrer"
             className="px-5 py-3 rounded-xl text-amber-900 border border-amber-300 bg-amber-100 hover:bg-amber-200 transition shadow-sm font-medium"
@@ -73,7 +78,7 @@ export default function ViniCarta() {
 
           {/* PDF */}
           <button
-            onClick={() => window.open("http://127.0.0.1:8000/vini/carta/pdf", "_blank")}
+            onClick={() => window.open(CARTA_PDF_URL, "_blank")}
             className="px-6 py-3 rounded-xl text-amber-900 bg-yellow-200 border border-yellow-400 shadow hover:bg-yellow-300 transition font-semibold"
           >
             📄 Scarica PDF
@@ -81,7 +86,7 @@ export default function ViniCarta() {
 
           {/* WORD */}
           <button
-            onClick={() => window.open("http://127.0.0.1:8000/vini/carta/docx", "_blank")}
+            onClick={() => window.open(CARTA_DOCX_URL, "_blank")}
             className="px-6 py-3 rounded-xl text-blue-900 bg-blue-100 border border-blue-300 shadow hover:bg-blue-200 transition font-semibold"
           >
             📝 Scarica Word
@@ -97,7 +102,7 @@ export default function ViniCarta() {
           ) : (
             <iframe
               key={reloadKey}
-              src="http://127.0.0.1:8000/vini/carta"
+              src={CARTA_URL}
               className="w-full"
               style={{
                 height: "calc(100vh - 260px)",
