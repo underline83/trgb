@@ -2,20 +2,18 @@ from datetime import timedelta
 from fastapi import HTTPException, status
 from app.core import security
 
+# 🔴 DEBUG: password in chiaro per sbloccare login
 USERS = {
-    "marco": {
-        "password": security.get_password_hash("ProvaTrgb123!"),
-        "role": "admin",
-    },
-    "admin": {
-        "password": security.get_password_hash("admin"),
-        "role": "admin",
-    },
+    "admin": {"password": "admin", "role": "admin"},
+    "chef": {"password": "chef", "role": "chef"},
+    "sommelier": {"password": "vino", "role": "sommelier"},
+    "viewer": {"password": "view", "role": "viewer"},
 }
 
 def authenticate_user(username: str, password: str):
     user = USERS.get(username)
-    if not user or not security.verify_password(password, user["password"]):
+    # confronto diretto, SENZA hash (solo per debug)
+    if not user or password != user["password"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenziali non valide",
