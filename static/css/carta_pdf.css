@@ -5,7 +5,34 @@
    - Footer numerazione pagina (esclusa prima)
    - Producer-block per evitare spezzature brutte
    ============================================================ */
+/* === FONT EMBEDDED PER WEASYPRINT — PERCORSI ASSOLUTI === */
+@font-face {
+    font-family: "Cormorant Garamond";
+    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Regular.ttf");
+    font-weight: 400;
+}
 
+@font-face {
+    font-family: "Cormorant Garamond";
+    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Medium.ttf");
+    font-weight: 500;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-SemiBold.ttf");
+    font-weight: 600;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Bold.ttf");
+    font-weight: 700;
+}
+
+body {
+    font-family: "Cormorant Garamond", serif;
+}
 /* ============================================================
    PAGINE E FOOTER
    ============================================================ */
