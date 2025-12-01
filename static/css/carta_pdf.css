@@ -1,35 +1,48 @@
 /* ============================================================
-   CARTA VINI — CSS PDF (WeasyPrint) — v3.0
-   Basato su v2.03, con micro-ottimizzazione tipografica
-   - Logo centrato verticalmente e orizzontalmente (fix 100vh)
-   - Frontespizio, indice, carta
-   - Footer numerazione pagina (esclusa prima)
-   - Producer-block per evitare spezzature brutte
+   CARTA VINI — CSS PDF (WeasyPrint) — v3.1-universal
+   Basato su v3.0 / v2.03, con:
+   - font cross-platform (Mac/Win: static/fonts, Linux: /usr/local/share/fonts/tre_gobbi)
+   - nessuna modifica strutturale di layout
    ============================================================ */
 
-/* === FONT EMBEDDED PER WEASYPRINT — PERCORSI ASSOLUTI === */
+/* === FONT EMBEDDED PER WEASYPRINT — PRIORITÀ:
+      1) font progetto ../fonts/*.woff2
+      2) fallback sistema Linux /usr/local/share/fonts/tre_gobbi/*.ttf
+   ============================================================ */
 @font-face {
     font-family: "Cormorant Garamond";
-    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Regular.ttf");
+    src:
+        url("../fonts/CormorantGaramond-Regular.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Regular.ttf") format("truetype");
     font-weight: 400;
+    font-style: normal;
 }
 
 @font-face {
     font-family: "Cormorant Garamond";
-    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Medium.ttf");
+    src:
+        url("../fonts/CormorantGaramond-Medium.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Medium.ttf") format("truetype");
     font-weight: 500;
+    font-style: normal;
 }
 
 @font-face {
     font-family: "Cormorant Garamond";
-    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-SemiBold.ttf");
+    src:
+        url("../fonts/CormorantGaramond-SemiBold.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-SemiBold.ttf") format("truetype");
     font-weight: 600;
+    font-style: normal;
 }
 
 @font-face {
     font-family: "Cormorant Garamond";
-    src: url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Bold.ttf");
+    src:
+        url("../fonts/CormorantGaramond-Bold.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Bold.ttf") format("truetype");
     font-weight: 700;
+    font-style: normal;
 }
 
 body {
@@ -209,10 +222,9 @@ td.annata { width: 10%; text-align: right; padding-right: 8pt; }
 td.prezzo { width: 10%; text-align: right; }
 
 /* ============================================================
-   MICRO-OTTIMIZZAZIONE TIPOGRAFICA v3.0
+   MICRO-OTTIMIZZAZIONE TIPOGRAFICA v3.x
    (non cambia layout: solo resa del font)
    ============================================================ */
-
 html, body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
