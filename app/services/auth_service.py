@@ -5,12 +5,18 @@ ATTENZIONE:
 - Questo modulo NON usa un database.
 - Autenticazione basata su utenti hardcoded.
 - Password in chiaro, solo per sviluppo.
-- In produzione questo file dovrà essere sostituito da un vero sistema utenti.
 """
+
+from datetime import timedelta
+from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+
+from app.core import security
+from app.core import config
 
 # ---------------------------------------------------------------------------
 # MOCK USERS (solo per debug)
-# In produzione verrà sostituito da un database utenti reale.
 # ---------------------------------------------------------------------------
 USERS = {
     "admin": {"password": "admin", "role": "admin"},
@@ -19,15 +25,17 @@ USERS = {
     "viewer": {"password": "view", "role": "viewer"},
 }
 
+# ---------------------------------------------------------------------------
+# OAuth2 schema (BEARER TOKEN)
+# ---------------------------------------------------------------------------
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-from datetime import timedelta
-from fastapi import HTTPException, status
-from app.core import security
-
+# ---------------------------------------------------------------------------
+# LOGIN
+# ---------------------------------------------------------------------------
 def authenticate_user(username: str, password: str):
     user = USERS.get(username)
 
-    # confronto diretto, SENZA hash (solo per debug)
     if not user or password != user["password"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -43,4 +51,41 @@ def authenticate_user(username: str, password: str):
         "access_token": access_token,
         "token_type": "bearer",
         "role": user["role"],
+    }
+
+# ---------------------------------------------------------------------------
+# DECODE TOKEN
+# ---------------------------------------------------------------------------
+def decode_access_token(token: str):
+    try:
+        payload = jwt.decode(
+            token,
+            config.SECRET_KEY,
+            algorithms=[config.ALGORITHM],
+        )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token non valido",
+        )
+
+# ---------------------------------------------------------------------------
+# UTENTE CORRENTE
+# ---------------------------------------------------------------------------
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = decode_access_token(token)
+
+    username: str = payload.get("sub")
+    role: str = payload.get("role")
+
+    if not username or username not in USERS:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Utente non valido",
+        )
+
+    return {
+        "username": username,
+        "role": role,
     }
