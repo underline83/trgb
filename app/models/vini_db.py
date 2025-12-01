@@ -1,7 +1,7 @@
 # @version: v2.1-schema-extended
 # -*- coding: utf-8 -*-
-
 from __future__ import annotations
+
 import sqlite3
 from pathlib import Path
 
@@ -17,11 +17,8 @@ def get_connection() -> sqlite3.Connection:
 
 def init_database():
     """
-    Inizializza il DB vini garantendo che:
-    - la tabella `vini` esista
-    - lo schema sia allineato alle colonne usate da insert_vini_rows()
-      (IPRATICO, DENOMINAZIONE, FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2,
-       DISTRIBUTORE, EURO_LISTINO, SCONTO, oltre alle colonne base).
+    Inizializza e migra la tabella `vini` rendendola compatibile con tutte
+    le colonne richieste da insert_vini_rows().
     """
     conn = get_connection()
     cur = conn.cursor()
@@ -37,43 +34,46 @@ def init_database():
         "'MN','QP','ME','DM','CL','BT','BN','MG','MJ','JB','RH','JBX','MS','SM','BZ','NB','ML','PR','MZ'"
     )
 
-    # Schema completo, per nuove installazioni
+    # --- CREATE TABLE IF NOT EXISTS (base schema current version) ---
     cur.execute(
         f"""
         CREATE TABLE IF NOT EXISTS vini (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            TIPOLOGIA   TEXT CHECK (TIPOLOGIA IN ({tipo_check})),
-            NAZIONE     TEXT,
-            CODICE      TEXT,
-            REGIONE     TEXT,
-            CARTA       TEXT CHECK (CARTA IN ('SI','NO') OR CARTA IS NULL),
-            -- colonne gestionali / import
-            IPRATICO    TEXT,
+            TIPOLOGIA     TEXT CHECK (TIPOLOGIA IN ({tipo_check})),
+            NAZIONE       TEXT,
+            CODICE        TEXT,
+            REGIONE       TEXT,
+            CARTA         TEXT CHECK (CARTA IN ('SI','NO') OR CARTA IS NULL),
+
+            -- Colonne estese per importazione completa
+            IPRATICO      TEXT,
             DENOMINAZIONE TEXT,
-            FORMATO     TEXT CHECK (FORMATO IS NULL OR FORMATO IN ({formato_check})),
-            N_FRIGO     INTEGER DEFAULT 0,
-            FRIGORIFERO TEXT,
-            N_LOC1      INTEGER DEFAULT 0,
-            LOCAZIONE_1 TEXT,
-            N_LOC2      INTEGER DEFAULT 0,
-            LOCAZIONE_2 TEXT,
-            QTA         INTEGER DEFAULT 0,
-            DESCRIZIONE TEXT,
-            ANNATA      TEXT,
-            PRODUTTORE  TEXT,
-            PREZZO      REAL,
-            DISTRIBUTORE TEXT,
-            EURO_LISTINO REAL,
-            SCONTO      REAL
+            FORMATO       TEXT CHECK (FORMATO IS NULL OR FORMATO IN ({formato_check})),
+            N_FRIGO       INTEGER DEFAULT 0,
+            FRIGORIFERO   TEXT,
+            N_LOC1        INTEGER DEFAULT 0,
+            LOCAZIONE_1   TEXT,
+            N_LOC2        INTEGER DEFAULT 0,
+            LOCAZIONE_2   TEXT,
+            QTA           INTEGER DEFAULT 0,
+
+            DESCRIZIONE   TEXT,
+            ANNATA        TEXT,
+            PRODUTTORE    TEXT,
+            PREZZO        REAL,
+
+            DISTRIBUTORE  TEXT,
+            EURO_LISTINO  REAL,
+            SCONTO        REAL
         );
         """
     )
 
-    # MIGRAZIONE: aggiunge eventuali colonne mancanti su tabelle già esistenti
+    # --- MIGRAZIONE (ALTER TABLE aggiunge colonne mancanti) ---
     cur.execute("PRAGMA table_info(vini);")
-    existing_cols = {row["name"] for row in cur.fetchall()}
+    existing = {row["name"] for row in cur.fetchall()}
 
-    needed_columns = {
+    needed = {
         "IPRATICO": "TEXT",
         "DENOMINAZIONE": "TEXT",
         "FRIGORIFERO": "TEXT",
@@ -84,9 +84,9 @@ def init_database():
         "SCONTO": "REAL",
     }
 
-    for col_name, col_type in needed_columns.items():
-        if col_name not in existing_cols:
-            cur.execute(f"ALTER TABLE vini ADD COLUMN {col_name} {col_type};")
+    for col, typ in needed.items():
+        if col not in existing:
+            cur.execute(f"ALTER TABLE vini ADD COLUMN {col} {typ};")
 
     conn.commit()
     conn.close()
