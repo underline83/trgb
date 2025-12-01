@@ -8,10 +8,6 @@ Gestisce il DB SQLite 'vini.sqlite3' con:
 - Tabella principale 'vini' (catalogo + giacenze)
 - Tabella 'vini_movimenti' (storico carichi/scarichi/vendite/rettifiche)
 - Tabella 'vini_note' (note operative per vino)
-
-NOTE:
-- Lo schema di 'vini' è compatibile con l'import Excel attuale.
-- Le funzioni di movimentazione centralizzano la logica di aggiornamento QTA.
 """
 
 from __future__ import annotations
@@ -19,13 +15,13 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 DB_PATH = Path("app/data/vini.sqlite3")
 
 
 # ---------------------------------------------------------
-# CONNESSIONE DI BASE
+# CONNESSIONE
 # ---------------------------------------------------------
 def get_connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -35,22 +31,13 @@ def get_connection() -> sqlite3.Connection:
 
 
 # ---------------------------------------------------------
-# INIT SCHEMA
+# INIT DATABASE
 # ---------------------------------------------------------
 def init_database() -> None:
-    """
-    Crea tutte le tabelle necessarie se non esistono:
-    - vini
-    - vini_movimenti
-    - vini_note
-    """
     conn = get_connection()
     cur = conn.cursor()
 
-    # -----------------------------------------------------
-    # TABELLA PRINCIPALE 'vini'
-    # (schema allineato a import Excel + carta)
-    # -----------------------------------------------------
+    # TABELLA VINI
     tipo_check = (
         "'GRANDI FORMATI','BOLLICINE FRANCIA','BOLLICINE STRANIERE','BOLLICINE ITALIA',"
         "'BIANCHI ITALIA','BIANCHI FRANCIA','BIANCHI STRANIERI','ROSATI',"
@@ -92,15 +79,12 @@ def init_database() -> None:
         """
     )
 
-    # Indici utili per ricerche frequenti (non obbligatori ma consigliati)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_tipologia ON vini (TIPOLOGIA);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_regione ON vini (REGIONE);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_produttore ON vini (PRODUTTORE);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_tipologia   ON vini (TIPOLOGIA);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_regione     ON vini (REGIONE);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_produttore  ON vini (PRODUTTORE);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vini_descrizione ON vini (DESCRIZIONE);")
 
-    # -----------------------------------------------------
-    # TABELLA 'vini_movimenti'
-    # -----------------------------------------------------
+    # MOVIMENTI
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS vini_movimenti (
@@ -117,13 +101,11 @@ def init_database() -> None:
         """
     )
     cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_movimenti_vino_data "
+        "CREATE INDEX IF NOT EXISTS idx_mov_vino_data "
         "ON vini_movimenti (vino_id, data_mov);"
     )
 
-    # -----------------------------------------------------
-    # TABELLA 'vini_note'
-    # -----------------------------------------------------
+    # NOTE
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS vini_note (
@@ -136,16 +118,14 @@ def init_database() -> None:
         );
         """
     )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_note_vino ON vini_note (vino_id);"
-    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_note_vino ON vini_note (vino_id);")
 
     conn.commit()
     conn.close()
 
 
 # ---------------------------------------------------------
-# LOGICA MOVIMENTI CANTINA
+# UTILITIES
 # ---------------------------------------------------------
 MOVIMENTI_TIPI_VALIDI = {"CARICO", "SCARICO", "VENDITA", "RETTIFICA"}
 
@@ -154,6 +134,28 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+# ---------------------------------------------------------
+# FUNZIONI SINGOLO VINO
+# ---------------------------------------------------------
+def get_vino_by_id(vino_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    row = cur.execute("SELECT * FROM vini WHERE id = ?;", (vino_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def update_vino_qta(vino_id: int, nuova_qta: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE vini SET QTA = ? WHERE id = ?;", (nuova_qta, vino_id))
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------
+# REGISTRAZIONE MOVIMENTO
+# ---------------------------------------------------------
 def registra_movimento(
     vino_id: int,
     tipo: str,
@@ -162,40 +164,19 @@ def registra_movimento(
     origine: Optional[str] = "GESTIONALE",
     data_mov: Optional[str] = None,
 ) -> None:
-    """
-    Registra un movimento di cantina e aggiorna la QTA in 'vini'.
 
-    Parametri:
-        vino_id : id del vino nella tabella 'vini'
-        tipo    : 'CARICO' | 'SCARICO' | 'VENDITA' | 'RETTIFICA'
-        qta     : quantità positiva (per RETTIFICA vedi logica sotto)
-        note    : note operative (es. 'servizio', 'evento X', 'rettifica inventario')
-        origine : es. 'GESTIONALE', 'IMPORT', 'ALTRO'
-        data_mov: ISO string; se None viene usata la data corrente
-
-    Logica QTA:
-        - CARICO   → QTA = QTA + qta
-        - SCARICO  → QTA = QTA - qta
-        - VENDITA  → QTA = QTA - qta
-        - RETTIFICA:
-            - qta viene interpretata come NUOVO valore assoluto di QTA
-            - viene registrata la differenza (qta - QTA_attuale) in vini_movimenti
-    """
     if tipo not in MOVIMENTI_TIPI_VALIDI:
         raise ValueError(f"Tipo movimento non valido: {tipo}")
 
     if qta <= 0:
         raise ValueError("La quantità qta deve essere > 0")
 
-    if data_mov is None:
-        data_mov = _now_iso()
-
+    data_mov = data_mov or _now_iso()
     created_at = _now_iso()
 
     conn = get_connection()
     cur = conn.cursor()
 
-    # Legge QTA corrente
     row = cur.execute("SELECT QTA FROM vini WHERE id = ?;", (vino_id,)).fetchone()
     if not row:
         conn.close()
@@ -203,7 +184,6 @@ def registra_movimento(
 
     qta_attuale = row["QTA"] or 0
 
-    # Calcolo delta e nuova QTA
     if tipo == "CARICO":
         delta = qta
         nuova_qta = qta_attuale + qta
@@ -211,17 +191,11 @@ def registra_movimento(
         delta = -qta
         nuova_qta = qta_attuale - qta
     else:  # RETTIFICA
-        # qta = nuovo valore assoluto
         nuova_qta = qta
         delta = qta - qta_attuale
 
-    # Aggiorna QTA nella tabella vini
-    cur.execute(
-        "UPDATE vini SET QTA = ? WHERE id = ?;",
-        (nuova_qta, vino_id),
-    )
+    cur.execute("UPDATE vini SET QTA = ? WHERE id = ?;", (nuova_qta, vino_id))
 
-    # Registra movimento solo se c'è effettivamente un delta
     if delta != 0:
         cur.execute(
             """
@@ -236,15 +210,11 @@ def registra_movimento(
     conn.close()
 
 
-def aggiungi_nota_vino(
-    vino_id: int,
-    nota: str,
-    autore: Optional[str] = None,
-) -> None:
-    """
-    Aggiunge una nota operativa per un vino.
-    """
-    if not nota or not nota.strip():
+# ---------------------------------------------------------
+# NOTE VINO
+# ---------------------------------------------------------
+def aggiungi_nota_vino(vino_id: int, nota: str, autore: Optional[str] = None):
+    if not nota.strip():
         raise ValueError("La nota non può essere vuota")
 
     created_at = _now_iso()
@@ -252,7 +222,6 @@ def aggiungi_nota_vino(
     conn = get_connection()
     cur = conn.cursor()
 
-    # verifica esistenza vino (evita note orfane)
     row = cur.execute("SELECT id FROM vini WHERE id = ?;", (vino_id,)).fetchone()
     if not row:
         conn.close()
@@ -265,36 +234,97 @@ def aggiungi_nota_vino(
         """,
         (vino_id, nota.strip(), autore, created_at),
     )
-# ---------------------------------------------------------
-# FUNZIONI BASE PER LETTURA / UPDATE SINGOLO VINO
-# ---------------------------------------------------------
 
-def get_vino_by_id(vino_id: int):
-    """
-    Restituisce una singola riga dalla tabella 'vini' dato l'ID.
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-    row = cur.execute(
-        "SELECT * FROM vini WHERE id = ?;",
-        (vino_id,)
-    ).fetchone()
-    conn.close()
-    return row
-
-
-def update_vino_qta(vino_id: int, nuova_qta: int):
-    """
-    Imposta direttamente QTA = nuova_qta.
-    (Usata da RETTIFICA o da funzioni di amministrazione)
-    """
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE vini SET QTA = ? WHERE id = ?;",
-        (nuova_qta, vino_id)
-    )
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------
+# LIST MOVIMENTI / NOTE
+# ---------------------------------------------------------
+def list_movimenti_vino(vino_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT *
+        FROM vini_movimenti
+        WHERE vino_id = ?
+        ORDER BY data_mov DESC, id DESC
+        """,
+        (vino_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def list_note_vino(vino_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT *
+        FROM vini_note
+        WHERE vino_id = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (vino_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+# ---------------------------------------------------------
+# DELETE MOVIMENTO / NOTA
+# ---------------------------------------------------------
+def delete_movimento(mov_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM vini_movimenti WHERE id = ?;", (mov_id,))
     conn.commit()
     conn.close()
+
+
+def delete_nota(nota_id: int):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM vini_note WHERE id = ?;", (nota_id,))
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------
+# RICERCA VINI
+# ---------------------------------------------------------
+def search_vini(
+    testo: str = "",
+    tipologia: str = None,
+    produttore: str = None,
+    regione: str = None,
+):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    query = "SELECT * FROM vini WHERE 1=1"
+    params = []
+
+    if testo:
+        query += " AND (DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?)"
+        like = f"%{testo}%"
+        params += [like, like]
+
+    if tipologia:
+        query += " AND TIPOLOGIA = ?"
+        params.append(tipologia)
+
+    if produttore:
+        query += " AND PRODUTTORE = ?"
+        params.append(produttore)
+
+    if regione:
+        query += " AND REGIONE = ?"
+        params.append(regione)
+
+    rows = cur.execute(query, params).fetchall()
+    conn.close()
+    return rows
