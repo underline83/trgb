@@ -5,16 +5,28 @@ export default defineConfig({
   plugins: [react()],
 
   server: {
+    host: "127.0.0.1",
+    port: 5173,
+    allowedHosts: ["app.tregobbi.it"],
+
     watch: {
       ignored: [
         "**/.DS_Store",
         "**/.Trash/**",
         "**/.Spotlight-V100/**",
         "**/.fseventsd/**",
-
-        // IMPORTANTISSIMO: questa è la versione SICURA
         "**/._*.*"
       ]
     }
   }
 });
+
+
+
+
+
+
+
+
+
+
