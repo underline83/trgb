@@ -1,5 +1,5 @@
-// @version: v2.4-premium-stable
-// Menu Gestione Vini — Vintage Premium + Back Button
+// @version: v3.0-premium-magazzino
+// Menu Gestione Vini — Vintage Premium + Magazzino
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -18,7 +18,7 @@ export default function ViniMenu() {
               🍷 Gestione Vini — Osteria Tre Gobbi
             </h1>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
-              Seleziona una funzione per continuare.
+              Scegli un modulo da gestire.
             </p>
           </div>
 
@@ -41,7 +41,7 @@ export default function ViniMenu() {
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-          {/* CARTA VINI */}
+          {/* --- CARTA VINI --- */}
           <Link
             to="/vini/carta"
             className="
@@ -60,7 +60,7 @@ export default function ViniMenu() {
             </p>
           </Link>
 
-          {/* DATABASE */}
+          {/* --- DATABASE (Import Excel) --- */}
           <Link
             to="/vini/database"
             className="
@@ -70,35 +70,35 @@ export default function ViniMenu() {
               text-center
             "
           >
-            <div className="text-5xl mb-3">📤</div>
+            <div className="text-5xl mb-3">📥</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Database Vini
+              Import / Database Carta
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Importa file Excel (.xlsx)
+              Carica e aggiorna i dati da Excel
             </p>
           </Link>
 
-          {/* VENDITE */}
-          <Link
-            to="/vini/vendite"
-            className="
-              bg-green-50 border border-green-200 text-green-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📊</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Vendite & Statistiche
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Analisi consumi e reportistica
-            </p>
-          </Link>
+{/* MAGAZZINO VINI */}
+<Link
+  to="/vini/magazzino"
+  className="
+    bg-purple-50 border border-purple-200 text-purple-900
+    rounded-2xl p-8 shadow
+    hover:shadow-xl hover:-translate-y-1 transition transform
+    text-center
+  "
+>
+  <div className="text-5xl mb-3">🏷️</div>
+  <h2 className="text-xl font-semibold font-playfair">
+    Magazzino Vini
+  </h2>
+  <p className="text-neutral-700 text-sm mt-1">
+    Giacenze cantina, locazioni, stato vendita
+  </p>
+</Link>
 
-          {/* IMPOSTAZIONI */}
+          {/* --- IMPOSTAZIONI CARTA --- */}
           <Link
             to="/vini/settings"
             className="
@@ -113,7 +113,7 @@ export default function ViniMenu() {
               Impostazioni Carta
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Tipologie, regioni, preferenze
+              Tipologie, regioni, preferenze (solo per Carta da Excel)
             </p>
           </Link>
 

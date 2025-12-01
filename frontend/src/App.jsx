@@ -1,4 +1,6 @@
-// @version: v2.6-routing-cleanup
+// @version: v3.0-premium-magazzino
+// App principale — Routing TRGB Gestionale Web
+
 import React, { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
@@ -11,6 +13,7 @@ import ViniCarta from "./pages/vini/ViniCarta";
 import ViniDatabase from "./pages/vini/ViniDatabase";
 import ViniVendite from "./pages/vini/ViniVendite";
 import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
+import ViniMagazzino from "./pages/vini/ViniMagazzino";
 
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
@@ -19,10 +22,12 @@ import RicetteArchivio from "./pages/ricette/RicetteArchivio";
 import RicetteImport from "./pages/ricette/RicetteImport";
 import RicetteIngredienti from "./pages/ricette/RicetteIngredienti";
 import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
 
+  // Se non c'è token mostro sempre il login
   if (!token) {
     return <Login setToken={setToken} setRole={setRole} />;
   }
@@ -30,7 +35,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* HOME */}
         <Route path="/" element={<Home />} />
 
@@ -40,15 +44,18 @@ export default function App() {
         <Route path="/vini/database" element={<ViniDatabase />} />
         <Route path="/vini/vendite" element={<ViniVendite />} />
         <Route path="/vini/settings" element={<ViniImpostazioni />} />
+        <Route path="/vini/magazzino" element={<ViniMagazzino />} />
 
-        {/* GESTIONE RICETTE */}
+        {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
         <Route path="/ricette/nuova" element={<RicetteNuova />} />
         <Route path="/ricette/archivio" element={<RicetteArchivio />} />
-    <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
-    <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
-    <Route path="/ricette/import" element={<RicetteImport />} />
-
+        <Route path="/ricette/import" element={<RicetteImport />} />
+        <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
+        <Route
+          path="/ricette/ingredienti/:id/prezzi"
+          element={<RicetteIngredientiPrezzi />}
+        />
       </Routes>
     </BrowserRouter>
   );
