@@ -1,8 +1,12 @@
-# @version: v2.04-beta
+# @version: v2.05-beta
 # -*- coding: utf-8 -*-
 """
-Router Vini — HTML + PDF + DOCX
+Router Vini — HTML + PDF + DOCX + Movimenti
 Linea 2.x = motore carta avanzato (impaginazione + indice)
+
+Changelog v2.05:
+ - ADD: endpoint /vini/{vino_id}/movimenti (GET/POST)
+        con log utente (JWT) nelle note movimento
 
 Changelog v2.04:
  - ADD: endpoint /vini/carta/pdf-staff (PDF staff)
@@ -17,11 +21,14 @@ from pathlib import Path
 from datetime import datetime
 import unicodedata
 import re
+from typing import List, Dict, Any
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 import pandas as pd
 import tempfile
+
+from pydantic import BaseModel, Field
 
 from weasyprint import HTML, CSS
 from docx import Document
@@ -32,14 +39,21 @@ from app.services.carta_vini_service import (
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
 )
+from app.services.auth_service import get_current_user
 
-from app.models.vini_db import get_connection, init_database
+from app.models.vini_db import (
+    get_connection,
+    init_database,
+    get_vino_by_id,
+    list_movimenti_vino,
+    registra_movimento,
+)
 from app.models.vini_model import clear_vini_table, normalize_dataframe, insert_vini_rows
 from app.repositories.vini_repository import load_vini_ordinati
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
-print(">>>>> LOADING VINI_ROUTER v2.04   PATH:", __file__)
+print(">>>>> LOADING VINI_ROUTER v2.05   PATH:", __file__)
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -295,3 +309,96 @@ def genera_carta_vini_docx():
     doc.save(str(out))
 
     return FileResponse(out, filename="carta_vini.docx")
+
+
+# ============================================================
+# MOVIMENTI CANTINA
+# ============================================================
+
+class MovimentoCreate(BaseModel):
+    tipo: str = Field(..., description="CARICO / SCARICO / VENDITA / RETTIFICA")
+    qta: int = Field(..., gt=0, description="Quantità positiva")
+    note: str | None = Field(None, description="Nota operativa (evento, servizio, ecc.)")
+    origine: str | None = Field("GESTIONALE", description="Origine movimento")
+    data_mov: str | None = Field(
+        None,
+        description="Data movimento ISO8601; se None usa datetime.now()",
+    )
+
+
+@router.get("/{vino_id}/movimenti", response_class=JSONResponse)
+def lista_movimenti_vino(
+    vino_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Restituisce la lista dei movimenti registrati per un dato vino.
+    Richiede utente loggato (JWT valido).
+    """
+    vino = get_vino_by_id(vino_id)
+    if not vino:
+        raise HTTPException(status_code=404, detail="Vino non trovato")
+
+    rows = list_movimenti_vino(vino_id)
+    movimenti = [dict(r) for r in rows]
+
+    return JSONResponse(content={"vino_id": vino_id, "movimenti": movimenti})
+
+
+@router.post("/{vino_id}/movimenti", response_class=JSONResponse)
+def crea_movimento_vino(
+    vino_id: int,
+    payload: MovimentoCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Registra un movimento di cantina per un vino:
+    - CARICO    → QTA aumenta
+    - SCARICO   → QTA diminuisce
+    - VENDITA   → QTA diminuisce
+    - RETTIFICA → qta = nuovo valore assoluto
+
+    Logga SEMPRE l'utente che esegue il movimento, prefisso nella nota:
+        [username] testo nota
+    """
+    vino = get_vino_by_id(vino_id)
+    if not vino:
+        raise HTTPException(status_code=404, detail="Vino non trovato")
+
+    tipo = payload.tipo.strip().upper()
+
+    # Ricavo un identificativo utente leggibile
+    utente = (
+        (current_user.get("username") if isinstance(current_user, dict) else None)
+        or (current_user.get("email") if isinstance(current_user, dict) else None)
+        or (str(current_user.get("id")) if isinstance(current_user, dict) and current_user.get("id") is not None else None)
+        or "unknown"
+    )
+
+    # Componiamo la nota completa con utente sempre presente
+    if payload.note:
+        nota_completa = f"[{utente}] {payload.note}"
+    else:
+        nota_completa = f"[{utente}]"
+
+    try:
+        registra_movimento(
+            vino_id=vino_id,
+            tipo=tipo,
+            qta=payload.qta,
+            note=nota_completa,
+            origine=payload.origine or "GESTIONALE",
+            data_mov=payload.data_mov,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return JSONResponse(
+        content={
+            "status": "ok",
+            "vino_id": vino_id,
+            "tipo": tipo,
+            "qta": payload.qta,
+            "eseguito_da": utente,
+        }
+    )
