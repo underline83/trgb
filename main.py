@@ -17,7 +17,7 @@ from app.routers import vini_settings_router
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
-
+from app.routers import vini_magazzino_router
 # ----------------------------------------
 # APP
 # ----------------------------------------
@@ -59,6 +59,7 @@ app.mount(
 # VINI
 app.include_router(vini_settings_router.router)
 app.include_router(vini_router.router)
+app.include_router(vini_magazzino_router.router)
 
 # INGREDIENTI/FOODCOST
 app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
