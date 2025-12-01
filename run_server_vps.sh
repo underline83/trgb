@@ -1,7 +1,7 @@
-#!/bin/bash
+##!/bin/bash
 # TRGB Gestionale — Avvio backend su VPS (Ubuntu)
 # - Usa venv-trgb in /home/marco/trgb
-# - Inizializza i DB se mancanti
+# - Inizializza i DB se mancanti (vini, foodcost) e garantisce settings carta
 # - Uccide processi sulla porta 8000
 # - Avvia uvicorn main:app su 0.0.0.0:8000
 
@@ -14,7 +14,7 @@ UVICORN="$VENV_DIR/bin/uvicorn"
 APP_DIR="$PROJECT_DIR/app"
 DATA_DIR="$APP_DIR/data"
 
-DB_PATH="$DATA_DIR/vini.db"
+VINI_DB_PATH="$DATA_DIR/vini.sqlite3"
 SETTINGS_DB_PATH="$DATA_DIR/vini_settings.sqlite3"
 FOODCOST_DB_PATH="$DATA_DIR/foodcost.db"
 
@@ -43,36 +43,41 @@ $PIP install -r "$PROJECT_DIR/requirements.txt"
 # 5️⃣ Assicura la cartella dati
 mkdir -p "$DATA_DIR"
 
-# 6️⃣ Inizializzazione database se mancanti
-if [ ! -f "$DB_PATH" ]; then
-  echo "🧱 creo vini.db…"
+# 6️⃣ Inizializzazione database VINI se mancante
+if [ ! -f "$VINI_DB_PATH" ]; then
+  echo "🧱 creo vini.sqlite3…"
   $PYTHON - <<'EOF'
-from app.models.database import init_database
+from app.models.vini_db import init_database
 init_database()
 EOF
+else
+  echo "✔ vini.sqlite3 già presente."
 fi
 
-if [ ! -f "$SETTINGS_DB_PATH" ]; then
-  echo "🧱 creo vini_settings.sqlite3…"
-  $PYTHON - <<'EOF'
+# 7️⃣ Impostazioni carta vini (sempre garantite)
+echo "🧩 verifico/imposto vini_settings.sqlite3…"
+$PYTHON - <<'EOF'
 from app.models.settings_db import init_settings_db
 from app.models.vini_settings import ensure_settings_defaults
+
 init_settings_db()
 ensure_settings_defaults()
 EOF
-fi
 
+# 8️⃣ Inizializzazione FOODCOST se mancante
 if [ ! -f "$FOODCOST_DB_PATH" ]; then
   echo "🧱 creo foodcost.db…"
   $PYTHON - <<'EOF'
 from app.models.foodcost_db import init_foodcost_db
 init_foodcost_db()
 EOF
+else
+  echo "✔ foodcost.db già presente."
 fi
 
 echo "✅ DB pronti."
 
-# 7️⃣ Chiudi eventuali processi sulla porta 8000 (kill infallibile)
+# 9️⃣ Chiudi eventuali processi sulla porta 8000 (kill infallibile)
 echo "🛑 Controllo processi sulla porta 8000..."
 
 P8000=$(sudo lsof -ti:8000)
@@ -85,6 +90,6 @@ else
   echo "✔ Nessun processo attivo sulla porta 8000."
 fi
 
-# 8️⃣ Avvio backend FastAPI (senza frontend)
+# 🔟 Avvio backend FastAPI (senza frontend)
 echo "🔹 Avvio backend FastAPI su 0.0.0.0:8000..."
 exec "$UVICORN" main:app --host 0.0.0.0 --port 8000
