@@ -265,6 +265,36 @@ def aggiungi_nota_vino(
         """,
         (vino_id, nota.strip(), autore, created_at),
     )
+# ---------------------------------------------------------
+# FUNZIONI BASE PER LETTURA / UPDATE SINGOLO VINO
+# ---------------------------------------------------------
 
+def get_vino_by_id(vino_id: int):
+    """
+    Restituisce una singola riga dalla tabella 'vini' dato l'ID.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT * FROM vini WHERE id = ?;",
+        (vino_id,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def update_vino_qta(vino_id: int, nuova_qta: int):
+    """
+    Imposta direttamente QTA = nuova_qta.
+    (Usata da RETTIFICA o da funzioni di amministrazione)
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE vini SET QTA = ? WHERE id = ?;",
+        (nuova_qta, vino_id)
+    )
+    conn.commit()
+    conn.close()
     conn.commit()
     conn.close()
