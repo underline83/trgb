@@ -1,4 +1,4 @@
-# @version: v1.0-magazzino
+# @version: v1.1-magazzino
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)
@@ -45,6 +45,8 @@ def init_magazzino_database() -> None:
     - vini_magazzino
     - vini_magazzino_movimenti
     - vini_magazzino_note
+
+    E applica piccole migrazioni NON distruttive (es. colonna ANNATA).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -65,6 +67,7 @@ def init_magazzino_database() -> None:
             REGIONE         TEXT,
 
             DESCRIZIONE     TEXT NOT NULL,
+            ANNATA          TEXT,              -- es. 2019, NV
             DENOMINAZIONE   TEXT,
             VITIGNI         TEXT,
             GRADO_ALCOLICO  REAL,
@@ -127,6 +130,15 @@ def init_magazzino_database() -> None:
         "CREATE INDEX IF NOT EXISTS idx_vm_descrizione "
         "ON vini_magazzino (DESCRIZIONE);"
     )
+
+    # -----------------------------------------------------
+    # MIGRAZIONI LEGGERISSIME (non distruttive)
+    # -----------------------------------------------------
+    # ANNATA: se la tabella esisteva da prima senza la colonna, la aggiungiamo.
+    cur.execute("PRAGMA table_info(vini_magazzino);")
+    cols = [row[1] for row in cur.fetchall()]
+    if "ANNATA" not in cols:
+        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN ANNATA TEXT;")
 
     # -----------------------------------------------------
     # TABELLA 'vini_magazzino_movimenti'
@@ -361,7 +373,7 @@ def aggiorna_quantita_locazioni(
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    fields = {}
+    fields: Dict[str, Any] = {}
     if qta_frigo is not None:
         fields["QTA_FRIGO"] = qta_frigo
     if qta_loc1 is not None:
