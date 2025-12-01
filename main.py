@@ -27,9 +27,16 @@ app = FastAPI(title="TRGB Gestionale Web", version="2025.11-web")
 # ----------------------------------------
 # CORS (per frontend React/Vite)
 # ----------------------------------------
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://app.tregobbi.it",
+    "https://trgb.tregobbi.it",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # per ora lasciamo tutto aperto
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
