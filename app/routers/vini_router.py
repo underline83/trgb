@@ -1,8 +1,14 @@
-# @version: v2.05-beta
+# @version: v2.06-stable
 # -*- coding: utf-8 -*-
 """
-Router Vini — HTML + PDF + DOCX + Movimenti
+Router Vini — HTML + PDF + DOCX + Movimenti + Import Excel
+
 Linea 2.x = motore carta avanzato (impaginazione + indice)
+
+Changelog v2.06:
+ - CLEAN: rimosso uso di tabella 'vini_raw'
+ - CLEAN: /vini/upload ora scrive solo su 'vini' (vini.sqlite3)
+ - REFINE: import pulito, niente import interni ridondanti
 
 Changelog v2.05:
  - ADD: endpoint /vini/{vino_id}/movimenti (GET/POST)
@@ -16,6 +22,7 @@ Changelog v2.04:
 """
 
 from __future__ import annotations
+
 from itertools import groupby
 from pathlib import Path
 from datetime import datetime
@@ -23,13 +30,13 @@ import unicodedata
 import re
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
-import pandas as pd
+import os
 import tempfile
 
+import pandas as pd
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
-
 from weasyprint import HTML, CSS
 from docx import Document
 from docx.shared import Inches
@@ -48,12 +55,17 @@ from app.models.vini_db import (
     list_movimenti_vino,
     registra_movimento,
 )
-from app.models.vini_model import clear_vini_table, normalize_dataframe, insert_vini_rows
+from app.models.vini_model import (
+    clear_vini_table,
+    normalize_dataframe,
+    insert_vini_rows,
+)
 from app.repositories.vini_repository import load_vini_ordinati
+
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
-print(">>>>> LOADING VINI_ROUTER v2.05   PATH:", __file__)
+print(">>>>> LOADING VINI_ROUTER v2.06   PATH:", __file__)
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -66,7 +78,6 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 # ------------------------------------------------------------
 # UTILS
 # ------------------------------------------------------------
-
 def slugify(value: str) -> str:
     """Crea un id CSS/HTML semplice per tipologie e regioni."""
     if not value:
@@ -87,62 +98,64 @@ def resolve_regione(r):
 
 
 # ------------------------------------------------------------
-# UPLOAD
+# UPLOAD EXCEL → DB 'vini'
 # ------------------------------------------------------------
 @router.post("/upload")
 async def upload_vini(
     file: UploadFile = File(...),
-    format: str = Query("json", enum=["json", "html"])
+    format: str = Query("json", enum=["json", "html"]),
 ):
-    import tempfile
-    import pandas as pd
-    from fastapi import HTTPException
-    from fastapi.responses import HTMLResponse
+    """
+    Importa il foglio 'VINI' da un Excel, normalizza con vini_model
+    e popola la tabella 'vini' nel DB ufficiale (vini.sqlite3).
 
-    from app.core.database import get_connection
-    from app.models.vini_model import (
-        normalize_dataframe,
-        clear_vini_table,
-        insert_vini_rows,
-        init_database,
-    )
-
-    # 1) Salvo il file ricevuto (come già facevi)
+    Nessun DB RAW: Excel → normalize_dataframe → insert_vini_rows.
+    """
+    # 1) Salvo il file temporaneamente
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
 
-    # 2) Leggo il foglio VINI dall'Excel
     try:
-        xls = pd.ExcelFile(tmp_path)
+        # 2) Leggo il foglio "VINI"
+        try:
+            xls = pd.ExcelFile(tmp_path)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Errore apertura Excel: {e}")
+
         if "VINI" not in xls.sheet_names:
-            raise HTTPException(400, "Foglio 'VINI' non trovato.")
+            raise HTTPException(status_code=400, detail="Foglio 'VINI' non trovato nel file Excel.")
+
         raw = pd.read_excel(xls, sheet_name="VINI")
-    except Exception as e:
-        raise HTTPException(400, f"Errore nel file Excel: {e}")
 
-    # 3) APPOGGIO RAW 1:1 NEL DB (NUOVA PARTE)
-    conn = get_connection()
-    # nessuna elaborazione: salvo esattamente il DataFrame com'è
-    raw.to_sql("vini_raw", conn, if_exists="replace", index=False)
+        # 3) Pulizia righe completamente vuote (ma NON tocchiamo i nomi colonne)
+        raw = raw.fillna("")
+        raw = raw[raw.apply(lambda r: any(str(x).strip() for x in r), axis=1)]
+        tot = len(raw)
 
-    # 4) Da qui in poi fai il tuo flusso "normale" come prima
-    raw = raw.fillna("")
-    raw = raw[raw.apply(lambda r: any(str(x).strip() for x in r), axis=1)]
-    tot = len(raw)
+        # 4) Normalizzazione verso lo schema 'vini'
+        df = normalize_dataframe(raw)
 
-    df = normalize_dataframe(raw)
+        # 5) Scrittura nel DB ufficiale
+        conn = get_connection()
+        init_database()
+        clear_vini_table(conn)
+        inserite, errori, count = insert_vini_rows(conn, df)
+        conn.close()
 
-    init_database()
-    clear_vini_table(conn)
-    inserite, errori, count = insert_vini_rows(conn, df)
-    conn.close()
+    finally:
+        # 6) Provo a cancellare il file temporaneo
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
-    # 5) Risposta identica a prima
+    # 7) Risposta HTML (come prima) o JSON
     if format == "html":
         max_val = max(count.values()) if count else 1
         html = "<html><body><h2>Risultato Import</h2>"
-        html += f"<p>Totali: {tot} — Inserite: {inserite}</p><table border='1' cellpadding='6'>"
+        html += f"<p>Totali Excel: {tot} — Inserite in DB: {inserite}</p>"
+        html += "<table border='1' cellpadding='6'>"
         for t, c in sorted(count.items(), key=lambda x: (-x[1], x[0])):
             width = int((c / max_val) * 100)
             html += (
@@ -153,13 +166,14 @@ async def upload_vini(
         return HTMLResponse(html)
 
     return {
-        "righe_totali": tot,
-        "inserite": inserite,
+        "righe_totali_excel": tot,
+        "righe_inserite_db": inserite,
         "errori": errori[:100],
     }
 
+
 # ------------------------------------------------------------
-# HTML PREVIEW
+# HTML PREVIEW CARTA
 # ------------------------------------------------------------
 @router.get("/carta", response_class=HTMLResponse)
 def genera_carta_vini_html():
@@ -187,7 +201,6 @@ def genera_carta_vini_html():
 # ------------------------------------------------------------
 @router.get("/carta/pdf")
 def genera_carta_vini_pdf():
-
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())
 
@@ -205,7 +218,8 @@ def genera_carta_vini_pdf():
 
     html = f"""
     <html>
-    <head><meta charset='utf-8'>
+    <head>
+        <meta charset='utf-8'>
         <link rel='stylesheet' href='/static/css/carta_pdf.css'>
     </head>
     <body>
@@ -220,7 +234,7 @@ def genera_carta_vini_pdf():
 
     HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
         str(out),
-        stylesheets=[CSS(filename=str(CSS_PDF))]
+        stylesheets=[CSS(filename=str(CSS_PDF))],
     )
 
     return FileResponse(out, filename="carta_vini.pdf")
@@ -234,9 +248,7 @@ def genera_carta_vini_pdf_staff():
     """
     Versione STAFF.
     Per ora identica al PDF cliente, ma con label 'VERSIONE STAFF' nel frontespizio.
-    TODO (quando mi dirai le regole): togliere/modificare prezzi, aggiungere info interne, ecc.
     """
-
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())
 
@@ -255,7 +267,8 @@ def genera_carta_vini_pdf_staff():
 
     html = f"""
     <html>
-    <head><meta charset='utf-8'>
+    <head>
+        <meta charset='utf-8'>
         <link rel='stylesheet' href='/static/css/carta_pdf.css'>
     </head>
     <body>
@@ -270,14 +283,14 @@ def genera_carta_vini_pdf_staff():
 
     HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
         str(out),
-        stylesheets=[CSS(filename=str(CSS_PDF))]
+        stylesheets=[CSS(filename=str(CSS_PDF))],
     )
 
     return FileResponse(out, filename="carta_vini_staff.pdf")
 
 
 # ------------------------------------------------------------
-# DOCX (semplice)
+# DOCX SEMPLICE
 # ------------------------------------------------------------
 @router.get("/carta/docx")
 def genera_carta_vini_docx():
@@ -334,7 +347,6 @@ def genera_carta_vini_docx():
 # ============================================================
 # MOVIMENTI CANTINA
 # ============================================================
-
 class MovimentoCreate(BaseModel):
     tipo: str = Field(..., description="CARICO / SCARICO / VENDITA / RETTIFICA")
     qta: int = Field(..., gt=0, description="Quantità positiva")
@@ -388,14 +400,17 @@ def crea_movimento_vino(
     tipo = payload.tipo.strip().upper()
 
     # Ricavo un identificativo utente leggibile
-    utente = (
-        (current_user.get("username") if isinstance(current_user, dict) else None)
-        or (current_user.get("email") if isinstance(current_user, dict) else None)
-        or (str(current_user.get("id")) if isinstance(current_user, dict) and current_user.get("id") is not None else None)
-        or "unknown"
-    )
+    if isinstance(current_user, dict):
+        utente = (
+            current_user.get("username")
+            or current_user.get("email")
+            or (str(current_user.get("id")) if current_user.get("id") is not None else None)
+            or "unknown"
+        )
+    else:
+        utente = "unknown"
 
-    # Componiamo la nota completa con utente sempre presente
+    # Nota completa con utente
     if payload.note:
         nota_completa = f"[{utente}] {payload.note}"
     else:
