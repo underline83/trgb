@@ -58,38 +58,40 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # 1) Uniforma intestazioni: STRIP + UPPER
+    # Uniforma intestazioni: strip + upper
     df.columns = [c.strip().upper() for c in df.columns]
 
-    # 2) Mappa intestazioni (GIÀ uppercased) -> nomi DB
-    #    Qui le chiavi DEVONO essere già UPPER e senza spazi ai lati.
+    # Rinomina dalle intestazioni reali dell’Excel ai nomi DB
+    # (le chiavi sono già STRIP + UPPER come le colonne)
     rename_map = {
-        # Locazioni / quantità
-        "N": "N_FRIGO",
-        "N.1": "N_LOC1",
-        "N.2": "N_LOC2",
-        "LOCAZIONE 1": "LOCAZIONE_1",
-        "LOCAZIONE 2": "LOCAZIONE_2",
-        "Q.TA": "QTA",
+        # Quantità / locazioni
+        "N":            "N_FRIGO",
+        "N.1":          "N_LOC1",
+        "N.2":          "N_LOC2",
+        "LOCAZIONE 1":  "LOCAZIONE_1",
+        "LOCAZIONE 2":  "LOCAZIONE_2",
+        "Q.TA":         "QTA",
 
-        # Colonne prezzi (dal file reale 'vini-gestione-22.xlsx')
-        "€/LISTINO": "EURO_LISTINO",
-        "SCONTO": "SCONTO",
+        # Colonna LISTINO del tuo Excel (senza simbolo €)
+        "LISTINO":      "EURO_LISTINO",
 
-        # Colonne da ignorare (ma che ESISTONO nel file)
-        "NOTA PREZZO": None,
-        "F": None,
-        "€/IVATO": None,
-        "€/RISTORANTE": None,
-        "€/VENDITA": None,
-        "€/SCONTATO": None,
+        # Sconto
+        "SCONTO":       "SCONTO",
+
+        # Colonne da ignorare completamente
+        "NOTA PREZZO":      None,
+        "PREZZO IVA":       None,
+        "CALCOLO PREZZO":   None,
+        "PREZZO VENDITA":   None,
+        "PREZZO SCOTATO":   None,
         "NOME CONCATENATO": None,
-        "UNNAMED: 31": None,
-        "NUM": None,
-        "VALORIZZAZIONE": None,
-        "COSTO": None,
+        "COSTO C":          None,
+        "NUM":              None,
+        "VALORIZZAZIONE":   None,
+        "COSTO":            None,
     }
 
+    # Applica rinomina e rimozione colonne inutili
     keep_cols = []
     for c in list(df.columns):
         if c in rename_map:
@@ -102,7 +104,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         else:
             keep_cols.append(c)
 
-    # 3) Normalizza tipologia
+    # Normalizza tipologia: sostituzioni “storiche” verso i nuovi standard
     if "TIPOLOGIA" in df.columns:
         df["TIPOLOGIA"] = (
             df["TIPOLOGIA"]
@@ -112,17 +114,17 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
         )
 
-    # 4) Coercioni soft sui numeri interi
+    # Coercioni soft sui numeri interi
     for col_int in ("N_FRIGO", "N_LOC1", "N_LOC2", "QTA"):
         if col_int in df.columns:
             df[col_int] = pd.to_numeric(df[col_int], errors="coerce").fillna(0).astype(int)
 
-    # 5) Coercioni soft sui real
+    # Coercioni soft sui real
     for col_real in ("PREZZO", "EURO_LISTINO", "SCONTO"):
         if col_real in df.columns:
             df[col_real] = pd.to_numeric(df[col_real], errors="coerce")
 
-    # 6) Pulizia stringhe chiave (se presenti)
+    # Pulizia stringhe chiave (se presenti)
     for col in (
         "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE", "CARTA", "IPRATICO",
         "DENOMINAZIONE", "FORMATO", "FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2",
@@ -143,16 +145,23 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     inserite = 0
     errori: list[str] = []
 
-    tip_count = df["TIPOLOGIA"].value_counts(dropna=False).to_dict() if "TIPOLOGIA" in df.columns else {}
+    # Conteggio per report
+    tip_count = (
+        df["TIPOLOGIA"].value_counts(dropna=False).to_dict()
+        if "TIPOLOGIA" in df.columns else {}
+    )
 
+    # Iter
     for ridx, row in df.iterrows():
         try:
+            # Validazioni minime in memoria (per errori più leggibili):
             tip = row.get("TIPOLOGIA")
             if tip and tip not in TIPOLOGIA_VALIDE:
                 raise ValueError(f"TIPOLOGIA non ammessa: {tip}")
 
             fmt = row.get("FORMATO")
             if fmt and fmt not in FORMATO_VALIDI:
+                # il DB consente NULL o uno dei codici; se diverso avviso
                 raise ValueError(f"FORMATO non ammesso: {fmt}")
 
             cur.execute(
@@ -193,6 +202,7 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
             )
             inserite += 1
         except Exception as e:
+            # messaggio leggibile con anteprima vino
             desc = row.get("DESCRIZIONE") or ""
             prod = row.get("PRODUTTORE") or ""
             ann = row.get("ANNATA") or ""
@@ -247,6 +257,7 @@ def load_vini_ordinati():
     sconn = get_settings_conn()
 
     cur = conn.cursor()
+    scur = sconn.cursor()
 
     rows = cur.execute(
         """
