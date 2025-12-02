@@ -1,4 +1,4 @@
-# @version: v1.16-stable
+# @version: v1.17-stable
 # -*- coding: utf-8 -*-
 """
 Model util — import, normalizzazione e insert per 'vini'.
@@ -8,8 +8,11 @@ Model util — import, normalizzazione e insert per 'vini'.
 """
 
 from __future__ import annotations
+
 import sqlite3
 import pandas as pd
+
+from app.core.database import get_connection, get_settings_conn
 
 # Valori ammessi
 TIPOLOGIA_VALIDE = {
@@ -30,17 +33,21 @@ TIPOLOGIA_VALIDE = {
 }
 
 FORMATO_VALIDI = {
-    "MN","QP","ME","DM","CL","BT","BN","MG","MJ","JB","RH","JBX","MS","SM","BZ","NB","ML","PR","MZ"
+    "MN", "QP", "ME", "DM", "CL", "BT", "BN", "MG", "MJ",
+    "JB", "RH", "JBX", "MS", "SM", "BZ", "NB", "ML", "PR", "MZ",
 }
+
 
 def clear_vini_table(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     cur.execute("DELETE FROM vini;")
     conn.commit()
 
+
 def _clean_str(x):
     s = str(x).strip()
     return s if s != "" and s.upper() != "NAN" else None
+
 
 def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -54,6 +61,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = [c.strip().upper() for c in df.columns]
 
     # Rinomina dalle intestazioni reali dell’Excel ai nomi DB
+    # ⚠️ IMPORTANTE: le chiavi sono già STRIP + UPPER come le colonne.
     rename_map = {
         "N": "N_FRIGO",
         "N.1": "N_LOC1",
@@ -61,19 +69,24 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         "LOCAZIONE 1": "LOCAZIONE_1",
         "LOCAZIONE 2": "LOCAZIONE_2",
         "Q.TA": "QTA",
-        " €/LISTINO ": "EURO_LISTINO",
+
+        # Colonne prezzi
+        "€/LISTINO": "EURO_LISTINO",
         "SCONTO": "SCONTO",
-        "NOTA PREZZO": None,          # da ignorare
-        "F": None,                     # da ignorare
-        " €/RISTORANTE": None,         # da ignorare
-        " €/VENDITA ": None,           # da ignorare
-        "NOME CONCATENATO": None,      # da ignorare
-        "UNNAMED: 31": None,           # da ignorare
-        "NUM": None,                   # da ignorare
-        " VALORIZZAZIONE ": None,      # da ignorare
-        " COSTO ": None,               # da ignorare
+
+        # Campi da ignorare
+        "NOTA PREZZO": None,
+        "F": None,
+        "€/RISTORANTE": None,
+        "€/VENDITA": None,
+        "NOME CONCATENATO": None,
+        "UNNAMED: 31": None,
+        "NUM": None,
+        "VALORIZZAZIONE": None,
+        "COSTO": None,
     }
-    # Applica rinomina, rimuovendo i campi da ignorare
+
+    # Applica rinomina e rimozione colonne inutili
     keep_cols = []
     for c in list(df.columns):
         if c in rename_map:
@@ -108,14 +121,15 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Pulizia stringhe chiave (se presenti)
     for col in (
-        "TIPOLOGIA","NAZIONE","CODICE","REGIONE","CARTA","IPRATICO",
-        "DENOMINAZIONE","FORMATO","FRIGORIFERO","LOCAZIONE_1","LOCAZIONE_2",
-        "DESCRIZIONE","ANNATA","PRODUTTORE","DISTRIBUTORE"
+        "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE", "CARTA", "IPRATICO",
+        "DENOMINAZIONE", "FORMATO", "FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2",
+        "DESCRIZIONE", "ANNATA", "PRODUTTORE", "DISTRIBUTORE",
     ):
         if col in df.columns:
             df[col] = df[col].map(_clean_str)
 
     return df
+
 
 def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     """
@@ -189,7 +203,8 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
 
     conn.commit()
     return inserite, errori, tip_count
-    
+
+
 def fetch_carta_vini(conn: sqlite3.Connection):
     """
     Ritorna le righe pronte per la Carta Vini, già ordinate:
@@ -223,21 +238,27 @@ def fetch_carta_vini(conn: sqlite3.Connection):
         """
     )
     return cur.fetchall()
-    
+
+
 def load_vini_ordinati():
+    """
+    Ritorna i vini per la carta, con ordinamento basato sulle
+    tabelle di ordinamento tipologie/regioni nel DB settings.
+    """
     conn = get_connection()
     sconn = get_settings_conn()
 
     cur = conn.cursor()
     scur = sconn.cursor()
 
-    rows = cur.execute("""
+    rows = cur.execute(
+        """
         SELECT v.*,
                t.ordine AS ord_tip,
                r.ordine AS ord_reg
         FROM vini v
         LEFT JOIN tipologia_order t ON t.nome = v.TIPOLOGIA
-        LEFT JOIN regioni_order r ON r.nome = v.REGIONE
+        LEFT JOIN regioni_order r   ON r.nome = v.REGIONE
         WHERE v.CARTA='SI' AND v.TIPOLOGIA!='ERRORE'
         ORDER BY
             ord_tip ASC,
@@ -245,7 +266,8 @@ def load_vini_ordinati():
             v.PRODUTTORE ASC,
             v.DESCRIZIONE ASC,
             v.ANNATA ASC;
-    """).fetchall()
+        """
+    ).fetchall()
 
     conn.close()
     sconn.close()
