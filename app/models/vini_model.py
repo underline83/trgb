@@ -1,8 +1,11 @@
-# @version: v1.18-stable
+# @version: v1.18-index-import
 # -*- coding: utf-8 -*-
 """
 Model util — import, normalizzazione e insert per 'vini'.
-- Mappa le colonne dall'Excel 'VINI' verso lo schema DB ufficiale
+
+- Import diretto da Excel (foglio VINI) in app/data/vini.sqlite3
+- Mappatura basata sulla POSIZIONE delle colonne (index 0-based),
+  così non dipendiamo più dai nomi esatti delle intestazioni.
 - Inserisce QTA come da Excel (nessuna colonna generata)
 - Raccoglie errori riga per riga (con anteprima vino)
 """
@@ -14,7 +17,9 @@ import pandas as pd
 
 from app.core.database import get_connection, get_settings_conn
 
-# Valori ammessi
+# ---------------------------------------------------------
+# COSTANTI DI VALIDAZIONE
+# ---------------------------------------------------------
 TIPOLOGIA_VALIDE = {
     "GRANDI FORMATI",
     "BOLLICINE FRANCIA",
@@ -38,71 +43,127 @@ FORMATO_VALIDI = {
 }
 
 
+# ---------------------------------------------------------
+# UTILITÀ BASE
+# ---------------------------------------------------------
 def clear_vini_table(conn: sqlite3.Connection) -> None:
+    """
+    Svuota completamente la tabella 'vini'.
+    Usata prima di un import completo da Excel.
+    """
     cur = conn.cursor()
     cur.execute("DELETE FROM vini;")
     conn.commit()
 
 
 def _clean_str(x):
+    """Strip + converte ""/NaN in None."""
     s = str(x).strip()
     return s if s != "" and s.upper() != "NAN" else None
 
 
+# ---------------------------------------------------------
+# NORMALIZZAZIONE DATAFRAME DA EXCEL (per INDICE DI COLONNA)
+# ---------------------------------------------------------
 def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """
-    - Uppercase & strip intestazioni
-    - Rinomina colonne Excel -> DB
-    - Pulisce valori (strip, None)
-    - Non tocca i numerici, salvo coercizioni sicure
+    Normalizza il DataFrame dei vini partendo dalla POSIZIONE DELLE COLONNE
+    (index 0-based) invece che dal nome dell'intestazione Excel.
+
+    Mappa (0-based):
+
+      0  -> ID (ignorato, non inserito nel DB)
+      1  -> TIPOLOGIA
+      2  -> NAZIONE
+      3  -> CODICE
+      4  -> REGIONE
+      5  -> CARTA
+      6  -> IPRATICO
+      7  -> DENOMINAZIONE
+      8  -> FORMATO
+      9  -> N_FRIGO
+      10 -> FRIGORIFERO
+      11 -> N_LOC1
+      12 -> LOCAZIONE_1
+      13 -> N_LOC2
+      14 -> LOCAZIONE_2
+      15 -> QTA
+      16 -> V (stato vendita; per ora non usato nel DB)
+      17 -> DESCRIZIONE
+      18 -> ANNATA
+      19 -> PRODUTTORE
+      20 -> PREZZO
+      21 -> NOTA_PREZZO
+      22 -> F
+      23 -> DISTRIBUTORE
+      24 -> EURO_LISTINO      <-- LISTINO da Excel
+      25 -> PREZZO_IVA
+      26 -> CALCOLO_PREZZO
+      27 -> PREZZO_VENDITA
+      28 -> SCONTO            <-- SCONTO da Excel
+      29 -> PREZZO_SCONTATO
+      30 -> NOME_CONCATENATO
+      31 -> COSTO_C
+      32 -> NUM
+      33 -> VALORIZZAZIONE
+      34 -> COSTO
     """
+
     df = df.copy()
 
-    # Uniforma intestazioni: strip + upper
-    df.columns = [c.strip().upper() for c in df.columns]
+    # Salvo l'ordine originale delle colonne così come lette da pandas
+    original_cols = list(df.columns)
 
-    # Rinomina dalle intestazioni reali dell’Excel ai nomi DB
-    # (le chiavi sono già STRIP + UPPER come le colonne)
-    rename_map = {
-        # Quantità / locazioni
-        "N":            "N_FRIGO",
-        "N.1":          "N_LOC1",
-        "N.2":          "N_LOC2",
-        "LOCAZIONE 1":  "LOCAZIONE_1",
-        "LOCAZIONE 2":  "LOCAZIONE_2",
-        "Q.TA":         "QTA",
-
-        # Colonna LISTINO del tuo Excel (senza simbolo €)
-        "LISTINO":      "EURO_LISTINO",
-
-        # Sconto
-        "SCONTO":       "SCONTO",
-
-        # Colonne da ignorare completamente
-        "NOTA PREZZO":      None,
-        "PREZZO IVA":       None,
-        "CALCOLO PREZZO":   None,
-        "PREZZO VENDITA":   None,
-        "PREZZO SCOTATO":   None,
-        "NOME CONCATENATO": None,
-        "COSTO C":          None,
-        "NUM":              None,
-        "VALORIZZAZIONE":   None,
-        "COSTO":            None,
+    # Mappa posizione -> nome canonico che vogliamo usare nel DB
+    POS_TO_NAME = {
+        1: "TIPOLOGIA",
+        2: "NAZIONE",
+        3: "CODICE",
+        4: "REGIONE",
+        5: "CARTA",
+        6: "IPRATICO",
+        7: "DENOMINAZIONE",
+        8: "FORMATO",
+        9: "N_FRIGO",
+        10: "FRIGORIFERO",
+        11: "N_LOC1",
+        12: "LOCAZIONE_1",
+        13: "N_LOC2",
+        14: "LOCAZIONE_2",
+        15: "QTA",
+        16: "V",
+        17: "DESCRIZIONE",
+        18: "ANNATA",
+        19: "PRODUTTORE",
+        20: "PREZZO",
+        21: "NOTA_PREZZO",
+        22: "F",
+        23: "DISTRIBUTORE",
+        24: "EURO_LISTINO",
+        25: "PREZZO_IVA",
+        26: "CALCOLO_PREZZO",
+        27: "PREZZO_VENDITA",
+        28: "SCONTO",
+        29: "PREZZO_SCONTATO",
+        30: "NOME_CONCATENATO",
+        31: "COSTO_C",
+        32: "NUM",
+        33: "VALORIZZAZIONE",
+        34: "COSTO",
     }
 
-    # Applica rinomina e rimozione colonne inutili
-    keep_cols = []
-    for c in list(df.columns):
-        if c in rename_map:
-            newc = rename_map[c]
-            if newc is None:
-                df.drop(columns=[c], inplace=True)
-            else:
-                df.rename(columns={c: newc}, inplace=True)
-                keep_cols.append(newc)
-        else:
-            keep_cols.append(c)
+    # Costruisco la mappa di rinomina usando l’INDICE, NON il nome header
+    col_rename = {}
+    for idx, target_name in POS_TO_NAME.items():
+        if idx < len(original_cols):
+            src_name = original_cols[idx]
+            col_rename[src_name] = target_name
+
+    # Rinomina colonne in base alla posizione
+    df.rename(columns=col_rename, inplace=True)
+
+    # Da qui in poi lavoriamo sempre con nomi UPPER case
+    df.columns = [str(c).strip().upper() for c in df.columns]
 
     # Normalizza tipologia: sostituzioni “storiche” verso i nuovi standard
     if "TIPOLOGIA" in df.columns:
@@ -117,9 +178,13 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Coercioni soft sui numeri interi
     for col_int in ("N_FRIGO", "N_LOC1", "N_LOC2", "QTA"):
         if col_int in df.columns:
-            df[col_int] = pd.to_numeric(df[col_int], errors="coerce").fillna(0).astype(int)
+            df[col_int] = (
+                pd.to_numeric(df[col_int], errors="coerce")
+                .fillna(0)
+                .astype(int)
+            )
 
-    # Coercioni soft sui real
+    # Coercioni soft sui real (prezzi e sconto)
     for col_real in ("PREZZO", "EURO_LISTINO", "SCONTO"):
         if col_real in df.columns:
             df[col_real] = pd.to_numeric(df[col_real], errors="coerce")
@@ -136,6 +201,9 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ---------------------------------------------------------
+# INSERT NEL DB 'vini'
+# ---------------------------------------------------------
 def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     """
     Inserisce le righe nel DB.
@@ -148,13 +216,13 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     # Conteggio per report
     tip_count = (
         df["TIPOLOGIA"].value_counts(dropna=False).to_dict()
-        if "TIPOLOGIA" in df.columns else {}
+        if "TIPOLOGIA" in df.columns
+        else {}
     )
 
-    # Iter
     for ridx, row in df.iterrows():
         try:
-            # Validazioni minime in memoria (per errori più leggibili):
+            # Validazioni minime in memoria (per errori più leggibili)
             tip = row.get("TIPOLOGIA")
             if tip and tip not in TIPOLOGIA_VALIDE:
                 raise ValueError(f"TIPOLOGIA non ammessa: {tip}")
@@ -201,8 +269,9 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
                 ),
             )
             inserite += 1
+
         except Exception as e:
-            # messaggio leggibile con anteprima vino
+            # Messaggio leggibile con anteprima vino
             desc = row.get("DESCRIZIONE") or ""
             prod = row.get("PRODUTTORE") or ""
             ann = row.get("ANNATA") or ""
@@ -213,10 +282,14 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     return inserite, errori, tip_count
 
 
+# ---------------------------------------------------------
+# FUNZIONI DI LETTURA PER CARTA VINI
+# ---------------------------------------------------------
 def fetch_carta_vini(conn: sqlite3.Connection):
     """
     Ritorna le righe pronte per la Carta Vini, già ordinate:
     TIPOLOGIA → REGIONE → PRODUTTORE → DESCRIZIONE → ANNATA
+
     Filtrate per:
     - CARTA = 'SI'
     - TIPOLOGIA non nulla e diversa da 'ERRORE'
@@ -257,7 +330,7 @@ def load_vini_ordinati():
     sconn = get_settings_conn()
 
     cur = conn.cursor()
-    scur = sconn.cursor()
+    scur = sconn.cursor()  # non usato direttamente qui, ma lasciato per simmetria
 
     rows = cur.execute(
         """
