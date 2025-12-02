@@ -3,13 +3,7 @@
 """
 Tre Gobbi — Database Vini (Magazzino)
 File: app/models/vini_magazzino_db.py
-
-DB dedicato alla gestione di CANTINA / MAGAZZINO vini:
-- Tabella principale 'vini_magazzino' (anagrafica + giacenze + stato vendite)
-- Tabella 'vini_magazzino_movimenti' (storico carichi/scarichi/vendite/rettifiche)
-- Tabella 'vini_magazzino_note' (note operative per vino)
-
-⚠️ Questo DB è SEPARATO da 'vini.sqlite3' usato per la carta vini da Excel.
+...
 """
 
 from __future__ import annotations
@@ -22,9 +16,6 @@ from typing import Optional, List, Dict, Any
 DB_MAG_PATH = Path("app/data/vini_magazzino.sqlite3")
 
 
-# ---------------------------------------------------------
-# CONNESSIONE DI BASE
-# ---------------------------------------------------------
 def get_magazzino_connection() -> sqlite3.Connection:
     DB_MAG_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_MAG_PATH)
@@ -36,24 +27,11 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-# ---------------------------------------------------------
-# INIT SCHEMA
-# ---------------------------------------------------------
 def init_magazzino_database() -> None:
-    """
-    Crea tutte le tabelle necessarie se non esistono:
-    - vini_magazzino
-    - vini_magazzino_movimenti
-    - vini_magazzino_note
-
-    E applica piccole migrazioni NON distruttive (es. colonna ANNATA).
-    """
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    # -----------------------------------------------------
-    # TABELLA PRINCIPALE 'vini_magazzino'
-    # -----------------------------------------------------
+    # TABELLA PRINCIPALE
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS vini_magazzino (
@@ -67,10 +45,11 @@ def init_magazzino_database() -> None:
             REGIONE         TEXT,
 
             DESCRIZIONE     TEXT NOT NULL,
-            ANNATA          TEXT,              -- es. 2019, NV
             DENOMINAZIONE   TEXT,
+            ANNATA          TEXT,
             VITIGNI         TEXT,
             GRADO_ALCOLICO  REAL,
+            FORMATO         TEXT,   -- es. BT, MG, DM, ecc.
 
             PRODUTTORE      TEXT,
             DISTRIBUTORE    TEXT,
@@ -113,23 +92,11 @@ def init_magazzino_database() -> None:
         """
     )
 
-    # Indici utili per ricerche frequenti
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_tipologia "
-        "ON vini_magazzino (TIPOLOGIA);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_regione "
-        "ON vini_magazzino (REGIONE);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_produttore "
-        "ON vini_magazzino (PRODUTTORE);"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vm_descrizione "
-        "ON vini_magazzino (DESCRIZIONE);"
-    )
+    # Indici
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_tipologia ON vini_magazzino (TIPOLOGIA);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_regione   ON vini_magazzino (REGIONE);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_produttore ON vini_magazzino (PRODUTTORE);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_descrizione ON vini_magazzino (DESCRIZIONE);")
 
     # -----------------------------------------------------
     # MIGRAZIONI LEGGERISSIME (non distruttive)

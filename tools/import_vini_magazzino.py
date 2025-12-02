@@ -1,124 +1,98 @@
-#!/usr/bin/env python
 # @version: v1.0-import-magazzino
 # -*- coding: utf-8 -*-
 """
-Script one-shot per popolare 'vini_magazzino.sqlite3'
-a partire dalla tabella 'vini' in 'vini.sqlite3'.
-
-Mappa i campi principali:
-- id_excel = id (vecchio DB)
-- anagrafica, prezzi, flag, locazioni e quantità
+Script una-tantum per importare i vini esistenti da:
+    app/data/vini.sqlite3 (tabella 'vini')
+nel nuovo DB:
+    app/data/vini_magazzino.sqlite3 (tabella 'vini_magazzino')
 """
 
 from pathlib import Path
-import sys
+import sqlite3
 
-# Assicura che 'app' sia importabile
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from app.models import vini_magazzino_db
 
-from app.models import vini_db
-from app.models import vini_magazzino_db as mag
+SRC_DB = Path("app/data/vini.sqlite3")
 
 
-def main() -> None:
-    # Crea tabelle se non ci sono
-    mag.init_magazzino_database()
+def safe_int(row, key, default=0):
+    val = row[key]
+    return int(val) if val is not None else default
 
-    # Sicurezza: se il DB magazzino NON è vuoto, non facciamo danni
-    conn_mag = mag.get_magazzino_connection()
-    cur_mag = conn_mag.cursor()
-    existing_row = cur_mag.execute(
-        "SELECT COUNT(*) AS c FROM vini_magazzino;"
-    ).fetchone()
-    existing = existing_row["c"] if existing_row is not None else 0
 
-    if existing > 0:
-        print(f"⚠️  vini_magazzino contiene già {existing} righe. "
-              "Interrompo per sicurezza (cancella il DB o svuotalo prima).")
-        conn_mag.close()
-        return
+def run_import():
+    # Assicuriamoci che il DB magazzino sia inizializzato
+    vini_magazzino_db.init_magazzino_database()
 
-    conn_mag.close()
+    if not SRC_DB.exists():
+        raise SystemExit(f"DB sorgente non trovato: {SRC_DB}")
 
-    # Legge tutti i vini dal vecchio DB
-    conn_old = vini_db.get_connection()
-    cur_old = conn_old.cursor()
-    rows = cur_old.execute("SELECT * FROM vini;").fetchall()
+    conn_src = sqlite3.connect(SRC_DB)
+    conn_src.row_factory = sqlite3.Row
+    cur = conn_src.cursor()
 
-    total = len(rows)
-    print(f"📦 Trovati {total} vini da importare dal DB carta...")
+    rows = cur.execute("SELECT * FROM vini;").fetchall()
+    print(f"Trovati {len(rows)} vini nella tabella 'vini'.")
 
     imported = 0
+
     for r in rows:
+        # Alcune righe potrebbero essere "vuote" o di servizio
+        descrizione = r["DESCRIZIONE"]
+        if not descrizione:
+            continue
+
         data = {
-            # Collega id originale
-            "id_excel": r["id"],
+            "id_excel":      r["id"],
 
-            # Anagrafica base
-            "TIPOLOGIA": r["TIPOLOGIA"],
-            "NAZIONE": r["NAZIONE"],
-            "CODICE": r["CODICE"],
-            "REGIONE": r["REGIONE"],
-            "ANNATA": r["ANNATA"],
-            "DESCRIZIONE": r["DESCRIZIONE"],
+            "TIPOLOGIA":     r["TIPOLOGIA"] or "ERRORE",
+            "NAZIONE":       r["NAZIONE"] or "ITALIA",
+            "CODICE":        r["CODICE"],
+            "REGIONE":       r["REGIONE"],
+
+            "DESCRIZIONE":   descrizione,
             "DENOMINAZIONE": r["DENOMINAZIONE"],
+            "ANNATA":        r["ANNATA"],
+            "VITIGNI":       None,   # non presente nel DB carta
+            "GRADO_ALCOLICO": None,  # per ora lo tieni nella descrizione
+            "FORMATO":       r["FORMATO"] or "BT",
 
-            # Vitigni / grado alcolico per ora vuoti (li compilerai a mano)
-            # "VITIGNI": None,
-            # "GRADO_ALCOLICO": None,
+            "PRODUTTORE":    r["PRODUTTORE"],
+            "DISTRIBUTORE":  r["DISTRIBUTORE"],
 
-            # Produttore / distributore
-            "PRODUTTORE": r["PRODUTTORE"],
-            "DISTRIBUTORE": r["DISTRIBUTORE"],
+            "PREZZO_CARTA":  r["PREZZO"],
+            "EURO_LISTINO":  r["EURO_LISTINO"],
+            "SCONTO":        r["SCONTO"],
+            "NOTE_PREZZO":   None,
 
-            # Prezzi
-            "PREZZO_CARTA": r["PREZZO"],
-            "EURO_LISTINO": r["EURO_LISTINO"],
-            "SCONTO": r["SCONTO"],
+            "CARTA":         r["CARTA"],
+            "IPRATICO":      r["IPRATICO"],
 
-            # Flag carta / iPratico
-            "CARTA": r["CARTA"],
-            "IPRATICO": r["IPRATICO"],
+            "STATO_VENDITA": None,   # la colonna V non è nel DB, solo Excel
+            "NOTE_STATO":    None,
 
-            # Stato vendita / note per ora vuote
-            # "STATO_VENDITA": None,
-            # "NOTE_STATO": None,
+            "FRIGORIFERO":   r["FRIGORIFERO"],
+            "QTA_FRIGO":     safe_int(r, "N_FRIGO", 0),
 
-            # Magazzino: locazioni + quantità
-            "FRIGORIFERO": r["FRIGORIFERO"],
-            "QTA_FRIGO": r["N_FRIGO"],
+            "LOCAZIONE_1":   r["LOCAZIONE_1"],
+            "QTA_LOC1":      safe_int(r, "N_LOC1", 0),
 
-            "LOCAZIONE_1": r["LOCAZIONE_1"],
-            "QTA_LOC1": r["N_LOC1"],
+            "LOCAZIONE_2":   r["LOCAZIONE_2"],
+            "QTA_LOC2":      safe_int(r, "N_LOC2", 0),
 
-            "LOCAZIONE_2": r["LOCAZIONE_2"],
-            "QTA_LOC2": r["N_LOC2"],
+            "LOCAZIONE_3":   None,
+            "QTA_LOC3":      0,
 
-            # LOCAZIONE_3 per ora vuota
-            # "LOCAZIONE_3": None,
-            # "QTA_LOC3": 0,
+            # NOTE: lascio NOTE vuote in import
+            "NOTE":          None,
         }
 
-        # Pulisce stringhe vuote → None
-        clean: dict[str, object] = {}
-        for k, v in data.items():
-            if isinstance(v, str):
-                v = v.strip()
-                if v == "":
-                    v = None
-            clean[k] = v
-
-        # Usa la funzione standard di creazione (gestisce CREATED/UPDATED e QTA_TOTALE)
-        mag.create_vino(clean)
+        vini_magazzino_db.create_vino(data)
         imported += 1
 
-        if imported % 50 == 0:
-            print(f"  - Importati {imported}/{total} vini...")
-
-    conn_old.close()
-    print(f"✅ Import completato: {imported} vini inseriti in 'vini_magazzino'.")
+    conn_src.close()
+    print(f"Import terminato. Vini importati: {imported}")
 
 
 if __name__ == "__main__":
-    main()
+    run_import()
