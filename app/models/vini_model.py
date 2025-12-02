@@ -56,14 +56,15 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     - Pulisce valori (strip, None)
     - Non tocca i numerici, salvo coercizioni sicure
     """
-    # Uniforma intestazioni: STRIP + UPPER
     df = df.copy()
+
+    # 1) Uniforma intestazioni: STRIP + UPPER
     df.columns = [c.strip().upper() for c in df.columns]
 
-    # Rinomina dalle intestazioni reali dell’Excel ai nomi DB
-    # ⚠️ IMPORTANTE: le chiavi sono già STRIP + UPPER come le colonne.
+    # 2) Mappa intestazioni (GIÀ uppercased) -> nomi DB
+    #    Qui le chiavi DEVONO essere già UPPER e senza spazi ai lati.
     rename_map = {
-        # MAGAZZINO
+        # Locazioni / quantità
         "N": "N_FRIGO",
         "N.1": "N_LOC1",
         "N.2": "N_LOC2",
@@ -71,16 +72,16 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         "LOCAZIONE 2": "LOCAZIONE_2",
         "Q.TA": "QTA",
 
-        # COLONNE PREZZI (come risultano DOPO strip+upper)
+        # Colonne prezzi (dal file reale 'vini-gestione-22.xlsx')
         "€/LISTINO": "EURO_LISTINO",
         "SCONTO": "SCONTO",
 
-        # COLONNE DA IGNORARE (solo per pulizia)
+        # Colonne da ignorare (ma che ESISTONO nel file)
         "NOTA PREZZO": None,
         "F": None,
+        "€/IVATO": None,
         "€/RISTORANTE": None,
         "€/VENDITA": None,
-        "€/IVATO": None,
         "€/SCONTATO": None,
         "NOME CONCATENATO": None,
         "UNNAMED: 31": None,
@@ -89,7 +90,6 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         "COSTO": None,
     }
 
-    # Applica rinomina e rimozione colonne inutili
     keep_cols = []
     for c in list(df.columns):
         if c in rename_map:
@@ -102,27 +102,27 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         else:
             keep_cols.append(c)
 
-    # Normalizza tipologia: sostituzioni “storiche” verso i nuovi standard
+    # 3) Normalizza tipologia
     if "TIPOLOGIA" in df.columns:
         df["TIPOLOGIA"] = (
             df["TIPOLOGIA"]
-                .astype(str)
-                .str.strip()
-                .str.replace("VINI DEALCOLIZZATI", "VINI ANALCOLICI", regex=False)
-                .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
+            .astype(str)
+            .str.strip()
+            .str.replace("VINI DEALCOLIZZATI", "VINI ANALCOLICI", regex=False)
+            .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
         )
 
-    # Coercioni soft sui numeri interi
+    # 4) Coercioni soft sui numeri interi
     for col_int in ("N_FRIGO", "N_LOC1", "N_LOC2", "QTA"):
         if col_int in df.columns:
             df[col_int] = pd.to_numeric(df[col_int], errors="coerce").fillna(0).astype(int)
 
-    # Coercioni soft sui real
+    # 5) Coercioni soft sui real
     for col_real in ("PREZZO", "EURO_LISTINO", "SCONTO"):
         if col_real in df.columns:
             df[col_real] = pd.to_numeric(df[col_real], errors="coerce")
 
-    # Pulizia stringhe chiave (se presenti)
+    # 6) Pulizia stringhe chiave (se presenti)
     for col in (
         "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE", "CARTA", "IPRATICO",
         "DENOMINAZIONE", "FORMATO", "FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2",
@@ -143,20 +143,16 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
     inserite = 0
     errori: list[str] = []
 
-    # Conteggio per report
     tip_count = df["TIPOLOGIA"].value_counts(dropna=False).to_dict() if "TIPOLOGIA" in df.columns else {}
 
-    # Iter
     for ridx, row in df.iterrows():
         try:
-            # Validazioni minime in memoria (per errori più leggibili):
             tip = row.get("TIPOLOGIA")
             if tip and tip not in TIPOLOGIA_VALIDE:
                 raise ValueError(f"TIPOLOGIA non ammessa: {tip}")
 
             fmt = row.get("FORMATO")
             if fmt and fmt not in FORMATO_VALIDI:
-                # il DB consente NULL o uno dei codici; se diverso avviso
                 raise ValueError(f"FORMATO non ammesso: {fmt}")
 
             cur.execute(
@@ -197,7 +193,6 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
             )
             inserite += 1
         except Exception as e:
-            # messaggio leggibile con anteprima vino
             desc = row.get("DESCRIZIONE") or ""
             prod = row.get("PRODUTTORE") or ""
             ann = row.get("ANNATA") or ""
@@ -252,7 +247,6 @@ def load_vini_ordinati():
     sconn = get_settings_conn()
 
     cur = conn.cursor()
-    scur = sconn.cursor()
 
     rows = cur.execute(
         """
