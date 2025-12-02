@@ -94,10 +94,25 @@ async def upload_vini(
     file: UploadFile = File(...),
     format: str = Query("json", enum=["json", "html"])
 ):
+    import tempfile
+    import pandas as pd
+    from fastapi import HTTPException
+    from fastapi.responses import HTMLResponse
+
+    from app.core.database import get_connection
+    from app.models.vini_model import (
+        normalize_dataframe,
+        clear_vini_table,
+        insert_vini_rows,
+        init_database,
+    )
+
+    # 1) Salvo il file ricevuto (come già facevi)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
 
+    # 2) Leggo il foglio VINI dall'Excel
     try:
         xls = pd.ExcelFile(tmp_path)
         if "VINI" not in xls.sheet_names:
@@ -106,18 +121,24 @@ async def upload_vini(
     except Exception as e:
         raise HTTPException(400, f"Errore nel file Excel: {e}")
 
+    # 3) APPOGGIO RAW 1:1 NEL DB (NUOVA PARTE)
+    conn = get_connection()
+    # nessuna elaborazione: salvo esattamente il DataFrame com'è
+    raw.to_sql("vini_raw", conn, if_exists="replace", index=False)
+
+    # 4) Da qui in poi fai il tuo flusso "normale" come prima
     raw = raw.fillna("")
     raw = raw[raw.apply(lambda r: any(str(x).strip() for x in r), axis=1)]
     tot = len(raw)
 
     df = normalize_dataframe(raw)
 
-    conn = get_connection()
     init_database()
     clear_vini_table(conn)
     inserite, errori, count = insert_vini_rows(conn, df)
     conn.close()
 
+    # 5) Risposta identica a prima
     if format == "html":
         max_val = max(count.values()) if count else 1
         html = "<html><body><h2>Risultato Import</h2>"
@@ -134,9 +155,8 @@ async def upload_vini(
     return {
         "righe_totali": tot,
         "inserite": inserite,
-        "errori": errori[:100]
+        "errori": errori[:100],
     }
-
 
 # ------------------------------------------------------------
 # HTML PREVIEW
