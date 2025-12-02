@@ -1,102 +1,56 @@
-// @version: v1.0-magazzino-dettaglio
-// Scheda Vino Magazzino — Dettaglio + Movimenti + Note
+// @version: v1.2-magazzino-dettaglio
+// Dettaglio Vino Magazzino — prezzi carta/listino + giacenze
 
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 
-export default function VinoMagazzinoDettaglio() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const vinoId = Number(id);
+const API_MAG = `${API_BASE}/vini/magazzino`;
+
+export default function ViniMagazzinoDettaglio({ vino, onClose, onUpdated }) {
+  const [dettaglio, setDettaglio] = useState(vino);
+  const [movimenti, setMovimenti] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const [movTipo, setMovTipo] = useState("CARICO");
+  const [movQta, setMovQta] = useState(1);
+  const [movNota, setMovNota] = useState("");
 
   const token = localStorage.getItem("token");
 
-  const [loading, setLoading] = useState(true);
-  const [vino, setVino] = useState(null);
-  const [movimenti, setMovimenti] = useState([]);
-  const [note, setNote] = useState([]);
-
-  // Form nuovo movimento
-  const [movTipo, setMovTipo] = useState("CARICO");
-  const [movQta, setMovQta] = useState("");
-  const [movLocazione, setMovLocazione] = useState("");
-  const [movNote, setMovNote] = useState("");
-
-  // Form nuova nota
-  const [notaText, setNotaText] = useState("");
-
-  const fetchVino = async () => {
+  const fetchDettaglio = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+      const resp = await fetch(`${API_MAG}/${vino.id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!res.ok) throw new Error(`Errore ${res.status}`);
-      const data = await res.json();
-      setVino(data);
-    } catch (err) {
-      console.error("Errore caricando vino:", err);
-      alert("Errore nel caricamento del vino.");
-    }
-    setLoading(false);
-  };
+      const data = await resp.json();
+      setDettaglio(data);
 
-  const fetchMovimenti = async () => {
-    try {
-      const res = await fetch(
-        `${API_BASE}/vini/magazzino/${vinoId}/movimenti?limit=100`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      if (!res.ok) throw new Error(`Errore ${res.status}`);
-      const data = await res.json();
-      setMovimenti(data || []);
-    } catch (err) {
-      console.error("Errore caricando movimenti:", err);
-      setMovimenti([]);
-    }
-  };
-
-  const fetchNote = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/vini/magazzino/${vinoId}/note`, {
+      const respMov = await fetch(`${API_MAG}/${vino.id}/movimenti`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!res.ok) throw new Error(`Errore ${res.status}`);
-      const data = await res.json();
-      setNote(data || []);
+      const movs = await respMov.json();
+      setMovimenti(movs);
     } catch (err) {
-      console.error("Errore caricando note:", err);
-      setNote([]);
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!vinoId) return;
-    fetchVino();
-    fetchMovimenti();
-    fetchNote();
+    fetchDettaglio();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vinoId]);
+  }, [vino.id]);
 
-  const handleNuovoMovimento = async (e) => {
+  const handleMovimento = async (e) => {
     e.preventDefault();
-
-    if (!movQta || Number(movQta) <= 0) {
-      alert("Inserisci una quantità > 0.");
-      return;
-    }
-
     try {
-      const res = await fetch(`${API_BASE}/vini/magazzino/${vinoId}/movimenti`, {
+      const resp = await fetch(`${API_MAG}/${vino.id}/movimenti`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -105,438 +59,216 @@ export default function VinoMagazzinoDettaglio() {
         body: JSON.stringify({
           tipo: movTipo,
           qta: Number(movQta),
-          locazione: movLocazione || null,
-          note: movNote || null,
-          origine: "GESTIONALE",
-          data_mov: null,
+          note: movNota || null,
         }),
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Errore movimento: ${res.status} - ${txt}`);
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.detail || "Errore movimento");
       }
 
-      const data = await res.json();
-      if (data.vino) setVino(data.vino);
-      if (data.movimenti) setMovimenti(data.movimenti);
-
-      setMovQta("");
-      setMovLocazione("");
-      setMovNote("");
+      setMovQta(1);
+      setMovNota("");
+      await fetchDettaglio();
+      if (onUpdated) onUpdated();
     } catch (err) {
-      console.error(err);
-      alert("Errore nella registrazione del movimento.");
+      alert(err.message);
     }
   };
 
-  const handleNuovaNota = async (e) => {
-    e.preventDefault();
-    if (!notaText.trim()) {
-      alert("La nota non può essere vuota.");
-      return;
-    }
+  if (!dettaglio) return null;
 
-    try {
-      const res = await fetch(`${API_BASE}/vini/magazzino/${vinoId}/note`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ nota: notaText.trim() }),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`Errore nota: ${res.status} - ${txt}`);
-      }
-
-      const data = await res.json();
-      setNote(data || []);
-      setNotaText("");
-    } catch (err) {
-      console.error(err);
-      alert("Errore nel salvataggio della nota.");
-    }
-  };
-
-  if (loading || !vino) {
-    return (
-      <div className="min-h-screen bg-neutral-100 p-6 flex items-center justify-center">
-        <div className="text-neutral-700 text-lg">Caricamento scheda vino…</div>
-      </div>
-    );
-  }
+  const prezzoCarta =
+    dettaglio.PREZZO_CARTA !== null && dettaglio.PREZZO_CARTA !== undefined
+      ? Number(dettaglio.PREZZO_CARTA)
+      : null;
+  const prezzoListino =
+    dettaglio.EURO_LISTINO !== null && dettaglio.EURO_LISTINO !== undefined
+      ? Number(dettaglio.EURO_LISTINO)
+      : null;
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200 space-y-8">
-
-        {/* HEADER + BACK */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
+      <div className="bg-white max-w-4xl w-full mx-4 rounded-3xl shadow-2xl border border-neutral-300 overflow-hidden">
+        {/* HEADER */}
+        <div className="flex justify-between items-start gap-4 px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div>
-            <h1 className="text-3xl font-bold text-amber-900 font-playfair mb-2">
-              Scheda Vino — Magazzino
-            </h1>
-            <p className="text-neutral-600 text-sm">
-              ID #{vino.id} — {vino.TIPOLOGIA} · {vino.NAZIONE}
-            </p>
-          </div>
-          <div className="flex items-start justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Torna alla lista
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/vini")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              🍷 Menu Vini
-            </button>
-          </div>
-        </div>
-
-        {/* CARD PRINCIPALE ANAGRAFICA + MAGAZZINO */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ANAGRAFICA */}
-          <div className="lg:col-span-2 bg-amber-50 border border-amber-200 rounded-2xl p-6 shadow-inner space-y-3">
-            <div className="text-sm uppercase tracking-wide text-amber-700 font-semibold">
-              Anagrafica vino
-            </div>
-            <div className="text-2xl font-bold text-amber-900 font-playfair">
-              {vino.DESCRIZIONE}
-            </div>
-            <div className="text-neutral-700">
-              {vino.DENOMINAZIONE && (
-                <div className="text-sm italic mb-1">{vino.DENOMINAZIONE}</div>
-              )}
-              <div className="text-sm">
-                {vino.PRODUTTORE && (
-                  <span className="font-semibold">{vino.PRODUTTORE}</span>
-                )}
-                {vino.REGIONE && (
-                  <span className="ml-2">
-                    · {vino.REGIONE} ({vino.NAZIONE})
-                  </span>
-                )}
-              </div>
-              {vino.ANNATA && (
-                <div className="mt-1 text-sm">
-                  Annata: <span className="font-semibold">{vino.ANNATA}</span> {/* ✅ ANNATA */}
-                </div>
-              )}
-              {vino.VITIGNI && (
-                <div className="mt-1 text-sm">
-                  Vitigni: <span className="font-semibold">{vino.VITIGNI}</span>
-                </div>
-              )}
-              {vino.GRADO_ALCOLICO && (
-                <div className="mt-1 text-sm">
-                  Grado alcolico:{" "}
-                  <span className="font-semibold">
-                    {vino.GRADO_ALCOLICO.toString().replace(".", ",")}%
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div className="space-y-1">
-                <div className="font-semibold text-neutral-800">Codice</div>
-                <div className="text-neutral-700">{vino.CODICE || "—"}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="font-semibold text-neutral-800">
-                  Distributore
-                </div>
-                <div className="text-neutral-700">
-                  {vino.DISTRIBUTORE || "—"}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-              <div className="space-y-1">
-                <div className="font-semibold text-neutral-800">
-                  Prezzo Carta
-                </div>
-                <div className="text-neutral-700">
-                  {vino.PREZZO_CARTA != null
-                    ? `${vino.PREZZO_CARTA.toFixed(2)} €`
-                    : "—"}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="font-semibold text-neutral-800">
-                  Listino / Sconto
-                </div>
-                <div className="text-neutral-700">
-                  {vino.EURO_LISTINO != null
-                    ? `${vino.EURO_LISTINO.toFixed(2)} €`
-                    : "—"}{" "}
-                  {vino.SCONTO != null && `· Sconto ${vino.SCONTO}%`}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="font-semibold text-neutral-800">
-                  In carta / iPratico
-                </div>
-                <div className="text-neutral-700">
-                  Carta: {vino.CARTA || "—"} · iPratico: {vino.IPRATICO || "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* MAGAZZINO */}
-          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 shadow-inner space-y-4">
-            <div className="text-sm uppercase tracking-wide text-neutral-600 font-semibold">
-              Magazzino
-            </div>
-
-            <div className="text-4xl font-bold text-neutral-900 text-center mb-2">
-              {vino.QTA_TOTALE ?? 0}
-            </div>
-            <div className="text-xs text-neutral-500 text-center mb-4">
-              Bottiglie totali
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="font-semibold">Frigorifero</span>
-                <span>
-                  {vino.FRIGORIFERO || "—"} · {vino.QTA_FRIGO ?? 0} bt
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Locazione 1</span>
-                <span>
-                  {vino.LOCAZIONE_1 || "—"} · {vino.QTA_LOC1 ?? 0} bt
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Locazione 2</span>
-                <span>
-                  {vino.LOCAZIONE_2 || "—"} · {vino.QTA_LOC2 ?? 0} bt
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Locazione 3</span>
-                <span>
-                  {vino.LOCAZIONE_3 || "—"} · {vino.QTA_LOC3 ?? 0} bt
-                </span>
-              </div>
-            </div>
-
-            {vino.STATO_VENDITA && (
-              <div className="mt-3 text-sm">
-                <div className="font-semibold text-neutral-800">
-                  Stato vendita
-                </div>
-                <div className="text-neutral-700">
-                  Codice:{" "}
-                  <span className="font-mono">{vino.STATO_VENDITA}</span>
-                </div>
-                {vino.NOTE_STATO && (
-                  <div className="text-neutral-700 mt-1">
-                    {vino.NOTE_STATO}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MOVIMENTI + FORM NUOVO MOVIMENTO */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Movimenti */}
-          <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-neutral-900">
-                Movimenti di cantina
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-xs font-mono text-neutral-500">
+                #{dettaglio.id}
+              </span>
+              <h2 className="text-xl font-bold text-amber-900 font-playfair">
+                {dettaglio.DESCRIZIONE}
               </h2>
+              {dettaglio.ANNATA && (
+                <span className="text-sm text-neutral-600">
+                  ({dettaglio.ANNATA})
+                </span>
+              )}
             </div>
-            {movimenti.length === 0 ? (
-              <div className="text-sm text-neutral-500">
-                Nessun movimento registrato.
-              </div>
-            ) : (
-              <div className="max-h-80 overflow-auto text-sm">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500 bg-neutral-50">
-                      <th className="px-2 py-2 text-left">Data</th>
-                      <th className="px-2 py-2 text-left">Tipo</th>
-                      <th className="px-2 py-2 text-right">Qta</th>
-                      <th className="px-2 py-2 text-left">Locazione</th>
-                      <th className="px-2 py-2 text-left">Note</th>
-                      <th className="px-2 py-2 text-left">Origine</th>
-                      <th className="px-2 py-2 text-left">Utente</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {movimenti.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="border-b border-neutral-100 text-xs"
-                      >
-                        <td className="px-2 py-1 align-top">
-                          {m.data_mov || m.created_at}
-                        </td>
-                        <td className="px-2 py-1 align-top font-semibold">
-                          {m.tipo}
-                        </td>
-                        <td className="px-2 py-1 align-top text-right">
-                          {m.qta}
-                        </td>
-                        <td className="px-2 py-1 align-top">
-                          {m.locazione || "—"}
-                        </td>
-                        <td className="px-2 py-1 align-top">
-                          {m.note || "—"}
-                        </td>
-                        <td className="px-2 py-1 align-top">
-                          {m.origine || "—"}
-                        </td>
-                        <td className="px-2 py-1 align-top">
-                          {m.utente || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="text-xs text-neutral-600 mt-1 flex flex-wrap gap-2">
+              <span>{dettaglio.TIPOLOGIA}</span>
+              {dettaglio.REGIONE && <span>· {dettaglio.REGIONE}</span>}
+              {dettaglio.NAZIONE && <span>· {dettaglio.NAZIONE}</span>}
+              {dettaglio.FORMATO && <span>· {dettaglio.FORMATO}</span>}
+              {dettaglio.PRODUTTORE && (
+                <span className="font-medium">· {dettaglio.PRODUTTORE}</span>
+              )}
+            </div>
           </div>
 
-          {/* Form nuovo movimento */}
-          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 shadow-inner">
-            <h2 className="text-lg font-semibold text-neutral-900 mb-3">
-              Nuovo movimento
-            </h2>
-            <form className="space-y-3" onSubmit={handleNuovoMovimento}>
-              <div className="space-y-1 text-sm">
-                <label className="font-medium text-neutral-800">
-                  Tipo movimento
-                </label>
-                <select
-                  value={movTipo}
-                  onChange={(e) => setMovTipo(e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg p-2 text-sm bg-white"
-                >
-                  <option value="CARICO">CARICO</option>
-                  <option value="SCARICO">SCARICO</option>
-                  <option value="VENDITA">VENDITA</option>
-                  <option value="RETTIFICA">RETTIFICA</option>
-                </select>
-              </div>
-
-              <div className="space-y-1 text-sm">
-                <label className="font-medium text-neutral-800">Quantità</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={movQta}
-                  onChange={(e) => setMovQta(e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg p-2 text-sm bg-white"
-                  placeholder="Numero di bottiglie"
-                />
-              </div>
-
-              <div className="space-y-1 text-sm">
-                <label className="font-medium text-neutral-800">
-                  Locazione (opzionale)
-                </label>
-                <input
-                  type="text"
-                  value={movLocazione}
-                  onChange={(e) => setMovLocazione(e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg p-2 text-sm bg-white"
-                  placeholder="Es. Frigo 1-2, Scaffale 3-2…"
-                />
-              </div>
-
-              <div className="space-y-1 text-sm">
-                <label className="font-medium text-neutral-800">
-                  Note (opzionale)
-                </label>
-                <textarea
-                  value={movNote}
-                  onChange={(e) => setMovNote(e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg p-2 text-sm bg-white"
-                  rows={3}
-                  placeholder="Es. Servizio, evento, rettifica inventario…"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full mt-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-amber-700 hover:bg-amber-800 shadow transition"
-              >
-                Registra movimento
-              </button>
-            </form>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm px-3 py-1 rounded-full bg-neutral-200 hover:bg-neutral-300 transition"
+          >
+            ✕ Chiudi
+          </button>
         </div>
 
-        {/* NOTE OPERATIVE */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Lista note */}
-          <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-neutral-900 mb-3">
-              Note operative
-            </h2>
-            {note.length === 0 ? (
-              <div className="text-sm text-neutral-500">
-                Nessuna nota registrata.
-              </div>
-            ) : (
-              <div className="space-y-3 text-sm max-h-64 overflow-auto">
-                {note.map((n) => (
-                  <div
-                    key={n.id}
-                    className="border border-neutral-200 rounded-xl p-3 bg-neutral-50"
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+          {/* COLONNA SINISTRA: PREZZI + GIACENZE */}
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm">
+              <h3 className="font-semibold text-amber-900 mb-2">
+                Prezzi & visibilità
+              </h3>
+              <p>
+                <span className="font-medium">Prezzo carta:</span>{" "}
+                {prezzoCarta !== null && !Number.isNaN(prezzoCarta)
+                  ? `€ ${prezzoCarta.toFixed(2)}`
+                  : "-"}
+              </p>
+              <p>
+                <span className="font-medium">€ Listino fornitore:</span>{" "}
+                {prezzoListino !== null && !Number.isNaN(prezzoListino)
+                  ? `€ ${prezzoListino.toFixed(2)}`
+                  : "-"}
+              </p>
+              <p className="mt-2 text-xs text-neutral-600">
+                Carta: {dettaglio.CARTA || "—"} · iPratico:{" "}
+                {dettaglio.IPRATICO || "—"}
+              </p>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-sm">
+              <h3 className="font-semibold text-green-900 mb-2">
+                Giacenze & locazioni
+              </h3>
+              <p>
+                <span className="font-medium">Totale:</span>{" "}
+                {dettaglio.QTA_TOTALE ?? 0} pz
+              </p>
+              <p className="text-xs mt-1">
+                Frigo: {dettaglio.QTA_FRIGO ?? 0} · Loc1:{" "}
+                {dettaglio.QTA_LOC1 ?? 0} · Loc2: {dettaglio.QTA_LOC2 ?? 0}
+              </p>
+              <p className="text-xs mt-1 text-neutral-600">
+                Frigorifero: {dettaglio.FRIGORIFERO || "—"}
+                <br />
+                Locazione 1: {dettaglio.LOCAZIONE_1 || "—"}
+                <br />
+                Locazione 2: {dettaglio.LOCAZIONE_2 || "—"}
+              </p>
+            </div>
+          </div>
+
+          {/* COLONNA CENTRALE: MOVIMENTI */}
+          <div className="space-y-3">
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-sm">
+              <h3 className="font-semibold text-neutral-900 mb-2">
+                Movimento rapido
+              </h3>
+              <form className="space-y-2" onSubmit={handleMovimento}>
+                <div className="flex gap-2">
+                  <select
+                    value={movTipo}
+                    onChange={(e) => setMovTipo(e.target.value)}
+                    className="border border-neutral-300 rounded-lg px-2 py-1 text-sm flex-1"
                   >
-                    <div className="text-neutral-800 whitespace-pre-wrap">
-                      {n.nota}
+                    <option value="CARICO">CARICO (+)</option>
+                    <option value="SCARICO">SCARICO (-)</option>
+                    <option value="VENDITA">VENDITA (-)</option>
+                    <option value="RETTIFICA">RETTIFICA (=)</option>
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    value={movQta}
+                    onChange={(e) => setMovQta(e.target.value)}
+                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1 text-sm"
+                  />
+                </div>
+                <textarea
+                  value={movNota}
+                  onChange={(e) => setMovNota(e.target.value)}
+                  className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-xs"
+                  rows={2}
+                  placeholder="Nota (servizio, evento, rettifica…)"
+                />
+                <button
+                  type="submit"
+                  className="w-full mt-1 px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold transition"
+                >
+                  Registra movimento
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-xs max-h-64 overflow-auto">
+              <h3 className="font-semibold text-neutral-900 mb-2">
+                Ultimi movimenti
+              </h3>
+              {movimenti.length === 0 && (
+                <p className="text-neutral-500">Nessun movimento registrato.</p>
+              )}
+              <ul className="space-y-1">
+                {movimenti.map((m) => (
+                  <li key={m.id} className="border-b border-neutral-200 pb-1">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{m.tipo}</span>
+                      <span>{m.data_mov}</span>
                     </div>
-                    <div className="mt-1 text-xs text-neutral-500 flex justify-between">
-                      <span>{n.autore || "—"}</span>
-                      <span>{n.created_at}</span>
+                    <div className="flex justify-between text-neutral-700">
+                      <span>Qta: {m.qta}</span>
+                      {m.locazione && <span>Loc: {m.locazione}</span>}
                     </div>
-                  </div>
+                    {m.note && (
+                      <div className="text-neutral-600 text-[11px] mt-0.5">
+                        {m.note}
+                      </div>
+                    )}
+                  </li>
                 ))}
-              </div>
-            )}
+              </ul>
+            </div>
           </div>
 
-          {/* Nuova nota */}
-          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 shadow-inner">
-            <h2 className="text-lg font-semibold text-neutral-900 mb-3">
-              Aggiungi nota
-            </h2>
-            <form className="space-y-3" onSubmit={handleNuovaNota}>
-              <textarea
-                value={notaText}
-                onChange={(e) => setNotaText(e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg p-2 text-sm bg-white"
-                rows={5}
-                placeholder="Annotazioni operative su questo vino…"
-              />
-              <button
-                type="submit"
-                className="w-full px-4 py-2 rounded-xl text-sm font-semibold text-white bg-neutral-800 hover:bg-neutral-900 shadow transition"
-              >
-                Salva nota
-              </button>
-            </form>
+          {/* COLONNA DESTRA: NOTE LIBERE */}
+          <div className="space-y-3 text-xs text-neutral-700">
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 h-full">
+              <h3 className="font-semibold text-neutral-900 mb-2">
+                Note vino
+              </h3>
+              {dettaglio.NOTE ? (
+                <p className="whitespace-pre-wrap">{dettaglio.NOTE}</p>
+              ) : (
+                <p className="text-neutral-500">
+                  Nessuna nota salvata. In futuro qui potremo gestire note
+                  strutturate (es. verticale di annate, difetti bottiglie,
+                  ecc.).
+                </p>
+              )}
+            </div>
           </div>
         </div>
+
+        {loading && (
+          <div className="px-6 pb-4 text-xs text-neutral-500">
+            Aggiornamento dati…
+          </div>
+        )}
       </div>
     </div>
   );
