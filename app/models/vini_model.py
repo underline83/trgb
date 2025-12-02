@@ -1,4 +1,4 @@
-# @version: v1.17-stable
+# @version: v1.18-stable
 # -*- coding: utf-8 -*-
 """
 Model util — import, normalizzazione e insert per 'vini'.
@@ -56,53 +56,39 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     - Pulisce valori (strip, None)
     - Non tocca i numerici, salvo coercizioni sicure
     """
-    # Uniforma intestazioni
+    # Uniforma intestazioni: STRIP + UPPER
     df = df.copy()
     df.columns = [c.strip().upper() for c in df.columns]
 
     # Rinomina dalle intestazioni reali dell’Excel ai nomi DB
     # ⚠️ IMPORTANTE: le chiavi sono già STRIP + UPPER come le colonne.
-rename_map = {
-    "N": "N_FRIGO",
-    "N.1": "N_LOC1",
-    "N.2": "N_LOC2",
-    "LOCAZIONE 1": "LOCAZIONE_1",
-    "LOCAZIONE 2": "LOCAZIONE_2",
-    "Q.TA": "QTA",
+    rename_map = {
+        # MAGAZZINO
+        "N": "N_FRIGO",
+        "N.1": "N_LOC1",
+        "N.2": "N_LOC2",
+        "LOCAZIONE 1": "LOCAZIONE_1",
+        "LOCAZIONE 2": "LOCAZIONE_2",
+        "Q.TA": "QTA",
 
-    # *** COLONNE PREZZI (RILEVATE DAL TUO EXCEL REALE) ***
-    "€/LISTINO": "EURO_LISTINO",
-    "€/Listino": "EURO_LISTINO",        # <-- questa è quella del tuo file
-    "€ /LISTINO": "EURO_LISTINO",
-    " €/Listino": "EURO_LISTINO",
-    "€/LISTINO ": "EURO_LISTINO",
-    " €/LISTINO": "EURO_LISTINO",
+        # COLONNE PREZZI (come risultano DOPO strip+upper)
+        "€/LISTINO": "EURO_LISTINO",
+        "SCONTO": "SCONTO",
 
-    "SCONTO": "SCONTO",
-    "Sconto": "SCONTO",
+        # COLONNE DA IGNORARE (solo per pulizia)
+        "NOTA PREZZO": None,
+        "F": None,
+        "€/RISTORANTE": None,
+        "€/VENDITA": None,
+        "€/IVATO": None,
+        "€/SCONTATO": None,
+        "NOME CONCATENATO": None,
+        "UNNAMED: 31": None,
+        "NUM": None,
+        "VALORIZZAZIONE": None,
+        "COSTO": None,
+    }
 
-    # *** COLONNE DA IGNORARE ***
-    "NOTA PREZZO": None,
-    "F": None,
-    "€/RISTORANTE": None,
-    " €/Ristorante": None,
-    "€/Vendita": None,
-    " €/Vendita ": None,
-    "€/VENDITA": None,
-    "€/Ivato": None,
-    " €/Ivato ": None,
-    "€/Scontato": None,
-    " €/Scontato ": None,
-    "NOME CONCATENATO": None,
-    "UNNAMED: 31": None,
-    "NUM": None,
-    "Valorizzazione": None,
-    "Valorizzazione ": None,
-    " VALORIZZAZIONE ": None,
-    "COSTO": None,
-    "COSTO ": None,
-    " COSTO ": None,
-}
     # Applica rinomina e rimozione colonne inutili
     keep_cols = []
     for c in list(df.columns):
@@ -120,10 +106,10 @@ rename_map = {
     if "TIPOLOGIA" in df.columns:
         df["TIPOLOGIA"] = (
             df["TIPOLOGIA"]
-            .astype(str)
-            .str.strip()
-            .str.replace("VINI DEALCOLIZZATI", "VINI ANALCOLICI", regex=False)
-            .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
+                .astype(str)
+                .str.strip()
+                .str.replace("VINI DEALCOLIZZATI", "VINI ANALCOLICI", regex=False)
+                .str.replace("VINI DEALCOLATI", "VINI ANALCOLICI", regex=False)
         )
 
     # Coercioni soft sui numeri interi
