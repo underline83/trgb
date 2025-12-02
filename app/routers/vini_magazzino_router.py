@@ -187,6 +187,7 @@ db.init_magazzino_database()
 # ---------------------------------------------------------
 @router.get("/", summary="Lista / ricerca vini magazzino")
 def list_vini_magazzino(
+    id: Optional[int] = Query(None, ge=1, description="Ricerca diretta per ID vino"),
     q: Optional[str] = Query(None, description="Ricerca libera (descrizione/produttore/denominazione)"),
     tipologia: Optional[str] = Query(None),
     nazione: Optional[str] = Query(None),
@@ -196,6 +197,7 @@ def list_vini_magazzino(
     current_user: Any = Depends(get_current_user),
 ):
     rows = db.search_vini(
+        vino_id=id,
         text=q,
         tipologia=tipologia,
         nazione=nazione,
@@ -204,7 +206,6 @@ def list_vini_magazzino(
         min_qta=min_qta,
     )
     return [dict(r) for r in rows]
-
 
 # ---------------------------------------------------------
 # ENDPOINT: CREAZIONE VINO

@@ -299,6 +299,7 @@ def get_vino_by_id(vino_id: int) -> Optional[sqlite3.Row]:
 
 
 def search_vini(
+    vino_id: Optional[int] = None,
     text: Optional[str] = None,
     tipologia: Optional[str] = None,
     nazione: Optional[str] = None,
@@ -309,12 +310,18 @@ def search_vini(
     """
     Ricerca vini in magazzino con alcuni filtri base.
     Verrà usata dal frontend per la lista / ricerca.
+    - Se vino_id è valorizzato, filtra per id esatto.
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
     where = []
     params: list[Any] = []
+
+    # 🔍 filtro per ID diretto (più veloce)
+    if vino_id is not None:
+        where.append("id = ?")
+        params.append(vino_id)
 
     if text:
         where.append(
@@ -354,7 +361,6 @@ def search_vini(
     rows = cur.execute(sql, params).fetchall()
     conn.close()
     return list(rows)
-
 
 # ---------------------------------------------------------
 # MAGAZZINO: QUANTITÀ PER LOCAZIONE
