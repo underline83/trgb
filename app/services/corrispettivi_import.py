@@ -11,33 +11,46 @@ DB_PATH = Path("app/data/admin_finance.db")  # puoi cambiare il nome se vuoi
 
 
 def ensure_table(conn: sqlite3.Connection) -> None:
-    """Crea la tabella daily_closures se non esiste."""
-    conn.execute(
+    cur = conn.cursor()
+
+    cur.execute(
         """
         CREATE TABLE IF NOT EXISTS daily_closures (
-            id                INTEGER PRIMARY KEY,
-            date              TEXT NOT NULL UNIQUE,
-            weekday           TEXT NOT NULL,
-            corrispettivi     REAL NOT NULL,
-            iva_10            REAL NOT NULL DEFAULT 0,
-            iva_22            REAL NOT NULL DEFAULT 0,
-            fatture           REAL NOT NULL DEFAULT 0,
-            contanti_finali   REAL NOT NULL DEFAULT 0,
-            pos               REAL NOT NULL DEFAULT 0,
-            sella             REAL NOT NULL DEFAULT 0,
-            stripe_pay        REAL NOT NULL DEFAULT 0,
-            bonifici          REAL NOT NULL DEFAULT 0,
-            mance             REAL NOT NULL DEFAULT 0,
-            totale_incassi    REAL NOT NULL,
-            cash_diff         REAL NOT NULL,
-            note              TEXT,
-            created_by        TEXT,
-            created_at        TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at        TEXT DEFAULT CURRENT_TIMESTAMP
-        );
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT UNIQUE NOT NULL,
+            weekday TEXT NOT NULL,
+            corrispettivi REAL NOT NULL DEFAULT 0,
+            iva_10 REAL NOT NULL DEFAULT 0,
+            iva_22 REAL NOT NULL DEFAULT 0,
+            fatture REAL NOT NULL DEFAULT 0,
+            contanti_finali REAL NOT NULL DEFAULT 0,
+            pos REAL NOT NULL DEFAULT 0,
+            sella REAL NOT NULL DEFAULT 0,
+            stripe_pay REAL NOT NULL DEFAULT 0,
+            bonifici REAL NOT NULL DEFAULT 0,
+            mance REAL NOT NULL DEFAULT 0,
+            totale_incassi REAL NOT NULL DEFAULT 0,
+            cash_diff REAL NOT NULL DEFAULT 0,
+            note TEXT,
+            is_closed INTEGER NOT NULL DEFAULT 0,
+            created_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
         """
     )
+
+    # Se la tabella esisteva da prima senza is_closed, prova ad aggiungerla
+    try:
+        cur.execute(
+            "ALTER TABLE daily_closures ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0"
+        )
+    except sqlite3.OperationalError:
+        # colonna già esistente: ok
+        pass
+
     conn.commit()
+
 
 
 def load_corrispettivi_from_excel(path: Path, year: int = 2025) -> pd.DataFrame:

@@ -1,6 +1,5 @@
 # app/routers/admin_finance.py
-# app/routers/admin_finance.py
-# @version: v1.2
+# @version: v1.3
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -26,6 +25,31 @@ router = APIRouter(
 
 UPLOAD_DIR = Path("app/data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------
+# MIGRAZIONE / SCHEMA DAILY_CLOSURES
+# ---------------------------------------------------------
+
+def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
+    """
+    Garantisce che la tabella daily_closures esista e abbia la colonna is_closed.
+    Usa la ensure_table originale per creare la struttura base, poi fa l'ALTER
+    solo se necessario (DB vecchi senza is_closed).
+    """
+    # struttura base (crea la tabella se non esiste)
+    ensure_table(conn)
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(daily_closures);")
+    cols = [row[1] for row in cur.fetchall()]
+
+    if "is_closed" not in cols:
+        cur.execute(
+            "ALTER TABLE daily_closures "
+            "ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0;"
+        )
+        conn.commit()
 
 
 # ---------------------------------------------------------
@@ -195,7 +219,7 @@ async def import_corrispettivi_file(
 
     # Connessione al DB amministrativo
     conn = sqlite3.connect(DB_PATH)
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     try:
         inserted, updated = import_df_into_db(
@@ -229,7 +253,7 @@ async def get_daily_closure(
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     try:
         cur = conn.cursor()
@@ -301,7 +325,7 @@ async def upsert_daily_closure(
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     date_str = payload.date.isoformat()
 
@@ -477,7 +501,7 @@ async def set_daily_closure_closed(
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     try:
         cur = conn.cursor()
@@ -615,7 +639,7 @@ async def get_monthly_stats(
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     ym_prefix = f"{year:04d}-{month:02d}"
 
@@ -742,7 +766,7 @@ async def get_monthly_stats(
 def _compute_annual_stats(year: int) -> AnnualStats:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     try:
         cur = conn.cursor()
@@ -897,7 +921,7 @@ async def get_top_days(
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    ensure_table(conn)
+    ensure_daily_closures_table(conn)
 
     try:
         cur = conn.cursor()
