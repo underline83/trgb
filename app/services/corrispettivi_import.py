@@ -7,7 +7,7 @@ from typing import Tuple
 
 import pandas as pd
 
-DB_PATH = Path("app/data/admin_finance.db")  # puoi cambiare il nome se vuoi
+DB_PATH = Path("app/data/admin_finance.db") 
 
 
 def ensure_table(conn: sqlite3.Connection) -> None:
@@ -53,51 +53,34 @@ def ensure_table(conn: sqlite3.Connection) -> None:
 
 
 
-def load_corrispettivi_from_excel(path: Path, year: int = 2025) -> pd.DataFrame:
+def load_corrispettivi_from_excel(path: Path, year: int) -> pd.DataFrame:
     """
-    Legge il file Excel (.xlsb / .xlsx / .xls) e restituisce un DataFrame
-    con le colonne necessarie per la tabella daily_closures.
+    Carica il foglio Excel corrispondente all'anno indicato.
+
+    - Per .xlsb usa engine 'pyxlsb'
+    - Per .xlsx / .xls usa il reader standard
+    - Il nome del foglio deve essere esattamente la stringa dell'anno, es. "2025", "2024", ecc.
     """
-    # Foglio con nome = anno (es. "2025")
-    df = pd.read_excel(path, engine="pyxlsb" if path.suffix == ".xlsb" else None, sheet_name=str(year))
+    suffix = path.suffix.lower()
+    sheet_name = str(year)  # <-- QUI usiamo l'anno passato, NON fisso "2025"
 
-    # DATA deve essere numerica (numero Excel della data)
-    data_num = pd.to_numeric(df["DATA"], errors="coerce")
-    df = df[data_num.notna()].copy()
-    df["DATA_num"] = data_num[data_num.notna()]
-    df["date"] = pd.to_datetime(df["DATA_num"], unit="D", origin="1899-12-30")
-
-    # Colonne numeriche del tuo file
-    num_cols = [
-        "Corrispettivi",
-        "Iva 10%",
-        "Iva 22%",
-        "Fatture",
-        "Contanti Finali",
-        "POS",
-        "SELLA",
-        "STRIPE/PAY",
-        "BONIFICI",
-        "MANCE",
-        "CASH",
-        "TOTALE",
-    ]
-
-    for col in num_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-
-    # Giorno: uso la colonna "Giorno" se piena, altrimenti ricavo dal datetime
-    if "Giorno" in df.columns:
-        df["weekday"] = df["Giorno"].fillna(df["date"].dt.day_name())
+    if suffix == ".xlsb":
+        # Richiede pyxlsb installato
+        df = pd.read_excel(path, sheet_name=sheet_name, engine="pyxlsb")
+    elif suffix in (".xlsx", ".xls"):
+        df = pd.read_excel(path, sheet_name=sheet_name)
     else:
-        df["weekday"] = df["date"].dt.day_name()
+        raise ValueError(f"Estensione file non supportata: {suffix}")
 
-    # filtro anno
-    df = df[df["date"].dt.year == year].copy()
+    if "date" not in df.columns:
+        # o la colonna che avevamo deciso per la data
+        raise ValueError("Nel foglio non è presente la colonna 'date'")
+
+    # eventuale pulizia / normalizzazione che avevamo già:
+    df["date"] = pd.to_datetime(df["date"]).dt.date
 
     return df
-
-
+    
 def import_df_into_db(
     df: pd.DataFrame,
     conn: sqlite3.Connection,
