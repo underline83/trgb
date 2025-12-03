@@ -1,9 +1,9 @@
 # app/routers/admin_finance.py
-# @version: v1.1
+# app/routers/admin_finance.py
+# @version: v1.2
 
 from datetime import date as date_type, datetime
 from pathlib import Path
-import math
 import shutil
 import sqlite3
 import uuid
@@ -52,6 +52,8 @@ class DailyClosureBase(BaseModel):
     bonifici: float = 0
     mance: float = 0
     note: str | None = None
+    # flag manuale: giorno considerato chiusura (non rientra in medie/analisi)
+    is_closed: bool = False
 
 
 class DailyClosureOut(DailyClosureBase):
@@ -70,6 +72,7 @@ class MonthlyDay(BaseModel):
     corrispettivi: float
     totale_incassi: float
     cash_diff: float
+    is_closed: bool
 
 
 class PaymentBreakdown(BaseModel):
@@ -148,6 +151,10 @@ class TopDaysStats(BaseModel):
     top_worst: List[TopDay]
 
 
+class SetClosedPayload(BaseModel):
+    is_closed: bool
+
+
 # ---------------------------------------------------------
 # IMPORT CORRISPETTIVI DA FILE EXCEL
 # ---------------------------------------------------------
@@ -221,6 +228,7 @@ async def get_daily_closure(
     Usato dal modulo CorrispettiviGestione.jsx.
     """
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     ensure_table(conn)
 
     try:
@@ -242,7 +250,8 @@ async def get_daily_closure(
                 mance,
                 totale_incassi,
                 cash_diff,
-                note
+                note,
+                COALESCE(is_closed, 0) AS is_closed
             FROM daily_closures
             WHERE date = ?
             """,
@@ -258,40 +267,23 @@ async def get_daily_closure(
             detail="Nessuna chiusura trovata per questa data.",
         )
 
-    (
-        date_val,
-        weekday,
-        corrispettivi,
-        iva_10,
-        iva_22,
-        fatture,
-        contanti_finali,
-        pos,
-        sella,
-        stripe_pay,
-        bonifici,
-        mance,
-        totale_incassi,
-        cash_diff,
-        note,
-    ) = row
-
     return DailyClosureOut(
-        date=date_val,
-        weekday=weekday,
-        corrispettivi=corrispettivi,
-        iva_10=iva_10,
-        iva_22=iva_22,
-        fatture=fatture,
-        contanti_finali=contanti_finali,
-        pos=pos,
-        sella=sella,
-        stripe_pay=stripe_pay,
-        bonifici=bonifici,
-        mance=mance,
-        totale_incassi=totale_incassi,
-        cash_diff=cash_diff,
-        note=note,
+        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+        weekday=row["weekday"],
+        corrispettivi=row["corrispettivi"],
+        iva_10=row["iva_10"],
+        iva_22=row["iva_22"],
+        fatture=row["fatture"],
+        contanti_finali=row["contanti_finali"],
+        pos=row["pos"],
+        sella=row["sella"],
+        stripe_pay=row["stripe_pay"],
+        bonifici=row["bonifici"],
+        mance=row["mance"],
+        note=row["note"],
+        is_closed=bool(row["is_closed"]),
+        totale_incassi=row["totale_incassi"],
+        cash_diff=row["cash_diff"],
     )
 
 
@@ -308,6 +300,7 @@ async def upsert_daily_closure(
     Se esiste già una riga per quella data, viene aggiornata.
     """
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     ensure_table(conn)
 
     date_str = payload.date.isoformat()
@@ -350,6 +343,7 @@ async def upsert_daily_closure(
                     totale_incassi = ?,
                     cash_diff = ?,
                     note = ?,
+                    is_closed = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE date = ?
                 """,
@@ -368,6 +362,7 @@ async def upsert_daily_closure(
                     totale_incassi,
                     cash_diff,
                     payload.note,
+                    1 if payload.is_closed else 0,
                     date_str,
                 ),
             )
@@ -390,9 +385,10 @@ async def upsert_daily_closure(
                     totale_incassi,
                     cash_diff,
                     note,
+                    is_closed,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
@@ -410,31 +406,169 @@ async def upsert_daily_closure(
                     totale_incassi,
                     cash_diff,
                     payload.note,
+                    1 if payload.is_closed else 0,
                     "admin-finance",
                 ),
             )
 
         conn.commit()
+
+        # reload row
+        cur.execute(
+            """
+            SELECT
+                date,
+                weekday,
+                corrispettivi,
+                iva_10,
+                iva_22,
+                fatture,
+                contanti_finali,
+                pos,
+                sella,
+                stripe_pay,
+                bonifici,
+                mance,
+                totale_incassi,
+                cash_diff,
+                note,
+                COALESCE(is_closed, 0) AS is_closed
+            FROM daily_closures
+            WHERE date = ?
+            """,
+            (date_str,),
+        )
+        row = cur.fetchone()
     finally:
         conn.close()
 
     return DailyClosureOut(
-        date=payload.date,
-        weekday=weekday,
-        corrispettivi=payload.corrispettivi,
-        iva_10=payload.iva_10,
-        iva_22=payload.iva_22,
-        fatture=payload.fatture,
-        contanti_finali=payload.contanti_finali,
-        pos=payload.pos,
-        sella=payload.sella,
-        stripe_pay=payload.stripe_pay,
-        bonifici=payload.bonifici,
-        mance=payload.mance,
-        totale_incassi=totale_incassi,
-        cash_diff=cash_diff,
-        note=payload.note,
+        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+        weekday=row["weekday"],
+        corrispettivi=row["corrispettivi"],
+        iva_10=row["iva_10"],
+        iva_22=row["iva_22"],
+        fatture=row["fatture"],
+        contanti_finali=row["contanti_finali"],
+        pos=row["pos"],
+        sella=row["sella"],
+        stripe_pay=row["stripe_pay"],
+        bonifici=row["bonifici"],
+        mance=row["mance"],
+        note=row["note"],
+        is_closed=bool(row["is_closed"]),
+        totale_incassi=row["totale_incassi"],
+        cash_diff=row["cash_diff"],
     )
+
+
+# ---------------------------------------------------------
+# ENDPOINT: SET/CLEAR CLOSED FLAG
+# ---------------------------------------------------------
+
+@router.post("/daily-closures/{date_str}/set-closed", response_model=DailyClosureOut)
+async def set_daily_closure_closed(
+    date_str: str,
+    payload: SetClosedPayload,
+):
+    """
+    Permette di marcare un giorno come CHIUSO (o riaprirlo) senza toccare i valori.
+    Utile se un mercoledì con corrispettivi=0 va ignorato dalle medie/statistiche.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_table(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE daily_closures
+            SET is_closed = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE date = ?
+            """,
+            (1 if payload.is_closed else 0, date_str),
+        )
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Nessuna chiusura trovata per questa data.",
+            )
+
+        conn.commit()
+
+        cur.execute(
+            """
+            SELECT
+                date,
+                weekday,
+                corrispettivi,
+                iva_10,
+                iva_22,
+                fatture,
+                contanti_finali,
+                pos,
+                sella,
+                stripe_pay,
+                bonifici,
+                mance,
+                totale_incassi,
+                cash_diff,
+                note,
+                COALESCE(is_closed, 0) AS is_closed
+            FROM daily_closures
+            WHERE date = ?
+            """,
+            (date_str,),
+        )
+        row = cur.fetchone()
+    finally:
+        conn.close()
+
+    return DailyClosureOut(
+        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+        weekday=row["weekday"],
+        corrispettivi=row["corrispettivi"],
+        iva_10=row["iva_10"],
+        iva_22=row["iva_22"],
+        fatture=row["fatture"],
+        contanti_finali=row["contanti_finali"],
+        pos=row["pos"],
+        sella=row["sella"],
+        stripe_pay=row["stripe_pay"],
+        bonifici=row["bonifici"],
+        mance=row["mance"],
+        note=row["note"],
+        is_closed=bool(row["is_closed"]),
+        totale_incassi=row["totale_incassi"],
+        cash_diff=row["cash_diff"],
+    )
+
+
+# ---------------------------------------------------------
+# HELPER INTERNO: chiusura "effettiva" (manuale + regola mercoledì)
+# ---------------------------------------------------------
+
+def _is_effectively_closed(row: sqlite3.Row) -> bool:
+    """
+    Ritorna True se il giorno va considerato chiuso ai fini delle medie/statistiche.
+
+    Regola:
+    - se is_closed == 1 -> chiuso
+    - oppure se è mercoledì e corrispettivi==0 e totale_incassi==0 -> chiuso "automatico"
+    """
+    is_closed_flag = row["is_closed"] if "is_closed" in row.keys() else 0
+    if is_closed_flag:
+        return True
+
+    weekday = row["weekday"]
+    corr = row["corrispettivi"]
+    tot_inc = row["totale_incassi"]
+
+    if weekday in ("Wednesday", "Mercoledì") and corr == 0 and tot_inc == 0:
+        return True
+
+    return False
 
 
 # ---------------------------------------------------------
@@ -477,6 +611,7 @@ async def get_monthly_stats(
     - elenco giorni
     - breakdown pagamenti
     - alert su differenze di cassa oltre soglia
+    - i giorni marcati come CHIUSI (o mercoledì con 0) non rientrano in medie/totali.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -502,7 +637,9 @@ async def get_monthly_stats(
                 bonifici,
                 mance,
                 totale_incassi,
-                cash_diff
+                cash_diff,
+                note,
+                COALESCE(is_closed, 0) AS is_closed
             FROM daily_closures
             WHERE substr(date, 1, 7) = ?
             ORDER BY date ASC
@@ -539,32 +676,37 @@ async def get_monthly_stats(
             alerts=[],
         )
 
-    giorni_con_chiusura = len(rows)
+    # Filtra giorni "aperti" (non chiusi)
+    open_rows = [r for r in rows if not _is_effectively_closed(r)]
+    giorni_con_chiusura = len(open_rows)
 
-    totale_corr = sum(r["corrispettivi"] for r in rows)
-    totale_iva_10 = sum(r["iva_10"] for r in rows)
-    totale_iva_22 = sum(r["iva_22"] for r in rows)
-    totale_fatture = sum(r["fatture"] for r in rows)
-    totale_incassi = sum(r["totale_incassi"] for r in rows)
+    totale_corr = sum(r["corrispettivi"] for r in open_rows)
+    totale_iva_10 = sum(r["iva_10"] for r in open_rows)
+    totale_iva_22 = sum(r["iva_22"] for r in open_rows)
+    totale_fatture = sum(r["fatture"] for r in open_rows)
+    totale_incassi = sum(r["totale_incassi"] for r in open_rows)
 
     media_corr = totale_corr / giorni_con_chiusura if giorni_con_chiusura else 0.0
     media_inc = totale_incassi / giorni_con_chiusura if giorni_con_chiusura else 0.0
 
-    giorni_list = [
-        MonthlyDay(
-            date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
-            weekday=r["weekday"],
-            corrispettivi=r["corrispettivi"],
-            totale_incassi=r["totale_incassi"],
-            cash_diff=r["cash_diff"],
+    giorni_list: List[MonthlyDay] = []
+    for r in rows:
+        is_closed_eff = _is_effectively_closed(r)
+        giorni_list.append(
+            MonthlyDay(
+                date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
+                weekday=r["weekday"],
+                corrispettivi=r["corrispettivi"],
+                totale_incassi=r["totale_incassi"],
+                cash_diff=r["cash_diff"],
+                is_closed=is_closed_eff,
+            )
         )
-        for r in rows
-    ]
 
-    pagamenti = _build_payment_breakdown(rows)
+    pagamenti = _build_payment_breakdown(open_rows)
 
     alerts: List[Alert] = []
-    for r in rows:
+    for r in open_rows:
         diff = r["cash_diff"]
         if abs(diff) >= cash_diff_alert_threshold:
             alerts.append(
@@ -608,9 +750,11 @@ def _compute_annual_stats(year: int) -> AnnualStats:
             """
             SELECT
                 date,
+                weekday,
                 corrispettivi,
                 fatture,
-                totale_incassi
+                totale_incassi,
+                COALESCE(is_closed, 0) AS is_closed
             FROM daily_closures
             WHERE substr(date, 1, 4) = ?
             ORDER BY date ASC
@@ -630,14 +774,26 @@ def _compute_annual_stats(year: int) -> AnnualStats:
             mesi=[],
         )
 
-    # Totali anno
-    totale_corr = sum(r["corrispettivi"] for r in rows)
-    totale_inc = sum(r["totale_incassi"] for r in rows)
-    totale_fatt = sum(r["fatture"] for r in rows)
+    # Considera solo giorni "aperti" per totali e medie
+    open_rows = [r for r in rows if not _is_effectively_closed(r)]
 
-    # Raggruppa per mese
+    if not open_rows:
+        return AnnualStats(
+            year=year,
+            totale_corrispettivi=0.0,
+            totale_incassi=0.0,
+            totale_fatture=0.0,
+            mesi=[],
+        )
+
+    # Totali anno
+    totale_corr = sum(r["corrispettivi"] for r in open_rows)
+    totale_inc = sum(r["totale_incassi"] for r in open_rows)
+    totale_fatt = sum(r["fatture"] for r in open_rows)
+
+    # Raggruppa per mese (solo giorni aperti)
     monthly_map = {}  # key: month (1..12) -> list of rows
-    for r in rows:
+    for r in open_rows:
         d = datetime.strptime(r["date"], "%Y-%m-%d").date()
         m = d.month
         monthly_map.setdefault(m, []).append(r)
@@ -680,6 +836,7 @@ async def get_annual_stats(
 ):
     """
     Riepilogo annuale: totali anno e breakdown per mese.
+    I giorni chiusi non rientrano in totali/medie.
     """
     return _compute_annual_stats(year)
 
@@ -736,6 +893,7 @@ async def get_top_days(
 ):
     """
     Restituisce i giorni migliori e peggiori per totale incassi nell'anno.
+    I giorni di chiusura (manuali o mercoledì a 0) vengono esclusi.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -750,34 +908,26 @@ async def get_top_days(
                 weekday,
                 totale_incassi,
                 corrispettivi,
-                cash_diff
+                cash_diff,
+                COALESCE(is_closed, 0) AS is_closed
             FROM daily_closures
             WHERE substr(date, 1, 4) = ?
-            ORDER BY totale_incassi DESC
-            LIMIT ?
             """,
-            (f"{year:04d}", limit),
+            (f"{year:04d}",),
         )
-        best_rows = cur.fetchall()
-
-        cur.execute(
-            """
-            SELECT
-                date,
-                weekday,
-                totale_incassi,
-                corrispettivi,
-                cash_diff
-            FROM daily_closures
-            WHERE substr(date, 1, 4) = ?
-            ORDER BY totale_incassi ASC
-            LIMIT ?
-            """,
-            (f"{year:04d}", limit),
-        )
-        worst_rows = cur.fetchall()
+        rows = cur.fetchall()
     finally:
         conn.close()
+
+    # Filtra i giorni aperti
+    open_rows = [r for r in rows if not _is_effectively_closed(r)]
+
+    # ordina per incassi discendente/ascendente
+    best_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"], reverse=True)
+    worst_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"])
+
+    best_rows = best_sorted[:limit]
+    worst_rows = worst_sorted[:limit]
 
     def _rows_to_topdays(rs: List[sqlite3.Row]) -> List[TopDay]:
         return [
