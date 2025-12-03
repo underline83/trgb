@@ -10,7 +10,6 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from app.core.security import get_current_admin_user  # adatta al tuo progetto
 from app.services.corrispettivi_import import (
     DB_PATH,
     ensure_table,
@@ -63,7 +62,6 @@ class DailyClosureOut(DailyClosureBase):
 async def import_corrispettivi_file(
     file: UploadFile = File(...),
     year: int = 2025,
-    current_user=Depends(get_current_admin_user),
 ):
     filename = (file.filename or "").lower()
 
@@ -93,7 +91,8 @@ async def import_corrispettivi_file(
     ensure_table(conn)
 
     try:
-        inserted, updated = import_df_into_db(df, conn, created_by=current_user.username)
+    inserted, updated = import_df_into_db(df, conn, created_by="admin-finance")
+
     finally:
         conn.close()
         tmp_path.unlink(missing_ok=True)
@@ -111,7 +110,6 @@ async def import_corrispettivi_file(
 @router.get("/daily-closures/{date_str}", response_model=DailyClosureOut)
 async def get_daily_closure(
     date_str: str,
-    current_user=Depends(get_current_admin_user),
 ):
     """
     Restituisce la chiusura cassa per una data (YYYY-MM-DD).
@@ -179,7 +177,6 @@ async def get_daily_closure(
 @router.post("/daily-closures", response_model=DailyClosureOut)
 async def upsert_daily_closure(
     payload: DailyClosureBase,
-    current_user=Depends(get_current_admin_user),
 ):
     """
     Crea o aggiorna la chiusura cassa per la data indicata.
@@ -268,7 +265,7 @@ async def upsert_daily_closure(
                     totale_incassi,
                     cash_diff,
                     payload.note,
-                    current_user.username,
+                    "admin-finance",
                 ),
             )
 
