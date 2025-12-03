@@ -1,4 +1,4 @@
-// @version: v1.0
+// @version: v1.1
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -32,28 +32,22 @@ export default function CorrispettiviImport() {
     setResult(null);
 
     try {
+      // NON mandare year nel form-data: va solo in querystring
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("year", year);
 
       const token = localStorage.getItem("token");
 
-// NON mandare year nel form-data
-const formData = new FormData();
-formData.append("file", file);
-
-const token = localStorage.getItem("token");
-
-const res = await fetch(
-  `${API_BASE_URL}/admin/finance/import-corrispettivi-file?year=${year}`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    body: formData,
-  }
-);
+      const res = await fetch(
+        `${API_BASE_URL}/admin/finance/import-corrispettivi-file?year=${year}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -72,7 +66,6 @@ const res = await fetch(
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-3xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
@@ -80,8 +73,8 @@ const res = await fetch(
               📤 Import corrispettivi da Excel
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
-              Carica il file dei corrispettivi (es. 2025) per importare o aggiornare
-              le chiusure cassa nel gestionale.
+              Carica il file dei corrispettivi (es. 2025) per importare o
+              aggiornare le chiusure cassa nel gestionale.
             </p>
           </div>
 
@@ -105,7 +98,6 @@ const res = await fetch(
 
         {/* FORM IMPORT */}
         <div className="space-y-6">
-
           {/* ANNO */}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -120,7 +112,8 @@ const res = await fetch(
               max="2100"
             />
             <p className="text-xs text-neutral-500 mt-1">
-              Deve corrispondere al nome del foglio nel file (es. &quot;2025&quot;).
+              Deve corrispondere al nome del foglio nel file (es.
+              &quot;2025&quot;).
             </p>
           </div>
 
@@ -141,7 +134,8 @@ const res = await fetch(
                          hover:file:bg-amber-100"
             />
             <p className="text-xs text-neutral-500 mt-1">
-              Usa il file che compili oggi in Excel (corrispettivi, metodi pagamento, ecc.).
+              Usa il file che compili oggi in Excel (corrispettivi, metodi
+              pagamento, ecc.).
             </p>
           </div>
 
@@ -171,14 +165,14 @@ const res = await fetch(
           {/* MESSAGGI */}
           {error && (
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              Errore durante l'import: {error}
+              Errore durante l&apos;import: {error}
             </div>
           )}
 
           {result && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               <p className="font-semibold mb-1">
-                Import completato per l'anno {result.year}.
+                Import completato per l&apos;anno {result.year}.
               </p>
               <p>
                 Righe inserite: <strong>{result.inserted}</strong>
