@@ -12,6 +12,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import { API_BASE } from "../../config/api";
 
@@ -62,8 +65,6 @@ export default function CorrispettiviDashboard() {
   const [month, setMonth] = useState(today.month);
 
   const [monthlyStats, setMonthlyStats] = useState(null);
-  const [annualStats, setAnnualStats] = useState(null);
-  const [annualCompare, setAnnualCompare] = useState(null);
   const [topDays, setTopDays] = useState(null);
 
   const [loading, setLoading] = useState(false);
@@ -87,27 +88,7 @@ export default function CorrispettiviDashboard() {
         const monthlyJson = await monthlyRes.json();
         if (cancelled) return;
 
-        // 2) Stats annuali (anno corrente)
-        const annualRes = await fetch(
-          `${API_BASE}/admin/finance/stats/annual?year=${year}`
-        );
-        if (!annualRes.ok) {
-          throw new Error(`Errore stats annuali: ${annualRes.status}`);
-        }
-        const annualJson = await annualRes.json();
-        if (cancelled) return;
-
-        // 3) Confronto anno vs anno precedente
-        const compareRes = await fetch(
-          `${API_BASE}/admin/finance/stats/annual-compare?year=${year}`
-        );
-        if (!compareRes.ok) {
-          throw new Error(`Errore annual-compare: ${compareRes.status}`);
-        }
-        const compareJson = await compareRes.json();
-        if (cancelled) return;
-
-        // 4) Top/bottom days
+        // 2) Top/bottom days anno
         const topRes = await fetch(
           `${API_BASE}/admin/finance/stats/top-days?year=${year}&limit=10`
         );
@@ -118,8 +99,6 @@ export default function CorrispettiviDashboard() {
         if (cancelled) return;
 
         setMonthlyStats(monthlyJson);
-        setAnnualStats(annualJson);
-        setAnnualCompare(compareJson);
         setTopDays(topJson);
       } catch (err) {
         console.error(err);
@@ -141,15 +120,16 @@ export default function CorrispettiviDashboard() {
     [month]
   );
 
-  // dati per grafico giornaliero
+  // dati per grafico giornaliero (solo giorni aperti)
   const chartData = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return [];
-    return monthlyStats.giorni.map((g) => ({
-      date: formatShortDate(g.date),
-      totale_incassi: g.totale_incassi,
-      corrispettivi: g.corrispettivi,
-      is_closed: g.is_closed,
-    }));
+    return monthlyStats.giorni
+      .filter((g) => !g.is_closed)
+      .map((g) => ({
+        date: formatShortDate(g.date),
+        totale_incassi: g.totale_incassi,
+        corrispettivi: g.corrispettivi,
+      }));
   }, [monthlyStats]);
 
   // medie incassi per giorno della settimana (solo giorni aperti)
@@ -235,16 +215,28 @@ export default function CorrispettiviDashboard() {
     setMonth(t.month);
   }
 
-  const yearlyDelta = useMemo(() => {
-    if (!annualCompare) return null;
-    const dCorr = annualCompare.delta_corrispettivi;
-    const dCorrPct = annualCompare.delta_corrispettivi_pct;
-    const dInc = annualCompare.delta_incassi;
-    const dIncPct = annualCompare.delta_incassi_pct;
-    return { dCorr, dCorrPct, dInc, dIncPct };
-  }, [annualCompare]);
-
   const pag = monthlyStats?.pagamenti;
+
+  const paymentPieData = useMemo(() => {
+    if (!pag) return [];
+
+    const entries = [
+      { key: "contanti_finali", label: "Contanti", color: "#f97316" },
+      { key: "pos", label: "POS", color: "#22c55e" },
+      { key: "sella", label: "Sella", color: "#0ea5e9" },
+      { key: "stripe_pay", label: "Stripe / Pay", color: "#8b5cf6" },
+      { key: "bonifici", label: "Bonifici", color: "#eab308" },
+      { key: "mance", label: "Mance", color: "#ec4899" },
+    ];
+
+    return entries
+      .map((e) => ({
+        name: e.label,
+        value: pag[e.key] ?? 0,
+        color: e.color,
+      }))
+      .filter((e) => e.value > 0);
+  }, [pag]);
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -256,7 +248,7 @@ export default function CorrispettiviDashboard() {
               Corrispettivi — Dashboard
             </h1>
             <p className="text-neutral-600">
-              Analisi mensile, confronto annuale e controllo chiusure cassa.
+              Analisi mensile, incassi per giorno e controllo chiusure cassa.
             </p>
           </div>
 
@@ -274,6 +266,13 @@ export default function CorrispettiviDashboard() {
               className="px-3 py-2 rounded-xl text-sm font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 shadow-sm transition"
             >
               Modulo Chiusura Giornaliera
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/admin/corrispettivi/annual")}
+              className="px-3 py-2 rounded-xl text-sm font-medium border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 shadow-sm transition"
+            >
+              Confronto annuale →
             </button>
           </div>
         </div>
@@ -329,9 +328,7 @@ export default function CorrispettiviDashboard() {
           </div>
         )}
         {error && (
-          <div className="mb-4 text-sm text-red-600">
-            Errore: {error}
-          </div>
+          <div className="mb-4 text-sm text-red-600">Errore: {error}</div>
         )}
 
         {/* Se non ci sono dati, mostra solo messaggio */}
@@ -389,7 +386,9 @@ export default function CorrispettiviDashboard() {
                   {monthlyStats.giorni_con_chiusura} aperti
                 </p>
                 <p className="text-xs text-neutral-500 mt-1">
-                  {monthlyStats.giorni.length - monthlyStats.giorni_con_chiusura} chiusi (automatici o flag)
+                  {monthlyStats.giorni.length -
+                    monthlyStats.giorni_con_chiusura}{" "}
+                  chiusi (automatici o flag)
                 </p>
               </div>
             </section>
@@ -403,7 +402,7 @@ export default function CorrispettiviDashboard() {
                     Andamento giornaliero incassi vs corrispettivi
                   </h2>
                   <p className="text-xs text-neutral-500">
-                    Giorni chiusi esclusi dalle medie, ma visibili nel calendario.
+                    Nel grafico sono inclusi solo i giorni aperti.
                   </p>
                 </div>
                 <div className="h-64">
@@ -413,9 +412,12 @@ export default function CorrispettiviDashboard() {
                       <XAxis dataKey="date" />
                       <YAxis />
                       <Tooltip
-                        formatter={(value, name) =>
-                          [`€ ${formatCurrency(value)}`, name === "totale_incassi" ? "Incassi" : "Corrispettivi"]
-                        }
+                        formatter={(value, name) => [
+                          `€ ${formatCurrency(value)}`,
+                          name === "totale_incassi"
+                            ? "Incassi"
+                            : "Corrispettivi",
+                        ]}
                       />
                       <Legend />
                       <Line
@@ -554,45 +556,48 @@ export default function CorrispettiviDashboard() {
               </div>
             </section>
 
-            {/* PAGAMENTI + ALERT + RIEPILOGO ANNI */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* Breakdown pagamenti */}
+            {/* PAGAMENTI + ALERT */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              {/* Breakdown pagamenti (torta) */}
               <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                 <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
                   Breakdown metodi di pagamento
                 </h2>
-                {pag ? (
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>Contanti finali</span>
-                      <span>€ {formatCurrency(pag.contanti_finali)}</span>
+                {pag && paymentPieData.length > 0 ? (
+                  <>
+                    <div className="h-60">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={paymentPieData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius="45%"
+                            outerRadius="80%"
+                            paddingAngle={2}
+                            label={({ name, percent }) =>
+                              `${name} ${(percent * 100).toFixed(1)}%`
+                            }
+                          >
+                            {paymentPieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value, name) => [
+                              `€ ${formatCurrency(value)}`,
+                              name,
+                            ]}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex justify-between">
-                      <span>POS</span>
-                      <span>€ {formatCurrency(pag.pos)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Sella</span>
-                      <span>€ {formatCurrency(pag.sella)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Stripe / Pay</span>
-                      <span>€ {formatCurrency(pag.stripe_pay)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Bonifici</span>
-                      <span>€ {formatCurrency(pag.bonifici)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Mance</span>
-                      <span>€ {formatCurrency(pag.mance)}</span>
-                    </div>
-                    <hr className="my-2" />
-                    <div className="flex justify-between font-semibold text-neutral-900">
+                    <div className="mt-2 text-sm flex justify-between font-semibold text-neutral-900">
                       <span>Totale incassi mese</span>
                       <span>€ {formatCurrency(pag.totale_incassi)}</span>
                     </div>
-                  </div>
+                  </>
                 ) : (
                   <p className="text-sm text-neutral-500">
                     Nessun dato pagamenti per questo mese.
@@ -625,68 +630,6 @@ export default function CorrispettiviDashboard() {
                 ) : (
                   <p className="text-sm text-neutral-500">
                     Nessun alert superiore alla soglia impostata.
-                  </p>
-                )}
-              </div>
-
-              {/* Riepilogo Annuale / Confronto anni */}
-              <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
-                  Confronto {year} vs {year - 1}
-                </h2>
-                {annualStats && yearlyDelta ? (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>Totale corrispettivi {year}</span>
-                      <span>
-                        € {formatCurrency(annualStats.totale_corrispettivi)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Totale incassi {year}</span>
-                      <span>
-                        € {formatCurrency(annualStats.totale_incassi)}
-                      </span>
-                    </div>
-                    <hr className="my-2" />
-                    <div className="flex justify-between">
-                      <span>Δ corrispettivi vs {year - 1}</span>
-                      <span>
-                        € {formatCurrency(yearlyDelta.dCorr)}{" "}
-                        {yearlyDelta.dCorrPct != null && (
-                          <span
-                            className={
-                              yearlyDelta.dCorrPct >= 0
-                                ? "text-emerald-700 ml-1"
-                                : "text-red-700 ml-1"
-                            }
-                          >
-                            ({yearlyDelta.dCorrPct.toFixed(1)}%)
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Δ incassi vs {year - 1}</span>
-                      <span>
-                        € {formatCurrency(yearlyDelta.dInc)}{" "}
-                        {yearlyDelta.dIncPct != null && (
-                          <span
-                            className={
-                              yearlyDelta.dIncPct >= 0
-                                ? "text-emerald-700 ml-1"
-                                : "text-red-700 ml-1"
-                            }
-                          >
-                            ({yearlyDelta.dIncPct.toFixed(1)}%)
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-neutral-500">
-                    Dati annuali non disponibili.
                   </p>
                 )}
               </div>
@@ -724,7 +667,6 @@ export default function CorrispettiviDashboard() {
                   </thead>
                   <tbody>
                     {monthlyStats.giorni.map((g) => {
-                      const d = new Date(g.date);
                       const closed = g.is_closed;
                       const diff = g.cash_diff ?? 0;
                       return (
@@ -796,9 +738,7 @@ export default function CorrispettiviDashboard() {
                           <span>
                             {formatShortDate(d.date)} — {d.weekday}
                           </span>
-                          <span>
-                            € {formatCurrency(d.totale_incassi)}
-                          </span>
+                          <span>€ {formatCurrency(d.totale_incassi)}</span>
                         </li>
                       ))}
                     </ul>
@@ -817,9 +757,7 @@ export default function CorrispettiviDashboard() {
                           <span>
                             {formatShortDate(d.date)} — {d.weekday}
                           </span>
-                          <span>
-                            € {formatCurrency(d.totale_incassi)}
-                          </span>
+                          <span>€ {formatCurrency(d.totale_incassi)}</span>
                         </li>
                       ))}
                     </ul>
