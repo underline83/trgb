@@ -38,7 +38,7 @@ export default function AdminMenu() {
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
-          {/* CORRISPETTIVI */}
+          {/* CORRISPETTIVI - MODULO OPERATIVO */}
           <Link
             to="/admin/corrispettivi"
             className="
@@ -50,24 +50,33 @@ export default function AdminMenu() {
           >
             <div className="text-5xl mb-3">💵</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Corrispettivi & Chiusura Cassa
+              Corrispettivi &amp; Chiusura Cassa
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Import da Excel, registrazione giornaliera, analisi annuali
+              Modulo operativo: import da Excel, registrazione giornaliera,
+              controllo cassa.
             </p>
           </Link>
 
-          {/* SLOT FUTURI (es. Fatture, Analisi) */}
-          <div
+          {/* DASHBOARD CORRISPETTIVI - ANALISI */}
+          <Link
+            to="/admin/corrispettivi/dashboard"
             className="
-              bg-neutral-50 border border-dashed border-neutral-300 text-neutral-500
-              rounded-2xl p-8 shadow-inner
-              flex items-center justify-center text-center text-sm
+              bg-blue-50 border border-blue-200 text-blue-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
             "
           >
-            Altri moduli amministrativi saranno aggiunti qui
-            (Fatture, incassi, report avanzati).
-          </div>
+            <div className="text-5xl mb-3">📊</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Dashboard Corrispettivi
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Analisi mensili e annuali, confronto anni, giorni migliori/peggiori,
+              breakdown metodi di pagamento.
+            </p>
+          </Link>
 
         </div>
       </div>

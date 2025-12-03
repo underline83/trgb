@@ -31,7 +31,7 @@ import AdminMenu from "./pages/admin/AdminMenu";
 import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
-
+import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -59,7 +59,7 @@ export default function App() {
         <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
         <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
         <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
-
+        <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard/>}/>
         {/* MAGAZZINO LISTA + DETTAGLIO */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />

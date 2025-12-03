@@ -1,13 +1,15 @@
 # app/routers/admin_finance.py
-# @version: v1.0
+# @version: v1.1
 
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 from pathlib import Path
+import math
 import shutil
 import sqlite3
 import uuid
+from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
 from app.services.corrispettivi_import import (
@@ -27,7 +29,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------
-# MODELLI Pydantic
+# MODELLI Pydantic - BASE
 # ---------------------------------------------------------
 
 class ImportResult(BaseModel):
@@ -56,6 +58,94 @@ class DailyClosureOut(DailyClosureBase):
     weekday: str
     totale_incassi: float
     cash_diff: float
+
+
+# ---------------------------------------------------------
+# MODELLI Pydantic - STATISTICHE / DASHBOARD
+# ---------------------------------------------------------
+
+class MonthlyDay(BaseModel):
+    date: date_type
+    weekday: str
+    corrispettivi: float
+    totale_incassi: float
+    cash_diff: float
+
+
+class PaymentBreakdown(BaseModel):
+    contanti_finali: float
+    pos: float
+    sella: float
+    stripe_pay: float
+    bonifici: float
+    mance: float
+    totale_incassi: float
+
+
+class Alert(BaseModel):
+    date: date_type
+    type: str
+    message: str
+    cash_diff: float
+
+
+class MonthlyStats(BaseModel):
+    year: int
+    month: int
+    totale_corrispettivi: float
+    totale_incassi: float
+    totale_fatture: float
+    totale_iva_10: float
+    totale_iva_22: float
+    giorni_con_chiusura: int
+    media_corrispettivi: float
+    media_incassi: float
+    giorni: List[MonthlyDay]
+    pagamenti: PaymentBreakdown
+    alerts: List[Alert]
+
+
+class MonthlySummary(BaseModel):
+    month: int
+    totale_corrispettivi: float
+    totale_incassi: float
+    totale_fatture: float
+    giorni_con_chiusura: int
+    media_corrispettivi: float
+    media_incassi: float
+
+
+class AnnualStats(BaseModel):
+    year: int
+    totale_corrispettivi: float
+    totale_incassi: float
+    totale_fatture: float
+    mesi: List[MonthlySummary]
+
+
+class AnnualCompare(BaseModel):
+    year: int
+    prev_year: int
+    current: AnnualStats
+    previous: AnnualStats
+    delta_corrispettivi: float
+    delta_corrispettivi_pct: Optional[float]
+    delta_incassi: float
+    delta_incassi_pct: Optional[float]
+
+
+class TopDay(BaseModel):
+    date: date_type
+    weekday: str
+    totale_incassi: float
+    corrispettivi: float
+    cash_diff: float
+
+
+class TopDaysStats(BaseModel):
+    year: int
+    top_best: List[TopDay]
+    top_worst: List[TopDay]
 
 
 # ---------------------------------------------------------
@@ -344,4 +434,365 @@ async def upsert_daily_closure(
         totale_incassi=totale_incassi,
         cash_diff=cash_diff,
         note=payload.note,
+    )
+
+
+# ---------------------------------------------------------
+# HELPER INTERNO: costruisce PaymentBreakdown da righe SQL
+# ---------------------------------------------------------
+
+def _build_payment_breakdown(rows: List[sqlite3.Row]) -> PaymentBreakdown:
+    contanti = sum(r["contanti_finali"] for r in rows)
+    pos = sum(r["pos"] for r in rows)
+    sella = sum(r["sella"] for r in rows)
+    stripe_pay = sum(r["stripe_pay"] for r in rows)
+    bonifici = sum(r["bonifici"] for r in rows)
+    mance = sum(r["mance"] for r in rows)
+    totale = contanti + pos + sella + stripe_pay + bonifici + mance
+
+    return PaymentBreakdown(
+        contanti_finali=contanti,
+        pos=pos,
+        sella=sella,
+        stripe_pay=stripe_pay,
+        bonifici=bonifici,
+        mance=mance,
+        totale_incassi=totale,
+    )
+
+
+# ---------------------------------------------------------
+# STATS: DASHBOARD MENSILE
+# ---------------------------------------------------------
+
+@router.get("/stats/monthly", response_model=MonthlyStats)
+async def get_monthly_stats(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    cash_diff_alert_threshold: float = Query(20.0),
+):
+    """
+    Statistiche dettagliate per un mese:
+    - totali e medie
+    - elenco giorni
+    - breakdown pagamenti
+    - alert su differenze di cassa oltre soglia
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_table(conn)
+
+    ym_prefix = f"{year:04d}-{month:02d}"
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                date,
+                weekday,
+                corrispettivi,
+                iva_10,
+                iva_22,
+                fatture,
+                contanti_finali,
+                pos,
+                sella,
+                stripe_pay,
+                bonifici,
+                mance,
+                totale_incassi,
+                cash_diff
+            FROM daily_closures
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date ASC
+            """,
+            (ym_prefix,),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        # Nessuna chiusura per questo mese
+        return MonthlyStats(
+            year=year,
+            month=month,
+            totale_corrispettivi=0.0,
+            totale_incassi=0.0,
+            totale_fatture=0.0,
+            totale_iva_10=0.0,
+            totale_iva_22=0.0,
+            giorni_con_chiusura=0,
+            media_corrispettivi=0.0,
+            media_incassi=0.0,
+            giorni=[],
+            pagamenti=PaymentBreakdown(
+                contanti_finali=0.0,
+                pos=0.0,
+                sella=0.0,
+                stripe_pay=0.0,
+                bonifici=0.0,
+                mance=0.0,
+                totale_incassi=0.0,
+            ),
+            alerts=[],
+        )
+
+    giorni_con_chiusura = len(rows)
+
+    totale_corr = sum(r["corrispettivi"] for r in rows)
+    totale_iva_10 = sum(r["iva_10"] for r in rows)
+    totale_iva_22 = sum(r["iva_22"] for r in rows)
+    totale_fatture = sum(r["fatture"] for r in rows)
+    totale_incassi = sum(r["totale_incassi"] for r in rows)
+
+    media_corr = totale_corr / giorni_con_chiusura if giorni_con_chiusura else 0.0
+    media_inc = totale_incassi / giorni_con_chiusura if giorni_con_chiusura else 0.0
+
+    giorni_list = [
+        MonthlyDay(
+            date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
+            weekday=r["weekday"],
+            corrispettivi=r["corrispettivi"],
+            totale_incassi=r["totale_incassi"],
+            cash_diff=r["cash_diff"],
+        )
+        for r in rows
+    ]
+
+    pagamenti = _build_payment_breakdown(rows)
+
+    alerts: List[Alert] = []
+    for r in rows:
+        diff = r["cash_diff"]
+        if abs(diff) >= cash_diff_alert_threshold:
+            alerts.append(
+                Alert(
+                    date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
+                    type="CASH_DIFF",
+                    message=f"Scostamento cassa di {diff:.2f} €",
+                    cash_diff=diff,
+                )
+            )
+
+    return MonthlyStats(
+        year=year,
+        month=month,
+        totale_corrispettivi=totale_corr,
+        totale_incassi=totale_incassi,
+        totale_fatture=totale_fatture,
+        totale_iva_10=totale_iva_10,
+        totale_iva_22=totale_iva_22,
+        giorni_con_chiusura=giorni_con_chiusura,
+        media_corrispettivi=media_corr,
+        media_incassi=media_inc,
+        giorni=giorni_list,
+        pagamenti=pagamenti,
+        alerts=alerts,
+    )
+
+
+# ---------------------------------------------------------
+# HELPER: AnnualStats
+# ---------------------------------------------------------
+
+def _compute_annual_stats(year: int) -> AnnualStats:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_table(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                date,
+                corrispettivi,
+                fatture,
+                totale_incassi
+            FROM daily_closures
+            WHERE substr(date, 1, 4) = ?
+            ORDER BY date ASC
+            """,
+            (f"{year:04d}",),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        return AnnualStats(
+            year=year,
+            totale_corrispettivi=0.0,
+            totale_incassi=0.0,
+            totale_fatture=0.0,
+            mesi=[],
+        )
+
+    # Totali anno
+    totale_corr = sum(r["corrispettivi"] for r in rows)
+    totale_inc = sum(r["totale_incassi"] for r in rows)
+    totale_fatt = sum(r["fatture"] for r in rows)
+
+    # Raggruppa per mese
+    monthly_map = {}  # key: month (1..12) -> list of rows
+    for r in rows:
+        d = datetime.strptime(r["date"], "%Y-%m-%d").date()
+        m = d.month
+        monthly_map.setdefault(m, []).append(r)
+
+    mesi: List[MonthlySummary] = []
+    for m in sorted(monthly_map.keys()):
+        m_rows = monthly_map[m]
+        giorni = len(m_rows)
+        m_corr = sum(r["corrispettivi"] for r in m_rows)
+        m_inc = sum(r["totale_incassi"] for r in m_rows)
+        m_fatt = sum(r["fatture"] for r in m_rows)
+        mesi.append(
+            MonthlySummary(
+                month=m,
+                totale_corrispettivi=m_corr,
+                totale_incassi=m_inc,
+                totale_fatture=m_fatt,
+                giorni_con_chiusura=giorni,
+                media_corrispettivi=m_corr / giorni if giorni else 0.0,
+                media_incassi=m_inc / giorni if giorni else 0.0,
+            )
+        )
+
+    return AnnualStats(
+        year=year,
+        totale_corrispettivi=totale_corr,
+        totale_incassi=totale_inc,
+        totale_fatture=totale_fatt,
+        mesi=mesi,
+    )
+
+
+# ---------------------------------------------------------
+# STATS: RIEPILOGO ANNUALE
+# ---------------------------------------------------------
+
+@router.get("/stats/annual", response_model=AnnualStats)
+async def get_annual_stats(
+    year: int = Query(..., ge=2000, le=2100),
+):
+    """
+    Riepilogo annuale: totali anno e breakdown per mese.
+    """
+    return _compute_annual_stats(year)
+
+
+# ---------------------------------------------------------
+# STATS: CONFRONTO ANNI (es. 2025 vs 2024)
+# ---------------------------------------------------------
+
+@router.get("/stats/annual-compare", response_model=AnnualCompare)
+async def get_annual_compare(
+    year: int = Query(..., ge=2000, le=2100),
+    prev_year: Optional[int] = Query(None, ge=2000, le=2100),
+):
+    """
+    Confronto fra due anni (default: year vs year-1).
+    """
+    if prev_year is None:
+        prev_year = year - 1
+
+    current = _compute_annual_stats(year)
+    previous = _compute_annual_stats(prev_year)
+
+    delta_corr = current.totale_corrispettivi - previous.totale_corrispettivi
+    delta_inc = current.totale_incassi - previous.totale_incassi
+
+    delta_corr_pct = None
+    if previous.totale_corrispettivi:
+        delta_corr_pct = (delta_corr / previous.totale_corrispettivi) * 100.0
+
+    delta_inc_pct = None
+    if previous.totale_incassi:
+        delta_inc_pct = (delta_inc / previous.totale_incassi) * 100.0
+
+    return AnnualCompare(
+        year=year,
+        prev_year=prev_year,
+        current=current,
+        previous=previous,
+        delta_corrispettivi=delta_corr,
+        delta_corrispettivi_pct=delta_corr_pct,
+        delta_incassi=delta_inc,
+        delta_incassi_pct=delta_inc_pct,
+    )
+
+
+# ---------------------------------------------------------
+# STATS: TOP/BOTTOM DAYS
+# ---------------------------------------------------------
+
+@router.get("/stats/top-days", response_model=TopDaysStats)
+async def get_top_days(
+    year: int = Query(..., ge=2000, le=2100),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """
+    Restituisce i giorni migliori e peggiori per totale incassi nell'anno.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_table(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                date,
+                weekday,
+                totale_incassi,
+                corrispettivi,
+                cash_diff
+            FROM daily_closures
+            WHERE substr(date, 1, 4) = ?
+            ORDER BY totale_incassi DESC
+            LIMIT ?
+            """,
+            (f"{year:04d}", limit),
+        )
+        best_rows = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+                date,
+                weekday,
+                totale_incassi,
+                corrispettivi,
+                cash_diff
+            FROM daily_closures
+            WHERE substr(date, 1, 4) = ?
+            ORDER BY totale_incassi ASC
+            LIMIT ?
+            """,
+            (f"{year:04d}", limit),
+        )
+        worst_rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    def _rows_to_topdays(rs: List[sqlite3.Row]) -> List[TopDay]:
+        return [
+            TopDay(
+                date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
+                weekday=r["weekday"],
+                totale_incassi=r["totale_incassi"],
+                corrispettivi=r["corrispettivi"],
+                cash_diff=r["cash_diff"],
+            )
+            for r in rs
+        ]
+
+    return TopDaysStats(
+        year=year,
+        top_best=_rows_to_topdays(best_rows),
+        top_worst=_rows_to_topdays(worst_rows),
     )
