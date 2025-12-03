@@ -26,6 +26,13 @@ import RicetteImport from "./pages/ricette/RicetteImport";
 import RicetteIngredienti from "./pages/ricette/RicetteIngredienti";
 import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
 
+// --- AMMINISTRAZIONE ---
+import AdminMenu from "./pages/admin/AdminMenu";
+import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
+import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
+import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
+
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -47,6 +54,11 @@ export default function App() {
         <Route path="/vini/database" element={<ViniDatabase />} />
         <Route path="/vini/vendite" element={<ViniVendite />} />
         <Route path="/vini/settings" element={<ViniImpostazioni />} />
+        {/* --- AMMINISTRAZIONE --- */}
+        <Route path="/admin" element={<AdminMenu />} />
+        <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
+        <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
+        <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
 
         {/* MAGAZZINO LISTA + DETTAGLIO */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
