@@ -13,7 +13,10 @@ import ViniCarta from "./pages/vini/ViniCarta";
 import ViniDatabase from "./pages/vini/ViniDatabase";
 import ViniVendite from "./pages/vini/ViniVendite";
 import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
-import ViniMagazzino from "./pages/vini/ViniMagazzino";
+
+// NUOVE PAGINE MAGAZZINO
+import MagazzinoVini from "./pages/vini/MagazzinoVini";
+import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
 
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
@@ -44,8 +47,10 @@ export default function App() {
         <Route path="/vini/database" element={<ViniDatabase />} />
         <Route path="/vini/vendite" element={<ViniVendite />} />
         <Route path="/vini/settings" element={<ViniImpostazioni />} />
-        <Route path="/vini/magazzino" element={<ViniMagazzino />} />
 
+        {/* MAGAZZINO LISTA + DETTAGLIO */}
+        <Route path="/vini/magazzino" element={<MagazzinoVini />} />
+        <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
         <Route path="/ricette/nuova" element={<RicetteNuova />} />
