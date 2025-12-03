@@ -16,8 +16,27 @@ from app.routers import vini_router
 from app.routers import vini_settings_router
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
-from app.routers import foodcost_recipes_router
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+# IMPORT ROUTER ESISTENTI
+from app.routers import vini_settings_router
+from app.routers import vini_router
 from app.routers import vini_magazzino_router
+
+from app.routers import foodcost_router
+from app.routers import foodcost_ingredients_router
+from app.routers import foodcost_recipes_router
+
+from app.routers import auth_router
+from app.routers import menu_router
+
+# ⬅️ NUOVO ROUTER AMMINISTRAZIONE
+from app.routers import admin_finance
+
+
 # ----------------------------------------
 # APP
 # ----------------------------------------
@@ -63,16 +82,19 @@ app.mount(
 # ----------------------------------------
 # ROUTERS
 # ----------------------------------------
+
 # VINI
 app.include_router(vini_settings_router.router)
 app.include_router(vini_router.router)
 app.include_router(vini_magazzino_router.router)
 
-# INGREDIENTI/FOODCOST
+# FOODCOST
 app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
 app.include_router(foodcost_ingredients_router.router, prefix="/foodcost", tags=["foodcost-ingredients"])
 app.include_router(foodcost_recipes_router.router, prefix="/foodcost", tags=["foodcost-recipes"])
 
+# AMMINISTRAZIONE (⬅️ NUOVO)
+app.include_router(admin_finance.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
