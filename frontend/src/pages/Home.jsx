@@ -30,12 +30,13 @@ export default function Home() {
       color: "bg-green-50 border-green-200 text-green-900",
     },
     {
-      title: "Prodotti & Magazzino",
-      subtitle: "Movimenti, giacenze, valorizzazioni",
-      icon: "📦",
-      go: () => navigate("/magazzino"),
-      color: "bg-neutral-50 border-neutral-300 text-neutral-700",
+    title: "Amministrazione",
+    subtitle: "Corrispettivi, fatturati e strumenti gestionali",
+    icon: "🧾",
+    go: () => navigate("/admin"),
+    color: "bg-neutral-50 border-neutral-300 text-neutral-800",
     },
+
   ];
 
   return (
