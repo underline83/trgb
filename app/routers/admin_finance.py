@@ -1,5 +1,5 @@
 # app/routers/admin_finance.py
-# @version: v1.3
+# @version: v1.4
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -11,11 +11,12 @@ from typing import List, Optional
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
-from app.services.corrispettivi_import import (
+# 🔄 NUOVO IMPORT MULTI-ANNO
+from app.services.corrispettivi_import_v2 import (
     DB_PATH,
     ensure_table,
     import_df_into_db,
-    load_corrispettivi_from_excel,
+    load_corrispettivi_any_excel,
 )
 
 router = APIRouter(
@@ -34,10 +35,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
     """
     Garantisce che la tabella daily_closures esista e abbia la colonna is_closed.
-    Usa la ensure_table originale per creare la struttura base, poi fa l'ALTER
-    solo se necessario (DB vecchi senza is_closed).
     """
-    # struttura base (crea la tabella se non esiste)
     ensure_table(conn)
 
     cur = conn.cursor()
@@ -76,7 +74,6 @@ class DailyClosureBase(BaseModel):
     bonifici: float = 0
     mance: float = 0
     note: str | None = None
-    # flag manuale: giorno considerato chiusura (non rientra in medie/analisi)
     is_closed: bool = False
 
 
@@ -87,7 +84,7 @@ class DailyClosureOut(DailyClosureBase):
 
 
 # ---------------------------------------------------------
-# MODELLI Pydantic - STATISTICHE / DASHBOARD
+# STATISTIC MODELS (unchanged)
 # ---------------------------------------------------------
 
 class MonthlyDay(BaseModel):
@@ -98,7 +95,6 @@ class MonthlyDay(BaseModel):
     cash_diff: float
     is_closed: bool
 
-
 class PaymentBreakdown(BaseModel):
     contanti_finali: float
     pos: float
@@ -108,13 +104,11 @@ class PaymentBreakdown(BaseModel):
     mance: float
     totale_incassi: float
 
-
 class Alert(BaseModel):
     date: date_type
     type: str
     message: str
     cash_diff: float
-
 
 class MonthlyStats(BaseModel):
     year: int
@@ -131,7 +125,6 @@ class MonthlyStats(BaseModel):
     pagamenti: PaymentBreakdown
     alerts: List[Alert]
 
-
 class MonthlySummary(BaseModel):
     month: int
     totale_corrispettivi: float
@@ -141,14 +134,12 @@ class MonthlySummary(BaseModel):
     media_corrispettivi: float
     media_incassi: float
 
-
 class AnnualStats(BaseModel):
     year: int
     totale_corrispettivi: float
     totale_incassi: float
     totale_fatture: float
     mesi: List[MonthlySummary]
-
 
 class AnnualCompare(BaseModel):
     year: int
@@ -160,7 +151,6 @@ class AnnualCompare(BaseModel):
     delta_incassi: float
     delta_incassi_pct: Optional[float]
 
-
 class TopDay(BaseModel):
     date: date_type
     weekday: str
@@ -168,19 +158,17 @@ class TopDay(BaseModel):
     corrispettivi: float
     cash_diff: float
 
-
 class TopDaysStats(BaseModel):
     year: int
     top_best: List[TopDay]
     top_worst: List[TopDay]
-
 
 class SetClosedPayload(BaseModel):
     is_closed: bool
 
 
 # ---------------------------------------------------------
-# IMPORT CORRISPETTIVI DA FILE EXCEL
+# IMPORT CORRISPETTIVI — VERSIONE MULTI ANNO
 # ---------------------------------------------------------
 
 @router.post("/import-corrispettivi-file", response_model=ImportResult)
@@ -189,9 +177,11 @@ async def import_corrispettivi_file(
     year: int = 2025,
 ):
     """
-    Importa i corrispettivi da un file Excel (xlsb/xlsx/xls) nel DB admin_finance.
-    Usa il foglio con nome = anno (es. "2025").
+    Importazione universale, compatibile con file 2021–2025.
+    Il parametro 'year' viene usato solo come metadato di ritorno.
+    Il foglio corretto viene scelto automaticamente.
     """
+
     filename = (file.filename or "").lower()
 
     if not filename.endswith((".xlsb", ".xlsx", ".xls")):
@@ -203,13 +193,12 @@ async def import_corrispettivi_file(
     tmp_name = f"{uuid.uuid4().hex}_{file.filename}"
     tmp_path = UPLOAD_DIR / tmp_name
 
-    # Salva fisicamente il file caricato
     with tmp_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Prova a leggere l'Excel
+    # 🆕 NUOVO IMPORT
     try:
-        df = load_corrispettivi_from_excel(tmp_path, year=year)
+        df = load_corrispettivi_any_excel(tmp_path)
     except Exception as e:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(
@@ -217,7 +206,6 @@ async def import_corrispettivi_file(
             detail=f"Errore nella lettura del file: {e}",
         )
 
-    # Connessione al DB amministrativo
     conn = sqlite3.connect(DB_PATH)
     ensure_daily_closures_table(conn)
 
@@ -225,7 +213,7 @@ async def import_corrispettivi_file(
         inserted, updated = import_df_into_db(
             df,
             conn,
-            created_by="admin-finance",
+            created_by="import-multi-anno",
         )
     finally:
         conn.close()
@@ -240,6 +228,11 @@ async def import_corrispettivi_file(
 
 
 # ---------------------------------------------------------
+# TUTTO IL RESTO DEL FILE È INVARIATO
+# Daily closures, stats, annual compare, top days etc.
+# ---------------------------------------------------------
+
+# …qui prosegue esattamente il tuo codice, senza nessuna modifica…# ----------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
 # ---------------------------------------------------------
 
