@@ -1,9 +1,18 @@
-# @version: v1.1-magazzino
+# @version: v1.2-magazzino
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)
 File: app/models/vini_magazzino_db.py
-...
+
+Gestisce:
+- Tabella principale vini_magazzino
+- Movimenti di magazzino (vini_magazzino_movimenti)
+- Note per vino (vini_magazzino_note)
+
+In v1.2:
+- Aggiunto indice UNIQUE su id_excel per proteggere l'ID "storico" dal DB carta
+- Aggiunta funzione upsert_vino_from_carta(data) per sincronizzare anagrafica/prezzi
+  da app/data/vini.sqlite3 senza toccare giacenze, movimenti, note interne.
 """
 
 from __future__ import annotations
@@ -93,15 +102,37 @@ def init_magazzino_database() -> None:
     )
 
     # Indici
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_tipologia ON vini_magazzino (TIPOLOGIA);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_regione   ON vini_magazzino (REGIONE);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_produttore ON vini_magazzino (PRODUTTORE);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_descrizione ON vini_magazzino (DESCRIZIONE);")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vm_tipologia "
+        "ON vini_magazzino (TIPOLOGIA);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vm_regione "
+        "ON vini_magazzino (REGIONE);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vm_produttore "
+        "ON vini_magazzino (PRODUTTORE);"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vm_descrizione "
+        "ON vini_magazzino (DESCRIZIONE);"
+    )
+
+    # Indice UNIQUE su id_excel per proteggere l'ID storico (quando non NULL)
+    try:
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_vm_id_excel_unique "
+            "ON vini_magazzino (id_excel);"
+        )
+    except sqlite3.OperationalError as e:
+        # Se esistono già duplicati, l'indice fallisce:
+        # lo segnaliamo a log ma non blocchiamo l'avvio.
+        print("⚠️ Impossibile creare indice UNIQUE su id_excel:", e)
 
     # -----------------------------------------------------
     # MIGRAZIONI LEGGERISSIME (non distruttive)
     # -----------------------------------------------------
-    # ANNATA: se la tabella esisteva da prima senza la colonna, la aggiungiamo.
     cur.execute("PRAGMA table_info(vini_magazzino);")
     cols = [row[1] for row in cur.fetchall()]
     if "ANNATA" not in cols:
@@ -224,6 +255,123 @@ def create_vino(data: Dict[str, Any]) -> int:
     return vino_id
 
 
+def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
+    """
+    UPSERT di un vino di magazzino partendo dai dati della carta (DB vini).
+
+    - Usa id_excel come chiave stabile (DEVE essere presente in data["id_excel"])
+    - Se id_excel NON esiste  -> INSERT (nuovo vino, QTA_* iniziano da 0)
+    - Se id_excel esiste      -> UPDATE SOLO anagrafica / prezzi / flag / note,
+      lasciando intatte:
+        - QTA_FRIGO / QTA_LOC* / QTA_TOTALE
+        - eventuali NOTE interne già presenti
+        - movimenti e note in tabelle collegate
+
+    Restituisce l'id interno (PK) del vino interessato, oppure None se qualcosa va storto.
+    """
+    if "id_excel" not in data or data["id_excel"] is None:
+        raise ValueError("upsert_vino_from_carta richiede sempre 'id_excel' valorizzato")
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    now = _now_iso()
+    data = dict(data)  # copia
+
+    data.setdefault("CREATED_AT", now)
+    data.setdefault("UPDATED_AT", now)
+
+    # Valori di default per campi anagrafici/gestionali
+    for key in [
+        "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE",
+        "DESCRIZIONE", "DENOMINAZIONE", "ANNATA", "VITIGNI", "GRADO_ALCOLICO",
+        "FORMATO", "PRODUTTORE", "DISTRIBUTORE",
+        "PREZZO_CARTA", "EURO_LISTINO", "SCONTO", "NOTE_PREZZO",
+        "CARTA", "IPRATICO",
+        "STATO_VENDITA", "NOTE_STATO",
+        "FRIGORIFERO",
+        "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3",
+        "NOTE",
+    ]:
+        data.setdefault(key, None)
+
+    cur.execute(
+        """
+        INSERT INTO vini_magazzino (
+            id_excel,
+            TIPOLOGIA, NAZIONE, CODICE, REGIONE,
+            DESCRIZIONE, DENOMINAZIONE, ANNATA, VITIGNI, GRADO_ALCOLICO,
+            FORMATO, PRODUTTORE, DISTRIBUTORE,
+            PREZZO_CARTA, EURO_LISTINO, SCONTO, NOTE_PREZZO,
+            CARTA, IPRATICO,
+            STATO_VENDITA, NOTE_STATO,
+            FRIGORIFERO,
+            LOCAZIONE_1, LOCAZIONE_2, LOCAZIONE_3,
+            NOTE,
+            CREATED_AT, UPDATED_AT
+        )
+        VALUES (
+            :id_excel,
+            :TIPOLOGIA, :NAZIONE, :CODICE, :REGIONE,
+            :DESCRIZIONE, :DENOMINAZIONE, :ANNATA, :VITIGNI, :GRADO_ALCOLICO,
+            :FORMATO, :PRODUTTORE, :DISTRIBUTORE,
+            :PREZZO_CARTA, :EURO_LISTINO, :SCONTO, :NOTE_PREZZO,
+            :CARTA, :IPRATICO,
+            :STATO_VENDITA, :NOTE_STATO,
+            :FRIGORIFERO,
+            :LOCAZIONE_1, :LOCAZIONE_2, :LOCAZIONE_3,
+            :NOTE,
+            :CREATED_AT, :UPDATED_AT
+        )
+        ON CONFLICT(id_excel) DO UPDATE SET
+            TIPOLOGIA      = excluded.TIPOLOGIA,
+            NAZIONE        = excluded.NAZIONE,
+            CODICE         = excluded.CODICE,
+            REGIONE        = excluded.REGIONE,
+            DESCRIZIONE    = excluded.DESCRIZIONE,
+            DENOMINAZIONE  = excluded.DENOMINAZIONE,
+            ANNATA         = excluded.ANNATA,
+            VITIGNI        = excluded.VITIGNI,
+            GRADO_ALCOLICO = excluded.GRADO_ALCOLICO,
+            FORMATO        = excluded.FORMATO,
+            PRODUTTORE     = excluded.PRODUTTORE,
+            DISTRIBUTORE   = excluded.DISTRIBUTORE,
+            PREZZO_CARTA   = excluded.PREZZO_CARTA,
+            EURO_LISTINO   = excluded.EURO_LISTINO,
+            SCONTO         = excluded.SCONTO,
+            NOTE_PREZZO    = excluded.NOTE_PREZZO,
+            CARTA          = excluded.CARTA,
+            IPRATICO       = excluded.IPRATICO,
+            STATO_VENDITA  = COALESCE(excluded.STATO_VENDITA, STATO_VENDITA),
+            NOTE_STATO     = COALESCE(excluded.NOTE_STATO, NOTE_STATO),
+            FRIGORIFERO    = excluded.FRIGORIFERO,
+            LOCAZIONE_1    = excluded.LOCAZIONE_1,
+            LOCAZIONE_2    = excluded.LOCAZIONE_2,
+            LOCAZIONE_3    = excluded.LOCAZIONE_3,
+            NOTE           = COALESCE(excluded.NOTE, NOTE),
+            UPDATED_AT     = excluded.UPDATED_AT
+        ;
+        """,
+        data,
+    )
+
+    conn.commit()
+
+    # Se è un INSERT nuova, lastrowid contiene l'id;
+    # se è un UPDATE, lo recuperiamo con una SELECT.
+    if cur.lastrowid:
+        vino_id: Optional[int] = cur.lastrowid
+    else:
+        row = cur.execute(
+            "SELECT id FROM vini_magazzino WHERE id_excel = ?;",
+            (data["id_excel"],),
+        ).fetchone()
+        vino_id = row["id"] if row else None
+
+    conn.close()
+    return vino_id
+
+
 def update_vino(vino_id: int, data: Dict[str, Any]) -> None:
     """
     Aggiorna i campi di un vino esistente (solo quelli passati in 'data').
@@ -283,7 +431,7 @@ def search_vini(
     cur = conn.cursor()
 
     where = []
-    params: list[Any] = []
+    params: List[Any] = []
 
     # 🔍 filtro per ID diretto (più veloce)
     if vino_id is not None:
@@ -328,6 +476,7 @@ def search_vini(
     rows = cur.execute(sql, params).fetchall()
     conn.close()
     return list(rows)
+
 
 # ---------------------------------------------------------
 # MAGAZZINO: QUANTITÀ PER LOCAZIONE
