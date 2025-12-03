@@ -44,14 +44,12 @@ function formatCurrency(value) {
 }
 
 function formatShortDate(iso) {
-  // iso = "2025-02-10"
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
   return `${d}/${m}`;
 }
 
 function calcMonthNavigation(year, month, delta) {
-  // delta in mesi (+1/-1)
   const base = new Date(year, month - 1 + delta, 1);
   return { year: base.getFullYear(), month: base.getMonth() + 1 };
 }
@@ -154,11 +152,38 @@ export default function CorrispettiviDashboard() {
     }));
   }, [monthlyStats]);
 
+  // medie incassi per giorno della settimana (solo giorni aperti)
+  const weekdayAverages = useMemo(() => {
+    if (!monthlyStats || !monthlyStats.giorni) return {};
+
+    const sums = {};
+    const counts = {};
+
+    for (const g of monthlyStats.giorni) {
+      if (g.is_closed) continue;
+      const tot = g.totale_incassi ?? 0;
+      if (!tot) continue;
+
+      const d = new Date(g.date);
+      const idx = d.getDay(); // 0=Dom ... 6=Sab
+
+      sums[idx] = (sums[idx] || 0) + tot;
+      counts[idx] = (counts[idx] || 0) + 1;
+    }
+
+    const avg = {};
+    Object.keys(sums).forEach((k) => {
+      const i = Number(k);
+      avg[i] = sums[i] / counts[i];
+    });
+
+    return avg; // es: {1: media lunedì, 2: media martedì, ...}
+  }, [monthlyStats]);
+
   // calcola numero di giorni nel mese + offset per calendario
   const calendarDays = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return [];
 
-    // costruiamo una mappa date -> oggetto giorno
     const map = {};
     for (const g of monthlyStats.giorni) {
       const d = new Date(g.date);
@@ -166,18 +191,28 @@ export default function CorrispettiviDashboard() {
     }
 
     const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0); // ultimo giorno del mese
+    const lastDay = new Date(year, month, 0);
     const firstWeekday = firstDay.getDay(); // 0=Dom, 1=Lun,...
 
-    // in Italia, consideriamo lunedì come primo colonna
     const offset = (firstWeekday + 6) % 7; // 0=Mon, ... 6=Sun
 
     const days = [];
     for (let i = 0; i < offset; i++) {
-      days.push(null); // celle vuote iniziali
+      days.push(null);
     }
     for (let d = 1; d <= lastDay.getDate(); d++) {
-      days.push(map[d] || { date: `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}` });
+      days.push(
+        map[d] ||
+          {
+            date: `${year}-${String(month).padStart(2, "0")}-${String(
+              d
+            ).padStart(2, "0")}`,
+            is_closed: false,
+            corrispettivi: 0,
+            totale_incassi: 0,
+            cash_diff: 0,
+          }
+      );
     }
     return days;
   }, [monthlyStats, year, month]);
@@ -423,6 +458,7 @@ export default function CorrispettiviDashboard() {
                     if (g === null) {
                       return <div key={idx} />;
                     }
+
                     const d = new Date(g.date);
                     const dayNum = d.getDate();
                     const isClosed = g.is_closed === true;
@@ -430,19 +466,36 @@ export default function CorrispettiviDashboard() {
                     const tot = g.totale_incassi ?? 0;
                     const diff = g.cash_diff ?? 0;
 
-                    let bg = "bg-white";
+                    const weekdayIdx = d.getDay(); // 0=Dom ... 6=Sab
+                    const avgForWeekday = weekdayAverages[weekdayIdx];
+
+                    // Colori:
+                    // - grigio chiaro: giorno chiuso
+                    // - verde forte: sopra media del suo giorno (>= +15%)
+                    // - verde chiaro: in media (±10%)
+                    // - rosso: sotto media (>10% sotto)
+                    let bgClass = "bg-white";
+                    let textClass = "";
+
                     if (isClosed) {
-                      bg = "bg-neutral-200";
-                    } else if (diff && Math.abs(diff) >= 20) {
-                      bg = "bg-red-100";
-                    } else if (tot > 0) {
-                      bg = "bg-emerald-50";
+                      bgClass = "bg-neutral-200";
+                    } else if (avgForWeekday && tot > 0) {
+                      const ratio = tot / avgForWeekday;
+
+                      if (ratio >= 1.15) {
+                        bgClass = "bg-emerald-500";
+                        textClass = "text-white";
+                      } else if (ratio >= 0.9 && ratio <= 1.15) {
+                        bgClass = "bg-emerald-100";
+                      } else if (ratio < 0.9) {
+                        bgClass = "bg-red-200";
+                      }
                     }
 
                     return (
                       <div
                         key={idx}
-                        className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-amber-400 transition ${bg}`}
+                        className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-amber-400 transition ${bgClass} ${textClass}`}
                         title={
                           isClosed
                             ? `Chiuso`
@@ -457,22 +510,22 @@ export default function CorrispettiviDashboard() {
                         }
                       >
                         <div className="flex justify-between items-center mb-0.5">
-                          <span className="text-[11px] font-semibold text-neutral-800">
+                          <span className="text-[11px] font-semibold">
                             {dayNum}
                           </span>
                           {!isClosed && tot > 0 && (
-                            <span className="text-[9px] text-neutral-500">
+                            <span className="text-[9px] opacity-80">
                               €{Math.round(tot / 100) * 100}
                             </span>
                           )}
                         </div>
                         {!isClosed && diff && Math.abs(diff) >= 20 && (
-                          <div className="text-[9px] text-red-700">
+                          <div className="text-[9px]">
                             diff €{formatCurrency(diff)}
                           </div>
                         )}
                         {isClosed && (
-                          <div className="text-[9px] text-neutral-600">
+                          <div className="text-[9px] text-neutral-700">
                             chiuso
                           </div>
                         )}
@@ -481,10 +534,22 @@ export default function CorrispettiviDashboard() {
                   })}
                 </div>
                 <div className="mt-2 text-[10px] text-neutral-500 space-y-0.5">
-                  <div>🟩 Giorno aperto con incassi</div>
-                  <div>⬜ Giorno aperto (incassi bassi)</div>
-                  <div>⬛ Grigio: chiuso</div>
-                  <div>🔴 Rosso: differenza cassa sopra soglia</div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-500" />
+                    <span>Verde scuro: sopra media del giorno (es. lunedì)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
+                    <span>Verde chiaro: in linea con la media</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-red-200 border border-red-300" />
+                    <span>Rosso: sotto media del giorno</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 rounded bg-neutral-200 border border-neutral-300" />
+                    <span>Grigio: giorno chiuso (manuale o mercoledì a zero)</span>
+                  </div>
                 </div>
               </div>
             </section>
