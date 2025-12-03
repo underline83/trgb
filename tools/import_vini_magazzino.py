@@ -1,10 +1,14 @@
-# @version: v1.1-import-magazzino
+# @version: v1.2-import-magazzino-idempotente
 # -*- coding: utf-8 -*-
 """
 Script una-tantum per importare i vini esistenti da:
     app/data/vini.sqlite3 (tabella 'vini')
 nel nuovo DB:
     app/data/vini_magazzino.sqlite3 (tabella 'vini_magazzino')
+
+Questa versione è **idempotente**:
+- ogni esecuzione SVUOTA la tabella 'vini_magazzino'
+  prima di reimportare tutti i vini dalla carta.
 """
 
 from pathlib import Path
@@ -13,6 +17,7 @@ import sqlite3
 from app.models import vini_magazzino_db
 
 SRC_DB = Path("app/data/vini.sqlite3")
+DST_DB = Path("app/data/vini_magazzino.sqlite3")
 
 
 def safe_int(row, key, default=0):
@@ -26,12 +31,21 @@ def safe_int(row, key, default=0):
 
 
 def run_import():
-    # Assicuriamoci che il DB magazzino sia inizializzato
+    # Inizializza struttura magazzino (crea DB / tabelle se mancano)
     vini_magazzino_db.init_magazzino_database()
 
     if not SRC_DB.exists():
         raise SystemExit(f"DB sorgente non trovato: {SRC_DB}")
 
+    # --- SVUOTO LA TABELLA MAGAZZINO PRIMA DI IMPORTARE ---
+    conn_dst = sqlite3.connect(DST_DB)
+    cur_dst = conn_dst.cursor()
+    cur_dst.execute("DELETE FROM vini_magazzino;")
+    conn_dst.commit()
+    conn_dst.close()
+    print("Tabella 'vini_magazzino' svuotata.")
+
+    # --- LEGGO DALLA CARTA ---
     conn_src = sqlite3.connect(SRC_DB)
     conn_src.row_factory = sqlite3.Row
     cur = conn_src.cursor()
@@ -42,7 +56,6 @@ def run_import():
     imported = 0
 
     for r in rows:
-        # Alcune righe potrebbero essere "vuote" o di servizio
         descrizione = r["DESCRIZIONE"]
         if not descrizione:
             continue
@@ -58,8 +71,8 @@ def run_import():
             "DESCRIZIONE":    descrizione,
             "DENOMINAZIONE":  r["DENOMINAZIONE"],
             "ANNATA":         r["ANNATA"],
-            "VITIGNI":        None,   # non presente nel DB carta
-            "GRADO_ALCOLICO": None,   # per ora lo tieni nella descrizione
+            "VITIGNI":        None,
+            "GRADO_ALCOLICO": None,
             "FORMATO":        r["FORMATO"] or "BT",
 
             "PRODUTTORE":     r["PRODUTTORE"],
@@ -73,7 +86,6 @@ def run_import():
             "CARTA":          r["CARTA"],
             "IPRATICO":       r["IPRATICO"],
 
-            # La colonna V (stato vendita) esiste solo in Excel, non nel DB
             "STATO_VENDITA":  None,
             "NOTE_STATO":     None,
 
