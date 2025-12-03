@@ -1,4 +1,4 @@
-// @version: v1.0-magazzino-dettaglio
+// @version: v1.0-magazzino-vini-dettaglio
 // Pagina Magazzino Vini — Dettaglio singolo vino
 
 import React, { useEffect, useState } from "react";
