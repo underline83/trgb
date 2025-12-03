@@ -38,16 +38,22 @@ export default function CorrispettiviImport() {
 
       const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `${API_BASE_URL}/admin/finance/import-corrispettivi-file`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+// NON mandare year nel form-data
+const formData = new FormData();
+formData.append("file", file);
+
+const token = localStorage.getItem("token");
+
+const res = await fetch(
+  `${API_BASE_URL}/admin/finance/import-corrispettivi-file?year=${year}`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  }
+);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
