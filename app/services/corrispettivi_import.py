@@ -220,13 +220,30 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
     records = []
 
     for _, row in raw.iterrows():
-        raw_date = row.get(colmap["date"])
+        # --- FIX IMPORT DATE dd/mm/yy (es. "05/01/25") ---
+        raw_val = row.get(colmap["date"])
 
-        # parse data
-        try:
-            parsed = pd.to_datetime(raw_date, dayfirst=True, errors="coerce")
-        except Exception:
-            parsed = pd.NaT
+        # 1) Primo tentativo
+        parsed = pd.to_datetime(raw_val, dayfirst=True, errors="coerce")
+
+        # 2) Se fallisce, prova conversione manuale dd/mm/yy → dd/mm/yyyy
+        if pd.isna(parsed) and isinstance(raw_val, str):
+            m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2})$", raw_val.strip())
+            if m:
+                d, mth, yy = m.groups()
+                yyyy = int(yy)
+                # scegli se 20xx o 19xx
+                yyyy = 2000 + yyyy if yyyy < 50 else 1900 + yyyy
+                fixed = f"{d}/{mth}/{yyyy}"
+                parsed = pd.to_datetime(fixed, dayfirst=True, errors="coerce")
+
+        # 3) Se ancora NaT → numero Excel (seriale)
+        if pd.isna(parsed) and isinstance(raw_val, (int, float)):
+            parsed = pd.to_datetime("1899-12-30") + pd.to_timedelta(int(raw_val), unit="D")
+
+        # Se ancora NaT → riga da ignorare
+        if pd.isna(parsed):
+            continue
 
         # se non è una data valida -> righe totali/riquadri vari -> ignora
         if pd.isna(parsed):
