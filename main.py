@@ -20,7 +20,7 @@ from app.routers import foodcost_recipes_router
 from app.routers import admin_finance
 
 # ⚠️ IMPORT CORRETTO DEL ROUTER FATTURE XML
-from app.routers.fe_import import router as fe_import_router
+from app.routers import fe_import
 
 
 # Esegui le migrazioni PRIMA di creare l'app
@@ -95,7 +95,7 @@ app.include_router(
 app.include_router(admin_finance.router)
 
 # FATTURAZIONE ELETTRONICA (XML) — NUOVO
-app.include_router(fe_import_router)
+app.include_router(fe_import.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
