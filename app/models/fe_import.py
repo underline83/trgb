@@ -4,7 +4,15 @@
 Modelli SQLAlchemy per import fatture elettroniche (uso statistico).
 """
 
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,8 +22,10 @@ class FEFattura(Base):
     __tablename__ = "fe_fatture"
 
     id = Column(Integer, primary_key=True, index=True)
+
     fornitore_nome = Column(String, nullable=False)
     fornitore_piva = Column(String, nullable=True)
+
     numero_fattura = Column(String, nullable=True, index=True)
     data_fattura = Column(Date, nullable=True, index=True)
 
@@ -28,6 +38,7 @@ class FEFattura(Base):
     xml_filename = Column(String, nullable=True)
     data_import = Column(DateTime, nullable=False)
 
+    # relazione con le righe
     righe = relationship(
         "FERiga",
         back_populates="fattura",
@@ -40,12 +51,20 @@ class FERiga(Base):
     __tablename__ = "fe_righe"
 
     id = Column(Integer, primary_key=True, index=True)
-    fattura_id = Column(Integer, ForeignKey("fe_fatture.id"), nullable=False, index=True)
+
+    fattura_id = Column(
+        Integer,
+        ForeignKey("fe_fatture.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     numero_linea = Column(Integer, nullable=True)
     descrizione = Column(String, nullable=True)
+
     quantita = Column(Float, nullable=True)
     unita_misura = Column(String, nullable=True)
+
     prezzo_unitario = Column(Float, nullable=True)
     prezzo_totale = Column(Float, nullable=True)
     aliquota_iva = Column(Float, nullable=True)
