@@ -1,0 +1,48 @@
+# @version: v1.0
+# -*- coding: utf-8 -*-
+"""
+Schemi Pydantic per import fatture elettroniche (uso statistico).
+"""
+
+from datetime import date, datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+class FERigaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    numero_linea: Optional[int] = None
+    descrizione: Optional[str] = None
+    quantita: Optional[float] = None
+    unita_misura: Optional[str] = None
+    prezzo_unitario: Optional[float] = None
+    prezzo_totale: Optional[float] = None
+    aliquota_iva: Optional[float] = None
+    categoria_grezza: Optional[str] = None
+    note_analisi: Optional[str] = None
+
+
+class FEFatturaBase(BaseModel):
+    fornitore_nome: str
+    fornitore_piva: Optional[str] = None
+    numero_fattura: Optional[str] = None
+    data_fattura: Optional[date] = None
+    imponibile_totale: Optional[float] = None
+    iva_totale: Optional[float] = None
+    totale_fattura: Optional[float] = None
+    valuta: str = "EUR"
+
+
+class FEFatturaOut(FEFatturaBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    xml_filename: Optional[str] = None
+    data_import: datetime
+
+
+class FEFatturaDetailOut(FEFatturaOut):
+    righe: List[FERigaOut]

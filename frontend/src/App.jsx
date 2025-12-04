@@ -33,6 +33,9 @@ import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 
+// AMMinistrazione - Fatturazione Elettronica
+import FattureElettroniche from "./pages/admin/FattureElettroniche";
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -60,6 +63,8 @@ export default function App() {
         <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
         <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
         <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard/>}/>
+        {/* FATTURAZIONE Eleettronica*/} 
+        <Route path="/admin/fatture-elettroniche" element={<FattureElettroniche />} />
         {/* MAGAZZINO LISTA + DETTAGLIO */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />

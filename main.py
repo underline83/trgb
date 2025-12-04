@@ -33,8 +33,9 @@ from app.routers import foodcost_recipes_router
 from app.routers import auth_router
 from app.routers import menu_router
 
-# ⬅️ NUOVO ROUTER AMMINISTRAZIONE
 from app.routers import admin_finance
+
+from app.routers import fe_import
 
 
 # ----------------------------------------
@@ -100,7 +101,8 @@ app.include_router(admin_finance.router)
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
 app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 
-
+# FATTURAZIONE ELETTRONICA
+app.include_router(fe_import.router)
 # ----------------------------------------
 # ROOT
 # ----------------------------------------
