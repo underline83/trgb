@@ -7,35 +7,24 @@ from fastapi.staticfiles import StaticFiles
 
 # MODULO MIGRAZIONI
 from app.migrations.migration_runner import run_migrations
-run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
 
-# ROUTER 
+# ROUTER ESISTENTI
 from app.routers import auth_router
 from app.routers import menu_router
 from app.routers import vini_router
 from app.routers import vini_settings_router
-from app.routers import foodcost_router
-from app.routers import foodcost_ingredients_router
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-
-# IMPORT ROUTER ESISTENTI
-from app.routers import vini_settings_router
-from app.routers import vini_router
 from app.routers import vini_magazzino_router
-
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
-
-from app.routers import auth_router
-from app.routers import menu_router
-
 from app.routers import admin_finance
 
-from app.routers import fe_import
+# ⚠️ IMPORT CORRETTO DEL ROUTER FATTURE XML
+from app.routers.fe_import import router as fe_import_router
+
+
+# Esegui le migrazioni PRIMA di creare l'app
+run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
 
 
 # ----------------------------------------
@@ -91,24 +80,34 @@ app.include_router(vini_magazzino_router.router)
 
 # FOODCOST
 app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])
-app.include_router(foodcost_ingredients_router.router, prefix="/foodcost", tags=["foodcost-ingredients"])
-app.include_router(foodcost_recipes_router.router, prefix="/foodcost", tags=["foodcost-recipes"])
+app.include_router(
+    foodcost_ingredients_router.router,
+    prefix="/foodcost",
+    tags=["foodcost-ingredients"],
+)
+app.include_router(
+    foodcost_recipes_router.router,
+    prefix="/foodcost",
+    tags=["foodcost-recipes"],
+)
 
-# AMMINISTRAZIONE (⬅️ NUOVO)
+# AMMINISTRAZIONE (corrispettivi, ecc.)
 app.include_router(admin_finance.router)
+
+# FATTURAZIONE ELETTRONICA (XML) — NUOVO
+app.include_router(fe_import_router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
 app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 
-# FATTURAZIONE ELETTRONICA
-app.include_router(fe_import.router)
+
 # ----------------------------------------
 # ROOT
 # ----------------------------------------
 @app.get("/")
 def root():
-    return {
-        "message": "Benvenuto in TRGB Web API",
-        "versione": "2025.11-web",
-    }
+  return {
+      "message": "Benvenuto in TRGB Web API",
+      "versione": "2025.11-web",
+  }
