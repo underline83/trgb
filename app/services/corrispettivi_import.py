@@ -124,8 +124,8 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
     Regole:
     - se year == "archivio" (case-insensitive) -> usa foglio 'archivio',
       importa TUTTE le date presenti.
-    - se year è ad es. "2025" -> usa foglio '2025' e importa SOLO righe con
-      DATA di anno 2025.
+    - se year è ad es. "2025" -> usa foglio '2025' e importa TUTTE le righe
+      con DATA valida del foglio (non filtriamo più su parsed.year).
 
     Output: DataFrame con colonne pronte per import_df_into_db():
       date, weekday,
@@ -136,10 +136,11 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
     year_str = str(year)
     is_archivio = year_str.lower() == "archivio"
 
-    target_year: Optional[int] = None
+    # Per ora manteniamo target_year solo per eventuali debug futuri,
+    # ma NON lo usiamo più per filtrare le righe.
     if not is_archivio:
         try:
-            target_year = int(year_str)
+            int(year_str)
         except ValueError:
             raise ValueError(
                 f"Valore year non valido: {year!r}. Usa 'archivio' oppure un anno, es. 2025."
@@ -213,9 +214,8 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
         if pd.isna(parsed):
             continue
 
-        if not is_archivio and target_year is not None and parsed.year != target_year:
-            continue
-
+        # NON filtriamo più per anno: per il foglio '2025' ci fidiamo che
+        # contenga solo il 2025.
         date_iso = parsed.strftime("%Y-%m-%d")
 
         # weekday: se presente nel file uso quello, altrimenti calcolo
@@ -296,8 +296,6 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
     df = pd.DataFrame.from_records(records)
     df = df.sort_values("date").reset_index(drop=True)
     return df
-
-
 # ==============================================================
 # IMPORT NEL DATABASE
 # ==============================================================
