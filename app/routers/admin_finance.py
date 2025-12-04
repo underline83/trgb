@@ -1,5 +1,5 @@
 # app/routers/admin_finance.py
-# @version: v1.4
+# @version: v2.0
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -11,7 +11,7 @@ from typing import List, Optional
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
-# 🔄 NUOVO IMPORT MULTI-ANNO
+# 🔄 IMPORT MULTI-ANNO + SCHEMA TABELLA
 from app.services.corrispettivi_import import (
     DB_PATH,
     ensure_table,
@@ -34,20 +34,30 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
     """
-    Garantisce che la tabella daily_closures esista e abbia la colonna is_closed.
+    Garantisce che la tabella daily_closures esista con lo schema corretto.
+    Usa ensure_table() dal servizio import.
     """
     ensure_table(conn)
 
+    # Compatibilità vecchie versioni: verifica che esista la colonna is_closed.
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(daily_closures);")
     cols = [row[1] for row in cur.fetchall()]
-
     if "is_closed" not in cols:
         cur.execute(
             "ALTER TABLE daily_closures "
             "ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0;"
         )
         conn.commit()
+
+
+# ---------------------------------------------------------
+# HELPER NUMERICO
+# ---------------------------------------------------------
+
+def _nz(x) -> float:
+    """Converte None in 0.0 e forza a float."""
+    return float(x) if x is not None else 0.0
 
 
 # ---------------------------------------------------------
@@ -60,30 +70,50 @@ class ImportResult(BaseModel):
     inserted: int
     updated: int
 
+
 class DailyClosureBase(BaseModel):
+    """
+    Payload per creare/aggiornare una chiusura (UI o API).
+    Lo schema è allineato al nuovo DB:
+
+    - corrispettivi = base IVA 10 + IVA 22
+    - fatture = fatture emesse
+    - corrispettivi_tot = corrispettivi + fatture (calcolato lato backend)
+    - contanti_finali + pos_bpm + pos_sella + theforkpay + other_e_payments + bonifici = totale_incassi
+    - mance = mance digitali (NON incluse in totale_incassi)
+    """
     date: date_type
-    corrispettivi: float
-    iva_10: float = 0
-    iva_22: float = 0
-    fatture: float = 0
-    contanti_finali: float = 0
-    pos: float = 0
-    sella: float = 0
-    stripe_pay: float = 0
-    bonifici: float = 0
-    mance: float = 0
+
+    # Fiscale
+    corrispettivi: float = 0.0
+    iva_10: float = 0.0
+    iva_22: float = 0.0
+    fatture: float = 0.0
+
+    # Incassi
+    contanti_finali: float = 0.0
+    pos_bpm: float = 0.0
+    pos_sella: float = 0.0
+    theforkpay: float = 0.0
+    other_e_payments: float = 0.0
+    bonifici: float = 0.0
+
+    # Mance (fuori dagli incassi)
+    mance: float = 0.0
+
     note: str | None = None
     is_closed: bool = False
 
 
 class DailyClosureOut(DailyClosureBase):
-    weekday: str
-    totale_incassi: float
-    cash_diff: float
+    weekday: str | None = None
+    corrispettivi_tot: float = 0.0
+    totale_incassi: float = 0.0
+    cash_diff: float = 0.0
 
 
 # ---------------------------------------------------------
-# STATISTIC MODELS (unchanged)
+# STATISTIC MODELS
 # ---------------------------------------------------------
 
 class MonthlyDay(BaseModel):
@@ -94,20 +124,24 @@ class MonthlyDay(BaseModel):
     cash_diff: float
     is_closed: bool
 
+
 class PaymentBreakdown(BaseModel):
     contanti_finali: float
-    pos: float
-    sella: float
-    stripe_pay: float
+    pos_bpm: float
+    pos_sella: float
+    theforkpay: float
+    other_e_payments: float
     bonifici: float
-    mance: float
-    totale_incassi: float
+    totale_incassi: float  # solo incassi "fiscali"
+    mance: float           # mance tenute a parte
+
 
 class Alert(BaseModel):
     date: date_type
     type: str
     message: str
     cash_diff: float
+
 
 class MonthlyStats(BaseModel):
     year: int
@@ -124,6 +158,7 @@ class MonthlyStats(BaseModel):
     pagamenti: PaymentBreakdown
     alerts: List[Alert]
 
+
 class MonthlySummary(BaseModel):
     month: int
     totale_corrispettivi: float
@@ -133,12 +168,14 @@ class MonthlySummary(BaseModel):
     media_corrispettivi: float
     media_incassi: float
 
+
 class AnnualStats(BaseModel):
     year: int
     totale_corrispettivi: float
     totale_incassi: float
     totale_fatture: float
     mesi: List[MonthlySummary]
+
 
 class AnnualCompare(BaseModel):
     year: int
@@ -150,6 +187,7 @@ class AnnualCompare(BaseModel):
     delta_incassi: float
     delta_incassi_pct: Optional[float]
 
+
 class TopDay(BaseModel):
     date: date_type
     weekday: str
@@ -157,10 +195,12 @@ class TopDay(BaseModel):
     corrispettivi: float
     cash_diff: float
 
+
 class TopDaysStats(BaseModel):
     year: int
     top_best: List[TopDay]
     top_worst: List[TopDay]
+
 
 class SetClosedPayload(BaseModel):
     is_closed: bool
@@ -226,15 +266,45 @@ async def import_corrispettivi_file(
         inserted=inserted,
         updated=updated,
     )
-    
-#------------------------------------------------------
-# TUTTO IL RESTO DEL FILE È INVARIATO
-# Daily closures, stats, annual compare, top days etc.
-# ---------------------------------------------------------
 
-# …qui prosegue esattamente il tuo codice, senza nessuna modifica…# ----------------------------------------------------
+
+# ----------------------------------------------------
+# HELPER: conversione Row -> DailyClosureOut
+# ----------------------------------------------------
+
+def _row_to_daily_closure_out(row: sqlite3.Row) -> DailyClosureOut:
+    """Converte una riga SQL in DailyClosureOut, proteggendo dai None."""
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nessuna chiusura trovata per questa data.",
+        )
+
+    return DailyClosureOut(
+        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+        weekday=row["weekday"],
+        corrispettivi=_nz(row["corrispettivi"]),
+        iva_10=_nz(row["iva_10"]),
+        iva_22=_nz(row["iva_22"]),
+        fatture=_nz(row["fatture"]),
+        corrispettivi_tot=_nz(row["corrispettivi_tot"]),
+        contanti_finali=_nz(row["contanti_finali"]),
+        pos_bpm=_nz(row["pos_bpm"]),
+        pos_sella=_nz(row["pos_sella"]),
+        theforkpay=_nz(row["theforkpay"]),
+        other_e_payments=_nz(row["other_e_payments"]),
+        bonifici=_nz(row["bonifici"]),
+        mance=_nz(row["mance"]),
+        totale_incassi=_nz(row["totale_incassi"]),
+        cash_diff=_nz(row["cash_diff"]),
+        note=row["note"],
+        is_closed=bool(row["is_closed"]),
+    )
+
+
+# ----------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
-# ---------------------------------------------------------
+# ----------------------------------------------------
 
 @router.get("/daily-closures/{date_str}", response_model=DailyClosureOut)
 async def get_daily_closure(
@@ -259,10 +329,12 @@ async def get_daily_closure(
                 iva_10,
                 iva_22,
                 fatture,
+                corrispettivi_tot,
                 contanti_finali,
-                pos,
-                sella,
-                stripe_pay,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
                 bonifici,
                 mance,
                 totale_incassi,
@@ -284,24 +356,7 @@ async def get_daily_closure(
             detail="Nessuna chiusura trovata per questa data.",
         )
 
-    return DailyClosureOut(
-        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-        weekday=row["weekday"],
-        corrispettivi=row["corrispettivi"],
-        iva_10=row["iva_10"],
-        iva_22=row["iva_22"],
-        fatture=row["fatture"],
-        contanti_finali=row["contanti_finali"],
-        pos=row["pos"],
-        sella=row["sella"],
-        stripe_pay=row["stripe_pay"],
-        bonifici=row["bonifici"],
-        mance=row["mance"],
-        note=row["note"],
-        is_closed=bool(row["is_closed"]),
-        totale_incassi=row["totale_incassi"],
-        cash_diff=row["cash_diff"],
-    )
+    return _row_to_daily_closure_out(row)
 
 
 # ---------------------------------------------------------
@@ -322,15 +377,24 @@ async def upsert_daily_closure(
 
     date_str = payload.date.isoformat()
 
-    totale_incassi = (
-        payload.contanti_finali
-        + payload.pos
-        + payload.sella
-        + payload.stripe_pay
-        + payload.bonifici
-        + payload.mance
-    )
-    cash_diff = totale_incassi - payload.corrispettivi
+    # Calcoli coerenti con lo schema:
+    # - corrispettivi_tot = corrispettivi + fatture
+    # - totale_incassi = contanti + pos_bpm + pos_sella + theforkpay + other_e_payments + bonifici
+    # - cash_diff = totale_incassi - corrispettivi_tot
+    corrispettivi = float(payload.corrispettivi)
+    fatture = float(payload.fatture)
+    corrispettivi_tot = corrispettivi + fatture
+
+    contanti = float(payload.contanti_finali)
+    pos_bpm = float(payload.pos_bpm)
+    pos_sella = float(payload.pos_sella)
+    theforkpay = float(payload.theforkpay)
+    other_e = float(payload.other_e_payments)
+    bonifici = float(payload.bonifici)
+    mance = float(payload.mance)
+
+    totale_incassi = contanti + pos_bpm + pos_sella + theforkpay + other_e + bonifici
+    cash_diff = totale_incassi - corrispettivi_tot
 
     weekday = payload.date.strftime("%A")  # TODO: italianizzare
 
@@ -351,10 +415,12 @@ async def upsert_daily_closure(
                     iva_10 = ?,
                     iva_22 = ?,
                     fatture = ?,
+                    corrispettivi_tot = ?,
                     contanti_finali = ?,
-                    pos = ?,
-                    sella = ?,
-                    stripe_pay = ?,
+                    pos_bpm = ?,
+                    pos_sella = ?,
+                    theforkpay = ?,
+                    other_e_payments = ?,
                     bonifici = ?,
                     mance = ?,
                     totale_incassi = ?,
@@ -366,16 +432,18 @@ async def upsert_daily_closure(
                 """,
                 (
                     weekday,
-                    payload.corrispettivi,
+                    corrispettivi,
                     payload.iva_10,
                     payload.iva_22,
-                    payload.fatture,
-                    payload.contanti_finali,
-                    payload.pos,
-                    payload.sella,
-                    payload.stripe_pay,
-                    payload.bonifici,
-                    payload.mance,
+                    fatture,
+                    corrispettivi_tot,
+                    contanti,
+                    pos_bpm,
+                    pos_sella,
+                    theforkpay,
+                    other_e,
+                    bonifici,
+                    mance,
                     totale_incassi,
                     cash_diff,
                     payload.note,
@@ -393,10 +461,12 @@ async def upsert_daily_closure(
                     iva_10,
                     iva_22,
                     fatture,
+                    corrispettivi_tot,
                     contanti_finali,
-                    pos,
-                    sella,
-                    stripe_pay,
+                    pos_bpm,
+                    pos_sella,
+                    theforkpay,
+                    other_e_payments,
                     bonifici,
                     mance,
                     totale_incassi,
@@ -405,21 +475,23 @@ async def upsert_daily_closure(
                     is_closed,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
                     weekday,
-                    payload.corrispettivi,
+                    corrispettivi,
                     payload.iva_10,
                     payload.iva_22,
-                    payload.fatture,
-                    payload.contanti_finali,
-                    payload.pos,
-                    payload.sella,
-                    payload.stripe_pay,
-                    payload.bonifici,
-                    payload.mance,
+                    fatture,
+                    corrispettivi_tot,
+                    contanti,
+                    pos_bpm,
+                    pos_sella,
+                    theforkpay,
+                    other_e,
+                    bonifici,
+                    mance,
                     totale_incassi,
                     cash_diff,
                     payload.note,
@@ -440,10 +512,12 @@ async def upsert_daily_closure(
                 iva_10,
                 iva_22,
                 fatture,
+                corrispettivi_tot,
                 contanti_finali,
-                pos,
-                sella,
-                stripe_pay,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
                 bonifici,
                 mance,
                 totale_incassi,
@@ -459,24 +533,7 @@ async def upsert_daily_closure(
     finally:
         conn.close()
 
-    return DailyClosureOut(
-        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-        weekday=row["weekday"],
-        corrispettivi=row["corrispettivi"],
-        iva_10=row["iva_10"],
-        iva_22=row["iva_22"],
-        fatture=row["fatture"],
-        contanti_finali=row["contanti_finali"],
-        pos=row["pos"],
-        sella=row["sella"],
-        stripe_pay=row["stripe_pay"],
-        bonifici=row["bonifici"],
-        mance=row["mance"],
-        note=row["note"],
-        is_closed=bool(row["is_closed"]),
-        totale_incassi=row["totale_incassi"],
-        cash_diff=row["cash_diff"],
-    )
+    return _row_to_daily_closure_out(row)
 
 
 # ---------------------------------------------------------
@@ -523,10 +580,12 @@ async def set_daily_closure_closed(
                 iva_10,
                 iva_22,
                 fatture,
+                corrispettivi_tot,
                 contanti_finali,
-                pos,
-                sella,
-                stripe_pay,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
                 bonifici,
                 mance,
                 totale_incassi,
@@ -542,24 +601,7 @@ async def set_daily_closure_closed(
     finally:
         conn.close()
 
-    return DailyClosureOut(
-        date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-        weekday=row["weekday"],
-        corrispettivi=row["corrispettivi"],
-        iva_10=row["iva_10"],
-        iva_22=row["iva_22"],
-        fatture=row["fatture"],
-        contanti_finali=row["contanti_finali"],
-        pos=row["pos"],
-        sella=row["sella"],
-        stripe_pay=row["stripe_pay"],
-        bonifici=row["bonifici"],
-        mance=row["mance"],
-        note=row["note"],
-        is_closed=bool(row["is_closed"]),
-        totale_incassi=row["totale_incassi"],
-        cash_diff=row["cash_diff"],
-    )
+    return _row_to_daily_closure_out(row)
 
 
 # ---------------------------------------------------------
@@ -579,8 +621,8 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
         return True
 
     weekday = row["weekday"]
-    corr = row["corrispettivi"]
-    tot_inc = row["totale_incassi"]
+    corr = _nz(row["corrispettivi"])
+    tot_inc = _nz(row["totale_incassi"])
 
     if weekday in ("Wednesday", "Mercoledì") and corr == 0 and tot_inc == 0:
         return True
@@ -593,22 +635,25 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
 # ---------------------------------------------------------
 
 def _build_payment_breakdown(rows: List[sqlite3.Row]) -> PaymentBreakdown:
-    contanti = sum(r["contanti_finali"] for r in rows)
-    pos = sum(r["pos"] for r in rows)
-    sella = sum(r["sella"] for r in rows)
-    stripe_pay = sum(r["stripe_pay"] for r in rows)
-    bonifici = sum(r["bonifici"] for r in rows)
-    mance = sum(r["mance"] for r in rows)
-    totale = contanti + pos + sella + stripe_pay + bonifici + mance
+    contanti = sum(_nz(r["contanti_finali"]) for r in rows)
+    pos_bpm = sum(_nz(r["pos_bpm"]) for r in rows)
+    pos_sella = sum(_nz(r["pos_sella"]) for r in rows)
+    theforkpay = sum(_nz(r["theforkpay"]) for r in rows)
+    other_e = sum(_nz(r["other_e_payments"]) for r in rows)
+    bonifici = sum(_nz(r["bonifici"]) for r in rows)
+    mance = sum(_nz(r["mance"]) for r in rows)
+
+    totale = contanti + pos_bpm + pos_sella + theforkpay + other_e + bonifici
 
     return PaymentBreakdown(
         contanti_finali=contanti,
-        pos=pos,
-        sella=sella,
-        stripe_pay=stripe_pay,
+        pos_bpm=pos_bpm,
+        pos_sella=pos_sella,
+        theforkpay=theforkpay,
+        other_e_payments=other_e,
         bonifici=bonifici,
-        mance=mance,
         totale_incassi=totale,
+        mance=mance,
     )
 
 
@@ -647,10 +692,12 @@ async def get_monthly_stats(
                 iva_10,
                 iva_22,
                 fatture,
+                corrispettivi_tot,
                 contanti_finali,
-                pos,
-                sella,
-                stripe_pay,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
                 bonifici,
                 mance,
                 totale_incassi,
@@ -683,12 +730,13 @@ async def get_monthly_stats(
             giorni=[],
             pagamenti=PaymentBreakdown(
                 contanti_finali=0.0,
-                pos=0.0,
-                sella=0.0,
-                stripe_pay=0.0,
+                pos_bpm=0.0,
+                pos_sella=0.0,
+                theforkpay=0.0,
+                other_e_payments=0.0,
                 bonifici=0.0,
-                mance=0.0,
                 totale_incassi=0.0,
+                mance=0.0,
             ),
             alerts=[],
         )
@@ -697,11 +745,11 @@ async def get_monthly_stats(
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
     giorni_con_chiusura = len(open_rows)
 
-    totale_corr = sum(r["corrispettivi"] for r in open_rows)
-    totale_iva_10 = sum(r["iva_10"] for r in open_rows)
-    totale_iva_22 = sum(r["iva_22"] for r in open_rows)
-    totale_fatture = sum(r["fatture"] for r in open_rows)
-    totale_incassi = sum(r["totale_incassi"] for r in open_rows)
+    totale_corr = sum(_nz(r["corrispettivi"]) for r in open_rows)
+    totale_iva_10 = sum(_nz(r["iva_10"]) for r in open_rows)
+    totale_iva_22 = sum(_nz(r["iva_22"]) for r in open_rows)
+    totale_fatture = sum(_nz(r["fatture"]) for r in open_rows)
+    totale_incassi = sum(_nz(r["totale_incassi"]) for r in open_rows)
 
     media_corr = totale_corr / giorni_con_chiusura if giorni_con_chiusura else 0.0
     media_inc = totale_incassi / giorni_con_chiusura if giorni_con_chiusura else 0.0
@@ -713,9 +761,9 @@ async def get_monthly_stats(
             MonthlyDay(
                 date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
                 weekday=r["weekday"],
-                corrispettivi=r["corrispettivi"],
-                totale_incassi=r["totale_incassi"],
-                cash_diff=r["cash_diff"],
+                corrispettivi=_nz(r["corrispettivi"]),
+                totale_incassi=_nz(r["totale_incassi"]),
+                cash_diff=_nz(r["cash_diff"]),
                 is_closed=is_closed_eff,
             )
         )
@@ -724,7 +772,7 @@ async def get_monthly_stats(
 
     alerts: List[Alert] = []
     for r in open_rows:
-        diff = r["cash_diff"]
+        diff = _nz(r["cash_diff"])
         if abs(diff) >= cash_diff_alert_threshold:
             alerts.append(
                 Alert(
@@ -804,9 +852,9 @@ def _compute_annual_stats(year: int) -> AnnualStats:
         )
 
     # Totali anno
-    totale_corr = sum(r["corrispettivi"] for r in open_rows)
-    totale_inc = sum(r["totale_incassi"] for r in open_rows)
-    totale_fatt = sum(r["fatture"] for r in open_rows)
+    totale_corr = sum(_nz(r["corrispettivi"]) for r in open_rows)
+    totale_inc = sum(_nz(r["totale_incassi"]) for r in open_rows)
+    totale_fatt = sum(_nz(r["fatture"]) for r in open_rows)
 
     # Raggruppa per mese (solo giorni aperti)
     monthly_map = {}  # key: month (1..12) -> list of rows
@@ -819,9 +867,9 @@ def _compute_annual_stats(year: int) -> AnnualStats:
     for m in sorted(monthly_map.keys()):
         m_rows = monthly_map[m]
         giorni = len(m_rows)
-        m_corr = sum(r["corrispettivi"] for r in m_rows)
-        m_inc = sum(r["totale_incassi"] for r in m_rows)
-        m_fatt = sum(r["fatture"] for r in m_rows)
+        m_corr = sum(_nz(r["corrispettivi"]) for r in m_rows)
+        m_inc = sum(_nz(r["totale_incassi"]) for r in m_rows)
+        m_fatt = sum(_nz(r["fatture"]) for r in m_rows)
         mesi.append(
             MonthlySummary(
                 month=m,
@@ -940,8 +988,8 @@ async def get_top_days(
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
 
     # ordina per incassi discendente/ascendente
-    best_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"], reverse=True)
-    worst_sorted = sorted(open_rows, key=lambda r: r["totale_incassi"])
+    best_sorted = sorted(open_rows, key=lambda r: _nz(r["totale_incassi"]), reverse=True)
+    worst_sorted = sorted(open_rows, key=lambda r: _nz(r["totale_incassi"]))
 
     best_rows = best_sorted[:limit]
     worst_rows = worst_sorted[:limit]
@@ -951,9 +999,9 @@ async def get_top_days(
             TopDay(
                 date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
                 weekday=r["weekday"],
-                totale_incassi=r["totale_incassi"],
-                corrispettivi=r["corrispettivi"],
-                cash_diff=r["cash_diff"],
+                totale_incassi=_nz(r["totale_incassi"]),
+                corrispettivi=_nz(r["corrispettivi"]),
+                cash_diff=_nz(r["cash_diff"]),
             )
             for r in rs
         ]
