@@ -16,7 +16,7 @@ from app.services.corrispettivi_import import (
     DB_PATH,
     ensure_table,
     import_df_into_db,
-    load_corrispettivi_any_excel,
+    load_corrispettivi_from_excel,
 )
 
 router = APIRouter(
@@ -177,11 +177,9 @@ async def import_corrispettivi_file(
     year: int = 2025,
 ):
     """
-    Importazione universale, compatibile con file 2021–2025.
-    Il parametro 'year' viene usato solo come metadato di ritorno.
-    Il foglio corretto viene scelto automaticamente.
+    Importa i corrispettivi da un file Excel (xlsb/xlsx/xls) nel DB admin_finance.
+    Usa il foglio con nome = anno (es. "2025").
     """
-
     filename = (file.filename or "").lower()
 
     if not filename.endswith((".xlsb", ".xlsx", ".xls")):
@@ -193,12 +191,13 @@ async def import_corrispettivi_file(
     tmp_name = f"{uuid.uuid4().hex}_{file.filename}"
     tmp_path = UPLOAD_DIR / tmp_name
 
+    # Salva fisicamente il file caricato
     with tmp_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 🆕 NUOVO IMPORT
+    # Prova a leggere l'Excel
     try:
-        df = load_corrispettivi_any_excel(tmp_path)
+        df = load_corrispettivi_from_excel(tmp_path, year=year)
     except Exception as e:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(
@@ -206,6 +205,7 @@ async def import_corrispettivi_file(
             detail=f"Errore nella lettura del file: {e}",
         )
 
+    # Connessione al DB amministrativo
     conn = sqlite3.connect(DB_PATH)
     ensure_daily_closures_table(conn)
 
@@ -213,7 +213,7 @@ async def import_corrispettivi_file(
         inserted, updated = import_df_into_db(
             df,
             conn,
-            created_by="import-multi-anno",
+            created_by="admin-finance",
         )
     finally:
         conn.close()
@@ -225,9 +225,7 @@ async def import_corrispettivi_file(
         inserted=inserted,
         updated=updated,
     )
-
-
-# ---------------------------------------------------------
+#------------------------------------------------------
 # TUTTO IL RESTO DEL FILE È INVARIATO
 # Daily closures, stats, annual compare, top days etc.
 # ---------------------------------------------------------
