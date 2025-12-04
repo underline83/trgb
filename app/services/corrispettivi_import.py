@@ -302,9 +302,15 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
 # IMPORT NEL DATABASE
 # ==============================================================
 
+# ==============================================================
+# IMPORT NEL DATABASE
+# ==============================================================
+
 def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="import"):
     """
     Inserisce/aggiorna i record in daily_closures.
+    Tutti i campi numerici vengono normalizzati a float,
+    trattando None/NaN/colonne mancanti come 0.0.
     """
     ensure_table(conn)
     cur = conn.cursor()
@@ -312,32 +318,54 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
     inserted = 0
     updated = 0
 
+    def _get_num(row, key: str) -> float:
+        """
+        Legge un valore numerico da una riga pandas in sicurezza:
+        - se la colonna non esiste -> 0.0
+        - se il valore è None/NaN -> 0.0
+        - altrimenti prova a convertirlo a float
+        """
+        if key not in row.index:
+            return 0.0
+        v = row.get(key, 0)
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            return 0.0
+        try:
+            return float(v)
+        except Exception:
+            return 0.0
+
     for _, row in df.iterrows():
         date_str = row["date"]
 
-        # Ricontrollo incassi e cash_diff per coerenza
-        contanti = float(row.get("contanti_finali", 0.0) or 0.0)
-        pos_bpm = float(row.get("pos_bpm", 0.0) or 0.0)
-        pos_sella = float(row.get("pos_sella", 0.0) or 0.0)
-        theforkpay = float(row.get("theforkpay", 0.0) or 0.0)
-        other_e = float(row.get("other_e_payments", 0.0) or 0.0)
-        bonifici = float(row.get("bonifici", 0.0) or 0.0)
-        mance = float(row.get("mance", 0.0) or 0.0)
+        # valori sempre normalizzati a numero
+        weekday = row.get("weekday", "") or ""
 
-        corrispettivi = float(row.get("corrispettivi", 0.0) or 0.0)
-        iva_10 = float(row.get("iva_10", 0.0) or 0.0)
-        iva_22 = float(row.get("iva_22", 0.0) or 0.0)
-        fatture = float(row.get("fatture", 0.0) or 0.0)
-        corrispettivi_tot = float(row.get("corrispettivi_tot", 0.0) or 0.0)
+        corrispettivi = _get_num(row, "corrispettivi")
+        iva_10 = _get_num(row, "iva_10")
+        iva_22 = _get_num(row, "iva_22")
+        fatture = _get_num(row, "fatture")
+        contanti_finali = _get_num(row, "contanti_finali")
+        pos = _get_num(row, "pos")
+        sella = _get_num(row, "sella")
+        stripe_pay = _get_num(row, "stripe_pay")
+        bonifici = _get_num(row, "bonifici")
+        mance = _get_num(row, "mance")
 
-        totale_incassi = contanti + pos_bpm + pos_sella + theforkpay + other_e + bonifici
-        cash_diff = totale_incassi - corrispettivi_tot
+        totale_incassi = (
+            contanti_finali
+            + pos
+            + sella
+            + stripe_pay
+            + bonifici
+            + mance
+        )
+        cash_diff = totale_incassi - corrispettivi
 
-        weekday = row.get("weekday", "")
-        note = row.get("note")
-        is_closed = int(row.get("is_closed", 0) or 0)
+        note = row.get("note", None)
+        is_closed_val = int(row.get("is_closed", 0) or 0)
 
-        cur.execute("SELECT id FROM daily_closures WHERE date = ?", (date_str,))
+        cur.execute("SELECT id FROM daily_closures WHERE date=?", (date_str,))
         existing = cur.fetchone()
 
         if existing:
@@ -347,8 +375,8 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                 UPDATE daily_closures
                 SET
                     weekday=?,
-                    corrispettivi=?, iva_10=?, iva_22=?, fatture=?, corrispettivi_tot=?,
-                    contanti_finali=?, pos_bpm=?, pos_sella=?, theforkpay=?, other_e_payments=?, bonifici=?, mance=?,
+                    corrispettivi=?, iva_10=?, iva_22=?, fatture=?,
+                    contanti_finali=?, pos=?, sella=?, stripe_pay=?, bonifici=?, mance=?,
                     totale_incassi=?, cash_diff=?,
                     note=?,
                     is_closed=?,
@@ -357,11 +385,12 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                 """,
                 (
                     weekday,
-                    corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-                    contanti, pos_bpm, pos_sella, theforkpay, other_e, bonifici, mance,
+                    corrispettivi, iva_10, iva_22, fatture,
+                    contanti_finali, pos, sella, stripe_pay,
+                    bonifici, mance,
                     totale_incassi, cash_diff,
                     note,
-                    is_closed,
+                    is_closed_val,
                     date_str,
                 ),
             )
@@ -371,22 +400,23 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                 """
                 INSERT INTO daily_closures (
                     date, weekday,
-                    corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-                    contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments, bonifici, mance,
+                    corrispettivi, iva_10, iva_22, fatture,
+                    contanti_finali, pos, sella, stripe_pay, bonifici, mance,
                     totale_incassi, cash_diff,
                     note,
                     is_closed,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str, weekday,
-                    corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-                    contanti, pos_bpm, pos_sella, theforkpay, other_e, bonifici, mance,
+                    corrispettivi, iva_10, iva_22, fatture,
+                    contanti_finali, pos, sella, stripe_pay,
+                    bonifici, mance,
                     totale_incassi, cash_diff,
                     note,
-                    is_closed,
+                    is_closed_val,
                     created_by,
                 ),
             )

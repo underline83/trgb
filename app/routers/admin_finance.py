@@ -251,11 +251,18 @@ async def import_corrispettivi_file(
     ensure_daily_closures_table(conn)
 
     try:
-        inserted, updated = import_df_into_db(
-            df,
-            conn,
-            created_by="admin-finance",
-        )
+        try:
+            inserted, updated = import_df_into_db(
+                df,
+                conn,
+                created_by="admin-finance",
+            )
+        except Exception as e:
+            # Chiudiamo e cancelliamo il file, ma ritorniamo un 400 leggibile
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Errore durante l'import nel database: {e}",
+            )
     finally:
         conn.close()
         tmp_path.unlink(missing_ok=True)
@@ -266,7 +273,6 @@ async def import_corrispettivi_file(
         inserted=inserted,
         updated=updated,
     )
-
 
 # ----------------------------------------------------
 # HELPER: conversione Row -> DailyClosureOut
