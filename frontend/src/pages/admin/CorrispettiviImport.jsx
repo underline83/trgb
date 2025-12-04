@@ -1,4 +1,4 @@
-// @version: v1.1
+// @version: v1.2
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -30,7 +30,6 @@ export default function CorrispettiviImport() {
     setResult(null);
 
     try {
-      // ✔️ FormData corretto: nessun duplicato
       const formData = new FormData();
       formData.append("file", file);
 
@@ -40,16 +39,14 @@ export default function CorrispettiviImport() {
         `${API_BASE_URL}/admin/finance/import-corrispettivi-file?year=${year}`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         }
       );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore generico nell'import.");
+        throw new Error(err.detail || "Errore generico nell'importazione.");
       }
 
       const data = await res.json();
@@ -57,7 +54,6 @@ export default function CorrispettiviImport() {
 
     } catch (e) {
       setError(e.message);
-
     } finally {
       setLoading(false);
     }
@@ -74,23 +70,20 @@ export default function CorrispettiviImport() {
               📤 Import corrispettivi da Excel
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
-              Carica il file dei corrispettivi per importare o aggiornare
-              le chiusure cassa nel gestionale.
+              Carica il file annuale dei corrispettivi per popolare il gestionale.
             </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:items-end">
             <button
-              type="button"
               onClick={() => navigate("/admin/corrispettivi")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+              className="px-4 py-2 rounded-xl text-sm border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
             >
               ← Torna ai Corrispettivi
             </button>
             <button
-              type="button"
               onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm transition"
+              className="px-4 py-2 rounded-xl text-xs border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm transition"
             >
               ← Amministrazione
             </button>
@@ -103,7 +96,7 @@ export default function CorrispettiviImport() {
           {/* ANNO */}
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Anno (informativo)
+              Anno di importazione
             </label>
             <input
               type="number"
@@ -112,7 +105,7 @@ export default function CorrispettiviImport() {
               className="w-32 px-3 py-2 border border-neutral-300 rounded-xl bg-neutral-50"
             />
             <p className="text-xs text-neutral-500 mt-1">
-              Non serve che il foglio Excel abbia questo nome: auto-detection.
+              Il foglio Excel può avere qualunque nome — il sistema lo rileva automaticamente.
             </p>
           </div>
 
@@ -137,7 +130,6 @@ export default function CorrispettiviImport() {
           {/* BOTTONI */}
           <div className="flex items-center gap-3">
             <button
-              type="button"
               disabled={loading || !file}
               onClick={handleImport}
               className={`px-5 py-2 rounded-xl text-sm font-semibold shadow
@@ -152,21 +144,23 @@ export default function CorrispettiviImport() {
 
             {file && !loading && (
               <span className="text-xs text-neutral-500">
-                File selezionato: <strong>{file.name}</strong>
+                File: <strong>{file.name}</strong>
               </span>
             )}
           </div>
 
+          {/* ERRORI */}
           {error && (
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               Errore durante l'import: {error}
             </div>
           )}
 
+          {/* RISULTATO */}
           {result && (
             <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               <p className="font-semibold mb-1">
-                Import completato (anno {result.year})
+                Import completato — anno {result.year}
               </p>
               <p>
                 Inserite: <strong>{result.inserted}</strong><br />

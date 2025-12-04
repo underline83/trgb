@@ -12,7 +12,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
 # 🔄 NUOVO IMPORT MULTI-ANNO
-from app.services.corrispettivi_import_v2 import (
+from app.services.corrispettivi_import import (
     DB_PATH,
     ensure_table,
     import_df_into_db,

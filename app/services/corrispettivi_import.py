@@ -1,50 +1,26 @@
 # app/services/corrispettivi_import.py
 # @version: v1.3
 
-from pathlib import Path
 import pandas as pd
+import numpy as np
 import sqlite3
+from pathlib import Path
+from datetime import datetime
 
-DB_PATH = Path("app/data/admin_finance.db")
-
-
-# ---------------------------------------------------------
-# CARICAMENTO EXCEL (usa foglio corrispondente a "year")
-# ---------------------------------------------------------
-
-def load_corrispettivi_from_excel(path: Path, year: int) -> pd.DataFrame:
-    """
-    Carica i corrispettivi dal file Excel.
-    Il foglio viene scelto usando il parametro 'year' (es. "2024", "2025").
-    """
-    suffix = path.suffix.lower()
-    sheet_name = str(year)  # <-- FINALE: usa l’anno selezionato dal frontend
-
-    # Se è xlsb
-    if suffix == ".xlsb":
-        df = pd.read_excel(path, sheet_name=sheet_name, engine="pyxlsb")
-    # Se è xlsx / xls
-    elif suffix in (".xlsx", ".xls"):
-        df = pd.read_excel(path, sheet_name=sheet_name)
-    else:
-        raise ValueError(f"Formato file non supportato: {suffix}")
-
-    # Controllo colonne minime
-    if "date" not in df.columns:
-        raise ValueError("Colonna 'date' mancante nel foglio Excel.")
-
-    # Normalizzazione della data
-    df["date"] = pd.to_datetime(df["date"]).dt.date
-
-    return df
+DB_PATH = "app/data/admin_finance.sqlite3"
 
 
-# ---------------------------------------------------------
-# CREA TABELLA SE NON ESISTE
-# ---------------------------------------------------------
+# ==============================================================
+# DB CREATION / MIGRATION
+# ==============================================================
 
 def ensure_table(conn: sqlite3.Connection):
-    conn.execute(
+    """
+    Crea la tabella daily_closures se non esiste.
+    Versione moderna, colonne allineate al modello ufficiale.
+    """
+    cur = conn.cursor()
+    cur.execute(
         """
         CREATE TABLE IF NOT EXISTS daily_closures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,58 +41,209 @@ def ensure_table(conn: sqlite3.Connection):
             note TEXT,
             is_closed INTEGER DEFAULT 0,
             created_by TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT
         );
         """
     )
     conn.commit()
 
 
-# ---------------------------------------------------------
-# IMPORT DATAFRAME NEL DB
-# ---------------------------------------------------------
+# ==============================================================
+# HELPER: NORMALIZZAZIONE CAMPI
+# ==============================================================
 
-def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="admin"):
+def _clean_value(x):
     """
-    Importa/aggiorna i dati giornalieri dal DataFrame.
-    Ritorna #inseriti e #aggiornati.
+    Converte valori Excel contenenti:
+    - numeri
+    - stringhe con "€" o "."
+    - NaN / None → 0
     """
+    if pd.isna(x) or x is None:
+        return 0.0
+
+    if isinstance(x, (int, float, np.number)):
+        return float(x)
+
+    if isinstance(x, str):
+        x = x.replace("€", "").replace(".", "").replace(",", ".").strip()
+        if x in ("", "-", "--"):
+            return 0.0
+        try:
+            return float(x)
+        except:
+            return 0.0
+
+    return 0.0
+
+
+# ==============================================================
+# LOADER DI FILE EXCEL (tutte le versioni 2021-2024)
+# ==============================================================
+
+def load_corrispettivi_from_excel(path: Path, year: int):
+    """
+    Legge file Excel 2021–2024 (formati diversi).
+    Auto-seleziona il foglio giusto (con anno nel nome, oppure primo valido).
+    Converte tutte le colonne in un dataframe standardizzato.
+    """
+    xls = pd.ExcelFile(path)
+    sheet = None
+
+    # 1) CERCA FOGLIO ES: "2024", "2023", ecc.
+    yn = str(year)
+    for s in xls.sheet_names:
+        if yn in s:
+            sheet = s
+            break
+
+    # 2) Se non trovato, prendi il primo foglio con una colonna tipo "Giorno", "Corrispettivi"
+    if sheet is None:
+        for s in xls.sheet_names:
+            df_test = pd.read_excel(path, sheet_name=s, nrows=3)
+            low = [str(x).lower() for x in df_test.columns]
+            if any(k in low for k in ["corrispettivi", "giorno", "iva"]):
+                sheet = s
+                break
+
+    if sheet is None:
+        sheet = xls.sheet_names[0]  # fallback assoluto
+
+    df = pd.read_excel(path, sheet_name=sheet)
+
+    # ==========================================================
+    # NORMALIZZAZIONE NOMI COLONNE
+    # ==========================================================
+
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
+    # tutte le varianti viste nei file vecchi/nuovi
+    colmap = {
+        "data": ["data", "giorno", "date"],
+        "corrispettivi": ["corrispettivi", "corrispettivo"],
+        "iva_10": ["iva 10%", "iva 10", "iva10"],
+        "iva_22": ["iva 22%", "iva 22", "iva22"],
+        "fatture": ["fatture"],
+        "contanti_finali": ["contanti finali", "contanti", "cash"],
+        "pos": ["pos"],
+        "sella": ["sella"],
+        "stripe_pay": ["stripe", "paypal", "stripe/paypal", "paypal/stripe"],
+        "bonifici": ["bonifici", "bonifico"],
+        "mance": ["mance"],
+    }
+
+    # output dataframe
+    out = {
+        "date": [],
+        "weekday": [],
+        "corrispettivi": [],
+        "iva_10": [],
+        "iva_22": [],
+        "fatture": [],
+        "contanti_finali": [],
+        "pos": [],
+        "sella": [],
+        "stripe_pay": [],
+        "bonifici": [],
+        "mance": [],
+    }
+
+    # ==========================================================
+    # ESTRAZIONE RIGA PER RIGA
+    # ==========================================================
+
+    for _, row in df.iterrows():
+        # ------ DATA ------
+        date_val = None
+        for cname in colmap["data"]:
+            if cname in df.columns:
+                date_val = row.get(cname, None)
+                break
+
+        if pd.isna(date_val) or date_val is None:
+            continue
+
+        try:
+            d = pd.to_datetime(date_val).date()
+        except:
+            continue
+
+        # ------ ESTRAZIONE VALORI ------
+        def extract(key):
+            for cname in colmap[key]:
+                if cname in df.columns:
+                    return _clean_value(row.get(cname))
+            return 0.0
+
+        iva10 = extract("iva_10")
+        iva22 = extract("iva_22")
+        fatt = extract("fatture")
+
+        # VALORE CORRISPETTIVI (anche se il file ha corrispettivi propri)
+        corr = iva10 + iva22 + fatt
+        # Se il file ha “corrispettivi”, usalo come override
+        if "corrispettivi" in df.columns:
+            override = extract("corrispettivi")
+            if override > 0:
+                corr = override
+
+        total_stripe = extract("stripe_pay")  # include PayPal in automatico
+
+        totale_incassi = (
+            extract("contanti_finali")
+            + extract("pos")
+            + extract("sella")
+            + total_stripe
+            + extract("bonifici")
+            + extract("mance")
+        )
+
+        out["date"].append(d.isoformat())
+        out["weekday"].append(d.strftime("%A"))
+        out["corrispettivi"].append(corr)
+        out["iva_10"].append(iva10)
+        out["iva_22"].append(iva22)
+        out["fatture"].append(fatt)
+        out["contanti_finali"].append(extract("contanti_finali"))
+        out["pos"].append(extract("pos"))
+        out["sella"].append(extract("sella"))
+        out["stripe_pay"].append(total_stripe)
+        out["bonifici"].append(extract("bonifici"))
+        out["mance"].append(extract("mance"))
+
+    out_df = pd.DataFrame(out)
+    return out_df
+
+
+# ==============================================================
+# IMPORT NEL DATABASE
+# ==============================================================
+
+def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="import"):
+    """
+    Inserisce/aggiorna i record in daily_closures.
+    """
+    ensure_table(conn)
+    cur = conn.cursor()
+
     inserted = 0
     updated = 0
 
-    cur = conn.cursor()
-
-    for _, r in df.iterrows():
-        date_str = str(r["date"])
-
-        # Prepara valori (metti 0 se manca)
-        vals = {
-            "weekday": r.get("weekday", ""),
-            "corrispettivi": float(r.get("corrispettivi", 0) or 0),
-            "iva_10": float(r.get("iva_10", 0) or 0),
-            "iva_22": float(r.get("iva_22", 0) or 0),
-            "fatture": float(r.get("fatture", 0) or 0),
-            "contanti_finali": float(r.get("contanti_finali", 0) or 0),
-            "pos": float(r.get("pos", 0) or 0),
-            "sella": float(r.get("sella", 0) or 0),
-            "stripe_pay": float(r.get("stripe_pay", 0) or 0),
-            "bonifici": float(r.get("bonifici", 0) or 0),
-            "mance": float(r.get("mance", 0) or 0),
-            "note": r.get("note", None),
-        }
+    for _, row in df.iterrows():
+        date_str = row["date"]
 
         totale_incassi = (
-            vals["contanti_finali"]
-            + vals["pos"]
-            + vals["sella"]
-            + vals["stripe_pay"]
-            + vals["bonifici"]
-            + vals["mance"]
+            row["contanti_finali"]
+            + row["pos"]
+            + row["sella"]
+            + row["stripe_pay"]
+            + row["bonifici"]
+            + row["mance"]
         )
-        cash_diff = totale_incassi - vals["corrispettivi"]
+        cash_diff = totale_incassi - row["corrispettivi"]
 
-        cur.execute("SELECT id FROM daily_closures WHERE date = ?", (date_str,))
+        cur.execute("SELECT id FROM daily_closures WHERE date=?", (date_str,))
         existing = cur.fetchone()
 
         if existing:
@@ -124,16 +251,21 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="ad
             cur.execute(
                 """
                 UPDATE daily_closures
-                SET weekday=?, corrispettivi=?, iva_10=?, iva_22=?, fatture=?,
-                    contanti_finali=?, pos=?, sella=?, stripe_pay=?, bonifici=?,
-                    mance=?, totale_incassi=?, cash_diff=?, note=?, updated_at=CURRENT_TIMESTAMP
+                SET
+                    weekday=?,
+                    corrispettivi=?, iva_10=?, iva_22=?, fatture=?,
+                    contanti_finali=?, pos=?, sella=?, stripe_pay=?, bonifici=?, mance=?,
+                    totale_incassi=?, cash_diff=?,
+                    updated_at=CURRENT_TIMESTAMP
                 WHERE date=?
                 """,
                 (
-                    vals["weekday"], vals["corrispettivi"], vals["iva_10"], vals["iva_22"], vals["fatture"],
-                    vals["contanti_finali"], vals["pos"], vals["sella"], vals["stripe_pay"],
-                    vals["bonifici"], vals["mance"], totale_incassi, cash_diff,
-                    vals["note"], date_str
+                    row["weekday"],
+                    row["corrispettivi"], row["iva_10"], row["iva_22"], row["fatture"],
+                    row["contanti_finali"], row["pos"], row["sella"], row["stripe_pay"],
+                    row["bonifici"], row["mance"],
+                    totale_incassi, cash_diff,
+                    date_str,
                 ),
             )
         else:
@@ -141,17 +273,21 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="ad
             cur.execute(
                 """
                 INSERT INTO daily_closures (
-                    date, weekday, corrispettivi, iva_10, iva_22, fatture,
+                    date, weekday,
+                    corrispettivi, iva_10, iva_22, fatture,
                     contanti_finali, pos, sella, stripe_pay, bonifici, mance,
-                    totale_incassi, cash_diff, note, created_by
+                    totale_incassi, cash_diff,
+                    is_closed, created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                 """,
                 (
-                    date_str, vals["weekday"], vals["corrispettivi"], vals["iva_10"], vals["iva_22"],
-                    vals["fatture"], vals["contanti_finali"], vals["pos"], vals["sella"],
-                    vals["stripe_pay"], vals["bonifici"], vals["mance"],
-                    totale_incassi, cash_diff, vals["note"], created_by
+                    date_str, row["weekday"],
+                    row["corrispettivi"], row["iva_10"], row["iva_22"], row["fatture"],
+                    row["contanti_finali"], row["pos"], row["sella"], row["stripe_pay"],
+                    row["bonifici"], row["mance"],
+                    totale_incassi, cash_diff,
+                    created_by,
                 ),
             )
 
