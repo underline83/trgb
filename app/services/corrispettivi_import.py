@@ -1,5 +1,5 @@
 # app/services/corrispettivi_import.py
-# @version: v2.0
+# @version: v2.1
 import re
 import pandas as pd
 import numpy as np
@@ -35,7 +35,7 @@ def ensure_table(conn: sqlite3.Connection):
             fatture REAL DEFAULT 0,
             corrispettivi_tot REAL DEFAULT 0,  -- corrispettivi + fatture
 
-            -- Incassi
+            -- Incassi (solo incassi reali, SENZA mance)
             contanti_finali REAL DEFAULT 0,
             pos_bpm REAL DEFAULT 0,
             pos_sella REAL DEFAULT 0,
@@ -100,8 +100,8 @@ def _parse_euro(value) -> float:
         return 0.0
 
     s = s.replace("€", "").replace(" ", "").replace("\u00a0", "")
-    s = s.replace(".", "")  # migliaia
-    s = s.replace(",", ".")  # decimali
+    s = s.replace(".", "")      # migliaia
+    s = s.replace(",", ".")     # decimali
 
     try:
         return float(s)
@@ -110,53 +110,102 @@ def _parse_euro(value) -> float:
 
 
 # ==============================================================
+# SCELTA FOGLIO EXCEL
+# ==============================================================
+
+def _select_sheet_name(path: Path, year: str) -> str:
+    """
+    Sceglie il foglio corretto in base a year e ai nomi reali del file.
+
+    - year == 'archivio'  -> cerca un foglio che contenga 'archivio';
+                            se non lo trova usa il primo.
+    - year == '2025' ecc. -> prova:
+        1) match esatto '2025'
+        2) se c'è un solo foglio non-archivio -> usa quello
+        3) se c'è un foglio che contiene '2025' -> usa quello
+        4) altrimenti solleva errore con elenco fogli.
+    """
+    xls = pd.ExcelFile(path)
+    sheets = xls.sheet_names
+
+    norm_sheets = {s: _normalize_colname(s) for s in sheets}
+    year_str = str(year)
+    is_archivio = year_str.lower() == "archivio"
+
+    if is_archivio:
+        # cerca foglio 'archivio'
+        for s, ns in norm_sheets.items():
+            if "ARCHIVIO" == ns or "ARCHIVIO" in ns:
+                return s
+        # fallback: primo foglio
+        return sheets[0]
+
+    # tentativo 1: match esatto '2025'
+    for s in sheets:
+        if s.strip() == year_str:
+            return s
+
+    # lista fogli non-archivio
+    non_archivio = [s for s, ns in norm_sheets.items() if "ARCHIVIO" not in ns]
+
+    # tentativo 2: se c'è un solo foglio non-archivio, uso quello
+    if len(non_archivio) == 1:
+        return non_archivio[0]
+
+    # tentativo 3: fogli che contengono l'anno nel nome
+    candidates = [s for s in sheets if year_str in s]
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # fallimento: elenco i fogli trovati
+    raise ValueError(
+        f"Worksheet compatibile con year='{year_str}' non trovato. "
+        f"Fogli disponibili: {', '.join(sheets)}"
+    )
+
+
+# ==============================================================
 # LOADER DI FILE EXCEL (archivio + anni singoli)
 # ==============================================================
 
 def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
     """
-    Carica un file Excel corrispettivi con lo schema standard:
-
-    DATA, GIORNO, CORRISPETTIVI-TOT, CORRISPETTIVI, IVA 10%, IVA 22%, FATTURE,
-    CONTANTI, POS BPM, POS SELLA, THEFORKPAY, PAYPAL/STRIPE, BONIFICI,
-    MANCE DIG, CASH, TOTALE, ...
-
-    Regole:
-    - se year == "archivio" (case-insensitive) -> usa foglio 'archivio',
-      importa TUTTE le date presenti.
-    - se year è ad es. "2025" -> usa foglio '2025' e importa TUTTE le righe
-      con DATA valida del foglio (non filtriamo più su parsed.year).
-
-    Output: DataFrame con colonne pronte per import_df_into_db():
-      date, weekday,
-      corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-      contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
-      bonifici, mance, totale_incassi, cash_diff, note, is_closed
+    Loader definitivo con supporto a:
+    - foglio archivio / foglio anno
+    - date stringa
+    - date numeriche seriali Excel
+    - colonne mancanti → 0
     """
+
+    # -----------------------------
+    # 1) Determina foglio
+    # -----------------------------
     year_str = str(year)
     is_archivio = year_str.lower() == "archivio"
 
-    # Per ora manteniamo target_year solo per eventuali debug futuri,
-    # ma NON lo usiamo più per filtrare le righe.
+    target_year: Optional[int] = None
     if not is_archivio:
         try:
-            int(year_str)
+            target_year = int(year_str)
         except ValueError:
-            raise ValueError(
-                f"Valore year non valido: {year!r}. Usa 'archivio' oppure un anno, es. 2025."
-            )
+            raise ValueError(f"Anno non valido: {year!r}")
 
     sheet_name = "archivio" if is_archivio else year_str
 
+    # -----------------------------
+    # 2) Lettura Excel
+    # -----------------------------
     try:
         raw = pd.read_excel(path, sheet_name=sheet_name, dtype=object)
     except Exception as e:
         raise ValueError(f"Errore apertura foglio '{sheet_name}': {e}")
 
     if raw.empty:
-        raise ValueError(f"Il foglio '{sheet_name}' è vuoto.")
+        raise ValueError(f"Foglio '{sheet_name}' vuoto.")
 
-    # Mappa nomi colonne
+    # -----------------------------
+    # 3) Normalizzazione nomi colonne
+    # -----------------------------
     colmap = {}
     for col in raw.columns:
         norm = _normalize_colname(col)
@@ -165,7 +214,7 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
             colmap["date"] = col
         elif norm == "GIORNO":
             colmap["weekday"] = col
-        elif norm in ("CORRISPETTIVI-TOT", "CORRISPETTIVI TOT", "CORRISPETTIVI_TOT"):
+        elif norm in ("CORRISPETTIVI-TOT", "CORRISPETTIVI TOT"):
             colmap["corr_tot"] = col
         elif norm == "CORRISPETTIVI":
             colmap["corr"] = col
@@ -177,63 +226,88 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
             colmap["fatture"] = col
         elif norm == "CONTANTI":
             colmap["contanti"] = col
-        elif norm in ("POS BPM", "POSBPM", "POS RISTO", "POS"):
+        elif norm in ("POS BPM", "POS", "POSBPM", "POS RISTO"):
             colmap["pos_bpm"] = col
-        elif norm in ("POS SELLA", "POSSELLA", "SELLA"):
+        elif norm in ("POS SELLA", "SELLA", "POSSELLA"):
             colmap["pos_sella"] = col
-        elif norm in ("THEFORKPAY", "THE FORK PAY", "THEFORK PAY"):
+        elif norm.startswith("THEFORK"):
             colmap["thefork"] = col
-        elif norm in ("PAYPAL/STRIPE", "PAYPAL STRIPE", "STRIPE/PAYPAL"):
+        elif "PAYPAL" in norm or "STRIPE" in norm:
             colmap["paypal_stripe"] = col
         elif norm == "BONIFICI":
             colmap["bonifici"] = col
-        elif norm in ("MANCE DIG", "MANCE DIGITALI", "MANCE"):
+        elif "MANCE" in norm:
             colmap["mance"] = col
-        elif norm == "CASH":
-            colmap["cash"] = col      # solo per debug
-        elif norm == "TOTALE":
-            colmap["totale"] = col   # solo eventuale debug
 
-    # Colonne minime necessarie
     if "date" not in colmap:
-        raise ValueError(
-            f"Colonna DATA mancante nel foglio '{sheet_name}'."
-        )
+        raise ValueError("Colonna DATA mancante.")
 
+    # -----------------------------
+    # 4) Helper: parsing date
+    # -----------------------------
+    from datetime import datetime, timedelta
+
+    def parse_excel_date(val):
+        """Gestisce:
+        - stringhe '01/01/2025'
+        - datetime già formati
+        - seriali excel (>= 30000 e <= 60000)
+        """
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
+
+        # Caso datetime già pronto
+        if isinstance(val, datetime):
+            return val
+
+        # Caso seriale Excel
+        if isinstance(val, (int, float)):
+            if 30000 <= float(val) <= 60000:
+                try:
+                    return datetime(1899, 12, 30) + timedelta(days=float(val))
+                except Exception:
+                    pass
+
+        # Caso stringa
+        try:
+            return pd.to_datetime(val, dayfirst=True, errors="coerce")
+        except Exception:
+            return None
+
+    # -----------------------------
+    # 5) Parsing righe
+    # -----------------------------
     records = []
 
     for _, row in raw.iterrows():
+
         raw_date = row.get(colmap["date"])
+        parsed = parse_excel_date(raw_date)
 
-        try:
-            parsed = pd.to_datetime(raw_date, dayfirst=True, errors="coerce")
-        except Exception:
-            parsed = pd.NaT
-
-        # Salta righe non data (totali, note, ecc.)
-        if pd.isna(parsed):
+        # skip righe non-data
+        if parsed is None or pd.isna(parsed):
             continue
 
-        # NON filtriamo più per anno: per il foglio '2025' ci fidiamo che
-        # contenga solo il 2025.
+        # filtra l'anno se non archivio
+        if not is_archivio and parsed.year != target_year:
+            continue
+
         date_iso = parsed.strftime("%Y-%m-%d")
 
-        # weekday: se presente nel file uso quello, altrimenti calcolo
+        # weekday
         weekday_val = None
         if "weekday" in colmap:
             weekday_val = row.get(colmap["weekday"])
         weekday = (str(weekday_val).strip()
                    if weekday_val not in (None, float("nan"))
-                   else "")
-        if not weekday:
-            weekday = parsed.strftime("%A")
+                   else parsed.strftime("%A"))
 
-        # valori fiscali
+        # fiscali
         iva10 = _parse_euro(row.get(colmap.get("iva10"))) if "iva10" in colmap else 0.0
         iva22 = _parse_euro(row.get(colmap.get("iva22"))) if "iva22" in colmap else 0.0
         fatture = _parse_euro(row.get(colmap.get("fatture"))) if "fatture" in colmap else 0.0
 
-        # corrispettivi "base": IVA10 + IVA22 o colonna CORRISPETTIVI
+        # corrispettivi
         if "corr" in colmap:
             corr_val = _parse_euro(row.get(colmap["corr"]))
             if corr_val == 0.0:
@@ -241,16 +315,14 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
         else:
             corr_val = iva10 + iva22
 
-        # corrispettivi_tot: colonna CORRISPETTIVI-TOT se presente,
-        # altrimenti corr_val + fatture
         if "corr_tot" in colmap:
-            corrispettivi_tot = _parse_euro(row.get(colmap["corr_tot"]))
-            if corrispettivi_tot == 0.0:
-                corrispettivi_tot = corr_val + fatture
+            corr_tot = _parse_euro(row.get(colmap["corr_tot"]))
+            if corr_tot == 0.0:
+                corr_tot = corr_val + fatture
         else:
-            corrispettivi_tot = corr_val + fatture
+            corr_tot = corr_val + fatture
 
-        # Pagamenti
+        # pagamenti
         contanti = _parse_euro(row.get(colmap.get("contanti"))) if "contanti" in colmap else 0.0
         pos_bpm = _parse_euro(row.get(colmap.get("pos_bpm"))) if "pos_bpm" in colmap else 0.0
         pos_sella = _parse_euro(row.get(colmap.get("pos_sella"))) if "pos_sella" in colmap else 0.0
@@ -261,10 +333,9 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
 
         other_e_payments = paypal_stripe
 
-        # TOT incassi (senza mance)
+        # totale incassi (senza mance)
         totale_incassi = contanti + pos_bpm + pos_sella + thefork + other_e_payments + bonifici
-
-        cash_diff = totale_incassi - corrispettivi_tot
+        cash_diff = totale_incassi - corr_tot
 
         record = {
             "date": date_iso,
@@ -273,7 +344,7 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
             "iva_10": iva10,
             "iva_22": iva22,
             "fatture": fatture,
-            "corrispettivi_tot": corrispettivi_tot,
+            "corrispettivi_tot": corr_tot,
             "contanti_finali": contanti,
             "pos_bpm": pos_bpm,
             "pos_sella": pos_sella,
@@ -286,19 +357,14 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
             "note": None,
             "is_closed": 0,
         }
+
         records.append(record)
 
     if not records:
-        raise ValueError(
-            f"Nessuna riga valida trovata nel foglio '{sheet_name}' (year={year})."
-        )
+        raise ValueError(f"Nessuna riga valida trovata nel foglio '{sheet_name}' (year={year}).")
 
-    df = pd.DataFrame.from_records(records)
-    df = df.sort_values("date").reset_index(drop=True)
+    df = pd.DataFrame.from_records(records).sort_values("date").reset_index(drop=True)
     return df
-# ==============================================================
-# IMPORT NEL DATABASE
-# ==============================================================
 
 # ==============================================================
 # IMPORT NEL DATABASE
@@ -307,14 +373,8 @@ def load_corrispettivi_from_excel(path: Path, year: str) -> pd.DataFrame:
 def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="import"):
     """
     Inserisce/aggiorna i record in daily_closures.
-
-    Allineato alla struttura:
-    id, date, weekday,
-    corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-    contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
-    bonifici, mance,
-    totale_incassi, cash_diff,
-    note, is_closed, created_by, created_at, updated_at
+    Tutti i campi numerici vengono normalizzati a float,
+    trattando None/NaN/colonne mancanti come 0.0.
     """
     ensure_table(conn)
     cur = conn.cursor()
@@ -332,9 +392,7 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
         if key not in row.index:
             return 0.0
         v = row.get(key, 0)
-        if v is None:
-            return 0.0
-        if isinstance(v, float) and np.isnan(v):
+        if v is None or (isinstance(v, float) and np.isnan(v)):
             return 0.0
         try:
             return float(v)
@@ -351,8 +409,6 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
         iva_22 = _get_num(row, "iva_22")
         fatture = _get_num(row, "fatture")
         corrispettivi_tot = _get_num(row, "corrispettivi_tot")
-        if corrispettivi_tot == 0.0:
-            corrispettivi_tot = corrispettivi + fatture
 
         contanti_finali = _get_num(row, "contanti_finali")
         pos_bpm = _get_num(row, "pos_bpm")
@@ -362,7 +418,7 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
         bonifici = _get_num(row, "bonifici")
         mance = _get_num(row, "mance")
 
-        # Totale incassi ESCLUSO mance (come deciso)
+        # ricalcolo totale_incassi senza mance, per coerenza
         totale_incassi = (
             contanti_finali
             + pos_bpm
@@ -371,14 +427,12 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
             + other_e_payments
             + bonifici
         )
-
         cash_diff = totale_incassi - corrispettivi_tot
 
         note = row.get("note", None)
         is_closed_val = int(row.get("is_closed", 0) or 0)
 
-        # Esiste già la riga per quella data?
-        cur.execute("SELECT id FROM daily_closures WHERE date = ?", (date_str,))
+        cur.execute("SELECT id FROM daily_closures WHERE date=?", (date_str,))
         existing = cur.fetchone()
 
         if existing:
@@ -387,25 +441,25 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                 """
                 UPDATE daily_closures
                 SET
-                    weekday = ?,
-                    corrispettivi = ?,
-                    iva_10 = ?,
-                    iva_22 = ?,
-                    fatture = ?,
-                    corrispettivi_tot = ?,
-                    contanti_finali = ?,
-                    pos_bpm = ?,
-                    pos_sella = ?,
-                    theforkpay = ?,
-                    other_e_payments = ?,
-                    bonifici = ?,
-                    mance = ?,
-                    totale_incassi = ?,
-                    cash_diff = ?,
-                    note = ?,
-                    is_closed = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE date = ?
+                    weekday=?,
+                    corrispettivi=?,
+                    iva_10=?,
+                    iva_22=?,
+                    fatture=?,
+                    corrispettivi_tot=?,
+                    contanti_finali=?,
+                    pos_bpm=?,
+                    pos_sella=?,
+                    theforkpay=?,
+                    other_e_payments=?,
+                    bonifici=?,
+                    mance=?,
+                    totale_incassi=?,
+                    cash_diff=?,
+                    note=?,
+                    is_closed=?,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE date=?
                 """,
                 (
                     weekday,
@@ -453,7 +507,7 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                     is_closed,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
