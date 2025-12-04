@@ -56,10 +56,9 @@ def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
 
 class ImportResult(BaseModel):
     status: str
-    year: int
+    year: str   # può essere "archivio" oppure "2025", "2026", ...
     inserted: int
     updated: int
-
 
 class DailyClosureBase(BaseModel):
     date: date_type
@@ -174,11 +173,13 @@ class SetClosedPayload(BaseModel):
 @router.post("/import-corrispettivi-file", response_model=ImportResult)
 async def import_corrispettivi_file(
     file: UploadFile = File(...),
-    year: int = 2025,
+    year: str = "archivio",
 ):
     """
     Importa i corrispettivi da un file Excel (xlsb/xlsx/xls) nel DB admin_finance.
-    Usa il foglio con nome = anno (es. "2025").
+
+    - year = "archivio"  -> usa il foglio 'archivio', importa tutte le date presenti.
+    - year = "2025"      -> usa il foglio '2025' e filtra l'anno 2025.
     """
     filename = (file.filename or "").lower()
 
@@ -195,7 +196,7 @@ async def import_corrispettivi_file(
     with tmp_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Prova a leggere l'Excel
+    # Prova a leggere l'Excel con la nuova funzione
     try:
         df = load_corrispettivi_from_excel(tmp_path, year=year)
     except Exception as e:
@@ -225,6 +226,7 @@ async def import_corrispettivi_file(
         inserted=inserted,
         updated=updated,
     )
+    
 #------------------------------------------------------
 # TUTTO IL RESTO DEL FILE È INVARIATO
 # Daily closures, stats, annual compare, top days etc.
