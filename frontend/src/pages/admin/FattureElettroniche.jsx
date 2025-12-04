@@ -65,7 +65,7 @@ function FattureElettroniche() {
     // supporta anche più file: stesso campo 'files'
     Array.from(files).forEach((file) => formData.append("files", file));
 
-    try:
+    try {
       const res = await fetch(`${API_BASE}/contabilita/fe/import`, {
         method: "POST",
         body: formData,
@@ -132,8 +132,9 @@ function FattureElettroniche() {
         </div>
       )}
 
-      {/* Lista fatture */}
+      {/* Lista fatture + dettaglio */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Lista fatture */}
         <div className="border rounded-lg p-4 bg-slate-900/40">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-semibold">Fatture importate</h2>
