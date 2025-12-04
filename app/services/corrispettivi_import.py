@@ -438,6 +438,8 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
             inserted += 1
             cur.execute(
                 """
+            cur.execute(
+                """
                 INSERT INTO daily_closures (
                     date,
                     weekday,
@@ -459,30 +461,29 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                     is_closed,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,  # <-- 19 placeholders, non 20
                 (
-                    date_str,
-                    weekday,
-                    corrispettivi,
-                    iva_10,
-                    iva_22,
-                    fatture,
-                    corrispettivi_tot,
-                    contanti_finali,
-                    pos_bpm,
-                    pos_sella,
-                    theforkpay,
-                    other_e_payments,
-                    bonifici,
-                    mance,
-                    totale_incassi,
-                    cash_diff,
-                    note,
-                    is_closed_val,
-                    created_by,
-                ),
-            )
-
-    conn.commit()
+                date_str,
+                weekday,
+                corrispettivi,
+                iva_10,
+                iva_22,
+                fatture,
+                corrispettivi_tot,
+                contanti_finali,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
+                bonifici,
+                mance,
+                totale_incassi,
+                cash_diff,
+                note,
+                is_closed_val,
+                created_by,
+            ),
+        )
+            conn.commit()
     return inserted, updated
