@@ -310,14 +310,13 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
     """
     Inserisce/aggiorna i record in daily_closures.
 
-    Allineato allo schema v2.0:
-
-    - corrispettivi       = IVA10 + IVA22 (o colonna CORRISPETTIVI se presente)
-    - corrispettivi_tot   = corrispettivi + fatture (o colonna CORRISPETTIVI-TOT)
-    - totale_incassi      = contanti_finali + pos_bpm + pos_sella + theforkpay
-                            + other_e_payments + bonifici
-    - mance               = colonna MANCE DIG (ma NON entra in totale_incassi)
-    - cash_diff           = totale_incassi - corrispettivi_tot
+    Allineato alla struttura:
+    id, date, weekday,
+    corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
+    contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
+    bonifici, mance,
+    totale_incassi, cash_diff,
+    note, is_closed, created_by, created_at, updated_at
     """
     ensure_table(conn)
     cur = conn.cursor()
@@ -335,7 +334,9 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
         if key not in row.index:
             return 0.0
         v = row.get(key, 0)
-        if v is None or (isinstance(v, float) and np.isnan(v)):
+        if v is None:
+            return 0.0
+        if isinstance(v, float) and np.isnan(v):
             return 0.0
         try:
             return float(v)
@@ -344,31 +345,26 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
 
     for _, row in df.iterrows():
         date_str = row["date"]
+
         weekday = row.get("weekday", "") or ""
 
-        # valori fiscali
         corrispettivi = _get_num(row, "corrispettivi")
         iva_10 = _get_num(row, "iva_10")
         iva_22 = _get_num(row, "iva_22")
         fatture = _get_num(row, "fatture")
         corrispettivi_tot = _get_num(row, "corrispettivi_tot")
-
-        # safety: se corrispettivi_tot è 0 ma abbiamo dati, ricalcolo
-        if corrispettivi_tot == 0.0 and (corrispettivi != 0.0 or fatture != 0.0):
+        if corrispettivi_tot == 0.0:
             corrispettivi_tot = corrispettivi + fatture
 
-        # incassi
         contanti_finali = _get_num(row, "contanti_finali")
         pos_bpm = _get_num(row, "pos_bpm")
         pos_sella = _get_num(row, "pos_sella")
         theforkpay = _get_num(row, "theforkpay")
         other_e_payments = _get_num(row, "other_e_payments")
         bonifici = _get_num(row, "bonifici")
-
-        # mance (separate, NON incluse in totale_incassi)
         mance = _get_num(row, "mance")
 
-        # riepilogo incassi (senza mance)
+        # Totale incassi ESCLUSO mance (come deciso)
         totale_incassi = (
             contanti_finali
             + pos_bpm
@@ -383,7 +379,7 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
         note = row.get("note", None)
         is_closed_val = int(row.get("is_closed", 0) or 0)
 
-        # esiste già la riga?
+        # Esiste già la riga per quella data?
         cur.execute("SELECT id FROM daily_closures WHERE date = ?", (date_str,))
         existing = cur.fetchone()
 
@@ -438,8 +434,6 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
             inserted += 1
             cur.execute(
                 """
-            cur.execute(
-                """
                 INSERT INTO daily_closures (
                     date,
                     weekday,
@@ -462,28 +456,29 @@ def import_df_into_db(df: pd.DataFrame, conn: sqlite3.Connection, created_by="im
                     created_by
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,  # <-- 19 placeholders, non 20
+                """,
                 (
-                date_str,
-                weekday,
-                corrispettivi,
-                iva_10,
-                iva_22,
-                fatture,
-                corrispettivi_tot,
-                contanti_finali,
-                pos_bpm,
-                pos_sella,
-                theforkpay,
-                other_e_payments,
-                bonifici,
-                mance,
-                totale_incassi,
-                cash_diff,
-                note,
-                is_closed_val,
-                created_by,
-            ),
-        )
-            conn.commit()
+                    date_str,
+                    weekday,
+                    corrispettivi,
+                    iva_10,
+                    iva_22,
+                    fatture,
+                    corrispettivi_tot,
+                    contanti_finali,
+                    pos_bpm,
+                    pos_sella,
+                    theforkpay,
+                    other_e_payments,
+                    bonifici,
+                    mance,
+                    totale_incassi,
+                    cash_diff,
+                    note,
+                    is_closed_val,
+                    created_by,
+                ),
+            )
+
+    conn.commit()
     return inserted, updated
