@@ -115,9 +115,8 @@ def load_corrispettivi_from_excel(path: Path, year: int):
     # ==========================================================
     # NORMALIZZAZIONE NOMI COLONNE
     # ==========================================================
-
+    # Normalizzazione sicura: converte tutto in stringa
     df.columns = [str(c).strip().lower() for c in df.columns]
-
     # tutte le varianti viste nei file vecchi/nuovi
     colmap = {
         "data": ["data", "giorno", "date"],
