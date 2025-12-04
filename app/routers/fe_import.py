@@ -12,7 +12,7 @@ from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import SessionLocal
 from app.models.fe_import import FEFattura, FERiga
 from app.schemas.fe_import import FEFatturaDetailOut, FEFatturaOut, FERigaOut
 
@@ -20,6 +20,15 @@ router = APIRouter(
     prefix="/contabilita/fe",
     tags=["contabilita-fe"],
 )
+
+
+# Dependency locale per avere la sessione DB
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def _find_text(root: ET.Element, tag: str) -> str | None:
