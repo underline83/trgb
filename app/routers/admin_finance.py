@@ -1,5 +1,5 @@
 # app/routers/admin_finance.py
-# @version: v1.5
+# @version: v1.6
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -38,9 +38,7 @@ def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
     definito in app.services.corrispettivi_import.ensure_table().
     """
     ensure_table(conn)
-
     # In futuro, se servono migrazioni aggiuntive, si gestiscono qui.
-    # Per ora lo schema è già completo (is_closed incluso).
 
 
 # ---------------------------------------------------------
@@ -238,10 +236,7 @@ async def import_corrispettivi_file(
     return ImportResult(
         status="ok",
         year=year,
-    )
-
-
-# ---------------------------------------------------------
+    )# ---------------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
 # ---------------------------------------------------------
 
@@ -617,23 +612,36 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
 
     Regola:
     - se is_closed == 1 -> chiuso
-    - oppure se è mercoledì e corrispettivi==0 e totale_incassi==0 -> chiuso "automatico"
+    - altrimenti, se è mercoledì e (corrispettivi o corrispettivi_tot) == 0
+      e totale_incassi == 0 -> chiuso "automatico".
+
+    È robusta anche per query che non includono tutte le colonne:
+    usa 'corrispettivi' se presente, altrimenti 'corrispettivi_tot';
+    se mancano entrambi, assume 0.
     """
-    is_closed_flag = row["is_closed"] if "is_closed" in row.keys() else 0
+    keys = set(row.keys())
+
+    # flag manuale
+    is_closed_flag = row["is_closed"] if "is_closed" in keys else 0
     if is_closed_flag:
         return True
 
-    weekday = row["weekday"]
-    corr = row["corrispettivi"]
-    tot_inc = row["totale_incassi"]
+    weekday = row["weekday"] if "weekday" in keys else ""
+
+    if "corrispettivi" in keys:
+        corr = row["corrispettivi"]
+    elif "corrispettivi_tot" in keys:
+        corr = row["corrispettivi_tot"]
+    else:
+        corr = 0.0
+
+    tot_inc = row["totale_incassi"] if "totale_incassi" in keys else 0.0
 
     if weekday in ("Wednesday", "Mercoledì") and corr == 0 and tot_inc == 0:
         return True
 
     return False
-
-
-# ---------------------------------------------------------
+    # ---------------------------------------------------------
 # HELPER INTERNO: costruisce PaymentBreakdown da righe SQL
 # ---------------------------------------------------------
 
@@ -988,7 +996,7 @@ async def get_top_days(
     finally:
         conn.close()
 
-    # Filtra i giorni aperti
+    # Filtra i giorni aperti usando la logica unica (anche se qui non abbiamo 'corrispettivi')
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
 
     # ordina per incassi discendente/ascendente
