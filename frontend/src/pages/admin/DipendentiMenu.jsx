@@ -7,14 +7,15 @@ export default function DipendentiMenu() {
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
             <h1 className="text-4xl font-bold text-amber-900 tracking-wide font-playfair">
               👥 Dipendenti — Moduli
             </h1>
-            <p className="text-neutral-600">Gestione personale e turni.</p>
+            <p className="text-neutral-600">
+              Gestione del personale, turni e analisi dei costi.
+            </p>
           </div>
 
           <button
@@ -27,7 +28,6 @@ export default function DipendentiMenu() {
 
         {/* GRID SOTTOMENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
           {/* ANAGRAFICA */}
           <Link
             to="/admin/dipendenti/anagrafica"
@@ -38,7 +38,7 @@ export default function DipendentiMenu() {
               Anagrafica Dipendenti
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Dati personali, ruoli, documenti, IBAN, indirizzi.
+              Dati personali, ruoli, indirizzi, IBAN, note e documenti.
             </p>
           </Link>
 
@@ -52,10 +52,23 @@ export default function DipendentiMenu() {
               Turni Dipendenti
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Calendario settimanale e mensile dei turni.
+              Calendario turni settimanale e mensile del personale.
             </p>
           </Link>
 
+          {/* COSTI DIPENDENTI */}
+          <Link
+            to="/admin/dipendenti/costi"
+            className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition text-center"
+          >
+            <div className="text-5xl mb-3">💰</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Costi Dipendenti
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Analisi dei costi del personale per periodo, ruolo e dipendente.
+            </p>
+          </Link>
         </div>
       </div>
     </div>

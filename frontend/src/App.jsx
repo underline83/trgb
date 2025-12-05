@@ -39,9 +39,11 @@ import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
 
 // --- AMMINISTRAZIONE - Dipendenti & Turni ---
+import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
-import DipendentiMenu from "./pages/admin/DipendentiMenu";
+import DipendentiCosti from "./pages/admin/DipendentiCosti";
+
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -103,15 +105,13 @@ export default function App() {
         <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
 
         {/* Dipendenti & Turni */}
+        {/* --- AREA AMMINISTRAZIONE - DIPENDENTI--- */}
+        <Route path="/admin" element={<AdminMenu />} />
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
-        <Route
-          path="/admin/dipendenti"
-          element={<DipendentiAnagrafica />}
-        />
-        <Route
-          path="/admin/dipendenti/turni"
-          element={<DipendentiTurni />}
-        />
+        <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
+        <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
+        <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
+
       </Routes>
     </BrowserRouter>
   );
