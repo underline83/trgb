@@ -1,6 +1,3 @@
-────────────────────────────────────────
-FILE 5 — frontend/src/pages/admin/AdminMenu.jsx (AGGIORNATO)
-────────────────────────────────────────
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 
