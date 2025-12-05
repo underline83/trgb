@@ -3,35 +3,25 @@
 """
 Database Dipendenti & Turni — TRGB Gestionale
 
-v1.1 - 2025-12-05
-- DB dedicato app/data/dipendenti.sqlite3
-- Tabelle:
-  - dipendenti (anagrafica estesa con IBAN + indirizzo)
-  - turni_tipi
-  - turni_calendario
-  - dipendenti_documenti (allegati per dipendente)
+Contiene:
+- Tabella dipendenti (anagrafica + indirizzo + IBAN)
+- Tabella turni_tipi (tipologie di turno)
+- Tabella turni_calendario (calendario turni)
+- Tabella dipendenti_allegati (documenti/corsi allegati)
 """
 
-from __future__ import annotations
-
+import os
 import sqlite3
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # app/
-DATA_DIR = BASE_DIR / "data"
+BASE_DIR = Path(__file__).resolve().parents[2]  # .../trgb/
+DATA_DIR = BASE_DIR / "app" / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
 DB_PATH = DATA_DIR / "dipendenti.sqlite3"
 
 
-def _ensure_data_dir() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def get_dipendenti_conn() -> sqlite3.Connection:
-    """
-    Ritorna una connessione al DB dipendenti.sqlite3
-    (row_factory = sqlite3.Row).
-    """
-    _ensure_data_dir()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -39,109 +29,117 @@ def get_dipendenti_conn() -> sqlite3.Connection:
 
 def init_dipendenti_db() -> None:
     """
-    Crea lo schema se il file non esiste oppure è vuoto.
-    Puoi tranquillamente cancellare dipendenti.sqlite3:
-    al prossimo avvio viene ricreato con queste tabelle.
+    Inizializza il DB dipendenti se non esiste.
+    Se il file è già presente, NON modifica lo schema (niente migrazioni qui).
+    Per modifiche strutturali importanti preferiamo cancellare il file
+    quando non ci sono dati, come nel tuo caso.
     """
-    _ensure_data_dir()
     need_init = not DB_PATH.exists()
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = get_dipendenti_conn()
     cur = conn.cursor()
 
     if need_init:
-        # --------------------------------------------------
-        # TABELLA dipendenti
-        # --------------------------------------------------
+        # ------------------------------------------------------------
+        # TABELLA DIPENDENTI — anagrafica + indirizzo + IBAN
+        # ------------------------------------------------------------
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS dipendenti (
-              id              INTEGER PRIMARY KEY AUTOINCREMENT,
-              codice          TEXT NOT NULL UNIQUE,
-              nome            TEXT NOT NULL,
-              cognome         TEXT NOT NULL,
-              ruolo           TEXT NOT NULL,
-              telefono        TEXT,
-              email           TEXT,
-              iban            TEXT,
-              indirizzo_via   TEXT,
-              indirizzo_cap   TEXT,
+            CREATE TABLE dipendenti (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              codice TEXT NOT NULL UNIQUE,
+              nome TEXT NOT NULL,
+              cognome TEXT NOT NULL,
+              ruolo TEXT NOT NULL,
+
+              telefono TEXT,
+              email TEXT,
+              note TEXT,
+
+              -- Indirizzo completo
+              indirizzo_via TEXT,
+              indirizzo_civico TEXT,
+              indirizzo_cap TEXT,
               indirizzo_citta TEXT,
               indirizzo_provincia TEXT,
-              note            TEXT,
-              attivo          INTEGER NOT NULL DEFAULT 1,
-              created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-              updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+              indirizzo_paese TEXT,
+
+              -- IBAN per pagamenti/stipendi
+              iban TEXT,
+
+              attivo INTEGER NOT NULL DEFAULT 1,
+
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
             );
             """
         )
 
-        # trigger aggiornamento updated_at
+        # Trigger per aggiornare updated_at
         cur.execute(
             """
-            CREATE TRIGGER IF NOT EXISTS trg_dipendenti_updated_at
+            CREATE TRIGGER dipendenti_update_ts
             AFTER UPDATE ON dipendenti
             FOR EACH ROW
             BEGIN
               UPDATE dipendenti
-              SET updated_at = datetime('now')
-              WHERE id = NEW.id;
+              SET updated_at = datetime('now','localtime')
+              WHERE id = OLD.id;
             END;
             """
         )
 
-        # --------------------------------------------------
-        # TABELLA turni_tipi
-        # --------------------------------------------------
+        # ------------------------------------------------------------
+        # TABELLA TURNI_TIPI — definizione tipologie di turno
+        # ------------------------------------------------------------
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS turni_tipi (
-              id              INTEGER PRIMARY KEY AUTOINCREMENT,
-              codice          TEXT NOT NULL UNIQUE,
-              nome            TEXT NOT NULL,
-              ruolo           TEXT NOT NULL,
-              colore_bg       TEXT NOT NULL,
-              colore_testo    TEXT NOT NULL,
-              ora_inizio      TEXT NOT NULL,
-              ora_fine        TEXT NOT NULL,
-              ordine          INTEGER NOT NULL DEFAULT 0,
-              attivo          INTEGER NOT NULL DEFAULT 1,
-              created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-              updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            CREATE TABLE turni_tipi (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              codice TEXT NOT NULL UNIQUE,
+              nome TEXT NOT NULL,
+              ruolo TEXT NOT NULL,
+              colore_bg TEXT NOT NULL,
+              colore_testo TEXT NOT NULL,
+              ora_inizio TEXT NOT NULL,  -- "HH:MM"
+              ora_fine   TEXT NOT NULL,  -- "HH:MM"
+              ordine INTEGER NOT NULL DEFAULT 0,
+              attivo INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
             );
             """
         )
 
         cur.execute(
             """
-            CREATE TRIGGER IF NOT EXISTS trg_turni_tipi_updated_at
+            CREATE TRIGGER turni_tipi_update_ts
             AFTER UPDATE ON turni_tipi
             FOR EACH ROW
             BEGIN
               UPDATE turni_tipi
-              SET updated_at = datetime('now')
-              WHERE id = NEW.id;
+              SET updated_at = datetime('now','localtime')
+              WHERE id = OLD.id;
             END;
             """
         )
 
-        # --------------------------------------------------
-        # TABELLA turni_calendario
-        # --------------------------------------------------
+        # ------------------------------------------------------------
+        # TABELLA TURNI_CALENDARIO — turni assegnati per giorno
+        # ------------------------------------------------------------
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS turni_calendario (
-              id              INTEGER PRIMARY KEY AUTOINCREMENT,
-              dipendente_id   INTEGER NOT NULL,
-              turno_tipo_id   INTEGER NOT NULL,
-              data            TEXT NOT NULL,   -- YYYY-MM-DD
-              ora_inizio      TEXT,
-              ora_fine        TEXT,
-              stato           TEXT NOT NULL DEFAULT 'CONFERMATO',
-              note            TEXT,
-              created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-              updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            CREATE TABLE turni_calendario (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              dipendente_id INTEGER NOT NULL,
+              turno_tipo_id INTEGER NOT NULL,
+              data TEXT NOT NULL,            -- "YYYY-MM-DD"
+              ora_inizio TEXT,               -- opzionale: override
+              ora_fine TEXT,                 -- opzionale: override
+              stato TEXT NOT NULL DEFAULT 'CONFERMATO',
+              note TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
               FOREIGN KEY (dipendente_id) REFERENCES dipendenti(id),
               FOREIGN KEY (turno_tipo_id) REFERENCES turni_tipi(id)
             );
@@ -150,30 +148,29 @@ def init_dipendenti_db() -> None:
 
         cur.execute(
             """
-            CREATE TRIGGER IF NOT EXISTS trg_turni_calendario_updated_at
+            CREATE TRIGGER turni_calendario_update_ts
             AFTER UPDATE ON turni_calendario
             FOR EACH ROW
             BEGIN
               UPDATE turni_calendario
-              SET updated_at = datetime('now')
-              WHERE id = NEW.id;
+              SET updated_at = datetime('now','localtime')
+              WHERE id = OLD.id;
             END;
             """
         )
 
-        # --------------------------------------------------
-        # TABELLA dipendenti_documenti (allegati)
-        # --------------------------------------------------
+        # ------------------------------------------------------------
+        # TABELLA DIPENDENTI_ALLEGATI — documenti/corsi allegati
+        # ------------------------------------------------------------
         cur.execute(
             """
-            CREATE TABLE IF NOT EXISTS dipendenti_documenti (
-              id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-              dipendente_id      INTEGER NOT NULL,
-              categoria          TEXT NOT NULL,   -- es: 'CONTRATTO', 'CORSO', 'ALTRO'
-              descrizione        TEXT,
-              filename_originale TEXT NOT NULL,
-              filepath           TEXT NOT NULL,
-              uploaded_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            CREATE TABLE dipendenti_allegati (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              dipendente_id INTEGER NOT NULL,
+              filename TEXT NOT NULL,       -- nome file memorizzato (es. su NAS / storage)
+              label TEXT,                   -- nome leggibile: "Contratto 2025", "Corso HACCP", ...
+              note TEXT,
+              uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
               FOREIGN KEY (dipendente_id) REFERENCES dipendenti(id)
             );
             """

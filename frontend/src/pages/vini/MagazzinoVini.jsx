@@ -313,32 +313,46 @@ export default function MagazzinoVini() {
             </p>
           </div>
 
-          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/vini")}
-              className="
-                px-4 py-2 rounded-xl text-sm font-medium
-                border border-neutral-300 bg-neutral-50
-                hover:bg-neutral-100 hover:-translate-y-0.5
-                shadow-sm transition
-              "
-            >
-              ← Torna al Menu Vini
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="
-                px-4 py-2 rounded-xl text-sm font-medium
-                border border-red-200 bg-red-50 text-red-700
-                hover:bg-red-100 hover:-translate-y-0.5
-                shadow-sm transition
-              "
-            >
-              Logout
-            </button>
-          </div>
+<div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+  <button
+    type="button"
+    onClick={() => navigate("/vini")}
+    className="
+      px-4 py-2 rounded-xl text-sm font-medium
+      border border-neutral-300 bg-neutral-50
+      hover:bg-neutral-100 hover:-translate-y-0.5
+      shadow-sm transition
+    "
+  >
+    ← Torna al Menu Vini
+  </button>
+
+  <button
+    type="button"
+    onClick={() => navigate("/vini/magazzino/nuovo")}
+    className="
+      px-4 py-2 rounded-xl text-sm font-semibold
+      bg-amber-700 text-white
+      hover:bg-amber-800 hover:-translate-y-0.5
+      shadow-sm transition
+    "
+  >
+    ➕ Nuovo vino
+  </button>
+
+  <button
+    type="button"
+    onClick={handleLogout}
+    className="
+      px-4 py-2 rounded-xl text-sm font-medium
+      border border-red-200 bg-red-50 text-red-700
+      hover:bg-red-100 hover:-translate-y-0.5
+      shadow-sm transition
+    "
+  >
+    Logout
+  </button>
+</div>
         </div>
 
         {/* FILTRI */}
