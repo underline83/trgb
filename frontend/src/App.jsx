@@ -81,8 +81,36 @@ export default function App() {
         {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />
 
-        {/* Corrispettivi & Chiusura Cassa */}
+        {/* Corrispettivi & Chiusure Cassa */}
         <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
         <Route
+          path="/admin/corrispettivi/import"
+          element={<CorrispettiviImport />}
+        />
+        <Route
+          path="/admin/corrispettivi/gestione"
+          element={<CorrispettiviGestione />}
+        />
+        <Route
           path="/admin/corrispettivi/dashboard"
-          element={<Corr
+          element={<CorrispettiviDashboard />}
+        />
+
+        {/* Fatture Elettroniche */}
+        <Route path="/admin/fatture" element={<FattureMenu />} />
+        <Route path="/admin/fatture/import" element={<FattureImport />} />
+        <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
+
+        {/* Dipendenti & Turni */}
+        <Route
+          path="/admin/dipendenti"
+          element={<DipendentiAnagrafica />}
+        />
+        <Route
+          path="/admin/dipendenti/turni"
+          element={<DipendentiTurni />}
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
