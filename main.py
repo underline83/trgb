@@ -17,7 +17,12 @@ from app.routers import vini_magazzino_router
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
-from app.routers import admin_finance
+from app.routers.admin_finance.import_router import router as import_router
+from app.routers.admin_finance.closures_router import router as closures_router
+from app.routers.admin_finance.stats_router import router as stats_router
+from app.routers.admin_finance.compare_router import router as compare_router
+from app.routers.admin_finance.calendar_router import router as calendar_router
+
 
 # ⚠️ IMPORT CORRETTO DEL ROUTER FATTURE XML
 from app.routers import fe_import
@@ -92,7 +97,11 @@ app.include_router(
 )
 
 # AMMINISTRAZIONE (corrispettivi, ecc.)
-app.include_router(admin_finance.router)
+app.include_router(import_router)
+app.include_router(closures_router)
+app.include_router(stats_router)
+app.include_router(compare_router)
+app.include_router(calendar_router)
 
 # FATTURAZIONE ELETTRONICA (XML) — NUOVO
 app.include_router(fe_import.router)

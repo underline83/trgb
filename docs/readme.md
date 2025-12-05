@@ -1,8 +1,11 @@
-# 🚀 TRGB Gestionale — README Ufficiale  
-**Versione: 2025.12 – GitHub Premium Edition**
+# 🚀 TRGB Gestionale  
+Sistema gestionale interno dell’Osteria Tre Gobbi (Bergamo)  
+![Version](https://img.shields.io/badge/TRGB_Gestionale-2025.12.05-blue?style=for-the-badge)
 
-Documentazione completa del gestionale interno dell’Osteria Tre Gobbi.  
-Include architettura, deploy, servizi systemd, configurazioni VPS, flussi tecnici e roadmap.
+Documentazione versione: **2025-12-05**
+
+Per la mappa completa delle versioni dei moduli →  
+👉 [`docs/VERSION_MAP.md`](docs/VERSION_MAP.md)
 
 ---
 
