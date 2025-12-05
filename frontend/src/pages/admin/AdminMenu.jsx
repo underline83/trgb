@@ -36,7 +36,8 @@ export default function AdminMenu() {
 
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* CORRISPETTIVI - MODULO OPERATIVO */}
+          
+          {/* CORRISPETTIVI */}
           <Link
             to="/admin/corrispettivi"
             className="
@@ -51,32 +52,11 @@ export default function AdminMenu() {
               Corrispettivi &amp; Chiusura Cassa
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Modulo operativo: import da Excel, registrazione giornaliera,
-              controllo cassa.
+              Import da Excel, registrazione giornaliera e gestione cassa.
             </p>
           </Link>
 
-          {/* DASHBOARD CORRISPETTIVI - ANALISI */}
-          <Link
-            to="/admin/corrispettivi/dashboard"
-            className="
-              bg-blue-50 border border-blue-200 text-blue-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📊</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Dashboard Corrispettivi
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Analisi mensili e annuali, confronto anni, giorni
-              migliori/peggiori, breakdown metodi di pagamento.
-            </p>
-          </Link>
-
-          {/* FATTURE ELETTRONICHE - MODULO ACQUISTI */}
+          {/* FATTURE ELETTRONICHE */}
           <Link
             to="/admin/fatture"
             className="
@@ -91,14 +71,13 @@ export default function AdminMenu() {
               Fatture Elettroniche (XML)
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Import massivo XML, elenco fatture e dashboard degli acquisti
-              per fornitore e per mese.
+              Import XML acquisti, analisi per fornitore e dashboard mensile.
             </p>
           </Link>
 
-          {/* DIPENDENTI — ANAGRAFICA */}
+          {/* DIPENDENTI — MENU */}
           <Link
-            to="/admin/dipendenti/anagrafica"
+            to="/admin/dipendenti"
             className="
               bg-purple-50 border border-purple-200 text-purple-900
               rounded-2xl p-8 shadow
@@ -108,30 +87,10 @@ export default function AdminMenu() {
           >
             <div className="text-5xl mb-3">👥</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Dipendenti — Anagrafica
+              Dipendenti
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Gestione del personale: ruoli, contatti, IBAN, indirizzi,
-              note e documenti allegati.
-            </p>
-          </Link>
-
-          {/* DIPENDENTI — TURNI */}
-          <Link
-            to="/admin/dipendenti/turni"
-            className="
-              bg-indigo-50 border border-indigo-200 text-indigo-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📅</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Turni Dipendenti — Calendario
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Calendario turni settimanale o mensile per tutti i dipendenti.
+              Anagrafica personale, ruoli e gestione turni.
             </p>
           </Link>
         </div>
