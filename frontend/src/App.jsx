@@ -17,7 +17,7 @@ import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
 // NUOVE PAGINE MAGAZZINO
 import MagazzinoVini from "./pages/vini/MagazzinoVini";
 import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
-
+import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
 import RicetteNuova from "./pages/ricette/RicetteNuova";
@@ -66,9 +66,10 @@ export default function App() {
         <Route path="/vini/vendite" element={<ViniVendite />} />
         <Route path="/vini/settings" element={<ViniImpostazioni />} />
 
-        {/* MAGAZZINO LISTA + DETTAGLIO */}
+        {/* --- GESTIONE VINI / MAGAZZINO --- */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
-        <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
+        <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
+        <Route path="/vini/magazzino/:vinoId" element={<MagazzinoViniDettaglio />} />
 
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
