@@ -96,11 +96,11 @@ export default function AdminMenu() {
             </p>
           </Link>
 
-          {/* DIPENDENTI & TURNI */}
+          {/* DIPENDENTI — ANAGRAFICA */}
           <Link
-            to="/admin/dipendenti"
+            to="/admin/dipendenti/anagrafica"
             className="
-              bg-emerald-50 border border-emerald-200 text-emerald-900
+              bg-purple-50 border border-purple-200 text-purple-900
               rounded-2xl p-8 shadow
               hover:shadow-xl hover:-translate-y-1 transition transform
               text-center
@@ -108,11 +108,30 @@ export default function AdminMenu() {
           >
             <div className="text-5xl mb-3">👥</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Dipendenti &amp; Turni
+              Dipendenti — Anagrafica
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Anagrafica del personale, ruoli e calendario turni settimanale
-              / mensile.
+              Gestione del personale: ruoli, contatti, IBAN, indirizzi,
+              note e documenti allegati.
+            </p>
+          </Link>
+
+          {/* DIPENDENTI — TURNI */}
+          <Link
+            to="/admin/dipendenti/turni"
+            className="
+              bg-indigo-50 border border-indigo-200 text-indigo-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
+            "
+          >
+            <div className="text-5xl mb-3">📅</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Turni Dipendenti — Calendario
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Calendario turni settimanale o mensile per tutti i dipendenti.
             </p>
           </Link>
         </div>
