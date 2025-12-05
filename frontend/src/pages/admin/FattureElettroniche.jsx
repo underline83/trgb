@@ -1,4 +1,4 @@
-// @version: v1.1-fe-frontend
+// @version: v1.2-fe-frontend
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
@@ -24,6 +24,8 @@ export default function FattureElettroniche() {
   const [statsMonthly, setStatsMonthly] = useState([]);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState(null);
+
+  const [isDragging, setIsDragging] = useState(false);
 
   // -----------------------------------
   // FETCH FATTURE LISTA
@@ -118,13 +120,59 @@ export default function FattureElettroniche() {
   }, [fatture]);
 
   // -----------------------------------
-  // CAMBIO FILE
+  // GESTIONE FILE (selezione standard)
   // -----------------------------------
   const handleFileChange = (e) => {
     const fileList = Array.from(e.target.files || []);
-    setFiles(fileList);
+
+    // Filtra solo XML, indipendentemente da qualsiasi limite “strano” del browser
+    const xmlFiles = fileList.filter((f) =>
+      f.name?.toLowerCase().endsWith(".xml")
+    );
+
+    setFiles(xmlFiles);
     setUploadResult(null);
     setUploadError(null);
+  };
+
+  // -----------------------------------
+  // GESTIONE DRAG & DROP
+  // -----------------------------------
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Semplice: ogni leave spegne il drag
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    setUploadResult(null);
+    setUploadError(null);
+
+    const droppedFiles = Array.from(e.dataTransfer?.files || []);
+    if (!droppedFiles.length) return;
+
+    const xmlFiles = droppedFiles.filter((f) =>
+      f.name?.toLowerCase().endsWith(".xml")
+    );
+
+    if (!xmlFiles.length) {
+      setUploadError("I file trascinati non contengono XML di fattura.");
+      return;
+    }
+
+    setFiles(xmlFiles);
   };
 
   // -----------------------------------
@@ -132,7 +180,7 @@ export default function FattureElettroniche() {
   // -----------------------------------
   const handleUpload = async () => {
     if (!files || files.length === 0) {
-      setUploadError("Seleziona almeno un file XML di fattura elettronica.");
+      setUploadError("Seleziona o trascina almeno un file XML di fattura.");
       return;
     }
 
@@ -163,8 +211,8 @@ export default function FattureElettroniche() {
       setUploadResult(data);
 
       // dopo un import andato a buon fine, ricarico lista e stats
-      fetchFatture();
-      fetchStats(selectedYear === "all" ? "all" : Number(selectedYear));
+      await fetchFatture();
+      await fetchStats(selectedYear === "all" ? "all" : Number(selectedYear));
     } catch (e) {
       setUploadError(e.message);
     } finally {
@@ -219,7 +267,8 @@ export default function FattureElettroniche() {
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
               Importa le fatture elettroniche in formato XML per analisi
-              acquisti e controllo di gestione.
+              acquisti e controllo di gestione. Puoi trascinare anche decine di
+              file in una sola volta.
             </p>
           </div>
 
@@ -247,31 +296,65 @@ export default function FattureElettroniche() {
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-semibold font-playfair text-amber-900 mb-2">
-                📤 Import fatture XML
+                📤 Import massivo fatture XML
               </h2>
               <p className="text-sm text-neutral-600 mb-3">
-                Seleziona uno o più file XML scaricati dal cassetto fiscale /
-                intermediario e importali nel gestionale.
+                Trascina qui i file XML dal cassetto fiscale / intermediario,
+                oppure usa il pulsante per selezionarli. Nessun limite pratico:
+                puoi caricare anche 20, 50 o 100 XML in una volta sola.
               </p>
 
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                File XML di fattura elettronica
-              </label>
-              <input
-                type="file"
-                accept=".xml"
-                multiple
-                onChange={handleFileChange}
-                className="block w-full text-sm text-neutral-700
-                           file:mr-4 file:py-2 file:px-4
-                           file:rounded-xl file:border-0
-                           file:text-sm file:font-medium
-                           file:bg-amber-50 file:text-amber-900
-                           hover:file:bg-amber-100"
-              />
-              <p className="text-xs text-neutral-500 mt-1">
-                Formato standard FatturaPA (ITxxxxx_*.xml). I duplicati vengono
-                rilevati automaticamente tramite hash del contenuto.
+              {/* DROPZONE */}
+              <div
+                className={`border-2 rounded-2xl px-4 py-6 text-center cursor-pointer transition
+                  ${
+                    isDragging
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-dashed border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+                  }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Trascina qui i file XML
+                </label>
+                <p className="text-xs text-neutral-500 mb-3">
+                  Puoi anche cliccare per scegliere manualmente i file.
+                </p>
+
+                <input
+                  type="file"
+                  accept=".xml"
+                  multiple
+                  onClick={(e) => {
+                    // reset per permettere di riselezionare gli stessi file
+                    e.target.value = null;
+                  }}
+                  onChange={handleFileChange}
+                  className="block w-full text-sm text-neutral-700
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-xl file:border-0
+                             file:text-sm file:font-medium
+                             file:bg-amber-50 file:text-amber-900
+                             hover:file:bg-amber-100"
+                />
+
+                {files && files.length > 0 && (
+                  <p className="text-xs text-neutral-600 mt-3">
+                    File XML selezionati:{" "}
+                    <strong>
+                      {files.length === 1
+                        ? files[0].name
+                        : `${files.length} file`}
+                    </strong>
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 mt-2">
+                Formato atteso: file FatturaPA tipo{" "}
+                <span className="font-mono">ITxxxxxxxxxxxx_*.xml</span>. I
+                duplicati vengono automaticamente scartati tramite hash.
               </p>
             </div>
 
@@ -294,7 +377,7 @@ export default function FattureElettroniche() {
 
               {files && files.length > 0 && !uploading && (
                 <span className="text-xs text-neutral-500">
-                  File selezionati:{" "}
+                  Pronti all&apos;import:{" "}
                   <strong>
                     {files.length === 1
                       ? files[0].name
