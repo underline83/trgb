@@ -1,6 +1,3 @@
-────────────────────────────────────────
-FILE 6 — frontend/src/App.jsx (AGGIORNATO)
-────────────────────────────────────────
 // @version: v3.2-premium-magazzino-dipendenti
 // App principale — Routing TRGB Gestionale Web
 
