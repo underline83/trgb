@@ -1,4 +1,4 @@
-# @version: v1.0-sqlite-fe
+# @version: v1.1-sqlite-fe
 # -*- coding: utf-8 -*-
 """
 Router per importazione fatture elettroniche XML (uso statistico / controllo acquisti).
@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 
 router = APIRouter(
     prefix="/contabilita/fe",
@@ -50,14 +50,14 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             fornitore_nome    TEXT NOT NULL,
             fornitore_piva    TEXT,
             numero_fattura    TEXT,
-            data_fattura      DATE,
+            data_fattura      TEXT,
             imponibile_totale REAL,
             iva_totale        REAL,
             totale_fattura    REAL,
             valuta            TEXT DEFAULT 'EUR',
             xml_hash          TEXT UNIQUE,
             xml_filename      TEXT,
-            data_import       DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_import       TEXT
         );
         """
     )
@@ -65,15 +65,15 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS fe_righe (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            fattura_id      INTEGER NOT NULL,
-            numero_linea    INTEGER,
-            descrizione     TEXT,
-            quantita        REAL,
-            unita_misura    TEXT,
-            prezzo_unitario REAL,
-            prezzo_totale   REAL,
-            aliquota_iva    REAL,
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            fattura_id       INTEGER NOT NULL,
+            numero_linea     INTEGER,
+            descrizione      TEXT,
+            quantita         REAL,
+            unita_misura     TEXT,
+            prezzo_unitario  REAL,
+            prezzo_totale    REAL,
+            aliquota_iva     REAL,
             categoria_grezza TEXT,
             note_analisi     TEXT,
             FOREIGN KEY (fattura_id) REFERENCES fe_fatture(id) ON DELETE CASCADE
@@ -109,7 +109,7 @@ def _to_float(v: str | None) -> float | None:
 
 
 # -------------------------------------------------------------------
-# ENDPOINTS
+# ENDPOINTS PRINCIPALI
 # -------------------------------------------------------------------
 
 @router.post(
@@ -178,13 +178,6 @@ async def import_fatture_xml(
         numero_fattura = _find_text(root, "Numero")
         data_fattura_str = _find_text(root, "Data")
 
-        data_fattura = None
-        if data_fattura_str:
-            try:
-                data_fattura = datetime.date.fromisoformat(data_fattura_str)
-            except ValueError:
-                data_fattura = None
-
         imponibile_str = _find_text(root, "ImponibileImporto")
         iva_str = _find_text(root, "Imposta")
         totale_str = _find_text(root, "ImportoTotaleDocumento")
@@ -205,7 +198,8 @@ async def import_fatture_xml(
                 valuta, xml_hash, xml_filename, data_import
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            """
+            ,
             (
                 fornitore_nome or "Sconosciuto",
                 fornitore_piva,
@@ -245,7 +239,8 @@ async def import_fatture_xml(
                     categoria_grezza, note_analisi
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                """
+                ,
                 (
                     fattura_id,
                     numero_linea,
@@ -360,3 +355,111 @@ def get_fattura_detail(fattura_id: int):
         **dict(fattura),
         "righe": [dict(r) for r in righe],
     }
+
+
+# -------------------------------------------------------------------
+# ENDPOINT STATISTICHE
+# -------------------------------------------------------------------
+
+@router.get(
+    "/stats/fornitori",
+    summary="Riepilogo acquisti per fornitore",
+)
+def stats_fornitori(
+    year: int | None = Query(None, description="Anno di riferimento (es. 2025)"),
+):
+    """
+    Ritorna un riepilogo per fornitore:
+    - numero fatture
+    - totale acquisti
+    - primo / ultimo acquisto
+    Filtrabile per anno (sulla data fattura).
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    params: list = []
+    where_clauses: list[str] = ["data_fattura IS NOT NULL"]
+
+    if year is not None:
+        where_clauses.append("substr(data_fattura, 1, 4) = ?")
+        params.append(str(year))
+
+    where_sql = " AND ".join(where_clauses)
+
+    cur.execute(
+        f"""
+        SELECT
+            fornitore_nome,
+            fornitore_piva,
+            COUNT(*) AS numero_fatture,
+            SUM(COALESCE(totale_fattura, 0)) AS totale_fatture,
+            MIN(data_fattura) AS primo_acquisto,
+            MAX(data_fattura) AS ultimo_acquisto
+        FROM fe_fatture
+        WHERE {where_sql}
+        GROUP BY fornitore_nome, fornitore_piva
+        ORDER BY totale_fatture DESC
+        """,
+        params,
+    )
+
+    rows = cur.fetchall()
+    conn.close()
+
+    return [dict(r) for r in rows]
+
+
+@router.get(
+    "/stats/mensili",
+    summary="Riepilogo acquisti mensili per anno",
+)
+def stats_mensili(
+    year: int | None = Query(None, description="Anno di riferimento (es. 2025)"),
+):
+    """
+    Riepilogo mensile (per anno) degli acquisti:
+    - numero fatture
+    - totale fatture per mese
+    Se year è None, ritorna tutti gli anni presenti.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    if year is not None:
+        cur.execute(
+            """
+            SELECT
+                substr(data_fattura, 1, 4) AS anno,
+                substr(data_fattura, 6, 2) AS mese,
+                COUNT(*) AS numero_fatture,
+                SUM(COALESCE(totale_fattura, 0)) AS totale_fatture
+            FROM fe_fatture
+            WHERE data_fattura IS NOT NULL
+              AND substr(data_fattura, 1, 4) = ?
+            GROUP BY anno, mese
+            ORDER BY mese ASC
+            """,
+            (str(year),),
+        )
+    else:
+        cur.execute(
+            """
+            SELECT
+                substr(data_fattura, 1, 4) AS anno,
+                substr(data_fattura, 6, 2) AS mese,
+                COUNT(*) AS numero_fatture,
+                SUM(COALESCE(totale_fattura, 0)) AS totale_fatture
+            FROM fe_fatture
+            WHERE data_fattura IS NOT NULL
+            GROUP BY anno, mese
+            ORDER BY anno DESC, mese ASC
+            """
+        )
+
+    rows = cur.fetchall()
+    conn.close()
+
+    return [dict(r) for r in rows]

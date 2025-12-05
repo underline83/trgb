@@ -1,8 +1,7 @@
-// @version: v1.0-fe-frontend
-import React, { useEffect, useState } from "react";
+// @version: v1.1-fe-frontend
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { API_BASE } from "../../config/api";
 
 export default function FattureElettroniche() {
   const navigate = useNavigate();
@@ -20,6 +19,12 @@ export default function FattureElettroniche() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState(null);
 
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [statsSuppliers, setStatsSuppliers] = useState([]);
+  const [statsMonthly, setStatsMonthly] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState(null);
+
   // -----------------------------------
   // FETCH FATTURE LISTA
   // -----------------------------------
@@ -28,7 +33,7 @@ export default function FattureElettroniche() {
     setFattureError(null);
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE_URL}/contabilita/fe/fatture`, {
+      const res = await fetch(`${API_BASE}/contabilita/fe/fatture`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -48,9 +53,69 @@ export default function FattureElettroniche() {
     }
   };
 
+  // -----------------------------------
+  // FETCH STATS
+  // -----------------------------------
+  const fetchStats = async (yearParam = "all") => {
+    setStatsLoading(true);
+    setStatsError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const query =
+        yearParam === "all" ? "" : `?year=${encodeURIComponent(yearParam)}`;
+
+      const [resFor, resMens] = await Promise.all([
+        fetch(`${API_BASE}/contabilita/fe/stats/fornitori${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/contabilita/fe/stats/mensili${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      if (!resFor.ok) {
+        const err = await resFor.json().catch(() => ({}));
+        throw new Error(err.detail || "Errore nel caricamento stats fornitori.");
+      }
+      if (!resMens.ok) {
+        const err = await resMens.json().catch(() => ({}));
+        throw new Error(err.detail || "Errore nel caricamento stats mensili.");
+      }
+
+      const dataFor = await resFor.json();
+      const dataMens = await resMens.json();
+
+      setStatsSuppliers(dataFor || []);
+      setStatsMonthly(dataMens || []);
+    } catch (e) {
+      setStatsError(e.message);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // -----------------------------------
+  // INIT
+  // -----------------------------------
   useEffect(() => {
     fetchFatture();
+    fetchStats("all");
   }, []);
+
+  // -----------------------------------
+  // ANNI DISPONIBILI (derivati dalle fatture)
+  // -----------------------------------
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    fatture.forEach((f) => {
+      if (f.data_fattura) {
+        const y = f.data_fattura.slice(0, 4);
+        if (y) years.add(y);
+      }
+    });
+    return Array.from(years).sort();
+  }, [fatture]);
 
   // -----------------------------------
   // CAMBIO FILE
@@ -81,7 +146,7 @@ export default function FattureElettroniche() {
 
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE_URL}/contabilita/fe/import`, {
+      const res = await fetch(`${API_BASE}/contabilita/fe/import`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -97,8 +162,9 @@ export default function FattureElettroniche() {
       const data = await res.json();
       setUploadResult(data);
 
-      // dopo un import andato a buon fine, ricarico la lista
+      // dopo un import andato a buon fine, ricarico lista e stats
       fetchFatture();
+      fetchStats(selectedYear === "all" ? "all" : Number(selectedYear));
     } catch (e) {
       setUploadError(e.message);
     } finally {
@@ -117,7 +183,7 @@ export default function FattureElettroniche() {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
-        `${API_BASE_URL}/contabilita/fe/fatture/${fatturaId}`,
+        `${API_BASE}/contabilita/fe/fatture/${fatturaId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -152,8 +218,8 @@ export default function FattureElettroniche() {
               🧾 Fatture elettroniche (XML)
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
-              Importa le fatture elettroniche in formato XML per analisi acquisti
-              e controllo di gestione.
+              Importa le fatture elettroniche in formato XML per analisi
+              acquisti e controllo di gestione.
             </p>
           </div>
 
@@ -175,7 +241,7 @@ export default function FattureElettroniche() {
           </div>
         </div>
 
-        {/* GRID CONTENUTO */}
+        {/* GRID CONTENUTO PRINCIPALE */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* COLONNA SINISTRA: IMPORT XML */}
           <div className="space-y-6">
@@ -184,8 +250,8 @@ export default function FattureElettroniche() {
                 📤 Import fatture XML
               </h2>
               <p className="text-sm text-neutral-600 mb-3">
-                Puoi selezionare uno o più file XML scaricati dal cassetto
-                fiscale / intermediario e importarli nel gestionale.
+                Seleziona uno o più file XML scaricati dal cassetto fiscale /
+                intermediario e importali nel gestionale.
               </p>
 
               <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -485,6 +551,178 @@ export default function FattureElettroniche() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* CRUSCOTTO STATISTICO ACQUISTI */}
+        <div className="mt-10">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-xl font-semibold font-playfair text-amber-900">
+                📈 Riepilogo acquisti da fatture elettroniche
+              </h2>
+              <p className="text-sm text-neutral-600">
+                Totali per fornitore e andamento mensile, basati sulle fatture
+                importate in questo modulo.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-neutral-600">
+                Anno di riferimento:
+              </label>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedYear(val);
+                  fetchStats(val === "all" ? "all" : Number(val));
+                }}
+                className="text-sm border border-neutral-300 rounded-xl px-3 py-1 bg-white shadow-sm"
+              >
+                <option value="all">Tutti gli anni</option>
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {statsError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 mb-4">
+              Errore nel caricamento delle statistiche: {statsError}
+            </div>
+          )}
+
+          {statsLoading && (
+            <p className="text-sm text-neutral-500 mb-4">
+              Caricamento statistiche in corso…
+            </p>
+          )}
+
+          {!statsLoading && !statsError && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* TABELLA FORNITORI */}
+              <div className="border border-neutral-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-50">
+                  <h3 className="text-sm font-semibold text-neutral-800">
+                    Top fornitori per totale acquisti
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Ordinati per totale fatture in euro.
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {statsSuppliers.length === 0 ? (
+                    <p className="text-xs text-neutral-500 px-4 py-3">
+                      Nessun dato disponibile per il periodo selezionato.
+                    </p>
+                  ) : (
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-neutral-50 text-neutral-600">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Fornitore</th>
+                          <th className="px-3 py-2 text-right">N. fatture</th>
+                          <th className="px-3 py-2 text-right">Totale €</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {statsSuppliers.map((s, idx) => (
+                          <tr
+                            key={`${s.fornitore_nome}-${idx}`}
+                            className="border-t border-neutral-200 hover:bg-neutral-50"
+                          >
+                            <td className="px-3 py-2 align-top">
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {s.fornitore_nome}
+                                </span>
+                                {s.fornitore_piva && (
+                                  <span className="text-[10px] text-neutral-500">
+                                    P.IVA: {s.fornitore_piva}
+                                  </span>
+                                )}
+                                <span className="text-[10px] text-neutral-500 mt-0.5">
+                                  {s.primo_acquisto} → {s.ultimo_acquisto}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle">
+                              {s.numero_fatture}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle">
+                              {s.totale_fatture != null
+                                ? s.totale_fatture.toLocaleString("it-IT", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })
+                                : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* TABELLA MENSILE */}
+              <div className="border border-neutral-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-50">
+                  <h3 className="text-sm font-semibold text-neutral-800">
+                    Andamento mensile degli acquisti
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Numero fatture e totale per mese.
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {statsMonthly.length === 0 ? (
+                    <p className="text-xs text-neutral-500 px-4 py-3">
+                      Nessun dato disponibile per il periodo selezionato.
+                    </p>
+                  ) : (
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-neutral-50 text-neutral-600">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Anno</th>
+                          <th className="px-3 py-2 text-left">Mese</th>
+                          <th className="px-3 py-2 text-right">N. fatture</th>
+                          <th className="px-3 py-2 text-right">Totale €</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {statsMonthly.map((m, idx) => (
+                          <tr
+                            key={`${m.anno}-${m.mese}-${idx}`}
+                            className="border-t border-neutral-200 hover:bg-neutral-50"
+                          >
+                            <td className="px-3 py-2 align-middle">
+                              {m.anno}
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              {String(m.mese).padStart(2, "0")}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle">
+                              {m.numero_fatture}
+                            </td>
+                            <td className="px-3 py-2 text-right align-middle">
+                              {m.totale_fatture != null
+                                ? m.totale_fatture.toLocaleString("it-IT", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })
+                                : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
