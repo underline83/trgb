@@ -1,3 +1,6 @@
+────────────────────────────────────────
+FILE 5 — frontend/src/pages/admin/AdminMenu.jsx (AGGIORNATO)
+────────────────────────────────────────
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -93,6 +96,26 @@ export default function AdminMenu() {
             <p className="text-neutral-700 text-sm mt-1">
               Import massivo XML, elenco fatture e dashboard degli acquisti
               per fornitore e per mese.
+            </p>
+          </Link>
+
+          {/* DIPENDENTI & TURNI */}
+          <Link
+            to="/admin/dipendenti"
+            className="
+              bg-emerald-50 border border-emerald-200 text-emerald-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
+            "
+          >
+            <div className="text-5xl mb-3">👥</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Dipendenti &amp; Turni
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Anagrafica del personale, ruoli e calendario turni settimanale
+              / mensile.
             </p>
           </Link>
         </div>

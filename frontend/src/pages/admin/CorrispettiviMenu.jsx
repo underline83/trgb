@@ -7,7 +7,6 @@ export default function CorrispettiviMenu() {
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
@@ -15,7 +14,7 @@ export default function CorrispettiviMenu() {
               💵 Corrispettivi — Chiusure Cassa
             </h1>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
-              Dashboard, gestione giornaliera e import da Excel.
+              Gestisci import Excel, calendario cassa e analisi dei corrispettivi.
             </p>
           </div>
 
@@ -36,45 +35,7 @@ export default function CorrispettiviMenu() {
         </div>
 
         {/* MENU GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-
-          {/* DASHBOARD */}
-          <Link
-            to="/admin/corrispettivi/dashboard"
-            className="
-              bg-blue-50 border border-blue-200 text-blue-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📊</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Dashboard
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Analisi corrispettivi e confronto anni.
-            </p>
-          </Link>
-
-          {/* GESTIONE */}
-          <Link
-            to="/admin/corrispettivi/gestione"
-            className="
-              bg-green-50 border border-green-200 text-green-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📝</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Gestione Chiusure
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Inserisci o modifica la chiusura giornaliera.
-            </p>
-          </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
 
           {/* IMPORT */}
           <Link
@@ -91,7 +52,45 @@ export default function CorrispettiviMenu() {
               Importa da Excel
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Carica file XLSB/XLSX dei corrispettivi.
+              Carica il file corrispettivi (archivio o anno singolo).
+            </p>
+          </Link>
+
+          {/* GESTIONE + CALENDARIO */}
+          <Link
+            to="/admin/corrispettivi/gestione"
+            className="
+              bg-green-50 border border-green-200 text-green-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
+            "
+          >
+            <div className="text-5xl mb-3">🗓️</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Calendario & Chiusure
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Calendario mensile, apertura/chiusura giorni e modifica chiusure cassa.
+            </p>
+          </Link>
+
+          {/* DASHBOARD / ANALISI */}
+          <Link
+            to="/admin/corrispettivi/dashboard"
+            className="
+              bg-blue-50 border border-blue-200 text-blue-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
+            "
+          >
+            <div className="text-5xl mb-3">📊</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Dashboard & Analisi
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Andamento per mese, anno e giorni migliori/peggiori.
             </p>
           </Link>
 

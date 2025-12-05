@@ -24,6 +24,9 @@ from app.routers.admin_finance import router as admin_finance_router
 # ⚠️ IMPORT CORRETTO DEL ROUTER FATTURE XML
 from app.routers import fe_import
 
+# 🔹 DIPENDENTI & TURNI — nuovo modulo
+from app.routers.dipendenti import router as dipendenti_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -94,22 +97,4 @@ app.include_router(
 )
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
-app.include_router(admin_finance_router)
-
-# FATTURAZIONE ELETTRONICA (XML) — NUOVO
-app.include_router(fe_import.router)
-
-# AUTH E MENU
-app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
-app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
-
-
-# ----------------------------------------
-# ROOT
-# ----------------------------------------
-@app.get("/")
-def root():
-    return {
-        "message": "Benvenuto in TRGB Web API",
-        "versione": "2025.12-web",
-    }
+app.include_router(admin_finance_rou_

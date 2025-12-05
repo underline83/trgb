@@ -1,4 +1,7 @@
-// @version: v3.1-premium-magazzino
+────────────────────────────────────────
+FILE 6 — frontend/src/App.jsx (AGGIORNATO)
+────────────────────────────────────────
+// @version: v3.2-premium-magazzino-dipendenti
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -37,6 +40,10 @@ import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
+
+// --- AMMINISTRAZIONE - Dipendenti & Turni ---
+import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
+import DipendentiTurni from "./pages/admin/DipendentiTurni";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -81,22 +88,4 @@ export default function App() {
         <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
         <Route
           path="/admin/corrispettivi/dashboard"
-          element={<CorrispettiviDashboard />}
-        />
-        <Route
-          path="/admin/corrispettivi/gestione"
-          element={<CorrispettiviGestione />}
-        />
-        <Route
-          path="/admin/corrispettivi/import"
-          element={<CorrispettiviImport />}
-        />
-        
-        {/* FATTURE ELETTRONICHE */}
-        <Route path="/admin/fatture" element={<FattureMenu />} />
-        <Route path="/admin/fatture/import" element={<FattureImport />} />
-        <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
+          element={<Corr
