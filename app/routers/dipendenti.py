@@ -1,35 +1,31 @@
+# ============================================================
+# FILE: app/routers/dipendenti.py
+# Router Dipendenti & Turni — COMPLETO con CRUD calendario
+# ============================================================
+
 # @version: v1.1-dipendenti-router
 # -*- coding: utf-8 -*-
 """
 Router Dipendenti & Turni — TRGB Gestionale
 
-Funzionalità v1.1:
-- Anagrafica dipendenti (CRUD, soft delete) con:
-  codice, nome, cognome, ruolo (menu), telefono, email, IBAN, indirizzo, note, attivo
+Funzionalità v1:
+- Anagrafica dipendenti (CRUD, soft delete)
 - Tipi di turno (lista + CRUD base)
-- Calendario turni (lista per periodo + filtri dipendente/ruolo)
-- Documenti dipendente (upload file, lista, delete)
+- Calendario turni (lista per periodo + inserimento / modifica / cancellazione)
+
+Autenticazione:
+- Tutti gli endpoint richiedono utente loggato (JWT),
+  come per gli altri moduli del gestionale.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from datetime import date, timedelta
-from pathlib import Path
-from uuid import uuid4
-import os
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    Query,
-    UploadFile,
-    File,
-    Form,
-)
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
 from app.services.auth_service import get_current_user
@@ -40,11 +36,6 @@ router = APIRouter(prefix="/dipendenti", tags=["Dipendenti"])
 # Inizializza DB alla prima importazione del router
 init_dipendenti_db()
 
-# Directory per i file allegati
-BASE_DIR = Path(__file__).resolve().parents[2]
-DOCS_BASE_DIR = BASE_DIR / "app" / "data" / "dipendenti_docs"
-DOCS_BASE_DIR.mkdir(parents=True, exist_ok=True)
-
 
 # ============================================================
 # MODELLI Pydantic — Dipendenti
@@ -53,17 +44,15 @@ class DipendenteBase(BaseModel):
     codice: str = Field(..., description="Codice univoco interno, es. DIP001")
     nome: str
     cognome: str
-    ruolo: str  # lato FE: menu a discesa con ruoli predefiniti
+    ruolo: str
     telefono: Optional[str] = None
-    email: Optional[str] = None
-    iban: Optional[str] = Field(
-        default=None,
-        description="IBAN per pagamenti stipendi (solo memoria, non validato lato server)",
-    )
+    email: Optional[EmailStr] = None
     indirizzo_via: Optional[str] = None
     indirizzo_cap: Optional[str] = None
     indirizzo_citta: Optional[str] = None
     indirizzo_provincia: Optional[str] = None
+    indirizzo_paese: Optional[str] = None
+    iban: Optional[str] = None
     note: Optional[str] = None
     attivo: bool = True
 
@@ -122,19 +111,6 @@ class TurnoCalendarioUpdate(BaseModel):
 
 
 # ============================================================
-# MODELLI Pydantic — Documenti dipendente
-# ============================================================
-class DipendenteDocumentoOut(BaseModel):
-    id: int
-    dipendente_id: int
-    categoria: str
-    descrizione: Optional[str]
-    filename_originale: str
-    filepath: str
-    uploaded_at: str
-
-
-# ============================================================
 # UTILS
 # ============================================================
 def _validate_date_str(d: str) -> str:
@@ -143,12 +119,6 @@ def _validate_date_str(d: str) -> str:
     except Exception:
         raise HTTPException(status_code=400, detail=f"Data non valida: {d}")
     return d
-
-
-def _row_to_dipendente_dict(row) -> Dict[str, Any]:
-    data = dict(row)
-    data["attivo"] = bool(data["attivo"])
-    return data
 
 
 # ============================================================
@@ -162,22 +132,41 @@ def list_dipendenti(
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
-    base_select = """
-      SELECT id, codice, nome, cognome, ruolo,
-             telefono, email, iban,
-             indirizzo_via, indirizzo_cap, indirizzo_citta, indirizzo_provincia,
-             note, attivo,
-             created_at, updated_at
-      FROM dipendenti
-    """
-
     if include_inactive:
-        cur.execute(base_select + " ORDER BY cognome, nome;")
+        cur.execute(
+            """
+            SELECT id, codice, nome, cognome, ruolo,
+                   telefono, email,
+                   indirizzo_via, indirizzo_cap, indirizzo_citta,
+                   indirizzo_provincia, indirizzo_paese,
+                   iban,
+                   note, attivo,
+                   created_at, updated_at
+            FROM dipendenti
+            ORDER BY cognome, nome;
+            """
+        )
     else:
-        cur.execute(base_select + " WHERE attivo = 1 ORDER BY cognome, nome;")
+        cur.execute(
+            """
+            SELECT id, codice, nome, cognome, ruolo,
+                   telefono, email,
+                   indirizzo_via, indirizzo_cap, indirizzo_citta,
+                   indirizzo_provincia, indirizzo_paese,
+                   iban,
+                   note, attivo,
+                   created_at, updated_at
+            FROM dipendenti
+            WHERE attivo = 1
+            ORDER BY cognome, nome;
+            """
+        )
 
-    rows = [_row_to_dipendente_dict(r) for r in cur.fetchall()]
+    rows = [dict(r) for r in cur.fetchall()]
     conn.close()
+
+    for r in rows:
+        r["attivo"] = bool(r["attivo"])
 
     return JSONResponse(content=rows)
 
@@ -193,12 +182,14 @@ def create_dipendente(
     try:
         cur.execute(
             """
-            INSERT INTO dipendenti (
-              codice, nome, cognome, ruolo,
-              telefono, email, iban,
-              indirizzo_via, indirizzo_cap, indirizzo_citta, indirizzo_provincia,
-              note, attivo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO dipendenti
+              (codice, nome, cognome, ruolo,
+               telefono, email,
+               indirizzo_via, indirizzo_cap, indirizzo_citta,
+               indirizzo_provincia, indirizzo_paese,
+               iban,
+               note, attivo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.codice.strip(),
@@ -206,12 +197,13 @@ def create_dipendente(
                 payload.cognome.strip(),
                 payload.ruolo.strip(),
                 payload.telefono.strip() if payload.telefono else None,
-                payload.email.strip() if payload.email else None,
-                payload.iban.strip() if payload.iban else None,
+                payload.email if payload.email else None,
                 payload.indirizzo_via.strip() if payload.indirizzo_via else None,
                 payload.indirizzo_cap.strip() if payload.indirizzo_cap else None,
                 payload.indirizzo_citta.strip() if payload.indirizzo_citta else None,
                 payload.indirizzo_provincia.strip() if payload.indirizzo_provincia else None,
+                payload.indirizzo_paese.strip() if payload.indirizzo_paese else None,
+                payload.iban.strip() if payload.iban else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
             ),
@@ -230,8 +222,10 @@ def create_dipendente(
         cur.execute(
             """
             SELECT id, codice, nome, cognome, ruolo,
-                   telefono, email, iban,
-                   indirizzo_via, indirizzo_cap, indirizzo_citta, indirizzo_provincia,
+                   telefono, email,
+                   indirizzo_via, indirizzo_cap, indirizzo_citta,
+                   indirizzo_provincia, indirizzo_paese,
+                   iban,
                    note, attivo,
                    created_at, updated_at
             FROM dipendenti
@@ -242,7 +236,8 @@ def create_dipendente(
         row = cur.fetchone()
         conn.close()
 
-    data = _row_to_dipendente_dict(row)
+    data = dict(row)
+    data["attivo"] = bool(data["attivo"])
     return JSONResponse(content=data)
 
 
@@ -270,11 +265,12 @@ def update_dipendente(
                 ruolo = ?,
                 telefono = ?,
                 email = ?,
-                iban = ?,
                 indirizzo_via = ?,
                 indirizzo_cap = ?,
                 indirizzo_citta = ?,
                 indirizzo_provincia = ?,
+                indirizzo_paese = ?,
+                iban = ?,
                 note = ?,
                 attivo = ?
             WHERE id = ?;
@@ -285,12 +281,13 @@ def update_dipendente(
                 payload.cognome.strip(),
                 payload.ruolo.strip(),
                 payload.telefono.strip() if payload.telefono else None,
-                payload.email.strip() if payload.email else None,
-                payload.iban.strip() if payload.iban else None,
+                payload.email if payload.email else None,
                 payload.indirizzo_via.strip() if payload.indirizzo_via else None,
                 payload.indirizzo_cap.strip() if payload.indirizzo_cap else None,
                 payload.indirizzo_citta.strip() if payload.indirizzo_citta else None,
                 payload.indirizzo_provincia.strip() if payload.indirizzo_provincia else None,
+                payload.indirizzo_paese.strip() if payload.indirizzo_paese else None,
+                payload.iban.strip() if payload.iban else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
                 dipendente_id,
@@ -309,8 +306,10 @@ def update_dipendente(
         cur.execute(
             """
             SELECT id, codice, nome, cognome, ruolo,
-                   telefono, email, iban,
-                   indirizzo_via, indirizzo_cap, indirizzo_citta, indirizzo_provincia,
+                   telefono, email,
+                   indirizzo_via, indirizzo_cap, indirizzo_citta,
+                   indirizzo_provincia, indirizzo_paese,
+                   iban,
                    note, attivo,
                    created_at, updated_at
             FROM dipendenti
@@ -321,7 +320,8 @@ def update_dipendente(
         row = cur.fetchone()
         conn.close()
 
-    data = _row_to_dipendente_dict(row)
+    data = dict(row)
+    data["attivo"] = bool(data["attivo"])
     return JSONResponse(content=data)
 
 
@@ -362,17 +362,27 @@ def list_turni_tipi(
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
-    base_select = """
-      SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
-             ora_inizio, ora_fine, ordine, attivo,
-             created_at, updated_at
-      FROM turni_tipi
-    """
-
     if include_inactive:
-        cur.execute(base_select + " ORDER BY ordine, nome;")
+        cur.execute(
+            """
+            SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
+                   ora_inizio, ora_fine, ordine, attivo,
+                   created_at, updated_at
+            FROM turni_tipi
+            ORDER BY ordine, nome;
+            """
+        )
     else:
-        cur.execute(base_select + " WHERE attivo = 1 ORDER BY ordine, nome;")
+        cur.execute(
+            """
+            SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
+                   ora_inizio, ora_fine, ordine, attivo,
+                   created_at, updated_at
+            FROM turni_tipi
+            WHERE attivo = 1
+            ORDER BY ordine, nome;
+            """
+        )
 
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
@@ -537,7 +547,7 @@ def delete_turno_tipo(
 
 
 # ============================================================
-# ENDPOINT: Calendario turni
+# ENDPOINT: Calendario turni — LISTA
 # ============================================================
 @router.get("/turni/calendario", response_class=JSONResponse)
 def list_turni_calendario(
@@ -611,154 +621,276 @@ def list_turni_calendario(
 
 
 # ============================================================
-# ENDPOINT: Documenti dipendente (allegati)
+# ENDPOINT: Calendario turni — CREA / MODIFICA / CANCELLA
 # ============================================================
-@router.get("/{dipendente_id}/documenti", response_model=List[DipendenteDocumentoOut])
-def list_documenti_dipendente(
-    dipendente_id: int,
+@router.post("/turni/calendario", response_class=JSONResponse)
+def create_turno_calendario(
+    payload: TurnoCalendarioCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Crea un nuovo turno per un dipendente in una data.
+    Se ora_inizio/ora_fine non sono specificate, usa quelle del tipo di turno.
+    """
+    data_str = _validate_date_str(payload.data)
+
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id FROM dipendenti WHERE id = ?;", (dipendente_id,))
-    if not cur.fetchone():
+    # Controllo dipendente
+    cur.execute("SELECT id, attivo FROM dipendenti WHERE id = ?;", (payload.dipendente_id,))
+    dip_row = cur.fetchone()
+    if not dip_row:
         conn.close()
         raise HTTPException(status_code=404, detail="Dipendente non trovato.")
+    if not bool(dip_row["attivo"]):
+        conn.close()
+        raise HTTPException(status_code=400, detail="Dipendente non attivo.")
 
+    # Controllo tipo turno
     cur.execute(
-        """
-        SELECT id, dipendente_id, categoria, descrizione,
-               filename_originale, filepath, uploaded_at
-        FROM dipendenti_documenti
-        WHERE dipendente_id = ?
-        ORDER BY uploaded_at DESC;
-        """,
-        (dipendente_id,),
+        "SELECT id, ora_inizio, ora_fine, attivo FROM turni_tipi WHERE id = ?;",
+        (payload.turno_tipo_id,),
     )
-    rows = [dict(r) for r in cur.fetchall()]
-    conn.close()
-    return rows
-
-
-@router.post("/{dipendente_id}/documenti", response_model=DipendenteDocumentoOut)
-async def upload_documento_dipendente(
-    dipendente_id: int,
-    categoria: str = Form(..., description="Es: CONTRATTO, CORSO, ALTRO"),
-    descrizione: Optional[str] = Form(None),
-    file: UploadFile = File(...),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """
-    Upload di un documento associato al dipendente.
-
-    Salva il file in app/data/dipendenti_docs/dip_{id}/
-    e memorizza path + metadati nel DB.
-    """
-    conn = get_dipendenti_conn()
-    cur = conn.cursor()
-
-    cur.execute("SELECT id FROM dipendenti WHERE id = ?;", (dipendente_id,))
-    if not cur.fetchone():
+    tt = cur.fetchone()
+    if not tt:
         conn.close()
-        raise HTTPException(status_code=404, detail="Dipendente non trovato.")
+        raise HTTPException(status_code=404, detail="Tipo turno non trovato.")
+    if not bool(tt["attivo"]):
+        conn.close()
+        raise HTTPException(status_code=400, detail="Tipo turno non attivo.")
 
-    # Preparo directory
-    subdir = DOCS_BASE_DIR / f"dip_{dipendente_id}"
-    subdir.mkdir(parents=True, exist_ok=True)
-
-    # Filename sicuro
-    original_name = file.filename or "documento"
-    ext = Path(original_name).suffix
-    safe_name = f"{uuid4().hex}{ext}"
-    dest_path = subdir / safe_name
-
-    # Scrivo file su disco
-    content = await file.read()
-    with open(dest_path, "wb") as f:
-        f.write(content)
+    ora_inizio = payload.ora_inizio.strip() if payload.ora_inizio else tt["ora_inizio"]
+    ora_fine = payload.ora_fine.strip() if payload.ora_fine else tt["ora_fine"]
+    stato = payload.stato.strip() if payload.stato else "CONFERMATO"
+    note = payload.note.strip() if payload.note else None
 
     try:
         cur.execute(
             """
-            INSERT INTO dipendenti_documenti (
-              dipendente_id, categoria, descrizione,
-              filename_originale, filepath
-            ) VALUES (?, ?, ?, ?, ?)
+            INSERT INTO turni_calendario (
+              dipendente_id, turno_tipo_id, data,
+              ora_inizio, ora_fine, stato, note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?);
             """,
             (
-                dipendente_id,
-                categoria.strip(),
-                descrizione.strip() if descrizione else None,
-                original_name,
-                str(dest_path),
+                payload.dipendente_id,
+                payload.turno_tipo_id,
+                data_str,
+                ora_inizio,
+                ora_fine,
+                stato,
+                note,
             ),
         )
         new_id = cur.lastrowid
         conn.commit()
     except Exception as e:
         conn.rollback()
-        # provo a cancellare il file appena scritto
-        try:
-            os.remove(dest_path)
-        except Exception:
-            pass
         conn.close()
-        raise HTTPException(status_code=500, detail=f"Errore salvataggio documento: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore inserimento turno: {e}")
 
+    # Ricarico record con le join, stesso formato della lista
+    cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, dipendente_id, categoria, descrizione,
-               filename_originale, filepath, uploaded_at
-        FROM dipendenti_documenti
-        WHERE id = ?;
+        SELECT
+          tc.id,
+          tc.data,
+          COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+          COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+          tc.stato,
+          tc.note,
+          d.id   AS dipendente_id,
+          d.nome AS dipendente_nome,
+          d.cognome AS dipendente_cognome,
+          d.ruolo AS dipendente_ruolo,
+          tt.id  AS turno_tipo_id,
+          tt.nome AS turno_nome,
+          tt.ruolo AS turno_ruolo,
+          tt.colore_bg,
+          tt.colore_testo
+        FROM turni_calendario tc
+        JOIN dipendenti d ON d.id = tc.dipendente_id
+        JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+        WHERE tc.id = ?;
         """,
         (new_id,),
     )
     row = cur.fetchone()
     conn.close()
 
-    return DipendenteDocumentoOut(**dict(row))
+    if not row:
+        raise HTTPException(status_code=500, detail="Turno creato ma non trovato in lettura.")
+
+    return JSONResponse(content=dict(row))
 
 
-@router.delete("/documenti/{documento_id}", response_class=JSONResponse)
-def delete_documento_dipendente(
-    documento_id: int,
+@router.put("/turni/calendario/{turno_id}", response_class=JSONResponse)
+def update_turno_calendario(
+    turno_id: int,
+    payload: TurnoCalendarioUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Cancella un documento (record + file su disco se presente).
+    Aggiorna un turno esistente (data, tipo, orari, stato, note).
     """
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
+    cur.execute("SELECT id FROM turni_calendario WHERE id = ?;", (turno_id,))
+    if not cur.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Turno non trovato.")
+
+    updates: List[str] = []
+    params: List[Any] = []
+
+    if payload.turno_tipo_id is not None:
+        # Validazione tipo turno
+        cur.execute(
+            "SELECT id, attivo FROM turni_tipi WHERE id = ?;",
+            (payload.turno_tipo_id,),
+        )
+        tt = cur.fetchone()
+        if not tt:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Tipo turno non trovato.")
+        if not bool(tt["attivo"]):
+            conn.close()
+            raise HTTPException(status_code=400, detail="Tipo turno non attivo.")
+        updates.append("turno_tipo_id = ?")
+        params.append(payload.turno_tipo_id)
+
+    if payload.data is not None:
+        data_str = _validate_date_str(payload.data)
+        updates.append("data = ?")
+        params.append(data_str)
+
+    if payload.ora_inizio is not None:
+        updates.append("ora_inizio = ?")
+        params.append(payload.ora_inizio.strip())
+
+    if payload.ora_fine is not None:
+        updates.append("ora_fine = ?")
+        params.append(payload.ora_fine.strip())
+
+    if payload.stato is not None:
+        updates.append("stato = ?")
+        params.append(payload.stato.strip())
+
+    if payload.note is not None:
+        updates.append("note = ?")
+        params.append(payload.note.strip() if payload.note else None)
+
+    if not updates:
+        # Niente da aggiornare → restituisco il record corrente
+        cur.execute(
+            """
+            SELECT
+              tc.id,
+              tc.data,
+              COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+              COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+              tc.stato,
+              tc.note,
+              d.id   AS dipendente_id,
+              d.nome AS dipendente_nome,
+              d.cognome AS dipendente_cognome,
+              d.ruolo AS dipendente_ruolo,
+              tt.id  AS turno_tipo_id,
+              tt.nome AS turno_nome,
+              tt.ruolo AS turno_ruolo,
+              tt.colore_bg,
+              tt.colore_testo
+            FROM turni_calendario tc
+            JOIN dipendenti d ON d.id = tc.dipendente_id
+            JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+            WHERE tc.id = ?;
+            """,
+            (turno_id,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Turno non trovato.")
+        return JSONResponse(content=dict(row))
+
+    sql = f"UPDATE turni_calendario SET {', '.join(updates)} WHERE id = ?;"
+    params.append(turno_id)
+
+    try:
+        cur.execute(sql, params)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Errore aggiornamento turno: {e}")
+
+    # Ricarico record aggiornato con join
     cur.execute(
         """
-        SELECT id, filepath
-        FROM dipendenti_documenti
-        WHERE id = ?;
+        SELECT
+          tc.id,
+          tc.data,
+          COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+          COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+          tc.stato,
+          tc.note,
+          d.id   AS dipendente_id,
+          d.nome AS dipendente_nome,
+          d.cognome AS dipendente_cognome,
+          d.ruolo AS dipendente_ruolo,
+          tt.id  AS turno_tipo_id,
+          tt.nome AS turno_nome,
+          tt.ruolo AS turno_ruolo,
+          tt.colore_bg,
+          tt.colore_testo
+        FROM turni_calendario tc
+        JOIN dipendenti d ON d.id = tc.dipendente_id
+        JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+        WHERE tc.id = ?;
         """,
-        (documento_id,),
+        (turno_id,),
     )
     row = cur.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Documento non trovato.")
-
-    filepath = row["filepath"]
-
-    cur.execute("DELETE FROM dipendenti_documenti WHERE id = ?;", (documento_id,))
-    conn.commit()
     conn.close()
 
-    # Cancello file su disco (se esiste)
-    if filepath:
-        try:
-            p = Path(filepath)
-            if p.exists():
-                p.unlink()
-        except Exception:
-            # non blocco l'API se la delete del file fallisce
-            pass
+    if not row:
+        raise HTTPException(status_code=404, detail="Turno non trovato dopo aggiornamento.")
 
-    return JSONResponse(content={"status": "ok", "message": "Documento cancellato."})
+    return JSONResponse(content=dict(row))
+
+
+@router.delete("/turni/calendario/{turno_id}", response_class=JSONResponse)
+def delete_turno_calendario(
+    turno_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Cancellazione hard del turno (non tocca l'anagrafica).
+    """
+    conn = get_dipendenti_conn()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id FROM turni_calendario WHERE id = ?;", (turno_id,))
+    if not cur.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Turno non trovato.")
+
+    try:
+        cur.execute("DELETE FROM turni_calendario WHERE id = ?;", (turno_id,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"Errore cancellazione turno: {e}")
+
+    conn.close()
+    return JSONResponse(content={"status": "ok", "message": "Turno cancellato."})
+
+
+# ============================================================
+# FINE FILE
+# ============================================================
+
