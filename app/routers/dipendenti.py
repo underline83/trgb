@@ -502,4 +502,276 @@ def delete_turno_tipo(
 @router.get("/turni/calendario", response_class=JSONResponse)
 def list_turni_calendario(
   from_date: Optional[str] = Query(None, alias="from"),
-  t
+  to_date: Optional[str] = Query(None, alias="to"),
+  dipendente_id: Optional[int] = None,
+  ruolo: Optional[str] = None,
+  current_user: Dict[str, Any] = Depends(get_current_user),
+):
+  """
+  Restituisce i turni nel periodo richiesto (settimana/mese),
+  con join su dipendenti e tipi di turno.
+  """
+  if not from_date or not to_date:
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    from_date = monday.isoformat()
+    to_date = sunday.isoformat()
+
+  from_date = _validate_date_str(from_date)
+  to_date = _validate_date_str(to_date)
+
+  params: List[Any] = [from_date, to_date]
+  filters = ["tc.data BETWEEN ? AND ?"]
+
+  if dipendente_id is not None:
+    filters.append("tc.dipendente_id = ?")
+    params.append(dipendente_id)
+
+  if ruolo:
+    filters.append("tt.ruolo = ?")
+    params.append(ruolo.strip())
+
+  where_clause = " AND ".join(filters)
+
+  conn = get_dipendenti_conn()
+  cur = conn.cursor()
+
+  cur.execute(
+    f"""
+    SELECT
+      tc.id,
+      tc.data,
+      COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+      COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+      tc.stato,
+      tc.note,
+      d.id   AS dipendente_id,
+      d.nome AS dipendente_nome,
+      d.cognome AS dipendente_cognome,
+      d.ruolo AS dipendente_ruolo,
+      tt.id  AS turno_tipo_id,
+      tt.nome AS turno_nome,
+      tt.ruolo AS turno_ruolo,
+      tt.colore_bg,
+      tt.colore_testo
+    FROM turni_calendario tc
+    JOIN dipendenti d ON d.id = tc.dipendente_id
+    JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+    WHERE {where_clause}
+    ORDER BY tc.data, d.cognome, d.nome, tt.ordine;
+    """,
+    params,
+  )
+
+  rows = [dict(r) for r in cur.fetchall()]
+  conn.close()
+
+  return JSONResponse(content=rows)
+
+
+@router.post("/turni/calendario", response_class=JSONResponse)
+def create_turno_calendario(
+  payload: TurnoCalendarioCreate,
+  current_user: Dict[str, Any] = Depends(get_current_user),
+):
+  """
+  Crea un turno nel calendario.
+  Se ora_inizio/ora_fine sono null, usa quelle del tipo turno.
+  """
+  _validate_date_str(payload.data)
+
+  conn = get_dipendenti_conn()
+  cur = conn.cursor()
+
+  cur.execute("SELECT id, attivo FROM dipendenti WHERE id = ?;", (payload.dipendente_id,))
+  dip_row = cur.fetchone()
+  if not dip_row:
+    conn.close()
+    raise HTTPException(status_code=404, detail="Dipendente non trovato.")
+  if not bool(dip_row["attivo"]):
+    conn.close()
+    raise HTTPException(status_code=400, detail="Impossibile assegnare turni a un dipendente disattivato.")
+
+  cur.execute(
+    "SELECT id, ora_inizio, ora_fine, attivo FROM turni_tipi WHERE id = ?;",
+    (payload.turno_tipo_id,),
+  )
+  turno_row = cur.fetchone()
+  if not turno_row:
+    conn.close()
+    raise HTTPException(status_code=404, detail="Tipo turno non trovato.")
+  if not bool(turno_row["attivo"]):
+    conn.close()
+    raise HTTPException(status_code=400, detail="Tipo turno disattivato.")
+
+  ora_inizio = payload.ora_inizio or turno_row["ora_inizio"]
+  ora_fine = payload.ora_fine or turno_row["ora_fine"]
+
+  try:
+    cur.execute(
+      """
+      INSERT INTO turni_calendario (
+        dipendente_id, turno_tipo_id, data,
+        ora_inizio, ora_fine, stato, note
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      """,
+      (
+        payload.dipendente_id,
+        payload.turno_tipo_id,
+        payload.data,
+        ora_inizio,
+        ora_fine,
+        payload.stato.strip() if payload.stato else "CONFERMATO",
+        payload.note.strip() if payload.note else None,
+      ),
+    )
+    new_id = cur.lastrowid
+    conn.commit()
+  except Exception as e:
+    conn.rollback()
+    raise HTTPException(status_code=500, detail=f"Errore inserimento turno: {e}")
+  finally:
+    cur.execute(
+      """
+      SELECT
+        tc.id,
+        tc.data,
+        COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+        COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+        tc.stato,
+        tc.note,
+        d.id   AS dipendente_id,
+        d.nome AS dipendente_nome,
+        d.cognome AS dipendente_cognome,
+        d.ruolo AS dipendente_ruolo,
+        tt.id  AS turno_tipo_id,
+        tt.nome AS turno_nome,
+        tt.ruolo AS turno_ruolo,
+        tt.colore_bg,
+        tt.colore_testo
+      FROM turni_calendario tc
+      JOIN dipendenti d ON d.id = tc.dipendente_id
+      JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+      WHERE tc.id = ?;
+      """,
+      (new_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+  return JSONResponse(content=dict(row))
+
+
+@router.put("/turni/calendario/{turno_id}", response_class=JSONResponse)
+def update_turno_calendario(
+  turno_id: int,
+  payload: TurnoCalendarioUpdate,
+  current_user: Dict[str, Any] = Depends(get_current_user),
+):
+  conn = get_dipendenti_conn()
+  cur = conn.cursor()
+
+  cur.execute("SELECT * FROM turni_calendario WHERE id = ?;", (turno_id,))
+  existing = cur.fetchone()
+  if not existing:
+    conn.close()
+    raise HTTPException(status_code=404, detail="Turno non trovato.")
+
+  fields: Dict[str, Any] = {}
+  if payload.turno_tipo_id is not None:
+    cur.execute(
+      "SELECT id, attivo FROM turni_tipi WHERE id = ?;",
+      (payload.turno_tipo_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+      conn.close()
+      raise HTTPException(status_code=404, detail="Tipo turno non trovato.")
+    if not bool(row["attivo"]):
+      conn.close()
+      raise HTTPException(status_code=400, detail="Tipo turno disattivato.")
+    fields["turno_tipo_id"] = payload.turno_tipo_id
+
+  if payload.data is not None:
+    _validate_date_str(payload.data)
+    fields["data"] = payload.data
+
+  if payload.ora_inizio is not None:
+    fields["ora_inizio"] = payload.ora_inizio
+
+  if payload.ora_fine is not None:
+    fields["ora_fine"] = payload.ora_fine
+
+  if payload.stato is not None:
+    fields["stato"] = payload.stato.strip()
+
+  if payload.note is not None:
+    fields["note"] = payload.note.strip() if payload.note else None
+
+  if not fields:
+    conn.close()
+    return JSONResponse(content={"status": "ok", "message": "Nessun campo da aggiornare."})
+
+  set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
+  params = list(fields.values()) + [turno_id]
+
+  try:
+    cur.execute(
+      f"UPDATE turni_calendario SET {set_clause} WHERE id = ?;",
+      params,
+    )
+    conn.commit()
+  except Exception as e:
+    conn.rollback()
+    raise HTTPException(status_code=500, detail=f"Errore aggiornamento turno: {e}")
+  finally:
+    cur.execute(
+      """
+      SELECT
+        tc.id,
+        tc.data,
+        COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+        COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+        tc.stato,
+        tc.note,
+        d.id   AS dipendente_id,
+        d.nome AS dipendente_nome,
+        d.cognome AS dipendente_cognome,
+        d.ruolo AS dipendente_ruolo,
+        tt.id  AS turno_tipo_id,
+        tt.nome AS turno_nome,
+        tt.ruolo AS turno_ruolo,
+        tt.colore_bg,
+        tt.colore_testo
+      FROM turni_calendario tc
+      JOIN dipendenti d ON d.id = tc.dipendente_id
+      JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+      WHERE tc.id = ?;
+      """,
+      (turno_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+  return JSONResponse(content=dict(row))
+
+
+@router.delete("/turni/calendario/{turno_id}", response_class=JSONResponse)
+def delete_turno_calendario(
+  turno_id: int,
+  current_user: Dict[str, Any] = Depends(get_current_user),
+):
+  conn = get_dipendenti_conn()
+  cur = conn.cursor()
+
+  cur.execute("SELECT id FROM turni_calendario WHERE id = ?;", (turno_id,))
+  if not cur.fetchone():
+    conn.close()
+    raise HTTPException(status_code=404, detail="Turno non trovato.")
+
+  cur.execute("DELETE FROM turni_calendario WHERE id = ?;", (turno_id,))
+  conn.commit()
+  conn.close()
+
+  return JSONResponse(content={"status": "ok", "message": "Turno eliminato."})
