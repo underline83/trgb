@@ -310,31 +310,37 @@ export default function DipendentiTurni() {
   // --------------------------------------------------
   // Cancellazione turno
   // --------------------------------------------------
-  const handleDeleteTurno = async (turnoId) => {
-    if (!window.confirm("Vuoi davvero cancellare questo turno?")) return;
+// ... dentro il componente DipendentiTurni ...
 
-    try:
-      const res = await fetch(
-        `${API_BASE}/dipendenti/turni/calendario/${turnoId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+const handleDeleteTurno = async (turnoId) => {
+  if (!window.confirm("Vuoi davvero cancellare questo turno?")) return;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nella cancellazione del turno.");
+  try {
+    const res = await fetch(
+      `${API_BASE}/dipendenti/turni/calendario/${turnoId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       }
+    );
 
-      setTurni((prev) => prev.filter((t) => t.id !== turnoId));
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Errore nella cancellazione del turno.");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      console.error("Errore cancellazione turno:", errData);
+      alert(errData.detail || "Errore durante la cancellazione del turno.");
+      return;
     }
-  };
+
+    // Rimuovi il turno dallo stato locale
+    setTurni((prev) => prev.filter((t) => t.id !== turnoId));
+  } catch (err) {
+    console.error("Errore cancellazione turno:", err);
+    alert("Errore di rete durante la cancellazione del turno.");
+  }
+};
+
 
   // --------------------------------------------------
   // RENDER
