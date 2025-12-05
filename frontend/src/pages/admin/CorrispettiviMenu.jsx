@@ -15,7 +15,7 @@ export default function CorrispettiviMenu() {
               💵 Corrispettivi — Chiusure Cassa
             </h1>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
-              Gestisci import Excel e chiusure giornaliere.
+              Dashboard, gestione giornaliera e import da Excel.
             </p>
           </div>
 
@@ -36,24 +36,24 @@ export default function CorrispettiviMenu() {
         </div>
 
         {/* MENU GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
 
-          {/* IMPORT */}
+          {/* DASHBOARD */}
           <Link
-            to="/admin/corrispettivi/import"
+            to="/admin/corrispettivi/dashboard"
             className="
-              bg-yellow-50 border border-yellow-200 text-yellow-900
+              bg-blue-50 border border-blue-200 text-blue-900
               rounded-2xl p-8 shadow
               hover:shadow-xl hover:-translate-y-1 transition transform
               text-center
             "
           >
-            <div className="text-5xl mb-3">📤</div>
+            <div className="text-5xl mb-3">📊</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Importa da Excel
+              Dashboard
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Carica il file corrispettivi (2025, 2026, …)
+              Analisi corrispettivi e confronto anni.
             </p>
           </Link>
 
@@ -72,7 +72,26 @@ export default function CorrispettiviMenu() {
               Gestione Chiusure
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Inserisci e modifica le chiusure cassa giornaliere.
+              Inserisci o modifica la chiusura giornaliera.
+            </p>
+          </Link>
+
+          {/* IMPORT */}
+          <Link
+            to="/admin/corrispettivi/import"
+            className="
+              bg-yellow-50 border border-yellow-200 text-yellow-900
+              rounded-2xl p-8 shadow
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
+            "
+          >
+            <div className="text-5xl mb-3">📤</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Importa da Excel
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Carica file XLSB/XLSX dei corrispettivi.
             </p>
           </Link>
 
