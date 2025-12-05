@@ -7,7 +7,6 @@ export default function AdminMenu() {
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
@@ -37,7 +36,6 @@ export default function AdminMenu() {
 
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
           {/* CORRISPETTIVI - MODULO OPERATIVO */}
           <Link
             to="/admin/corrispettivi"
@@ -73,30 +71,30 @@ export default function AdminMenu() {
               Dashboard Corrispettivi
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Analisi mensili e annuali, confronto anni, giorni migliori/peggiori,
-              breakdown metodi di pagamento.
+              Analisi mensili e annuali, confronto anni, giorni
+              migliori/peggiori, breakdown metodi di pagamento.
             </p>
           </Link>
 
-          {/* FATTURE ELETTRONICHE (XML) - ACQUISTI */}
+          {/* FATTURE ELETTRONICHE - MODULO ACQUISTI */}
           <Link
-            to="/admin/fatture-elettroniche"
+            to="/admin/fatture"
             className="
-              bg-emerald-50 border border-emerald-200 text-emerald-900
+              bg-amber-50 border border-amber-200 text-amber-900
               rounded-2xl p-8 shadow
               hover:shadow-xl hover:-translate-y-1 transition transform
               text-center
             "
           >
-            <div className="text-5xl mb-3">📑</div>
+            <div className="text-5xl mb-3">🧾</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Fatture elettroniche (XML)
+              Fatture Elettroniche (XML)
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Import XML fornitori e analisi degli acquisti per fornitore e periodo.
+              Import massivo XML, elenco fatture e dashboard degli acquisti
+              per fornitore e per mese.
             </p>
           </Link>
-
         </div>
       </div>
     </div>
