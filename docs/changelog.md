@@ -4,6 +4,19 @@ Questo CHANGELOG segue il formato professionale **Keep a Changelog**
 e utilizza date e milestone come riferimento.
 
 ---
+## 2025-12-05 — Modulo FE XML esteso (v2025.12.05-1)
+### Added
+- Sezione documentazione completa nel README  
+- Descrizione architetturale + routing + frontend  
+- Dettaglio endpoints e flusso operativo  
+
+### Updated
+- Modulo FE XML porta versione → `v2025.12.05-1`
+- Documentazione `/docs/Modulo_FattureXML.md` integrata  
+
+### Notes
+- Il modulo è ora ufficialmente considerato "prima release operativa"
+
 
 # 🗓️ 2025-12-05 — Versione 2025.12.05 (Master Integrato)
 

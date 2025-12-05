@@ -74,24 +74,24 @@ export default function App() {
           element={<RicetteIngredientiPrezzi />}
         />
 
-        {/* --- AMMINISTRAZIONE --- */}
+        {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />
 
-        {/* CORRISPETTIVI */}
+        {/* Corrispettivi & Chiusura Cassa */}
         <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
         <Route
-          path="/admin/corrispettivi/import"
-          element={<CorrispettiviImport />}
+          path="/admin/corrispettivi/dashboard"
+          element={<CorrispettiviDashboard />}
         />
         <Route
           path="/admin/corrispettivi/gestione"
           element={<CorrispettiviGestione />}
         />
         <Route
-          path="/admin/corrispettivi/dashboard"
-          element={<CorrispettiviDashboard />}
+          path="/admin/corrispettivi/import"
+          element={<CorrispettiviImport />}
         />
-
+        
         {/* FATTURE ELETTRONICHE */}
         <Route path="/admin/fatture" element={<FattureMenu />} />
         <Route path="/admin/fatture/import" element={<FattureImport />} />

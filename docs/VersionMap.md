@@ -9,7 +9,7 @@ Core Frontend .................. v1.3.0
 
 Modulo Vini .................... v2025.12.01
 Modulo Magazzino Vini ......... v2025.12.03
-Modulo Fatture XML ............. v2025.12.05
+Modulo Fatture XML ............. v2025.12.05-2
 Modulo FoodCost ................ v2025.11.28
 
 DB vini.sqlite3 ................ v2.1
