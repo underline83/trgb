@@ -1,6 +1,3 @@
-────────────────────────────────────────
-FILE 3 — frontend/src/pages/admin/DipendentiAnagrafica.jsx
-────────────────────────────────────────
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";

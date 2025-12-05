@@ -1,6 +1,3 @@
-────────────────────────────────────────
-FILE 1 — app/models/dipendenti_db.py
-────────────────────────────────────────
 # @version: v1.0-dipendenti-db
 # -*- coding: utf-8 -*-
 """
