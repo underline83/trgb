@@ -18,13 +18,13 @@ from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
 
-# AMMINISTRAZIONE (corrispettivi & analisi) — nuovo modulo unico
+# AMMINISTRAZIONE (corrispettivi & analisi) — modulo unico
 from app.routers.admin_finance import router as admin_finance_router
 
-# ⚠️ IMPORT CORRETTO DEL ROUTER FATTURE XML
+# FATTURAZIONE ELETTRONICA (XML)
 from app.routers import fe_import
 
-# 🔹 DIPENDENTI & TURNI — nuovo modulo
+# DIPENDENTI & TURNI — nuovo modulo
 from app.routers.dipendenti import router as dipendenti_router
 
 
@@ -97,4 +97,26 @@ app.include_router(
 )
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
-app.include_router(admin_finance_rou_
+app.include_router(admin_finance_router)
+
+# FATTURAZIONE ELETTRONICA (XML)
+app.include_router(fe_import.router)
+
+# DIPENDENTI & TURNI
+# (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)
+app.include_router(dipendenti_router)
+
+# AUTH E MENU
+app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
+app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
+
+
+# ----------------------------------------
+# ROOT
+# ----------------------------------------
+@app.get("/")
+def root():
+    return {
+        "message": "Benvenuto in TRGB Web API",
+        "versione": "2025.12-web",
+    }
