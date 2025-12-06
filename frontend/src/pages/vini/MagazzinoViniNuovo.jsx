@@ -1,9 +1,19 @@
-// @version: v1.1-magazzino-nuovo
+// @version: v1.2-magazzino-nuovo
 // Pagina Magazzino Vini — Inserimento nuovo vino
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+
+// Formati standard bottiglie
+const FORMATI_BOTTIGLIA = [
+  { value: "MEZZA", label: "MEZZA — Mezza bottiglia 0,375 L" },
+  { value: "BT", label: "BT — Bottiglia 0,75 L" },
+  { value: "MG", label: "MG — Magnum 1,5 L" },
+  { value: "DM", label: "DM — Doppia Magnum 3 L" },
+  { value: "JERO", label: "JERO — Jeroboam / 3 L (Champagne)" },
+  { value: "MATH", label: "MATH — Mathusalem 6 L" },
+];
 
 export default function MagazzinoViniNuovo() {
   const navigate = useNavigate();
@@ -40,7 +50,6 @@ export default function MagazzinoViniNuovo() {
       setOptionsError("");
 
       try {
-        // CORRETTO: usa il router FastAPI con prefix "/vini/magazzino"
         const resp = await fetch(`${API_BASE}/vini/magazzino`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -88,7 +97,6 @@ export default function MagazzinoViniNuovo() {
   }, []);
 
   const [form, setForm] = useState({
-    id_excel: "",
     TIPOLOGIA: "",
     NAZIONE: "ITALIA",
     REGIONE: "",
@@ -192,8 +200,6 @@ export default function MagazzinoViniNuovo() {
     }
 
     const payload = {
-      id_excel: form.id_excel ? intOrZero(form.id_excel) : null,
-
       TIPOLOGIA: form.TIPOLOGIA.trim(),
       NAZIONE: form.NAZIONE.trim() || "ITALIA",
       REGIONE: nullIfEmpty(form.REGIONE),
@@ -238,7 +244,6 @@ export default function MagazzinoViniNuovo() {
     setSubmitting(true);
 
     try {
-      // CORRETTO: POST verso il router "/vini/magazzino"
       const resp = await fetch(`${API_BASE}/vini/magazzino`, {
         method: "POST",
         headers: {
@@ -343,19 +348,6 @@ export default function MagazzinoViniNuovo() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  ID Excel (facoltativo)
-                </label>
-                <input
-                  type="number"
-                  value={form.id_excel}
-                  onChange={handleChange("id_excel")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. 22877"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Tipologia *
                 </label>
                 <input
@@ -389,9 +381,7 @@ export default function MagazzinoViniNuovo() {
                   ))}
                 </datalist>
               </div>
-            </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Regione
@@ -409,7 +399,9 @@ export default function MagazzinoViniNuovo() {
                   ))}
                 </datalist>
               </div>
+            </div>
 
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Descrizione vino *
@@ -421,6 +413,23 @@ export default function MagazzinoViniNuovo() {
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                   placeholder="Testo completo come appare sulla carta"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Formato
+                </label>
+                <select
+                  value={form.FORMATO}
+                  onChange={handleChange("FORMATO")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                >
+                  {FORMATI_BOTTIGLIA.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -453,14 +462,14 @@ export default function MagazzinoViniNuovo() {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Formato
+                  Codice interno
                 </label>
                 <input
                   type="text"
-                  value={form.FORMATO}
-                  onChange={handleChange("FORMATO")}
+                  value={form.CODICE}
+                  onChange={handleChange("CODICE")}
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="BT, MG, DM…"
+                  placeholder="Codice gestionale / iPratico"
                 />
               </div>
             </div>
@@ -498,21 +507,6 @@ export default function MagazzinoViniNuovo() {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Codice interno
-                </label>
-                <input
-                  type="text"
-                  value={form.CODICE}
-                  onChange={handleChange("CODICE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="Codice gestionale / iPratico"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Vitigni
                 </label>
                 <input
@@ -523,6 +517,9 @@ export default function MagazzinoViniNuovo() {
                   placeholder="es. Nebbiolo 100%"
                 />
               </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Grado alcolico (% vol)
