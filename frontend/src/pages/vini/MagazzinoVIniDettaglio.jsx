@@ -1,4 +1,4 @@
-// @version: v1.0-magazzino-vini-dettaglio
+// @version: v1.1-magazzino-vini-dettaglio
 // Pagina Magazzino Vini — Dettaglio singolo vino
 
 import React, { useEffect, useState } from "react";
@@ -7,8 +7,11 @@ import { API_BASE } from "../../config/api";
 
 export default function MagazzinoViniDettaglio() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const params = useParams();
   const location = useLocation();
+
+  // Supporta sia /:id che /:vino_id (più robusto)
+  const id = params.id || params.vino_id;
 
   const [vino, setVino] = useState(location.state?.vino || null);
   const [loading, setLoading] = useState(!location.state?.vino);
