@@ -1,4 +1,4 @@
-# @version: v1.0-magazzino
+# @version: v1.1-magazzino-duplicati
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Vini Magazzino
@@ -10,6 +10,7 @@ API per il nuovo DB di magazzino vini:
 - Creazione / aggiornamento vino
 - Movimenti di cantina (carico/scarico/vendita/rettifica) con utente
 - Note operative per vino
+- Controllo duplicati in fase di inserimento
 
 ⚠️ Questo router lavora SOLO su 'vini_magazzino.sqlite3' tramite
     app.models.vini_magazzino_db
@@ -47,6 +48,7 @@ class VinoMagazzinoBase(BaseModel):
 
     DESCRIZIONE: str = Field(..., description="Descrizione vino")
     DENOMINAZIONE: Optional[str] = None
+    ANNATA: Optional[str] = None
     VITIGNI: Optional[str] = None
     GRADO_ALCOLICO: Optional[float] = None
 
@@ -105,6 +107,7 @@ class VinoMagazzinoUpdate(BaseModel):
 
     DESCRIZIONE: Optional[str] = None
     DENOMINAZIONE: Optional[str] = None
+    ANNATA: Optional[str] = None
     VITIGNI: Optional[str] = None
     GRADO_ALCOLICO: Optional[float] = None
 
@@ -151,6 +154,30 @@ class MovimentoCreate(BaseModel):
 
 class NotaCreate(BaseModel):
     nota: str
+
+
+# --------- DUPLICATI ------------------------------------------------
+class VinoMagazzinoDuplicateCheckRequest(BaseModel):
+    DESCRIZIONE: str
+    PRODUTTORE: Optional[str] = None
+    ANNATA: Optional[str] = None
+    FORMATO: Optional[str] = None
+
+
+class VinoMagazzinoDuplicate(BaseModel):
+    id: int
+    DESCRIZIONE: str
+    PRODUTTORE: Optional[str] = None
+    ANNATA: Optional[str] = None
+    FORMATO: Optional[str] = None
+    NAZIONE: Optional[str] = None
+    REGIONE: Optional[str] = None
+    QTA_TOTALE: int = 0
+    PREZZO_CARTA: Optional[float] = None
+
+
+class VinoMagazzinoDuplicateCheckResponse(BaseModel):
+    duplicates: List[VinoMagazzinoDuplicate]
 
 
 # ---------------------------------------------------------
@@ -207,6 +234,50 @@ def list_vini_magazzino(
     )
     return [dict(r) for r in rows]
 
+
+# ---------------------------------------------------------
+# ENDPOINT: CHECK DUPLICATI PRIMA DELL'INSERIMENTO
+# ---------------------------------------------------------
+@router.post(
+    "/check-duplicati",
+    summary="Controlla possibili duplicati prima di inserire un nuovo vino",
+    response_model=VinoMagazzinoDuplicateCheckResponse,
+)
+def check_duplicati_vino_magazzino(
+    payload: VinoMagazzinoDuplicateCheckRequest,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    NON inserisce nulla, restituisce solo una lista sintetica di vini
+    che hanno stessa DESCRIZIONE e (se presenti) stesso PRODUTTORE/ANNATA/FORMATO.
+    Usata dal frontend 'Nuovo Vino' per avvisare di possibili doppioni.
+    """
+    rows = db.find_potential_duplicates(
+        descrizione=payload.DESCRIZIONE,
+        produttore=payload.PRODUTTORE,
+        annata=payload.ANNATA,
+        formato=payload.FORMATO,
+        max_results=20,
+    )
+
+    duplicates = [
+        VinoMagazzinoDuplicate(
+            id=row["id"],
+            DESCRIZIONE=row["DESCRIZIONE"],
+            PRODUTTORE=row["PRODUTTORE"],
+            ANNATA=row["ANNATA"],
+            FORMATO=row["FORMATO"],
+            NAZIONE=row["NAZIONE"],
+            REGIONE=row["REGIONE"],
+            QTA_TOTALE=row["QTA_TOTALE"],
+            PREZZO_CARTA=row["PREZZO_CARTA"],
+        )
+        for row in rows
+    ]
+
+    return VinoMagazzinoDuplicateCheckResponse(duplicates=duplicates)
+
+
 # ---------------------------------------------------------
 # ENDPOINT: CREAZIONE VINO
 # ---------------------------------------------------------
@@ -218,7 +289,14 @@ def create_vino_magazzino(
     data: Dict[str, Any] = payload.dict(exclude_unset=True)
 
     # Regola semplice: almeno una locazione NON vuota
-    if not any([data.get("FRIGORIFERO"), data.get("LOCAZIONE_1"), data.get("LOCAZIONE_2"), data.get("LOCAZIONE_3")]):
+    if not any(
+        [
+            data.get("FRIGORIFERO"),
+            data.get("LOCAZIONE_1"),
+            data.get("LOCAZIONE_2"),
+            data.get("LOCAZIONE_3"),
+        ]
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Deve essere specificata almeno una locazione (FRIGORIFERO o LOCAZIONE_1/2/3).",
@@ -352,7 +430,6 @@ def aggiungi_nota(
     if not payload.nota.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La nota non può essere vuota")
 
-    # se domani vuoi salvare anche l'utente come autore:
     autore = _get_username(current_user)
 
     db.aggiungi_nota_vino(

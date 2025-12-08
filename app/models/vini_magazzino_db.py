@@ -746,3 +746,65 @@ def list_note_vino(vino_id: int) -> List[sqlite3.Row]:
     ).fetchall()
     conn.close()
     return list(rows)
+
+# ---------------------------------------------------------
+# RICERCA DUPLICATI PER INSERIMENTO
+# ---------------------------------------------------------
+def find_potential_duplicates(
+    descrizione: str,
+    produttore: Optional[str] = None,
+    annata: Optional[str] = None,
+    formato: Optional[str] = None,
+    max_results: int = 20,
+) -> List[sqlite3.Row]:
+    """
+    Cerca possibili duplicati in vini_magazzino.
+
+    Criteri (molto conservativi, versione 1):
+    - match esatto su DESCRIZIONE normalizzata (UPPER + TRIM)
+    - se produttore/annata/formato sono valorizzati, li usiamo come filtri aggiuntivi.
+
+    In futuro possiamo rendere la logica più "fuzzy" (LIKE, similarità, ecc.),
+    ma per ora ci concentriamo sugli uguali veri.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    where = ["UPPER(TRIM(DESCRIZIONE)) = UPPER(TRIM(?))"]
+    params: list[Any] = [descrizione]
+
+    if produttore:
+        where.append("UPPER(TRIM(PRODUTTORE)) = UPPER(TRIM(?))")
+        params.append(produttore)
+
+    if annata:
+        where.append("TRIM(ANNATA) = TRIM(?)")
+        params.append(annata)
+
+    if formato:
+        where.append("TRIM(FORMATO) = TRIM(?)")
+        params.append(formato)
+
+    where_sql = " AND ".join(where)
+
+    sql = f"""
+        SELECT
+            id,
+            DESCRIZIONE,
+            PRODUTTORE,
+            ANNATA,
+            FORMATO,
+            NAZIONE,
+            REGIONE,
+            COALESCE(QTA_TOTALE, 0) AS QTA_TOTALE,
+            PREZZO_CARTA
+        FROM vini_magazzino
+        WHERE {where_sql}
+        ORDER BY NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
+        LIMIT ?;
+    """
+
+    params.append(max_results)
+    rows = cur.execute(sql, params).fetchall()
+    conn.close()
+    return list(rows)

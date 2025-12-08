@@ -1,18 +1,14 @@
-// @version: v1.2-magazzino-nuovo
-// Pagina Magazzino Vini — Inserimento nuovo vino
+// @version: v1.1-magazzino-nuovo-duplicati
+// Pagina Magazzino Vini — Inserimento nuovo vino con controllo duplicati
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 
-// Formati standard bottiglie
-const FORMATI_BOTTIGLIA = [
-  { value: "MEZZA", label: "MEZZA — Mezza bottiglia 0,375 L" },
+const FORMATO_OPTIONS = [
   { value: "BT", label: "BT — Bottiglia 0,75 L" },
   { value: "MG", label: "MG — Magnum 1,5 L" },
-  { value: "DM", label: "DM — Doppia Magnum 3 L" },
-  { value: "JERO", label: "JERO — Jeroboam / 3 L (Champagne)" },
-  { value: "MATH", label: "MATH — Mathusalem 6 L" },
+  { value: "DM", label: "DM — Doppio Magnum 3 L" },
 ];
 
 export default function MagazzinoViniNuovo() {
@@ -29,6 +25,10 @@ export default function MagazzinoViniNuovo() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
 
+  // Stato per duplicati
+  const [duplicates, setDuplicates] = useState([]);
+  const [awaitingDuplicateConfirm, setAwaitingDuplicateConfirm] = useState(false);
+
   const token = localStorage.getItem("token");
   const role = localStorage.getItem("role");
 
@@ -44,13 +44,12 @@ export default function MagazzinoViniNuovo() {
       return;
     }
 
-    // Carico elenco vini-magazzino per creare le "suggestions"
     const fetchOptions = async () => {
       setLoadingOptions(true);
       setOptionsError("");
 
       try {
-        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
+        const resp = await fetch(`${API_BASE}/vini-magazzino`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -97,6 +96,7 @@ export default function MagazzinoViniNuovo() {
   }, []);
 
   const [form, setForm] = useState({
+    // id_excel rimosso: si usa solo in import, non in inserimento manuale
     TIPOLOGIA: "",
     NAZIONE: "ITALIA",
     REGIONE: "",
@@ -135,7 +135,12 @@ export default function MagazzinoViniNuovo() {
 
   const handleChange = (field) => (e) => {
     const value = e.target.value;
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    // Se sto modificando qualcosa dopo un warning duplicati, lo azzero
+    setSubmitError("");
   };
 
   const handleCheckboxSiNo = (field) => (e) => {
@@ -185,7 +190,7 @@ export default function MagazzinoViniNuovo() {
       return;
     }
 
-    // Regole del backend: almeno una locazione o frigorifero devono essere valorizzati
+    // Regole: almeno una locazione
     const haLocazione =
       (form.FRIGORIFERO && form.FRIGORIFERO.trim() !== "") ||
       (form.LOCAZIONE_1 && form.LOCAZIONE_1.trim() !== "") ||
@@ -241,10 +246,70 @@ export default function MagazzinoViniNuovo() {
       NOTE: nullIfEmpty(form.NOTE),
     };
 
+    // 1) PRIMO PASSAGGIO: controllo duplicati, se NON siamo ancora in fase di conferma
+    if (!awaitingDuplicateConfirm) {
+      try {
+        const checkResp = await fetch(
+          `${API_BASE}/vini-magazzino/check-duplicati`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              DESCRIZIONE: payload.DESCRIZIONE,
+              PRODUTTORE: payload.PRODUTTORE,
+              ANNATA: payload.ANNATA,
+              FORMATO: payload.FORMATO,
+            }),
+          }
+        );
+
+        if (checkResp.status === 401) {
+          alert("Sessione scaduta. Effettua nuovamente il login.");
+          handleLogout();
+          return;
+        }
+
+        if (!checkResp.ok) {
+          throw new Error(
+            `Errore controllo duplicati: ${checkResp.status}`
+          );
+        }
+
+        const checkData = await checkResp.json();
+        const found = checkData.duplicates || [];
+
+        if (found.length > 0) {
+          setDuplicates(found);
+          setAwaitingDuplicateConfirm(true);
+          setSubmitError(
+            "Sono stati trovati possibili duplicati. Controlla la lista qui sotto. " +
+              "Se vuoi inserire comunque questo vino, premi di nuovo «Salva nuovo vino»."
+          );
+          return; // NON inserisco ancora
+        } else {
+          setDuplicates([]);
+          setAwaitingDuplicateConfirm(false);
+        }
+      } catch (err) {
+        console.error(err);
+        setSubmitError(
+          err.message || "Errore durante il controllo duplicati."
+        );
+        return;
+      }
+    }
+
+    // 2) SE ARRIVIAMO QUI:
+    //    - o non ci sono duplicati
+    //    - oppure l'utente ha già visto i duplicati e ha premuto di nuovo "Salva"
+
     setSubmitting(true);
 
     try {
-      const resp = await fetch(`${API_BASE}/vini/magazzino`, {
+      const resp = await fetch(`${API_BASE}/vini-magazzino`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -272,6 +337,10 @@ export default function MagazzinoViniNuovo() {
       }
 
       setSubmitSuccess(`Vino creato con ID ${data.id}.`);
+      setSubmitError("");
+      setAwaitingDuplicateConfirm(false);
+      setDuplicates([]);
+
       if (data.id) {
         navigate(`/vini/magazzino/${data.id}`);
       } else {
@@ -283,6 +352,12 @@ export default function MagazzinoViniNuovo() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCancelAfterDuplicates = () => {
+    setAwaitingDuplicateConfirm(false);
+    setDuplicates([]);
+    setSubmitError("");
   };
 
   return (
@@ -336,6 +411,88 @@ export default function MagazzinoViniNuovo() {
         {submitSuccess && (
           <div className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
             {submitSuccess}
+          </div>
+        )}
+
+        {/* DUPLICATI TROVATI */}
+        {duplicates.length > 0 && (
+          <div className="mb-6 border border-amber-300 bg-amber-50 rounded-2xl p-4">
+            <h2 className="text-sm font-semibold text-amber-900 mb-2">
+              Possibili duplicati trovati
+            </h2>
+            <p className="text-xs text-amber-900 mb-3">
+              Il sistema ha trovato {duplicates.length} vini con la stessa
+              descrizione (e produttore/annata/formato compatibili). Controlla
+              se uno di questi è lo stesso vino:
+            </p>
+            <div className="max-h-56 overflow-auto border border-amber-200 rounded-xl bg-white">
+              <table className="w-full text-xs">
+                <thead className="bg-amber-50 sticky top-0 z-10">
+                  <tr className="text-[11px] text-amber-900 uppercase tracking-wide">
+                    <th className="px-3 py-2 text-left">ID</th>
+                    <th className="px-3 py-2 text-left">Vino</th>
+                    <th className="px-3 py-2 text-left">Produttore</th>
+                    <th className="px-3 py-2 text-left">Origine</th>
+                    <th className="px-3 py-2 text-center">Qta</th>
+                    <th className="px-3 py-2 text-center">Prezzo carta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicates.map((d) => (
+                    <tr
+                      key={d.id}
+                      className="border-b border-amber-100 hover:bg-amber-50/70"
+                    >
+                      <td className="px-3 py-2 align-top font-mono">
+                        {d.id}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-semibold">{d.DESCRIZIONE}</div>
+                        {d.ANNATA && (
+                          <div className="text-[11px] text-neutral-600">
+                            Annata {d.ANNATA}
+                          </div>
+                        )}
+                        {d.FORMATO && (
+                          <div className="text-[11px] text-neutral-600">
+                            Formato {d.FORMATO}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {d.PRODUTTORE || "—"}
+                      </td>
+                      <td className="px-3 py-2 align-top text-[11px] text-neutral-700">
+                        {d.NAZIONE}
+                        {d.REGIONE ? ` / ${d.REGIONE}` : ""}
+                      </td>
+                      <td className="px-3 py-2 align-top text-center">
+                        {d.QTA_TOTALE ?? 0}
+                      </td>
+                      <td className="px-3 py-2 align-top text-center">
+                        {d.PREZZO_CARTA != null
+                          ? `${Number(d.PREZZO_CARTA).toFixed(2)} €`
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handleCancelAfterDuplicates}
+                className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-100 shadow-sm transition"
+              >
+                Annulla inserimento
+              </button>
+              <span className="text-xs text-amber-900 self-center">
+                Se vuoi inserire comunque questo vino, premi di nuovo{" "}
+                <strong>«Salva nuovo vino»</strong> in fondo alla pagina.
+              </span>
+            </div>
           </div>
         )}
 
@@ -424,9 +581,9 @@ export default function MagazzinoViniNuovo() {
                   onChange={handleChange("FORMATO")}
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                 >
-                  {FORMATI_BOTTIGLIA.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
+                  {FORMATO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
                     </option>
                   ))}
                 </select>
@@ -557,6 +714,9 @@ export default function MagazzinoViniNuovo() {
           </section>
 
           {/* BLOCCO 2 — Magazzino */}
+          {/* (resto identico alla tua versione precedente, solo collegato al nuovo stato) */}
+
+          {/* BLOCCO 2 — Magazzino — locazioni e giacenze iniziali */}
           <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
             <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
               Magazzino — locazioni e giacenze iniziali
@@ -787,7 +947,11 @@ export default function MagazzinoViniNuovo() {
                     : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
                 }`}
               >
-                {submitting ? "Salvataggio in corso…" : "💾 Salva nuovo vino"}
+                {submitting
+                  ? "Salvataggio in corso…"
+                  : awaitingDuplicateConfirm
+                  ? "💾 Conferma inserimento comunque"
+                  : "💾 Salva nuovo vino"}
               </button>
             </div>
           </div>
