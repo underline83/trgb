@@ -2,7 +2,7 @@
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -47,6 +47,18 @@ import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
 import DipendentiCosti from "./pages/admin/DipendentiCosti";
 
+// --------------------------------------------------
+// Wrapper: validazione parametro vinoId (React Router v6)
+// --------------------------------------------------
+function ValidatedMagazzinoDettaglio() {
+  const { vinoId } = useParams();
+  const idNum = Number(vinoId);
+  if (!Number.isInteger(idNum) || idNum <= 0) {
+    return <Navigate to="/vini/magazzino" replace />;
+  }
+  return <MagazzinoViniDettaglio />;
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -56,19 +68,9 @@ export default function App() {
     return <Login setToken={setToken} setRole={setRole} />;
   }
 
-  // --- Validazione ID vino
-  const ValidatedDettaglio = (props) => {
-    const id = Number(props.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
-      return <Navigate to="/vini/magazzino" replace />;
-    }
-    return <MagazzinoViniDettaglio />;
-  };
-
   return (
     <BrowserRouter>
       <Routes>
-
         {/* HOME */}
         <Route path="/" element={<Home />} />
 
@@ -82,12 +84,11 @@ export default function App() {
         {/* --- MAGAZZINO VINI --- */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
+        {/* Edit: riuso la stessa pagina (MagazzinoViniNuovo gestisce edit con useParams) */}
+        <Route path="/vini/magazzino/:vinoId/edit" element={<MagazzinoViniNuovo />} />
 
-        {/* VERSIONE ROBUSTA DEL DETTAGLIO */}
-        <Route
-          path="/vini/magazzino/:id"
-          element={<ValidatedDettaglio />}
-        />
+        {/* Dettaglio robusto */}
+        <Route path="/vini/magazzino/:vinoId" element={<ValidatedMagazzinoDettaglio />} />
 
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
@@ -95,10 +96,7 @@ export default function App() {
         <Route path="/ricette/archivio" element={<RicetteArchivio />} />
         <Route path="/ricette/import" element={<RicetteImport />} />
         <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
-        <Route
-          path="/ricette/ingredienti/:id/prezzi"
-          element={<RicetteIngredientiPrezzi />}
-        />
+        <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
 
         {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />
@@ -120,9 +118,8 @@ export default function App() {
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
 
-        {/* --- CATCH-ALL: pagina inesistente --- */}
+        {/* --- CATCH-ALL --- */}
         <Route path="*" element={<Navigate to="/" replace />} />
-
       </Routes>
     </BrowserRouter>
   );

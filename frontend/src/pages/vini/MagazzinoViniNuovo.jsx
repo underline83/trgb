@@ -1,18 +1,22 @@
-// @version: v1.1-magazzino-nuovo-duplicati
-// Pagina Magazzino Vini — Inserimento nuovo vino con controllo duplicati
+// @version: v1.1-magazzino-form
+// Pagina Magazzino Vini — Inserimento / Modifica vino
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 
-const FORMATO_OPTIONS = [
+const FORMATI = [
   { value: "BT", label: "BT — Bottiglia 0,75 L" },
   { value: "MG", label: "MG — Magnum 1,5 L" },
   { value: "DM", label: "DM — Doppio Magnum 3 L" },
+  { value: "HF", label: "HF — Mezza bottiglia 0,375 L" },
+  { value: "JG", label: "JG — Jeroboam / Formato speciale" },
 ];
 
 export default function MagazzinoViniNuovo() {
   const navigate = useNavigate();
+  const { vinoId } = useParams();
+  const isEditMode = Boolean(vinoId);
 
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [optionsError, setOptionsError] = useState("");
@@ -21,16 +25,14 @@ export default function MagazzinoViniNuovo() {
   const [regioni, setRegioni] = useState([]);
   const [produttori, setProduttori] = useState([]);
 
+  const [loadingVino, setLoadingVino] = useState(isEditMode);
+  const [vinoLoadError, setVinoLoadError] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
 
-  // Stato per duplicati
-  const [duplicates, setDuplicates] = useState([]);
-  const [awaitingDuplicateConfirm, setAwaitingDuplicateConfirm] = useState(false);
-
   const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -38,18 +40,88 @@ export default function MagazzinoViniNuovo() {
     window.location.reload();
   };
 
+  const [form, setForm] = useState({
+    // id_excel RIMOSSO: serve solo per import da Excel
+    TIPOLOGIA: "",
+    NAZIONE: "ITALIA",
+    REGIONE: "",
+    CODICE: "",
+    DESCRIZIONE: "",
+    DENOMINAZIONE: "",
+    ANNATA: "",
+    VITIGNI: "",
+    GRADO_ALCOLICO: "",
+    FORMATO: "BT",
+    PRODUTTORE: "",
+    DISTRIBUTORE: "",
+
+    PREZZO_CARTA: "",
+    EURO_LISTINO: "",
+    SCONTO: "",
+    NOTE_PREZZO: "",
+
+    CARTA: "SI",
+    IPRATICO: "NO",
+
+    STATO_VENDITA: "",
+    NOTE_STATO: "",
+
+    FRIGORIFERO: "",
+    QTA_FRIGO: "",
+    LOCAZIONE_1: "",
+    QTA_LOC1: "",
+    LOCAZIONE_2: "",
+    QTA_LOC2: "",
+    LOCAZIONE_3: "",
+    QTA_LOC3: "",
+
+    NOTE: "",
+  });
+
+  const handleChange = (field) => (e) => {
+    const value = e.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCheckboxSiNo = (field) => (e) => {
+    const checked = e.target.checked;
+    setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
+  };
+
+  const numberOrNull = (val) => {
+    if (val === "" || val === null || val === undefined) return null;
+    const n = Number(String(val).replace(",", "."));
+    return Number.isNaN(n) ? null : n;
+  };
+
+  const intOrZero = (val) => {
+    if (val === "" || val === null || val === undefined) return 0;
+    const n = parseInt(val, 10);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const nullIfEmpty = (val) => {
+    if (val === "" || val === null || val === undefined) return null;
+    const s = String(val).trim();
+    return s === "" ? null : s;
+  };
+
+  // --------------------------------------------------
+  // CARICAMENTO SUGGERIMENTI + (SE EDIT) DATI DEL VINO
+  // --------------------------------------------------
   useEffect(() => {
     if (!token) {
       handleLogout();
       return;
     }
 
-    const fetchOptions = async () => {
+    const fetchAll = async () => {
+      // 1) Opzioni (tipologie, nazioni, regioni, produttori)
       setLoadingOptions(true);
       setOptionsError("");
 
       try {
-        const resp = await fetch(`${API_BASE}/vini-magazzino`, {
+        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -89,83 +161,97 @@ export default function MagazzinoViniNuovo() {
       } finally {
         setLoadingOptions(false);
       }
+
+      // 2) Se EDIT → carico il vino
+      if (isEditMode && vinoId) {
+        setLoadingVino(true);
+        setVinoLoadError("");
+        try {
+          const respVino = await fetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (respVino.status === 401) {
+            alert("Sessione scaduta. Effettua nuovamente il login.");
+            handleLogout();
+            return;
+          }
+
+          if (respVino.status === 404) {
+            setVinoLoadError("Vino non trovato.");
+            return;
+          }
+
+          if (!respVino.ok) {
+            throw new Error(`Errore server: ${respVino.status}`);
+          }
+
+          const data = await respVino.json();
+
+          setForm({
+            TIPOLOGIA: data.TIPOLOGIA || "",
+            NAZIONE: data.NAZIONE || "ITALIA",
+            REGIONE: data.REGIONE || "",
+            CODICE: data.CODICE || "",
+            DESCRIZIONE: data.DESCRIZIONE || "",
+            DENOMINAZIONE: data.DENOMINAZIONE || "",
+            ANNATA: data.ANNATA || "",
+            VITIGNI: data.VITIGNI || "",
+            GRADO_ALCOLICO:
+              data.GRADO_ALCOLICO != null ? String(data.GRADO_ALCOLICO) : "",
+            FORMATO: data.FORMATO || "BT",
+            PRODUTTORE: data.PRODUTTORE || "",
+            DISTRIBUTORE: data.DISTRIBUTORE || "",
+
+            PREZZO_CARTA:
+              data.PREZZO_CARTA != null ? String(data.PREZZO_CARTA) : "",
+            EURO_LISTINO:
+              data.EURO_LISTINO != null ? String(data.EURO_LISTINO) : "",
+            SCONTO: data.SCONTO != null ? String(data.SCONTO) : "",
+            NOTE_PREZZO: data.NOTE_PREZZO || "",
+
+            CARTA: data.CARTA === "NO" ? "NO" : "SI",
+            IPRATICO: data.IPRATICO === "SI" ? "SI" : "NO",
+
+            STATO_VENDITA: data.STATO_VENDITA || "",
+            NOTE_STATO: data.NOTE_STATO || "",
+
+            FRIGORIFERO: data.FRIGORIFERO || "",
+            QTA_FRIGO:
+              data.QTA_FRIGO != null ? String(data.QTA_FRIGO) : "",
+
+            LOCAZIONE_1: data.LOCAZIONE_1 || "",
+            QTA_LOC1:
+              data.QTA_LOC1 != null ? String(data.QTA_LOC1) : "",
+
+            LOCAZIONE_2: data.LOCAZIONE_2 || "",
+            QTA_LOC2:
+              data.QTA_LOC2 != null ? String(data.QTA_LOC2) : "",
+
+            LOCAZIONE_3: data.LOCAZIONE_3 || "",
+            QTA_LOC3:
+              data.QTA_LOC3 != null ? String(data.QTA_LOC3) : "",
+
+            NOTE: data.NOTE || "",
+          });
+        } catch (err) {
+          console.error(err);
+          setVinoLoadError(err.message || "Errore nel caricamento del vino.");
+        } finally {
+          setLoadingVino(false);
+        }
+      }
     };
 
-    fetchOptions();
+    fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token, vinoId, isEditMode]);
 
-  const [form, setForm] = useState({
-    // id_excel rimosso: si usa solo in import, non in inserimento manuale
-    TIPOLOGIA: "",
-    NAZIONE: "ITALIA",
-    REGIONE: "",
-    CODICE: "",
-    DESCRIZIONE: "",
-    DENOMINAZIONE: "",
-    ANNATA: "",
-    VITIGNI: "",
-    GRADO_ALCOLICO: "",
-    FORMATO: "BT",
-    PRODUTTORE: "",
-    DISTRIBUTORE: "",
-
-    PREZZO_CARTA: "",
-    EURO_LISTINO: "",
-    SCONTO: "",
-    NOTE_PREZZO: "",
-
-    CARTA: "SI",
-    IPRATICO: "NO",
-
-    STATO_VENDITA: "",
-    NOTE_STATO: "",
-
-    FRIGORIFERO: "",
-    QTA_FRIGO: "",
-    LOCAZIONE_1: "",
-    QTA_LOC1: "",
-    LOCAZIONE_2: "",
-    QTA_LOC2: "",
-    LOCAZIONE_3: "",
-    QTA_LOC3: "",
-
-    NOTE: "",
-  });
-
-  const handleChange = (field) => (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    // Se sto modificando qualcosa dopo un warning duplicati, lo azzero
-    setSubmitError("");
-  };
-
-  const handleCheckboxSiNo = (field) => (e) => {
-    const checked = e.target.checked;
-    setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
-  };
-
-  const numberOrNull = (val) => {
-    if (val === "" || val === null || val === undefined) return null;
-    const n = Number(String(val).replace(",", "."));
-    return Number.isNaN(n) ? null : n;
-  };
-
-  const intOrZero = (val) => {
-    if (val === "" || val === null || val === undefined) return 0;
-    const n = parseInt(val, 10);
-    return Number.isNaN(n) ? 0 : n;
-  };
-
-  const nullIfEmpty = (val) => {
-    if (val === "" || val === null || val === undefined) return null;
-    const s = String(val).trim();
-    return s === "" ? null : s;
-  };
-
+  // --------------------------------------------------
+  // SUBMIT
+  // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError("");
@@ -176,7 +262,7 @@ export default function MagazzinoViniNuovo() {
       return;
     }
 
-    // Validazione minima lato frontend
+    // Validazione minima
     if (!form.DESCRIZIONE.trim()) {
       setSubmitError("La descrizione del vino è obbligatoria.");
       return;
@@ -190,7 +276,7 @@ export default function MagazzinoViniNuovo() {
       return;
     }
 
-    // Regole: almeno una locazione
+    // Almeno una locazione non vuota
     const haLocazione =
       (form.FRIGORIFERO && form.FRIGORIFERO.trim() !== "") ||
       (form.LOCAZIONE_1 && form.LOCAZIONE_1.trim() !== "") ||
@@ -205,6 +291,7 @@ export default function MagazzinoViniNuovo() {
     }
 
     const payload = {
+      // id_excel RIMOSSO
       TIPOLOGIA: form.TIPOLOGIA.trim(),
       NAZIONE: form.NAZIONE.trim() || "ITALIA",
       REGIONE: nullIfEmpty(form.REGIONE),
@@ -246,71 +333,16 @@ export default function MagazzinoViniNuovo() {
       NOTE: nullIfEmpty(form.NOTE),
     };
 
-    // 1) PRIMO PASSAGGIO: controllo duplicati, se NON siamo ancora in fase di conferma
-    if (!awaitingDuplicateConfirm) {
-      try {
-        const checkResp = await fetch(
-          `${API_BASE}/vini-magazzino/check-duplicati`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              DESCRIZIONE: payload.DESCRIZIONE,
-              PRODUTTORE: payload.PRODUTTORE,
-              ANNATA: payload.ANNATA,
-              FORMATO: payload.FORMATO,
-            }),
-          }
-        );
-
-        if (checkResp.status === 401) {
-          alert("Sessione scaduta. Effettua nuovamente il login.");
-          handleLogout();
-          return;
-        }
-
-        if (!checkResp.ok) {
-          throw new Error(
-            `Errore controllo duplicati: ${checkResp.status}`
-          );
-        }
-
-        const checkData = await checkResp.json();
-        const found = checkData.duplicates || [];
-
-        if (found.length > 0) {
-          setDuplicates(found);
-          setAwaitingDuplicateConfirm(true);
-          setSubmitError(
-            "Sono stati trovati possibili duplicati. Controlla la lista qui sotto. " +
-              "Se vuoi inserire comunque questo vino, premi di nuovo «Salva nuovo vino»."
-          );
-          return; // NON inserisco ancora
-        } else {
-          setDuplicates([]);
-          setAwaitingDuplicateConfirm(false);
-        }
-      } catch (err) {
-        console.error(err);
-        setSubmitError(
-          err.message || "Errore durante il controllo duplicati."
-        );
-        return;
-      }
-    }
-
-    // 2) SE ARRIVIAMO QUI:
-    //    - o non ci sono duplicati
-    //    - oppure l'utente ha già visto i duplicati e ha premuto di nuovo "Salva"
-
     setSubmitting(true);
 
     try {
-      const resp = await fetch(`${API_BASE}/vini-magazzino`, {
-        method: "POST",
+      const url = isEditMode
+        ? `${API_BASE}/vini/magazzino/${vinoId}`
+        : `${API_BASE}/vini/magazzino`;
+      const method = isEditMode ? "PATCH" : "POST";
+
+      const resp = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -336,15 +368,23 @@ export default function MagazzinoViniNuovo() {
         throw new Error(detail);
       }
 
-      setSubmitSuccess(`Vino creato con ID ${data.id}.`);
-      setSubmitError("");
-      setAwaitingDuplicateConfirm(false);
-      setDuplicates([]);
-
-      if (data.id) {
-        navigate(`/vini/magazzino/${data.id}`);
+      if (isEditMode) {
+        setSubmitSuccess("Vino aggiornato correttamente.");
+        if (vinoId) {
+          navigate(`/vini/magazzino/${vinoId}`);
+        } else {
+          navigate("/vini/magazzino");
+        }
       } else {
-        navigate("/vini/magazzino");
+        const newId = data.id || data.ID || data.Id || null;
+        setSubmitSuccess(
+          newId ? `Vino creato con ID ${newId}.` : "Vino creato correttamente."
+        );
+        if (newId) {
+          navigate(`/vini/magazzino/${newId}`);
+        } else {
+          navigate("/vini/magazzino");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -354,11 +394,10 @@ export default function MagazzinoViniNuovo() {
     }
   };
 
-  const handleCancelAfterDuplicates = () => {
-    setAwaitingDuplicateConfirm(false);
-    setDuplicates([]);
-    setSubmitError("");
-  };
+  const title = isEditMode ? "✏️ Modifica vino — Magazzino" : "➕ Nuovo vino — Magazzino";
+  const subtitle = isEditMode
+    ? "Modifica anagrafica, magazzino e prezzi di un vino esistente nel magazzino."
+    : "Inserimento di un nuovo vino nel magazzino dedicato vini_magazzino.";
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -367,11 +406,10 @@ export default function MagazzinoViniNuovo() {
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
-              ➕ Nuovo vino — Magazzino
+              {title}
             </h1>
             <p className="text-neutral-600 text-sm">
-              Inserimento di un nuovo vino nel magazzino dedicato
-              <span className="font-semibold"> vini_magazzino</span>.
+              {subtitle}
               <br />
               Campi obbligatori: <strong>Tipologia</strong>,{" "}
               <strong>Nazione</strong>, <strong>Descrizione</strong> e almeno
@@ -403,6 +441,16 @@ export default function MagazzinoViniNuovo() {
             {optionsError}
           </div>
         )}
+        {vinoLoadError && (
+          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
+            {vinoLoadError}
+          </div>
+        )}
+        {loadingVino && isEditMode && (
+          <div className="mb-4 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-2">
+            Caricamento dati del vino in corso…
+          </div>
+        )}
         {submitError && (
           <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
             {submitError}
@@ -411,88 +459,6 @@ export default function MagazzinoViniNuovo() {
         {submitSuccess && (
           <div className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
             {submitSuccess}
-          </div>
-        )}
-
-        {/* DUPLICATI TROVATI */}
-        {duplicates.length > 0 && (
-          <div className="mb-6 border border-amber-300 bg-amber-50 rounded-2xl p-4">
-            <h2 className="text-sm font-semibold text-amber-900 mb-2">
-              Possibili duplicati trovati
-            </h2>
-            <p className="text-xs text-amber-900 mb-3">
-              Il sistema ha trovato {duplicates.length} vini con la stessa
-              descrizione (e produttore/annata/formato compatibili). Controlla
-              se uno di questi è lo stesso vino:
-            </p>
-            <div className="max-h-56 overflow-auto border border-amber-200 rounded-xl bg-white">
-              <table className="w-full text-xs">
-                <thead className="bg-amber-50 sticky top-0 z-10">
-                  <tr className="text-[11px] text-amber-900 uppercase tracking-wide">
-                    <th className="px-3 py-2 text-left">ID</th>
-                    <th className="px-3 py-2 text-left">Vino</th>
-                    <th className="px-3 py-2 text-left">Produttore</th>
-                    <th className="px-3 py-2 text-left">Origine</th>
-                    <th className="px-3 py-2 text-center">Qta</th>
-                    <th className="px-3 py-2 text-center">Prezzo carta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {duplicates.map((d) => (
-                    <tr
-                      key={d.id}
-                      className="border-b border-amber-100 hover:bg-amber-50/70"
-                    >
-                      <td className="px-3 py-2 align-top font-mono">
-                        {d.id}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <div className="font-semibold">{d.DESCRIZIONE}</div>
-                        {d.ANNATA && (
-                          <div className="text-[11px] text-neutral-600">
-                            Annata {d.ANNATA}
-                          </div>
-                        )}
-                        {d.FORMATO && (
-                          <div className="text-[11px] text-neutral-600">
-                            Formato {d.FORMATO}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        {d.PRODUTTORE || "—"}
-                      </td>
-                      <td className="px-3 py-2 align-top text-[11px] text-neutral-700">
-                        {d.NAZIONE}
-                        {d.REGIONE ? ` / ${d.REGIONE}` : ""}
-                      </td>
-                      <td className="px-3 py-2 align-top text-center">
-                        {d.QTA_TOTALE ?? 0}
-                      </td>
-                      <td className="px-3 py-2 align-top text-center">
-                        {d.PREZZO_CARTA != null
-                          ? `${Number(d.PREZZO_CARTA).toFixed(2)} €`
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-3 justify-end">
-              <button
-                type="button"
-                onClick={handleCancelAfterDuplicates}
-                className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-100 shadow-sm transition"
-              >
-                Annulla inserimento
-              </button>
-              <span className="text-xs text-amber-900 self-center">
-                Se vuoi inserire comunque questo vino, premi di nuovo{" "}
-                <strong>«Salva nuovo vino»</strong> in fondo alla pagina.
-              </span>
-            </div>
           </div>
         )}
 
@@ -574,25 +540,6 @@ export default function MagazzinoViniNuovo() {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Formato
-                </label>
-                <select
-                  value={form.FORMATO}
-                  onChange={handleChange("FORMATO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                >
-                  {FORMATO_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Denominazione
                 </label>
                 <input
@@ -603,7 +550,9 @@ export default function MagazzinoViniNuovo() {
                   placeholder="es. Barolo DOCG"
                 />
               </div>
+            </div>
 
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Annata
@@ -615,6 +564,23 @@ export default function MagazzinoViniNuovo() {
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                   placeholder="es. 2019"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Formato
+                </label>
+                <select
+                  value={form.FORMATO}
+                  onChange={handleChange("FORMATO")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                >
+                  {FORMATI.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -714,12 +680,9 @@ export default function MagazzinoViniNuovo() {
           </section>
 
           {/* BLOCCO 2 — Magazzino */}
-          {/* (resto identico alla tua versione precedente, solo collegato al nuovo stato) */}
-
-          {/* BLOCCO 2 — Magazzino — locazioni e giacenze iniziali */}
           <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
             <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Magazzino — locazioni e giacenze iniziali
+              Magazzino — locazioni e giacenze
             </h2>
             <p className="text-xs text-neutral-500 mb-3">
               È obbligatorio indicare almeno una locazione (frigorifero o
@@ -940,17 +903,17 @@ export default function MagazzinoViniNuovo() {
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (isEditMode && loadingVino)}
                 className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                  submitting
+                  submitting || (isEditMode && loadingVino)
                     ? "bg-gray-400 text-white cursor-not-allowed"
                     : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
                 }`}
               >
                 {submitting
                   ? "Salvataggio in corso…"
-                  : awaitingDuplicateConfirm
-                  ? "💾 Conferma inserimento comunque"
+                  : isEditMode
+                  ? "💾 Salva modifiche"
                   : "💾 Salva nuovo vino"}
               </button>
             </div>
