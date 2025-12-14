@@ -1,4 +1,4 @@
-// @version: v1.1-magazzino-vini-dettaglio
+// @version: v1.1-magazzino-vini-dettaglio-fix
 // Pagina Magazzino Vini — Dettaglio singolo vino
 
 import React, { useEffect, useState } from "react";
@@ -7,11 +7,8 @@ import { API_BASE } from "../../config/api";
 
 export default function MagazzinoViniDettaglio() {
   const navigate = useNavigate();
-  const params = useParams();
+  const { vinoId } = useParams(); // ✅ coerente con App.jsx
   const location = useLocation();
-
-  // Supporta sia /:id che /:vino_id (più robusto)
-  const id = params.id || params.vino_id;
 
   const [vino, setVino] = useState(location.state?.vino || null);
   const [loading, setLoading] = useState(!location.state?.vino);
@@ -25,22 +22,33 @@ export default function MagazzinoViniDettaglio() {
     window.location.reload();
   };
 
-  // Se non ho lo state, provo a caricare dal backend
   useEffect(() => {
-    if (vino || !id) return;
+    // se arrivo già con lo state, non fetchare
+    if (vino) return;
+
+    // validazione param
+    const idNum = Number(vinoId);
+    if (!Number.isInteger(idNum) || idNum <= 0) {
+      setError("ID vino non valido.");
+      setLoading(false);
+      return;
+    }
+
     if (!token) {
       handleLogout();
       return;
     }
 
+    const ctrl = new AbortController();
+
     const fetchVino = async () => {
       setLoading(true);
       setError("");
+
       try {
-        const resp = await fetch(`${API_BASE}/vini/magazzino/${id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const resp = await fetch(`${API_BASE}/vini/magazzino/${idNum}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: ctrl.signal,
         });
 
         if (resp.status === 401) {
@@ -61,32 +69,32 @@ export default function MagazzinoViniDettaglio() {
         const data = await resp.json();
         setVino(data);
       } catch (err) {
-        setError(err.message || "Errore di caricamento.");
+        if (err.name !== "AbortError") {
+          setError(err.message || "Errore di caricamento.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchVino();
-  }, [id, token, vino]);
 
-  const goBack = () => {
-    navigate("/vini/magazzino");
-  };
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinoId, token]);
+
+  const goBack = () => navigate("/vini/magazzino");
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
               🍷 Dettaglio Vino Magazzino
             </h1>
-            <p className="text-neutral-600">
-              Scheda sintetica del vino in magazzino.
-            </p>
+            <p className="text-neutral-600">Scheda sintetica del vino in magazzino.</p>
           </div>
 
           <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -107,45 +115,25 @@ export default function MagazzinoViniDettaglio() {
           </div>
         </div>
 
-        {loading && (
-          <p className="text-sm text-neutral-600">Caricamento dettaglio…</p>
-        )}
+        {loading && <p className="text-sm text-neutral-600">Caricamento dettaglio…</p>}
 
-        {error && !loading && (
-          <p className="text-sm text-red-600 font-medium">{error}</p>
-        )}
+        {error && !loading && <p className="text-sm text-red-600 font-medium">{error}</p>}
 
         {!loading && !error && !vino && (
-          <p className="text-sm text-neutral-500">
-            Nessun dato disponibile per questo vino.
-          </p>
+          <p className="text-sm text-neutral-500">Nessun dato disponibile per questo vino.</p>
         )}
 
         {!loading && !error && vino && (
           <div className="space-y-4 text-sm text-neutral-800">
-
-            {/* INFO BASE */}
             <div>
-              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
-                ID Vino
-              </div>
-              <div className="mt-0.5 font-mono text-sm text-neutral-800">
-                {vino.id}
-              </div>
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">ID Vino</div>
+              <div className="mt-0.5 font-mono text-sm text-neutral-800">{vino.id}</div>
             </div>
 
             <div>
-              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
-                Vino
-              </div>
-              <div className="mt-0.5 font-semibold text-neutral-900">
-                {vino.DESCRIZIONE}
-              </div>
-              {vino.DENOMINAZIONE && (
-                <div className="text-xs text-neutral-600">
-                  {vino.DENOMINAZIONE}
-                </div>
-              )}
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Vino</div>
+              <div className="mt-0.5 font-semibold text-neutral-900">{vino.DESCRIZIONE}</div>
+              {vino.DENOMINAZIONE && <div className="text-xs text-neutral-600">{vino.DENOMINAZIONE}</div>}
               <div className="mt-1 text-xs text-neutral-600">
                 {vino.NAZIONE}
                 {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
@@ -155,58 +143,38 @@ export default function MagazzinoViniDettaglio() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Produttore
-                </div>
-                <div className="text-sm">
-                  {vino.PRODUTTORE || "—"}
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Produttore</div>
+                <div className="text-sm">{vino.PRODUTTORE || "—"}</div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Distributore
-                </div>
-                <div className="text-sm">
-                  {vino.DISTRIBUTORE || "—"}
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Distributore</div>
+                <div className="text-sm">{vino.DISTRIBUTORE || "—"}</div>
               </div>
             </div>
 
             {/* GIACENZE */}
             <div>
-              <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-1">
-                Giacenze per locazione
-              </div>
+              <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-1">Giacenze per locazione</div>
               <div className="border border-neutral-200 rounded-xl bg-white divide-y divide-neutral-100">
                 <div className="px-3 py-2 flex justify-between text-xs">
                   <span>Frigorifero: {vino.FRIGORIFERO || "—"}</span>
-                  <span className="font-semibold">
-                    {vino.QTA_FRIGO ?? 0} bt
-                  </span>
+                  <span className="font-semibold">{vino.QTA_FRIGO ?? 0} bt</span>
                 </div>
                 <div className="px-3 py-2 flex justify-between text-xs">
                   <span>Locazione 1: {vino.LOCAZIONE_1 || "—"}</span>
-                  <span className="font-semibold">
-                    {vino.QTA_LOC1 ?? 0} bt
-                  </span>
+                  <span className="font-semibold">{vino.QTA_LOC1 ?? 0} bt</span>
                 </div>
                 <div className="px-3 py-2 flex justify-between text-xs">
                   <span>Locazione 2: {vino.LOCAZIONE_2 || "—"}</span>
-                  <span className="font-semibold">
-                    {vino.QTA_LOC2 ?? 0} bt
-                  </span>
+                  <span className="font-semibold">{vino.QTA_LOC2 ?? 0} bt</span>
                 </div>
                 <div className="px-3 py-2 flex justify-between text-xs">
                   <span>Locazione 3: {vino.LOCAZIONE_3 || "—"}</span>
-                  <span className="font-semibold">
-                    {vino.QTA_LOC3 ?? 0} bt
-                  </span>
+                  <span className="font-semibold">{vino.QTA_LOC3 ?? 0} bt</span>
                 </div>
                 <div className="px-3 py-2 flex justify-between text-xs bg-neutral-50 rounded-b-xl">
                   <span className="font-semibold">Totale magazzino</span>
-                  <span className="font-bold text-neutral-900">
-                    {vino.QTA_TOTALE ?? 0} bt
-                  </span>
+                  <span className="font-bold text-neutral-900">{vino.QTA_TOTALE ?? 0} bt</span>
                 </div>
               </div>
             </div>
@@ -214,34 +182,20 @@ export default function MagazzinoViniDettaglio() {
             {/* PREZZI */}
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Prezzo carta
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Prezzo carta</div>
                 <div className="text-sm">
-                  {vino.PREZZO_CARTA != null
-                    ? `${Number(vino.PREZZO_CARTA).toFixed(2)} €`
-                    : "—"}
+                  {vino.PREZZO_CARTA != null ? `${Number(vino.PREZZO_CARTA).toFixed(2)} €` : "—"}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Listino
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Listino</div>
                 <div className="text-sm">
-                  {vino.EURO_LISTINO != null
-                    ? `${Number(vino.EURO_LISTINO).toFixed(2)} €`
-                    : "—"}
+                  {vino.EURO_LISTINO != null ? `${Number(vino.EURO_LISTINO).toFixed(2)} €` : "—"}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Sconto
-                </div>
-                <div className="text-sm">
-                  {vino.SCONTO != null
-                    ? `${Number(vino.SCONTO).toFixed(2)} %`
-                    : "—"}
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Sconto</div>
+                <div className="text-sm">{vino.SCONTO != null ? `${Number(vino.SCONTO).toFixed(2)} %` : "—"}</div>
               </div>
             </div>
 
@@ -277,12 +231,8 @@ export default function MagazzinoViniDettaglio() {
             {/* NOTE */}
             {vino.NOTE && (
               <div>
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                  Note interne
-                </div>
-                <p className="text-sm text-neutral-800 whitespace-pre-wrap">
-                  {vino.NOTE}
-                </p>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Note interne</div>
+                <p className="text-sm text-neutral-800 whitespace-pre-wrap">{vino.NOTE}</p>
               </div>
             )}
           </div>

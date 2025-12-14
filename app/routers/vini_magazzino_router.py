@@ -440,3 +440,67 @@ def aggiungi_nota(
 
     note = db.list_note_vino(vino_id)
     return [dict(n) for n in note]
+    
+@router.post("/duplicate-check", response_model=VinoMagazzinoDuplicateCheckResponse, summary="Controllo duplicati prima della creazione")
+def duplicate_check(
+    payload: VinoMagazzinoDuplicateCheckRequest,
+    current_user: Any = Depends(get_current_user),
+):
+    descr = (payload.DESCRIZIONE or "").strip()
+    if not descr:
+        return {"duplicates": []}
+
+    # Ricerca larga: uso search_vini su text e poi filtro in python
+    rows = db.search_vini(text=descr)
+
+    def norm(s: Any) -> str:
+        return str(s or "").strip().lower()
+
+    descr_n = norm(payload.DESCRIZIONE)
+    prod_n = norm(payload.PRODUTTORE)
+    ann_n = norm(payload.ANNATA)
+    fmt_n = norm(payload.FORMATO)
+
+    out = []
+    for r in rows:
+        rr = dict(r)
+        # criteri “sani”: descrizione molto simile + (produttore o annata o formato)
+        r_descr = norm(rr.get("DESCRIZIONE"))
+        if not r_descr:
+          continue
+
+        # match semplice: contenimento (poi lo affiniamo domani se vuoi con fuzzy)
+        if descr_n not in r_descr and r_descr not in descr_n:
+            continue
+
+        r_prod = norm(rr.get("PRODUTTORE"))
+        r_ann = norm(rr.get("ANNATA"))
+        r_fmt = norm(rr.get("FORMATO"))
+
+        ok_extra = False
+        if prod_n and r_prod and (prod_n in r_prod or r_prod in prod_n):
+            ok_extra = True
+        if ann_n and r_ann and ann_n == r_ann:
+            ok_extra = True
+        if fmt_n and r_fmt and fmt_n == r_fmt:
+            ok_extra = True
+
+        # se non ho extra, lo considero comunque “possibile duplicato” ma più soft:
+        # qui lo includo lo stesso (scelta C: avviso), però potremmo limitarlo.
+        out.append(
+            {
+                "id": rr.get("id"),
+                "DESCRIZIONE": rr.get("DESCRIZIONE"),
+                "PRODUTTORE": rr.get("PRODUTTORE"),
+                "ANNATA": rr.get("ANNATA"),
+                "FORMATO": rr.get("FORMATO"),
+                "NAZIONE": rr.get("NAZIONE"),
+                "REGIONE": rr.get("REGIONE"),
+                "QTA_TOTALE": rr.get("QTA_TOTALE") or 0,
+                "PREZZO_CARTA": rr.get("PREZZO_CARTA"),
+            }
+        )
+
+    # Limite per non fare esplodere UI
+    out = out[:50]
+    return {"duplicates": out}
