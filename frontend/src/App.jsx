@@ -1,8 +1,8 @@
-// @version: v3.4-premium-magazzino-stabilizzato
-// App principale — Routing TRGB Gestionale Web (fix validazione dettaglio)
+// @version: v3.4-premium-vini-menu-finale-routes
+// App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -18,6 +18,10 @@ import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
 import MagazzinoVini from "./pages/vini/MagazzinoVini";
 import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
 import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
+
+// --- NUOVE PAGINE (placeholder) ---
+import MovimentiCantina from "./pages/vini/MovimentiCantina";
+import DashboardVini from "./pages/vini/DashboardVini";
 
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
@@ -47,16 +51,6 @@ import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
 import DipendentiCosti from "./pages/admin/DipendentiCosti";
 
-function MagazzinoDettaglioRoute() {
-  const { id } = useParams();
-  const vinoId = Number(id);
-
-  if (!Number.isInteger(vinoId) || vinoId <= 0) {
-    return <Navigate to="/vini/magazzino" replace />;
-  }
-  return <MagazzinoViniDettaglio />;
-}
-
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -81,7 +75,11 @@ export default function App() {
         {/* --- MAGAZZINO VINI --- */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
-        <Route path="/vini/magazzino/:id" element={<MagazzinoDettaglioRoute />} />
+        <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
+
+        {/* --- MOVIMENTI & DASHBOARD (placeholder) --- */}
+        <Route path="/vini/movimenti" element={<MovimentiCantina />} />
+        <Route path="/vini/dashboard" element={<DashboardVini />} />
 
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
@@ -111,7 +109,7 @@ export default function App() {
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
 
-        {/* CATCH-ALL */}
+        {/* CATCH ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

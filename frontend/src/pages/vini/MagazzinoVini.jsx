@@ -1,9 +1,10 @@
-// @version: v1.2-magazzino-filtri
-// Pagina Magazzino Vini — Lista + Dettaglio base (read-only) con filtri avanzati
+// @version: v1.3-magazzino-filtri-submenu
+// Pagina Magazzino Vini — Lista + Dettaglio base (read-only) con filtri avanzati + SubMenu
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
 const uniq = (arr) =>
   Array.from(new Set(arr.filter((x) => x && String(x).trim() !== ""))).sort(
@@ -26,12 +27,12 @@ export default function MagazzinoVini() {
   const [tipologiaSel, setTipologiaSel] = useState("");
   const [nazioneSel, setNazioneSel] = useState("");
   const [produttoreSel, setProduttoreSel] = useState("");
-  const [regioneSel, setRegioneSel] = useState(""); // NEW
+  const [regioneSel, setRegioneSel] = useState("");
 
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
   const [giacenzaVal1, setGiacenzaVal1] = useState("");
   const [giacenzaVal2, setGiacenzaVal2] = useState("");
-  const [onlyPositiveStock, setOnlyPositiveStock] = useState(false); // NEW
+  const [onlyPositiveStock, setOnlyPositiveStock] = useState(false);
 
   const [prezzoMode, setPrezzoMode] = useState("any"); // any | gt | lt | between
   const [prezzoVal1, setPrezzoVal1] = useState("");
@@ -48,7 +49,7 @@ export default function MagazzinoVini() {
   };
 
   // ------------------------------------------------
-  // FETCH DATI MAGAZZINO (una volta + pulsante aggiorna)
+  // FETCH DATI MAGAZZINO
   // ------------------------------------------------
   const fetchVini = async () => {
     if (!token) {
@@ -60,12 +61,9 @@ export default function MagazzinoVini() {
     setError("");
 
     try {
-      // Per ora nessun filtro lato backend, facciamo tutto lato frontend
       const url = `${API_BASE}/vini/magazzino`;
       const resp = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (resp.status === 401) {
@@ -74,16 +72,19 @@ export default function MagazzinoVini() {
         return;
       }
 
-      if (!resp.ok) {
-        throw new Error(`Errore server: ${resp.status}`);
-      }
+      if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
       const data = await resp.json();
       setVini(data);
 
-      if (data.length > 0 && !selectedVino) {
-        setSelectedVino(data[0]);
-      }
+      // se avevi già un selezionato, prova a mantenerlo
+      setSelectedVino((prev) => {
+        if (prev && prev.id != null) {
+          const found = data.find((x) => x.id === prev.id);
+          if (found) return found;
+        }
+        return data.length > 0 ? data[0] : null;
+      });
     } catch (err) {
       setError(err.message || "Errore di caricamento.");
     } finally {
@@ -97,18 +98,14 @@ export default function MagazzinoVini() {
   }, []);
 
   // ------------------------------------------------
-  // OPZIONI SELECT DINAMICHE IN FUNZIONE DELLE COMBINAZIONI
-  // TIP0LOGIA / NAZIONE / REGIONE / PRODUTTORE
+  // OPZIONI SELECT DINAMICHE (COMBINAZIONI)
   // ------------------------------------------------
   const baseForOptions = useMemo(() => {
     let out = [...vini];
-
-    // Applico tutti i select già scelti (combinazioni)
     if (nazioneSel) out = out.filter((v) => v.NAZIONE === nazioneSel);
     if (tipologiaSel) out = out.filter((v) => v.TIPOLOGIA === tipologiaSel);
     if (regioneSel) out = out.filter((v) => v.REGIONE === regioneSel);
     if (produttoreSel) out = out.filter((v) => v.PRODUTTORE === produttoreSel);
-
     return out;
   }, [vini, tipologiaSel, nazioneSel, produttoreSel, regioneSel]);
 
@@ -130,7 +127,7 @@ export default function MagazzinoVini() {
   );
 
   // ------------------------------------------------
-  // FILTRI lato frontend per la lista principale
+  // FILTRI LISTA
   // ------------------------------------------------
   const viniFiltrati = useMemo(() => {
     let out = [...vini];
@@ -147,16 +144,13 @@ export default function MagazzinoVini() {
         if (v.id_excel != null && !Number.isNaN(idNum)) {
           if (v.id_excel === idNum) return true;
         }
-        return String(v.id ?? "")
-          .toLowerCase()
-          .includes(idTrim.toLowerCase());
+        return String(v.id ?? "").toLowerCase().includes(idTrim.toLowerCase());
       });
     }
 
-    // 2) Ricerca libera (descrizione, denominazione, produttore, regione, nazione, codice)
+    // 2) Ricerca libera
     if (searchText.trim()) {
       const needle = searchText.trim().toLowerCase();
-
       out = out.filter((v) => {
         const campi = [
           v.DESCRIZIONE,
@@ -166,82 +160,52 @@ export default function MagazzinoVini() {
           v.NAZIONE,
           v.CODICE,
         ];
-        return campi.some(
-          (c) => c && String(c).toLowerCase().includes(needle)
-        );
+        return campi.some((c) => c && String(c).toLowerCase().includes(needle));
       });
     }
 
-    // 3) Tipologia
-    if (tipologiaSel) {
-      out = out.filter((v) => v.TIPOLOGIA === tipologiaSel);
-    }
+    // 3-6) Select combinati
+    if (tipologiaSel) out = out.filter((v) => v.TIPOLOGIA === tipologiaSel);
+    if (nazioneSel) out = out.filter((v) => v.NAZIONE === nazioneSel);
+    if (regioneSel) out = out.filter((v) => v.REGIONE === regioneSel);
+    if (produttoreSel) out = out.filter((v) => v.PRODUTTORE === produttoreSel);
 
-    // 4) Nazione
-    if (nazioneSel) {
-      out = out.filter((v) => v.NAZIONE === nazioneSel);
-    }
-
-    // 5) Regione (NEW)
-    if (regioneSel) {
-      out = out.filter((v) => v.REGIONE === regioneSel);
-    }
-
-    // 6) Produttore
-    if (produttoreSel) {
-      out = out.filter((v) => v.PRODUTTORE === produttoreSel);
-    }
-
-    // 7) Filtro giacenza (su QTA_TOTALE)
+    // 7) Giacenza
     const parseIntSafe = (val) => {
       const n = parseInt(val, 10);
       return Number.isNaN(n) ? null : n;
     };
-
     const g1 = parseIntSafe(giacenzaVal1);
     const g2 = parseIntSafe(giacenzaVal2);
 
+    const getTot = (v) =>
+      (v.QTA_TOTALE ??
+        (v.QTA_FRIGO ?? 0) +
+          (v.QTA_LOC1 ?? 0) +
+          (v.QTA_LOC2 ?? 0) +
+          (v.QTA_LOC3 ?? 0)) || 0;
+
     if (giacenzaMode !== "any") {
       out = out.filter((v) => {
-        const tot =
-          (v.QTA_TOTALE ??
-            (v.QTA_FRIGO ?? 0) +
-              (v.QTA_LOC1 ?? 0) +
-              (v.QTA_LOC2 ?? 0) +
-              (v.QTA_LOC3 ?? 0)) || 0;
-
-        if (giacenzaMode === "gt" && g1 != null) {
-          return tot > g1;
-        }
-        if (giacenzaMode === "lt" && g1 != null) {
-          return tot < g1;
-        }
-        if (giacenzaMode === "between" && g1 != null && g2 != null) {
+        const tot = getTot(v);
+        if (giacenzaMode === "gt" && g1 != null) return tot > g1;
+        if (giacenzaMode === "lt" && g1 != null) return tot < g1;
+        if (giacenzaMode === "between" && g1 != null && g2 != null)
           return tot >= Math.min(g1, g2) && tot <= Math.max(g1, g2);
-        }
         return true;
       });
     }
 
-    // 7.bis) Solo vini con giacenza positiva (NEW)
+    // 7.bis) Solo giacenza positiva
     if (onlyPositiveStock) {
-      out = out.filter((v) => {
-        const tot =
-          (v.QTA_TOTALE ??
-            (v.QTA_FRIGO ?? 0) +
-              (v.QTA_LOC1 ?? 0) +
-              (v.QTA_LOC2 ?? 0) +
-              (v.QTA_LOC3 ?? 0)) || 0;
-        return tot > 0;
-      });
+      out = out.filter((v) => getTot(v) > 0);
     }
 
-    // 8) Filtro prezzo su PREZZO_CARTA (prezzo di vendita), NON listino
+    // 8) Prezzo vendita su PREZZO_CARTA
     const parseFloatSafe = (val) => {
       const n = parseFloat(String(val).replace(",", "."));
       return Number.isNaN(n) ? null : n;
     };
-
     const p1 = parseFloatSafe(prezzoVal1);
     const p2 = parseFloatSafe(prezzoVal2);
 
@@ -251,24 +215,18 @@ export default function MagazzinoVini() {
         const prezzo = parseFloatSafe(v.PREZZO_CARTA);
         if (prezzo == null) return false;
 
-        if (prezzoMode === "gt" && p1 != null) {
-          return prezzo > p1;
-        }
-        if (prezzoMode === "lt" && p1 != null) {
-          return prezzo < p1;
-        }
-        if (prezzoMode === "between" && p1 != null && p2 != null) {
+        if (prezzoMode === "gt" && p1 != null) return prezzo > p1;
+        if (prezzoMode === "lt" && p1 != null) return prezzo < p1;
+        if (prezzoMode === "between" && p1 != null && p2 != null)
           return prezzo >= Math.min(p1, p2) && prezzo <= Math.max(p1, p2);
-        }
+
         return true;
       });
     }
 
-    // 9) Solo vini senza prezzo listino (EURO_LISTINO)
+    // 9) Solo senza listino
     if (onlyMissingListino) {
-      out = out.filter(
-        (v) => v.EURO_LISTINO == null || v.EURO_LISTINO === ""
-      );
+      out = out.filter((v) => v.EURO_LISTINO == null || v.EURO_LISTINO === "");
     }
 
     return out;
@@ -290,10 +248,7 @@ export default function MagazzinoVini() {
     onlyMissingListino,
   ]);
 
-  // ------------------------------------------------
-  const handleRowClick = (vino) => {
-    setSelectedVino(vino);
-  };
+  const handleRowClick = (vino) => setSelectedVino(vino);
 
   // ------------------------------------------------
   // RENDER
@@ -313,51 +268,54 @@ export default function MagazzinoVini() {
             </p>
           </div>
 
-<div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-  <button
-    type="button"
-    onClick={() => navigate("/vini")}
-    className="
-      px-4 py-2 rounded-xl text-sm font-medium
-      border border-neutral-300 bg-neutral-50
-      hover:bg-neutral-100 hover:-translate-y-0.5
-      shadow-sm transition
-    "
-  >
-    ← Torna al Menu Vini
-  </button>
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onClick={() => navigate("/vini")}
+              className="
+                px-4 py-2 rounded-xl text-sm font-medium
+                border border-neutral-300 bg-neutral-50
+                hover:bg-neutral-100 hover:-translate-y-0.5
+                shadow-sm transition
+              "
+            >
+              ← Torna al Menu Vini
+            </button>
 
-  <button
-    type="button"
-    onClick={() => navigate("/vini/magazzino/nuovo")}
-    className="
-      px-4 py-2 rounded-xl text-sm font-semibold
-      bg-amber-700 text-white
-      hover:bg-amber-800 hover:-translate-y-0.5
-      shadow-sm transition
-    "
-  >
-    ➕ Nuovo vino
-  </button>
+            <button
+              type="button"
+              onClick={() => navigate("/vini/magazzino/nuovo")}
+              className="
+                px-4 py-2 rounded-xl text-sm font-semibold
+                bg-amber-700 text-white
+                hover:bg-amber-800 hover:-translate-y-0.5
+                shadow-sm transition
+              "
+            >
+              ➕ Nuovo vino
+            </button>
 
-  <button
-    type="button"
-    onClick={handleLogout}
-    className="
-      px-4 py-2 rounded-xl text-sm font-medium
-      border border-red-200 bg-red-50 text-red-700
-      hover:bg-red-100 hover:-translate-y-0.5
-      shadow-sm transition
-    "
-  >
-    Logout
-  </button>
-</div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="
+                px-4 py-2 rounded-xl text-sm font-medium
+                border border-red-200 bg-red-50 text-red-700
+                hover:bg-red-100 hover:-translate-y-0.5
+                shadow-sm transition
+              "
+            >
+              Logout
+            </button>
+          </div>
         </div>
+
+        {/* ✅ SUBMENU (allineato al nuovo ViniMenu.jsx) */}
+        <MagazzinoSubMenu />
 
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner mb-6 space-y-4">
-          {/* Riga 1: ID + ricerca libera */}
+          {/* Riga 1 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -385,7 +343,7 @@ export default function MagazzinoVini() {
             </div>
           </div>
 
-          {/* Riga 2: Tipologia / Nazione / Regione / Produttore */}
+          {/* Riga 2 */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -460,9 +418,8 @@ export default function MagazzinoVini() {
             </div>
           </div>
 
-          {/* Riga 3: Giacenza + Prezzo + check vari */}
+          {/* Riga 3 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            {/* Filtro giacenza */}
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                 Filtro giacenza (Q.TA totale)
@@ -506,7 +463,6 @@ export default function MagazzinoVini() {
               </label>
             </div>
 
-            {/* Filtro prezzo vendita (PREZZO_CARTA) */}
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                 Filtro prezzo vendita (carta) €
@@ -543,7 +499,6 @@ export default function MagazzinoVini() {
               </div>
             </div>
 
-            {/* Missing listino + bottone aggiorna */}
             <div className="flex flex-col gap-2 items-start md:items-end">
               <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
                 <input
@@ -612,6 +567,7 @@ export default function MagazzinoVini() {
                     {viniFiltrati.map((vino) => {
                       const isSelected =
                         selectedVino && selectedVino.id === vino.id;
+
                       const tot =
                         vino.QTA_TOTALE ??
                         (vino.QTA_FRIGO ?? 0) +
@@ -781,7 +737,6 @@ export default function MagazzinoVini() {
                       </div>
                     </div>
 
-                    {/* Giacenze per locazione */}
                     <div>
                       <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-1">
                         Giacenze per locazione
@@ -833,7 +788,6 @@ export default function MagazzinoVini() {
                       </div>
                     </div>
 
-                    {/* Prezzi */}
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
@@ -842,9 +796,7 @@ export default function MagazzinoVini() {
                         <div className="text-sm">
                           {selectedVino.PREZZO_CARTA != null &&
                           selectedVino.PREZZO_CARTA !== ""
-                            ? `${Number(
-                                selectedVino.PREZZO_CARTA
-                              ).toFixed(2)} €`
+                            ? `${Number(selectedVino.PREZZO_CARTA).toFixed(2)} €`
                             : "—"}
                         </div>
                       </div>
@@ -855,9 +807,7 @@ export default function MagazzinoVini() {
                         <div className="text-sm">
                           {selectedVino.EURO_LISTINO != null &&
                           selectedVino.EURO_LISTINO !== ""
-                            ? `${Number(
-                                selectedVino.EURO_LISTINO
-                              ).toFixed(2)} €`
+                            ? `${Number(selectedVino.EURO_LISTINO).toFixed(2)} €`
                             : "—"}
                         </div>
                       </div>
@@ -873,14 +823,13 @@ export default function MagazzinoVini() {
                       </div>
                     </div>
 
-                    {/* Flag carta / iPratico / stato */}
                     <div className="flex flex-wrap gap-2">
                       <span
                         className={
                           "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
                           (selectedVino.CARTA === "SI"
                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-neutral-50 text-neutral-500 border-neutral-200")
+                            : "bg-neutral-50 text-neutral-500 border border-neutral-200")
                         }
                       >
                         CARTA: {selectedVino.CARTA || "NO"}
@@ -890,7 +839,7 @@ export default function MagazzinoVini() {
                           "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
                           (selectedVino.IPRATICO === "SI"
                             ? "bg-sky-50 text-sky-700 border-sky-200"
-                            : "bg-neutral-50 text-neutral-500 border-neutral-200")
+                            : "bg-neutral-50 text-neutral-500 border border-neutral-200")
                         }
                       >
                         iPratico: {selectedVino.IPRATICO || "NO"}
@@ -902,7 +851,6 @@ export default function MagazzinoVini() {
                       )}
                     </div>
 
-                    {/* Note */}
                     {selectedVino.NOTE && (
                       <div>
                         <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
@@ -919,6 +867,7 @@ export default function MagazzinoVini() {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );

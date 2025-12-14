@@ -1,26 +1,43 @@
-// @version: v1.1-magazzino-nuovo-noexcel-formati-dupcheck
-// Pagina Magazzino Vini — Inserimento nuovo vino (+ check duplicati)
+// FILE: frontend/src/pages/vini/MagazzinoViniNuovo.jsx
+// @version: v1.1-magazzino-nuovo-noidexcel-formato-lista
+// Pagina Magazzino Vini — Inserimento nuovo vino (NO ID EXCEL) + Formato a lista + check duplicati (C)
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
+// ✅ Lista formati (completa/estendibile: se hai già la lista ufficiale, incollala qui)
 const FORMATI = [
-  { value: "BT", label: "BT — Bottiglia 0,75L" },
-  { value: "MG", label: "MG — Magnum 1,5L" },
-  { value: "DM", label: "DM — Doppelmagnum 3L" },
-  { value: "JM", label: "JM — Jeroboam 3L" },
-  { value: "RM", label: "RM — Rehoboam 4,5L" },
-  { value: "IM", label: "IM — Imperiale 6L" },
-  { value: "ML", label: "ML — Mezza 0,375L" },
-  { value: "CL", label: "CL — Calice (unità logica)" },
+  { code: "BT", label: "Bottiglia 0,75L" },
+  { code: "MG", label: "Magnum 1,5L" },
+  { code: "DM", label: "Doppio Magnum 3L" },
+  { code: "JM", label: "Jeroboam 4,5L" },
+  { code: "IMP", label: "Imperiale 6L" },
 ];
+
+const uniq = (arr) =>
+  Array.from(
+    new Set(
+      arr
+        .filter((x) => x != null)
+        .map((x) => String(x).trim())
+        .filter((x) => x !== "")
+    )
+  ).sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
+
+const norm = (s) =>
+  String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 
 export default function MagazzinoViniNuovo() {
   const navigate = useNavigate();
 
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [optionsError, setOptionsError] = useState("");
+
   const [tipologie, setTipologie] = useState([]);
   const [nazioni, setNazioni] = useState([]);
   const [regioni, setRegioni] = useState([]);
@@ -30,71 +47,18 @@ export default function MagazzinoViniNuovo() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
 
-  // DUP CHECK (C)
-  const [dupLoading, setDupLoading] = useState(false);
-  const [dupList, setDupList] = useState([]);
-  const [showDupModal, setShowDupModal] = useState(false);
+  // Duplicati (C)
+  const [dupChecking, setDupChecking] = useState(false);
+  const [dupCandidates, setDupCandidates] = useState([]);
+  const [showDupConfirm, setShowDupConfirm] = useState(false);
 
   const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     window.location.reload();
   };
-
-  useEffect(() => {
-    if (!token) {
-      handleLogout();
-      return;
-    }
-
-    const fetchOptions = async () => {
-      setLoadingOptions(true);
-      setOptionsError("");
-
-      try {
-        // ✅ endpoint corretto
-        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (resp.status === 401) {
-          alert("Sessione scaduta. Effettua nuovamente il login.");
-          handleLogout();
-          return;
-        }
-
-        if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
-
-        const data = await resp.json();
-
-        const uniq = (arr) =>
-          Array.from(
-            new Set(
-              arr
-                .filter((x) => x != null)
-                .map((x) => String(x).trim())
-                .filter((x) => x !== "")
-            )
-          ).sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
-
-        setTipologie(uniq(data.map((v) => v.TIPOLOGIA)));
-        setNazioni(uniq(data.map((v) => v.NAZIONE)));
-        setRegioni(uniq(data.map((v) => v.REGIONE)));
-        setProduttori(uniq(data.map((v) => v.PRODUTTORE)));
-      } catch (err) {
-        console.error(err);
-        setOptionsError(err.message || "Errore nel caricamento suggerimenti.");
-      } finally {
-        setLoadingOptions(false);
-      }
-    };
-
-    fetchOptions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [form, setForm] = useState({
     TIPOLOGIA: "",
@@ -134,11 +98,13 @@ export default function MagazzinoViniNuovo() {
   });
 
   const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCheckboxSiNo = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.checked ? "SI" : "NO" }));
+    const checked = e.target.checked;
+    setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
   };
 
   const numberOrNull = (val) => {
@@ -159,53 +125,135 @@ export default function MagazzinoViniNuovo() {
     return s === "" ? null : s;
   };
 
-  const buildPayload = () => ({
-    TIPOLOGIA: form.TIPOLOGIA.trim(),
-    NAZIONE: form.NAZIONE.trim() || "ITALIA",
-    REGIONE: nullIfEmpty(form.REGIONE),
-    CODICE: nullIfEmpty(form.CODICE),
+  // ------------------------------------------------
+  // SUGGERIMENTI: ricavo liste da /vini/magazzino
+  // ------------------------------------------------
+  useEffect(() => {
+    if (!token) {
+      handleLogout();
+      return;
+    }
 
-    DESCRIZIONE: form.DESCRIZIONE.trim(),
-    DENOMINAZIONE: nullIfEmpty(form.DENOMINAZIONE),
-    ANNATA: nullIfEmpty(form.ANNATA),
-    VITIGNI: nullIfEmpty(form.VITIGNI),
-    GRADO_ALCOLICO: numberOrNull(form.GRADO_ALCOLICO),
-    FORMATO: form.FORMATO || "BT",
+    const fetchOptions = async () => {
+      setLoadingOptions(true);
+      setOptionsError("");
 
-    PRODUTTORE: nullIfEmpty(form.PRODUTTORE),
-    DISTRIBUTORE: nullIfEmpty(form.DISTRIBUTORE),
+      try {
+        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-    PREZZO_CARTA: numberOrNull(form.PREZZO_CARTA),
-    EURO_LISTINO: numberOrNull(form.EURO_LISTINO),
-    SCONTO: numberOrNull(form.SCONTO),
-    NOTE_PREZZO: nullIfEmpty(form.NOTE_PREZZO),
+        if (resp.status === 401) {
+          alert("Sessione scaduta. Effettua nuovamente il login.");
+          handleLogout();
+          return;
+        }
+        if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
-    CARTA: form.CARTA === "SI" ? "SI" : "NO",
-    IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
+        const data = await resp.json();
 
-    STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
-    NOTE_STATO: nullIfEmpty(form.NOTE_STATO),
+        setTipologie(uniq(data.map((v) => v.TIPOLOGIA)));
+        setNazioni(uniq(data.map((v) => v.NAZIONE)));
+        setRegioni(uniq(data.map((v) => v.REGIONE)));
+        setProduttori(uniq(data.map((v) => v.PRODUTTORE)));
+      } catch (err) {
+        console.error(err);
+        setOptionsError(err.message || "Errore nel caricamento suggerimenti.");
+      } finally {
+        setLoadingOptions(false);
+      }
+    };
 
-    FRIGORIFERO: nullIfEmpty(form.FRIGORIFERO),
-    QTA_FRIGO: intOrZero(form.QTA_FRIGO),
+    fetchOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    LOCAZIONE_1: nullIfEmpty(form.LOCAZIONE_1),
-    QTA_LOC1: intOrZero(form.QTA_LOC1),
+  // ------------------------------------------------
+  // Duplicate check (C): cerca candidati e chiede conferma
+  // Regola: match su DESCRIZIONE + PRODUTTORE + ANNATA + FORMATO (tutti normalizzati)
+  // ------------------------------------------------
+  const findDuplicates = async () => {
+    setDupChecking(true);
+    setDupCandidates([]);
+    try {
+      const q = encodeURIComponent(form.DESCRIZIONE.trim());
+      // usiamo q per ridurre il set lato backend (router supporta ?q=...)
+      const resp = await fetch(`${API_BASE}/vini/magazzino?q=${q}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    LOCAZIONE_2: nullIfEmpty(form.LOCAZIONE_2),
-    QTA_LOC2: intOrZero(form.QTA_LOC2),
+      if (resp.status === 401) {
+        alert("Sessione scaduta. Effettua nuovamente il login.");
+        handleLogout();
+        return [];
+      }
+      if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
-    LOCAZIONE_3: nullIfEmpty(form.LOCAZIONE_3),
-    QTA_LOC3: intOrZero(form.QTA_LOC3),
+      const data = await resp.json();
 
-    NOTE: nullIfEmpty(form.NOTE),
-  });
+      const keyNew =
+        `${norm(form.DESCRIZIONE)}|${norm(form.PRODUTTORE)}|${norm(form.ANNATA)}|${norm(form.FORMATO)}`;
 
-  const validateFront = () => {
-    if (!form.DESCRIZIONE.trim()) return "La descrizione del vino è obbligatoria.";
-    if (!form.TIPOLOGIA.trim()) return "La tipologia è obbligatoria.";
-    if (!form.NAZIONE.trim()) return "La nazione è obbligatoria.";
+      const dups = (data || []).filter((v) => {
+        const keyOld =
+          `${norm(v.DESCRIZIONE)}|${norm(v.PRODUTTORE)}|${norm(v.ANNATA)}|${norm(v.FORMATO)}`;
+        return keyOld === keyNew;
+      });
 
+      setDupCandidates(dups);
+      return dups;
+    } finally {
+      setDupChecking(false);
+    }
+  };
+
+  const payloadFinal = useMemo(() => {
+    return {
+      TIPOLOGIA: form.TIPOLOGIA.trim(),
+      NAZIONE: form.NAZIONE.trim() || "ITALIA",
+      REGIONE: nullIfEmpty(form.REGIONE),
+      CODICE: nullIfEmpty(form.CODICE),
+
+      DESCRIZIONE: form.DESCRIZIONE.trim(),
+      DENOMINAZIONE: nullIfEmpty(form.DENOMINAZIONE),
+      ANNATA: nullIfEmpty(form.ANNATA),
+      VITIGNI: nullIfEmpty(form.VITIGNI),
+      GRADO_ALCOLICO: numberOrNull(form.GRADO_ALCOLICO),
+      FORMATO: form.FORMATO.trim() || "BT",
+
+      PRODUTTORE: nullIfEmpty(form.PRODUTTORE),
+      DISTRIBUTORE: nullIfEmpty(form.DISTRIBUTORE),
+
+      PREZZO_CARTA: numberOrNull(form.PREZZO_CARTA),
+      EURO_LISTINO: numberOrNull(form.EURO_LISTINO),
+      SCONTO: numberOrNull(form.SCONTO),
+      NOTE_PREZZO: nullIfEmpty(form.NOTE_PREZZO),
+
+      CARTA: form.CARTA === "SI" ? "SI" : "NO",
+      IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
+
+      STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
+      NOTE_STATO: nullIfEmpty(form.NOTE_STATO),
+
+      FRIGORIFERO: nullIfEmpty(form.FRIGORIFERO),
+      QTA_FRIGO: intOrZero(form.QTA_FRIGO),
+
+      LOCAZIONE_1: nullIfEmpty(form.LOCAZIONE_1),
+      QTA_LOC1: intOrZero(form.QTA_LOC1),
+
+      LOCAZIONE_2: nullIfEmpty(form.LOCAZIONE_2),
+      QTA_LOC2: intOrZero(form.QTA_LOC2),
+
+      LOCAZIONE_3: nullIfEmpty(form.LOCAZIONE_3),
+      QTA_LOC3: intOrZero(form.QTA_LOC3),
+
+      NOTE: nullIfEmpty(form.NOTE),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
+
+  const doCreate = async () => {
+    // regola locazione
     const haLocazione =
       (form.FRIGORIFERO && form.FRIGORIFERO.trim() !== "") ||
       (form.LOCAZIONE_1 && form.LOCAZIONE_1.trim() !== "") ||
@@ -213,18 +261,13 @@ export default function MagazzinoViniNuovo() {
       (form.LOCAZIONE_3 && form.LOCAZIONE_3.trim() !== "");
 
     if (!haLocazione) {
-      return "Devi indicare almeno una locazione (frigorifero o locazione 1/2/3).";
+      setSubmitError(
+        "Devi indicare almeno una locazione (frigorifero o locazione 1/2/3)."
+      );
+      return;
     }
-    return null;
-  };
-
-  const doCreate = async () => {
-    const payload = buildPayload();
 
     setSubmitting(true);
-    setSubmitError("");
-    setSubmitSuccess("");
-
     try {
       const resp = await fetch(`${API_BASE}/vini/magazzino`, {
         method: "POST",
@@ -232,7 +275,7 @@ export default function MagazzinoViniNuovo() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadFinal),
       });
 
       if (resp.status === 401) {
@@ -254,53 +297,18 @@ export default function MagazzinoViniNuovo() {
       }
 
       setSubmitSuccess(`Vino creato con ID ${data.id}.`);
-      if (data.id) navigate(`/vini/magazzino/${data.id}`);
-      else navigate("/vini/magazzino");
+
+      // ✅ Naviga al dettaglio (param allineato a /vini/magazzino/:id)
+      if (data.id) {
+        navigate(`/vini/magazzino/${data.id}`, { state: { vino: data } });
+      } else {
+        navigate("/vini/magazzino");
+      }
     } catch (err) {
       console.error(err);
       setSubmitError(err.message || "Errore durante il salvataggio.");
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const checkDuplicates = async () => {
-    setDupLoading(true);
-    setDupList([]);
-    setShowDupModal(false);
-
-    try {
-      const resp = await fetch(`${API_BASE}/vini/magazzino/duplicate-check`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          DESCRIZIONE: form.DESCRIZIONE.trim(),
-          PRODUTTORE: form.PRODUTTORE ? form.PRODUTTORE.trim() : null,
-          ANNATA: form.ANNATA ? String(form.ANNATA).trim() : null,
-          FORMATO: form.FORMATO || null,
-        }),
-      });
-
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua nuovamente il login.");
-        handleLogout();
-        return { duplicates: [] };
-      }
-
-      const data = await resp.json();
-      if (!resp.ok) {
-        // se endpoint non esiste ancora, fallback: nessun dup check (non blocca)
-        return { duplicates: [] };
-      }
-      return data;
-    } catch (e) {
-      // fallback silenzioso: non blocco l’inserimento
-      return { duplicates: [] };
-    } finally {
-      setDupLoading(false);
     }
   };
 
@@ -314,18 +322,22 @@ export default function MagazzinoViniNuovo() {
       return;
     }
 
-    const err = validateFront();
-    if (err) {
-      setSubmitError(err);
-      return;
-    }
+    // validazione minima
+    if (!form.DESCRIZIONE.trim()) return setSubmitError("La descrizione del vino è obbligatoria.");
+    if (!form.TIPOLOGIA.trim()) return setSubmitError("La tipologia è obbligatoria.");
+    if (!form.NAZIONE.trim()) return setSubmitError("La nazione è obbligatoria.");
 
-    // ✅ scelta C: avviso e chiedi se procedere
-    const res = await checkDuplicates();
-    if (res?.duplicates?.length) {
-      setDupList(res.duplicates);
-      setShowDupModal(true);
-      return;
+    // ✅ DUP CHECK (C)
+    try {
+      setDupCandidates([]);
+      const dups = await findDuplicates();
+      if (dups.length > 0) {
+        setShowDupConfirm(true);
+        return;
+      }
+    } catch (err) {
+      // se fallisce il check non blocchiamo: segnaliamo ma facciamo salvare
+      console.warn("Duplicate check failed:", err);
     }
 
     await doCreate();
@@ -335,14 +347,15 @@ export default function MagazzinoViniNuovo() {
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
         {/* HEADER */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-8">
+        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
               ➕ Nuovo vino — Magazzino
             </h1>
             <p className="text-neutral-600 text-sm">
-              Campi obbligatori: <strong>Tipologia</strong>, <strong>Nazione</strong>,
-              <strong>Descrizione</strong> e almeno una <strong>locazione</strong>.
+              Campi obbligatori: <strong>Tipologia</strong>,{" "}
+              <strong>Nazione</strong>, <strong>Descrizione</strong> e almeno una{" "}
+              <strong>locazione</strong>.
             </p>
           </div>
 
@@ -364,6 +377,8 @@ export default function MagazzinoViniNuovo() {
           </div>
         </div>
 
+        <MagazzinoSubMenu />
+
         {/* AVVISI */}
         {optionsError && (
           <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
@@ -381,61 +396,73 @@ export default function MagazzinoViniNuovo() {
           </div>
         )}
 
-        {/* MODAL DUPLICATI */}
-        {showDupModal && (
+        {/* MODALE DUPLICATI */}
+        {showDupConfirm && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-neutral-200 p-5">
-              <h3 className="text-lg font-bold text-neutral-900 mb-2">
-                ⚠️ Possibili duplicati trovati
+            <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl border border-neutral-200 p-6">
+              <h3 className="text-xl font-bold text-amber-900 font-playfair">
+                Possibile duplicato trovato
               </h3>
-              <p className="text-sm text-neutral-600 mb-3">
-                Ho trovato vini simili per descrizione/produttore/annata/formato. Vuoi procedere comunque?
+              <p className="text-sm text-neutral-600 mt-2">
+                Ho trovato {dupCandidates.length} vino/i già presenti con gli stessi parametri
+                (Descrizione + Produttore + Annata + Formato).
+                Vuoi procedere comunque?
               </p>
 
-              <div className="max-h-[320px] overflow-auto border border-neutral-200 rounded-xl">
-                <table className="w-full text-sm">
-                  <thead className="bg-neutral-100 sticky top-0">
-                    <tr className="text-xs text-neutral-600 uppercase">
-                      <th className="px-3 py-2 text-left">ID</th>
-                      <th className="px-3 py-2 text-left">Vino</th>
-                      <th className="px-3 py-2 text-left">Produttore</th>
-                      <th className="px-3 py-2 text-left">Annata</th>
-                      <th className="px-3 py-2 text-left">Formato</th>
-                      <th className="px-3 py-2 text-center">Qta</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dupList.map((d) => (
-                      <tr key={d.id} className="border-t border-neutral-200">
-                        <td className="px-3 py-2 font-mono text-xs">{d.id}</td>
-                        <td className="px-3 py-2">{d.DESCRIZIONE}</td>
-                        <td className="px-3 py-2">{d.PRODUTTORE || "—"}</td>
-                        <td className="px-3 py-2">{d.ANNATA || "—"}</td>
-                        <td className="px-3 py-2">{d.FORMATO || "—"}</td>
-                        <td className="px-3 py-2 text-center">{d.QTA_TOTALE ?? 0}</td>
+              <div className="mt-4 border border-neutral-200 rounded-2xl overflow-hidden">
+                <div className="max-h-56 overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-neutral-100">
+                      <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+                        <th className="px-3 py-2 text-left">ID</th>
+                        <th className="px-3 py-2 text-left">Vino</th>
+                        <th className="px-3 py-2 text-left">Produttore</th>
+                        <th className="px-3 py-2 text-left">Annata</th>
+                        <th className="px-3 py-2 text-left">Formato</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {dupCandidates.map((v) => (
+                        <tr key={v.id} className="border-t border-neutral-200">
+                          <td className="px-3 py-2 font-mono text-xs text-neutral-600">
+                            {v.id}
+                          </td>
+                          <td className="px-3 py-2">{v.DESCRIZIONE}</td>
+                          <td className="px-3 py-2">{v.PRODUTTORE || "—"}</td>
+                          <td className="px-3 py-2">{v.ANNATA || "—"}</td>
+                          <td className="px-3 py-2">{v.FORMATO || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-4">
+              <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowDupModal(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
+                  onClick={() => {
+                    setShowDupConfirm(false);
+                    setDupCandidates([]);
+                  }}
+                  className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
                 >
-                  Annulla
+                  No, annulla
                 </button>
                 <button
                   type="button"
+                  disabled={submitting}
                   onClick={async () => {
-                    setShowDupModal(false);
+                    setShowDupConfirm(false);
                     await doCreate();
                   }}
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800"
+                  className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                    submitting
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-amber-700 text-white hover:bg-amber-800"
+                  }`}
                 >
-                  Procedi comunque
+                  Sì, procedi comunque
                 </button>
               </div>
             </div>
@@ -443,9 +470,11 @@ export default function MagazzinoViniNuovo() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* BLOCCO 1 — Anagrafica principale */}
+          {/* BLOCCO 1 — Anagrafica */}
           <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">Anagrafica vino</h2>
+            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
+              Anagrafica vino
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -485,7 +514,9 @@ export default function MagazzinoViniNuovo() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Regione</label>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Regione
+                </label>
                 <input
                   list="regioni-list"
                   value={form.REGIONE}
@@ -524,11 +555,7 @@ export default function MagazzinoViniNuovo() {
                   onChange={handleChange("FORMATO")}
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                 >
-                  {FORMATI.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
+                  {FORMATiOptions(FORMATI)}
                 </select>
               </div>
             </div>
@@ -546,8 +573,11 @@ export default function MagazzinoViniNuovo() {
                   placeholder="es. Barolo DOCG"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Annata</label>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Annata
+                </label>
                 <input
                   type="text"
                   value={form.ANNATA}
@@ -556,8 +586,11 @@ export default function MagazzinoViniNuovo() {
                   placeholder="es. 2019"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Codice interno</label>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Codice interno
+                </label>
                 <input
                   type="text"
                   value={form.CODICE}
@@ -570,7 +603,9 @@ export default function MagazzinoViniNuovo() {
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Produttore</label>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Produttore
+                </label>
                 <input
                   list="produttori-list"
                   value={form.PRODUTTORE}
@@ -584,8 +619,11 @@ export default function MagazzinoViniNuovo() {
                   ))}
                 </datalist>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Distributore</label>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Distributore
+                </label>
                 <input
                   type="text"
                   value={form.DISTRIBUTORE}
@@ -593,33 +631,8 @@ export default function MagazzinoViniNuovo() {
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Vitigni</label>
-                <input
-                  type="text"
-                  value={form.VITIGNI}
-                  onChange={handleChange("VITIGNI")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. Nebbiolo 100%"
-                />
-              </div>
-            </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Grado alcolico (% vol)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={form.GRADO_ALCOLICO}
-                  onChange={handleChange("GRADO_ALCOLICO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. 13.5"
-                />
-              </div>
-              <div className="flex items-center gap-4 md:col-span-2">
+              <div className="flex items-center gap-4">
                 <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
                   <input
                     type="checkbox"
@@ -647,95 +660,15 @@ export default function MagazzinoViniNuovo() {
             <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
               Magazzino — locazioni e giacenze iniziali
             </h2>
+            <p className="text-xs text-neutral-500 mb-3">
+              È obbligatorio indicare almeno una locazione (frigorifero o locazione 1/2/3).
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Frigo */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Frigorifero</div>
-                <input
-                  type="text"
-                  value={form.FRIGORIFERO}
-                  onChange={handleChange("FRIGORIFERO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input
-                    type="number"
-                    value={form.QTA_FRIGO}
-                    onChange={handleChange("QTA_FRIGO")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    placeholder="0"
-                  />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
-
-              {/* Loc 1 */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 1</div>
-                <input
-                  type="text"
-                  value={form.LOCAZIONE_1}
-                  onChange={handleChange("LOCAZIONE_1")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input
-                    type="number"
-                    value={form.QTA_LOC1}
-                    onChange={handleChange("QTA_LOC1")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    placeholder="0"
-                  />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
-
-              {/* Loc 2 */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 2</div>
-                <input
-                  type="text"
-                  value={form.LOCAZIONE_2}
-                  onChange={handleChange("LOCAZIONE_2")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input
-                    type="number"
-                    value={form.QTA_LOC2}
-                    onChange={handleChange("QTA_LOC2")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    placeholder="0"
-                  />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
-
-              {/* Loc 3 */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 3</div>
-                <input
-                  type="text"
-                  value={form.LOCAZIONE_3}
-                  onChange={handleChange("LOCAZIONE_3")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input
-                    type="number"
-                    value={form.QTA_LOC3}
-                    onChange={handleChange("QTA_LOC3")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    placeholder="0"
-                  />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
+              {locCard("Frigorifero", "FRIGORIFERO", "QTA_FRIGO", form, handleChange)}
+              {locCard("Locazione 1", "LOCAZIONE_1", "QTA_LOC1", form, handleChange)}
+              {locCard("Locazione 2", "LOCAZIONE_2", "QTA_LOC2", form, handleChange)}
+              {locCard("Locazione 3", "LOCAZIONE_3", "QTA_LOC3", form, handleChange)}
             </div>
           </section>
 
@@ -746,99 +679,29 @@ export default function MagazzinoViniNuovo() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Prezzo carta (€)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.PREZZO_CARTA}
-                  onChange={handleChange("PREZZO_CARTA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Listino acquisto (€)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.EURO_LISTINO}
-                  onChange={handleChange("EURO_LISTINO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Sconto (%)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={form.SCONTO}
-                  onChange={handleChange("SCONTO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Stato vendita
-                </label>
-                <input
-                  type="text"
-                  value={form.STATO_VENDITA}
-                  onChange={handleChange("STATO_VENDITA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
+              {numField("Prezzo carta (€)", "PREZZO_CARTA", form, handleChange)}
+              {numField("Listino acquisto (€)", "EURO_LISTINO", form, handleChange)}
+              {numField("Sconto (%)", "SCONTO", form, handleChange)}
+              {textField("Stato vendita", "STATO_VENDITA", form, handleChange)}
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Note prezzo / condizioni acquisto
-                </label>
-                <textarea
-                  value={form.NOTE_PREZZO}
-                  onChange={handleChange("NOTE_PREZZO")}
-                  rows={2}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Note stato / vendita
-                </label>
-                <textarea
-                  value={form.NOTE_STATO}
-                  onChange={handleChange("NOTE_STATO")}
-                  rows={2}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
+              {textareaField("Note prezzo / condizioni acquisto", "NOTE_PREZZO", form, handleChange, 2)}
+              {textareaField("Note stato / vendita", "NOTE_STATO", form, handleChange, 2)}
             </div>
 
             <div className="mt-4">
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Note interne magazzino
-              </label>
-              <textarea
-                value={form.NOTE}
-                onChange={handleChange("NOTE")}
-                rows={3}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-              />
+              {textareaField("Note interne magazzino", "NOTE", form, handleChange, 3)}
             </div>
           </section>
 
-          {/* FOOTER FORM */}
+          {/* FOOTER */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4">
             <div className="text-xs text-neutral-500">
               {loadingOptions
                 ? "Caricamento suggerimenti da vini_magazzino…"
-                : "Suggerimenti caricati (tipologie, nazioni, regioni, produttori)."}
+                : "Suggerimenti caricati da vini_magazzino (tipologie, nazioni, regioni, produttori)."}
+              {dupChecking ? " • Check duplicati…" : ""}
             </div>
 
             <div className="flex gap-3">
@@ -851,19 +714,105 @@ export default function MagazzinoViniNuovo() {
               </button>
               <button
                 type="submit"
-                disabled={submitting || dupLoading}
+                disabled={submitting}
                 className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                  submitting || dupLoading
+                  submitting
                     ? "bg-gray-400 text-white cursor-not-allowed"
                     : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
                 }`}
               >
-                {dupLoading ? "Controllo duplicati…" : submitting ? "Salvataggio in corso…" : "💾 Salva nuovo vino"}
+                {submitting ? "Salvataggio in corso…" : "💾 Salva nuovo vino"}
               </button>
             </div>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/* ----------------- piccoli helper UI ----------------- */
+
+function FORMATiOptions(list) {
+  return list.map((f) => (
+    <option key={f.code} value={f.code}>
+      {f.code} — {f.label}
+    </option>
+  ));
+}
+
+function locCard(title, locKey, qtaKey, form, handleChange) {
+  return (
+    <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
+      <div className="text-[11px] font-semibold text-neutral-600 uppercase">
+        {title}
+      </div>
+      <input
+        type="text"
+        value={form[locKey]}
+        onChange={handleChange(locKey)}
+        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+      />
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-neutral-600">Quantità</span>
+        <input
+          type="number"
+          value={form[qtaKey]}
+          onChange={handleChange(qtaKey)}
+          className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+          placeholder="0"
+        />
+        <span className="text-xs text-neutral-500">bt</span>
+      </div>
+    </div>
+  );
+}
+
+function numField(label, key, form, handleChange) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+        {label}
+      </label>
+      <input
+        type="number"
+        step="0.01"
+        value={form[key]}
+        onChange={handleChange(key)}
+        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+      />
+    </div>
+  );
+}
+
+function textField(label, key, form, handleChange) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={form[key]}
+        onChange={handleChange(key)}
+        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+      />
+    </div>
+  );
+}
+
+function textareaField(label, key, form, handleChange, rows) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+        {label}
+      </label>
+      <textarea
+        value={form[key]}
+        onChange={handleChange(key)}
+        rows={rows}
+        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+      />
     </div>
   );
 }
