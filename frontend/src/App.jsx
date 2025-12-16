@@ -1,5 +1,5 @@
-// FILE: frontend/src/App.jsx
-// @version: v3.4-premium-magazzino-stabile-no-missing-import
+// @version: v3.4-premium-magazzino-movimenti-attivi
+// App principale — Routing TRGB Gestionale Web (stabilizzato)
 
 import React, { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -18,6 +18,7 @@ import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
 import MagazzinoVini from "./pages/vini/MagazzinoVini";
 import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
 import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
+import MovimentiCantina from "./pages/vini/MovimentiCantina";
 
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
@@ -29,15 +30,19 @@ import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
+
+// Corrispettivi
 import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 
+// Fatture elettroniche
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
 
+// Dipendenti
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -54,9 +59,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* HOME */}
         <Route path="/" element={<Home />} />
 
-        {/* --- VINI --- */}
+        {/* --- GESTIONE VINI --- */}
         <Route path="/vini" element={<ViniMenu />} />
         <Route path="/vini/carta" element={<ViniCarta />} />
         <Route path="/vini/database" element={<ViniDatabase />} />
@@ -67,46 +73,37 @@ export default function App() {
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
+        <Route path="/vini/magazzino/:id/movimenti" element={<MovimentiCantina />} />
 
-        {/* --- RICETTE --- */}
+        {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
         <Route path="/ricette/nuova" element={<RicetteNuova />} />
         <Route path="/ricette/archivio" element={<RicetteArchivio />} />
         <Route path="/ricette/import" element={<RicetteImport />} />
         <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
-        <Route
-          path="/ricette/ingredienti/:id/prezzi"
-          element={<RicetteIngredientiPrezzi />}
-        />
+        <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
 
-        {/* --- ADMIN --- */}
+        {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />
-        <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
-        <Route
-          path="/admin/corrispettivi/import"
-          element={<CorrispettiviImport />}
-        />
-        <Route
-          path="/admin/corrispettivi/gestione"
-          element={<CorrispettiviGestione />}
-        />
-        <Route
-          path="/admin/corrispettivi/dashboard"
-          element={<CorrispettiviDashboard />}
-        />
 
+        {/* Corrispettivi */}
+        <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
+        <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
+        <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
+        <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard />} />
+
+        {/* Fatture elettroniche */}
         <Route path="/admin/fatture" element={<FattureMenu />} />
         <Route path="/admin/fatture/import" element={<FattureImport />} />
         <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
 
+        {/* Dipendenti */}
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
-        <Route
-          path="/admin/dipendenti/anagrafica"
-          element={<DipendentiAnagrafica />}
-        />
+        <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
 
+        {/* CATCH ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -1,36 +1,18 @@
-// =========================================================
-// FILE: frontend/src/pages/vini/MagazzinoViniNuovo.jsx
-// @version: v1.1-magazzino-nuovo-no-idexcel-formati
-// Nuovo vino: tolto ID EXCEL, FORMATO come select descrittiva
-// =========================================================
+// @version: v1.1-magazzino-vini-dettaglio-movimenti
+// Pagina Magazzino Vini — Dettaglio singolo vino (+ pulsante Movimenti)
 
-import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
-const FORMAT_OPTIONS = [
-  { value: "BT", label: "BT — Bottiglia 0,75 L" },
-  { value: "MG", label: "MG — Magnum 1,5 L" },
-  { value: "DM", label: "DM — Double Magnum 3,0 L" },
-  { value: "JR", label: "JR — Jeroboam 3,0 L" },
-  { value: "IG", label: "IG — Imperiale 6,0 L" },
-];
-
-export default function MagazzinoViniNuovo() {
+export default function MagazzinoViniDettaglio() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const location = useLocation();
 
-  const [loadingOptions, setLoadingOptions] = useState(false);
-  const [optionsError, setOptionsError] = useState("");
-
-  const [tipologie, setTipologie] = useState([]);
-  const [nazioni, setNazioni] = useState([]);
-  const [regioni, setRegioni] = useState([]);
-  const [produttori, setProduttori] = useState([]);
-
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [submitSuccess, setSubmitSuccess] = useState("");
+  const [vino, setVino] = useState(location.state?.vino || null);
+  const [loading, setLoading] = useState(!location.state?.vino);
+  const [error, setError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -40,504 +22,282 @@ export default function MagazzinoViniNuovo() {
     window.location.reload();
   };
 
+  // Se non ho lo state, provo a caricare dal backend
   useEffect(() => {
+    if (vino || !id) return;
     if (!token) {
       handleLogout();
       return;
     }
 
-    const fetchOptions = async () => {
-      setLoadingOptions(true);
-      setOptionsError("");
-
+    const fetchVino = async () => {
+      setLoading(true);
+      setError("");
       try {
-        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const resp = await fetch(`${API_BASE}/vini/magazzino/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
 
         if (resp.status === 401) {
-          alert("Sessione scaduta. Effettua nuovamente il login.");
+          alert("Sessione scaduta. Effettua di nuovo il login.");
           handleLogout();
           return;
         }
-        if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
+
+        if (resp.status === 404) {
+          setError("Vino non trovato.");
+          return;
+        }
+
+        if (!resp.ok) {
+          throw new Error(`Errore server: ${resp.status}`);
+        }
 
         const data = await resp.json();
-
-        const uniq = (arr) =>
-          Array.from(
-            new Set(
-              arr
-                .filter((x) => x != null)
-                .map((x) => String(x).trim())
-                .filter((x) => x !== "")
-            )
-          ).sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
-
-        setTipologie(uniq(data.map((v) => v.TIPOLOGIA)));
-        setNazioni(uniq(data.map((v) => v.NAZIONE)));
-        setRegioni(uniq(data.map((v) => v.REGIONE)));
-        setProduttori(uniq(data.map((v) => v.PRODUTTORE)));
+        setVino(data);
       } catch (err) {
-        setOptionsError(err.message || "Errore nel caricamento suggerimenti.");
+        setError(err.message || "Errore di caricamento.");
       } finally {
-        setLoadingOptions(false);
+        setLoading(false);
       }
     };
 
-    fetchOptions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    fetchVino();
+  }, [id, token, vino]);
 
-  const [form, setForm] = useState({
-    TIPOLOGIA: "",
-    NAZIONE: "ITALIA",
-    REGIONE: "",
-    CODICE: "",
-    DESCRIZIONE: "",
-    DENOMINAZIONE: "",
-    ANNATA: "",
-    VITIGNI: "",
-    GRADO_ALCOLICO: "",
-    FORMATO: "BT",
-    PRODUTTORE: "",
-    DISTRIBUTORE: "",
-
-    PREZZO_CARTA: "",
-    EURO_LISTINO: "",
-    SCONTO: "",
-    NOTE_PREZZO: "",
-
-    CARTA: "SI",
-    IPRATICO: "NO",
-
-    STATO_VENDITA: "",
-    NOTE_STATO: "",
-
-    FRIGORIFERO: "",
-    QTA_FRIGO: "",
-    LOCAZIONE_1: "",
-    QTA_LOC1: "",
-    LOCAZIONE_2: "",
-    QTA_LOC2: "",
-    LOCAZIONE_3: "",
-    QTA_LOC3: "",
-
-    NOTE: "",
-  });
-
-  const handleChange = (field) => (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const goBack = () => {
+    navigate("/vini/magazzino");
   };
 
-  const handleCheckboxSiNo = (field) => (e) => {
-    const checked = e.target.checked;
-    setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
-  };
-
-  const numberOrNull = (val) => {
-    if (val === "" || val === null || val === undefined) return null;
-    const n = Number(String(val).replace(",", "."));
-    return Number.isNaN(n) ? null : n;
-  };
-
-  const intOrZero = (val) => {
-    if (val === "" || val === null || val === undefined) return 0;
-    const n = parseInt(val, 10);
-    return Number.isNaN(n) ? 0 : n;
-  };
-
-  const nullIfEmpty = (val) => {
-    if (val === "" || val === null || val === undefined) return null;
-    const s = String(val).trim();
-    return s === "" ? null : s;
-  };
-
-  // Suggerimenti “formato”
-  const formatoLabel = useMemo(() => {
-    const f = FORMAT_OPTIONS.find((x) => x.value === form.FORMATO);
-    return f ? f.label : form.FORMATO;
-  }, [form.FORMATO]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitError("");
-    setSubmitSuccess("");
-
-    if (!token) {
-      handleLogout();
-      return;
-    }
-
-    if (!form.DESCRIZIONE.trim()) return setSubmitError("La descrizione del vino è obbligatoria.");
-    if (!form.TIPOLOGIA.trim()) return setSubmitError("La tipologia è obbligatoria.");
-    if (!form.NAZIONE.trim()) return setSubmitError("La nazione è obbligatoria.");
-
-    const haLocazione =
-      (form.FRIGORIFERO && form.FRIGORIFERO.trim() !== "") ||
-      (form.LOCAZIONE_1 && form.LOCAZIONE_1.trim() !== "") ||
-      (form.LOCAZIONE_2 && form.LOCAZIONE_2.trim() !== "") ||
-      (form.LOCAZIONE_3 && form.LOCAZIONE_3.trim() !== "");
-
-    if (!haLocazione) {
-      setSubmitError("Devi indicare almeno una locazione (frigorifero o locazione 1/2/3).");
-      return;
-    }
-
-    const payload = {
-      TIPOLOGIA: form.TIPOLOGIA.trim(),
-      NAZIONE: form.NAZIONE.trim() || "ITALIA",
-      REGIONE: nullIfEmpty(form.REGIONE),
-      CODICE: nullIfEmpty(form.CODICE),
-
-      DESCRIZIONE: form.DESCRIZIONE.trim(),
-      DENOMINAZIONE: nullIfEmpty(form.DENOMINAZIONE),
-      ANNATA: nullIfEmpty(form.ANNATA),
-      VITIGNI: nullIfEmpty(form.VITIGNI),
-      GRADO_ALCOLICO: numberOrNull(form.GRADO_ALCOLICO),
-      FORMATO: form.FORMATO?.trim() || "BT",
-
-      PRODUTTORE: nullIfEmpty(form.PRODUTTORE),
-      DISTRIBUTORE: nullIfEmpty(form.DISTRIBUTORE),
-
-      PREZZO_CARTA: numberOrNull(form.PREZZO_CARTA),
-      EURO_LISTINO: numberOrNull(form.EURO_LISTINO),
-      SCONTO: numberOrNull(form.SCONTO),
-      NOTE_PREZZO: nullIfEmpty(form.NOTE_PREZZO),
-
-      CARTA: form.CARTA === "SI" ? "SI" : "NO",
-      IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
-
-      STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
-      NOTE_STATO: nullIfEmpty(form.NOTE_STATO),
-
-      FRIGORIFERO: nullIfEmpty(form.FRIGORIFERO),
-      QTA_FRIGO: intOrZero(form.QTA_FRIGO),
-
-      LOCAZIONE_1: nullIfEmpty(form.LOCAZIONE_1),
-      QTA_LOC1: intOrZero(form.QTA_LOC1),
-
-      LOCAZIONE_2: nullIfEmpty(form.LOCAZIONE_2),
-      QTA_LOC2: intOrZero(form.QTA_LOC2),
-
-      LOCAZIONE_3: nullIfEmpty(form.LOCAZIONE_3),
-      QTA_LOC3: intOrZero(form.QTA_LOC3),
-
-      NOTE: nullIfEmpty(form.NOTE),
-    };
-
-    setSubmitting(true);
-    try {
-      const resp = await fetch(`${API_BASE}/vini/magazzino`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua nuovamente il login.");
-        handleLogout();
-        return;
-      }
-
-      const data = await resp.json().catch(() => ({}));
-
-      if (!resp.ok) {
-        const detail =
-          data && data.detail
-            ? Array.isArray(data.detail)
-              ? data.detail.map((d) => d.msg || JSON.stringify(d)).join(" | ")
-              : String(data.detail)
-            : `Errore server: ${resp.status}`;
-        throw new Error(detail);
-      }
-
-      setSubmitSuccess(`Vino creato (formato: ${formatoLabel}).`);
-      if (data.id) navigate(`/vini/magazzino/${data.id}`);
-      else navigate("/vini/magazzino");
-    } catch (err) {
-      setSubmitError(err.message || "Errore durante il salvataggio.");
-    } finally {
-      setSubmitting(false);
-    }
+  const goMovimenti = () => {
+    // route: /vini/magazzino/:id/movimenti
+    navigate(`/vini/magazzino/${id}/movimenti`);
   };
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
-        <MagazzinoSubMenu />
+      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
 
+        {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
-              ➕ Nuovo vino — Magazzino
+              🍷 Dettaglio Vino Magazzino
             </h1>
-            <p className="text-neutral-600 text-sm">
-              Campi obbligatori: <strong>Tipologia</strong>, <strong>Nazione</strong>,{" "}
-              <strong>Descrizione</strong> e almeno una <strong>locazione</strong>.
+            <p className="text-neutral-600">
+              Scheda sintetica del vino in magazzino.
             </p>
+          </div>
+
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onClick={goBack}
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
+            >
+              ← Torna alla lista
+            </button>
+
+            <button
+              type="button"
+              onClick={goMovimenti}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-neutral-900 text-white hover:bg-neutral-800 hover:-translate-y-0.5 shadow-sm transition"
+            >
+              📦 Movimenti
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:-translate-y-0.5 shadow-sm transition"
+            >
+              Logout
+            </button>
           </div>
         </div>
 
-        {optionsError && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
-            {optionsError}
-          </div>
-        )}
-        {submitError && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
-            {submitError}
-          </div>
-        )}
-        {submitSuccess && (
-          <div className="mb-4 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2">
-            {submitSuccess}
-          </div>
+        {loading && (
+          <p className="text-sm text-neutral-600">Caricamento dettaglio…</p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* ANAGRAFICA */}
-          <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Anagrafica vino
-            </h2>
+        {error && !loading && (
+          <p className="text-sm text-red-600 font-medium">{error}</p>
+        )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Tipologia *
-                </label>
-                <input
-                  list="tipologie-list"
-                  value={form.TIPOLOGIA}
-                  onChange={handleChange("TIPOLOGIA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. ROSSI ITALIA"
-                />
-                <datalist id="tipologie-list">
-                  {tipologie.map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-                </datalist>
+        {!loading && !error && !vino && (
+          <p className="text-sm text-neutral-500">
+            Nessun dato disponibile per questo vino.
+          </p>
+        )}
+
+        {!loading && !error && vino && (
+          <div className="space-y-4 text-sm text-neutral-800">
+
+            {/* INFO BASE */}
+            <div>
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
+                ID Vino
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Nazione *
-                </label>
-                <input
-                  list="nazioni-list"
-                  value={form.NAZIONE}
-                  onChange={handleChange("NAZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="ITALIA, FRANCIA…"
-                />
-                <datalist id="nazioni-list">
-                  {nazioni.map((n) => (
-                    <option key={n} value={n} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Regione
-                </label>
-                <input
-                  list="regioni-list"
-                  value={form.REGIONE}
-                  onChange={handleChange("REGIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. PIEMONTE"
-                />
-                <datalist id="regioni-list">
-                  {regioni.map((r) => (
-                    <option key={r} value={r} />
-                  ))}
-                </datalist>
+              <div className="mt-0.5 font-mono text-sm text-neutral-800">
+                {vino.id}
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Descrizione vino *
-                </label>
-                <input
-                  type="text"
-                  value={form.DESCRIZIONE}
-                  onChange={handleChange("DESCRIZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="Testo completo come appare sulla carta"
-                />
+            <div>
+              <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
+                Vino
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Formato
-                </label>
-                <select
-                  value={form.FORMATO}
-                  onChange={handleChange("FORMATO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                >
-                  {FORMAT_OPTIONS.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="mt-0.5 font-semibold text-neutral-900">
+                {vino.DESCRIZIONE}
+              </div>
+              {vino.DENOMINAZIONE && (
+                <div className="text-xs text-neutral-600">
+                  {vino.DENOMINAZIONE}
+                </div>
+              )}
+              <div className="mt-1 text-xs text-neutral-600">
+                {vino.NAZIONE}
+                {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
+                {vino.ANNATA ? ` — ${vino.ANNATA}` : ""}
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
                   Produttore
-                </label>
-                <input
-                  list="produttori-list"
-                  value={form.PRODUTTORE}
-                  onChange={handleChange("PRODUTTORE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. Gaja"
-                />
-                <datalist id="produttori-list">
-                  {produttori.map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
+                </div>
+                <div className="text-sm">
+                  {vino.PRODUTTORE || "—"}
+                </div>
               </div>
-
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
                   Distributore
-                </label>
-                <input
-                  type="text"
-                  value={form.DISTRIBUTORE}
-                  onChange={handleChange("DISTRIBUTORE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
+                </div>
+                <div className="text-sm">
+                  {vino.DISTRIBUTORE || "—"}
+                </div>
               </div>
+            </div>
 
+            {/* GIACENZE */}
+            <div>
+              <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-1">
+                Giacenze per locazione
+              </div>
+              <div className="border border-neutral-200 rounded-xl bg-white divide-y divide-neutral-100">
+                <div className="px-3 py-2 flex justify-between text-xs">
+                  <span>Frigorifero: {vino.FRIGORIFERO || "—"}</span>
+                  <span className="font-semibold">
+                    {vino.QTA_FRIGO ?? 0} bt
+                  </span>
+                </div>
+                <div className="px-3 py-2 flex justify-between text-xs">
+                  <span>Locazione 1: {vino.LOCAZIONE_1 || "—"}</span>
+                  <span className="font-semibold">
+                    {vino.QTA_LOC1 ?? 0} bt
+                  </span>
+                </div>
+                <div className="px-3 py-2 flex justify-between text-xs">
+                  <span>Locazione 2: {vino.LOCAZIONE_2 || "—"}</span>
+                  <span className="font-semibold">
+                    {vino.QTA_LOC2 ?? 0} bt
+                  </span>
+                </div>
+                <div className="px-3 py-2 flex justify-between text-xs">
+                  <span>Locazione 3: {vino.LOCAZIONE_3 || "—"}</span>
+                  <span className="font-semibold">
+                    {vino.QTA_LOC3 ?? 0} bt
+                  </span>
+                </div>
+                <div className="px-3 py-2 flex justify-between text-xs bg-neutral-50 rounded-b-xl">
+                  <span className="font-semibold">Totale magazzino</span>
+                  <span className="font-bold text-neutral-900">
+                    {vino.QTA_TOTALE ?? 0} bt
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* PREZZI */}
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Codice interno
-                </label>
-                <input
-                  type="text"
-                  value={form.CODICE}
-                  onChange={handleChange("CODICE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="Codice gestionale / iPratico"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center gap-4">
-                <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={form.CARTA === "SI"}
-                    onChange={handleCheckboxSiNo("CARTA")}
-                    className="rounded border-neutral-400"
-                  />
-                  <span>In carta</span>
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={form.IPRATICO === "SI"}
-                    onChange={handleCheckboxSiNo("IPRATICO")}
-                    className="rounded border-neutral-400"
-                  />
-                  <span>Presente su iPratico</span>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {/* MAGAZZINO */}
-          <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Magazzino — locazioni e giacenze iniziali
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">
-                  Frigorifero
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
+                  Prezzo carta
                 </div>
-                <input
-                  type="text"
-                  value={form.FRIGORIFERO}
-                  onChange={handleChange("FRIGORIFERO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <input
-                  type="number"
-                  value={form.QTA_FRIGO}
-                  onChange={handleChange("QTA_FRIGO")}
-                  className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="0"
-                />
-              </div>
-
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">
-                  Locazione 1
+                <div className="text-sm">
+                  {vino.PREZZO_CARTA != null
+                    ? `${Number(vino.PREZZO_CARTA).toFixed(2)} €`
+                    : "—"}
                 </div>
-                <input
-                  type="text"
-                  value={form.LOCAZIONE_1}
-                  onChange={handleChange("LOCAZIONE_1")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-                <input
-                  type="number"
-                  value={form.QTA_LOC1}
-                  onChange={handleChange("QTA_LOC1")}
-                  className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="0"
-                />
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
+                  Listino
+                </div>
+                <div className="text-sm">
+                  {vino.EURO_LISTINO != null
+                    ? `${Number(vino.EURO_LISTINO).toFixed(2)} €`
+                    : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
+                  Sconto
+                </div>
+                <div className="text-sm">
+                  {vino.SCONTO != null
+                    ? `${Number(vino.SCONTO).toFixed(2)} %`
+                    : "—"}
+                </div>
               </div>
             </div>
-          </section>
 
-          {/* FOOTER */}
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                submitting
-                  ? "bg-gray-400 text-white cursor-not-allowed"
-                  : "bg-amber-700 text-white hover:bg-amber-800"
-              }`}
-            >
-              {submitting ? "Salvataggio…" : "💾 Salva nuovo vino"}
-            </button>
-          </div>
+            {/* FLAG */}
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={
+                  "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
+                  (vino.CARTA === "SI"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-neutral-50 text-neutral-500 border-neutral-200")
+                }
+              >
+                CARTA: {vino.CARTA || "NO"}
+              </span>
+              <span
+                className={
+                  "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
+                  (vino.IPRATICO === "SI"
+                    ? "bg-sky-50 text-sky-700 border-sky-200"
+                    : "bg-neutral-50 text-neutral-500 border-neutral-200")
+                }
+              >
+                iPratico: {vino.IPRATICO || "NO"}
+              </span>
+              {vino.STATO_VENDITA && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">
+                  Stato vendita: {vino.STATO_VENDITA}
+                </span>
+              )}
+            </div>
 
-          <div className="text-xs text-neutral-500">
-            {loadingOptions
-              ? "Caricamento suggerimenti…"
-              : "Suggerimenti caricati da vini_magazzino (tipologie, nazioni, regioni, produttori)."}
+            {/* NOTE */}
+            {vino.NOTE && (
+              <div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
+                  Note interne
+                </div>
+                <p className="text-sm text-neutral-800 whitespace-pre-wrap">
+                  {vino.NOTE}
+                </p>
+              </div>
+            )}
           </div>
-        </form>
+        )}
       </div>
     </div>
   );
