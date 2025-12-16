@@ -5,6 +5,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 
+console.log("✅ MOVIMENTI CANTINA CARICATO - MARKER 2025-12-16");
+
 export default function MovimentiCantina() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
