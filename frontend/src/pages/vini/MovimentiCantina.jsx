@@ -1,23 +1,42 @@
 // src/pages/vini/MovimentiCantina.jsx
-// @version: v1.0-movimenti-cantina-attivo
-// Pagina Movimenti Cantina — per singolo vino
+// @version: v1.0-movimenti-inserimento
+// Movimenti Cantina — Inserimento + Lista movimenti per vino (magazzino)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
+const formatDateTime = (iso) => {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString("it-IT");
+  } catch {
+    return iso;
+  }
+};
+
 export default function MovimentiCantina() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams(); // vino_id
+
+  const token = localStorage.getItem("token");
 
   const [vino, setVino] = useState(null);
   const [movimenti, setMovimenti] = useState([]);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [posting, setPosting] = useState(false);
   const [error, setError] = useState("");
 
-  const token = localStorage.getItem("token");
+  // FORM
+  const [tipo, setTipo] = useState("CARICO");
+  const [qta, setQta] = useState(1);
+  const [locazione, setLocazione] = useState("");
+  const [note, setNote] = useState("");
+  const [origine, setOrigine] = useState("GESTIONALE");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -25,48 +44,9 @@ export default function MovimentiCantina() {
     window.location.reload();
   };
 
-  const fetchAll = async () => {
-    if (!token) {
-      handleLogout();
-      return;
-    }
-    if (!id) return;
-
-    setLoading(true);
-    setError("");
-    try {
-      const [respVino, respMov] = await Promise.all([
-        fetch(`${API_BASE}/vini/magazzino/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE}/vini/magazzino/${id}/movimenti?limit=200`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (respVino.status === 401 || respMov.status === 401) {
-        alert("Sessione scaduta. Effettua di nuovo il login.");
-        handleLogout();
-        return;
-      }
-      if (!respVino.ok) throw new Error(`Errore vino: ${respVino.status}`);
-      if (!respMov.ok) throw new Error(`Errore movimenti: ${respMov.status}`);
-
-      const v = await respVino.json();
-      const m = await respMov.json();
-
-      setVino(v);
-      setMovimenti(Array.isArray(m) ? m : []);
-    } catch (e) {
-      setError(e.message || "Errore di caricamento.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const vinoIdNum = useMemo(() => {
+    const n = parseInt(String(id || ""), 10);
+    return Number.isNaN(n) ? null : n;
   }, [id]);
 
   const tot = useMemo(() => {
@@ -80,17 +60,141 @@ export default function MovimentiCantina() {
     );
   }, [vino]);
 
+  const fetchAll = async () => {
+    if (!token) {
+      handleLogout();
+      return;
+    }
+    if (!vinoIdNum || vinoIdNum <= 0) {
+      setError("ID vino non valido.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // 1) dettaglio vino
+      const rVino = await fetch(`${API_BASE}/vini/magazzino/${vinoIdNum}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (rVino.status === 401) {
+        alert("Sessione scaduta. Effettua di nuovo il login.");
+        handleLogout();
+        return;
+      }
+      if (!rVino.ok) throw new Error(`Errore caricamento vino: ${rVino.status}`);
+      const vinoData = await rVino.json();
+      setVino(vinoData);
+
+      // 2) movimenti
+      const rMov = await fetch(
+        `${API_BASE}/vini/magazzino/${vinoIdNum}/movimenti?limit=200`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (rMov.status === 401) {
+        alert("Sessione scaduta. Effettua di nuovo il login.");
+        handleLogout();
+        return;
+      }
+      if (!rMov.ok) throw new Error(`Errore caricamento movimenti: ${rMov.status}`);
+      const movData = await rMov.json();
+      setMovimenti(Array.isArray(movData) ? movData : []);
+    } catch (e) {
+      setError(e.message || "Errore di caricamento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vinoIdNum]);
+
+  const submitMovimento = async (e) => {
+    e.preventDefault();
+    if (!token) {
+      handleLogout();
+      return;
+    }
+    if (!vinoIdNum) return;
+
+    const q = parseInt(String(qta), 10);
+    if (Number.isNaN(q) || q <= 0) {
+      alert("Quantità non valida (deve essere > 0).");
+      return;
+    }
+
+    setPosting(true);
+    setError("");
+
+    try {
+      const payload = {
+        tipo,
+        qta: q,
+        locazione: locazione.trim() ? locazione.trim() : null,
+        note: note.trim() ? note.trim() : null,
+        origine: origine?.trim() ? origine.trim() : "GESTIONALE",
+      };
+
+      const resp = await fetch(`${API_BASE}/vini/magazzino/${vinoIdNum}/movimenti`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (resp.status === 401) {
+        alert("Sessione scaduta. Effettua di nuovo il login.");
+        handleLogout();
+        return;
+      }
+
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => "");
+        throw new Error(`Errore inserimento movimento: ${resp.status} ${txt}`);
+      }
+
+      const data = await resp.json();
+      // backend ritorna { vino, movimenti }
+      if (data?.vino) setVino(data.vino);
+      if (Array.isArray(data?.movimenti)) setMovimenti(data.movimenti);
+
+      // reset parziale form
+      setQta(1);
+      setNote("");
+      // locazione la lasciamo com’è (spesso ripetuta)
+
+      // opzionale: feedback rapido
+      // eslint-disable-next-line no-alert
+      alert("Movimento registrato.");
+    } catch (e2) {
+      setError(e2.message || "Errore inserimento movimento.");
+    } finally {
+      setPosting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
+
         {/* HEADER */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
               📦 Movimenti Cantina
             </h1>
             <p className="text-neutral-600">
-              Carico / scarico / vendita / rettifica per il vino selezionato.
+              Carico / Scarico / Vendita / Rettifica con aggiornamento inventario.
             </p>
           </div>
 
@@ -103,6 +207,16 @@ export default function MovimentiCantina() {
               ← Torna al Magazzino
             </button>
 
+            {vinoIdNum && (
+              <button
+                type="button"
+                onClick={() => navigate(`/vini/magazzino/${vinoIdNum}`)}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
+              >
+                🍷 Dettaglio vino
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleLogout}
@@ -114,46 +228,153 @@ export default function MovimentiCantina() {
         </div>
 
         {/* SUBMENU */}
-        <div className="mb-5">
-          <MagazzinoSubMenu showDettaglio />
+        <div className="mb-6">
+          <MagazzinoSubMenu />
         </div>
 
-        {loading && <p className="text-sm text-neutral-600">Caricamento…</p>}
+        {loading && (
+          <p className="text-sm text-neutral-600">Caricamento…</p>
+        )}
+
         {error && !loading && (
           <p className="text-sm text-red-600 font-medium">{error}</p>
         )}
 
-        {!loading && !error && vino && (
-          <div className="mb-6 border border-neutral-200 rounded-2xl p-4 bg-neutral-50">
-            <div className="text-xs text-neutral-500 font-mono">ID: {vino.id}</div>
-            <div className="text-lg font-semibold text-neutral-900">
-              {vino.DESCRIZIONE}
-            </div>
-            <div className="text-sm text-neutral-600">
-              {vino.PRODUTTORE || "—"} · {vino.NAZIONE}
-              {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
-              {vino.ANNATA ? ` — ${vino.ANNATA}` : ""}
-            </div>
-            <div className="mt-2 text-sm">
-              <span className="font-semibold">Giacenza totale:</span> {tot} bt
+        {!loading && vino && (
+          <div className="mb-6 bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div>
+                <div className="text-xs text-neutral-500 font-mono">ID: {vino.id}</div>
+                <div className="font-semibold text-neutral-900">{vino.DESCRIZIONE}</div>
+                <div className="text-xs text-neutral-600">
+                  {vino.NAZIONE}
+                  {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
+                  {vino.ANNATA ? ` — ${vino.ANNATA}` : ""}
+                  {vino.PRODUTTORE ? ` — ${vino.PRODUTTORE}` : ""}
+                </div>
+              </div>
+
+              <div className="text-sm">
+                <span className="text-neutral-600">Giacenza totale:</span>{" "}
+                <span className="font-bold text-neutral-900">{tot} bt</span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* LISTA MOVIMENTI (read-only per ora) */}
-        {!loading && !error && (
-          <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
-            <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
+        {/* FORM INSERIMENTO */}
+        {!loading && vino && (
+          <form
+            onSubmit={submitMovimento}
+            className="mb-8 bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner"
+          >
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
-                Movimenti recenti
+                Inserisci movimento
               </h2>
               <button
                 type="button"
                 onClick={fetchAll}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
+                className="px-3 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 shadow-sm transition"
               >
                 ⟳ Ricarica
               </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Tipo
+                </label>
+                <select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value)}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                >
+                  <option value="CARICO">CARICO</option>
+                  <option value="SCARICO">SCARICO</option>
+                  <option value="VENDITA">VENDITA</option>
+                  <option value="RETTIFICA">RETTIFICA</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Quantità
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={qta}
+                  onChange={(e) => setQta(e.target.value)}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Locazione (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={locazione}
+                  onChange={(e) => setLocazione(e.target.value)}
+                  placeholder="es. Frigo / Cantina A / Scaffale 2…"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                  Note (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="es. Fattura X / Rottura / Servizio calici…"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="text-xs text-neutral-600">
+                <span className="font-semibold">Origine:</span>{" "}
+                <input
+                  type="text"
+                  value={origine}
+                  onChange={(e) => setOrigine(e.target.value)}
+                  className="ml-2 border border-neutral-300 rounded-lg px-2 py-1 text-xs bg-white"
+                  style={{ width: 140 }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={posting}
+                className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                  posting
+                    ? "bg-gray-400 text-white cursor-not-allowed"
+                    : "bg-amber-700 text-white hover:bg-amber-800"
+                }`}
+              >
+                {posting ? "Salvo…" : "✅ Registra movimento"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* LISTA MOVIMENTI */}
+        {!loading && (
+          <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
+            <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
+                Movimenti registrati
+              </h2>
+              <span className="text-xs text-neutral-500">
+                {movimenti.length} movimenti
+              </span>
             </div>
 
             <div className="max-h-[520px] overflow-auto">
@@ -164,40 +385,44 @@ export default function MovimentiCantina() {
                     <th className="px-3 py-2 text-left">Tipo</th>
                     <th className="px-3 py-2 text-center">Qta</th>
                     <th className="px-3 py-2 text-left">Locazione</th>
-                    <th className="px-3 py-2 text-left">Utente</th>
                     <th className="px-3 py-2 text-left">Note</th>
+                    <th className="px-3 py-2 text-left">Utente</th>
+                    <th className="px-3 py-2 text-left">Origine</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movimenti.map((m) => (
-                    <tr
-                      key={m.id ?? `${m.data_mov}-${m.tipo}-${m.qta}`}
-                      className="border-b border-neutral-200 bg-white hover:bg-amber-50 transition"
-                    >
-                      <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">
-                        {m.data_mov || "—"}
+                    <tr key={m.id} className="border-b border-neutral-200 bg-white">
+                      <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">
+                        {formatDateTime(m.data_mov || m.created_at)}
                       </td>
-                      <td className="px-3 py-2 text-xs font-semibold">
-                        {m.tipo || "—"}
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                          {m.tipo}
+                        </span>
                       </td>
                       <td className="px-3 py-2 text-center font-semibold">
-                        {m.qta ?? "—"}
+                        {m.qta}
                       </td>
-                      <td className="px-3 py-2 text-xs">{m.locazione || "—"}</td>
-                      <td className="px-3 py-2 text-xs">{m.utente || "—"}</td>
+                      <td className="px-3 py-2 text-xs text-neutral-700">
+                        {m.locazione || "—"}
+                      </td>
                       <td className="px-3 py-2 text-xs text-neutral-700">
                         {m.note || "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-700">
+                        {m.utente || "—"}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-neutral-700">
+                        {m.origine || "—"}
                       </td>
                     </tr>
                   ))}
 
                   {movimenti.length === 0 && (
                     <tr>
-                      <td
-                        colSpan={6}
-                        className="px-4 py-6 text-center text-sm text-neutral-500"
-                      >
-                        Nessun movimento registrato.
+                      <td colSpan={7} className="px-4 py-6 text-center text-sm text-neutral-500">
+                        Nessun movimento registrato per questo vino.
                       </td>
                     </tr>
                   )}
@@ -206,6 +431,7 @@ export default function MovimentiCantina() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
