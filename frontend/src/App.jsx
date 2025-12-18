@@ -1,5 +1,4 @@
-// src/App.jsx
-// @version: v3.4-premium-magazzino-movimenti-attivi
+// @version: v3.4-premium-menu-vini-carta-import
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -11,7 +10,6 @@ import Home from "./pages/Home";
 // --- GESTIONE VINI ---
 import ViniMenu from "./pages/vini/ViniMenu";
 import ViniCarta from "./pages/vini/ViniCarta";
-import ViniDatabase from "./pages/vini/ViniDatabase";
 import ViniVendite from "./pages/vini/ViniVendite";
 import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
 
@@ -19,6 +17,8 @@ import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
 import MagazzinoVini from "./pages/vini/MagazzinoVini";
 import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
 import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
+
+// --- MOVIMENTI CANTINA ---
 import MovimentiCantina from "./pages/vini/MovimentiCantina";
 
 // --- GESTIONE RICETTE ---
@@ -35,11 +35,9 @@ import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
-
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
-
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -62,19 +60,16 @@ export default function App() {
         {/* --- GESTIONE VINI --- */}
         <Route path="/vini" element={<ViniMenu />} />
         <Route path="/vini/carta" element={<ViniCarta />} />
-        <Route path="/vini/database" element={<ViniDatabase />} />
         <Route path="/vini/vendite" element={<ViniVendite />} />
         <Route path="/vini/settings" element={<ViniImpostazioni />} />
 
         {/* --- MAGAZZINO VINI --- */}
         <Route path="/vini/magazzino" element={<MagazzinoVini />} />
         <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
-
-        {/* Dettaglio vino */}
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
 
-        {/* Movimenti (ATTIVO) */}
-        <Route path="/vini/magazzino/:id/movimenti" element={<MovimentiCantina />} />
+        {/* --- MOVIMENTI CANTINA --- */}
+        <Route path="/vini/movimenti" element={<MovimentiCantina />} />
 
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
@@ -101,7 +96,7 @@ export default function App() {
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
 
-        {/* Catch-all */}
+        {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

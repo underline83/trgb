@@ -1,4 +1,4 @@
-// @version: v3.1-premium-magazzino-menu-finale
+// @version: v3.2-premium-magazzino-menu-finale
 // Menu Gestione Vini — Vintage Premium + Magazzino (FINAL STRUCTURE)
 
 import React from "react";
@@ -10,7 +10,6 @@ export default function ViniMenu() {
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
@@ -40,7 +39,6 @@ export default function ViniMenu() {
 
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
           {/* CARTA VINI */}
           <Link
             to="/vini/carta"
@@ -56,26 +54,7 @@ export default function ViniMenu() {
               Carta dei Vini
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Consultazione carta (HTML / PDF / Word)
-            </p>
-          </Link>
-
-          {/* DATABASE / RICERCA */}
-          <Link
-            to="/vini/database"
-            className="
-              bg-blue-50 border border-blue-200 text-blue-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">🔎</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Database & Ricerca Vini
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Ricerca completa anagrafica vini
+              Anteprima + PDF/Word + Import Excel (solo Carta)
             </p>
           </Link>
 
@@ -118,24 +97,23 @@ export default function ViniMenu() {
           </Link>
 
           {/* MOVIMENTI CANTINA */}
-          <div
+          <Link
+            to="/vini/movimenti"
             className="
-              bg-neutral-50 border border-neutral-300 text-neutral-400
+              bg-neutral-50 border border-neutral-300 text-neutral-800
               rounded-2xl p-8 shadow
-              text-center cursor-not-allowed relative
+              hover:shadow-xl hover:-translate-y-1 transition transform
+              text-center
             "
           >
             <div className="text-5xl mb-3">📦</div>
             <h2 className="text-xl font-semibold font-playfair">
               Movimenti Cantina
             </h2>
-            <p className="text-sm mt-1">
+            <p className="text-sm mt-1 text-neutral-700">
               Carico / Scarico / Vendita / Rottura
             </p>
-            <span className="absolute top-3 right-4 text-xs font-semibold bg-neutral-200 px-2 py-0.5 rounded">
-              In sviluppo
-            </span>
-          </div>
+          </Link>
 
           {/* DASHBOARD */}
           <div
@@ -144,6 +122,7 @@ export default function ViniMenu() {
               rounded-2xl p-8 shadow
               text-center cursor-not-allowed relative
             "
+            title="In sviluppo"
           >
             <div className="text-5xl mb-3">📊</div>
             <h2 className="text-xl font-semibold font-playfair">
@@ -175,7 +154,6 @@ export default function ViniMenu() {
               Import, allineamenti, liste controllate
             </p>
           </Link>
-
         </div>
       </div>
     </div>
