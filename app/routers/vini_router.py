@@ -1,9 +1,13 @@
-# @version: v2.06-stable
+# @version: v2.07-stable-html-alias
 # -*- coding: utf-8 -*-
 """
 Router Vini — HTML + PDF + DOCX + Movimenti + Import Excel
 
 Linea 2.x = motore carta avanzato (impaginazione + indice)
+
+Changelog v2.07:
+ - FIX: aggiunto alias endpoint /vini/carta/html → stessa preview di /vini/carta
+        (compatibilità frontend: risolve 404 su /vini/carta/html)
 
 Changelog v2.06:
  - CLEAN: rimosso uso di tabella 'vini_raw'
@@ -65,7 +69,7 @@ from app.repositories.vini_repository import load_vini_ordinati
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
-print(">>>>> LOADING VINI_ROUTER v2.06   PATH:", __file__)
+print(">>>>> LOADING VINI_ROUTER v2.07   PATH:", __file__)
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -124,7 +128,10 @@ async def upload_vini(
             raise HTTPException(status_code=400, detail=f"Errore apertura Excel: {e}")
 
         if "VINI" not in xls.sheet_names:
-            raise HTTPException(status_code=400, detail="Foglio 'VINI' non trovato nel file Excel.")
+            raise HTTPException(
+                status_code=400,
+                detail="Foglio 'VINI' non trovato nel file Excel.",
+            )
 
         raw = pd.read_excel(xls, sheet_name="VINI")
 
@@ -150,7 +157,7 @@ async def upload_vini(
         except Exception:
             pass
 
-    # 7) Risposta HTML (come prima) o JSON
+    # 7) Risposta HTML (report import) o JSON
     if format == "html":
         max_val = max(count.values()) if count else 1
         html = "<html><body><h2>Risultato Import</h2>"
@@ -194,6 +201,15 @@ def genera_carta_vini_html():
     """
 
     return HTMLResponse(html)
+
+
+# ------------------------------------------------------------
+# HTML PREVIEW CARTA (alias compatibilità: /vini/carta/html)
+# ------------------------------------------------------------
+@router.get("/carta/html", response_class=HTMLResponse)
+def genera_carta_vini_html_alias():
+    # Alias richiesto dal frontend (prima chiamava /vini/carta/html)
+    return genera_carta_vini_html()
 
 
 # ------------------------------------------------------------
@@ -317,8 +333,8 @@ def genera_carta_vini_docx():
             for prod, g3 in groupby(g2, k_prod):
                 g3 = list(g3)
                 p = doc.add_paragraph()
-                r = p.add_run(prod)
-                r.bold = True
+                rr = p.add_run(prod)
+                rr.bold = True
 
                 for riga in g3:
                     desc = riga["DESCRIZIONE"] or ""
