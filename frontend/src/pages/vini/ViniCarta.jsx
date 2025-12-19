@@ -1,16 +1,20 @@
-// @version: v3.1-carta-vini-import-interno
-// Pagina Carta Vini — Bottoni finali + Import Excel (solo Carta)
+// FILE: frontend/src/pages/vini/ViniCarta.jsx
+// @version: v3.2-carta-vini-preview-embedded-fixed
+// Pagina Carta Vini — Bottoni finali + Import Excel (solo Carta) + Preview embedded
 
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 
 export default function ViniCarta() {
   const navigate = useNavigate();
+  const iframeRef = useRef(null);
 
   const [loadingImport, setLoadingImport] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResultHtml, setImportResultHtml] = useState("");
+
+  const [previewTs, setPreviewTs] = useState(Date.now());
 
   const token = localStorage.getItem("token");
 
@@ -19,6 +23,14 @@ export default function ViniCarta() {
     localStorage.removeItem("role");
     window.location.reload();
   };
+
+  // --- ENDPOINTS REALI (router v2.06)
+  const htmlUrl = useMemo(() => `${API_BASE}/vini/carta`, []);
+  const pdfUrl = useMemo(() => `${API_BASE}/vini/carta/pdf`, []);
+  const docxUrl = useMemo(() => `${API_BASE}/vini/carta/docx`, []);
+
+  // Preview url con cache-busting
+  const previewUrl = useMemo(() => `${htmlUrl}?ts=${previewTs}`, [htmlUrl, previewTs]);
 
   // --- IMPORT EXCEL (solo carta)
   const handleImportExcel = async (file) => {
@@ -58,6 +70,9 @@ export default function ViniCarta() {
 
       const html = await resp.text();
       setImportResultHtml(html);
+
+      // dopo import: aggiorna anteprima embedded
+      setPreviewTs(Date.now());
     } catch (e) {
       setImportError(e?.message || "Errore import Excel.");
     } finally {
@@ -65,18 +80,17 @@ export default function ViniCarta() {
     }
   };
 
-  // --- BOTTONI (se i tuoi endpoint sono diversi, qui li adegui una volta sola)
-  const openHtml = () => window.open(`${API_BASE}/vini/carta/html`, "_blank");
-  const downloadPdf = () => window.open(`${API_BASE}/vini/carta/pdf`, "_blank");
-  const downloadWord = () => window.open(`${API_BASE}/vini/carta/word`, "_blank");
+  // --- BOTTONI
+  const openHtml = () => window.open(htmlUrl, "_blank", "noopener,noreferrer");
+  const downloadPdf = () => window.open(pdfUrl, "_blank", "noopener,noreferrer");
+  const downloadWord = () => window.open(docxUrl, "_blank", "noopener,noreferrer");
 
-  // “Aggiorna anteprima”: in molti casi coincide con rigenerare HTML lato server.
-  // Se hai già un endpoint specifico, sostituiscilo qui.
-  const refreshPreview = () => window.open(`${API_BASE}/vini/carta/html`, "_blank");
+  // Aggiorna anteprima: refresh iframe (bust cache)
+  const refreshPreview = () => setPreviewTs(Date.now());
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
+      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
           <div>
@@ -84,7 +98,7 @@ export default function ViniCarta() {
               📜 Carta dei Vini
             </h1>
             <p className="text-neutral-600">
-              Anteprima, esportazioni e import Excel (solo Carta).
+              Anteprima in pagina, esportazioni e import Excel (solo Carta).
             </p>
           </div>
 
@@ -153,6 +167,25 @@ export default function ViniCarta() {
           </label>
         </div>
 
+        {/* PREVIEW EMBEDDED */}
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-white mb-6">
+          <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between">
+            <div className="text-sm font-semibold text-neutral-800">
+              Anteprima Carta (HTML)
+            </div>
+            <div className="text-xs text-neutral-500">
+              Endpoint: /vini/carta
+            </div>
+          </div>
+
+          <iframe
+            ref={iframeRef}
+            title="Anteprima Carta Vini"
+            src={previewUrl}
+            className="w-full h-[75vh] bg-white"
+          />
+        </div>
+
         {/* ESITO IMPORT */}
         {importError && (
           <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
@@ -167,7 +200,7 @@ export default function ViniCarta() {
                 Esito import (HTML)
               </div>
               <div className="text-xs text-neutral-500">
-                Questo è l’output del server dopo l’import.
+                Output del server dopo l’import (solo controllo).
               </div>
             </div>
             <div
