@@ -1,76 +1,62 @@
-// =========================================================
 // FILE: frontend/src/components/vini/MagazzinoSubMenu.jsx
-// @version: v1.0-magazzino-submenu
-// Sub-menu Magazzino Vini (stile allineato al menu premium)
-// =========================================================
+// @version: v1.1-magazzino-submenu-movimenti-attivo
+// SubMenu Magazzino Vini — allineato alla struttura finale del modulo
+// NOTE: se passi vinoId abilita "Movimenti Cantina" sul vino selezionato
 
 import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
-export default function MagazzinoSubMenu() {
-  const navigate = useNavigate();
-  const location = useLocation();
+const base =
+  "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border shadow-sm transition";
+const active = "bg-purple-50 border-purple-200 text-purple-900";
+const inactive =
+  "bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:-translate-y-0.5";
+const disabled =
+  "bg-neutral-50 border-neutral-200 text-neutral-400 cursor-not-allowed";
 
-  const isActive = (path) => location.pathname === path;
-
-  const btnBase =
-    "px-4 py-2 rounded-xl text-sm font-semibold border shadow-sm transition " +
-    "hover:-translate-y-0.5";
-
-  const btnActive =
-    "bg-amber-700 text-white border-amber-700 hover:bg-amber-800";
-
-  const btnInactive =
-    "bg-neutral-50 text-neutral-800 border-neutral-300 hover:bg-neutral-100";
-
-  const btnDisabled =
-    "bg-neutral-50 text-neutral-400 border-neutral-200 cursor-not-allowed";
+export default function MagazzinoSubMenu({ vinoId = null }) {
+  const movimentiHref =
+    vinoId && Number(vinoId) > 0 ? `/vini/magazzino/${vinoId}/movimenti` : null;
 
   return (
-    <div className="flex flex-wrap gap-2 items-center justify-between mb-6">
+    <div className="mb-6">
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => navigate("/vini")}
-          className={
-            "px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
-          }
+        <NavLink
+          to="/vini/magazzino"
+          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+          end
         >
-          ← Menu Vini
-        </button>
+          🏷️ Magazzino
+        </NavLink>
 
-        <button
-          type="button"
-          onClick={() => navigate("/vini/magazzino")}
-          className={
-            btnBase + " " + (isActive("/vini/magazzino") ? btnActive : btnInactive)
-          }
-        >
-          🏷️ Lista Magazzino
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate("/vini/magazzino/nuovo")}
-          className={
-            btnBase +
-            " " +
-            (isActive("/vini/magazzino/nuovo") ? btnActive : btnInactive)
-          }
+        <NavLink
+          to="/vini/magazzino/nuovo"
+          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
         >
           ➕ Nuovo vino
-        </button>
+        </NavLink>
 
-        {/* Placeholder: quando faremo la pagina dedicata */}
-        <button type="button" className={btnBase + " " + btnDisabled} disabled>
-          📦 Movimenti (in sviluppo)
-        </button>
+        {/* MOVIMENTI (attivo solo se ho un vino selezionato) */}
+        {movimentiHref ? (
+          <NavLink
+            to={movimentiHref}
+            className={({ isActive }) =>
+              `${base} ${isActive ? active : inactive}`
+            }
+          >
+            📦 Movimenti Cantina
+          </NavLink>
+        ) : (
+          <div className={`${base} ${disabled}`} title="Seleziona un vino per aprire i movimenti">
+            📦 Movimenti Cantina
+          </div>
+        )}
 
-        <button type="button" className={btnBase + " " + btnDisabled} disabled>
-          📊 Dashboard (in sviluppo)
-        </button>
+        {/* FUTURO */}
+        <div className={`${base} ${disabled}`} title="In sviluppo">
+          📊 Dashboard Vini
+        </div>
       </div>
     </div>
   );
 }
-

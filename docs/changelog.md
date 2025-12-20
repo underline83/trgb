@@ -4,6 +4,22 @@ Questo CHANGELOG segue il formato professionale **Keep a Changelog**
 e utilizza date e milestone come riferimento.
 
 ---
+## 2025-12-05 — ARCH / MODULI
+
+### ARCH
+- Fusione Modulo Carta Vini + Modulo Magazzino Vini
+- Creato Modulo unico: Magazzino Vini
+- Separazione interna Carta / Operativo mantenuta
+
+### UPDATE
+- README riallineato alla nuova architettura
+- INDEX.md aggiornato
+- VERSION_MAP aggiornata
+
+### NOTE
+- Nessuna regressione funzionale
+- Migliorata stabilità architetturale
+
 ## 2025-12-05 — Modulo FE XML esteso (v2025.12.05-1)
 ### Added
 - Sezione documentazione completa nel README  
