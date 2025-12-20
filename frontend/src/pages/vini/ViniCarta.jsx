@@ -1,5 +1,5 @@
-// @version: v3.2-carta-vini-anteprima-embedded
-// Pagina Carta Vini — Anteprima embedded + Export + Import Excel (solo Carta)
+// @version: v3.2-carta-vini-preview-embedded-fix-endpoints
+// Pagina Carta Vini — Anteprima IN PAGINA + Export + Import Excel (solo Carta)
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,12 +11,9 @@ export default function ViniCarta() {
   const [loadingImport, setLoadingImport] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResultHtml, setImportResultHtml] = useState("");
-  const [showPreview, setShowPreview] = useState(true);
+  const [previewKey, setPreviewKey] = useState(0);
 
   const token = localStorage.getItem("token");
-
-  const cartaPublicUrl = `${API_BASE}/vini/carta`;
-  const cartaPublicSiteUrl = "https://trgb.tregobbi.it/carta-vini";
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -24,9 +21,7 @@ export default function ViniCarta() {
     window.location.reload();
   };
 
-  // --------------------------------------------------
-  // IMPORT EXCEL (solo carta)
-  // --------------------------------------------------
+  // --- IMPORT EXCEL (solo carta)
   const handleImportExcel = async (file) => {
     if (!file) return;
 
@@ -65,9 +60,8 @@ export default function ViniCarta() {
       const html = await resp.text();
       setImportResultHtml(html);
 
-      // forza refresh anteprima
-      setShowPreview(false);
-      setTimeout(() => setShowPreview(true), 50);
+      // dopo import, ricarico anteprima
+      setPreviewKey((k) => k + 1);
     } catch (e) {
       setImportError(e?.message || "Errore import Excel.");
     } finally {
@@ -75,33 +69,19 @@ export default function ViniCarta() {
     }
   };
 
-  // --------------------------------------------------
-  // AZIONI
-  // --------------------------------------------------
-  const refreshPreview = () => {
-    setShowPreview(false);
-    setTimeout(() => setShowPreview(true), 50);
-  };
+  // --- ENDPOINTS (ALLINEATI AL ROUTER)
+  const htmlUrl = `${API_BASE}/vini/carta`;
+  const pdfUrl = `${API_BASE}/vini/carta/pdf`;
+  const docxUrl = `${API_BASE}/vini/carta/docx`;
 
-  const openHtml = () => {
-    window.open(cartaPublicSiteUrl, "_blank");
-  };
+  const refreshPreview = () => setPreviewKey((k) => k + 1);
+  const openHtml = () => window.open(htmlUrl, "_blank");
+  const downloadPdf = () => window.open(pdfUrl, "_blank");
+  const downloadWord = () => window.open(docxUrl, "_blank");
 
-  const downloadPdf = () => {
-    window.open(`${API_BASE}/vini/carta/pdf`, "_blank");
-  };
-
-  const downloadWord = () => {
-    window.open(`${API_BASE}/vini/carta/docx`, "_blank");
-  };
-
-  // --------------------------------------------------
-  // RENDER
-  // --------------------------------------------------
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
-
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
           <div>
@@ -109,31 +89,31 @@ export default function ViniCarta() {
               📜 Carta dei Vini
             </h1>
             <p className="text-neutral-600">
-              Anteprima live, esportazioni e import Excel (solo Carta).
+              Anteprima (in pagina), esportazioni e import Excel (solo Carta).
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={() => navigate("/vini")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
             >
-              ← Menu Vini
+              ← Torna al Menu Vini
             </button>
 
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm transition"
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:-translate-y-0.5 shadow-sm transition"
             >
               Logout
             </button>
           </div>
         </div>
 
-        {/* BOTTONI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
+        {/* BOTTONI (ordine richiesto) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <button
             type="button"
             onClick={refreshPreview}
@@ -178,25 +158,22 @@ export default function ViniCarta() {
           </label>
         </div>
 
-        {/* ANTEPRIMA EMBEDDED */}
-        <div className="mb-8 border border-neutral-200 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200">
-            <div className="text-sm font-semibold text-neutral-800">
-              Anteprima Carta Vini (live)
+        {/* ANTEPRIMA (IN PAGINA) */}
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden mb-6">
+          <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-neutral-800">Anteprima Carta (HTML)</div>
+              <div className="text-xs text-neutral-500">Render dal backend, sempre aggiornata.</div>
             </div>
-            <div className="text-xs text-neutral-500">
-              Questa è la stessa carta pubblica visibile dal sito.
-            </div>
+            <div className="text-xs text-neutral-500 font-mono">/vini/carta</div>
           </div>
 
-          {showPreview && (
-            <iframe
-              src={cartaPublicUrl}
-              title="Carta Vini"
-              className="w-full"
-              style={{ height: "80vh", border: "none" }}
-            />
-          )}
+          <iframe
+            key={previewKey}
+            title="Anteprima Carta Vini"
+            src={htmlUrl}
+            className="w-full h-[70vh] bg-white"
+          />
         </div>
 
         {/* ESITO IMPORT */}
@@ -209,17 +186,10 @@ export default function ViniCarta() {
         {importResultHtml && (
           <div className="border border-neutral-200 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200">
-              <div className="text-sm font-semibold text-neutral-800">
-                Esito import (HTML)
-              </div>
-              <div className="text-xs text-neutral-500">
-                Output del server dopo l’import.
-              </div>
+              <div className="text-sm font-semibold text-neutral-800">Esito import (HTML)</div>
+              <div className="text-xs text-neutral-500">Output del server dopo l’import.</div>
             </div>
-            <div
-              className="p-4 text-sm"
-              dangerouslySetInnerHTML={{ __html: importResultHtml }}
-            />
+            <div className="p-4 text-sm" dangerouslySetInnerHTML={{ __html: importResultHtml }} />
           </div>
         )}
       </div>
