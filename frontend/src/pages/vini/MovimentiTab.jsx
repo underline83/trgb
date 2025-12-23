@@ -1,107 +1,58 @@
 // FILE: frontend/src/components/vini/MovimentiTab.jsx
 // @version: v1.0-movimenti-tab
-// Tab Movimenti Cantina — form inserimento + lista movimenti (con fallback endpoint)
+// Movimenti Cantina — GET/POST con JWT, integrato nel Dettaglio Vino
 
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE } from "../../config/api";
 
-/**
- * NOTE IMPORTANTI
- * - In base alla tua storia API, in alcuni punti il backend risponde su:
- *    1) /vini/magazzino/:id/movimenti
- *    2) /vini/:id/movimenti
- *   Qui facciamo fallback automatico (prima prova magazzino, poi prova base).
- */
-function buildEndpoints(vinoId) {
-  const base1 = `${API_BASE}/vini/magazzino/${vinoId}/movimenti`;
-  const base2 = `${API_BASE}/vini/${vinoId}/movimenti`;
-  return { base1, base2 };
-}
+const TIPI = ["CARICO", "SCARICO", "VENDITA", "RETTIFICA"];
 
 export default function MovimentiTab({ vinoId, onAfterChange }) {
-  const token = useMemo(() => localStorage.getItem("token"), []);
+  const token = localStorage.getItem("token");
+
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const [movimenti, setMovimenti] = useState([]);
 
-  // form
-  const [tipo, setTipo] = useState("SCARICO");
-  const [qta, setQta] = useState(1);
+  const [tipo, setTipo] = useState("CARICO");
+  const [qta, setQta] = useState("");
   const [note, setNote] = useState("");
-  const [origine, setOrigine] = useState("GESTIONALE");
 
-  const { base1, base2 } = useMemo(() => buildEndpoints(vinoId), [vinoId]);
+  const canSubmit = useMemo(() => {
+    const n = Number(qta);
+    return Number.isFinite(n) && n > 0 && TIPI.includes(tipo);
+  }, [qta, tipo]);
 
-  const authHeaders = useMemo(() => {
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
-  }, [token]);
-
-  async function fetchJsonWithFallback(urlA, urlB) {
-    const tryOne = async (url) => {
-      const resp = await fetch(url, { headers: authHeaders });
-      return resp;
-    };
-
-    const respA = await tryOne(urlA);
-    if (respA.ok) return respA;
-
-    // se 404/redirect/altro, proviamo il fallback
-    const respB = await tryOne(urlB);
-    return respB;
-  }
-
-  async function postJsonWithFallback(urlA, urlB, body) {
-    const tryOne = async (url) => {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          ...authHeaders,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-      return resp;
-    };
-
-    const respA = await tryOne(urlA);
-    if (respA.ok) return respA;
-
-    const respB = await tryOne(urlB);
-    return respB;
-  }
-
-  const loadMovimenti = async () => {
+  const fetchMovimenti = async () => {
+    if (!token) {
+      setError("Non autenticato (token mancante). Rifai login.");
+      return;
+    }
     if (!vinoId) return;
-    if (!token) return;
 
     setLoading(true);
     setError("");
 
     try {
-      // Per convenzione tua: spesso c’è ?limit=200
-      const urlA = `${base1}?limit=200`;
-      const urlB = `${base2}?limit=200`;
-
-      const resp = await fetchJsonWithFallback(urlA, urlB);
+      const resp = await fetch(`${API_BASE}/vini/${vinoId}/movimenti`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (resp.status === 401) {
         setError("Sessione scaduta. Rifai login.");
         return;
       }
+
       if (!resp.ok) {
         const txt = await resp.text().catch(() => "");
-        throw new Error(txt || `Errore caricamento movimenti: ${resp.status}`);
+        throw new Error(txt || `Errore server: ${resp.status}`);
       }
 
       const data = await resp.json();
 
-      // backend può restituire:
-      // - { vino_id, movimenti: [...] }
-      // oppure direttamente [...]
-      const list = Array.isArray(data) ? data : data.movimenti || [];
+      // backend: { vino_id, movimenti: [...] }
+      const list = Array.isArray(data?.movimenti) ? data.movimenti : [];
       setMovimenti(list);
     } catch (e) {
       setError(e?.message || "Errore caricamento movimenti.");
@@ -111,201 +62,193 @@ export default function MovimentiTab({ vinoId, onAfterChange }) {
   };
 
   useEffect(() => {
-    loadMovimenti();
+    fetchMovimenti();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vinoId]);
 
-  const handleSubmit = async () => {
-    if (!vinoId) return;
-    if (!token) return;
+  const submitMovimento = async () => {
+    if (!canSubmit) return;
 
-    setSaving(true);
+    setLoading(true);
     setError("");
 
     try {
       const payload = {
-        tipo: String(tipo || "").toUpperCase(),
+        tipo,
         qta: Number(qta),
-        note: note?.trim() || "",
-        origine: origine?.trim() || "GESTIONALE",
+        note: note?.trim() ? note.trim() : null,
+        origine: "GESTIONALE",
       };
 
-      if (!payload.tipo) throw new Error("Seleziona il tipo movimento.");
-      if (!Number.isInteger(payload.qta) || payload.qta <= 0) {
-        throw new Error("Qta deve essere un intero positivo.");
-      }
-
-      const resp = await postJsonWithFallback(base1, base2, payload);
+      const resp = await fetch(`${API_BASE}/vini/${vinoId}/movimenti`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       if (resp.status === 401) {
         setError("Sessione scaduta. Rifai login.");
         return;
       }
+
       if (!resp.ok) {
         const txt = await resp.text().catch(() => "");
-        throw new Error(txt || `Errore salvataggio movimento: ${resp.status}`);
+        throw new Error(txt || `Errore inserimento: ${resp.status}`);
       }
 
-      // reset form “soft”
+      setQta("");
       setNote("");
-      setQta(1);
+      await fetchMovimenti();
 
-      // reload
-      await loadMovimenti();
-      if (typeof onAfterChange === "function") onAfterChange();
+      if (typeof onAfterChange === "function") {
+        onAfterChange(); // es: ricarica scheda vino/giacenze
+      }
     } catch (e) {
-      setError(e?.message || "Errore salvataggio movimento.");
+      setError(e?.message || "Errore inserimento movimento.");
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="border border-neutral-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-      <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200 flex items-start justify-between gap-4">
+    <div className="border border-neutral-200 rounded-2xl bg-neutral-50 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
-            📦 Movimenti Cantina
-          </h3>
-          <p className="text-xs text-neutral-500 mt-1">
-            Registra carico/scarico/vendita/rottura e tieni traccia storico.
+          <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
+            Movimenti cantina
+          </h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Inserisci movimenti (carico/scarico/vendita/rettifica) con log utente.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={loadMovimenti}
+          onClick={fetchMovimenti}
           disabled={loading}
-          className={`
-            px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition
-            ${loading ? "bg-gray-300 text-white cursor-not-allowed" : "bg-neutral-50 border border-neutral-300 hover:bg-neutral-100"}
-          `}
+          className={`px-3 py-2 rounded-xl text-xs font-semibold border shadow-sm transition ${
+            loading
+              ? "bg-neutral-200 border-neutral-200 text-neutral-400 cursor-not-allowed"
+              : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+          }`}
         >
-          {loading ? "Aggiorno…" : "⟳ Aggiorna"}
+          {loading ? "…" : "⟳ Ricarica"}
         </button>
       </div>
 
       <div className="p-4 space-y-4">
+        {error && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
+            {error}
+          </div>
+        )}
+
         {/* FORM */}
-        <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-            <div className="md:col-span-2">
+        <div className="bg-white border border-neutral-200 rounded-2xl p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Tipo movimento
+                Tipo
               </label>
               <select
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
               >
-                <option value="CARICO">CARICO</option>
-                <option value="SCARICO">SCARICO</option>
-                <option value="VENDITA">VENDITA</option>
-                <option value="ROTTURA">ROTTURA</option>
-                <option value="RETTIFICA">RETTIFICA</option>
+                {TIPI.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="md:col-span-1">
+            <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Qta
+                Quantità
               </label>
               <input
                 type="number"
+                min="1"
                 value={qta}
-                min={1}
-                step={1}
                 onChange={(e) => setQta(e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+                placeholder="es. 6"
               />
             </div>
 
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Nota (facoltativa)
+                Note (opzionale)
               </label>
               <input
                 type="text"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="es. Vendita tavolo 12 / Rottura in servizio / Carico fattura..."
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+                placeholder="es. carico da fattura / scarico rottura / vendita servizio…"
               />
-            </div>
-
-            <div className="md:col-span-1">
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Origine
-              </label>
-              <input
-                type="text"
-                value={origine}
-                onChange={(e) => setOrigine(e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-              />
-            </div>
-
-            <div className="md:col-span-6 flex justify-end">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={saving}
-                className={`
-                  px-5 py-2 rounded-xl text-sm font-semibold shadow-sm transition
-                  ${saving ? "bg-gray-300 text-white cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}
-                `}
-              >
-                {saving ? "Salvo…" : "✓ Registra movimento"}
-              </button>
             </div>
           </div>
 
-          {error && (
-            <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
-              {error}
-            </div>
-          )}
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={submitMovimento}
+              disabled={loading || !canSubmit}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition ${
+                loading || !canSubmit
+                  ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                  : "bg-amber-700 text-white hover:bg-amber-800"
+              }`}
+            >
+              Registra movimento
+            </button>
+          </div>
+
+          <p className="mt-2 text-[11px] text-neutral-500">
+            Nota: “RETTIFICA” imposta la qta come valore assoluto (non delta).
+          </p>
         </div>
 
-        {/* LISTA MOVIMENTI */}
-        <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200 flex items-center justify-between">
-            <div className="text-sm font-semibold text-neutral-800">
-              Storico movimenti
-            </div>
-            <div className="text-xs text-neutral-500">
-              {movimenti.length} record
+        {/* LISTA */}
+        <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+            <div className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+              Storico ({movimenti.length})
             </div>
           </div>
 
-          <div className="max-h-[360px] overflow-auto bg-white">
+          <div className="max-h-[360px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="bg-neutral-50 sticky top-0 z-10">
+              <thead className="bg-neutral-100 sticky top-0 z-10">
                 <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                   <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-left">Tipo</th>
+                  <th className="px-3 py-2 text-center">Tipo</th>
                   <th className="px-3 py-2 text-center">Qta</th>
                   <th className="px-3 py-2 text-left">Note</th>
                   <th className="px-3 py-2 text-left">Origine</th>
                 </tr>
               </thead>
               <tbody>
-                {movimenti.map((m, idx) => (
-                  <tr
-                    key={m.id ?? `${idx}-${m.data_mov ?? ""}`}
-                    className="border-b border-neutral-100 hover:bg-amber-50/40 transition"
-                  >
-                    <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">
-                      {m.data_mov || m.data || "—"}
-                    </td>
-                    <td className="px-3 py-2 font-semibold text-neutral-900 whitespace-nowrap">
-                      {m.tipo || "—"}
+                {movimenti.map((m) => (
+                  <tr key={m.id} className="border-t border-neutral-200">
+                    <td className="px-3 py-2 text-xs text-neutral-700 whitespace-nowrap">
+                      {(m.data_mov || "")
+                        .slice(0, 16)
+                        .replace("T", " ")}
                     </td>
                     <td className="px-3 py-2 text-center font-semibold">
-                      {m.qta ?? "—"}
+                      {m.tipo}
                     </td>
-                    <td className="px-3 py-2 text-xs text-neutral-700">
-                      {m.note || "—"}
+                    <td className="px-3 py-2 text-center font-semibold text-neutral-900">
+                      {m.qta}
+                    </td>
+                    <td className="px-3 py-2 text-sm text-neutral-800">
+                      {m.note || ""}
                     </td>
                     <td className="px-3 py-2 text-xs text-neutral-600">
                       {m.origine || "—"}
@@ -313,25 +256,19 @@ export default function MovimentiTab({ vinoId, onAfterChange }) {
                   </tr>
                 ))}
 
-                {!loading && movimenti.length === 0 && (
+                {movimenti.length === 0 && (
                   <tr>
                     <td
                       colSpan={5}
-                      className="px-4 py-6 text-center text-sm text-neutral-500"
+                      className="px-4 py-5 text-center text-sm text-neutral-500"
                     >
-                      Nessun movimento registrato per questo vino.
+                      Nessun movimento registrato.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-
-          {loading && (
-            <div className="px-4 py-3 text-sm text-neutral-600 bg-neutral-50 border-t border-neutral-200">
-              Caricamento movimenti…
-            </div>
-          )}
         </div>
       </div>
     </div>

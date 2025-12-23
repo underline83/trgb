@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/vini/MagazzinoSubMenu.jsx
-// @version: v1.1-magazzino-submenu-movimenti-attivo
+// @version: v1.1-magazzino-submenu-movimenti
 // SubMenu Magazzino Vini — allineato alla struttura finale del modulo
-// NOTE: se passi vinoId abilita "Movimenti Cantina" sul vino selezionato
+// - Movimenti attivo SOLO se c'è un vinoId (dettaglio/movimenti)
 
 import React from "react";
 import { NavLink } from "react-router-dom";
@@ -14,9 +14,9 @@ const inactive =
 const disabled =
   "bg-neutral-50 border-neutral-200 text-neutral-400 cursor-not-allowed";
 
-export default function MagazzinoSubMenu({ vinoId = null }) {
-  const movimentiHref =
-    vinoId && Number(vinoId) > 0 ? `/vini/magazzino/${vinoId}/movimenti` : null;
+export default function MagazzinoSubMenu({ vinoId }) {
+  const hasId = Number.isInteger(Number(vinoId)) && Number(vinoId) > 0;
+  const movimentiTo = hasId ? `/vini/magazzino/${vinoId}/movimenti` : null;
 
   return (
     <div className="mb-6">
@@ -36,10 +36,9 @@ export default function MagazzinoSubMenu({ vinoId = null }) {
           ➕ Nuovo vino
         </NavLink>
 
-        {/* MOVIMENTI (attivo solo se ho un vino selezionato) */}
-        {movimentiHref ? (
+        {hasId ? (
           <NavLink
-            to={movimentiHref}
+            to={movimentiTo}
             className={({ isActive }) =>
               `${base} ${isActive ? active : inactive}`
             }
@@ -47,12 +46,11 @@ export default function MagazzinoSubMenu({ vinoId = null }) {
             📦 Movimenti Cantina
           </NavLink>
         ) : (
-          <div className={`${base} ${disabled}`} title="Seleziona un vino per aprire i movimenti">
+          <div className={`${base} ${disabled}`} title="Seleziona un vino (dettaglio) per attivare">
             📦 Movimenti Cantina
           </div>
         )}
 
-        {/* FUTURO */}
         <div className={`${base} ${disabled}`} title="In sviluppo">
           📊 Dashboard Vini
         </div>
