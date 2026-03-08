@@ -102,13 +102,18 @@ docs/prompt_canvas.md                — regole operative per generare codice
 
 ## Workflow operativo di Marco
 
-**Sempre su Mac** (cartella `~/trgb`, workspace Cowork selezionato):
-1. Modifiche ai file con Cowork/Claude
-2. `git add` + `git commit` + `git push`
-3. Sul VPS: `./scripts/deploy.sh -b` (o `-a` se ci sono nuove dipendenze)
+**Macchine:**
+- **Mac** — macchina principale di sviluppo, utente `underline83`, cartella `~/trgb`
+- **Windows** — PC secondario, utente `mcarm`, cartella `C:\Users\mcarm\progetti\trgb`
+- **VPS** — Aruba Ubuntu 22.04, IP `80.211.131.156`, utente SSH `marco`, cartella `/home/marco/trgb/trgb`
+
+**Flusso sempre:**
+1. Modifiche su Mac con Cowork/Claude
+2. `git commit` + `git push` dal Mac
+3. `ssh marco@80.211.131.156` → `./scripts/deploy.sh -b` (o `-a`)
 4. Su Windows: `git pull` in VS Code
 
-**Non lavorare mai direttamente sul VPS o su Windows** — la fonte di verità è sempre il Mac.
+**La fonte di verità è sempre il Mac. Non modificare direttamente sul VPS o Windows.**
 
 ## Deploy — comandi utili
 
@@ -116,14 +121,15 @@ docs/prompt_canvas.md                — regole operative per generare codice
 # 1. Da Mac — commit e push
 git add <file> && git commit -m "fix: #N descrizione" && git push
 
-# 2. Sul VPS (ssh marco@80.211.131.156):
+# 2. Sul VPS
+ssh marco@80.211.131.156
 cd /home/marco/trgb/trgb
-./scripts/deploy.sh -b    # quick: solo git pull + restart
+./scripts/deploy.sh -b    # quick: git pull + restart servizi
 ./scripts/deploy.sh -a    # full: + pip install + npm build (nuove dipendenze)
-./scripts/deploy.sh -c    # safe: + backup DB prima
+./scripts/deploy.sh -c    # safe: + backup DB prima del deploy
 
-# 3. Su Windows VS Code:
-git pull
+# 3. Su Windows
+git pull   # in VS Code o terminale
 
 # Regola: se tocchi requirements.txt o package.json → obbligatorio -a sul VPS
 ```
