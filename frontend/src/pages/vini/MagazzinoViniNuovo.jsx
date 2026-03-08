@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
 // ✅ Lista formati (completa/estendibile: se hai già la lista ufficiale, incollala qui)
@@ -51,8 +51,6 @@ export default function MagazzinoViniNuovo() {
   const [dupChecking, setDupChecking] = useState(false);
   const [dupCandidates, setDupCandidates] = useState([]);
   const [showDupConfirm, setShowDupConfirm] = useState(false);
-
-  const token = localStorage.getItem("token");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -129,25 +127,13 @@ export default function MagazzinoViniNuovo() {
   // SUGGERIMENTI: ricavo liste da /vini/magazzino
   // ------------------------------------------------
   useEffect(() => {
-    if (!token) {
-      handleLogout();
-      return;
-    }
-
     const fetchOptions = async () => {
       setLoadingOptions(true);
       setOptionsError("");
 
       try {
-        const resp = await fetch(`${API_BASE}/vini/magazzino`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const resp = await apiFetch(`${API_BASE}/vini/magazzino`);
 
-        if (resp.status === 401) {
-          alert("Sessione scaduta. Effettua nuovamente il login.");
-          handleLogout();
-          return;
-        }
         if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
         const data = await resp.json();
@@ -178,15 +164,8 @@ export default function MagazzinoViniNuovo() {
     try {
       const q = encodeURIComponent(form.DESCRIZIONE.trim());
       // usiamo q per ridurre il set lato backend (router supporta ?q=...)
-      const resp = await fetch(`${API_BASE}/vini/magazzino?q=${q}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino?q=${q}`);
 
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua nuovamente il login.");
-        handleLogout();
-        return [];
-      }
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
       const data = await resp.json();
@@ -269,20 +248,11 @@ export default function MagazzinoViniNuovo() {
 
     setSubmitting(true);
     try {
-      const resp = await fetch(`${API_BASE}/vini/magazzino`, {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadFinal),
       });
-
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua nuovamente il login.");
-        handleLogout();
-        return;
-      }
 
       const data = await resp.json();
 
@@ -316,11 +286,6 @@ export default function MagazzinoViniNuovo() {
     e.preventDefault();
     setSubmitError("");
     setSubmitSuccess("");
-
-    if (!token) {
-      handleLogout();
-      return;
-    }
 
     // validazione minima
     if (!form.DESCRIZIONE.trim()) return setSubmitError("La descrizione del vino è obbligatoria.");

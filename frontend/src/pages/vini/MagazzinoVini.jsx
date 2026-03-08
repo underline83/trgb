@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 
 const uniq = (arr) =>
@@ -42,8 +42,6 @@ export default function MagazzinoVini() {
 
   const [onlyMissingListino, setOnlyMissingListino] = useState(false);
 
-  const token = localStorage.getItem("token");
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
@@ -54,25 +52,11 @@ export default function MagazzinoVini() {
   // FETCH DATI MAGAZZINO
   // ------------------------------------------------
   const fetchVini = async () => {
-    if (!token) {
-      handleLogout();
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      const url = `${API_BASE}/vini/magazzino`;
-      const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua di nuovo il login.");
-        handleLogout();
-        return;
-      }
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino`);
 
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 

@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 export default function ViniCarta() {
   const navigate = useNavigate();
@@ -12,8 +12,6 @@ export default function ViniCarta() {
   const [importError, setImportError] = useState("");
   const [importResultHtml, setImportResultHtml] = useState("");
   const [showPreview, setShowPreview] = useState(true);
-
-  const token = localStorage.getItem("token");
 
   const cartaPublicUrl = `${API_BASE}/vini/carta`;
   const cartaPublicSiteUrl = "https://trgb.tregobbi.it/carta-vini";
@@ -30,11 +28,6 @@ export default function ViniCarta() {
   const handleImportExcel = async (file) => {
     if (!file) return;
 
-    if (!token) {
-      handleLogout();
-      return;
-    }
-
     setLoadingImport(true);
     setImportError("");
     setImportResultHtml("");
@@ -43,19 +36,10 @@ export default function ViniCarta() {
       const form = new FormData();
       form.append("file", file);
 
-      const resp = await fetch(`${API_BASE}/vini/upload?format=html`, {
+      const resp = await apiFetch(`${API_BASE}/vini/upload?format=html`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: form,
       });
-
-      if (resp.status === 401) {
-        alert("Sessione scaduta. Effettua di nuovo il login.");
-        handleLogout();
-        return;
-      }
 
       if (!resp.ok) {
         const txt = await resp.text().catch(() => "");

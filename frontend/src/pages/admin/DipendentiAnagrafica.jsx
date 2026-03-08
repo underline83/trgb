@@ -2,7 +2,7 @@
 // @version: v1.0-dipendenti-anagrafica
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const RUOLI = [
   "Sala - Cameriere",
@@ -51,18 +51,7 @@ export default function DipendentiAnagrafica() {
   const [docFile, setDocFile] = useState(null);
   const [docUploading, setDocUploading] = useState(false);
 
-  const token = localStorage.getItem("token");
-
-  const authHeaders = token
-    ? {
-        Authorization: `Bearer ${token}`,
-      }
-    : {};
-
-  const jsonHeaders = {
-    "Content-Type": "application/json",
-    ...authHeaders,
-  };
+  const jsonHeaders = { "Content-Type": "application/json" };
 
   // ---------------------------------
   // FETCH DIPENDENTI
@@ -71,13 +60,8 @@ export default function DipendentiAnagrafica() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/dipendenti`, {
-        headers: authHeaders,
-      });
+      const res = await apiFetch(`${API_BASE}/dipendenti`);
       if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Token non valido o scaduto. Effettua di nuovo il login.");
-        }
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Errore nel caricamento dei dipendenti.");
       }
@@ -158,7 +142,7 @@ export default function DipendentiAnagrafica() {
     const method = isEdit ? "PUT" : "POST";
 
     try {
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: jsonHeaders,
         body: JSON.stringify(payload),
@@ -194,9 +178,8 @@ export default function DipendentiAnagrafica() {
   const handleDisattiva = async (dipendenteId) => {
     if (!window.confirm("Vuoi davvero disattivare questo dipendente?")) return;
     try {
-      const res = await fetch(`${API_BASE}/dipendenti/${dipendenteId}`, {
+      const res = await apiFetch(`${API_BASE}/dipendenti/${dipendenteId}`, {
         method: "DELETE",
-        headers: authHeaders,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -223,11 +206,8 @@ export default function DipendentiAnagrafica() {
     setDocsLoading(true);
     setDocsError(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/dipendenti/${dipendenteId}/documenti`,
-        {
-          headers: authHeaders,
-        }
+      const res = await apiFetch(
+        `${API_BASE}/dipendenti/${dipendenteId}/documenti`
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -266,13 +246,9 @@ export default function DipendentiAnagrafica() {
       if (docDescrizione) fd.append("descrizione", docDescrizione);
       fd.append("file", docFile);
 
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE}/dipendenti/${form.id}/documenti`,
-        {
-          method: "POST",
-          headers: authHeaders, // niente Content-Type manuale
-          body: fd,
-        }
+        { method: "POST", body: fd }
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -295,12 +271,9 @@ export default function DipendentiAnagrafica() {
   const handleDeleteDoc = async (docId) => {
     if (!window.confirm("Vuoi eliminare questo documento?")) return;
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `${API_BASE}/dipendenti/documenti/${docId}`,
-        {
-          method: "DELETE",
-          headers: authHeaders,
-        }
+        { method: "DELETE" }
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

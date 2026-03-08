@@ -13,7 +13,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const monthNames = [
   "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
@@ -43,8 +43,6 @@ export default function CorrispettiviAnnual() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const token = localStorage.getItem("token");
-
   useEffect(() => {
     fetchData(year);
   }, [year]);
@@ -54,15 +52,9 @@ export default function CorrispettiviAnnual() {
     setError(null);
     setData(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/admin/finance/stats/annual-compare?year=${y}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await apiFetch(
+        `${API_BASE}/admin/finance/stats/annual-compare?year=${y}`
       );
-      if (res.status === 401) {
-        localStorage.removeItem("token");
-        navigate("/login");
-        return;
-      }
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const json = await res.json();
       setData(json);
