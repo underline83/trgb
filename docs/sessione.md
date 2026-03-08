@@ -18,17 +18,13 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 ## Cosa abbiamo fatto nell'ultima sessione (2026-03-08)
 
 1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
-2. **Riscritta tutta la documentazione** in `docs/` (vedi changelog.md per dettagli):
-   - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json` (JSON non valido), `promt.md`
-   - Creati: `modulo_corrispettivi.md`, `modulo_dipendenti.md`, `prompt_canvas.md`, `sessione.md`, `database.md`
-   - Rinominati in minuscolo: tutti i `Modulo_*.md`, `SESSIONE.md`, `Roadmap.md`
-   - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json`, `promt.md`, `Index.md`, `VersionMap.md`, `troubleshooting.md`, `Database_Vini.md`, `Database_FoodCost.md`
-   - Aggiornati: `architettura.md` (aggiunto §9 versioni+dipendenze), `deploy.md` (aggiunto §6 troubleshooting), `changelog.md`, `readme.md`
-3. **Fix #6** — nuova pagina `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` in `App.jsx` ✅
-4. **Fix #9** — rimossa `slugify` duplicata da `vini_router.py`, importata da `carta_vini_service` ✅
-5. **Fix #11** — allineato `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML ✅
-6. **Setup git server VPS** — creato bare repo `/home/marco/trgb/trgb.git` con post-receive hook per deploy automatico. Script `scripts/setup_git_server.sh` creato per ricreare il setup.
-7. **Fix precedenti** (commit `9a34957`, `0d7987b`): pyxlsb, console.log debug, bug pie chart pagamenti
+2. **Riscritta e consolidata tutta la documentazione** — da 18 a 13 file, naming tutto minuscolo, accorpati troubleshooting/VersionMap/Index, DB unificato in `database.md`
+3. **Setup git server VPS** — bare repo `/home/marco/trgb/trgb.git` + post-receive hook deploy automatico su `git push`
+4. **Fix #6** — `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` ✅
+5. **Fix #9** — `slugify` deduplicata in `vini_router.py` ✅
+6. **Fix #11** — `if prezzo:` → `if prezzo not in (None, "")` in `carta_vini_service.py` ✅
+7. **Fix #7** — `apiFetch()` in `api.js`: gestione 401 centralizzata, rimosso codice duplicato da 6 pagine ✅
+8. **Fix #3** — `Depends(get_current_user)` su 5 router pubblici: `admin_finance`, `fe_import`, `foodcost_ingredients`, `foodcost_recipes`, `vini_settings` ✅
 
 ---
 
@@ -47,9 +43,11 @@ La gestione 401 è copiata manualmente in ~10 pagine diverse. Non c'è un interc
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
 ### 🟢 COSE GIÀ FIXATE (questa sessione)
-- Fix #6: route `/admin/corrispettivi/annual` aggiunta in `App.jsx` + pagina `CorrispettiviAnnual.jsx` creata ✅
-- Fix #9: `slugify` deduplicata — ora importata da `carta_vini_service.py` ✅
-- Fix #11: `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML carta vini ✅
+- Fix #3: `Depends(get_current_user)` su admin_finance, fe_import, foodcost_ingredients, foodcost_recipes, vini_settings ✅
+- Fix #6: route `/admin/corrispettivi/annual` + pagina `CorrispettiviAnnual.jsx` ✅
+- Fix #7: `apiFetch()` centralizzato in `api.js`, rimosso codice 401 duplicato da 6 pagine ✅
+- Fix #9: `slugify` deduplicata in `vini_router.py` ✅
+- Fix #11: `if prezzo:` → `if prezzo not in (None, "")` in `carta_vini_service.py` ✅
 
 ---
 
@@ -60,19 +58,19 @@ Ordine suggerito per lavorare:
 
 | # | Task | Difficoltà | Impatto |
 |---|------|-----------|---------|
+| ~~3~~ | ~~Auth su endpoint pubblici~~ | ~~Medio~~ | ~~Critico~~ | ✅ |
 | ~~6~~ | ~~Route `/annual` + pagina confronto annuale~~ | ~~Facile~~ | ~~Medio~~ | ✅ |
+| ~~7~~ | ~~Interceptor Axios centralizzato~~ | ~~Medio~~ | ~~Alto~~ | ✅ |
 | ~~9~~ | ~~`slugify` deduplicata~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
 | ~~11~~ | ~~Fix `if prezzo:` HTML preview~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
-| 7 | Interceptor Axios centralizzato | Medio (1h) | Alto |
-| 3 | Aggiungere auth su endpoint pubblici | Medio (1-2h) | Critico |
 | 1 | Sostituire mock auth con hash reali | Alto (2-3h) | Critico |
+| 2 | Aggiornare `.env.production` a HTTPS | Facile (15min) | Medio |
 
 **Azione pendente (manuale su VPS):**
-Aggiungere a `/etc/sudoers` tramite `sudo visudo`:
+Il post-receive hook funziona ma non riesce a riavviare i servizi. Verificare il path di systemctl (`which systemctl`) e aggiungere via `sudo visudo`:
 ```
-marco ALL=(ALL) NOPASSWD: /bin/systemctl restart trgb-backend, /bin/systemctl restart trgb-frontend
+marco ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart trgb-backend, /usr/bin/systemctl restart trgb-frontend
 ```
-Senza questa riga il post-receive hook non può riavviare i servizi automaticamente.
 
 ---
 
