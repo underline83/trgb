@@ -8,7 +8,7 @@ import sqlite3
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
 # 🔄 IMPORT MULTI-ANNO CORRISPETTIVI
@@ -18,10 +18,12 @@ from app.services.corrispettivi_import import (
     import_df_into_db,
     load_corrispettivi_from_excel,
 )
+from app.services.auth_service import get_current_user
 
 router = APIRouter(
     prefix="/admin/finance",
     tags=["admin-finance"],
+    dependencies=[Depends(get_current_user)],
 )
 
 UPLOAD_DIR = Path("app/data/uploads")

@@ -24,11 +24,12 @@ Gestisce:
 from __future__ import annotations
 from typing import List, Dict, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults
+from app.services.auth_service import get_current_user
 
-router = APIRouter(prefix="/settings/vini", tags=["Impostazioni Carta Vini"])
+router = APIRouter(prefix="/settings/vini", tags=["Impostazioni Carta Vini"], dependencies=[Depends(get_current_user)])
 
 
 def _ensure():

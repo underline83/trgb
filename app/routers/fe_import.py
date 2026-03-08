@@ -17,11 +17,13 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from app.services.auth_service import get_current_user
 
 router = APIRouter(
     prefix="/contabilita/fe",
     tags=["contabilita-fe"],
+    dependencies=[Depends(get_current_user)],
 )
 
 # -------------------------------------------------------------------

@@ -11,13 +11,14 @@ Endpoint principali:
 - POST /foodcost/ricette         → crea nuova ricetta + righe
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
 from app.models.foodcost_db import get_foodcost_connection
+from app.services.auth_service import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 # ─────────────────────────────

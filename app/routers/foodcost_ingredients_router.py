@@ -26,14 +26,15 @@ Path effettivi (main.py):
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.models.foodcost_db import get_foodcost_connection
+from app.services.auth_service import get_current_user
 
 
 # N.B.: prefix "/ingredients" sarà aggiunto a "/foodcost" dal main
-router = APIRouter(prefix="/ingredients", tags=["foodcost-ingredients"])
+router = APIRouter(prefix="/ingredients", tags=["foodcost-ingredients"], dependencies=[Depends(get_current_user)])
 
 
 # ─────────────────────────────────────────────
