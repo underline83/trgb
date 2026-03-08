@@ -19,7 +19,8 @@ Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 | **Frontend porta interna** | `5173` |
 | **Repo git locale (Mac)** | `~/trgb` |
 | **Repo git locale (Win)** | `C:\Users\mcarm\progetti\trgb` |
-| **Repo git VPS** | `/home/marco/trgb/trgb` |
+| **Repo git VPS (working dir)** | `/home/marco/trgb/trgb` |
+| **Repo git VPS (bare server)** | `/home/marco/trgb/trgb.git` |
 
 ---
 
@@ -59,47 +60,68 @@ ssh marco@80.211.131.156
 
 # 3. Script Unico di Deploy — `deploy.sh`
 
-> ⚠️ Va eseguito **dalla VPS** (non da remoto via ssh "..."), altrimenti sudo non funziona.
+> ⚠️ Con il nuovo flusso automatico (sez. 4.1), `deploy.sh` non serve più per i deploy normali.
+> Va usato solo come **fallback manuale** dalla VPS.
 
-### Quick Deploy — git pull + restart servizi
-```
-./scripts/deploy.sh -b
-```
-Usalo per: modifiche al codice senza nuove dipendenze.
-
-### Full Deploy — git pull + pip install + npm + restart
-```
-./scripts/deploy.sh -a
-```
-Usalo per: nuove dipendenze Python o npm (es. dopo aver modificato `requirements.txt` o `package.json`).
-
-### Safe Deploy — backup DB + full deploy
-```
-./scripts/deploy.sh -c
-```
-Usalo per: deploy rischiosi o prima di modifiche ai database.
-
-### Rollback — ripristina dall'ultimo backup
-```
-./scripts/deploy.sh -d
-```
+| Opzione | Uso |
+|---------|-----|
+| `-b` | Quick: checkout + restart servizi (no pip/npm) |
+| `-a` | Full: + pip install + npm build (nuove dipendenze) |
+| `-c` | Safe: + backup DB prima del deploy |
+| `-d` | Rollback: ripristina dall'ultimo backup |
 
 ---
 
 # 4. Workflow git completo (Mac → VPS → Windows)
 
+## 4.1 Flusso automatico (NUOVO — dal 2026-03-08)
+
+Il VPS ospita un **bare repository** (`/home/marco/trgb/trgb.git`) con un **post-receive hook** che esegue il deploy automaticamente ad ogni push.
+
 ```
 1. Cowork modifica i file in ~/trgb
 2. Dal terminale Mac:
      git add <file>
-     git commit -m "descrizione"
-     git push origin main
-3. Sul VPS:
-     ssh marco@80.211.131.156
-     cd /home/marco/trgb/trgb
-     ./scripts/deploy.sh -b      ← o -a se servono nuove dipendenze
-4. Su Windows VS Code:
+     git commit -m "fix: #N descrizione"
+     git push
+     # → il VPS aggiorna il codice, pip/npm se serve, riavvia i servizi
+3. Su Windows VS Code:
      git pull
+```
+
+Il remote su Mac e Windows punta al bare repo:
+```
+origin → marco@80.211.131.156:/home/marco/trgb/trgb.git
+```
+
+### Prerequisiti VPS (una tantum)
+Il hook ha bisogno di poter riavviare i servizi senza password. Aggiungere via `sudo visudo`:
+```
+marco ALL=(ALL) NOPASSWD: /bin/systemctl restart trgb-backend, /bin/systemctl restart trgb-frontend
+```
+
+### Aggiornare il remote (se ancora vecchio)
+```bash
+# Mac
+git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
+
+# Windows
+git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
+git pull origin main
+```
+
+---
+
+## 4.2 Deploy manuale sul VPS (fallback se hook non funziona)
+
+> Usare solo se il deploy automatico fallisce.
+
+```bash
+ssh marco@80.211.131.156
+cd /home/marco/trgb/trgb
+./scripts/deploy.sh -b      # quick: checkout + restart servizi
+./scripts/deploy.sh -a      # full: + pip install + npm build
+./scripts/deploy.sh -c      # safe: + backup DB prima del deploy
 ```
 
 ---

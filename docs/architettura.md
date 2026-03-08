@@ -182,7 +182,10 @@ IP VPS: `80.211.131.156` (Aruba, Ubuntu 22.04)
 | `run_servers.command` | Avvio locale macOS (backend + frontend in parallelo) |
 | `run_server_vps.sh` | Avvio manuale backend su VPS |
 | `run_frontend_vps.sh` | Avvio manuale frontend su VPS |
-| `scripts/deploy.sh -a` | Full deploy VPS (git pull + pip + npm + restart) |
-| `scripts/deploy.sh -b` | Quick deploy (git pull + restart) |
-| `scripts/deploy.sh -c` | Safe deploy (backup DB + full deploy) |
+| `scripts/deploy.sh -a` | Full deploy manuale VPS (checkout + pip + npm + restart) — fallback |
+| `scripts/deploy.sh -b` | Quick deploy manuale (checkout + restart) — fallback |
+| `scripts/deploy.sh -c` | Safe deploy manuale (backup DB + full deploy) — fallback |
 | `scripts/deploy.sh -d` | Rollback all'ultimo backup |
+| `scripts/setup_git_server.sh` | Setup bare repo + post-receive hook sul VPS (una tantum) |
+
+> **Deploy automatico (dal 2026-03-08):** `git push` dal Mac → post-receive hook su `/home/marco/trgb/trgb.git` → deploy automatico. Vedi `docs/deploy.md` §4.1.
