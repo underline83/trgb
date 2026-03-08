@@ -1,9 +1,24 @@
-# 📄 TRGB Gestionale — CHANGELOG (Versione estesa)
-
-Questo CHANGELOG segue il formato professionale **Keep a Changelog**  
-e utilizza date e milestone come riferimento.
+# 📄 TRGB Gestionale — CHANGELOG
+**Formato:** Keep a Changelog
 
 ---
+
+## 2026-03-08 — Fix critici (v2026.03.08)
+
+### Fixed
+- Bug pie chart pagamenti in `CorrispettiviDashboard.jsx`: `pag.pos` → `pag.pos_bpm`, `pag.sella` → `pag.pos_sella`
+- Rimosso `console.log("API_BASE:", API_BASE)` da `LoginForm.jsx`
+
+### Added
+- `pyxlsb` aggiunto a `requirements.txt` (necessario per import Excel .xlsb)
+
+### Docs
+- Roadmap.md completamente riscritta con stato verificato via ispezione codice
+- Tutti i file docs/ aggiornati o creati: Modulo_Corrispettivi.md, Modulo_Dipendenti.md, architettura.md, VersionMap.md, Index.md, prompt_canvas.md
+- Eliminati file obsoleti: sistema-vini.md, to-do.md, version.json
+
+---
+
 ## 2025-12-05 — Modulo FE XML esteso (v2025.12.05-1)
 ### Added
 - Sezione documentazione completa nel README  

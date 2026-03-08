@@ -1,5 +1,5 @@
-# 🍷 Modulo Vini — TRGB Gestionale  
-**Ultimo aggiornamento:** 2025-12-05  
+# 🍷 Modulo Vini — TRGB Gestionale
+**Ultimo aggiornamento:** 2026-03-08
 **Stato:** stabile — gestione completa Carta Vini
 
 ---
@@ -56,11 +56,16 @@ Documento Word.
 
 # 4. Componenti tecnici
 
-- `app/models/vini_model.py` — normalizzazione, inserimento DB  
-- `app/repositories/vini_repository.py` — ordering, filtri  
-- `app/routers/vini_router.py` — API  
-- `app/static/css/carta_pdf.css` — stile PDF WeasyPrint  
-- `app/services/pdf_service.py` — generazione PDF  
+- `app/models/vini_model.py` — normalizzazione, inserimento DB
+- `app/models/vini_db.py` — schema e init database
+- `app/repositories/vini_repository.py` — ordering, filtri, query `load_vini_ordinati()`
+- `app/routers/vini_router.py` — API (2 endpoint protetti con `get_current_user`)
+- `app/services/carta_vini_service.py` — builder HTML/PDF (funzioni `build_carta_body_*`)
+- `app/static/css/carta_pdf.css` — stile PDF WeasyPrint (font Cormorant Garamond)
+
+⚠️ **Nota:** `pdf_service.py` non esiste — la generazione PDF è in `carta_vini_service.py`
+
+⚠️ **Bug noto (task #11 Roadmap):** nella preview HTML, `if prezzo:` esclude vini con prezzo = 0; il ramo PDF usa correttamente `if prezzo not in (None, "")`. Da allineare.  
 
 ---
 

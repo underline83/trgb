@@ -1,130 +1,154 @@
-# 🚀 TRGB Gestionale  
-Sistema gestionale interno dell’Osteria Tre Gobbi (Bergamo)  
-![Version](https://img.shields.io/badge/TRGB_Gestionale-2025.12.05-blue?style=for-the-badge)
-
-Documentazione versione: **2025-12-05**
-
-Per la mappa completa delle versioni dei moduli →  
-👉 [`docs/VERSION_MAP.md`](docs/VERSION_MAP.md)
-
----
-
-# 📚 Table of Contents  
-_(clicca per saltare alle sezioni)_
-
-- [1. Panoramica del Progetto](#1-panoramica-del-progetto)
-- [2. Struttura delle Cartelle](#2-struttura-delle-cartelle-locale--vps)
-- [3. File .env](#3-file-env-frontend)
-- [4. Avvio Locale](#4-avvio-locale-mac)
-- [5. Deploy su VPS](#5-deploy-su-vps-produzione)
-- [6. Script Unico di Deploy](#6-script-unico-di-deploy--deploysh)
-- [7. Servizi systemd](#7-servizi-systemd)
-- [8. NGINX Reverse Proxy + HTTPS](#8-nginx--reverse-proxy--https)
-- [9. Firewall UFW](#9-firewall-ufw)
-- [10. Modulo Vini (Carta + Architettura)](#10-modulo-vini-carta--architettura)
-- [11. Modulo Fatture Elettroniche XML](#11-modulo-fatture-elettroniche-xml)
-- [12. Roadmap Tecnica](#12-roadmap-tecnica-2026)
-- [13. Stato Produzione](#13-stato-produzione-dicembre-2025)
+# 🚀 TRGB Gestionale
+Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
+**Versione:** 2026.03.08
 
 ---
 
 # 1. Panoramica del Progetto
-*(identico a tuo testo – omesso per brevità)*
+
+TRGB Gestionale è un'applicazione web interna composta da:
+
+- **Backend** FastAPI (Python 3.12) — API REST, autenticazione JWT, SQLite
+- **Frontend** React 18 + Vite + TailwindCSS
+- **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
+
+Moduli attivi: Carta Vini, Magazzino Vini, Corrispettivi, Fatture Elettroniche XML, FoodCost, Dipendenti & Turni.
 
 ---
 
-# 2. Struttura delle Cartelle  
-*(identico al tuo testo – invariato)*
+# 2. Struttura delle Cartelle
+
+```
+trgb/
+├── app/
+│   ├── core/           — Config, JWT, security
+│   ├── routers/        — Endpoints API (un file per modulo)
+│   ├── services/       — Logica applicativa
+│   ├── models/         — Schema DB + CRUD
+│   ├── repositories/   — Query ordinate
+│   ├── migrations/     — Migrazioni foodcost.db
+│   └── data/           — Database SQLite
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx, main.jsx
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── config/api.js
+│   ├── .env.development
+│   └── .env.production
+├── static/             — CSS, font, asset statici
+├── docs/               — Documentazione tecnica
+├── scripts/
+│   └── deploy.sh       — Script deploy VPS
+└── main.py             — Entry point FastAPI
+```
 
 ---
 
-# 3. File .env  
-*(invariato)*
+# 3. File .env
+
+### `.env.development`
+```
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+### `.env.production`
+```
+VITE_API_BASE_URL=http://80.211.131.156:8000
+```
+⚠️ Da aggiornare a `https://trgb.tregobbi.it` (task #2 Roadmap)
 
 ---
 
-# 4. Avvio Locale  
-*(invariato)*
+# 4. Avvio Locale (Mac)
+
+```bash
+# Doppio click su run_servers.command
+# oppure manualmente:
+
+source ~/trgb/venv-trgb/bin/activate
+uvicorn main:app --reload --port 8000
+
+cd frontend && npm run dev
+```
+
+Endpoints locali:
+- Backend → `http://127.0.0.1:8000`
+- Frontend → `http://127.0.0.1:5173`
 
 ---
 
-# 5. Deploy VPS  
-*(invariato)*
+# 5. Deploy su VPS
+
+```bash
+ssh marco@80.211.131.156
+cd /home/marco/trgb/trgb
+./scripts/deploy.sh -b    # quick (solo restart)
+./scripts/deploy.sh -a    # full (pip + npm + restart)
+./scripts/deploy.sh -c    # safe (backup DB + full)
+```
+
+Per dettagli completi → `docs/deploy.md`
 
 ---
 
-# 6. Script Deploy  
-*(invariato)*
+# 6. Servizi systemd
+
+```bash
+sudo systemctl status trgb-backend
+sudo systemctl status trgb-frontend
+journalctl -u trgb-backend -f
+```
 
 ---
 
-# 7. Servizi systemd  
-*(invariato)*
+# 7. NGINX & HTTPS
+
+Dominio backend: `https://trgb.tregobbi.it` → `127.0.0.1:8000`
+Dominio frontend: `https://app.tregobbi.it` → `127.0.0.1:5173`
 
 ---
 
-# 8. NGINX Reverse Proxy  
-*(invariato)*
+# 8. Moduli
+
+### Carta Vini
+Import Excel → normalizzazione → DB → generazione HTML/PDF/DOCX.
+Documentazione: `docs/Modulo_Vini.md`, `docs/Database_Vini.md`
+
+### Magazzino Vini
+Giacenze vini, locazioni, prezzi carta/listino, import SAFE/FORCE.
+Documentazione: `docs/Modulo_MagazzinoVini.md`
+
+### Corrispettivi
+Import Excel corrispettivi, chiusure giornaliere, statistiche mensili/annuali, dashboard.
+Documentazione: `docs/Modulo_Corrispettivi.md`
+
+### Fatture Elettroniche (XML)
+Import FatturaPA XML, anti-duplicazione SHA-256, statistiche acquisti.
+Documentazione: `docs/Modulo_FattureXML.md`
+
+### FoodCost
+Ingredienti, fornitori, storico prezzi, ricette.
+Documentazione: `docs/Modulo_FoodCost.md`, `docs/Database_FoodCost.md`
+
+### Dipendenti & Turni
+Anagrafica, tipologie turno, calendario.
+Documentazione: `docs/Modulo_Dipendenti.md`
 
 ---
 
-# 9. Firewall UFW  
-*(invariato)*
+# 9. Documentazione completa
+
+Indice → `docs/Index.md`
 
 ---
 
-# 10. Modulo Vini (Carta + Architettura)
+# 10. Roadmap
 
-> Sezione esistente già valida.  
-> Nessuna modifica applicata.  
-> Rimane come **primo modulo funzionale** del gestionale.
+Task prioritari aperti → `docs/Roadmap.md`
 
----
-
-# 11. Modulo Fatture Elettroniche (XML)
-
-**Stato:** Prima versione operativa (import XML + dashboard acquisti)  
-**Data introduzione:** 2025-12-05  
-**DB:** `foodcost.db`
-
-## Architettura
-- Tabelle: `fe_fatture`, `fe_righe`
-- Parsing XML FatturaPA
-- Anti-duplicazione via hash SHA-256
-- Integrazione futura con ingredienti e magazzino
-
-## API Backend
-- `POST /contabilita/fe/import`
-- `GET /contabilita/fe/fatture`
-- `GET /contabilita/fe/fatture/{id}`
-- `GET /contabilita/fe/stats/fornitori`
-- `GET /contabilita/fe/stats/mensili`
-
-## Frontend (React)
-- `FattureMenu.jsx`
-- `FattureImport.jsx`
-- `FattureDashboard.jsx`
-- Funzioni:  
-  - drag&drop XML  
-  - lista importati  
-  - dettaglio righe  
-  - dashboard acquisti  
-
-## Evoluzioni previste
-- Matching righe ↔ ingredienti  
-- Carichi magazzino automatici  
-- Nuova dashboard grafica  
-
----
-
-# 12. Roadmap Tecnica 2026  
-*(invariata, era la tua sezione “11” ma ora diventa 12)*
-
----
-
-# 13. Stato Produzione (Dicembre 2025)  
-*(invariata, era la tua sezione “12” ma ora diventa 13)*
-
----
-
-# 🏁 FINE README (versione corretta e allineata)
+Stato attuale (2026-03-08):
+- ⚠️ Auth mock con password in chiaro (task #1)
+- ⚠️ Endpoint finanziari senza autenticazione (task #3)
+- ⚠️ `.env.production` usa HTTP, non HTTPS (task #2)
+- 🔄 Fix bug corrispettivi deployati (task #5 ✅)

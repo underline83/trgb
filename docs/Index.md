@@ -1,88 +1,85 @@
-# 📚 TRGB Gestionale — Documentazione Tecnica (Index)
-**Versione documento:** 2025-12-05  
-**Repository:** TRGB Gestionale – Osteria Tre Gobbi
-
-Benvenuto nell’indice ufficiale della documentazione del progetto **TRGB Gestionale**.  
-Qui trovi tutti i documenti tecnici, organizzati per area e modulo.
+# 📚 TRGB Gestionale — Indice Documentazione
+**Ultimo aggiornamento:** 2026-03-08
+**Repository:** TRGB Gestionale – Osteria Tre Gobbi (Bergamo)
 
 ---
 
 # 🧭 1. Architettura & Infrastruttura
 
-### 🔹 Architettura del Progetto  
-📄 `ARCHITETTURA.md`
-
-### 🔹 Deploy (Locale + VPS)  
-📄 `DEPLOY.md`
-
-### 🔹 Troubleshooting / Errori comuni  
-📄 `TROUBLESHOOTING.md`
-
-### 🔹 Prompt Canvas (istruzioni operative AI)  
-📄 `PROMPT_CANVAS.md`
+| Documento | Contenuto |
+|-----------|-----------|
+| `architettura.md` | Stack tecnico, struttura backend/frontend, DB, routing |
+| `deploy.md` | Deploy locale (Mac) + VPS Aruba, systemd, Nginx, HTTPS, UFW |
+| `troubleshooting.md` | Problemi comuni e soluzioni rapide |
+| `prompt_canvas.md` | Regole operative per sessioni AI (standard codice, naming, workflow) |
 
 ---
 
-# 🍷 2. Moduli Fondamentali
+# 🍷 2. Modulo Vini
 
-## 2.1 Modulo Vini (Carta Vini)
-Gestione completa carta vini: import Excel, normalizzazione, filtri, PDF, DOCX.  
-📄 `Modulo_Vini.md`  
-📄 `DATABASE_Vini.md`  
-📄 `SISTEMA_VINI.md` *(se presente nel repo)*
-
----
-
-## 2.2 Modulo Magazzino Vini
-Gestione giacenze vini, prezzi carta/listino, id Excel, import SAFE/FORCE, filtri avanzati.  
-📄 `Modulo_MagazzinoVini.md`
+| Documento | Contenuto |
+|-----------|-----------|
+| `Modulo_Vini.md` | Carta dei Vini: import Excel, generazione HTML/PDF/DOCX |
+| `Modulo_MagazzinoVini.md` | Giacenze, locazioni, import SAFE/FORCE, filtri avanzati |
+| `Database_Vini.md` | Schema completo `vini.sqlite3` + `vini_settings.sqlite3` |
 
 ---
 
-## 2.3 Modulo Fatture Elettroniche (XML)
-Import FatturaPA XML, parsing intestazione + righe, dashboard acquisti, anti-duplicazione.  
-📄 `Modulo_FattureXML.md`  
+# 💰 3. Modulo Corrispettivi & Finanza
+
+| Documento | Contenuto |
+|-----------|-----------|
+| `Modulo_Corrispettivi.md` | Import corrispettivi, chiusure giornaliere, statistiche, dashboard |
 
 ---
 
-# 🥘 3. Moduli FoodCost & Ingredienti
+# 🧾 4. Modulo Fatture Elettroniche (XML)
 
-## 3.1 Modulo FoodCost
-Ingredienti, fornitori, ricette, storico prezzi, integrazione futura con fatture e magazzino.  
-📄 `Modulo_FoodCost.md`  
-📄 `DATABASE_FoodCost.md`
-
----
-
-# 📈 4. Pianificazione & Versionamento
-
-## Roadmap tecnica completa  
-📄 `ROADMAP.md`
-
-## Changelog del progetto  
-📄 `CHANGELOG.md`
-
-## Version Map (versioni moduli + backend + DB + frontend)  
-📄 `VERSION_MAP.md`
+| Documento | Contenuto |
+|-----------|-----------|
+| `Modulo_FattureXML.md` | Import FatturaPA XML, anti-duplicazione, statistiche acquisti |
 
 ---
 
-# 🗂️ 5. Gerarchia moduli nel README principale
+# 🥘 5. Modulo FoodCost
 
-Per coerenza con il README master:
-
-10. Modulo Vini  
-11. Modulo Fatture Elettroniche (XML)  
-12. Roadmap Tecnica  
-13. Stato Produzione  
+| Documento | Contenuto |
+|-----------|-----------|
+| `Modulo_FoodCost.md` | Ingredienti, fornitori, ricette, storico prezzi |
+| `Database_FoodCost.md` | Schema completo `foodcost.db` (tabelle: ingredients, recipes, fe_fatture, …) |
 
 ---
 
-# 🏁 Note finali
-- Ogni modulo ha il proprio file in `/docs/Modulo_X.md`.  
-- Ogni modifica deve essere riportata in:
-  - `CHANGELOG.md`
-  - `VERSION_MAP.md`
-  - README (se rilevante)
-- La documentazione viene mantenuta aggiornata automaticamente tramite questa chat.
+# 👥 6. Modulo Dipendenti
 
+| Documento | Contenuto |
+|-----------|-----------|
+| `Modulo_Dipendenti.md` | Anagrafica, tipi turno, calendario turni, costi |
+
+---
+
+# 📈 7. Pianificazione & Versionamento
+
+| Documento | Contenuto |
+|-----------|-----------|
+| `Roadmap.md` | Task aperti prioritizzati, nuove feature, rilasci pianificati |
+| `changelog.md` | Storico modifiche per versione (formato Keep a Changelog) |
+| `VersionMap.md` | Versioni correnti di backend, frontend, moduli e DB |
+
+---
+
+# 🗑️ File rimossi
+
+I seguenti file sono stati eliminati perché obsoleti o duplicati:
+
+- `sistema-vini.md` — duplicato di `Database_Vini.md` + `Modulo_Vini.md`
+- `to-do.md` — superseded da `Roadmap.md`
+- `version.json` — JSON malformato, superseded da `VersionMap.md`
+
+---
+
+# 🧭 Note operative
+
+- Ogni modifica ai moduli va riportata in `changelog.md` e `VersionMap.md`
+- I task pendenti vivono in `Roadmap.md` (non nei file di modulo)
+- Per le sessioni AI: leggere `prompt_canvas.md` all'inizio di ogni sessione

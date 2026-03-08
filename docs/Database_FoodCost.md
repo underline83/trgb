@@ -1,5 +1,6 @@
 # TRGB – Database `foodcost.db`
-_Versione schema: migrazione 004_foodcost_full_schema_
+_Versione schema: migrazione 005 (ultima applicata)_
+_Ultimo aggiornamento: 2026-03-08_
 
 ## Obiettivo del database
 
@@ -8,12 +9,10 @@ _Versione schema: migrazione 004_foodcost_full_schema_
 - **ingredienti** (anagrafica unica, categorie, unità di misura)
 - **fornitori**
 - **storico prezzi** multi-fornitore
-- **fatture elettroniche** (XML) e relative righe
+- **fatture elettroniche XML** (`fe_fatture` + `fe_righe`)
 - **ricette** e collegamento ricette ↔ ingredienti
-- integrazione con:
-  - interfaccia web (React)
-  - import XML da fatture elettroniche
-  - GPT (generazione JSON ricette/ingredienti importabili)
+
+Le tabelle `fe_fatture` e `fe_righe` sono create a runtime da `fe_import.py` (NON da migrazione dedicata — task #19 Roadmap).
 
 ---
 
@@ -83,38 +82,46 @@ Storico prezzi reali, multi-fornitore.
 
 ---
 
-## 5. `invoices`
-Fatture elettroniche importate.
+## 5. `fe_fatture`
+Fatture elettroniche XML importate (tabella reale — creata a runtime da `fe_import.py`).
 
-| Colonna       | Tipo   | Note                                    |
-|---------------|--------|-----------------------------------------|
-| id            | INT PK |                                         |
-| supplier_id   | INT FK | → suppliers.id                          |
-| numero        | TEXT   | Numero fattura                          |
-| data_fattura  | TEXT   | Data fattura                            |
-| imponibile    | REAL   | Opzionale                               |
-| totale        | REAL   | Opzionale                               |
-| currency      | TEXT   | Default EUR                             |
-| xml_filename  | TEXT   | Nome/percorso file XML                  |
-| created_at    | TEXT   | Timestamp                               |
+> ⚠️ Questa tabella si chiama `fe_fatture`, NON `invoices`. Il nome `invoices` era nella pianificazione iniziale ma non è stato mai implementato.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | INT PK | Autoincrement |
+| fornitore_nome | TEXT | Nome fornitore estratto dall'XML |
+| fornitore_piva | TEXT | Partita IVA fornitore |
+| numero_fattura | TEXT | Numero documento |
+| data_fattura | TEXT | Data (YYYY-MM-DD) |
+| imponibile_totale | REAL | Imponibile totale |
+| iva_totale | REAL | IVA totale |
+| totale_fattura | REAL | Totale fattura |
+| valuta | TEXT | Default EUR |
+| xml_hash | TEXT | SHA-256 del file XML (anti-duplicazione) |
+| xml_filename | TEXT | Nome file originale |
+| data_import | TEXT | Timestamp import |
 
 ---
 
-## 6. `invoice_lines`
-Dettagli righe fattura.
+## 6. `fe_righe`
+Righe delle fatture elettroniche (tabella reale — creata a runtime da `fe_import.py`).
 
-| Colonna        | Tipo   | Note                                  |
-|----------------|--------|---------------------------------------|
-| id             | INT PK |                                       |
-| invoice_id     | INT FK | → invoices.id                         |
-| ingredient_id  | INT FK | Nullable (non mappata ancora)         |
-| descrizione    | TEXT   | Descrizione riga                      |
-| qty            | REAL   | Quantità                              |
-| unit           | TEXT   | Unit (kg, L, pz…)                     |
-| unit_price     | REAL   | Prezzo unitario                       |
-| total_line     | REAL   | Totale riga                           |
-| note           | TEXT   | Note (mapping, note operative)        |
-| created_at     | TEXT   | Timestamp                             |
+> ⚠️ Questa tabella si chiama `fe_righe`, NON `invoice_lines`.
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | INT PK | |
+| fattura_id | INT FK | → fe_fatture.id |
+| numero_linea | INT | Progressivo riga |
+| descrizione | TEXT | Descrizione riga fattura |
+| quantita | REAL | Quantità |
+| unita_misura | TEXT | Unità (kg, pz, L…) |
+| prezzo_unitario | REAL | Prezzo per unità |
+| prezzo_totale | REAL | Totale riga |
+| aliquota_iva | REAL | % IVA |
+| categoria_grezza | TEXT | Categoria estratta (facoltativa) |
+| note_analisi | TEXT | Note operative |
 
 ---
 
@@ -152,11 +159,13 @@ Dettagli ingredienti ricetta.
 
 ## Relazioni principali
 
-- `suppliers` → `ingredient_prices`, `invoices`
+- `suppliers` → `ingredient_prices`
 - `ingredient_categories` → `ingredients`
-- `ingredients` → `ingredient_prices`, `recipe_items`, `invoice_lines`
-- `invoices` → `invoice_lines`
+- `ingredients` → `ingredient_prices`, `recipe_items`
+- `fe_fatture` → `fe_righe`
 - `recipes` → `recipe_items`
+
+> Nota: non esiste ancora un collegamento tra `fe_righe` e `ingredients` — è previsto nella Fase 2 del Modulo FE XML (task #16 Roadmap)
 
 ---
 

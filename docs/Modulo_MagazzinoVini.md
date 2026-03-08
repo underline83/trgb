@@ -1,5 +1,5 @@
-# 🍾 Modulo Magazzino Vini — TRGB Gestionale  
-**Ultimo aggiornamento:** 2025-12-03  
+# 🍾 Modulo Magazzino Vini — TRGB Gestionale
+**Ultimo aggiornamento:** 2026-03-08
 **Stato:** operativo — filtri avanzati + import SAFE
 
 ---
@@ -80,8 +80,10 @@ Campi principali tabella magazzino:
 - preserva il magazzino esistente  
 
 ### FORCE (solo ruolo "admin")
-- riallineamento completo database  
-- modifiche massicce e ricostruzione tabella  
+- riallineamento completo database
+- modifiche massicce e ricostruzione tabella
+
+> ⚠️ **Task #12 Roadmap — APERTO:** il controllo ruolo per FORCE non è ancora implementato nel codice (`vini_magazzino_router.py` riga 403: `# per ora nessun controllo di ruolo`). Chiunque può eseguire FORCE anche senza ruolo admin.  
 
 ---
 
