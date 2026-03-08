@@ -9,6 +9,7 @@ passlib[bcrypt]
 # Excel / Import
 pandas
 openpyxl
+pyxlsb
 
 # Upload files
 python-multipart

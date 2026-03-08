@@ -27,8 +27,8 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 - [ ] `vini_settings_router.py` — incluso il `POST /settings/vini/reset`
 
 ## 4. `pyxlsb` mancante in `requirements.txt`
-- [ ] Aggiungere `pyxlsb` a `requirements.txt`
-- [ ] Verificare con `./scripts/deploy.sh -f` sul VPS
+- [x] Aggiunto `pyxlsb` a `requirements.txt` — 2026-03-08
+- [ ] Verificare con `./scripts/deploy.sh -f` sul VPS (primo deploy completo)
 
 ---
 
@@ -49,7 +49,7 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 - [ ] Messaggio utente "Sessione scaduta, effettua di nuovo il login"
 
 ## 8. `console.log` di debug in produzione
-- [ ] Rimuovere `console.log("API_BASE:", API_BASE)` da `LoginForm.jsx`
+- [x] Rimosso `console.log("API_BASE:", API_BASE)` da `LoginForm.jsx` — 2026-03-08
 
 ---
 

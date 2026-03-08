@@ -12,8 +12,6 @@ export default function LoginForm({ setToken, setRole }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      console.log("API_BASE:", API_BASE);  // debug
-
       const response = await axios.post(`${API_BASE}/auth/login`, {
         username,
         password,
