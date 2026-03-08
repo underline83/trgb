@@ -222,8 +222,8 @@ export default function CorrispettiviDashboard() {
 
     const entries = [
       { key: "contanti_finali", label: "Contanti", color: "#f97316" },
-      { key: "pos", label: "POS", color: "#22c55e" },
-      { key: "sella", label: "Sella", color: "#0ea5e9" },
+      { key: "pos_bpm", label: "POS", color: "#22c55e" },
+      { key: "pos_sella", label: "Sella", color: "#0ea5e9" },
       { key: "stripe_pay", label: "Stripe / Pay", color: "#8b5cf6" },
       { key: "bonifici", label: "Bonifici", color: "#eab308" },
       { key: "mance", label: "Mance", color: "#ec4899" },
