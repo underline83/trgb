@@ -44,10 +44,8 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 - [x] Deployato in produzione — commit `0d7987b` — 2026-03-08
 
 ## 6. Route `/admin/corrispettivi/annual` mancante
-- [ ] Aggiungere la route in `App.jsx` (il pulsante esiste ma la route no)
-- [ ] Creare o collegare il componente pagina annual compare
-
-> ⚠️ **Confermato aperto** — `App.jsx` ha solo `/corrispettivi`, `/import`, `/gestione`, `/dashboard`; manca `/annual`
+- [x] Aggiunta route in `App.jsx` — commit `b5d282a` — 2026-03-08
+- [x] Creata pagina `CorrispettiviAnnual.jsx` — confronto annuale con grafico e tabella mensile
 
 ## 7. Gestione token scaduto nel frontend
 - [ ] Aggiungere interceptor Axios centralizzato (attualmente ogni pagina gestisce 401 in modo indipendente)
@@ -64,16 +62,15 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 # 🟠 PULIZIA CODICE
 
 ## 9. `slugify` duplicata
-- [ ] Rimuovere la copia da `vini_router.py`
-- [ ] Importare da `carta_vini_service.py` (o estrarre in `app/utils/`)
+- [x] Rimossa copia da `vini_router.py` — commit `b5d282a` — 2026-03-08
+- [x] Importata da `carta_vini_service.py` — rimossi import `unicodedata` e `re` inutilizzati
 
 ## 10. Endpoint duplicate-check duplicati (magazzino)
 - [ ] Valutare quale logica tenere tra `/check-duplicati` e `/duplicate-check`
 - [ ] Rimuovere il duplicato, aggiornare eventuali chiamate frontend
 
 ## 11. Bug prezzo=0 nella preview HTML carta vini
-- [ ] `carta_vini_service.py`: allineare la condizione `if prezzo:` a `if prezzo not in (None, "")` come nel ramo PDF
-- [ ] Verificare che vini a prezzo zero appaiano coerentemente in HTML e PDF
+- [x] `carta_vini_service.py`: allineato `if prezzo:` → `if prezzo not in (None, "")` — commit `b5d282a` — 2026-03-08
 
 ## 12. FORCE import senza check ruolo
 - [ ] In `vini_magazzino_router.py`: aggiungere controllo `if current_user.role != "admin": raise HTTPException(403)`
@@ -163,7 +160,10 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 |---|------|------|--------|
 | 4 | `pyxlsb` aggiunto a `requirements.txt` | 2026-03-08 | `9a34957` |
 | 5 | Bug pie chart pagamenti (`pos_bpm`, `pos_sella`) | 2026-03-08 | `0d7987b` |
+| 6 | Route `/annual` + pagina `CorrispettiviAnnual.jsx` | 2026-03-08 | `b5d282a` |
 | 8 | Rimosso `console.log` debug da `LoginForm.jsx` | 2026-03-08 | `9a34957` |
+| 9 | `slugify` deduplicata — importata da `carta_vini_service` | 2026-03-08 | `b5d282a` |
+| 11 | Bug prezzo=0 HTML preview carta vini | 2026-03-08 | `b5d282a` |
 
 ---
 

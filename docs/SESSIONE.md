@@ -17,13 +17,12 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ## Cosa abbiamo fatto nell'ultima sessione (2026-03-08)
 
-1. **Aggiornato `Roadmap.md`** — riscritta con stato verificato via ispezione del codice (tag `⚠️ Confermato aperto`)
-2. **Audit completo** della cartella — backend, frontend, DB, auth, route, docs
-3. **Riscritta tutta la documentazione** in `docs/`:
-   - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json`, `promt.md`
-   - Creati: `Modulo_Corrispettivi.md`, `Modulo_Dipendenti.md`, `prompt_canvas.md`, questo file
-   - Aggiornati: `architettura.md`, `Index.md`, `VersionMap.md`, `changelog.md`, `readme.md`, `Modulo_Vini.md`, `Modulo_MagazzinoVini.md`, `Database_FoodCost.md`
-4. **Fix deployati** (commit `9a34957`, `0d7987b`): pyxlsb, console.log debug, bug pie chart pagamenti
+1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
+2. **Riscritta tutta la documentazione** in `docs/` (vedi changelog.md per dettagli)
+3. **Fix #6** — nuova pagina `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` in `App.jsx` — `b5d282a`
+4. **Fix #9** — rimossa `slugify` duplicata da `vini_router.py`, importata da `carta_vini_service` — `b5d282a`
+5. **Fix #11** — allineato `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML — `b5d282a`
+6. **Fix precedenti** (commit `9a34957`, `0d7987b`): pyxlsb, console.log debug, bug pie chart pagamenti
 
 ---
 
@@ -59,10 +58,10 @@ Ordine suggerito per lavorare:
 
 | # | Task | Difficoltà | Impatto |
 |---|------|-----------|---------|
-| 6 | Aggiungere route `/annual` in `App.jsx` | Facile (15 min) | Medio |
-| 11 | Fix `if prezzo:` in `carta_vini_service.py` | Facile (5 min) | Basso |
+| ~~6~~ | ~~Route `/annual` + pagina confronto annuale~~ | ~~Facile~~ | ~~Medio~~ | ✅ |
+| ~~9~~ | ~~`slugify` deduplicata~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
+| ~~11~~ | ~~Fix `if prezzo:` HTML preview~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
 | 7 | Interceptor Axios centralizzato | Medio (1h) | Alto |
-| 9 | Rimuovere `slugify` duplicata | Facile (10 min) | Basso |
 | 3 | Aggiungere auth su endpoint pubblici | Medio (1-2h) | Critico |
 | 1 | Sostituire mock auth con hash reali | Alto (2-3h) | Critico |
 
