@@ -20,8 +20,10 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
 2. **Riscritta tutta la documentazione** in `docs/` (vedi changelog.md per dettagli):
    - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json` (JSON non valido), `promt.md`
-   - Creati: `Modulo_Corrispettivi.md`, `Modulo_Dipendenti.md`, `prompt_canvas.md`, `SESSIONE.md`
-   - Aggiornati: `architettura.md`, `Index.md`, `VersionMap.md`, `changelog.md`, `readme.md`, `Modulo_Vini.md`, `Modulo_MagazzinoVini.md`, `Database_FoodCost.md`, `Roadmap.md`
+   - Creati: `modulo_corrispettivi.md`, `modulo_dipendenti.md`, `prompt_canvas.md`, `sessione.md`, `database.md`
+   - Rinominati in minuscolo: tutti i `Modulo_*.md`, `SESSIONE.md`, `Roadmap.md`
+   - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json`, `promt.md`, `Index.md`, `VersionMap.md`, `troubleshooting.md`, `Database_Vini.md`, `Database_FoodCost.md`
+   - Aggiornati: `architettura.md` (aggiunto §9 versioni+dipendenze), `deploy.md` (aggiunto §6 troubleshooting), `changelog.md`, `readme.md`
 3. **Fix #6** — nuova pagina `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` in `App.jsx` ✅
 4. **Fix #9** — rimossa `slugify` duplicata da `vini_router.py`, importata da `carta_vini_service` ✅
 5. **Fix #11** — allineato `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML ✅
@@ -53,7 +55,7 @@ La gestione 401 è copiata manualmente in ~10 pagine diverse. Non c'è un interc
 
 ## Task aperti prioritizzati
 
-Vai su `docs/Roadmap.md` per la lista completa con dettagli.
+Vai su `docs/roadmap.md` per la lista completa con dettagli.
 Ordine suggerito per lavorare:
 
 | # | Task | Difficoltà | Impatto |
@@ -89,8 +91,9 @@ frontend/src/App.jsx                 — TUTTE le route React
 frontend/src/config/api.js           — API_BASE url
 frontend/.env.development            — http://127.0.0.1:8000
 frontend/.env.production             — ⚠️ ancora HTTP (da aggiornare)
-docs/Roadmap.md                      — task aperti con stato verificato
+docs/roadmap.md                      — task aperti con stato verificato
 docs/prompt_canvas.md                — regole operative per generare codice
+docs/database.md                     — schema completo tutti i DB
 ```
 
 ---

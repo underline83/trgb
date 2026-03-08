@@ -1,5 +1,5 @@
 # 🥘 Modulo FoodCost — TRGB Gestionale  
-**Ultimo aggiornamento:** 2025-12-05  
+**Ultimo aggiornamento:** 2026-03-08
 **Stato:** in sviluppo — integrazione moduli
 
 ---
@@ -42,17 +42,22 @@ Il modulo **FoodCost** gestisce:
 
 ---
 
-# 3. Database FoodCost
+# 3. Database FoodCost (`foodcost.db`)
 
-Documentazione completa:  
-👉 `DATABASE_FoodCost.md`
+Schema completo in `docs/database.md` §3.
 
-Contiene tabelle:
-- `ingredients`  
-- `ingredient_prices`  
-- `suppliers`  
-- `recipes`  
-- `recipe_items`  
+| Tabella | Contenuto |
+|---------|-----------|
+| `suppliers` | Anagrafica fornitori |
+| `ingredient_categories` | Categorie ingredienti |
+| `ingredients` | Anagrafica ingredienti (SKU, unità, allergeni) |
+| `ingredient_prices` | Storico prezzi multi-fornitore (mai sovrascritti) |
+| `fe_fatture` | Fatture XML importate (create a runtime da `fe_import.py`) |
+| `fe_righe` | Righe fatture XML |
+| `recipes` | Anagrafica ricette |
+| `recipe_items` | Ingredienti per ricetta con quantità |
+
+> Il collegamento `fe_righe` → `ingredients` non è ancora implementato (task #16 Roadmap).
 
 ---
 

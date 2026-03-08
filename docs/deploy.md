@@ -202,4 +202,47 @@ Risposta attesa: `200`
 
 ---
 
+---
+
+# 6. Troubleshooting
+
+## Backend non risponde
+```bash
+curl https://trgb.tregobbi.it
+journalctl -u trgb-backend -f
+```
+
+## Frontend non carica
+```bash
+curl https://app.tregobbi.it
+journalctl -u trgb-frontend -f
+```
+
+## Porta occupata (8000 o 5173)
+```bash
+sudo lsof -ti:8000 | xargs sudo kill -9
+sudo lsof -ti:5173 | xargs sudo kill -9
+```
+
+## Nginx errore
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+## HTTPS scaduto
+```bash
+sudo certbot renew
+```
+
+## Hook post-receive non esegue restart
+Verificare che il sudoers sia configurato correttamente:
+```bash
+sudo grep marco /etc/sudoers
+which systemctl   # verificare il percorso corretto
+```
+Il percorso nel sudoers deve corrispondere esattamente all'output di `which systemctl`.
+
+---
+
 # Fine DEPLOY.md

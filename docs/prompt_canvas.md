@@ -3,7 +3,7 @@
 
 > **SEI L'ASSISTENTE TECNICO DEDICATO AL PROGETTO "TRGB Gestionale Web".**
 > Ogni modifica o generazione di codice deve rispettare queste regole.
-> Leggi questo file **all'inizio di ogni sessione** insieme alla `Roadmap.md`.
+> Leggi questo file **all'inizio di ogni sessione** insieme a `roadmap.md`.
 
 ---
 
@@ -73,7 +73,7 @@
 4. Nessuna riscrittura strutturale non richiesta
 5. Commenti solo se necessari
 6. Stile tecnico e professionale
-7. **Dopo ogni modifica:** aggiornare `changelog.md` e `VersionMap.md`
+7. **Dopo ogni modifica:** aggiornare `changelog.md` e sezione §9 di `architettura.md`
 8. **Riferimento task:** ogni commit deve riportare il numero task (es. `fix: #6 route annual`)
 
 ---
@@ -95,17 +95,18 @@
 - CSS PDF: `static/css/carta_pdf.css` (font Cormorant Garamond)
 
 ### Quando tocchi file Vini
-Verificare: schema DB attuale → rendering PDF su Mac & VPS → upload Excel reale → aggiornare `Modulo_Vini.md`
+Verificare: schema DB attuale → rendering PDF su Mac & VPS → upload Excel reale → aggiornare `modulo_vini.md`
 
 ---
 
-## 6. TASK PRIORITARI (da Roadmap.md — 2026-03-08)
+## 6. TASK PRIORITARI (da roadmap.md — 2026-03-08)
 
-1. **#1** — Sostituire MOCK auth con password hashate
-2. **#2** — Aggiornare `.env.production` a HTTPS
-3. **#3** — Aggiungere `Depends(get_current_user)` a: `admin_finance.py`, `fe_import.py`, `foodcost_ingredients_router.py`, `foodcost_recipes_router.py`, `vini_settings_router.py`
-4. **#6** — Aggiungere route `/admin/corrispettivi/annual` in `App.jsx`
-5. **#7** — Interceptor Axios centralizzato per gestione 401
+1. **#7** — Interceptor Axios centralizzato per gestione 401
+2. **#3** — Aggiungere `Depends(get_current_user)` a: `admin_finance.py`, `fe_import.py`, `foodcost_ingredients_router.py`, `foodcost_recipes_router.py`, `vini_settings_router.py`
+3. **#1** — Sostituire MOCK auth con password hashate
+4. **#2** — Aggiornare `.env.production` a HTTPS
+
+✅ Già fatto: #6 (route annual), #9 (slugify), #11 (prezzo HTML)
 
 ---
 
