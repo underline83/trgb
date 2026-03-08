@@ -100,19 +100,32 @@ docs/prompt_canvas.md                — regole operative per generare codice
 
 ---
 
+## Workflow operativo di Marco
+
+**Sempre su Mac** (cartella `~/trgb`, workspace Cowork selezionato):
+1. Modifiche ai file con Cowork/Claude
+2. `git add` + `git commit` + `git push`
+3. Sul VPS: `./scripts/deploy.sh -b` (o `-a` se ci sono nuove dipendenze)
+4. Su Windows: `git pull` in VS Code
+
+**Non lavorare mai direttamente sul VPS o su Windows** — la fonte di verità è sempre il Mac.
+
 ## Deploy — comandi utili
 
 ```bash
-# Da Mac: push su git
+# 1. Da Mac — commit e push
 git add <file> && git commit -m "fix: #N descrizione" && git push
 
-# Sul VPS (ssh marco@80.211.131.156):
+# 2. Sul VPS (ssh marco@80.211.131.156):
 cd /home/marco/trgb/trgb
 ./scripts/deploy.sh -b    # quick: solo git pull + restart
-./scripts/deploy.sh -a    # full: + pip install + npm build
+./scripts/deploy.sh -a    # full: + pip install + npm build (nuove dipendenze)
 ./scripts/deploy.sh -c    # safe: + backup DB prima
 
-# Se aggiungi dipendenze Python → obbligatorio -a
+# 3. Su Windows VS Code:
+git pull
+
+# Regola: se tocchi requirements.txt o package.json → obbligatorio -a sul VPS
 ```
 
 ---
