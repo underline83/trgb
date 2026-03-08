@@ -18,11 +18,15 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 ## Cosa abbiamo fatto nell'ultima sessione (2026-03-08)
 
 1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
-2. **Riscritta tutta la documentazione** in `docs/` (vedi changelog.md per dettagli)
-3. **Fix #6** — nuova pagina `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` in `App.jsx` — `b5d282a`
-4. **Fix #9** — rimossa `slugify` duplicata da `vini_router.py`, importata da `carta_vini_service` — `b5d282a`
-5. **Fix #11** — allineato `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML — `b5d282a`
-6. **Fix precedenti** (commit `9a34957`, `0d7987b`): pyxlsb, console.log debug, bug pie chart pagamenti
+2. **Riscritta tutta la documentazione** in `docs/` (vedi changelog.md per dettagli):
+   - Eliminati: `sistema-vini.md`, `to-do.md`, `version.json` (JSON non valido), `promt.md`
+   - Creati: `Modulo_Corrispettivi.md`, `Modulo_Dipendenti.md`, `prompt_canvas.md`, `SESSIONE.md`
+   - Aggiornati: `architettura.md`, `Index.md`, `VersionMap.md`, `changelog.md`, `readme.md`, `Modulo_Vini.md`, `Modulo_MagazzinoVini.md`, `Database_FoodCost.md`, `Roadmap.md`
+3. **Fix #6** — nuova pagina `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` in `App.jsx` ✅
+4. **Fix #9** — rimossa `slugify` duplicata da `vini_router.py`, importata da `carta_vini_service` ✅
+5. **Fix #11** — allineato `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML ✅
+6. **Setup git server VPS** — creato bare repo `/home/marco/trgb/trgb.git` con post-receive hook per deploy automatico. Script `scripts/setup_git_server.sh` creato per ricreare il setup.
+7. **Fix precedenti** (commit `9a34957`, `0d7987b`): pyxlsb, console.log debug, bug pie chart pagamenti
 
 ---
 
@@ -34,20 +38,16 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 ### 🔴 ENDPOINT FINANZIARI SONO PUBBLICI
 `admin_finance.py`, `fe_import.py`, `foodcost_ingredients_router.py`, `foodcost_recipes_router.py`, `vini_settings_router.py` — **nessun** `Depends(get_current_user)`. Chiunque può chiamarli.
 
-### 🟡 ROUTE FRONTEND MANCANTE
-`/admin/corrispettivi/annual` — il pulsante esiste nella UI ma la route non è in `App.jsx`. L'endpoint backend `/admin/finance/stats/annual-compare` **esiste già**.
-
 ### 🟡 NESSUN INTERCEPTOR AXIOS
 La gestione 401 è copiata manualmente in ~10 pagine diverse. Non c'è un interceptor centralizzato.
-
-### 🟠 BUG PREZZO=0 CARTA VINI
-In `carta_vini_service.py`, il ramo HTML usa `if prezzo:` (esclude 0), il ramo PDF usa `if prezzo not in (None, "")` (corretto). Da allineare.
 
 ### 🟠 FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
-### 🟠 SLUGIFY DUPLICATA
-Definita sia in `vini_router.py` che in `carta_vini_service.py`.
+### 🟢 COSE GIÀ FIXATE (questa sessione)
+- Fix #6: route `/admin/corrispettivi/annual` aggiunta in `App.jsx` + pagina `CorrispettiviAnnual.jsx` creata ✅
+- Fix #9: `slugify` deduplicata — ora importata da `carta_vini_service.py` ✅
+- Fix #11: `if prezzo:` → `if prezzo not in (None, "")` nel ramo HTML carta vini ✅
 
 ---
 
@@ -64,6 +64,13 @@ Ordine suggerito per lavorare:
 | 7 | Interceptor Axios centralizzato | Medio (1h) | Alto |
 | 3 | Aggiungere auth su endpoint pubblici | Medio (1-2h) | Critico |
 | 1 | Sostituire mock auth con hash reali | Alto (2-3h) | Critico |
+
+**Azione pendente (manuale su VPS):**
+Aggiungere a `/etc/sudoers` tramite `sudo visudo`:
+```
+marco ALL=(ALL) NOPASSWD: /bin/systemctl restart trgb-backend, /bin/systemctl restart trgb-frontend
+```
+Senza questa riga il post-receive hook non può riavviare i servizi automaticamente.
 
 ---
 
@@ -108,29 +115,35 @@ docs/prompt_canvas.md                — regole operative per generare codice
 
 **Flusso sempre:**
 1. Modifiche su Mac con Cowork/Claude
-2. `git commit` + `git push` dal Mac
-3. `ssh marco@80.211.131.156` → `./scripts/deploy.sh -b` (o `-a`)
-4. Su Windows: `git pull` in VS Code
+2. `git commit` + `git push` dal Mac → il VPS si aggiorna automaticamente via post-receive hook
+3. Su Windows: `git pull` in VS Code
 
 **La fonte di verità è sempre il Mac. Non modificare direttamente sul VPS o Windows.**
 
 ## Deploy — comandi utili
 
 ```bash
-# 1. Da Mac — commit e push
+# ── NUOVO FLUSSO (automatico) ──────────────────────────
+# Il remote su Mac punta al bare repo sul VPS:
+# origin → marco@80.211.131.156:/home/marco/trgb/trgb.git
+
+# 1. Da Mac — commit e push (il VPS si aggiorna automaticamente)
 git add <file> && git commit -m "fix: #N descrizione" && git push
+# → hook post-receive esegue: git checkout, pip install se serve, npm install se serve, restart servizi
 
-# 2. Sul VPS
-ssh marco@80.211.131.156
-cd /home/marco/trgb/trgb
-./scripts/deploy.sh -b    # quick: git pull + restart servizi
-./scripts/deploy.sh -a    # full: + pip install + npm build (nuove dipendenze)
-./scripts/deploy.sh -c    # safe: + backup DB prima del deploy
+# 2. Su Windows (aggiornare il remote se non fatto):
+git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
+git pull origin main
 
-# 3. Su Windows
-git pull   # in VS Code o terminale
+# ── VECCHIO FLUSSO MANUALE (fallback se hook non funziona) ─
+# ssh marco@80.211.131.156
+# cd /home/marco/trgb/trgb
+# ./scripts/deploy.sh -b    # quick: checkout + restart servizi
+# ./scripts/deploy.sh -a    # full: + pip install + npm build
+# ./scripts/deploy.sh -c    # safe: + backup DB prima del deploy
 
-# Regola: se tocchi requirements.txt o package.json → obbligatorio -a sul VPS
+# ── Setup bare repo (da eseguire UNA SOLA VOLTA sul VPS) ───
+# ./scripts/setup_git_server.sh
 ```
 
 ---
