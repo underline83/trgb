@@ -35,6 +35,7 @@ import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
+import CorrispettiviAnnual from "./pages/admin/CorrispettiviAnnual";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
         <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
         <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard />} />
+        <Route path="/admin/corrispettivi/annual" element={<CorrispettiviAnnual />} />
 
         <Route path="/admin/fatture" element={<FattureMenu />} />
         <Route path="/admin/fatture/import" element={<FattureImport />} />

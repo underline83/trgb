@@ -136,7 +136,7 @@ def build_carta_body_html_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
                     desc = r["DESCRIZIONE"] or ""
                     annata = r["ANNATA"] or ""
                     prezzo = r["PREZZO"]
-                    if prezzo:
+                    if prezzo not in (None, ""):
                         try:
                             prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
                         except Exception:

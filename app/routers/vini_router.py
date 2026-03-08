@@ -30,8 +30,6 @@ from __future__ import annotations
 from itertools import groupby
 from pathlib import Path
 from datetime import datetime
-import unicodedata
-import re
 from typing import List, Dict, Any
 
 import os
@@ -49,6 +47,7 @@ from app.services.carta_vini_service import (
     build_carta_body_html,
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
+    slugify,
 )
 from app.services.auth_service import get_current_user
 
@@ -78,18 +77,6 @@ CSS_HTML = STATIC_DIR / "css" / "carta_html.css"
 CSS_PDF = STATIC_DIR / "css" / "carta_pdf.css"
 LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 
-
-# ------------------------------------------------------------
-# UTILS
-# ------------------------------------------------------------
-def slugify(value: str) -> str:
-    """Crea un id CSS/HTML semplice per tipologie e regioni."""
-    if not value:
-        return "x"
-    value_norm = unicodedata.normalize("NFKD", value)
-    value_ascii = value_norm.encode("ascii", "ignore").decode("ascii")
-    value_ascii = re.sub(r"[^a-zA-Z0-9]+", "-", value_ascii).strip("-").lower()
-    return value_ascii or "x"
 
 
 def resolve_regione(r):
