@@ -460,16 +460,22 @@ def crea_movimento(
 
     utente = _get_username(current_user)
 
-    db.registra_movimento(
-        vino_id=vino_id,
-        tipo=payload.tipo,
-        qta=payload.qta,
-        utente=utente,
-        locazione=payload.locazione,
-        note=payload.note,
-        origine=payload.origine,
-        data_mov=payload.data_mov,
-    )
+    try:
+        db.registra_movimento(
+            vino_id=vino_id,
+            tipo=payload.tipo,
+            qta=payload.qta,
+            utente=utente,
+            locazione=payload.locazione,
+            note=payload.note,
+            origine=payload.origine,
+            data_mov=payload.data_mov,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
 
     # ritorna vino aggiornato + ultimi movimenti
     updated = db.get_vino_by_id(vino_id)

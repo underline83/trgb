@@ -637,10 +637,18 @@ def registra_movimento(
         qta_loc_map = {"frigo": row["qf"], "loc1": row["q1"], "loc2": row["q2"], "loc3": row["q3"]}
         qta_loc_attuale = qta_loc_map[loc]
 
+        if tipo in ("SCARICO", "VENDITA") and qta_loc_attuale < qta:
+            conn.close()
+            loc_label = loc.upper() if loc != "frigo" else "FRIGO"
+            raise ValueError(
+                f"Giacenza insufficiente in {loc_label}: "
+                f"disponibili {qta_loc_attuale}, richieste {qta}."
+            )
+
         if tipo == "CARICO":
             nuova_qta_loc = qta_loc_attuale + qta
         elif tipo in ("SCARICO", "VENDITA"):
-            nuova_qta_loc = max(0, qta_loc_attuale - qta)
+            nuova_qta_loc = qta_loc_attuale - qta
         else:
             nuova_qta_loc = qta_loc_attuale  # RETTIFICA: non tocca la locazione
 
