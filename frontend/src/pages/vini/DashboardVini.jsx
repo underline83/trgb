@@ -192,7 +192,7 @@ export default function DashboardVini() {
                   onClick={() => navigate(`/vini/magazzino/${v.id}`)}
                 >
                   <div>
-                    <span className="text-xs text-neutral-500 font-mono mr-2">#{v.id}</span>
+                    <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mr-2">#{v.id}</span>
                     <span className="font-semibold text-neutral-900 text-sm">{v.DESCRIZIONE}</span>
                     {v.ANNATA && <span className="ml-2 text-xs text-neutral-500">{v.ANNATA}</span>}
                     {v.PRODUTTORE && (
@@ -297,7 +297,9 @@ export default function DashboardVini() {
                       className="border-b border-neutral-100 hover:bg-orange-50 cursor-pointer transition"
                       onClick={() => navigate(`/vini/magazzino/${v.id}`)}
                     >
-                      <td className="px-4 py-2 text-xs text-neutral-400 font-mono">{v.id}</td>
+                      <td className="px-4 py-2">
+                        <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">#{v.id}</span>
+                      </td>
                       <td className="px-4 py-2 text-xs text-neutral-600">{v.TIPOLOGIA}</td>
                       <td className="px-4 py-2 font-semibold text-neutral-900">{v.DESCRIZIONE}</td>
                       <td className="px-4 py-2 text-neutral-600">{v.PRODUTTORE || "—"}</td>

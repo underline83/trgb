@@ -273,11 +273,18 @@ export default function MagazzinoViniDettaglio() {
         <div className="bg-white shadow-2xl rounded-t-3xl px-8 pt-8 pb-4 border border-neutral-200 border-b-0">
           <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-amber-900 tracking-wide font-playfair">
-                🍷 {vino ? vino.DESCRIZIONE : "Scheda Vino"}
-              </h1>
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h1 className="text-3xl font-bold text-amber-900 tracking-wide font-playfair">
+                  🍷 {vino ? vino.DESCRIZIONE : "Scheda Vino"}
+                </h1>
+                {vino && (
+                  <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
+                    #{vino.id}
+                  </span>
+                )}
+              </div>
               {vino && (
-                <p className="text-neutral-500 text-sm mt-1">
+                <p className="text-neutral-500 text-sm">
                   {vino.TIPOLOGIA} · {vino.NAZIONE}{vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
                   {vino.ANNATA ? ` · ${vino.ANNATA}` : ""}
                   {vino.PRODUTTORE ? ` · ${vino.PRODUTTORE}` : ""}

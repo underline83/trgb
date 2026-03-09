@@ -531,8 +531,10 @@ export default function MagazzinoVini() {
                           }
                           onClick={() => handleRowClick(vino)}
                         >
-                          <td className="px-3 py-2 align-top text-xs text-neutral-500 whitespace-nowrap font-mono">
-                            {vino.id}
+                          <td className="px-3 py-2 align-top whitespace-nowrap">
+                            <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
+                              #{vino.id}
+                            </span>
                           </td>
                           <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-neutral-700">
                             {vino.TIPOLOGIA}
@@ -644,9 +646,9 @@ export default function MagazzinoVini() {
                     </div>
 
                     <div>
-                      <div className="text-[11px] text-neutral-500 font-mono mb-1">
-                        ID: {selectedVino.id}
-                      </div>
+                      <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mb-1">
+                        #{selectedVino.id}
+                      </span>
                       <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
                         Vino
                       </div>
