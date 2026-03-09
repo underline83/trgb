@@ -177,7 +177,7 @@ export default function DashboardVini() {
           <div className="flex flex-col sm:flex-row justify-between gap-4">
             <div>
               <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
-                📊 Dashboard Cantina
+                📊 Dashboard
               </h1>
               <p className="text-neutral-500 text-sm mt-1">
                 Situazione operativa in tempo reale.

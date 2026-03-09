@@ -37,8 +37,8 @@ export default function ViniMenu() {
           </div>
         </div>
 
-        {/* GRID MENU */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* GRID MENU — riga da 3 + riga da 2 centrata */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {/* CARTA VINI */}
           <Link
             to="/vini/carta"
@@ -54,7 +54,7 @@ export default function ViniMenu() {
               Carta dei Vini
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Anteprima + PDF/Word + Import Excel (solo Carta)
+              Anteprima + PDF/Word + Import
             </p>
           </Link>
 
@@ -73,7 +73,7 @@ export default function ViniMenu() {
               Vendite
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Vendite bottiglia / calice, storico
+              Bottiglia / calice, storico
             </p>
           </Link>
 
@@ -92,25 +92,27 @@ export default function ViniMenu() {
               Cantina
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Giacenze, movimenti, locazioni, stato
+              Giacenze, movimenti, locazioni
             </p>
           </Link>
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6 max-w-2xl mx-auto">
           {/* DASHBOARD */}
           <Link
             to="/vini/dashboard"
             className="
-              bg-white border border-amber-200 text-amber-900
-              rounded-2xl p-8 shadow hover:shadow-lg hover:-translate-y-1
-              text-center transition relative
+              bg-indigo-50 border border-indigo-200 text-indigo-900
+              rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1
+              text-center transition transform
             "
           >
             <div className="text-5xl mb-3">📊</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Dashboard Vini
+              Dashboard
             </h2>
             <p className="text-sm mt-1 text-neutral-700">
-              KPI, alert giacenze, movimenti recenti
+              KPI, alert, movimenti recenti
             </p>
           </Link>
 
@@ -129,7 +131,7 @@ export default function ViniMenu() {
               Impostazioni
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Import, liste controllate, tool tecnici
+              Import, liste controllate
             </p>
           </Link>
         </div>

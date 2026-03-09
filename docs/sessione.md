@@ -15,28 +15,35 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-09)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-10)
 
-1. **Fix #1 — Auth reale** — `auth_service.py` riscritto:
-   - Rimosso `USERS` con password in chiaro
-   - Password hashate `sha256_crypt` via `passlib.CryptContext` (già in `security.py`)
-   - `authenticate_user()` usa `security.verify_password()`
-   - `decode_access_token()` delega a `security.decode_access_token()`
-   - `scripts/gen_passwords.py` — utility per rigenerare hash al cambio password ✅
-2. **SECRET_KEY da .env** — `python-dotenv` in `requirements.txt`, `load_dotenv()` in `main.py`, `.env` creato (gitignored) ✅
+### Reforming completo modulo vini
+1. **ViniMenu.jsx** — da 6 a 5 voci: rimossa "Movimenti Cantina" (orfana), rinominato "Magazzino Vini" → "🍷 Cantina"
+2. **MagazzinoSubMenu.jsx** — semplificato da 6 a 5 pulsanti: Cantina, Nuovo vino + admin-only: Registro movimenti, Modifica massiva
+3. **App.jsx** — rimosse route orfane `/vini/movimenti` e `/vini/magazzino/:id/movimenti`
+4. **MagazzinoViniDettaglio.jsx** — fix layout form movimenti (grid 5→4 colonne), emoji nei tipi, bottone "← Cantina"
+5. **MagazzinoVini.jsx** — titolo → "Cantina", aggiunto bottone "✕ Pulisci filtri"
+6. **DashboardVini.jsx** — aggiornati pulsanti accesso rapido (+ Vendite, fix link Impostazioni `/vini/settings`, rinominato Cantina)
+7. **Nuovo: RegistroMovimenti.jsx** — pagina admin-only log globale movimenti cantina, filtri tipo/testo/date, paginazione 50/pagina
+
+### Sessione precedente (2026-03-09)
+1. **Hub Vendite** — `ViniVendite.jsx` riscritta: toggle Bottiglia/Calici, autocomplete vini, storico filtrato VENDITA, KPI
+2. **Locazione obbligatoria** — `registra_movimento()` aggiorna QTA_<LOC>, validazione giacenza insufficiente (HTTP 400)
+3. **Nomi locazioni dinamici** — dropdown con nomi reali per vino + quantità disponibili
+4. **Admin bulk edit** — `MagazzinoAdmin.jsx`: tabella 21 colonne, filtri, salvataggio bulk, delete per riga (admin only)
+5. **Endpoint backend** — `bulk_update_vini()`, `delete_vino()`, `list_movimenti_globali()`, `search_vini_autocomplete()`
 
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-08)
+## Cosa abbiamo fatto nelle sessioni precedenti (2026-03-08/09)
 
-1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
-2. **Riscritta e consolidata tutta la documentazione** — da 18 a 13 file, naming tutto minuscolo, accorpati troubleshooting/VersionMap/Index, DB unificato in `database.md`
-3. **Setup git server VPS** — bare repo `/home/marco/trgb/trgb.git` + post-receive hook deploy automatico su `git push`
-4. **Fix #6** — `CorrispettiviAnnual.jsx` + route `/admin/corrispettivi/annual` ✅
-5. **Fix #9** — `slugify` deduplicata in `vini_router.py` ✅
-6. **Fix #11** — `if prezzo:` → `if prezzo not in (None, "")` in `carta_vini_service.py` ✅
-7. **Fix #7** — `apiFetch()` in `api.js`: gestione 401 centralizzata, rimosso codice duplicato da 6 pagine ✅
-8. **Fix #3** — `Depends(get_current_user)` su 5 router pubblici: `admin_finance`, `fe_import`, `foodcost_ingredients`, `foodcost_recipes`, `vini_settings` ✅
+1. **Fix #1 — Auth reale** — `auth_service.py` riscritto: password hashate sha256_crypt, `security.verify_password()` ✅
+2. **SECRET_KEY da .env** — `python-dotenv`, `load_dotenv()`, `.env` gitignored ✅
+3. **Audit completo** — backend, frontend, DB, auth, route, docs verificati
+4. **Documentazione consolidata** — da 18 a 13 file
+5. **Setup git server VPS** — bare repo + post-receive hook deploy automatico
+6. **Fix #6/#7/#9/#11** — route annual, apiFetch centralizzato, slugify, prezzo carta ✅
+7. **Fix #3** — `Depends(get_current_user)` su 5 router pubblici ✅
 
 ---
 
@@ -53,13 +60,30 @@ SECRET_KEY=<chiave-forte-diversa-da-quella-locale>
 ```
 Poi `pip install python-dotenv` sul VPS se non già installato.
 
-### 🟢 COSE GIÀ FIXATE (totale)
-- Fix #1: `auth_service.py` — sha256_crypt hash, `security.verify_password()`, `python-dotenv` ✅
-- Fix #3: `Depends(get_current_user)` su admin_finance, fe_import, foodcost_ingredients, foodcost_recipes, vini_settings ✅
-- Fix #6: route `/admin/corrispettivi/annual` + pagina `CorrispettiviAnnual.jsx` ✅
-- Fix #7: `apiFetch()` centralizzato in `api.js`, rimosso codice 401 duplicato da 6 pagine ✅
-- Fix #9: `slugify` deduplicata in `vini_router.py` ✅
-- Fix #11: `if prezzo:` → `if prezzo not in (None, "")` in `carta_vini_service.py` ✅
+### 🟢 Modulo Vini — struttura attuale dopo reforming
+**Menu principale** (`ViniMenu.jsx`): 5 voci — Carta dei Vini, Vendite, Cantina, Dashboard, Impostazioni
+**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · (admin) Registro movimenti · Modifica massiva
+**Route attive**:
+- `/vini` → ViniMenu
+- `/vini/carta` → ViniCarta (NON TOCCARE)
+- `/vini/vendite` → ViniVendite (Bottiglia/Calici)
+- `/vini/settings` → ViniImpostazioni
+- `/vini/dashboard` → DashboardVini
+- `/vini/magazzino` → MagazzinoVini (lista cantina)
+- `/vini/magazzino/nuovo` → MagazzinoViniNuovo
+- `/vini/magazzino/admin` → MagazzinoAdmin (bulk edit, admin only)
+- `/vini/magazzino/registro` → RegistroMovimenti (log globale, admin only)
+- `/vini/magazzino/:id` → MagazzinoViniDettaglio (scheda vino con movimenti + note)
+
+**Route eliminate**: `/vini/movimenti`, `/vini/magazzino/:id/movimenti` (movimenti ora solo dalla scheda vino)
+**File dead code**: `MovimentiCantina.jsx` — non più importato né raggiungibile, da eliminare quando si vuole
+
+### 🟢 Sistema movimenti e locazioni
+- Locazione **obbligatoria** per VENDITA e SCARICO (backend + frontend)
+- Backend valida giacenza insufficiente → HTTP 400
+- Vendite taggate `[BOTTIGLIA]` o `[CALICI]` nel campo note
+- Locazioni con nomi dinamici per vino (FRIGORIFERO, LOCAZIONE_1/2/3)
+- Costanti: `LOCAZIONI_VALIDE`, `LOCAZIONE_TO_COLUMN` in `vini_magazzino_db.py`
 
 ---
 
@@ -90,18 +114,23 @@ marco ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart trgb-backend, /usr/bin/syst
 
 ```
 main.py                              — entry point, include tutti i router
-app/services/auth_service.py         — ⚠️ MOCK USERS (da sostituire)
-app/core/security.py                 — JWT + sha256_crypt (già pronto)
-app/core/config.py                   — SECRET_KEY (da spostare in .env)
-app/routers/admin_finance.py         — corrispettivi, prefix /admin/finance
-app/routers/fe_import.py             — fatture XML, prefix /contabilita/fe
-app/routers/vini_magazzino_router.py — magazzino, prefix /vini/magazzino
-app/services/carta_vini_service.py   — builder HTML/PDF carta vini (NON pdf_service.py)
+app/services/auth_service.py         — auth con password hashate sha256_crypt
+app/core/security.py                 — JWT + sha256_crypt
+app/core/config.py                   — SECRET_KEY (da .env)
+app/routers/vini_magazzino_router.py — magazzino vini, prefix /vini/magazzino
+app/models/vini_magazzino_db.py      — DB module vini: CRUD, movimenti, bulk, autocomplete
+app/services/carta_vini_service.py   — builder HTML/PDF carta vini
 frontend/src/App.jsx                 — TUTTE le route React
-frontend/src/config/api.js           — API_BASE url
-frontend/.env.development            — http://127.0.0.1:8000
-frontend/.env.production             — ⚠️ ancora HTTP (da aggiornare)
-docs/roadmap.md                      — task aperti con stato verificato
+frontend/src/config/api.js           — API_BASE url + apiFetch() con gestione 401
+frontend/src/pages/vini/ViniMenu.jsx          — menu principale modulo vini
+frontend/src/pages/vini/ViniVendite.jsx       — vendite bottiglia/calici
+frontend/src/pages/vini/MagazzinoVini.jsx     — lista cantina con filtri
+frontend/src/pages/vini/MagazzinoViniDettaglio.jsx — scheda vino (anagrafica+giacenze+movimenti+note)
+frontend/src/pages/vini/MagazzinoAdmin.jsx    — modifica massiva (admin)
+frontend/src/pages/vini/RegistroMovimenti.jsx — log globale movimenti (admin)
+frontend/src/components/vini/MagazzinoSubMenu.jsx — submenu cantina
+docs/changelog.md                    — changelog formato Keep a Changelog
+docs/roadmap.md                      — task aperti
 docs/prompt_canvas.md                — regole operative per generare codice
 docs/database.md                     — schema completo tutti i DB
 ```

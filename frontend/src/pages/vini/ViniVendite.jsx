@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
+// MagazzinoSubMenu rimosso — Vendite è sezione autonoma
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -231,15 +231,22 @@ export default function ViniVendite() {
     <div className="min-h-screen bg-neutral-100 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* HEADER + SUBMENU */}
+        {/* HEADER */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-neutral-200">
-          <MagazzinoSubMenu />
-          <h1 className="text-3xl font-bold text-amber-900 font-playfair mt-2">
-            🛒 Vendite
-          </h1>
-          <p className="text-neutral-500 text-sm mt-1">
-            Registra vendite bottiglia o calici, consulta lo storico vendite
-          </p>
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-amber-900 font-playfair">
+                🛒 Vendite
+              </h1>
+              <p className="text-neutral-500 text-sm mt-1">
+                Registra vendite bottiglia o calici, consulta lo storico
+              </p>
+            </div>
+            <button type="button" onClick={() => navigate("/vini")}
+              className="self-start px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+              ← Menu Vini
+            </button>
+          </div>
         </div>
 
         {/* ── KPI RAPIDI ──────────────────────────────────── */}
