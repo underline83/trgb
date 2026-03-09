@@ -222,6 +222,9 @@ export default function MagazzinoViniDettaglio() {
   const submitMovimento = async () => {
     const qtaNum = Number(qtaMov);
     if (!qtaMov || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
+    if ((tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov) {
+      alert("Seleziona la locazione da cui scalare."); return;
+    }
     setSubmitting(true); setSubmitMsg("");
     try {
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${id}/movimenti`, {
@@ -522,17 +525,26 @@ export default function MagazzinoViniDettaglio() {
             <div className="p-5 space-y-5">
               {/* form */}
               <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <select value={tipoMov} onChange={e => setTipoMov(e.target.value)}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <select value={tipoMov} onChange={e => { setTipoMov(e.target.value); if (e.target.value === "RETTIFICA") setLocMov(""); }}
                     className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
                     <option value="CARICO">Carico</option>
                     <option value="SCARICO">Scarico</option>
                     <option value="VENDITA">Vendita</option>
                     <option value="RETTIFICA">Rettifica</option>
                   </select>
+                  <select value={locMov} onChange={e => setLocMov(e.target.value)}
+                    disabled={tipoMov === "RETTIFICA"}
+                    className={`border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                      (tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov ? "border-red-300" : "border-neutral-300"
+                    } ${tipoMov === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    <option value="">— Locazione{tipoMov === "VENDITA" || tipoMov === "SCARICO" ? " *" : ""} —</option>
+                    <option value="frigo">Frigo</option>
+                    <option value="loc1">Loc 1</option>
+                    <option value="loc2">Loc 2</option>
+                    <option value="loc3">Loc 3</option>
+                  </select>
                   <input type="number" placeholder="Quantità *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
-                    className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
-                  <input type="text" placeholder="Locazione (opz.)" value={locMov} onChange={e => setLocMov(e.target.value)}
                     className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   <button type="button" onClick={submitMovimento} disabled={submitting}
                     className="bg-amber-700 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-amber-800 transition disabled:opacity-50">

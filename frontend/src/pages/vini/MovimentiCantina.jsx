@@ -70,6 +70,10 @@ export default function MovimentiCantina() {
       alert("Inserisci una quantità valida (> 0).");
       return;
     }
+    if ((tipo === "VENDITA" || tipo === "SCARICO") && !locazione) {
+      alert("Seleziona la locazione da cui scalare.");
+      return;
+    }
 
     setSubmitting(true);
     setSubmitMsg("");
@@ -77,7 +81,7 @@ export default function MovimentiCantina() {
     const payload = {
       tipo,
       qta: qtaNum,
-      locazione: locazione.trim() || null,
+      locazione: locazione || null,
       note: note.trim() || null,
     };
 
@@ -181,10 +185,10 @@ export default function MovimentiCantina() {
             Nuovo movimento
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-3">
             <select
               value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
+              onChange={(e) => { setTipo(e.target.value); if (e.target.value === "RETTIFICA") setLocazione(""); }}
               className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
             >
               <option value="CARICO">Carico</option>
@@ -193,20 +197,27 @@ export default function MovimentiCantina() {
               <option value="RETTIFICA">Rettifica (valore assoluto)</option>
             </select>
 
+            <select
+              value={locazione}
+              onChange={(e) => setLocazione(e.target.value)}
+              disabled={tipo === "RETTIFICA"}
+              className={`border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 ${
+                (tipo === "VENDITA" || tipo === "SCARICO") && !locazione ? "border-red-300" : "border-neutral-300"
+              } ${tipo === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}
+            >
+              <option value="">— Locazione{tipo === "VENDITA" || tipo === "SCARICO" ? " *" : ""} —</option>
+              <option value="frigo">Frigo</option>
+              <option value="loc1">Loc 1</option>
+              <option value="loc2">Loc 2</option>
+              <option value="loc3">Loc 3</option>
+            </select>
+
             <input
               type="number"
               placeholder="Quantità *"
               value={qta}
               min={1}
               onChange={(e) => setQta(e.target.value)}
-              className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-            />
-
-            <input
-              type="text"
-              placeholder="Locazione (opz.)"
-              value={locazione}
-              onChange={(e) => setLocazione(e.target.value)}
               className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
             />
 

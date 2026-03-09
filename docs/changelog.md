@@ -3,11 +3,11 @@
 
 ---
 
-## 2026-03-09 — Hub Vendite & Scarichi (v2026.03.09d)
+## 2026-03-09 — Hub Vendite & Scarichi + Locazione obbligatoria (v2026.03.09d)
 
 ### Added
 - `ViniVendite.jsx` (v1.0): riscritta da placeholder a hub operativo completo:
-  - **Registrazione rapida**: ricerca vino con autocomplete, selezione tipo (VENDITA/SCARICO/CARICO/RETTIFICA), quantità, note, registrazione in un click
+  - **Registrazione rapida**: ricerca vino con autocomplete, selezione tipo (VENDITA/SCARICO/CARICO/RETTIFICA), **locazione obbligatoria** per vendita/scarico, quantità, note, registrazione in un click
   - **Storico movimenti globale**: tabella paginata di tutti i movimenti della cantina con filtri per tipo, testo, range date
   - **KPI rapidi**: vendite oggi, 7gg, 30gg, bottiglie totali in cantina
   - Click su vino nello storico → navigazione a scheda dettaglio
@@ -20,6 +20,11 @@
   - `GET /vini/magazzino/autocomplete?q=...` — autocomplete vini per registrazione rapida
   - Entrambi dichiarati prima di `/{vino_id}` per evitare conflitti path FastAPI
 - `MagazzinoSubMenu.jsx`: aggiunto link "🛒 Vendite & Scarichi" → `/vini/vendite`
+
+### Changed
+- **`registra_movimento()` — locazione reale**: ora aggiorna anche la colonna `QTA_<LOC>` corrispondente. Per VENDITA e SCARICO la locazione è **obbligatoria** (validazione backend + frontend)
+- **`MovimentiCantina.jsx`**: campo locazione da testo libero a dropdown (frigo/loc1/loc2/loc3), obbligatorio per VENDITA/SCARICO, disabilitato per RETTIFICA
+- **`MagazzinoViniDettaglio.jsx`**: stessa modifica al form movimenti nella scheda dettaglio
 
 ---
 

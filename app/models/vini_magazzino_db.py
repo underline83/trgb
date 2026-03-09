@@ -546,6 +546,15 @@ def aggiorna_quantita_locazioni(
 MOVIMENTI_TIPI_VALIDI = {"CARICO", "SCARICO", "VENDITA", "RETTIFICA"}
 
 
+LOCAZIONI_VALIDE = {"frigo", "loc1", "loc2", "loc3"}
+LOCAZIONE_TO_COLUMN = {
+    "frigo": "QTA_FRIGO",
+    "loc1": "QTA_LOC1",
+    "loc2": "QTA_LOC2",
+    "loc3": "QTA_LOC3",
+}
+
+
 def registra_movimento(
     vino_id: int,
     tipo: str,
@@ -557,18 +566,28 @@ def registra_movimento(
     data_mov: Optional[str] = None,
 ) -> None:
     """
-    Registra un movimento di cantina e aggiorna QTA_TOTALE.
+    Registra un movimento di cantina, aggiorna QTA_TOTALE e — se locazione
+    è specificata — aggiorna anche la colonna QTA_<LOC> corrispondente.
 
-    ⚠️ Nota:
-    - Per ora i movimenti aggiornano solo QTA_TOTALE.
-      Le singole QTA_FRIGO / QTA_LOC* restano invariate e vanno
-      eventualmente gestite con 'aggiorna_quantita_locazioni()'.
+    Locazioni valide: frigo, loc1, loc2, loc3
+    Per VENDITA e SCARICO la locazione è obbligatoria (il frontend la impone).
+    Per CARICO è facoltativa (se presente, incrementa la locazione).
+    Per RETTIFICA non si usa locazione (è un valore assoluto globale).
     """
     if tipo not in MOVIMENTI_TIPI_VALIDI:
         raise ValueError(f"Tipo movimento non valido: {tipo}")
 
     if qta <= 0:
         raise ValueError("La quantità qta deve essere > 0")
+
+    # Normalizza locazione
+    loc = locazione.strip().lower() if locazione else None
+    if loc and loc not in LOCAZIONI_VALIDE:
+        raise ValueError(f"Locazione non valida: {locazione}. Valide: {', '.join(sorted(LOCAZIONI_VALIDE))}")
+
+    # Per VENDITA e SCARICO, locazione obbligatoria
+    if tipo in ("VENDITA", "SCARICO") and not loc:
+        raise ValueError(f"Per movimenti di tipo {tipo} la locazione è obbligatoria.")
 
     if data_mov is None:
         data_mov = _now_iso()
@@ -578,9 +597,14 @@ def registra_movimento(
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    # Legge QTA_TOTALE corrente
+    # Legge il vino con tutte le QTA
     row = cur.execute(
-        "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_magazzino WHERE id = ?;",
+        """SELECT COALESCE(QTA_TOTALE, 0) AS q,
+                  COALESCE(QTA_FRIGO, 0) AS qf,
+                  COALESCE(QTA_LOC1, 0) AS q1,
+                  COALESCE(QTA_LOC2, 0) AS q2,
+                  COALESCE(QTA_LOC3, 0) AS q3
+           FROM vini_magazzino WHERE id = ?;""",
         (vino_id,),
     ).fetchone()
 
@@ -590,7 +614,7 @@ def registra_movimento(
 
     qta_attuale = row["q"]
 
-    # Calcolo nuova QTA
+    # Calcolo nuova QTA_TOTALE
     if tipo == "CARICO":
         nuova_qta = qta_attuale + qta
         delta = qta
@@ -607,6 +631,24 @@ def registra_movimento(
         (nuova_qta, created_at, vino_id),
     )
 
+    # Aggiorna la colonna locazione se specificata
+    if loc:
+        col = LOCAZIONE_TO_COLUMN[loc]
+        qta_loc_map = {"frigo": row["qf"], "loc1": row["q1"], "loc2": row["q2"], "loc3": row["q3"]}
+        qta_loc_attuale = qta_loc_map[loc]
+
+        if tipo == "CARICO":
+            nuova_qta_loc = qta_loc_attuale + qta
+        elif tipo in ("SCARICO", "VENDITA"):
+            nuova_qta_loc = max(0, qta_loc_attuale - qta)
+        else:
+            nuova_qta_loc = qta_loc_attuale  # RETTIFICA: non tocca la locazione
+
+        cur.execute(
+            f"UPDATE vini_magazzino SET {col} = ?, UPDATED_AT = ? WHERE id = ?;",
+            (nuova_qta_loc, created_at, vino_id),
+        )
+
     # Registra movimento solo se c'è effettivamente un delta
     if delta != 0:
         cur.execute(
@@ -615,7 +657,7 @@ def registra_movimento(
             (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
-            (vino_id, data_mov, tipo, abs(delta), locazione, note, origine, utente, created_at),
+            (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at),
         )
 
     conn.commit()

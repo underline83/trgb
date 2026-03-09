@@ -49,6 +49,7 @@ export default function ViniVendite() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedVino, setSelectedVino] = useState(null);
   const [regTipo, setRegTipo] = useState("VENDITA");
+  const [regLoc, setRegLoc] = useState("");
   const [regQta, setRegQta] = useState("");
   const [regNote, setRegNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -144,10 +145,14 @@ export default function ViniVendite() {
   };
 
   // ── Registra movimento ──
+  // Locazione obbligatoria per VENDITA e SCARICO
+  const locRequired = regTipo === "VENDITA" || regTipo === "SCARICO";
+
   const submitMovimento = async () => {
     if (!selectedVino) { alert("Seleziona un vino dalla ricerca."); return; }
     const qtaNum = Number(regQta);
     if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
+    if (locRequired && !regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
 
     setSubmitting(true);
     setSubmitMsg("");
@@ -159,6 +164,7 @@ export default function ViniVendite() {
         body: JSON.stringify({
           tipo: regTipo,
           qta: qtaNum,
+          locazione: regLoc || null,
           note: regNote.trim() || null,
         }),
       });
@@ -171,6 +177,7 @@ export default function ViniVendite() {
       // Reset form
       setSelectedVino(null);
       setSearchText("");
+      setRegLoc("");
       setRegQta("");
       setRegNote("");
       setSubmitMsg(`✅ ${regTipo} registrato — ${qtaNum} bt`);
@@ -309,7 +316,7 @@ export default function ViniVendite() {
               </label>
               <select
                 value={regTipo}
-                onChange={(e) => setRegTipo(e.target.value)}
+                onChange={(e) => { setRegTipo(e.target.value); if (e.target.value === "RETTIFICA") setRegLoc(""); }}
                 className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
               >
                 <option value="VENDITA">🛒 Vendita</option>
@@ -319,23 +326,44 @@ export default function ViniVendite() {
               </select>
             </div>
 
-            {/* Quantità */}
+            {/* Locazione */}
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
-                Quantità
+                Locazione {locRequired && <span className="text-red-400">*</span>}
+              </label>
+              <select
+                value={regLoc}
+                onChange={(e) => setRegLoc(e.target.value)}
+                disabled={regTipo === "RETTIFICA"}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
+                  locRequired && !regLoc ? "border-red-300" : "border-neutral-300"
+                } ${regTipo === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}
+              >
+                <option value="">— Seleziona —</option>
+                <option value="frigo">Frigo</option>
+                <option value="loc1">Loc 1</option>
+                <option value="loc2">Loc 2</option>
+                <option value="loc3">Loc 3</option>
+              </select>
+            </div>
+
+            {/* Quantità */}
+            <div className="md:col-span-1">
+              <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
+                Qtà
               </label>
               <input
                 type="number"
                 value={regQta}
                 min={1}
                 onChange={(e) => setRegQta(e.target.value)}
-                placeholder="N. bottiglie"
+                placeholder="N."
                 className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
               />
             </div>
 
             {/* Bottone registra */}
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <button
                 type="button"
                 onClick={submitMovimento}
