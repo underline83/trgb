@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
 import GestioneUtenti from "./pages/admin/GestioneUtenti";
+import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 
 // --- GESTIONE VINI ---
 import ViniMenu from "./pages/vini/ViniMenu";
@@ -111,6 +112,9 @@ export default function App() {
 
         {/* --- GESTIONE UTENTI (admin only) --- */}
         <Route path="/admin/utenti" element={<GestioneUtenti />} />
+
+        {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
+        <Route path="/admin/impostazioni" element={<ImpostazioniSistema />} />
 
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />

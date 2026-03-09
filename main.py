@@ -18,6 +18,7 @@ from app.migrations.migration_runner import run_migrations
 # ROUTER ESISTENTI
 from app.routers import auth_router
 from app.routers.users_router import router as users_router
+from app.routers.modules_router import router as modules_router
 from app.routers import menu_router
 from app.routers import vini_router
 from app.routers import vini_settings_router
@@ -117,6 +118,7 @@ app.include_router(dipendenti_router)
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])
 app.include_router(users_router)
+app.include_router(modules_router)
 app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 
 

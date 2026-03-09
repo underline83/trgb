@@ -95,6 +95,27 @@ export default function AdminMenu() {
             </p>
           </Link>
 
+          {/* IMPOSTAZIONI SISTEMA — solo admin */}
+          {role === "admin" && (
+            <Link
+              to="/admin/impostazioni"
+              className="
+                bg-orange-50 border border-orange-200 text-orange-900
+                rounded-2xl p-8 shadow
+                hover:shadow-xl hover:-translate-y-1 transition transform
+                text-center
+              "
+            >
+              <div className="text-5xl mb-3">⚙️</div>
+              <h2 className="text-xl font-semibold font-playfair">
+                Impostazioni Sistema
+              </h2>
+              <p className="text-neutral-700 text-sm mt-1">
+                Abilita o disabilita i moduli del gestionale.
+              </p>
+            </Link>
+          )}
+
           {/* GESTIONE UTENTI — solo admin */}
           {role === "admin" && (
             <Link

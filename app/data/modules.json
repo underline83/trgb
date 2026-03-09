@@ -1,0 +1,30 @@
+[
+  {
+    "key": "vini",
+    "label": "Gestione Vini",
+    "description": "Carta vini, magazzino, vendite, impostazioni",
+    "icon": "🍷",
+    "enabled": true
+  },
+  {
+    "key": "ricette",
+    "label": "Gestione Ricette",
+    "description": "Archivio ricette, costi, stampa PDF",
+    "icon": "📘",
+    "enabled": true
+  },
+  {
+    "key": "foodcost",
+    "label": "Food Cost",
+    "description": "Analisi costi, materie prime, porzioni",
+    "icon": "📊",
+    "enabled": true
+  },
+  {
+    "key": "admin",
+    "label": "Amministrazione",
+    "description": "Corrispettivi, fatture, dipendenti, utenti",
+    "icon": "🧾",
+    "enabled": true
+  }
+]
