@@ -75,7 +75,15 @@ class VinoMagazzinoBase(BaseModel):
 
     STATO_VENDITA: Optional[str] = Field(
         None,
-        description="Codice stato vendita/conservazione (es. N, T, V, F, S, 1,2,3, X, O, A...)",
+        description="Comportamento commerciale: N=Non vendere, T=Cautela, V=Vendere, F=Spingere, S=Aggressivo",
+    )
+    STATO_RIORDINO: Optional[str] = Field(
+        None,
+        description="Gestione stock: D=Da ordinare, O=Finito/ordinare, 0=Ordinato, A=Annata esaurita, X=Non ricomprare",
+    )
+    STATO_CONSERVAZIONE: Optional[str] = Field(
+        None,
+        description="Condizione bottiglia: 1=Difficile/urgente, 2=Buona/vendere, 3=Perfetta/non urgente",
     )
     NOTE_STATO: Optional[str] = None
 
@@ -128,6 +136,8 @@ class VinoMagazzinoUpdate(BaseModel):
     DISCONTINUATO: Optional[str] = None
 
     STATO_VENDITA: Optional[str] = None
+    STATO_RIORDINO: Optional[str] = None
+    STATO_CONSERVAZIONE: Optional[str] = None
     NOTE_STATO: Optional[str] = None
 
     FRIGORIFERO: Optional[str] = None

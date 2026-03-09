@@ -142,6 +142,16 @@ def init_magazzino_database() -> None:
             "ALTER TABLE vini_magazzino ADD COLUMN DISCONTINUATO TEXT "
             "CHECK (DISCONTINUATO IN ('SI','NO') OR DISCONTINUATO IS NULL);"
         )
+    if "STATO_RIORDINO" not in cols:
+        cur.execute(
+            "ALTER TABLE vini_magazzino ADD COLUMN STATO_RIORDINO TEXT "
+            "CHECK (STATO_RIORDINO IN ('D','O','0','A','X') OR STATO_RIORDINO IS NULL);"
+        )
+    if "STATO_CONSERVAZIONE" not in cols:
+        cur.execute(
+            "ALTER TABLE vini_magazzino ADD COLUMN STATO_CONSERVAZIONE TEXT "
+            "CHECK (STATO_CONSERVAZIONE IN ('1','2','3') OR STATO_CONSERVAZIONE IS NULL);"
+        )
 
     # -----------------------------------------------------
     # TABELLA 'vini_magazzino_movimenti'
@@ -793,11 +803,15 @@ def get_dashboard_stats() -> Dict[str, Any]:
     # Alert: vini in carta con giacenza = 0
     alert_carta = cur.execute(
         """
-        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE, DISCONTINUATO
+        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE,
+               STATO_RIORDINO, STATO_CONSERVAZIONE, STATO_VENDITA
         FROM vini_magazzino
         WHERE CARTA = 'SI' AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
         ORDER BY
-            CASE WHEN DISCONTINUATO = 'SI' THEN 1 ELSE 0 END,
+            CASE WHEN STATO_RIORDINO = 'X' THEN 1 ELSE 0 END,
+            CASE WHEN STATO_CONSERVAZIONE = '1' THEN 0
+                 WHEN STATO_CONSERVAZIONE = '2' THEN 1
+                 ELSE 2 END,
             TIPOLOGIA, DESCRIZIONE
         LIMIT 50;
         """

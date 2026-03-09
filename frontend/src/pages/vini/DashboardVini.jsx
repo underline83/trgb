@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { STATO_RIORDINO, STATO_VENDITA, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -52,26 +53,26 @@ export default function DashboardVini() {
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
 
-  // Toggle DISCONTINUATO direttamente dalla dashboard (aggiorna stato locale senza reload)
-  const toggleDiscontinuato = async (vino) => {
-    const newVal = vino.DISCONTINUATO === "SI" ? "NO" : "SI";
+  // Toggle STATO_RIORDINO=X (non ricomprare) dalla dashboard — aggiorna stato locale senza reload
+  const toggleNonRicomprare = async (vino) => {
+    const isX  = vino.STATO_RIORDINO === "X";
+    const newVal = isX ? null : "X";   // X → null (rimuove il flag), null → X
     setTogglingId(vino.id);
     try {
       const resp = await apiFetch(`${API_BASE}/vini/magazzino/${vino.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ DISCONTINUATO: newVal }),
+        body: JSON.stringify({ STATO_RIORDINO: newVal }),
       });
       if (!resp.ok) throw new Error();
-      // Aggiorna lo stato locale senza ricaricare tutta la dashboard
       setStats((prev) => ({
         ...prev,
         alert_carta_senza_giacenza: prev.alert_carta_senza_giacenza.map((v) =>
-          v.id === vino.id ? { ...v, DISCONTINUATO: newVal } : v
+          v.id === vino.id ? { ...v, STATO_RIORDINO: newVal } : v
         ),
       }));
     } catch {
-      // noop — errore silenzioso, lo stato non cambia
+      // noop
     } finally {
       setTogglingId(null);
     }
@@ -219,49 +220,67 @@ export default function DashboardVini() {
 
         {/* ── ALERT: VINI IN CARTA SENZA GIACENZA ─────────── */}
         {stats?.alert_carta_senza_giacenza?.length > 0 && (() => {
-          const urgenti      = stats.alert_carta_senza_giacenza.filter((v) => v.DISCONTINUATO !== "SI");
-          const discontinuati = stats.alert_carta_senza_giacenza.filter((v) => v.DISCONTINUATO === "SI");
+          const urgenti      = stats.alert_carta_senza_giacenza.filter((v) => v.STATO_RIORDINO !== "X");
+          const nonRicomprare = stats.alert_carta_senza_giacenza.filter((v) => v.STATO_RIORDINO === "X");
 
-          const VinoRow = ({ v, dimmed }) => (
-            <div
-              key={v.id}
-              className={`px-6 py-3 flex items-center justify-between transition ${
-                dimmed ? "opacity-50" : "hover:bg-red-50"
-              }`}
-            >
-              {/* info vino — click apre scheda */}
-              <div
-                className="flex-1 min-w-0 cursor-pointer"
-                onClick={() => navigate(`/vini/magazzino/${v.id}`)}
-              >
-                <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mr-2">#{v.id}</span>
-                <span className={`font-semibold text-sm ${dimmed ? "line-through text-neutral-400" : "text-neutral-900"}`}>{v.DESCRIZIONE}</span>
-                {v.ANNATA && <span className="ml-2 text-xs text-neutral-500">{v.ANNATA}</span>}
-                {v.PRODUTTORE && <span className="ml-2 text-xs text-neutral-500">— {v.PRODUTTORE}</span>}
+          const VinoRow = ({ v, dimmed }) => {
+            const svInfo  = v.STATO_VENDITA      ? STATO_VENDITA[v.STATO_VENDITA]           : null;
+            const srInfo  = v.STATO_RIORDINO     ? STATO_RIORDINO[v.STATO_RIORDINO]         : null;
+            const scInfo  = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
+            return (
+              <div className={`px-6 py-3 flex items-start justify-between transition ${dimmed ? "opacity-50" : "hover:bg-red-50"}`}>
+                {/* info vino */}
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">#{v.id}</span>
+                    <span className={`font-semibold text-sm ${dimmed ? "line-through text-neutral-400" : "text-neutral-900"}`}>{v.DESCRIZIONE}</span>
+                    {v.ANNATA && <span className="text-xs text-neutral-500">{v.ANNATA}</span>}
+                    {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
+                  </div>
+                  {/* badge stati */}
+                  {(svInfo || srInfo || scInfo) && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {svInfo && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${svInfo.color}`}>
+                          <span className={`w-1 h-1 rounded-full ${svInfo.dot}`} />{svInfo.label}
+                        </span>
+                      )}
+                      {srInfo && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${srInfo.color}`}>
+                          <span className={`w-1 h-1 rounded-full ${srInfo.dot}`} />{srInfo.label}
+                        </span>
+                      )}
+                      {scInfo && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
+                          <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* destra: tipo + 0bt + toggle */}
+                <div className="flex items-center gap-2 shrink-0 ml-3 mt-0.5">
+                  <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
+                  <span className="text-xs text-red-600 font-semibold">0 bt</span>
+                  <button
+                    type="button"
+                    disabled={togglingId === v.id}
+                    onClick={() => toggleNonRicomprare(v)}
+                    title={dimmed ? "Rimuovi flag — torna in lista urgenti" : "Segna come 'Non ricomprare'"}
+                    className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
+                      ${dimmed
+                        ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                        : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
+                      }
+                      ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                    `}
+                  >
+                    {dimmed ? "🚫 Non ricomprare" : "◦ Non ricomprare"}
+                  </button>
+                </div>
               </div>
-              {/* destra: tipologia + badge + toggle */}
-              <div className="flex items-center gap-2 shrink-0 ml-3">
-                <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
-                <span className="text-xs text-red-600 font-semibold">0 bt</span>
-                {/* toggle discontinuato */}
-                <button
-                  type="button"
-                  disabled={togglingId === v.id}
-                  onClick={() => toggleDiscontinuato(v)}
-                  title={v.DISCONTINUATO === "SI" ? "Riattiva: togliere flag discontinuato" : "Segna come discontinuato (non verrà riordinato)"}
-                  className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
-                    ${v.DISCONTINUATO === "SI"
-                      ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300"
-                      : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
-                    }
-                    ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
-                  `}
-                >
-                  {v.DISCONTINUATO === "SI" ? "🚫 Discontinuato" : "◦ Discontinua"}
-                </button>
-              </div>
-            </div>
-          );
+            );
+          };
 
           return (
             <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
@@ -271,26 +290,26 @@ export default function DashboardVini() {
                   <div className="font-semibold text-red-800">
                     {urgenti.length > 0
                       ? `${urgenti.length} ${urgenti.length === 1 ? "vino" : "vini"} in carta senza giacenza`
-                      : "Nessun vino urgente in carta"}
-                    {discontinuati.length > 0 && (
+                      : "Nessun vino urgente"}
+                    {nonRicomprare.length > 0 && (
                       <span className="ml-2 text-xs font-normal text-neutral-500">
-                        + {discontinuati.length} discontinuati
+                        + {nonRicomprare.length} non da ricomprare
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-red-600 mt-0.5">
-                    Da riordinare — oppure segna come <strong>Discontinuato</strong> per escluderlo dalla lista urgente.
+                    Da riordinare — oppure segna come <strong>Non ricomprare</strong> per escluderlo.
                   </div>
                 </div>
               </div>
-              <div className="divide-y divide-neutral-100 max-h-72 overflow-auto">
-                {urgenti.map((v)      => <VinoRow key={v.id} v={v} dimmed={false} />)}
-                {discontinuati.length > 0 && urgenti.length > 0 && (
+              <div className="divide-y divide-neutral-100 max-h-80 overflow-auto">
+                {urgenti.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                {nonRicomprare.length > 0 && urgenti.length > 0 && (
                   <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
-                    Discontinuati (esclusi da urgente)
+                    Non da ricomprare
                   </div>
                 )}
-                {discontinuati.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
+                {nonRicomprare.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
               </div>
             </div>
           );
