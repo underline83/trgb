@@ -3,6 +3,44 @@
 
 ---
 
+## 2026-03-09 — Dashboard Vini operativa, analytics vendite, UX miglioramenti (v2026.03.09c)
+
+### Added
+- `DashboardVini.jsx` (v2.0 → v2.1): riscritta completamente da placeholder a dashboard operativa:
+  - **Riga KPI Stock** (4 tile): bottiglie in cantina, vini in carta, senza prezzo listino, vini fermi 30gg
+  - **Riga KPI Vendite** (2 tile): bottiglie vendute ultimi 7gg / 30gg
+  - **Drill-down interattivo**: click su tile "senza listino" → tabella inline con tutti i vini da completare; click su tile "vini fermi" → lista con giacenza e data ultimo movimento; click di nuovo chiude il pannello
+  - **Vendite recenti** (viola): ultimi 8 movimenti di tipo VENDITA, con vino e data
+  - **Movimenti operativi** (neutro): ultimi 6 tra CARICO / SCARICO / RETTIFICA con badge tipo colorato
+  - **Top venduti 30gg**: ranking a barre dei vini più venduti nell'ultimo mese, a larghezza piena
+  - **Distribuzione tipologie**: barre proporzionali per tipologia con contatore referenze
+  - **Accesso rapido**: link a Magazzino, Nuovo vino, Carta vini, Impostazioni
+  - Badge `#id` in stile `bg-slate-700` su alert e drill-down
+- `vini_magazzino_db.py`: aggiunte query per `get_dashboard_stats()`:
+  - `kpi_vendite`: vendute_7gg, vendute_30gg (WHERE tipo='VENDITA')
+  - `vendite_recenti`: ultimi 8 movimenti VENDITA con join su descrizione vino
+  - `movimenti_operativi`: ultimi 6 CARICO/SCARICO/RETTIFICA
+  - `top_venduti_30gg`: top 8 per SUM(qta) su VENDITA ultimi 30gg
+  - `vini_fermi`: vini con QTA_TOTALE > 0 e nessun movimento negli ultimi 30 giorni (LEFT JOIN + HAVING)
+- `vini_magazzino_router.py`: aggiunto endpoint `GET /dashboard` (dichiarato prima di `/{vino_id}` per evitare conflitti di routing FastAPI)
+- Dashboard raggiungibile da: NavLink `MagazzinoSubMenu.jsx`, card `ViniMenu.jsx`, route `/vini/dashboard` in `App.jsx`
+
+### Changed
+- `MagazzinoVini.jsx`: pannello destro semplificato — rimosso bottone "📦 Movimenti" separato; rinominato unico bottone in "🍷 Apri scheda completa" (movimenti ora integrati nella scheda dettaglio)
+- Badge `#id` standardizzato a `bg-slate-700 text-white` su tutte le pagine (era `bg-amber-900` — conflitto visivo con i bottoni ambra)
+
+### Fixed
+- `vini_magazzino_router.py`: rimossi 12 caratteri smart quote (U+201C/U+201D) nelle stringhe — causavano `SyntaxError: invalid character` al boot del backend
+- `scripts/deploy.sh`: corretto mode bit git a `100755` (era `100644`) — risolto `Permission denied` ad ogni deploy
+- `push.sh`: riscritto per usare comandi SSH diretti invece di `./scripts/deploy.sh` — più robusto e non dipende dal mode bit
+- Sudoers configurato sul VPS per `systemctl restart` senza password — deploy non-interattivo da SSH
+
+### Docs
+- `modulo_magazzino_vini.md`: aggiornato con sezioni Movimenti, Dashboard, Scheda dettaglio v3.0
+- `Roadmap.md`: aggiunti task #23 (dashboard vini), #24 (badge ID); marcati come chiusi
+
+---
+
 ## 2026-03-09 — Magazzino vini: edit, note, movimenti, role check (v2026.03.09b)
 
 ### Security
