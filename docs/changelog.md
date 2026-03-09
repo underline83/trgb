@@ -3,19 +3,62 @@
 
 ---
 
-## 2026-03-08 — Fix critici (v2026.03.08)
+## 2026-03-09 — Gestione utenti, permessi moduli, sicurezza auth (v2026.03.09)
+
+### Security
+- `auth_service.py`: sostituito USERS dict con password in chiaro con hash `sha256_crypt` via `passlib.CryptContext`
+- `authenticate_user()` usa `security.verify_password()` — nessuna password in chiaro nel codice
+- `SECRET_KEY` caricata da `.env` via `python-dotenv` (fallback al valore hardcoded)
+- `scripts/gen_passwords.py`: utility CLI per rigenerare hash al cambio password
+
+### Added
+- `app/data/users.json`: store persistente utenti (caricato a boot, aggiornato ad ogni modifica)
+- `app/routers/users_router.py`: CRUD utenti — `GET/POST /auth/users`, `DELETE /{username}`, `PUT /{username}/password`, `PUT /{username}/role`. Admin: accesso totale; non-admin: solo propria password con verifica
+- `app/data/modules.json`: permessi moduli per ruolo (`roles[]` per modulo)
+- `app/routers/modules_router.py`: `GET /settings/modules` (tutti autenticati), `PUT /settings/modules` (admin only). Admin sempre incluso, modulo admin non disabilitabile
+- `frontend/src/pages/admin/ImpostazioniSistema.jsx`: pagina unica con due tab — **Utenti** (crea/modifica/elimina/cambio password/cambio ruolo) e **Moduli & Permessi** (griglia checkbox ruolo × modulo)
+- Logout button cablato in `Header.jsx` — visibile su tutte le pagine post-login
+- `Home.jsx` dinamica: mostra solo i moduli accessibili al ruolo dell'utente corrente
+
+### Changed
+- `AdminMenu.jsx`: due card separate (Impostazioni + Gestione Utenti) → una sola card **Impostazioni** → `/admin/impostazioni`
+- `LoginForm.jsx`: salva `username` in localStorage (necessario per UI "Tu" in gestione utenti)
+- `App.jsx`: `Header` montato globalmente con `onLogout`; route `/admin/impostazioni` aggiunta
+
+### Docs
+- `roadmap.md`: aggiornato con task #1, #3, #7 chiusi
+- `sessione.md`: aggiornato con lavoro della sessione 2026-03-09
+
+---
+
+## 2026-03-08 — Fix sicurezza, bug e refactor frontend (v2026.03.08)
+
+### Security
+- `Depends(get_current_user)` aggiunto a livello router su 5 endpoint pubblici: `admin_finance`, `fe_import`, `foodcost_ingredients`, `foodcost_recipes`, `vini_settings`
 
 ### Fixed
 - Bug pie chart pagamenti in `CorrispettiviDashboard.jsx`: `pag.pos` → `pag.pos_bpm`, `pag.sella` → `pag.pos_sella`
+- `carta_vini_service.py`: `if prezzo:` → `if prezzo not in (None, "")` — fix prezzo=0 in preview HTML
+- `vini_router.py`: rimossa funzione `slugify` duplicata, importata da `carta_vini_service`
 - Rimosso `console.log("API_BASE:", API_BASE)` da `LoginForm.jsx`
 
 ### Added
 - `pyxlsb` aggiunto a `requirements.txt` (necessario per import Excel .xlsb)
+- `frontend/src/config/api.js`: `apiFetch()` — wrapper centralizzato di `fetch` con auto-inject token Authorization e redirect automatico al login su 401
+- `frontend/src/pages/admin/CorrispettiviAnnual.jsx`: nuova pagina confronto annuale con grafico e tabella mensile
+- Route `/admin/corrispettivi/annual` in `App.jsx`
+- Setup git bare repo VPS (`/home/marco/trgb/trgb.git`) con post-receive hook per auto-deploy su `git push`
+- `scripts/setup_git_server.sh`: script one-time setup VPS
+
+### Changed
+- Gestione 401 rimossa da 6 pagine (ViniCarta, MagazzinoVini, MagazzinoViniDettaglio, MagazzinoViniNuovo, DipendentiAnagrafica, CorrispettiviAnnual) — ora centralizzata in `apiFetch()`
 
 ### Docs
-- Roadmap.md completamente riscritta con stato verificato via ispezione codice
-- Tutti i file docs/ aggiornati o creati: Modulo_Corrispettivi.md, Modulo_Dipendenti.md, architettura.md, VersionMap.md, Index.md, prompt_canvas.md
-- Eliminati file obsoleti: sistema-vini.md, to-do.md, version.json
+- Docs consolidati da 18 a 13 file, tutti in minuscolo
+- `database.md`: unificato da `Database_Vini.md` + `Database_FoodCost.md`
+- `architettura.md`: merge di `VersionMap.md`
+- `deploy.md`: merge di `troubleshooting.md`
+- Eliminati: `sistema-vini.md`, `to-do.md`, `version.json`, `Index.md`
 
 ---
 

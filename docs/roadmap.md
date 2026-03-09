@@ -82,16 +82,14 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 # 🔵 DOCUMENTAZIONE
 
 ## 13. `version.json` non valido
-- [ ] Il file contiene due oggetti JSON concatenati senza array wrapper — correggere o eliminare
-- [ ] Decidere se mantenere il versionamento in JSON o solo in `VersionMap.md`
+- [x] Eliminato — 2026-03-08
 
 ## 14. Changelog fermo a dicembre 2025
-- [ ] Aggiornare `changelog.md` con le modifiche di gennaio–marzo 2026
-- [ ] Aggiornare `VersionMap.md` (fermo a `2025.12.05`)
+- [x] `changelog.md` aggiornato con tutte le modifiche di marzo 2026 — 2026-03-09
+- [x] `VersionMap.md` eliminato, contenuto integrato in `architettura.md` — 2026-03-08
 
 ## 15. `sistema-vini.md` duplicato
-- [ ] Eliminare `sistema-vini.md` (contenuto già coperto da `Modulo_Vini.md`)
-- [ ] Aggiornare `Index.md` se necessario
+- [x] Eliminato — 2026-03-08
 
 ---
 
@@ -159,6 +157,9 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 |---|------|------|--------|
 | 1 | Auth reale — sha256_crypt hash + python-dotenv + SECRET_KEY da .env | 2026-03-09 | — |
 | 3 | `Depends(get_current_user)` su 5 router pubblici | 2026-03-08 | — |
+| 13 | `version.json` eliminato | 2026-03-08 | — |
+| 14 | `changelog.md` aggiornato a marzo 2026 | 2026-03-09 | — |
+| 15 | `sistema-vini.md` eliminato | 2026-03-08 | — |
 | 4 | `pyxlsb` aggiunto a `requirements.txt` | 2026-03-08 | `9a34957` |
 | 5 | Bug pie chart pagamenti (`pos_bpm`, `pos_sella`) | 2026-03-08 | `0d7987b` |
 | 6 | Route `/annual` + pagina `CorrispettiviAnnual.jsx` | 2026-03-08 | `b5d282a` |
