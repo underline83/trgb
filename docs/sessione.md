@@ -17,9 +17,22 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ## Cosa abbiamo fatto nell'ultima sessione (2026-03-10)
 
-### Reforming completo modulo vini
+### Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta
+1. **Nuovo router `vini_cantina_tools_router.py`** — 6 endpoint backend:
+   - `POST /sync-from-excel` → sincronizza vini.sqlite3 → cantina (upsert: anagrafica aggiornata, giacenze intatte per vini esistenti)
+   - `POST /import-excel` → import diretto Excel → cantina (senza passare dal vecchio DB)
+   - `GET /export-excel` → esporta cantina in .xlsx compatibile con Excel storico
+   - `GET /carta-cantina` → genera carta HTML dal DB cantina
+   - `GET /carta-cantina/pdf` → genera PDF carta dal DB cantina
+   - `GET /carta-cantina/docx` → genera DOCX carta dal DB cantina
+2. **Nuovo: `CantinaTools.jsx`** — pagina frontend admin-only con 3 sezioni: Sync, Import/Export, Genera Carta
+3. **Colonna ORIGINE** in `vini_magazzino` — flag 'EXCEL' o 'MANUALE' per tracciare provenienza
+4. **Auth via query token** per endpoint di download (PDF/DOCX/Export usano `?token=...`)
+5. **Route + SubMenu** — `/vini/magazzino/tools`, link "🔧 Strumenti" (admin only)
+
+### Reforming completo modulo vini (stesso giorno, prima sessione)
 1. **ViniMenu.jsx** — da 6 a 5 voci: rimossa "Movimenti Cantina" (orfana), rinominato "Magazzino Vini" → "🍷 Cantina"
-2. **MagazzinoSubMenu.jsx** — semplificato da 6 a 5 pulsanti: Cantina, Nuovo vino + admin-only: Registro movimenti, Modifica massiva
+2. **MagazzinoSubMenu.jsx** — semplificato da 6 a 6 pulsanti: Cantina, Nuovo vino + admin-only: Registro movimenti, Modifica massiva, Strumenti
 3. **App.jsx** — rimosse route orfane `/vini/movimenti` e `/vini/magazzino/:id/movimenti`
 4. **MagazzinoViniDettaglio.jsx** — fix layout form movimenti (grid 5→4 colonne), emoji nei tipi, bottone "← Cantina"
 5. **MagazzinoVini.jsx** — titolo → "Cantina", aggiunto bottone "✕ Pulisci filtri"
@@ -62,10 +75,10 @@ Poi `pip install python-dotenv` sul VPS se non già installato.
 
 ### 🟢 Modulo Vini — struttura attuale dopo reforming
 **Menu principale** (`ViniMenu.jsx`): 5 voci — Carta dei Vini, Vendite, Cantina, Dashboard, Impostazioni
-**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · (admin) Registro movimenti · Modifica massiva
+**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · (admin) Registro movimenti · Modifica massiva · Strumenti
 **Route attive**:
 - `/vini` → ViniMenu
-- `/vini/carta` → ViniCarta (NON TOCCARE)
+- `/vini/carta` → ViniCarta (NON TOCCARE — paracadute Excel)
 - `/vini/vendite` → ViniVendite (Bottiglia/Calici)
 - `/vini/settings` → ViniImpostazioni
 - `/vini/dashboard` → DashboardVini
@@ -73,6 +86,7 @@ Poi `pip install python-dotenv` sul VPS se non già installato.
 - `/vini/magazzino/nuovo` → MagazzinoViniNuovo
 - `/vini/magazzino/admin` → MagazzinoAdmin (bulk edit, admin only)
 - `/vini/magazzino/registro` → RegistroMovimenti (log globale, admin only)
+- `/vini/magazzino/tools` → CantinaTools (sync/import/export/genera carta, admin only)
 - `/vini/magazzino/:id` → MagazzinoViniDettaglio (scheda vino con movimenti + note)
 
 **Route eliminate**: `/vini/movimenti`, `/vini/magazzino/:id/movimenti` (movimenti ora solo dalla scheda vino)
@@ -128,7 +142,9 @@ frontend/src/pages/vini/MagazzinoVini.jsx     — lista cantina con filtri
 frontend/src/pages/vini/MagazzinoViniDettaglio.jsx — scheda vino (anagrafica+giacenze+movimenti+note)
 frontend/src/pages/vini/MagazzinoAdmin.jsx    — modifica massiva (admin)
 frontend/src/pages/vini/RegistroMovimenti.jsx — log globale movimenti (admin)
+frontend/src/pages/vini/CantinaTools.jsx     — strumenti sync/import/export/carta (admin)
 frontend/src/components/vini/MagazzinoSubMenu.jsx — submenu cantina
+app/routers/vini_cantina_tools_router.py     — router strumenti cantina (6 endpoint)
 docs/changelog.md                    — changelog formato Keep a Changelog
 docs/roadmap.md                      — task aperti
 docs/prompt_canvas.md                — regole operative per generare codice
@@ -141,8 +157,9 @@ docs/database.md                     — schema completo tutti i DB
 
 | Database | Moduli | Note |
 |----------|--------|------|
-| `app/data/vini.sqlite3` | Carta Vini + Magazzino | 1186 record; schema v2.1 |
-| `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
+| `app/data/vini.sqlite3` | Carta Vini (legacy Excel) | NON TOCCARE — paracadute; schema v2.1 |
+| `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
+| `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri (usati da entrambi i generatori carta) |
 | `app/data/foodcost.db` | FoodCost + FE XML | ingredienti, ricette, fe_fatture, fe_righe; migraz. 001-005 |
 | `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
 

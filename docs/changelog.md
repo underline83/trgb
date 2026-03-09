@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-03-10 — Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta (v2026.03.10b)
+
+### Added
+- **vini_cantina_tools_router.py**: nuovo router backend con 6 endpoint:
+  - `POST /vini/cantina-tools/sync-from-excel` — sincronizza vini.sqlite3 → cantina (upsert: anagrafica aggiornata, giacenze intatte per vini esistenti)
+  - `POST /vini/cantina-tools/import-excel` — import diretto Excel → cantina (senza passare dal vecchio DB)
+  - `GET /vini/cantina-tools/export-excel` — esporta cantina in .xlsx compatibile con Excel storico
+  - `GET /vini/cantina-tools/carta-cantina` — genera carta HTML dal DB cantina
+  - `GET /vini/cantina-tools/carta-cantina/pdf` — genera PDF carta dal DB cantina
+  - `GET /vini/cantina-tools/carta-cantina/docx` — genera DOCX carta dal DB cantina
+- **CantinaTools.jsx**: pagina frontend admin-only con UI per sync, import, export e genera carta
+- **Colonna ORIGINE** in `vini_magazzino`: flag 'EXCEL' o 'MANUALE' per tracciare provenienza vini
+- Route `/vini/magazzino/tools` in App.jsx
+- Link "🔧 Strumenti" in MagazzinoSubMenu.jsx (admin only)
+- Autenticazione via query token per endpoint di download (window.open)
+
+### Changed
+- **vini_magazzino_db.py**: `create_vino()` ora setta ORIGINE='MANUALE' di default; `upsert_vino_from_carta()` setta ORIGINE='EXCEL'
+- **main.py**: registrato nuovo router `vini_cantina_tools_router`
+
+---
+
 ## 2026-03-10 — Reforming Modulo Vini (v2026.03.10a)
 
 ### Added

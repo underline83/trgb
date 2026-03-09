@@ -23,6 +23,7 @@ from app.routers import menu_router
 from app.routers import vini_router
 from app.routers import vini_settings_router
 from app.routers import vini_magazzino_router
+from app.routers import vini_cantina_tools_router
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
@@ -91,6 +92,7 @@ app.mount(
 app.include_router(vini_settings_router.router)
 app.include_router(vini_router.router)
 app.include_router(vini_magazzino_router.router)
+app.include_router(vini_cantina_tools_router.router)
 
 # FOODCOST
 app.include_router(foodcost_router.router, prefix="/foodcost", tags=["foodcost"])

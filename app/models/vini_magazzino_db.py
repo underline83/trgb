@@ -152,6 +152,12 @@ def init_magazzino_database() -> None:
             "ALTER TABLE vini_magazzino ADD COLUMN STATO_CONSERVAZIONE TEXT "
             "CHECK (STATO_CONSERVAZIONE IN ('1','2','3') OR STATO_CONSERVAZIONE IS NULL);"
         )
+    if "ORIGINE" not in cols:
+        cur.execute(
+            "ALTER TABLE vini_magazzino ADD COLUMN ORIGINE TEXT "
+            "CHECK (ORIGINE IN ('EXCEL','MANUALE') OR ORIGINE IS NULL) "
+            "DEFAULT NULL;"
+        )
 
     # -----------------------------------------------------
     # TABELLA 'vini_magazzino_movimenti'
@@ -252,6 +258,7 @@ def create_vino(data: Dict[str, Any]) -> int:
     data = dict(data)  # copia locale
     data.setdefault("CREATED_AT", now)
     data.setdefault("UPDATED_AT", now)
+    data.setdefault("ORIGINE", "MANUALE")
 
     columns = ", ".join(data.keys())
     placeholders = ", ".join(["?"] * len(data))
@@ -310,6 +317,8 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
     ]:
         data.setdefault(key, None)
 
+    data.setdefault("ORIGINE", "EXCEL")
+
     cur.execute(
         """
         INSERT INTO vini_magazzino (
@@ -323,6 +332,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
             FRIGORIFERO,
             LOCAZIONE_1, LOCAZIONE_2, LOCAZIONE_3,
             NOTE,
+            ORIGINE,
             CREATED_AT, UPDATED_AT
         )
         VALUES (
@@ -336,6 +346,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
             :FRIGORIFERO,
             :LOCAZIONE_1, :LOCAZIONE_2, :LOCAZIONE_3,
             :NOTE,
+            :ORIGINE,
             :CREATED_AT, :UPDATED_AT
         )
         ON CONFLICT(id_excel) DO UPDATE SET

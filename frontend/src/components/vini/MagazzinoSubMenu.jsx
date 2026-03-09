@@ -45,6 +45,12 @@ export default function MagazzinoSubMenu() {
           >
             📋 Modifica massiva
           </NavLink>
+          <NavLink
+            to="/vini/magazzino/tools"
+            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+          >
+            🔧 Strumenti
+          </NavLink>
         </>)}
       </div>
     </div>
