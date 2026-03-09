@@ -22,7 +22,7 @@ export default function MagazzinoSubMenu() {
           className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
           end
         >
-          🍷 Lista Vini
+          🍷 Cantina
         </NavLink>
 
         <NavLink
@@ -32,14 +32,20 @@ export default function MagazzinoSubMenu() {
           ➕ Nuovo vino
         </NavLink>
 
-        {role === "admin" && (
+        {role === "admin" && (<>
+          <NavLink
+            to="/vini/magazzino/registro"
+            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+          >
+            📜 Registro movimenti
+          </NavLink>
           <NavLink
             to="/vini/magazzino/admin"
             className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
           >
-            ⚙️ Admin
+            📋 Modifica massiva
           </NavLink>
-        )}
+        </>)}
       </div>
     </div>
   );

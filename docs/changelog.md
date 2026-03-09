@@ -5,6 +5,14 @@
 
 ## 2026-03-10 — Reforming Modulo Vini (v2026.03.10a)
 
+### Added
+- **RegistroMovimenti.jsx**: pagina admin-only con log globale di tutti i movimenti cantina
+  - Filtri: tipo, testo (vino/produttore), range date, con paginazione server-side (50/pagina)
+  - Click su vino → scheda dettaglio
+  - Bottone "Pulisci filtri" + "Aggiorna"
+- `MagazzinoSubMenu.jsx`: aggiunto link "📜 Registro movimenti" (admin only)
+- `App.jsx`: route `/vini/magazzino/registro`
+
 ### Changed
 - **ViniMenu.jsx**: da 6 a 5 voci — rimossa "Movimenti Cantina", "Magazzino Vini" rinominato in "Cantina"
 - **MagazzinoSubMenu.jsx**: semplificato da 6 a 3 pulsanti (Lista Vini, Nuovo vino, Admin)
