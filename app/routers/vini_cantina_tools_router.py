@@ -189,13 +189,18 @@ def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
 # =============================================================
 @router.post("/sync-from-excel", summary="Sincronizza DB Excel → Cantina")
 def sync_from_excel(
+    forza_giacenze: bool = Query(
+        False,
+        description="Se true, sovrascrive anche le giacenze dei vini già esistenti con i valori dell'Excel",
+    ),
     current_user: Any = Depends(get_current_user),
 ):
     """
     Legge tutti i vini dal DB vini.sqlite3 (popolato dall'import Excel classico)
     e li sincronizza nel DB cantina con upsert:
     - Vini nuovi: inseriti con ORIGINE='EXCEL', giacenze dall'Excel
-    - Vini esistenti: aggiornata solo anagrafica/prezzi, giacenze invariate
+    - Vini esistenti: aggiornata solo anagrafica/prezzi
+    - Se forza_giacenze=true: sovrascrive ANCHE le giacenze dei vini esistenti
 
     I vini presenti solo in cantina (ORIGINE='MANUALE') non vengono toccati.
     """
@@ -208,6 +213,7 @@ def sync_from_excel(
 
     inseriti = 0
     aggiornati = 0
+    giacenze_forzate = 0
     errori = []
 
     for r in rows:
@@ -244,31 +250,54 @@ def sync_from_excel(
             ).fetchone()
             conn_mag.close()
 
-            # Per vini nuovi, importa anche le quantità dall'Excel
+            # Giacenze dall'Excel
+            qta_frigo = r["N_FRIGO"] or 0
+            qta_loc1 = r["N_LOC1"] or 0
+            qta_loc2 = r["N_LOC2"] or 0
+            qta_totale = r["QTA"] or 0
+
             if not existing:
-                data["QTA_FRIGO"] = r["N_FRIGO"] or 0
-                data["QTA_LOC1"] = r["N_LOC1"] or 0
-                data["QTA_LOC2"] = r["N_LOC2"] or 0
-                data["QTA_TOTALE"] = r["QTA"] or 0
+                # Vino nuovo: importa sempre le giacenze
+                data["QTA_FRIGO"] = qta_frigo
+                data["QTA_LOC1"] = qta_loc1
+                data["QTA_LOC2"] = qta_loc2
+                data["QTA_TOTALE"] = qta_totale
                 inseriti += 1
             else:
                 aggiornati += 1
 
             mag_db.upsert_vino_from_carta(data)
 
+            # Forza giacenze sui vini già esistenti (dopo l'upsert)
+            if existing and forza_giacenze:
+                mag_db.update_vino(existing["id"], {
+                    "QTA_FRIGO": qta_frigo,
+                    "QTA_LOC1": qta_loc1,
+                    "QTA_LOC2": qta_loc2,
+                    "QTA_TOTALE": qta_totale,
+                })
+                giacenze_forzate += 1
+
         except Exception as e:
             desc = r["DESCRIZIONE"] or ""
             prod = r["PRODUTTORE"] or ""
             errori.append(f"{desc} ({prod}): {e}")
+
+    msg = f"Sincronizzazione completata: {inseriti} nuovi, {aggiornati} aggiornati"
+    if forza_giacenze:
+        msg += f", {giacenze_forzate} giacenze sovrascritte da Excel"
+    if errori:
+        msg += f", {len(errori)} errori"
 
     return {
         "status": "ok",
         "totale_excel": len(rows),
         "inseriti": inseriti,
         "aggiornati": aggiornati,
+        "giacenze_forzate": giacenze_forzate,
+        "forza_giacenze": forza_giacenze,
         "errori": errori,
-        "msg": f"Sincronizzazione completata: {inseriti} nuovi, {aggiornati} aggiornati"
-        + (f", {len(errori)} errori" if errori else ""),
+        "msg": msg,
     }
 
 

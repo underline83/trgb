@@ -18,6 +18,7 @@ export default function CantinaTools() {
   const [importLoading, setImportLoading] = useState(false);
   const [error, setError] = useState("");
   const [showCartaPreview, setShowCartaPreview] = useState(false);
+  const [forzaGiacenze, setForzaGiacenze] = useState(false);
 
   // -------------------------------------------------------
   // ACCESS CHECK
@@ -51,7 +52,8 @@ export default function CantinaTools() {
     setSyncResult(null);
 
     try {
-      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/sync-from-excel`, {
+      const url = `${API_BASE}/vini/cantina-tools/sync-from-excel?forza_giacenze=${forzaGiacenze}`;
+      const resp = await apiFetch(url, {
         method: "POST",
       });
       if (!resp.ok) {
@@ -170,8 +172,28 @@ export default function CantinaTools() {
           <p className="text-sm text-neutral-600 mb-4">
             Prende i dati già importati nel vecchio DB (tramite Carta dei Vini → Import Excel)
             e li sincronizza nel DB cantina. I vini nuovi vengono creati, quelli esistenti
-            aggiornati nell'anagrafica <strong>senza toccare le giacenze</strong>.
+            aggiornati nell'anagrafica.
           </p>
+
+          <div className="flex items-center gap-3 mb-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={forzaGiacenze}
+                onChange={(e) => setForzaGiacenze(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-300 text-amber-700 focus:ring-amber-500"
+              />
+              <span className="text-sm font-medium text-neutral-700">
+                Forza aggiornamento giacenze da Excel
+              </span>
+            </label>
+            {forzaGiacenze && (
+              <span className="text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded">
+                Sovrascrive le quantità in cantina con quelle dell'Excel
+              </span>
+            )}
+          </div>
+
           <button
             onClick={handleSync}
             disabled={syncLoading}
@@ -179,11 +201,18 @@ export default function CantinaTools() {
               px-6 py-3 rounded-2xl text-sm font-semibold shadow transition
               ${syncLoading
                 ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                : "bg-amber-700 text-white hover:bg-amber-800"
+                : forzaGiacenze
+                  ? "bg-red-700 text-white hover:bg-red-800"
+                  : "bg-amber-700 text-white hover:bg-amber-800"
               }
             `}
           >
-            {syncLoading ? "Sincronizzazione in corso…" : "Avvia sincronizzazione"}
+            {syncLoading
+              ? "Sincronizzazione in corso…"
+              : forzaGiacenze
+                ? "Avvia sincronizzazione (con giacenze)"
+                : "Avvia sincronizzazione"
+            }
           </button>
 
           {syncResult && (
@@ -193,6 +222,9 @@ export default function CantinaTools() {
                 <p>Totale vini nell'Excel: <strong>{syncResult.totale_excel}</strong></p>
                 <p>Nuovi inseriti: <strong>{syncResult.inseriti}</strong></p>
                 <p>Aggiornati: <strong>{syncResult.aggiornati}</strong></p>
+                {syncResult.forza_giacenze && (
+                  <p>Giacenze sovrascritte: <strong>{syncResult.giacenze_forzate}</strong></p>
+                )}
                 {syncResult.errori?.length > 0 && (
                   <div className="mt-2">
                     <p className="font-semibold text-red-700">Errori ({syncResult.errori.length}):</p>
