@@ -1,40 +1,48 @@
 """
 TRGB — Auth Service
 
-Password verificate con sha256_crypt via passlib.
-Per cambiare/aggiungere password: python scripts/gen_passwords.py
+Utenti persistiti in app/data/users.json.
+Per cambiare password tramite CLI: python scripts/gen_passwords.py
 """
 
+import json
+from pathlib import Path
 from datetime import timedelta
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core import security
-from app.core import config
 
 # ---------------------------------------------------------------------------
-# UTENTI — password hashes sha256_crypt
-# Generati con: python scripts/gen_passwords.py
-# Per cambiare password: rigenera hash e aggiorna il campo password_hash.
+# PERCORSO STORE UTENTI
 # ---------------------------------------------------------------------------
-USERS = {
-    "admin": {
-        "password_hash": "$5$X/.O19euidOegoW9$8F.ApBdUZy67588LyekZAL5.cVYMHGiPZoSDaSk0RA3",
-        "role": "admin",
-    },
-    "chef": {
-        "password_hash": "$5$V5KShl1s1aLo9nFv$Lv1v0PFx76dn2SynC/1UVrEjPyJhyvyVUlqHy60.s05",
-        "role": "chef",
-    },
-    "sommelier": {
-        "password_hash": "$5$uMpiNxRx83Zuwrr.$rvlIuFBC41O5k0x8Zn0t.bR5JIlvbmvvEjwt7s87510",
-        "role": "sommelier",
-    },
-    "viewer": {
-        "password_hash": "$5$3HJCr/2adr.CcHHS$HARAdFBkrVmUSQ9OZ6bO2ewbrkImK5PKanJIM3tZw/8",
-        "role": "viewer",
-    },
-}
+USERS_FILE = Path(__file__).resolve().parent.parent / "data" / "users.json"
+
+# ---------------------------------------------------------------------------
+# CARICA / SALVA UTENTI
+# ---------------------------------------------------------------------------
+def _load_users() -> dict:
+    """Legge users.json e restituisce un dict {username: {password_hash, role}}."""
+    if not USERS_FILE.exists():
+        return {}
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {u["username"]: {"password_hash": u["password_hash"], "role": u["role"]} for u in data}
+
+
+def _save_users(users: dict) -> None:
+    """Serializza il dict utenti e lo scrive su users.json."""
+    data = [
+        {"username": k, "password_hash": v["password_hash"], "role": v["role"]}
+        for k, v in users.items()
+    ]
+    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+# Caricamento iniziale al boot
+USERS: dict = _load_users()
 
 # ---------------------------------------------------------------------------
 # OAuth2 schema (BEARER TOKEN)
@@ -91,7 +99,55 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Utente non valido",
         )
 
-    return {
-        "username": username,
-        "role": role,
-    }
+    return {"username": username, "role": role}
+
+# ---------------------------------------------------------------------------
+# CRUD UTENTI (usato da users_router)
+# ---------------------------------------------------------------------------
+VALID_ROLES = {"admin", "chef", "sommelier", "viewer"}
+
+def list_users() -> list:
+    return [{"username": k, "role": v["role"]} for k, v in USERS.items()]
+
+
+def add_user(username: str, password: str, role: str) -> dict:
+    if username in USERS:
+        raise HTTPException(status_code=400, detail=f"Utente '{username}' già esistente")
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Ruolo non valido. Validi: {VALID_ROLES}")
+    hashed = security.get_password_hash(password)
+    USERS[username] = {"password_hash": hashed, "role": role}
+    _save_users(USERS)
+    return {"username": username, "role": role}
+
+
+def delete_user(username: str) -> None:
+    if username not in USERS:
+        raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
+    admins = [u for u, v in USERS.items() if v["role"] == "admin"]
+    if USERS[username]["role"] == "admin" and len(admins) <= 1:
+        raise HTTPException(status_code=400, detail="Impossibile eliminare l'ultimo amministratore")
+    del USERS[username]
+    _save_users(USERS)
+
+
+def change_password(username: str, new_password: str, current_password: str = None) -> None:
+    if username not in USERS:
+        raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
+    if current_password is not None:
+        if not security.verify_password(current_password, USERS[username]["password_hash"]):
+            raise HTTPException(status_code=400, detail="Password attuale non corretta")
+    USERS[username]["password_hash"] = security.get_password_hash(new_password)
+    _save_users(USERS)
+
+
+def change_role(username: str, new_role: str) -> None:
+    if username not in USERS:
+        raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
+    if new_role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Ruolo non valido. Validi: {VALID_ROLES}")
+    admins = [u for u, v in USERS.items() if v["role"] == "admin"]
+    if USERS[username]["role"] == "admin" and new_role != "admin" and len(admins) <= 1:
+        raise HTTPException(status_code=400, detail="Impossibile degradare l'ultimo amministratore")
+    USERS[username]["role"] = new_role
+    _save_users(USERS)

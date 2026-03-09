@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 export default function AdminMenu() {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -93,6 +94,27 @@ export default function AdminMenu() {
               Anagrafica personale, ruoli e gestione turni.
             </p>
           </Link>
+
+          {/* GESTIONE UTENTI — solo admin */}
+          {role === "admin" && (
+            <Link
+              to="/admin/utenti"
+              className="
+                bg-slate-50 border border-slate-200 text-slate-900
+                rounded-2xl p-8 shadow
+                hover:shadow-xl hover:-translate-y-1 transition transform
+                text-center
+              "
+            >
+              <div className="text-5xl mb-3">🔐</div>
+              <h2 className="text-xl font-semibold font-playfair">
+                Gestione Utenti
+              </h2>
+              <p className="text-neutral-700 text-sm mt-1">
+                Aggiungi, modifica o rimuovi gli utenti del sistema.
+              </p>
+            </Link>
+          )}
         </div>
       </div>
     </div>

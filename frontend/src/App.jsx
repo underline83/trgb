@@ -1,4 +1,4 @@
-// @version: v3.4-premium-menu-vini-carta-import
+// @version: v3.5-auth-users
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
+import Header from "./components/Header";
+import GestioneUtenti from "./pages/admin/GestioneUtenti";
 
 // --- GESTIONE VINI ---
 import ViniMenu from "./pages/vini/ViniMenu";
@@ -52,8 +54,17 @@ export default function App() {
     return <Login setToken={setToken} setRole={setRole} />;
   }
 
+  function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.removeItem("username");
+    setToken(null);
+    setRole(null);
+  }
+
   return (
     <BrowserRouter>
+      <Header onLogout={handleLogout} />
       <Routes>
         {/* HOME */}
         <Route path="/" element={<Home />} />
@@ -97,6 +108,9 @@ export default function App() {
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
+
+        {/* --- GESTIONE UTENTI (admin only) --- */}
+        <Route path="/admin/utenti" element={<GestioneUtenti />} />
 
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />

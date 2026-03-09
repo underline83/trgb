@@ -1,0 +1,22 @@
+[
+  {
+    "username": "admin",
+    "password_hash": "$5$X/.O19euidOegoW9$8F.ApBdUZy67588LyekZAL5.cVYMHGiPZoSDaSk0RA3",
+    "role": "admin"
+  },
+  {
+    "username": "chef",
+    "password_hash": "$5$V5KShl1s1aLo9nFv$Lv1v0PFx76dn2SynC/1UVrEjPyJhyvyVUlqHy60.s05",
+    "role": "chef"
+  },
+  {
+    "username": "sommelier",
+    "password_hash": "$5$uMpiNxRx83Zuwrr.$rvlIuFBC41O5k0x8Zn0t.bR5JIlvbmvvEjwt7s87510",
+    "role": "sommelier"
+  },
+  {
+    "username": "viewer",
+    "password_hash": "$5$3HJCr/2adr.CcHHS$HARAdFBkrVmUSQ9OZ6bO2ewbrkImK5PKanJIM3tZw/8",
+    "role": "viewer"
+  }
+]

@@ -19,6 +19,7 @@ export default function LoginForm({ setToken, setRole }) {
 
       localStorage.setItem('token', response.data.access_token);
       localStorage.setItem('role', response.data.role);
+      localStorage.setItem('username', username);
 
       setToken(response.data.access_token);
       setRole(response.data.role);
