@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-03-09 — Admin Magazzino + Vendite Bottiglia/Calici (v2026.03.09e)
+
+### Added
+- `MagazzinoAdmin.jsx`: pagina admin-only per modifica massiva vini
+  - Tabella spreadsheet-like con 21 colonne editabili (descrizione, produttore, tipologia, prezzi, giacenze, stati operativi, flag)
+  - Filtri client-side: ricerca testo, tipologia, nazione, solo giacenza, solo in carta
+  - Salvataggio bulk: raccolta modifiche lato client, invio singolo al backend
+  - Eliminazione per riga con doppia conferma
+  - Celle modificate evidenziate in ambra
+  - Accesso negato per non-admin con schermata dedicata
+- `vini_magazzino_db.py`: nuove funzioni `bulk_update_vini()` e `delete_vino()`
+- `vini_magazzino_router.py`: nuovi endpoint `PATCH /bulk-update` e `DELETE /delete-vino/{id}` (admin only)
+- `App.jsx`: route `/vini/magazzino/admin` + route `/vini/magazzino/:id/movimenti`
+- `MagazzinoSubMenu.jsx`: link "⚙️ Admin" visibile solo per role=admin
+
+### Changed
+- `ViniVendite.jsx` (v2.0): semplificata a sole vendite con toggle Bottiglia/Calici
+  - Rimossi scarichi/carichi/rettifiche (restano in sezione Magazzino)
+  - Tag `[BOTTIGLIA]`/`[CALICI]` nel campo note per distinguere modalità vendita
+  - Storico filtrato di default solo su movimenti VENDITA
+
+---
+
 ## 2026-03-09 — Hub Vendite & Scarichi + Locazione obbligatoria (v2026.03.09d)
 
 ### Added

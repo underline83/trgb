@@ -16,6 +16,7 @@ const disabled =
 export default function MagazzinoSubMenu() {
   const { id } = useParams(); // presente su /:id e /:id/movimenti
   const vinoId = id ? String(id) : null;
+  const role = localStorage.getItem("role");
 
   // link movimenti: se non ho un id (es. sono su /vini/magazzino), lo disabilito
   const movimentiTo = vinoId ? `/vini/magazzino/${vinoId}/movimenti` : null;
@@ -65,6 +66,15 @@ export default function MagazzinoSubMenu() {
         >
           📊 Dashboard Vini
         </NavLink>
+
+        {role === "admin" && (
+          <NavLink
+            to="/vini/magazzino/admin"
+            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+          >
+            ⚙️ Admin
+          </NavLink>
+        )}
       </div>
     </div>
   );

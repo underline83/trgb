@@ -417,6 +417,73 @@ def update_vino(vino_id: int, data: Dict[str, Any]) -> None:
     conn.close()
 
 
+def bulk_update_vini(updates: List[Dict[str, Any]]) -> int:
+    """
+    Aggiorna più vini in un'unica transazione.
+    Ogni elemento deve avere 'id' + i campi da aggiornare.
+    Ritorna il numero di vini aggiornati.
+    """
+    if not updates:
+        return 0
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    now = _now_iso()
+    count = 0
+    recalc_ids = []
+
+    for item in updates:
+        vino_id = item.get("id")
+        if not vino_id:
+            continue
+        data = {k: v for k, v in item.items() if k != "id"}
+        if not data:
+            continue
+
+        data["UPDATED_AT"] = now
+        set_parts = [f"{k} = ?" for k in data.keys()]
+        values = list(data.values())
+        values.append(vino_id)
+
+        cur.execute(
+            f"UPDATE vini_magazzino SET {', '.join(set_parts)} WHERE id = ?;",
+            values,
+        )
+        count += cur.rowcount
+
+        if any(k in data for k in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3")):
+            recalc_ids.append(vino_id)
+
+    for vid in recalc_ids:
+        _recalc_qta_totale(conn, vid)
+
+    conn.commit()
+    conn.close()
+    return count
+
+
+def delete_vino(vino_id: int) -> bool:
+    """
+    Elimina un vino e tutti i suoi movimenti e note.
+    Ritorna True se il vino esisteva, False altrimenti.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    row = cur.execute("SELECT id FROM vini_magazzino WHERE id = ?;", (vino_id,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+
+    cur.execute("DELETE FROM vini_magazzino_movimenti WHERE vino_id = ?;", (vino_id,))
+    cur.execute("DELETE FROM vini_magazzino_note WHERE vino_id = ?;", (vino_id,))
+    cur.execute("DELETE FROM vini_magazzino WHERE id = ?;", (vino_id,))
+
+    conn.commit()
+    conn.close()
+    return True
+
+
 def get_vino_by_id(vino_id: int) -> Optional[sqlite3.Row]:
     conn = get_magazzino_connection()
     cur = conn.cursor()

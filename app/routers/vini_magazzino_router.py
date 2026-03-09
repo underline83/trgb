@@ -340,8 +340,58 @@ def get_dashboard(
 
 
 # ---------------------------------------------------------
-# ENDPOINT: MOVIMENTI GLOBALI (hub vendite & scarichi)
+# ENDPOINT: BULK UPDATE + DELETE (solo admin)
 # ⚠️ Dichiarati PRIMA di /{vino_id} per evitare conflitti path
+# ---------------------------------------------------------
+@router.patch("/bulk-update", summary="Aggiornamento massivo vini (solo admin)")
+def bulk_update(
+    payload: Dict[str, Any],
+    current_user: Any = Depends(get_current_user),
+):
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata agli admin.",
+        )
+
+    updates = payload.get("updates", [])
+    if not updates or not isinstance(updates, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Campo 'updates' mancante o vuoto.",
+        )
+
+    count = db.bulk_update_vini(updates)
+    return {"status": "ok", "updated": count}
+
+
+@router.delete("/delete-vino/{vino_id}", summary="Elimina un vino e tutti i dati collegati (solo admin)")
+def delete_vino_endpoint(
+    vino_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata agli admin.",
+        )
+
+    deleted = db.delete_vino(vino_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    return {"status": "ok", "deleted_id": vino_id}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: MOVIMENTI GLOBALI (hub vendite)
 # ---------------------------------------------------------
 @router.get("/movimenti-globali", summary="Lista movimenti globali con filtri e paginazione")
 def list_movimenti_globali(
