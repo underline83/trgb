@@ -71,8 +71,8 @@ export default function DashboardVini() {
     fetchStats();
   }, [fetchStats]);
 
-  // ── KPI tiles ──────────────────────────────────────────────
-  const kpiTiles = stats
+  // ── KPI tiles — riga stock ─────────────────────────────────
+  const kpiStock = stats
     ? [
         {
           label:   "Bottiglie in cantina",
@@ -86,14 +86,7 @@ export default function DashboardVini() {
           value:   stats.vini_in_carta,
           icon:    "📋",
           color:   "bg-emerald-50 border-emerald-200 text-emerald-900",
-          sub:     `${stats.total_vini > 0 ? Math.round((stats.vini_in_carta / stats.total_vini) * 100) : 0}% del totale`,
-        },
-        {
-          label:   "Con giacenza > 0",
-          value:   stats.vini_con_giacenza,
-          icon:    "✅",
-          color:   "bg-sky-50 border-sky-200 text-sky-900",
-          sub:     `${stats.total_vini > 0 ? Math.round((stats.vini_con_giacenza / stats.total_vini) * 100) : 0}% del catalogo`,
+          sub:     `${stats.total_vini > 0 ? Math.round((stats.vini_in_carta / stats.total_vini) * 100) : 0}% del catalogo`,
         },
         {
           label:   "Senza prezzo listino",
@@ -105,6 +98,37 @@ export default function DashboardVini() {
           sub:     stats.vini_senza_listino > 0 ? "clicca per vedere la lista" : "tutto ok",
           drilldownKey: "senza_listino",
           clickable: stats.vini_senza_listino > 0,
+        },
+        {
+          label:   "Vini fermi (30gg)",
+          value:   stats.vini_fermi?.length ?? 0,
+          icon:    "💤",
+          color:   (stats.vini_fermi?.length ?? 0) > 0
+                     ? "bg-slate-50 border-slate-300 text-slate-800"
+                     : "bg-neutral-50 border-neutral-200 text-neutral-700",
+          sub:     (stats.vini_fermi?.length ?? 0) > 0 ? "in cantina, senza movimenti" : "tutto si muove",
+          drilldownKey: "vini_fermi",
+          clickable: (stats.vini_fermi?.length ?? 0) > 0,
+        },
+      ]
+    : [];
+
+  // ── KPI tiles — riga vendite ───────────────────────────────
+  const kpiVendite = stats
+    ? [
+        {
+          label:   "Vendute ultimi 7gg",
+          value:   stats.vendute_7gg ?? 0,
+          icon:    "🛒",
+          color:   "bg-violet-50 border-violet-200 text-violet-900",
+          sub:     "bottiglie",
+        },
+        {
+          label:   "Vendute ultimi 30gg",
+          value:   stats.vendute_30gg ?? 0,
+          icon:    "📈",
+          color:   "bg-violet-50 border-violet-200 text-violet-900",
+          sub:     "bottiglie",
         },
       ]
     : [];
@@ -226,8 +250,11 @@ export default function DashboardVini() {
         )}
 
         {stats && (
+          <div className="space-y-4">
+
+          {/* riga stock */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {kpiTiles.map((tile) => (
+            {kpiStock.map((tile) => (
               <div
                 key={tile.label}
                 onClick={() => tile.clickable && toggleDrilldown(tile.drilldownKey)}
@@ -252,6 +279,20 @@ export default function DashboardVini() {
                 <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
               </div>
             ))}
+          </div>
+
+          {/* riga vendite */}
+          <div className="grid grid-cols-2 gap-4">
+            {kpiVendite.map((tile) => (
+              <div key={tile.label} className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}>
+                <div className="text-2xl mb-2">{tile.icon}</div>
+                <div className="text-3xl font-bold tracking-tight">{tile.value?.toLocaleString("it-IT")}</div>
+                <div className="text-xs font-semibold mt-1 opacity-80">{tile.label}</div>
+                <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
+              </div>
+            ))}
+          </div>
+
           </div>
         )}
 
@@ -323,68 +364,144 @@ export default function DashboardVini() {
           </div>
         )}
 
-        {/* ── RIGA INFERIORE: MOVIMENTI + DISTRIBUZIONE ────── */}
+        {/* ── DRILLDOWN: VINI FERMI ────────────────────────── */}
+        {drilldown === "vini_fermi" && stats?.vini_fermi?.length > 0 && (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-slate-800">
+                  {stats.vini_fermi.length} vini in cantina senza movimenti da 30+ giorni
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Da valutare: promuovere, riposizionare o correggere la giacenza.
+                </div>
+              </div>
+              <button type="button" onClick={() => setDrilldown(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
+            </div>
+            <div className="divide-y divide-neutral-100 max-h-72 overflow-auto">
+              {stats.vini_fermi.map((v) => (
+                <div key={v.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
+                  onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight shrink-0">#{v.id}</span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm text-neutral-900 truncate">{v.DESCRIZIONE}</div>
+                      <div className="text-xs text-neutral-500">{v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0 ml-4">
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-neutral-800">{v.QTA_TOTALE} bt</div>
+                      <div className="text-[11px] text-neutral-400">{v.ultimo_movimento ? `ult. mov. ${v.ultimo_movimento.slice(0,10)}` : "nessun movimento"}</div>
+                    </div>
+                    <span className="text-amber-600 text-xs font-semibold">→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── RIGA CENTRALE: VENDITE + OPERATIVI ───────────── */}
         {stats && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* ULTIMI MOVIMENTI */}
+            {/* VENDITE RECENTI */}
             <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
-                  🕐 Ultimi movimenti
+              <div className="px-6 py-4 border-b border-neutral-200 bg-violet-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-violet-900 uppercase tracking-wide">
+                  🛒 Vendite recenti
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => navigate("/vini/magazzino")}
-                  className="text-xs text-amber-700 hover:underline"
-                >
-                  Vai al magazzino →
-                </button>
               </div>
-
-              {stats.movimenti_recenti.length === 0 ? (
-                <div className="px-6 py-8 text-center text-sm text-neutral-400">
-                  Nessun movimento registrato.
-                </div>
+              {!stats.vendite_recenti?.length ? (
+                <div className="px-6 py-8 text-center text-sm text-neutral-400">Nessuna vendita registrata.</div>
               ) : (
                 <div className="divide-y divide-neutral-100">
-                  {stats.movimenti_recenti.map((m) => (
-                    <div
-                      key={m.id}
-                      className="px-6 py-3 flex items-start justify-between hover:bg-neutral-50 cursor-pointer transition"
-                      onClick={() => navigate(`/vini/magazzino/${m.vino_id}`)}
-                    >
+                  {stats.vendite_recenti.map((m) => (
+                    <div key={m.id} className="px-6 py-3 flex items-center justify-between hover:bg-violet-50 cursor-pointer transition"
+                      onClick={() => navigate(`/vini/magazzino/${m.vino_id}`)}>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                              TIPO_COLORS[m.tipo] || "bg-neutral-100 text-neutral-700 border-neutral-200"
-                            }`}
-                          >
-                            {TIPO_EMOJI[m.tipo]} {m.tipo}
-                          </span>
-                          <span className="text-sm font-semibold text-neutral-900 truncate">
-                            {m.vino_desc}
-                          </span>
-                        </div>
+                        <div className="font-semibold text-sm text-neutral-900 truncate">{m.vino_desc}</div>
                         <div className="text-xs text-neutral-500 mt-0.5">
-                          {formatDate(m.data_mov)}
-                          {m.utente && <span className="ml-2">— {m.utente}</span>}
-                          {m.note && (
-                            <span className="ml-2 italic text-neutral-400 truncate">
-                              "{m.note}"
-                            </span>
-                          )}
+                          {formatDate(m.data_mov)}{m.utente && <span className="ml-2">— {m.utente}</span>}
                         </div>
                       </div>
-                      <div className="ml-3 text-sm font-bold text-neutral-800 whitespace-nowrap">
-                        {m.qta} bt
-                      </div>
+                      <div className="ml-3 text-sm font-bold text-violet-700 whitespace-nowrap">{m.qta} bt</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
+            {/* MOVIMENTI OPERATIVI */}
+            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
+                  🔧 Movimenti operativi
+                </h2>
+              </div>
+              {!stats.movimenti_operativi?.length ? (
+                <div className="px-6 py-8 text-center text-sm text-neutral-400">Nessun movimento operativo.</div>
+              ) : (
+                <div className="divide-y divide-neutral-100">
+                  {stats.movimenti_operativi.map((m) => (
+                    <div key={m.id} className="px-6 py-3 flex items-start justify-between hover:bg-neutral-50 cursor-pointer transition"
+                      onClick={() => navigate(`/vini/magazzino/${m.vino_id}`)}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${TIPO_COLORS[m.tipo] || ""}`}>
+                            {TIPO_EMOJI[m.tipo]} {m.tipo}
+                          </span>
+                          <span className="text-sm font-semibold text-neutral-900 truncate">{m.vino_desc}</span>
+                        </div>
+                        <div className="text-xs text-neutral-500 mt-0.5">
+                          {formatDate(m.data_mov)}{m.utente && <span className="ml-2">— {m.utente}</span>}
+                        </div>
+                      </div>
+                      <div className="ml-3 text-sm font-bold text-neutral-800 whitespace-nowrap">{m.qta} bt</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* TOP VENDUTI 30gg */}
+            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden lg:col-span-2">
+              <div className="px-6 py-4 border-b border-neutral-200 bg-violet-50">
+                <h2 className="text-sm font-semibold text-violet-900 uppercase tracking-wide">🏆 Top venduti — ultimi 30gg</h2>
+              </div>
+              {!stats.top_venduti_30gg?.length ? (
+                <div className="px-6 py-8 text-center text-sm text-neutral-400">Nessuna vendita negli ultimi 30 giorni.</div>
+              ) : (
+                <div className="p-5 space-y-3">
+                  {stats.top_venduti_30gg.map((v, i) => {
+                    const maxV = stats.top_venduti_30gg[0]?.tot_vendute || 1;
+                    const pct = Math.round((v.tot_vendute / maxV) * 100);
+                    return (
+                      <div key={v.id} className="cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-neutral-400 font-mono w-4 shrink-0">{i + 1}.</span>
+                            <span className="font-semibold text-neutral-800 truncate">{v.DESCRIZIONE}</span>
+                            {v.ANNATA && <span className="text-neutral-400 shrink-0">{v.ANNATA}</span>}
+                          </div>
+                          <span className="font-bold text-violet-700 shrink-0 ml-2">{v.tot_vendute} bt</span>
+                        </div>
+                        <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-violet-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── RIGA INFERIORE: DISTRIBUZIONE ────────────────── */}
+        {stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* DISTRIBUZIONE TIPOLOGIE */}
             <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">

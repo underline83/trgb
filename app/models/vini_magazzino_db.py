@@ -796,7 +796,82 @@ def get_dashboard_stats() -> Dict[str, Any]:
         """
     ).fetchall()
 
-    # Ultimi 10 movimenti cross-vino (con nome vino)
+    # KPI vendite (solo tipo=VENDITA)
+    kpi_vendite = cur.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-7 days')
+                              THEN qta END), 0) AS vendute_7gg,
+            COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-30 days')
+                              THEN qta END), 0) AS vendute_30gg
+        FROM vini_magazzino_movimenti
+        WHERE tipo = 'VENDITA';
+        """
+    ).fetchone()
+
+    # Ultime 8 VENDITE (per sezione vendite recenti)
+    vendite_recenti = cur.execute(
+        """
+        SELECT
+            m.id, m.data_mov, m.tipo, m.qta, m.note, m.utente,
+            v.id AS vino_id, v.DESCRIZIONE AS vino_desc, v.TIPOLOGIA AS vino_tipo
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        WHERE m.tipo = 'VENDITA'
+        ORDER BY datetime(m.data_mov) DESC, m.id DESC
+        LIMIT 8;
+        """
+    ).fetchall()
+
+    # Ultimi 6 movimenti operativi (CARICO / SCARICO / RETTIFICA)
+    movimenti_operativi = cur.execute(
+        """
+        SELECT
+            m.id, m.data_mov, m.tipo, m.qta, m.note, m.utente,
+            v.id AS vino_id, v.DESCRIZIONE AS vino_desc
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        WHERE m.tipo IN ('CARICO', 'SCARICO', 'RETTIFICA')
+        ORDER BY datetime(m.data_mov) DESC, m.id DESC
+        LIMIT 6;
+        """
+    ).fetchall()
+
+    # Top 8 vini più venduti negli ultimi 30 giorni
+    top_venduti = cur.execute(
+        """
+        SELECT
+            v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
+            SUM(m.qta) AS tot_vendute,
+            v.QTA_TOTALE
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        WHERE m.tipo = 'VENDITA'
+          AND datetime(m.data_mov) >= datetime('now', '-30 days')
+        GROUP BY m.vino_id
+        ORDER BY tot_vendute DESC
+        LIMIT 8;
+        """
+    ).fetchall()
+
+    # Vini fermi: QTA_TOTALE > 0 e nessun movimento negli ultimi 30 giorni
+    vini_fermi = cur.execute(
+        """
+        SELECT
+            v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
+            MAX(m.data_mov) AS ultimo_movimento
+        FROM vini_magazzino v
+        LEFT JOIN vini_magazzino_movimenti m ON m.vino_id = v.id
+        WHERE v.QTA_TOTALE > 0
+        GROUP BY v.id
+        HAVING ultimo_movimento IS NULL
+            OR datetime(ultimo_movimento) < datetime('now', '-30 days')
+        ORDER BY v.QTA_TOTALE DESC, v.TIPOLOGIA, v.DESCRIZIONE
+        LIMIT 10;
+        """
+    ).fetchall()
+
+    # Ultimi 10 movimenti cross-vino (tutti i tipi — per compatibilità)
     movimenti_recenti = cur.execute(
         """
         SELECT
@@ -852,6 +927,12 @@ def get_dashboard_stats() -> Dict[str, Any]:
         "vini_senza_listino": kpi["vini_senza_listino"],
         "alert_carta_senza_giacenza": [dict(r) for r in alert_carta],
         "vini_senza_listino_list":    [dict(r) for r in senza_listino],
+        "vendute_7gg":                kpi_vendite["vendute_7gg"],
+        "vendute_30gg":               kpi_vendite["vendute_30gg"],
+        "vendite_recenti":            [dict(r) for r in vendite_recenti],
+        "movimenti_operativi":        [dict(r) for r in movimenti_operativi],
+        "top_venduti_30gg":           [dict(r) for r in top_venduti],
+        "vini_fermi":                 [dict(r) for r in vini_fermi],
         "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
         "distribuzione_tipologie":    [dict(r) for r in distribuzione],
     }
