@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/vini/MagazzinoSubMenu.jsx
-// @version: v1.1-magazzino-submenu-movimenti-attivo
+// @version: v1.2-dashboard-attiva
 // SubMenu Magazzino Vini — allineato alla struttura finale del modulo
 
 import React from "react";
@@ -52,10 +52,12 @@ export default function MagazzinoSubMenu() {
           </div>
         )}
 
-        {/* FUTURO */}
-        <div className={`${base} ${disabled}`} title="In sviluppo">
+        <NavLink
+          to="/vini/dashboard"
+          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+        >
           📊 Dashboard Vini
-        </div>
+        </NavLink>
       </div>
     </div>
   );

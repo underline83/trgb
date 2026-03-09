@@ -116,25 +116,22 @@ export default function ViniMenu() {
           </Link>
 
           {/* DASHBOARD */}
-          <div
+          <Link
+            to="/vini/dashboard"
             className="
-              bg-neutral-50 border border-neutral-300 text-neutral-400
-              rounded-2xl p-8 shadow
-              text-center cursor-not-allowed relative
+              bg-white border border-amber-200 text-amber-900
+              rounded-2xl p-8 shadow hover:shadow-lg hover:-translate-y-1
+              text-center transition relative
             "
-            title="In sviluppo"
           >
             <div className="text-5xl mb-3">📊</div>
             <h2 className="text-xl font-semibold font-playfair">
               Dashboard Vini
             </h2>
-            <p className="text-sm mt-1">
-              Analisi vendite, vini fermi, alert
+            <p className="text-sm mt-1 text-neutral-700">
+              KPI, alert giacenze, movimenti recenti
             </p>
-            <span className="absolute top-3 right-4 text-xs font-semibold bg-neutral-200 px-2 py-0.5 rounded">
-              In sviluppo
-            </span>
-          </div>
+          </Link>
 
           {/* IMPOSTAZIONI */}
           <Link

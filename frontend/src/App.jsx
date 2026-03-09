@@ -23,6 +23,9 @@ import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
 // --- MOVIMENTI CANTINA ---
 import MovimentiCantina from "./pages/vini/MovimentiCantina";
 
+// --- DASHBOARD VINI ---
+import DashboardVini from "./pages/vini/DashboardVini";
+
 // --- GESTIONE RICETTE ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
 import RicetteNuova from "./pages/ricette/RicetteNuova";
@@ -82,6 +85,9 @@ export default function App() {
 
         {/* --- MOVIMENTI CANTINA --- */}
         <Route path="/vini/movimenti" element={<MovimentiCantina />} />
+
+        {/* --- DASHBOARD VINI --- */}
+        <Route path="/vini/dashboard" element={<DashboardVini />} />
 
         {/* --- GESTIONE RICETTE --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
