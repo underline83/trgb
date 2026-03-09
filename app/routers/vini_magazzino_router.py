@@ -1,4 +1,4 @@
-# @version: v1.2-magazzino-note-rolecheck
+# @version: v1.3-dashboard
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Vini Magazzino
@@ -305,6 +305,23 @@ def create_vino_magazzino(
     vino_id = db.create_vino(data)
     row = db.get_vino_by_id(vino_id)
     return dict(row) if row else {"id": vino_id}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: DASHBOARD OPERATIVA
+# ---------------------------------------------------------
+@router.get("/dashboard", summary="Statistiche aggregate per la dashboard")
+def get_dashboard(
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Restituisce in un'unica chiamata:
+    - KPI (totale vini, bottiglie, in carta, con giacenza, senza listino)
+    - Alert: vini in carta con giacenza = 0
+    - Ultimi 10 movimenti cross-vino
+    - Distribuzione bottiglie per tipologia
+    """
+    return db.get_dashboard_stats()
 
 
 # ---------------------------------------------------------

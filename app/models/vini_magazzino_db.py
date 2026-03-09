@@ -761,6 +761,90 @@ def delete_nota(nota_id: int) -> None:
 
 
 # ---------------------------------------------------------
+# STATISTICHE DASHBOARD
+# ---------------------------------------------------------
+def get_dashboard_stats() -> Dict[str, Any]:
+    """
+    Restituisce statistiche aggregate per la dashboard operativa.
+    Tutto in una sola connessione — query leggere su SQLite.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    # KPI base
+    kpi = cur.execute(
+        """
+        SELECT
+            COUNT(*)                                                      AS total_vini,
+            COALESCE(SUM(QTA_TOTALE), 0)                                  AS total_bottiglie,
+            COUNT(CASE WHEN CARTA = 'SI' THEN 1 END)                      AS vini_in_carta,
+            COUNT(CASE WHEN QTA_TOTALE > 0 THEN 1 END)                    AS vini_con_giacenza,
+            COUNT(CASE WHEN (EURO_LISTINO IS NULL OR EURO_LISTINO = '')
+                       THEN 1 END)                                         AS vini_senza_listino
+        FROM vini_magazzino;
+        """
+    ).fetchone()
+
+    # Alert: vini in carta con giacenza = 0
+    alert_carta = cur.execute(
+        """
+        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE
+        FROM vini_magazzino
+        WHERE CARTA = 'SI' AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
+        ORDER BY TIPOLOGIA, DESCRIZIONE
+        LIMIT 50;
+        """
+    ).fetchall()
+
+    # Ultimi 10 movimenti cross-vino (con nome vino)
+    movimenti_recenti = cur.execute(
+        """
+        SELECT
+            m.id,
+            m.data_mov,
+            m.tipo,
+            m.qta,
+            m.locazione,
+            m.note,
+            m.utente,
+            m.origine,
+            v.id   AS vino_id,
+            v.DESCRIZIONE AS vino_desc
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        ORDER BY datetime(m.data_mov) DESC, m.id DESC
+        LIMIT 10;
+        """
+    ).fetchall()
+
+    # Distribuzione bottiglie per tipologia
+    distribuzione = cur.execute(
+        """
+        SELECT
+            TIPOLOGIA,
+            COUNT(*)                         AS n_vini,
+            COALESCE(SUM(QTA_TOTALE), 0)     AS tot_bottiglie
+        FROM vini_magazzino
+        GROUP BY TIPOLOGIA
+        ORDER BY tot_bottiglie DESC;
+        """
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        "total_vini":        kpi["total_vini"],
+        "total_bottiglie":   kpi["total_bottiglie"],
+        "vini_in_carta":     kpi["vini_in_carta"],
+        "vini_con_giacenza": kpi["vini_con_giacenza"],
+        "vini_senza_listino": kpi["vini_senza_listino"],
+        "alert_carta_senza_giacenza": [dict(r) for r in alert_carta],
+        "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
+        "distribuzione_tipologie":    [dict(r) for r in distribuzione],
+    }
+
+
+# ---------------------------------------------------------
 # RICERCA DUPLICATI PER INSERIMENTO
 # ---------------------------------------------------------
 def find_potential_duplicates(

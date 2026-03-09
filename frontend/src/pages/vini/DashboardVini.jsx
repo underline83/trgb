@@ -1,50 +1,396 @@
-// @version: v1.0-dashboard-vini-placeholder
-// Dashboard Vini — Placeholder (in sviluppo)
+// src/pages/vini/DashboardVini.jsx
+// @version: v2.0-operativa
+// Dashboard Vini — KPI, alert, ultimi movimenti, distribuzione tipologie
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE, apiFetch } from "../../config/api";
 
+// ─────────────────────────────────────────────────────────────
+// COSTANTI
+// ─────────────────────────────────────────────────────────────
+const TIPO_COLORS = {
+  CARICO:    "bg-emerald-100 text-emerald-800 border-emerald-200",
+  SCARICO:   "bg-red-100    text-red-800    border-red-200",
+  VENDITA:   "bg-violet-100 text-violet-800 border-violet-200",
+  RETTIFICA: "bg-amber-100  text-amber-800  border-amber-200",
+};
+
+const TIPO_EMOJI = {
+  CARICO:    "⬆️",
+  SCARICO:   "⬇️",
+  VENDITA:   "🛒",
+  RETTIFICA: "✏️",
+};
+
+function formatDate(isoStr) {
+  if (!isoStr) return "—";
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleString("it-IT", {
+      day: "2-digit", month: "2-digit", year: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return isoStr;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPALE
+// ─────────────────────────────────────────────────────────────
 export default function DashboardVini() {
   const navigate = useNavigate();
 
+  const [stats, setStats]     = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  const fetchStats = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/dashboard`);
+      if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
+      const data = await resp.json();
+      setStats(data);
+      setLastUpdate(new Date());
+    } catch (err) {
+      setError(err.message || "Errore caricamento dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // ── KPI tiles ──────────────────────────────────────────────
+  const kpiTiles = stats
+    ? [
+        {
+          label:   "Bottiglie in cantina",
+          value:   stats.total_bottiglie,
+          icon:    "🍾",
+          color:   "bg-amber-50 border-amber-200 text-amber-900",
+          sub:     `su ${stats.total_vini} referenze`,
+        },
+        {
+          label:   "Vini in carta",
+          value:   stats.vini_in_carta,
+          icon:    "📋",
+          color:   "bg-emerald-50 border-emerald-200 text-emerald-900",
+          sub:     `${stats.total_vini > 0 ? Math.round((stats.vini_in_carta / stats.total_vini) * 100) : 0}% del totale`,
+        },
+        {
+          label:   "Con giacenza > 0",
+          value:   stats.vini_con_giacenza,
+          icon:    "✅",
+          color:   "bg-sky-50 border-sky-200 text-sky-900",
+          sub:     `${stats.total_vini > 0 ? Math.round((stats.vini_con_giacenza / stats.total_vini) * 100) : 0}% del catalogo`,
+        },
+        {
+          label:   "Senza prezzo listino",
+          value:   stats.vini_senza_listino,
+          icon:    "⚠️",
+          color:   stats.vini_senza_listino > 0
+                     ? "bg-orange-50 border-orange-200 text-orange-900"
+                     : "bg-neutral-50 border-neutral-200 text-neutral-700",
+          sub:     stats.vini_senza_listino > 0 ? "da completare" : "tutto ok",
+        },
+      ]
+    : [];
+
+  // ── distribuzione max per scala barre ─────────────────────
+  const maxBottiglie = stats?.distribuzione_tipologie?.length
+    ? Math.max(...stats.distribuzione_tipologie.map((d) => d.tot_bottiglie))
+    : 1;
+
+  // ─────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-center sm:text-left mb-4 text-amber-900 tracking-wide font-playfair">
-              📊 Dashboard Vini
-            </h1>
-            <p className="text-center sm:text-left text-neutral-600">
-              Modulo in sviluppo: vendite, movimentazioni, vini fermi, alert.
-            </p>
+      <div className="max-w-6xl mx-auto space-y-6">
+
+        {/* ── HEADER ───────────────────────────────────────── */}
+        <div className="bg-white shadow-2xl rounded-3xl px-8 py-6 border border-neutral-200">
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+                📊 Dashboard Cantina
+              </h1>
+              <p className="text-neutral-500 text-sm mt-1">
+                Situazione operativa in tempo reale.
+                {lastUpdate && (
+                  <span className="ml-2 text-neutral-400">
+                    Aggiornato alle {lastUpdate.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={fetchStats}
+                disabled={loading}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition ${
+                  loading
+                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
+                }`}
+              >
+                {loading ? "Carico…" : "⟳ Aggiorna"}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/vini")}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
+              >
+                ← Menu Vini
+              </button>
+            </div>
           </div>
 
-          <div className="flex justify-center sm:justify-end">
+          {error && (
+            <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* ── ALERT: VINI IN CARTA SENZA GIACENZA ─────────── */}
+        {stats?.alert_carta_senza_giacenza?.length > 0 && (
+          <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center gap-3">
+              <span className="text-xl">🚨</span>
+              <div>
+                <div className="font-semibold text-red-800">
+                  {stats.alert_carta_senza_giacenza.length}{" "}
+                  {stats.alert_carta_senza_giacenza.length === 1
+                    ? "vino in carta senza giacenza"
+                    : "vini in carta senza giacenza"}
+                </div>
+                <div className="text-xs text-red-600 mt-0.5">
+                  Questi vini appaiono nella carta ma hanno 0 bottiglie disponibili.
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-neutral-100 max-h-56 overflow-auto">
+              {stats.alert_carta_senza_giacenza.map((v) => (
+                <div
+                  key={v.id}
+                  className="px-6 py-3 flex items-center justify-between hover:bg-red-50 cursor-pointer transition"
+                  onClick={() => navigate(`/vini/magazzino/${v.id}`)}
+                >
+                  <div>
+                    <span className="text-xs text-neutral-500 font-mono mr-2">#{v.id}</span>
+                    <span className="font-semibold text-neutral-900 text-sm">{v.DESCRIZIONE}</span>
+                    {v.ANNATA && <span className="ml-2 text-xs text-neutral-500">{v.ANNATA}</span>}
+                    {v.PRODUTTORE && (
+                      <span className="ml-2 text-xs text-neutral-500">— {v.PRODUTTORE}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">
+                      {v.TIPOLOGIA}
+                    </span>
+                    <span className="text-xs text-red-600 font-semibold">0 bt</span>
+                    <span className="text-neutral-400 text-xs">→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── KPI TILES ────────────────────────────────────── */}
+        {loading && !stats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse">
+                <div className="h-4 bg-neutral-200 rounded w-2/3 mb-3" />
+                <div className="h-8 bg-neutral-200 rounded w-1/2 mb-2" />
+                <div className="h-3 bg-neutral-100 rounded w-3/4" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {stats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {kpiTiles.map((tile) => (
+              <div
+                key={tile.label}
+                className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}
+              >
+                <div className="text-2xl mb-2">{tile.icon}</div>
+                <div className="text-3xl font-bold tracking-tight">
+                  {tile.value?.toLocaleString("it-IT")}
+                </div>
+                <div className="text-xs font-semibold mt-1 opacity-80">{tile.label}</div>
+                <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── RIGA INFERIORE: MOVIMENTI + DISTRIBUZIONE ────── */}
+        {stats && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* ULTIMI MOVIMENTI */}
+            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
+                  🕐 Ultimi movimenti
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => navigate("/vini/magazzino")}
+                  className="text-xs text-amber-700 hover:underline"
+                >
+                  Vai al magazzino →
+                </button>
+              </div>
+
+              {stats.movimenti_recenti.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-neutral-400">
+                  Nessun movimento registrato.
+                </div>
+              ) : (
+                <div className="divide-y divide-neutral-100">
+                  {stats.movimenti_recenti.map((m) => (
+                    <div
+                      key={m.id}
+                      className="px-6 py-3 flex items-start justify-between hover:bg-neutral-50 cursor-pointer transition"
+                      onClick={() => navigate(`/vini/magazzino/${m.vino_id}`)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                              TIPO_COLORS[m.tipo] || "bg-neutral-100 text-neutral-700 border-neutral-200"
+                            }`}
+                          >
+                            {TIPO_EMOJI[m.tipo]} {m.tipo}
+                          </span>
+                          <span className="text-sm font-semibold text-neutral-900 truncate">
+                            {m.vino_desc}
+                          </span>
+                        </div>
+                        <div className="text-xs text-neutral-500 mt-0.5">
+                          {formatDate(m.data_mov)}
+                          {m.utente && <span className="ml-2">— {m.utente}</span>}
+                          {m.note && (
+                            <span className="ml-2 italic text-neutral-400 truncate">
+                              "{m.note}"
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="ml-3 text-sm font-bold text-neutral-800 whitespace-nowrap">
+                        {m.qta} bt
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* DISTRIBUZIONE TIPOLOGIE */}
+            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50">
+                <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">
+                  🍷 Bottiglie per tipologia
+                </h2>
+              </div>
+
+              {stats.distribuzione_tipologie.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-neutral-400">
+                  Nessun dato disponibile.
+                </div>
+              ) : (
+                <div className="p-6 space-y-4">
+                  {stats.distribuzione_tipologie.map((d) => {
+                    const pct = maxBottiglie > 0
+                      ? Math.round((d.tot_bottiglie / maxBottiglie) * 100)
+                      : 0;
+                    return (
+                      <div key={d.TIPOLOGIA || "—"}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-semibold text-neutral-800">
+                            {d.TIPOLOGIA || "—"}
+                          </span>
+                          <span className="text-neutral-500">
+                            {d.tot_bottiglie} bt
+                            <span className="ml-2 text-neutral-400">
+                              ({d.n_vini} ref.)
+                            </span>
+                          </span>
+                        </div>
+                        <div className="h-2.5 bg-neutral-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Totale */}
+                  <div className="pt-3 border-t border-neutral-200 flex justify-between text-sm">
+                    <span className="font-semibold text-neutral-700">Totale cantina</span>
+                    <span className="font-bold text-neutral-900">
+                      {stats.total_bottiglie} bottiglie
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── ACCESSO RAPIDO ───────────────────────────────── */}
+        <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-5">
+          <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-4">
+            Accesso rapido
+          </h2>
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => navigate("/vini")}
-              className="
-                px-4 py-2 rounded-xl text-sm font-medium
-                border border-neutral-300 bg-neutral-50
-                hover:bg-neutral-100 hover:-translate-y-0.5
-                shadow-sm transition
-              "
+              onClick={() => navigate("/vini/magazzino")}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
             >
-              ← Torna al Menu Vini
+              📦 Magazzino vini
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/vini/magazzino/nuovo")}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-amber-700 text-amber-700 hover:bg-amber-50 shadow-sm transition"
+            >
+              ➕ Nuovo vino
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/vini/carta")}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+            >
+              📋 Carta vini
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/vini/impostazioni")}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+            >
+              ⚙️ Impostazioni
             </button>
           </div>
         </div>
 
-        <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 text-neutral-700">
-          <div className="font-semibold mb-2">Cosa arriverà qui:</div>
-          <ul className="list-disc pl-5 space-y-1 text-sm">
-            <li>Vendite bottiglia / calice</li>
-            <li>Movimentazioni (carico / scarico / rettifiche / rotture)</li>
-            <li>Vini fermi da tempo</li>
-            <li>Alert giacenza / prezzi / anomalie</li>
-          </ul>
-        </div>
       </div>
     </div>
   );
