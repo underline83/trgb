@@ -95,31 +95,10 @@ export default function AdminMenu() {
             </p>
           </Link>
 
-          {/* IMPOSTAZIONI SISTEMA — solo admin */}
+          {/* IMPOSTAZIONI SISTEMA (utenti + moduli) — solo admin */}
           {role === "admin" && (
             <Link
               to="/admin/impostazioni"
-              className="
-                bg-orange-50 border border-orange-200 text-orange-900
-                rounded-2xl p-8 shadow
-                hover:shadow-xl hover:-translate-y-1 transition transform
-                text-center
-              "
-            >
-              <div className="text-5xl mb-3">⚙️</div>
-              <h2 className="text-xl font-semibold font-playfair">
-                Impostazioni Sistema
-              </h2>
-              <p className="text-neutral-700 text-sm mt-1">
-                Abilita o disabilita i moduli del gestionale.
-              </p>
-            </Link>
-          )}
-
-          {/* GESTIONE UTENTI — solo admin */}
-          {role === "admin" && (
-            <Link
-              to="/admin/utenti"
               className="
                 bg-slate-50 border border-slate-200 text-slate-900
                 rounded-2xl p-8 shadow
@@ -127,13 +106,12 @@ export default function AdminMenu() {
                 text-center
               "
             >
-              <div className="text-5xl mb-3">🔐</div>
+              <div className="text-5xl mb-3">⚙️</div>
               <h2 className="text-xl font-semibold font-playfair">
-                Gestione Utenti
+                Impostazioni
               </h2>
               <p className="text-neutral-700 text-sm mt-1">
-                Aggiungi, modifica o rimuovi gli utenti del sistema.
-              </p>
+                Gestione utenti, ruoli e permessi moduli.</p>
             </Link>
           )}
         </div>

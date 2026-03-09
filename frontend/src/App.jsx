@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
-import GestioneUtenti from "./pages/admin/GestioneUtenti";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 
 // --- GESTIONE VINI ---
@@ -109,9 +108,6 @@ export default function App() {
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
-
-        {/* --- GESTIONE UTENTI (admin only) --- */}
-        <Route path="/admin/utenti" element={<GestioneUtenti />} />
 
         {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
         <Route path="/admin/impostazioni" element={<ImpostazioniSistema />} />
