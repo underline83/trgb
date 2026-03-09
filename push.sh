@@ -1,14 +1,18 @@
 #!/bin/bash
 # push.sh — Commit, push e deploy sul VPS in un colpo solo
-# Uso: ./push.sh        → deploy rapido (git pull + restart)
-#      ./push.sh -f     → deploy completo (pip install + npm install + restart)
+#
+# Uso:
+#   ./push.sh "messaggio commit"      → deploy rapido
+#   ./push.sh "messaggio commit" -f   → deploy completo (pip + npm + restart)
 
 set -euo pipefail
 
 VPS_HOST="marco@trgb.tregobbi.it"
 VPS_DIR="/home/marco/trgb/trgb"
 
-MODE="${1:-}"
+# ── Argomenti ────────────────────────────────────────────
+MSG="${1:-}"
+MODE="${2:-}"
 
 if [[ "$MODE" == "-f" ]]; then
   DEPLOY_FLAG="-a"
@@ -18,10 +22,12 @@ else
   LABEL="QUICK (git pull + restart)"
 fi
 
-# ── Controlla se ci sono modifiche da committare ──────────
+# ── Commit se ci sono modifiche ──────────────────────────
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then
-  echo "📝 Modifiche rilevate. Messaggio del commit:"
-  read -r MSG
+  if [[ -z "$MSG" ]]; then
+    echo "📝 Modifiche rilevate. Messaggio del commit:"
+    read -r MSG
+  fi
 
   if [[ -z "$MSG" ]]; then
     echo "❌ Messaggio vuoto. Annullato."
@@ -34,7 +40,7 @@ else
   echo "ℹ️  Nessuna modifica da committare."
 fi
 
-# ── Push ──────────────────────────────────────────────────
+# ── Push ─────────────────────────────────────────────────
 echo ""
 echo "📤 Git push..."
 git push
