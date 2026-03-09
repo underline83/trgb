@@ -1,6 +1,6 @@
 // src/pages/vini/ViniVendite.jsx
-// @version: v1.0-hub-vendite-scarichi
-// Hub Vendite & Scarichi — registrazione rapida, storico globale, statistiche
+// @version: v2.0-vendite-bottiglia-calici
+// Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,15 +10,9 @@ import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
 // ─────────────────────────────────────────────────────────────
-const TIPO_COLORS = {
-  CARICO:    "bg-emerald-100 text-emerald-800 border-emerald-200",
-  SCARICO:   "bg-red-100 text-red-800 border-red-200",
-  VENDITA:   "bg-violet-100 text-violet-800 border-violet-200",
-  RETTIFICA: "bg-amber-100 text-amber-800 border-amber-200",
-};
-
-const TIPO_EMOJI = {
-  CARICO: "⬆️", SCARICO: "⬇️", VENDITA: "🛒", RETTIFICA: "✏️",
+const MODALITA = {
+  BOTTIGLIA: { label: "Bottiglia",  icon: "🍾", desc: "Vendita bottiglia intera",  color: "bg-violet-100 text-violet-800 border-violet-300" },
+  CALICI:    { label: "Calici",     icon: "🥂", desc: "Aperta per vendita al calice", color: "bg-rose-100 text-rose-800 border-rose-300" },
 };
 
 function formatDate(isoStr) {
@@ -34,11 +28,6 @@ function formatDate(isoStr) {
   }
 }
 
-/**
- * Costruisce le opzioni locazione da un oggetto vino.
- * Mostra solo le locazioni che hanno un nome o una giacenza > 0.
- * Il valore è sempre il codice backend (frigo, loc1, loc2, loc3).
- */
 function buildLocOptions(vino) {
   if (!vino) return [];
   return [
@@ -47,6 +36,14 @@ function buildLocOptions(vino) {
     { value: "loc2",  label: vino.LOCAZIONE_2 || "Loc 2",  qta: vino.QTA_LOC2 ?? 0 },
     { value: "loc3",  label: vino.LOCAZIONE_3 || "Loc 3",  qta: vino.QTA_LOC3 ?? 0 },
   ];
+}
+
+/** Riconosce la modalità da una nota di movimento */
+function parseModalita(note) {
+  if (!note) return null;
+  if (note.includes("[CALICI]")) return "CALICI";
+  if (note.includes("[BOTTIGLIA]")) return "BOTTIGLIA";
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -63,20 +60,19 @@ export default function ViniVendite() {
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedVino, setSelectedVino] = useState(null);
-  const [regTipo, setRegTipo] = useState("VENDITA");
+  const [modalita, setModalita] = useState("BOTTIGLIA");
   const [regLoc, setRegLoc] = useState("");
-  const [regQta, setRegQta] = useState("");
+  const [regQta, setRegQta] = useState("1");
   const [regNote, setRegNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState("");
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
 
-  // ── Storico globale ──
+  // ── Storico vendite ──
   const [movimenti, setMovimenti] = useState([]);
   const [movTotal, setMovTotal] = useState(0);
   const [movLoading, setMovLoading] = useState(false);
-  const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroText, setFiltroText] = useState("");
   const [filtroDataDa, setFiltroDataDa] = useState("");
   const [filtroDataA, setFiltroDataA] = useState("");
@@ -91,14 +87,14 @@ export default function ViniVendite() {
     } catch { /* silenzioso */ }
   }, []);
 
-  // ── Fetch movimenti globali ──
+  // ── Fetch vendite (solo tipo=VENDITA) ──
   const fetchMovimenti = useCallback(async (resetPage = false) => {
     setMovLoading(true);
     const p = resetPage ? 0 : page;
     if (resetPage) setPage(0);
 
     const params = new URLSearchParams();
-    if (filtroTipo) params.set("tipo", filtroTipo);
+    params.set("tipo", "VENDITA");
     if (filtroText) params.set("text", filtroText);
     if (filtroDataDa) params.set("data_da", filtroDataDa);
     if (filtroDataA) params.set("data_a", filtroDataA);
@@ -114,14 +110,14 @@ export default function ViniVendite() {
       }
     } catch { /* silenzioso */ }
     setMovLoading(false);
-  }, [filtroTipo, filtroText, filtroDataDa, filtroDataA, page]);
+  }, [filtroText, filtroDataDa, filtroDataA, page]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchMovimenti(); }, [fetchMovimenti]);
 
   // ── Autocomplete vini ──
   useEffect(() => {
-    if (searchText.length < 2) { setSuggestions([]); return; }
+    if (searchText.length < 2 || selectedVino) { setSuggestions([]); return; }
     const timer = setTimeout(async () => {
       try {
         const res = await apiFetch(
@@ -135,7 +131,7 @@ export default function ViniVendite() {
       } catch { /* silenzioso */ }
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchText]);
+  }, [searchText, selectedVino]);
 
   // Chiudi suggestions al click fuori
   useEffect(() => {
@@ -157,30 +153,41 @@ export default function ViniVendite() {
     setSearchText(v.DESCRIZIONE + (v.PRODUTTORE ? ` — ${v.PRODUTTORE}` : ""));
     setShowSuggestions(false);
     setSuggestions([]);
+    setRegLoc("");
   };
 
-  // ── Registra movimento ──
-  // Locazione obbligatoria per VENDITA e SCARICO
-  const locRequired = regTipo === "VENDITA" || regTipo === "SCARICO";
+  // ── Deseleziona ──
+  const clearVino = () => {
+    setSelectedVino(null);
+    setSearchText("");
+    setRegLoc("");
+  };
 
-  const submitMovimento = async () => {
+  // ── Registra vendita ──
+  const submitVendita = async () => {
     if (!selectedVino) { alert("Seleziona un vino dalla ricerca."); return; }
     const qtaNum = Number(regQta);
     if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
-    if (locRequired && !regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
+    if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
 
     setSubmitting(true);
     setSubmitMsg("");
+
+    // Compone la nota con il tag modalità
+    const modTag = `[${modalita}]`;
+    const notaParts = [modTag];
+    if (regNote.trim()) notaParts.push(regNote.trim());
+    const notaFinale = notaParts.join(" ");
 
     try {
       const res = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}/movimenti`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tipo: regTipo,
+          tipo: "VENDITA",
           qta: qtaNum,
-          locazione: regLoc || null,
-          note: regNote.trim() || null,
+          locazione: regLoc,
+          note: notaFinale,
         }),
       });
 
@@ -189,16 +196,16 @@ export default function ViniVendite() {
         throw new Error(err.detail || `Errore ${res.status}`);
       }
 
-      // Reset form
-      setSelectedVino(null);
-      setSearchText("");
-      setRegLoc("");
-      setRegQta("");
-      setRegNote("");
-      setSubmitMsg(`✅ ${regTipo} registrato — ${qtaNum} bt`);
-      setTimeout(() => setSubmitMsg(""), 4000);
+      const modInfo = MODALITA[modalita];
+      setSubmitMsg(`✅ ${modInfo.icon} ${modInfo.label} — ${qtaNum} bt di ${selectedVino.DESCRIZIONE}`);
 
-      // Ricarica movimenti e stats
+      // Reset form
+      clearVino();
+      setRegQta("1");
+      setRegNote("");
+      setTimeout(() => setSubmitMsg(""), 5000);
+
+      // Ricarica
       fetchMovimenti(true);
       fetchStats();
     } catch (err) {
@@ -208,12 +215,11 @@ export default function ViniVendite() {
     }
   };
 
-  // ── Applicare filtri ──
+  // ── Filtri storico ──
   const applicaFiltri = () => fetchMovimenti(true);
   const resetFiltri = () => {
-    setFiltroTipo(""); setFiltroText(""); setFiltroDataDa(""); setFiltroDataA("");
+    setFiltroText(""); setFiltroDataDa(""); setFiltroDataA("");
     setPage(0);
-    // Il useEffect su fetchMovimenti ricarica automaticamente
   };
 
   const totalPages = Math.ceil(movTotal / PAGE_SIZE);
@@ -229,10 +235,10 @@ export default function ViniVendite() {
         <div className="bg-white rounded-3xl shadow-2xl p-8 border border-neutral-200">
           <MagazzinoSubMenu />
           <h1 className="text-3xl font-bold text-amber-900 font-playfair mt-2">
-            🛒 Vendite & Scarichi
+            🛒 Vendite
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
-            Registra vendite e scarichi, consulta lo storico movimenti della cantina
+            Registra vendite bottiglia o calici, consulta lo storico vendite
           </p>
         </div>
 
@@ -254,11 +260,31 @@ export default function ViniVendite() {
           </div>
         )}
 
-        {/* ── REGISTRAZIONE RAPIDA ────────────────────────── */}
+        {/* ── REGISTRAZIONE VENDITA ───────────────────────── */}
         <div className="bg-white rounded-3xl shadow-xl p-6 border border-neutral-200">
           <h2 className="text-lg font-bold text-neutral-800 mb-4">
-            Registra movimento
+            Registra vendita
           </h2>
+
+          {/* Toggle Bottiglia / Calici */}
+          <div className="flex gap-3 mb-5">
+            {Object.entries(MODALITA).map(([key, m]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setModalita(key)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-semibold text-sm transition ${
+                  modalita === key
+                    ? m.color + " shadow-md"
+                    : "bg-neutral-50 border-neutral-200 text-neutral-500 hover:border-neutral-300"
+                }`}
+              >
+                <span className="text-xl">{m.icon}</span>
+                <span>{m.label}</span>
+                <span className="text-[10px] font-normal opacity-70 hidden sm:inline">— {m.desc}</span>
+              </button>
+            ))}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             {/* Ricerca vino */}
@@ -273,11 +299,21 @@ export default function ViniVendite() {
                 onChange={(e) => { setSearchText(e.target.value); setSelectedVino(null); }}
                 onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                 placeholder="Cerca per nome, produttore o ID..."
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
+                  selectedVino ? "border-violet-300 pr-24" : "border-neutral-300"
+                }`}
               />
               {selectedVino && (
-                <span className="absolute right-3 top-8 text-xs text-violet-600 font-semibold">
+                <span className="absolute right-3 top-8 flex items-center gap-1.5 text-xs text-violet-600 font-semibold">
                   #{selectedVino.id} — {selectedVino.QTA_TOTALE ?? 0} bt
+                  <button
+                    type="button"
+                    onClick={clearVino}
+                    className="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-neutral-200 text-neutral-500 hover:bg-red-100 hover:text-red-600 transition text-xs font-bold"
+                    title="Deseleziona vino"
+                  >
+                    ✕
+                  </button>
                 </span>
               )}
 
@@ -324,35 +360,18 @@ export default function ViniVendite() {
               )}
             </div>
 
-            {/* Tipo */}
-            <div className="md:col-span-2">
+            {/* Locazione */}
+            <div className="md:col-span-3">
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
-                Tipo
-              </label>
-              <select
-                value={regTipo}
-                onChange={(e) => { setRegTipo(e.target.value); if (e.target.value === "RETTIFICA") setRegLoc(""); }}
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
-              >
-                <option value="VENDITA">🛒 Vendita</option>
-                <option value="SCARICO">⬇️ Scarico</option>
-                <option value="CARICO">⬆️ Carico</option>
-                <option value="RETTIFICA">✏️ Rettifica</option>
-              </select>
-            </div>
-
-            {/* Locazione — nomi e giacenze dinamici dal vino selezionato */}
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
-                Locazione {locRequired && <span className="text-red-400">*</span>}
+                Da locazione <span className="text-red-400">*</span>
               </label>
               <select
                 value={regLoc}
                 onChange={(e) => setRegLoc(e.target.value)}
-                disabled={regTipo === "RETTIFICA" || !selectedVino}
+                disabled={!selectedVino}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
-                  locRequired && !regLoc ? "border-red-300" : "border-neutral-300"
-                } ${(regTipo === "RETTIFICA" || !selectedVino) ? "opacity-40 cursor-not-allowed" : ""}`}
+                  !regLoc && selectedVino ? "border-red-300" : "border-neutral-300"
+                } ${!selectedVino ? "opacity-40 cursor-not-allowed" : ""}`}
               >
                 <option value="">— Seleziona —</option>
                 {selectedVino && buildLocOptions(selectedVino).map((loc) => (
@@ -373,20 +392,24 @@ export default function ViniVendite() {
                 value={regQta}
                 min={1}
                 onChange={(e) => setRegQta(e.target.value)}
-                placeholder="N."
+                placeholder="1"
                 className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
               />
             </div>
 
             {/* Bottone registra */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <button
                 type="button"
-                onClick={submitMovimento}
+                onClick={submitVendita}
                 disabled={submitting || !selectedVino}
-                className="w-full bg-violet-700 text-white rounded-xl px-4 py-2.5 font-semibold hover:bg-violet-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                className={`w-full text-white rounded-xl px-4 py-2.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm ${
+                  modalita === "CALICI"
+                    ? "bg-rose-600 hover:bg-rose-700"
+                    : "bg-violet-700 hover:bg-violet-800"
+                }`}
               >
-                {submitting ? "Registro..." : "Registra"}
+                {submitting ? "Registro..." : `${MODALITA[modalita].icon} Registra ${MODALITA[modalita].label}`}
               </button>
             </div>
           </div>
@@ -409,11 +432,11 @@ export default function ViniVendite() {
           )}
         </div>
 
-        {/* ── STORICO MOVIMENTI GLOBALE ───────────────────── */}
+        {/* ── STORICO VENDITE ─────────────────────────────── */}
         <div className="bg-white rounded-3xl shadow-xl p-6 border border-neutral-200">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-bold text-neutral-800">
-              Storico movimenti
+              Storico vendite
               <span className="text-sm font-normal text-neutral-400 ml-2">
                 {movTotal} totali
               </span>
@@ -421,19 +444,7 @@ export default function ViniVendite() {
           </div>
 
           {/* Filtri */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-            <select
-              value={filtroTipo}
-              onChange={(e) => setFiltroTipo(e.target.value)}
-              className="border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
-            >
-              <option value="">Tutti i tipi</option>
-              <option value="VENDITA">🛒 Vendita</option>
-              <option value="SCARICO">⬇️ Scarico</option>
-              <option value="CARICO">⬆️ Carico</option>
-              <option value="RETTIFICA">✏️ Rettifica</option>
-            </select>
-
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <input
               type="text"
               value={filtroText}
@@ -474,15 +485,16 @@ export default function ViniVendite() {
             </div>
           </div>
 
-          {/* Tabella movimenti */}
+          {/* Tabella vendite */}
           <div className="border border-neutral-200 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-neutral-100">
                 <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                   <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-center">Tipo</th>
+                  <th className="px-3 py-2 text-center">Modalità</th>
                   <th className="px-3 py-2 text-center">Qtà</th>
                   <th className="px-3 py-2 text-left">Vino</th>
+                  <th className="px-3 py-2 text-left hidden md:table-cell">Locazione</th>
                   <th className="px-3 py-2 text-left hidden md:table-cell">Note</th>
                   <th className="px-3 py-2 text-left hidden md:table-cell">Utente</th>
                 </tr>
@@ -490,7 +502,7 @@ export default function ViniVendite() {
               <tbody>
                 {movLoading && movimenti.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-neutral-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
                       Caricamento...
                     </td>
                   </tr>
@@ -498,24 +510,32 @@ export default function ViniVendite() {
 
                 {!movLoading && movimenti.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-neutral-400">
-                      Nessun movimento trovato.
+                    <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
+                      Nessuna vendita trovata.
                     </td>
                   </tr>
                 )}
 
                 {movimenti.map((m) => {
-                  const tipoColor = TIPO_COLORS[m.tipo] || "";
-                  const emoji = TIPO_EMOJI[m.tipo] || "";
+                  const mod = parseModalita(m.note);
+                  const modInfo = mod ? MODALITA[mod] : null;
+                  // Rimuovi il tag [BOTTIGLIA] o [CALICI] dalla nota visualizzata
+                  const notePulita = (m.note || "").replace(/\[(BOTTIGLIA|CALICI)\]\s*/g, "").trim();
                   return (
                     <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
                       <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">
                         {formatDate(m.data_mov)}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${tipoColor}`}>
-                          {emoji} {m.tipo}
-                        </span>
+                        {modInfo ? (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${modInfo.color}`}>
+                            {modInfo.icon} {modInfo.label}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-violet-100 text-violet-800 border-violet-200">
+                            🛒 Vendita
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-center font-bold text-neutral-800">
                         {m.qta}
@@ -537,8 +557,11 @@ export default function ViniVendite() {
                           )}
                         </button>
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-500 hidden md:table-cell max-w-[180px] truncate">
-                        {m.note || "—"}
+                      <td className="px-3 py-2.5 text-xs text-neutral-500 hidden md:table-cell">
+                        {m.locazione || "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-neutral-500 hidden md:table-cell max-w-[160px] truncate">
+                        {notePulita || "—"}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-neutral-400 hidden md:table-cell">
                         {m.utente || "—"}
@@ -590,6 +613,7 @@ function KpiTile({ label, value, unit, color = "neutral" }) {
     violet: "bg-violet-50 border-violet-200 text-violet-900",
     amber:  "bg-amber-50 border-amber-200 text-amber-900",
     emerald: "bg-emerald-50 border-emerald-200 text-emerald-900",
+    rose:   "bg-rose-50 border-rose-200 text-rose-900",
     neutral: "bg-neutral-50 border-neutral-200 text-neutral-800",
   };
 

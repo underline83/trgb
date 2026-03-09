@@ -56,7 +56,7 @@ export default function MagazzinoSubMenu() {
           to="/vini/vendite"
           className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
         >
-          🛒 Vendite & Scarichi
+          🛒 Vendite
         </NavLink>
 
         <NavLink
