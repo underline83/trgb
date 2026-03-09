@@ -1,13 +1,13 @@
-// @version: v2.5-modules
+// @version: v2.6-modules-per-role
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 
 const MENU_CONFIG = {
-  vini:     { title: "Gestione Vini",     subtitle: "Carta, database, vendite, impostazioni",         icon: "🍷", go: "/vini",     color: "bg-amber-50 border-amber-200 text-amber-900" },
-  ricette:  { title: "Gestione Ricette",  subtitle: "Archivio ricette, costi, stampa PDF",            icon: "📘", go: "/ricette",  color: "bg-blue-50 border-blue-200 text-blue-900" },
-  foodcost: { title: "Food Cost",         subtitle: "Analisi costi, materie prime, porzioni",         icon: "📊", go: "/foodcost", color: "bg-green-50 border-green-200 text-green-900" },
-  admin:    { title: "Amministrazione",   subtitle: "Corrispettivi, fatture, dipendenti, utenti",     icon: "🧾", go: "/admin",    color: "bg-neutral-50 border-neutral-300 text-neutral-800" },
+  vini:     { title: "Gestione Vini",    subtitle: "Carta, database, vendite, impostazioni",       icon: "🍷", go: "/vini",     color: "bg-amber-50 border-amber-200 text-amber-900" },
+  ricette:  { title: "Gestione Ricette", subtitle: "Archivio ricette, costi, stampa PDF",          icon: "📘", go: "/ricette",  color: "bg-blue-50 border-blue-200 text-blue-900" },
+  foodcost: { title: "Food Cost",        subtitle: "Analisi costi, materie prime, porzioni",       icon: "📊", go: "/foodcost", color: "bg-green-50 border-green-200 text-green-900" },
+  admin:    { title: "Amministrazione",  subtitle: "Corrispettivi, fatture, dipendenti, utenti",   icon: "🧾", go: "/admin",    color: "bg-neutral-50 border-neutral-300 text-neutral-800" },
 };
 
 export default function Home() {
@@ -21,16 +21,16 @@ export default function Home() {
   useEffect(() => {
     apiFetch(`${API_BASE}/settings/modules/`)
       .then((r) => r.json())
-      .then((data) => setModules(data))
+      .then(setModules)
       .catch(() => {
-        // Se fallisce, mostra tutti i moduli (fallback sicuro)
-        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, enabled: true })));
+        // Fallback: mostra tutti i moduli
+        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["admin", "chef", "sommelier", "viewer"] })));
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Admin vede sempre tutti i moduli; altri utenti vedono solo quelli abilitati
-  const visibleModules = modules.filter((m) => isAdmin || m.enabled);
+  // Mostra modulo se il ruolo corrente è nella lista roles
+  const visibleModules = modules.filter((m) => m.roles?.includes(role));
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6">
@@ -49,23 +49,12 @@ export default function Home() {
             {visibleModules.map((m) => {
               const cfg = MENU_CONFIG[m.key];
               if (!cfg) return null;
-              const disabled = isAdmin && !m.enabled;
               return (
                 <div
                   key={m.key}
-                  onClick={() => !disabled && navigate(cfg.go)}
-                  className={`
-                    relative rounded-2xl border shadow-lg p-6 transition
-                    ${disabled
-                      ? "opacity-50 cursor-not-allowed bg-neutral-50 border-neutral-200"
-                      : `${cfg.color} cursor-pointer hover:shadow-xl hover:-translate-y-1`}
-                  `}
+                  onClick={() => navigate(cfg.go)}
+                  className={`rounded-2xl border shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${cfg.color}`}
                 >
-                  {disabled && (
-                    <span className="absolute top-3 right-3 text-xs bg-neutral-200 text-neutral-500 rounded-full px-2 py-0.5">
-                      Disabilitato
-                    </span>
-                  )}
                   <div className="text-4xl mb-2">{cfg.icon}</div>
                   <div className="text-xl font-semibold">{cfg.title}</div>
                   <div className="text-sm opacity-80">{cfg.subtitle}</div>

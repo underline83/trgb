@@ -4,27 +4,27 @@
     "label": "Gestione Vini",
     "description": "Carta vini, magazzino, vendite, impostazioni",
     "icon": "🍷",
-    "enabled": true
+    "roles": ["admin", "sommelier", "viewer"]
   },
   {
     "key": "ricette",
     "label": "Gestione Ricette",
     "description": "Archivio ricette, costi, stampa PDF",
     "icon": "📘",
-    "enabled": true
+    "roles": ["admin", "chef"]
   },
   {
     "key": "foodcost",
     "label": "Food Cost",
     "description": "Analisi costi, materie prime, porzioni",
     "icon": "📊",
-    "enabled": true
+    "roles": ["admin", "chef"]
   },
   {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Corrispettivi, fatture, dipendenti, utenti",
     "icon": "🧾",
-    "enabled": true
+    "roles": ["admin"]
   }
 ]
