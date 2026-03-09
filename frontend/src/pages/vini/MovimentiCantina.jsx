@@ -206,10 +206,10 @@ export default function MovimentiCantina() {
               } ${tipo === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}
             >
               <option value="">— Locazione{tipo === "VENDITA" || tipo === "SCARICO" ? " *" : ""} —</option>
-              <option value="frigo">Frigo</option>
-              <option value="loc1">Loc 1</option>
-              <option value="loc2">Loc 2</option>
-              <option value="loc3">Loc 3</option>
+              <option value="frigo">{vino?.FRIGORIFERO || "Frigo"} ({vino?.QTA_FRIGO ?? 0} bt)</option>
+              <option value="loc1">{vino?.LOCAZIONE_1 || "Loc 1"} ({vino?.QTA_LOC1 ?? 0} bt)</option>
+              <option value="loc2">{vino?.LOCAZIONE_2 || "Loc 2"} ({vino?.QTA_LOC2 ?? 0} bt)</option>
+              <option value="loc3">{vino?.LOCAZIONE_3 || "Loc 3"} ({vino?.QTA_LOC3 ?? 0} bt)</option>
             </select>
 
             <input

@@ -774,7 +774,11 @@ def search_vini_autocomplete(text: str, limit: int = 10) -> List[sqlite3.Row]:
     rows = cur.execute(
         """
         SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, TIPOLOGIA,
-               QTA_TOTALE, EURO_LISTINO, PREZZO_CARTA
+               QTA_TOTALE, EURO_LISTINO, PREZZO_CARTA,
+               FRIGORIFERO, QTA_FRIGO,
+               LOCAZIONE_1, QTA_LOC1,
+               LOCAZIONE_2, QTA_LOC2,
+               LOCAZIONE_3, QTA_LOC3
         FROM vini_magazzino
         WHERE DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?
            OR DENOMINAZIONE LIKE ? OR CAST(id AS TEXT) = ?

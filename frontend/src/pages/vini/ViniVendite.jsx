@@ -34,6 +34,21 @@ function formatDate(isoStr) {
   }
 }
 
+/**
+ * Costruisce le opzioni locazione da un oggetto vino.
+ * Mostra solo le locazioni che hanno un nome o una giacenza > 0.
+ * Il valore è sempre il codice backend (frigo, loc1, loc2, loc3).
+ */
+function buildLocOptions(vino) {
+  if (!vino) return [];
+  return [
+    { value: "frigo", label: vino.FRIGORIFERO || "Frigo",  qta: vino.QTA_FRIGO ?? 0 },
+    { value: "loc1",  label: vino.LOCAZIONE_1 || "Loc 1",  qta: vino.QTA_LOC1 ?? 0 },
+    { value: "loc2",  label: vino.LOCAZIONE_2 || "Loc 2",  qta: vino.QTA_LOC2 ?? 0 },
+    { value: "loc3",  label: vino.LOCAZIONE_3 || "Loc 3",  qta: vino.QTA_LOC3 ?? 0 },
+  ];
+}
+
 // ─────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPALE
 // ─────────────────────────────────────────────────────────────
@@ -326,7 +341,7 @@ export default function ViniVendite() {
               </select>
             </div>
 
-            {/* Locazione */}
+            {/* Locazione — nomi e giacenze dinamici dal vino selezionato */}
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
                 Locazione {locRequired && <span className="text-red-400">*</span>}
@@ -334,16 +349,17 @@ export default function ViniVendite() {
               <select
                 value={regLoc}
                 onChange={(e) => setRegLoc(e.target.value)}
-                disabled={regTipo === "RETTIFICA"}
+                disabled={regTipo === "RETTIFICA" || !selectedVino}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
                   locRequired && !regLoc ? "border-red-300" : "border-neutral-300"
-                } ${regTipo === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}
+                } ${(regTipo === "RETTIFICA" || !selectedVino) ? "opacity-40 cursor-not-allowed" : ""}`}
               >
                 <option value="">— Seleziona —</option>
-                <option value="frigo">Frigo</option>
-                <option value="loc1">Loc 1</option>
-                <option value="loc2">Loc 2</option>
-                <option value="loc3">Loc 3</option>
+                {selectedVino && buildLocOptions(selectedVino).map((loc) => (
+                  <option key={loc.value} value={loc.value}>
+                    {loc.label} ({loc.qta} bt)
+                  </option>
+                ))}
               </select>
             </div>
 

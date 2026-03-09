@@ -539,10 +539,10 @@ export default function MagazzinoViniDettaglio() {
                       (tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov ? "border-red-300" : "border-neutral-300"
                     } ${tipoMov === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}>
                     <option value="">— Locazione{tipoMov === "VENDITA" || tipoMov === "SCARICO" ? " *" : ""} —</option>
-                    <option value="frigo">Frigo</option>
-                    <option value="loc1">Loc 1</option>
-                    <option value="loc2">Loc 2</option>
-                    <option value="loc3">Loc 3</option>
+                    <option value="frigo">{vino?.FRIGORIFERO || "Frigo"} ({vino?.QTA_FRIGO ?? 0} bt)</option>
+                    <option value="loc1">{vino?.LOCAZIONE_1 || "Loc 1"} ({vino?.QTA_LOC1 ?? 0} bt)</option>
+                    <option value="loc2">{vino?.LOCAZIONE_2 || "Loc 2"} ({vino?.QTA_LOC2 ?? 0} bt)</option>
+                    <option value="loc3">{vino?.LOCAZIONE_3 || "Loc 3"} ({vino?.QTA_LOC3 ?? 0} bt)</option>
                   </select>
                   <input type="number" placeholder="Quantità *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
                     className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
