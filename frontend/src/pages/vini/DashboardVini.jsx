@@ -46,10 +46,36 @@ export default function DashboardVini() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [drilldown, setDrilldown] = useState(null); // null | "senza_listino"
+  const [drilldown, setDrilldown] = useState(null);
+  const [togglingId, setTogglingId] = useState(null); // id vino in corso di toggle
 
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
+
+  // Toggle DISCONTINUATO direttamente dalla dashboard (aggiorna stato locale senza reload)
+  const toggleDiscontinuato = async (vino) => {
+    const newVal = vino.DISCONTINUATO === "SI" ? "NO" : "SI";
+    setTogglingId(vino.id);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${vino.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ DISCONTINUATO: newVal }),
+      });
+      if (!resp.ok) throw new Error();
+      // Aggiorna lo stato locale senza ricaricare tutta la dashboard
+      setStats((prev) => ({
+        ...prev,
+        alert_carta_senza_giacenza: prev.alert_carta_senza_giacenza.map((v) =>
+          v.id === vino.id ? { ...v, DISCONTINUATO: newVal } : v
+        ),
+      }));
+    } catch {
+      // noop — errore silenzioso, lo stato non cambia
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -192,49 +218,83 @@ export default function DashboardVini() {
         </div>
 
         {/* ── ALERT: VINI IN CARTA SENZA GIACENZA ─────────── */}
-        {stats?.alert_carta_senza_giacenza?.length > 0 && (
-          <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center gap-3">
-              <span className="text-xl">🚨</span>
-              <div>
-                <div className="font-semibold text-red-800">
-                  {stats.alert_carta_senza_giacenza.length}{" "}
-                  {stats.alert_carta_senza_giacenza.length === 1
-                    ? "vino con flag CARTA=SI e giacenza zero"
-                    : "vini con flag CARTA=SI e giacenza zero"}
-                </div>
-                <div className="text-xs text-red-600 mt-0.5">
-                  Marcati per la carta nel database ma senza bottiglie disponibili — da riordinare o da escludere dalla carta.
-                </div>
+        {stats?.alert_carta_senza_giacenza?.length > 0 && (() => {
+          const urgenti      = stats.alert_carta_senza_giacenza.filter((v) => v.DISCONTINUATO !== "SI");
+          const discontinuati = stats.alert_carta_senza_giacenza.filter((v) => v.DISCONTINUATO === "SI");
+
+          const VinoRow = ({ v, dimmed }) => (
+            <div
+              key={v.id}
+              className={`px-6 py-3 flex items-center justify-between transition ${
+                dimmed ? "opacity-50" : "hover:bg-red-50"
+              }`}
+            >
+              {/* info vino — click apre scheda */}
+              <div
+                className="flex-1 min-w-0 cursor-pointer"
+                onClick={() => navigate(`/vini/magazzino/${v.id}`)}
+              >
+                <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mr-2">#{v.id}</span>
+                <span className={`font-semibold text-sm ${dimmed ? "line-through text-neutral-400" : "text-neutral-900"}`}>{v.DESCRIZIONE}</span>
+                {v.ANNATA && <span className="ml-2 text-xs text-neutral-500">{v.ANNATA}</span>}
+                {v.PRODUTTORE && <span className="ml-2 text-xs text-neutral-500">— {v.PRODUTTORE}</span>}
+              </div>
+              {/* destra: tipologia + badge + toggle */}
+              <div className="flex items-center gap-2 shrink-0 ml-3">
+                <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
+                <span className="text-xs text-red-600 font-semibold">0 bt</span>
+                {/* toggle discontinuato */}
+                <button
+                  type="button"
+                  disabled={togglingId === v.id}
+                  onClick={() => toggleDiscontinuato(v)}
+                  title={v.DISCONTINUATO === "SI" ? "Riattiva: togliere flag discontinuato" : "Segna come discontinuato (non verrà riordinato)"}
+                  className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
+                    ${v.DISCONTINUATO === "SI"
+                      ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300"
+                      : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
+                    }
+                    ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                  `}
+                >
+                  {v.DISCONTINUATO === "SI" ? "🚫 Discontinuato" : "◦ Discontinua"}
+                </button>
               </div>
             </div>
-            <div className="divide-y divide-neutral-100 max-h-56 overflow-auto">
-              {stats.alert_carta_senza_giacenza.map((v) => (
-                <div
-                  key={v.id}
-                  className="px-6 py-3 flex items-center justify-between hover:bg-red-50 cursor-pointer transition"
-                  onClick={() => navigate(`/vini/magazzino/${v.id}`)}
-                >
-                  <div>
-                    <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mr-2">#{v.id}</span>
-                    <span className="font-semibold text-neutral-900 text-sm">{v.DESCRIZIONE}</span>
-                    {v.ANNATA && <span className="ml-2 text-xs text-neutral-500">{v.ANNATA}</span>}
-                    {v.PRODUTTORE && (
-                      <span className="ml-2 text-xs text-neutral-500">— {v.PRODUTTORE}</span>
+          );
+
+          return (
+            <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center gap-3">
+                <span className="text-xl">🚨</span>
+                <div>
+                  <div className="font-semibold text-red-800">
+                    {urgenti.length > 0
+                      ? `${urgenti.length} ${urgenti.length === 1 ? "vino" : "vini"} in carta senza giacenza`
+                      : "Nessun vino urgente in carta"}
+                    {discontinuati.length > 0 && (
+                      <span className="ml-2 text-xs font-normal text-neutral-500">
+                        + {discontinuati.length} discontinuati
+                      </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">
-                      {v.TIPOLOGIA}
-                    </span>
-                    <span className="text-xs text-red-600 font-semibold">0 bt</span>
-                    <span className="text-neutral-400 text-xs">→</span>
+                  <div className="text-xs text-red-600 mt-0.5">
+                    Da riordinare — oppure segna come <strong>Discontinuato</strong> per escluderlo dalla lista urgente.
                   </div>
                 </div>
-              ))}
+              </div>
+              <div className="divide-y divide-neutral-100 max-h-72 overflow-auto">
+                {urgenti.map((v)      => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                {discontinuati.length > 0 && urgenti.length > 0 && (
+                  <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
+                    Discontinuati (esclusi da urgente)
+                  </div>
+                )}
+                {discontinuati.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── KPI TILES ────────────────────────────────────── */}
         {loading && !stats && (

@@ -137,6 +137,11 @@ def init_magazzino_database() -> None:
     cols = [row[1] for row in cur.fetchall()]
     if "ANNATA" not in cols:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN ANNATA TEXT;")
+    if "DISCONTINUATO" not in cols:
+        cur.execute(
+            "ALTER TABLE vini_magazzino ADD COLUMN DISCONTINUATO TEXT "
+            "CHECK (DISCONTINUATO IN ('SI','NO') OR DISCONTINUATO IS NULL);"
+        )
 
     # -----------------------------------------------------
     # TABELLA 'vini_magazzino_movimenti'
@@ -788,10 +793,12 @@ def get_dashboard_stats() -> Dict[str, Any]:
     # Alert: vini in carta con giacenza = 0
     alert_carta = cur.execute(
         """
-        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE
+        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE, DISCONTINUATO
         FROM vini_magazzino
         WHERE CARTA = 'SI' AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
-        ORDER BY TIPOLOGIA, DESCRIZIONE
+        ORDER BY
+            CASE WHEN DISCONTINUATO = 'SI' THEN 1 ELSE 0 END,
+            TIPOLOGIA, DESCRIZIONE
         LIMIT 50;
         """
     ).fetchall()

@@ -148,6 +148,7 @@ export default function MagazzinoViniDettaglio() {
       PREZZO_CARTA: vino.PREZZO_CARTA ?? "", EURO_LISTINO: vino.EURO_LISTINO ?? "",
       SCONTO: vino.SCONTO ?? "", NOTE_PREZZO: vino.NOTE_PREZZO ?? "",
       CARTA: vino.CARTA ?? "NO", IPRATICO: vino.IPRATICO ?? "NO",
+      DISCONTINUATO: vino.DISCONTINUATO ?? "NO",
       STATO_VENDITA: vino.STATO_VENDITA ?? "", NOTE_STATO: vino.NOTE_STATO ?? "",
       NOTE: vino.NOTE ?? "",
     });
@@ -348,6 +349,9 @@ export default function MagazzinoViniDettaglio() {
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-neutral-100">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${vino.CARTA === "SI" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-neutral-50 text-neutral-500 border-neutral-200"}`}>CARTA: {vino.CARTA || "NO"}</span>
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${vino.IPRATICO === "SI" ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-neutral-50 text-neutral-500 border-neutral-200"}`}>iPratico: {vino.IPRATICO || "NO"}</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${vino.DISCONTINUATO === "SI" ? "bg-neutral-800 text-white border-neutral-700" : "bg-neutral-50 text-neutral-400 border-neutral-200"}`}>
+                      {vino.DISCONTINUATO === "SI" ? "🚫 Discontinuato" : "Discontinuato: NO"}
+                    </span>
                     {vino.STATO_VENDITA && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Stato: {vino.STATO_VENDITA}{vino.NOTE_STATO ? ` — ${vino.NOTE_STATO}` : ""}</span>}
                   </div>
                   {vino.NOTE && <div className="pt-3 border-t border-neutral-100"><div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">Note interne</div><p className="text-sm text-neutral-800 whitespace-pre-wrap">{vino.NOTE}</p></div>}
@@ -382,8 +386,8 @@ export default function MagazzinoViniDettaglio() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Select label="In carta" name="CARTA" value={editData.CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={[{value:"SI",label:"SI"},{value:"NO",label:"NO"}]} />
                     <Select label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={[{value:"SI",label:"SI"},{value:"NO",label:"NO"}]} />
+                    <Select label="🚫 Discontinuato" name="DISCONTINUATO" value={editData.DISCONTINUATO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={[{value:"NO",label:"NO — riordinare"},{value:"SI",label:"SI — non riordinare"}]} />
                     <Input label="Stato vendita" name="STATO_VENDITA" value={editData.STATO_VENDITA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                    <Input label="Note stato" name="NOTE_STATO" value={editData.NOTE_STATO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>

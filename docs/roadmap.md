@@ -109,6 +109,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [x] Edit vino da UI (anagrafica + prezzi + flag) — `MagazzinoViniDettaglio.jsx` v2.0 — 2026-03-09
 - [x] Note operative per vino (add + delete) — 2026-03-09
 - [x] Giacenze per locazione editabili da UI — 2026-03-09
+- [x] Dashboard Vini operativa (KPI stock + vendite, alert, analytics, drill-down) — `DashboardVini.jsx` v2.1 — 2026-03-09
+- [x] Badge `#id` standardizzato su tutte le pagine del modulo — 2026-03-09
+- [ ] Flag `DISCONTINUATO` (vini da non ricomprare) — colonna DB + edit da UI + filtro in dashboard — task #23
+- [ ] Drill-down "carta senza giacenza" con toggle DISCONTINUATO inline — task #24
 - [ ] Filtri lato server per dataset grandi
 - [ ] Sincronizzazione storico prezzi
 - [ ] Import Excel con diff interattivo
@@ -158,6 +162,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 | # | Task | Data | Commit |
 |---|------|------|--------|
+| 23 | Dashboard Vini v2.1 — KPI vendite, analytics, drill-down, top venduti | 2026-03-09 | `7143356` |
+| 24 | Badge `#id` standardizzato (`bg-slate-700`) su tutte le pagine modulo vini | 2026-03-09 | `7143356` |
 | 1 | Auth reale — sha256_crypt hash + python-dotenv + SECRET_KEY da .env | 2026-03-09 | — |
 | 3 | `Depends(get_current_user)` su 5 router pubblici | 2026-03-08 | — |
 | 13 | `version.json` eliminato | 2026-03-08 | — |

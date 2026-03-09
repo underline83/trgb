@@ -68,6 +68,10 @@ class VinoMagazzinoBase(BaseModel):
         None,
         description="Flag esportazione iPratico (SI/NO)",
     )
+    DISCONTINUATO: Optional[str] = Field(
+        None,
+        description="Flag vino non da riordinare (SI/NO)",
+    )
 
     STATO_VENDITA: Optional[str] = Field(
         None,
@@ -121,6 +125,7 @@ class VinoMagazzinoUpdate(BaseModel):
 
     CARTA: Optional[str] = None
     IPRATICO: Optional[str] = None
+    DISCONTINUATO: Optional[str] = None
 
     STATO_VENDITA: Optional[str] = None
     NOTE_STATO: Optional[str] = None
