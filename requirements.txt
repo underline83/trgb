@@ -23,4 +23,7 @@ jinja2
 # Word / DOCX
 python-docx
 
+# Variabili d'ambiente (.env)
+python-dotenv
+
 #Grafici

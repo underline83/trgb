@@ -1,7 +1,7 @@
 # 📋 TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-08
+> Ultima sessione: 2026-03-09
 
 ---
 
@@ -15,7 +15,19 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-08)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-09)
+
+1. **Fix #1 — Auth reale** — `auth_service.py` riscritto:
+   - Rimosso `USERS` con password in chiaro
+   - Password hashate `sha256_crypt` via `passlib.CryptContext` (già in `security.py`)
+   - `authenticate_user()` usa `security.verify_password()`
+   - `decode_access_token()` delega a `security.decode_access_token()`
+   - `scripts/gen_passwords.py` — utility per rigenerare hash al cambio password ✅
+2. **SECRET_KEY da .env** — `python-dotenv` in `requirements.txt`, `load_dotenv()` in `main.py`, `.env` creato (gitignored) ✅
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-08)
 
 1. **Audit completo** — backend, frontend, DB, auth, route, docs verificati via ispezione codice
 2. **Riscritta e consolidata tutta la documentazione** — da 18 a 13 file, naming tutto minuscolo, accorpati troubleshooting/VersionMap/Index, DB unificato in `database.md`
@@ -30,19 +42,19 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ## Stato attuale del codice — cose critiche da sapere
 
-### 🔴 AUTH È UN MOCK
-`app/services/auth_service.py` riga 21 ha `USERS = {"admin": {"password": "admin", ...}}` — password in chiaro, hardcoded. **Non è auth reale.** `security.py` ha già sha256_crypt pronto, ma non è usato. `SECRET_KEY = "trgb_secret_key_2025"` è hardcoded in `config.py` (non da `.env`).
-
-### 🔴 ENDPOINT FINANZIARI SONO PUBBLICI
-`admin_finance.py`, `fe_import.py`, `foodcost_ingredients_router.py`, `foodcost_recipes_router.py`, `vini_settings_router.py` — **nessun** `Depends(get_current_user)`. Chiunque può chiamarli.
-
-### 🟡 NESSUN INTERCEPTOR AXIOS
-La gestione 401 è copiata manualmente in ~10 pagine diverse. Non c'è un interceptor centralizzato.
-
 ### 🟠 FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
-### 🟢 COSE GIÀ FIXATE (questa sessione)
+### 🟡 `.env` non esiste sul VPS
+Il file `.env` con `SECRET_KEY` è stato creato in locale (gitignored). Sul VPS va creato manualmente:
+```
+/home/marco/trgb/trgb/.env
+SECRET_KEY=<chiave-forte-diversa-da-quella-locale>
+```
+Poi `pip install python-dotenv` sul VPS se non già installato.
+
+### 🟢 COSE GIÀ FIXATE (totale)
+- Fix #1: `auth_service.py` — sha256_crypt hash, `security.verify_password()`, `python-dotenv` ✅
 - Fix #3: `Depends(get_current_user)` su admin_finance, fe_import, foodcost_ingredients, foodcost_recipes, vini_settings ✅
 - Fix #6: route `/admin/corrispettivi/annual` + pagina `CorrispettiviAnnual.jsx` ✅
 - Fix #7: `apiFetch()` centralizzato in `api.js`, rimosso codice 401 duplicato da 6 pagine ✅
@@ -58,12 +70,12 @@ Ordine suggerito per lavorare:
 
 | # | Task | Difficoltà | Impatto |
 |---|------|-----------|---------|
+| ~~1~~ | ~~Sostituire mock auth con hash reali~~ | ~~Alto~~ | ~~Critico~~ | ✅ |
 | ~~3~~ | ~~Auth su endpoint pubblici~~ | ~~Medio~~ | ~~Critico~~ | ✅ |
 | ~~6~~ | ~~Route `/annual` + pagina confronto annuale~~ | ~~Facile~~ | ~~Medio~~ | ✅ |
-| ~~7~~ | ~~Interceptor Axios centralizzato~~ | ~~Medio~~ | ~~Alto~~ | ✅ |
+| ~~7~~ | ~~`apiFetch()` centralizzato (gestione 401)~~ | ~~Medio~~ | ~~Alto~~ | ✅ |
 | ~~9~~ | ~~`slugify` deduplicata~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
 | ~~11~~ | ~~Fix `if prezzo:` HTML preview~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
-| 1 | Sostituire mock auth con hash reali | Alto (2-3h) | Critico |
 | 2 | Aggiornare `.env.production` a HTTPS | Facile (15min) | Medio |
 
 **Azione pendente (manuale su VPS):**

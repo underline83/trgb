@@ -1,5 +1,5 @@
 # 🛠️ TRGB Gestionale — Roadmap & TO-DO
-**Ultimo aggiornamento:** 2026-03-08
+**Ultimo aggiornamento:** 2026-03-09
 
 Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
@@ -8,27 +8,27 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 # 🔴 CRITICI — Sicurezza & Bug bloccanti
 
 ## 1. Auth reale (sostituire mock)
-- [ ] Rimuovere `USERS` dict con password in chiaro da `app/services/auth_service.py`
-- [ ] Implementare utenti con password hashate (`sha256_crypt` già presente in `security.py`)
-- [ ] Caricare credenziali da `.env` o file di configurazione protetto
-- [ ] Verificare che `get_current_user()` funzioni correttamente post-refactor
+- [x] Rimosso `USERS` dict con password in chiaro — 2026-03-09
+- [x] Implementati hash `sha256_crypt` (via `passlib.CryptContext`) — `security.verify_password()` — 2026-03-09
+- [x] `SECRET_KEY` letta da `.env` via `python-dotenv` (fallback al valore hardcoded per retrocompatibilità) — 2026-03-09
+- [x] `get_current_user()` funzionante con nuovi hash — 2026-03-09
+- [x] `scripts/gen_passwords.py` — utility per rigenerate hash al cambio password — 2026-03-09
 
-> ⚠️ **Confermato aperto** — `auth_service.py` riga 21: `USERS = {"admin": {"password": "admin", ...}}`
+> ✅ **Chiuso** — `auth_service.py` ora usa `sha256_crypt` hash. `.env` gitignored, `python-dotenv` in requirements.
 
 ## 2. HTTPS in produzione
-- [ ] Aggiornare `.env.production`: `http://80.211.131.156:8000` → `https://trgb.tregobbi.it`
+- [x] Aggiornato `.env.production`: `http://80.211.131.156:8000` → `https://trgb.tregobbi.it` — 2026-03-09
 - [ ] Verificare che Nginx faccia correttamente da reverse proxy per il backend
-- [ ] Testare login e chiamate API dopo il cambio
+- [ ] Testare login e chiamate API dopo il deploy
 
 ## 3. Endpoint senza autenticazione
-Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
-- [ ] `admin_finance.py` — dati finanziari completamente pubblici (nessun `Depends` presente)
-- [ ] `fe_import.py` — import fatture e statistiche acquisti
-- [ ] `foodcost_ingredients_router.py`
-- [ ] `foodcost_recipes_router.py`
-- [ ] `vini_settings_router.py` — incluso il `POST /settings/vini/reset`
+- [x] `admin_finance.py` — `dependencies=[Depends(get_current_user)]` su router — 2026-03-08
+- [x] `fe_import.py` — idem — 2026-03-08
+- [x] `foodcost_ingredients_router.py` — idem — 2026-03-08
+- [x] `foodcost_recipes_router.py` — idem — 2026-03-08
+- [x] `vini_settings_router.py` — idem — 2026-03-08
 
-> ⚠️ **Confermato aperto** — nessuno dei router sopra ha `get_current_user` nei decorator
+> ✅ **Chiuso** — tutti i router ora protetti a livello router.
 
 ## 4. `pyxlsb` mancante in `requirements.txt`
 - [x] Aggiunto `pyxlsb` a `requirements.txt` — commit `9a34957` — 2026-03-08
@@ -48,11 +48,10 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 - [x] Creata pagina `CorrispettiviAnnual.jsx` — confronto annuale con grafico e tabella mensile
 
 ## 7. Gestione token scaduto nel frontend
-- [ ] Aggiungere interceptor Axios centralizzato (attualmente ogni pagina gestisce 401 in modo indipendente)
-- [ ] Redirect automatico al login + pulizia `localStorage`
-- [ ] Messaggio utente "Sessione scaduta, effettua di nuovo il login"
+- [x] `apiFetch()` centralizzato in `api.js` — wrapper di `fetch` con auto-inject token e redirect 401 — 2026-03-08
+- [x] Rimossa gestione 401 duplicata da: `ViniCarta`, `MagazzinoVini`, `MagazzinoViniDettaglio`, `MagazzinoViniNuovo`, `DipendentiAnagrafica`, `CorrispettiviAnnual` — 2026-03-08
 
-> ⚠️ **Confermato parzialmente aperto** — gestione 401 scattered in singole pagine (MagazzinoViniNuovo, ViniCarta, ecc.) ma nessun interceptor globale
+> ✅ **Chiuso** — sostituito con `apiFetch()` (no Axios, usa native fetch)
 
 ## 8. `console.log` di debug in produzione
 - [x] Rimosso `console.log("API_BASE:", API_BASE)` da `LoginForm.jsx` — commit `9a34957` — 2026-03-08
@@ -158,9 +157,12 @@ Aggiungere `Depends(get_current_user)` a tutti gli endpoint dei seguenti router:
 
 | # | Task | Data | Commit |
 |---|------|------|--------|
+| 1 | Auth reale — sha256_crypt hash + python-dotenv + SECRET_KEY da .env | 2026-03-09 | — |
+| 3 | `Depends(get_current_user)` su 5 router pubblici | 2026-03-08 | — |
 | 4 | `pyxlsb` aggiunto a `requirements.txt` | 2026-03-08 | `9a34957` |
 | 5 | Bug pie chart pagamenti (`pos_bpm`, `pos_sella`) | 2026-03-08 | `0d7987b` |
 | 6 | Route `/annual` + pagina `CorrispettiviAnnual.jsx` | 2026-03-08 | `b5d282a` |
+| 7 | `apiFetch()` centralizzato — rimossa gestione 401 da 6 pagine | 2026-03-08 | — |
 | 8 | Rimosso `console.log` debug da `LoginForm.jsx` | 2026-03-08 | `9a34957` |
 | 9 | `slugify` deduplicata — importata da `carta_vini_service` | 2026-03-08 | `b5d282a` |
 | 11 | Bug prezzo=0 HTML preview carta vini | 2026-03-08 | `b5d282a` |

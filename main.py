@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 from pathlib import Path
 
+# Carica variabili d'ambiente da .env (se presente — ignorato da git)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv non installato — le env var vengono dal sistema
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
