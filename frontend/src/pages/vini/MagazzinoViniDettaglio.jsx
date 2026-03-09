@@ -278,7 +278,7 @@ export default function MagazzinoViniDettaglio() {
                   🍷 {vino ? vino.DESCRIZIONE : "Scheda Vino"}
                 </h1>
                 {vino && (
-                  <span className="inline-flex items-center bg-amber-900 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
+                  <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
                     #{vino.id}
                   </span>
                 )}
