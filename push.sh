@@ -2,25 +2,18 @@
 # push.sh — Commit, push e deploy sul VPS in un colpo solo
 #
 # Uso:
-#   ./push.sh "messaggio commit"      → deploy rapido
+#   ./push.sh "messaggio commit"      → deploy rapido (git pull + restart)
 #   ./push.sh "messaggio commit" -f   → deploy completo (pip + npm + restart)
 
 set -euo pipefail
 
 VPS_HOST="marco@trgb.tregobbi.it"
 VPS_DIR="/home/marco/trgb/trgb"
+VENV="/home/marco/trgb/venv-trgb"
 
 # ── Argomenti ────────────────────────────────────────────
 MSG="${1:-}"
 MODE="${2:-}"
-
-if [[ "$MODE" == "-f" ]]; then
-  DEPLOY_FLAG="-a"
-  LABEL="FULL (pip + npm + restart)"
-else
-  DEPLOY_FLAG="-b"
-  LABEL="QUICK (git pull + restart)"
-fi
 
 # ── Commit se ci sono modifiche ──────────────────────────
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then
@@ -45,7 +38,30 @@ echo ""
 echo "📤 Git push..."
 git push
 
-# ── Deploy sul server ────────────────────────────────────
+# ── Deploy sul server via SSH diretta ────────────────────
 echo ""
-echo "🚀 Deploy $LABEL sul server..."
-ssh "$VPS_HOST" "cd $VPS_DIR && ./scripts/deploy.sh $DEPLOY_FLAG"
+
+if [[ "$MODE" == "-f" ]]; then
+  echo "🚀 Deploy FULL (git pull + pip + npm + restart)..."
+  ssh "$VPS_HOST" "
+    set -e
+    cd $VPS_DIR
+    git pull
+    $VENV/bin/pip install -r requirements.txt -q
+    cd $VPS_DIR/frontend && npm install --silent
+    cd $VPS_DIR
+    sudo systemctl restart trgb-backend
+    sudo systemctl restart trgb-frontend
+    echo '✅ Deploy FULL completato'
+  "
+else
+  echo "🚀 Deploy QUICK (git pull + restart)..."
+  ssh "$VPS_HOST" "
+    set -e
+    cd $VPS_DIR
+    git pull
+    sudo systemctl restart trgb-backend
+    sudo systemctl restart trgb-frontend
+    echo '✅ Deploy QUICK completato'
+  "
+fi

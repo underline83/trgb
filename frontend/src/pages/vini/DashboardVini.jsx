@@ -170,11 +170,11 @@ export default function DashboardVini() {
                 <div className="font-semibold text-red-800">
                   {stats.alert_carta_senza_giacenza.length}{" "}
                   {stats.alert_carta_senza_giacenza.length === 1
-                    ? "vino in carta senza giacenza"
-                    : "vini in carta senza giacenza"}
+                    ? "vino con flag CARTA=SI e giacenza zero"
+                    : "vini con flag CARTA=SI e giacenza zero"}
                 </div>
                 <div className="text-xs text-red-600 mt-0.5">
-                  Questi vini appaiono nella carta ma hanno 0 bottiglie disponibili.
+                  Marcati per la carta nel database ma senza bottiglie disponibili — da riordinare o da escludere dalla carta.
                 </div>
               </div>
             </div>
