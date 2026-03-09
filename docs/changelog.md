@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-03-10 — Reforming Modulo Vini (v2026.03.10a)
+
+### Changed
+- **ViniMenu.jsx**: da 6 a 5 voci — rimossa "Movimenti Cantina", "Magazzino Vini" rinominato in "Cantina"
+- **MagazzinoSubMenu.jsx**: semplificato da 6 a 3 pulsanti (Lista Vini, Nuovo vino, Admin)
+- **App.jsx**: rimosse route orfane `/vini/movimenti` e `/vini/magazzino/:id/movimenti`
+- **MagazzinoVini.jsx**: titolo → "Cantina", aggiunto bottone "Pulisci filtri"
+- **MagazzinoViniDettaglio.jsx**: fix layout form movimenti (grid 5→4 col), emoji nei tipi, bottone "← Cantina"
+- **DashboardVini.jsx**: aggiornati pulsanti accesso rapido (+ Vendite, fix link Impostazioni, rinominato Cantina)
+
+### Removed
+- Route `/vini/movimenti` e `/vini/magazzino/:id/movimenti` (movimenti ora solo da scheda vino)
+
+---
+
 ## 2026-03-09 — Admin Magazzino + Vendite Bottiglia/Calici (v2026.03.09e)
 
 ### Added

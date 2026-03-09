@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoViniDettaglio.jsx
-// @version: v3.0-tutto-in-uno
+// @version: v4.0-reforming-cantina
 // Scheda vino completa: anagrafica + giacenze + movimenti + note
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -310,7 +310,7 @@ export default function MagazzinoViniDettaglio() {
               )}
               <button type="button" onClick={() => navigate("/vini/magazzino")}
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
-                ← Lista
+                ← Cantina
               </button>
             </div>
           </div>
@@ -525,13 +525,13 @@ export default function MagazzinoViniDettaglio() {
             <div className="p-5 space-y-5">
               {/* form */}
               <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <select value={tipoMov} onChange={e => { setTipoMov(e.target.value); if (e.target.value === "RETTIFICA") setLocMov(""); }}
                     className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                    <option value="CARICO">Carico</option>
-                    <option value="SCARICO">Scarico</option>
-                    <option value="VENDITA">Vendita</option>
-                    <option value="RETTIFICA">Rettifica</option>
+                    <option value="CARICO">⬆️ Carico</option>
+                    <option value="SCARICO">⬇️ Scarico</option>
+                    <option value="VENDITA">🛒 Vendita</option>
+                    <option value="RETTIFICA">✏️ Rettifica</option>
                   </select>
                   <select value={locMov} onChange={e => setLocMov(e.target.value)}
                     disabled={tipoMov === "RETTIFICA"}
@@ -539,16 +539,20 @@ export default function MagazzinoViniDettaglio() {
                       (tipoMov === "VENDITA" || tipoMov === "SCARICO") && !locMov ? "border-red-300" : "border-neutral-300"
                     } ${tipoMov === "RETTIFICA" ? "opacity-40 cursor-not-allowed" : ""}`}>
                     <option value="">— Locazione{tipoMov === "VENDITA" || tipoMov === "SCARICO" ? " *" : ""} —</option>
-                    <option value="frigo">{vino?.FRIGORIFERO || "Frigo"} ({vino?.QTA_FRIGO ?? 0} bt)</option>
-                    <option value="loc1">{vino?.LOCAZIONE_1 || "Loc 1"} ({vino?.QTA_LOC1 ?? 0} bt)</option>
-                    <option value="loc2">{vino?.LOCAZIONE_2 || "Loc 2"} ({vino?.QTA_LOC2 ?? 0} bt)</option>
-                    <option value="loc3">{vino?.LOCAZIONE_3 || "Loc 3"} ({vino?.QTA_LOC3 ?? 0} bt)</option>
+                    {vino?.FRIGORIFERO && <option value="frigo">{vino.FRIGORIFERO} ({vino.QTA_FRIGO ?? 0} bt)</option>}
+                    {!vino?.FRIGORIFERO && <option value="frigo">Frigo ({vino?.QTA_FRIGO ?? 0} bt)</option>}
+                    {vino?.LOCAZIONE_1 && <option value="loc1">{vino.LOCAZIONE_1} ({vino.QTA_LOC1 ?? 0} bt)</option>}
+                    {!vino?.LOCAZIONE_1 && <option value="loc1">Loc 1 ({vino?.QTA_LOC1 ?? 0} bt)</option>}
+                    {vino?.LOCAZIONE_2 && <option value="loc2">{vino.LOCAZIONE_2} ({vino.QTA_LOC2 ?? 0} bt)</option>}
+                    {!vino?.LOCAZIONE_2 && <option value="loc2">Loc 2 ({vino?.QTA_LOC2 ?? 0} bt)</option>}
+                    {vino?.LOCAZIONE_3 && <option value="loc3">{vino.LOCAZIONE_3} ({vino.QTA_LOC3 ?? 0} bt)</option>}
+                    {!vino?.LOCAZIONE_3 && <option value="loc3">Loc 3 ({vino?.QTA_LOC3 ?? 0} bt)</option>}
                   </select>
-                  <input type="number" placeholder="Quantità *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
+                  <input type="number" placeholder="Qtà *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
                     className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   <button type="button" onClick={submitMovimento} disabled={submitting}
                     className="bg-amber-700 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-amber-800 transition disabled:opacity-50">
-                    {submitting ? "Registro…" : "Registra"}
+                    {submitting ? "Registro…" : "📦 Registra"}
                   </button>
                 </div>
                 <input type="text" placeholder="Note (opzionali)" value={noteMov} onChange={e => setNoteMov(e.target.value)}

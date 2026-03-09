@@ -1,25 +1,18 @@
 // FILE: frontend/src/components/vini/MagazzinoSubMenu.jsx
-// @version: v1.2-dashboard-attiva
-// SubMenu Magazzino Vini — allineato alla struttura finale del modulo
+// @version: v2.0-reforming-cantina
+// SubMenu Cantina — semplificato: Lista Vini · Nuovo vino · Admin (solo admin)
 
 import React from "react";
-import { NavLink, useParams } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 const base =
   "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border shadow-sm transition";
 const active = "bg-purple-50 border-purple-200 text-purple-900";
 const inactive =
   "bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-neutral-100 hover:-translate-y-0.5";
-const disabled =
-  "bg-neutral-50 border-neutral-200 text-neutral-400 cursor-not-allowed";
 
 export default function MagazzinoSubMenu() {
-  const { id } = useParams(); // presente su /:id e /:id/movimenti
-  const vinoId = id ? String(id) : null;
   const role = localStorage.getItem("role");
-
-  // link movimenti: se non ho un id (es. sono su /vini/magazzino), lo disabilito
-  const movimentiTo = vinoId ? `/vini/magazzino/${vinoId}/movimenti` : null;
 
   return (
     <div className="mb-6">
@@ -29,7 +22,7 @@ export default function MagazzinoSubMenu() {
           className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
           end
         >
-          🏷️ Magazzino
+          🍷 Lista Vini
         </NavLink>
 
         <NavLink
@@ -37,34 +30,6 @@ export default function MagazzinoSubMenu() {
           className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
         >
           ➕ Nuovo vino
-        </NavLink>
-
-        {/* MOVIMENTI (ATTIVO SOLO SE HO UN ID VINO NELLA ROUTE) */}
-        {movimentiTo ? (
-          <NavLink
-            to={movimentiTo}
-            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-          >
-            📦 Movimenti Cantina
-          </NavLink>
-        ) : (
-          <div className={`${base} ${disabled}`} title="Apri un vino per vedere i movimenti">
-            📦 Movimenti Cantina
-          </div>
-        )}
-
-        <NavLink
-          to="/vini/vendite"
-          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-        >
-          🛒 Vendite
-        </NavLink>
-
-        <NavLink
-          to="/vini/dashboard"
-          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-        >
-          📊 Dashboard Vini
         </NavLink>
 
         {role === "admin" && (

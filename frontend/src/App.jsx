@@ -20,9 +20,6 @@ import MagazzinoVini from "./pages/vini/MagazzinoVini";
 import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
 import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
 
-// --- MOVIMENTI CANTINA ---
-import MovimentiCantina from "./pages/vini/MovimentiCantina";
-
 // --- ADMIN MAGAZZINO ---
 import MagazzinoAdmin from "./pages/vini/MagazzinoAdmin";
 
@@ -86,10 +83,6 @@ export default function App() {
         <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
         <Route path="/vini/magazzino/admin" element={<MagazzinoAdmin />} />
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
-
-        {/* --- MOVIMENTI CANTINA --- */}
-        <Route path="/vini/movimenti" element={<MovimentiCantina />} />
-        <Route path="/vini/magazzino/:id/movimenti" element={<MovimentiCantina />} />
 
         {/* --- DASHBOARD VINI --- */}
         <Route path="/vini/dashboard" element={<DashboardVini />} />

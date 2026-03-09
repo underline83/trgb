@@ -1,5 +1,5 @@
-// @version: v3.2-premium-magazzino-menu-finale
-// Menu Gestione Vini — Vintage Premium + Magazzino (FINAL STRUCTURE)
+// @version: v4.0-reforming-cantina
+// Menu Gestione Vini — Reforming completo modulo vini
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -17,7 +17,7 @@ export default function ViniMenu() {
               🍷 Gestione Vini — Osteria Tre Gobbi
             </h1>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
-              Modulo completo gestione vini, magazzino e analisi.
+              Cantina, vendite, analisi e configurazione.
             </p>
           </div>
 
@@ -68,16 +68,16 @@ export default function ViniMenu() {
               text-center
             "
           >
-            <div className="text-5xl mb-3">💶</div>
+            <div className="text-5xl mb-3">🛒</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Vendite Vini
+              Vendite
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Vendite bottiglia / calice
+              Vendite bottiglia / calice, storico
             </p>
           </Link>
 
-          {/* MAGAZZINO */}
+          {/* CANTINA */}
           <Link
             to="/vini/magazzino"
             className="
@@ -87,31 +87,12 @@ export default function ViniMenu() {
               text-center
             "
           >
-            <div className="text-5xl mb-3">🏷️</div>
+            <div className="text-5xl mb-3">🍷</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Magazzino Vini
+              Cantina
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Giacenze, locazioni, stato vendita
-            </p>
-          </Link>
-
-          {/* MOVIMENTI CANTINA */}
-          <Link
-            to="/vini/movimenti"
-            className="
-              bg-neutral-50 border border-neutral-300 text-neutral-800
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">📦</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Movimenti Cantina
-            </h2>
-            <p className="text-sm mt-1 text-neutral-700">
-              Carico / Scarico / Vendita / Rottura
+              Giacenze, movimenti, locazioni, stato
             </p>
           </Link>
 
@@ -145,10 +126,10 @@ export default function ViniMenu() {
           >
             <div className="text-5xl mb-3">⚙️</div>
             <h2 className="text-xl font-semibold font-playfair">
-              Impostazioni Modulo Vini
+              Impostazioni
             </h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Import, allineamenti, liste controllate
+              Import, liste controllate, tool tecnici
             </p>
           </Link>
         </div>

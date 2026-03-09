@@ -1,7 +1,6 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v1.5-single-dettaglio-btn
-// Pagina Magazzino Vini — Lista + Dettaglio base (read-only) con filtri avanzati
-// NOTE: rimosso ogni uso di id_excel (non necessario)
+// @version: v2.0-reforming-cantina
+// Pagina Cantina — Lista Vini + Dettaglio base (read-only) con filtri avanzati
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -237,10 +236,10 @@ export default function MagazzinoVini() {
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
           <div>
             <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
-              🍷 Magazzino Vini — Cantina Interna
+              🍷 Cantina
             </h1>
             <p className="text-neutral-600">
-              Vista di magazzino con filtri avanzati.
+              Gestione vini, giacenze, movimenti e locazioni.
             </p>
           </div>
 
@@ -250,7 +249,7 @@ export default function MagazzinoVini() {
               onClick={() => navigate("/vini")}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
             >
-              ← Torna al Menu Vini
+              ← Menu Vini
             </button>
 
             <button
@@ -464,6 +463,20 @@ export default function MagazzinoVini() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setSearchId(""); setSearchText("");
+                  setTipologiaSel(""); setNazioneSel(""); setRegioneSel(""); setProduttoreSel("");
+                  setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
+                  setOnlyPositiveStock(false);
+                  setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
+                  setOnlyMissingListino(false);
+                }}
+                className="px-5 py-2 rounded-xl text-sm font-semibold shadow transition border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
+              >
+                ✕ Pulisci filtri
+              </button>
+              <button
+                type="button"
                 onClick={fetchVini}
                 disabled={loading}
                 className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
@@ -472,7 +485,7 @@ export default function MagazzinoVini() {
                     : "bg-amber-700 text-white hover:bg-amber-800"
                 }`}
               >
-                {loading ? "Ricarico dati…" : "⟳ Ricarica dal server"}
+                {loading ? "Ricarico dati…" : "⟳ Ricarica"}
               </button>
             </div>
           </div>
@@ -489,7 +502,7 @@ export default function MagazzinoVini() {
             <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
               <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
-                  Lista vini di magazzino
+                  Lista vini in cantina
                 </h2>
                 <span className="text-xs text-neutral-500">
                   {viniFiltrati.length} risultati su {vini.length} totali

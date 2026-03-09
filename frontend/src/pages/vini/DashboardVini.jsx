@@ -647,7 +647,14 @@ export default function DashboardVini() {
               onClick={() => navigate("/vini/magazzino")}
               className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
             >
-              📦 Magazzino vini
+              🍷 Cantina
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/vini/vendite")}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-600 text-emerald-700 hover:bg-emerald-50 shadow-sm transition"
+            >
+              🛒 Vendite
             </button>
             <button
               type="button"
@@ -665,7 +672,7 @@ export default function DashboardVini() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/vini/impostazioni")}
+              onClick={() => navigate("/vini/settings")}
               className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
             >
               ⚙️ Impostazioni
