@@ -643,6 +643,110 @@ def list_movimenti_vino(vino_id: int, limit: int = 100) -> List[sqlite3.Row]:
     return list(rows)
 
 
+def list_movimenti_globali(
+    tipo: Optional[str] = None,
+    text: Optional[str] = None,
+    data_da: Optional[str] = None,
+    data_a: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """
+    Restituisce i movimenti di tutta la cantina con filtri opzionali.
+    Usata dalla pagina hub Vendite & Scarichi.
+    Ritorna { items: [...], total: int }.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    where: List[str] = []
+    params: List[Any] = []
+
+    if tipo:
+        where.append("m.tipo = ?")
+        params.append(tipo)
+
+    if text:
+        where.append(
+            "(v.DESCRIZIONE LIKE ? OR v.PRODUTTORE LIKE ? OR v.DENOMINAZIONE LIKE ?)"
+        )
+        like = f"%{text}%"
+        params.extend([like, like, like])
+
+    if data_da:
+        where.append("date(m.data_mov) >= date(?)")
+        params.append(data_da)
+
+    if data_a:
+        where.append("date(m.data_mov) <= date(?)")
+        params.append(data_a)
+
+    where_sql = " AND ".join(where) if where else "1=1"
+
+    # Conta totale per paginazione
+    total = cur.execute(
+        f"""
+        SELECT COUNT(*) AS cnt
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        WHERE {where_sql};
+        """,
+        params,
+    ).fetchone()["cnt"]
+
+    # Fetch pagina
+    rows = cur.execute(
+        f"""
+        SELECT
+            m.id, m.vino_id, m.data_mov, m.tipo, m.qta,
+            m.locazione, m.note, m.utente, m.origine,
+            v.DESCRIZIONE AS vino_desc,
+            v.PRODUTTORE  AS vino_produttore,
+            v.ANNATA      AS vino_annata,
+            v.TIPOLOGIA   AS vino_tipologia
+        FROM vini_magazzino_movimenti m
+        JOIN vini_magazzino v ON v.id = m.vino_id
+        WHERE {where_sql}
+        ORDER BY datetime(m.data_mov) DESC, m.id DESC
+        LIMIT ? OFFSET ?;
+        """,
+        params + [limit, offset],
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        "items": [dict(r) for r in rows],
+        "total": total,
+    }
+
+
+def search_vini_autocomplete(text: str, limit: int = 10) -> List[sqlite3.Row]:
+    """
+    Ricerca veloce per autocompletamento — restituisce id, descrizione,
+    produttore, annata, QTA_TOTALE. Usata dal form registrazione rapida.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    like = f"%{text}%"
+    rows = cur.execute(
+        """
+        SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, TIPOLOGIA,
+               QTA_TOTALE, EURO_LISTINO, PREZZO_CARTA
+        FROM vini_magazzino
+        WHERE DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?
+           OR DENOMINAZIONE LIKE ? OR CAST(id AS TEXT) = ?
+        ORDER BY
+            CASE WHEN DESCRIZIONE LIKE ? THEN 0 ELSE 1 END,
+            DESCRIZIONE
+        LIMIT ?;
+        """,
+        (like, like, like, text.strip(), f"{text}%", limit),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def delete_movimento(movimento_id: int) -> None:
     """
     Elimina un movimento e ricalcola QTA_TOTALE partendo da QTA_TOTALE=0

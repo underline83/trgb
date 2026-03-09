@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-03-09 — Hub Vendite & Scarichi (v2026.03.09d)
+
+### Added
+- `ViniVendite.jsx` (v1.0): riscritta da placeholder a hub operativo completo:
+  - **Registrazione rapida**: ricerca vino con autocomplete, selezione tipo (VENDITA/SCARICO/CARICO/RETTIFICA), quantità, note, registrazione in un click
+  - **Storico movimenti globale**: tabella paginata di tutti i movimenti della cantina con filtri per tipo, testo, range date
+  - **KPI rapidi**: vendite oggi, 7gg, 30gg, bottiglie totali in cantina
+  - Click su vino nello storico → navigazione a scheda dettaglio
+  - Badge `#id` e stile coerente con il resto del modulo
+- `vini_magazzino_db.py`: nuove funzioni:
+  - `list_movimenti_globali()`: query cross-vino con filtri tipo/testo/date e paginazione (LIMIT/OFFSET + COUNT)
+  - `search_vini_autocomplete()`: ricerca rapida per form registrazione (id, descrizione, produttore, QTA, prezzi)
+- `vini_magazzino_router.py`: nuovi endpoint:
+  - `GET /vini/magazzino/movimenti-globali` — movimenti globali con filtri e paginazione
+  - `GET /vini/magazzino/autocomplete?q=...` — autocomplete vini per registrazione rapida
+  - Entrambi dichiarati prima di `/{vino_id}` per evitare conflitti path FastAPI
+- `MagazzinoSubMenu.jsx`: aggiunto link "🛒 Vendite & Scarichi" → `/vini/vendite`
+
+---
+
 ## 2026-03-09 — Dashboard Vini operativa, analytics vendite, UX miglioramenti (v2026.03.09c)
 
 ### Added

@@ -340,6 +340,36 @@ def get_dashboard(
 
 
 # ---------------------------------------------------------
+# ENDPOINT: MOVIMENTI GLOBALI (hub vendite & scarichi)
+# ⚠️ Dichiarati PRIMA di /{vino_id} per evitare conflitti path
+# ---------------------------------------------------------
+@router.get("/movimenti-globali", summary="Lista movimenti globali con filtri e paginazione")
+def list_movimenti_globali(
+    tipo: Optional[str] = Query(None, description="Filtra per tipo: CARICO, SCARICO, VENDITA, RETTIFICA"),
+    text: Optional[str] = Query(None, description="Ricerca per descrizione/produttore vino"),
+    data_da: Optional[str] = Query(None, description="Data inizio (YYYY-MM-DD)"),
+    data_a: Optional[str] = Query(None, description="Data fine (YYYY-MM-DD)"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: Any = Depends(get_current_user),
+):
+    return db.list_movimenti_globali(
+        tipo=tipo, text=text, data_da=data_da, data_a=data_a,
+        limit=limit, offset=offset,
+    )
+
+
+@router.get("/autocomplete", summary="Ricerca vini per autocompletamento")
+def autocomplete_vini(
+    q: str = Query(..., min_length=1, description="Testo da cercare"),
+    limit: int = Query(10, ge=1, le=30),
+    current_user: Any = Depends(get_current_user),
+):
+    rows = db.search_vini_autocomplete(q, limit=limit)
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------
 # ENDPOINT: DETTAGLIO VINO
 # ---------------------------------------------------------
 @router.get("/{vino_id}", summary="Dettaglio singolo vino")
@@ -400,7 +430,7 @@ def update_vino_magazzino(
 
 
 # ---------------------------------------------------------
-# ENDPOINT: MOVIMENTI
+# ENDPOINT: MOVIMENTI PER VINO
 # ---------------------------------------------------------
 @router.get("/{vino_id}/movimenti", summary="Lista movimenti per vino")
 def list_movimenti(
