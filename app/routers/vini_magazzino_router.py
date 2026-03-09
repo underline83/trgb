@@ -471,14 +471,14 @@ def list_note(
     return [dict(n) for n in note]
 
 
-@router.post(“/{vino_id}/note”, summary=”Aggiungi nota per vino”)
+@router.post("/{vino_id}/note", summary="Aggiungi nota per vino")
 def aggiungi_nota(
     vino_id: int,
     payload: NotaCreate,
     current_user: Any = Depends(get_current_user),
 ):
     if not payload.nota.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=”La nota non può essere vuota”)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La nota non può essere vuota")
 
     autore = _get_username(current_user)
 
@@ -492,7 +492,7 @@ def aggiungi_nota(
     return [dict(n) for n in note]
 
 
-@router.delete(“/{vino_id}/note/{nota_id}”, summary=”Elimina una nota”)
+@router.delete("/{vino_id}/note/{nota_id}", summary="Elimina una nota")
 def elimina_nota(
     vino_id: int,
     nota_id: int,
@@ -501,7 +501,7 @@ def elimina_nota(
     # Verifica che il vino esista
     row = db.get_vino_by_id(vino_id)
     if not row:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=”Vino non trovato”)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
 
     db.delete_nota(nota_id)
 
