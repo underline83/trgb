@@ -817,6 +817,18 @@ def get_dashboard_stats() -> Dict[str, Any]:
         """
     ).fetchall()
 
+    # Lista vini senza prezzo listino (per drill-down)
+    senza_listino = cur.execute(
+        """
+        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA,
+               PREZZO_CARTA, EURO_LISTINO, QTA_TOTALE
+        FROM vini_magazzino
+        WHERE (EURO_LISTINO IS NULL OR EURO_LISTINO = '')
+        ORDER BY TIPOLOGIA, DESCRIZIONE
+        LIMIT 200;
+        """
+    ).fetchall()
+
     # Distribuzione bottiglie per tipologia
     distribuzione = cur.execute(
         """
@@ -839,6 +851,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
         "vini_con_giacenza": kpi["vini_con_giacenza"],
         "vini_senza_listino": kpi["vini_senza_listino"],
         "alert_carta_senza_giacenza": [dict(r) for r in alert_carta],
+        "vini_senza_listino_list":    [dict(r) for r in senza_listino],
         "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
         "distribuzione_tipologie":    [dict(r) for r in distribuzione],
     }

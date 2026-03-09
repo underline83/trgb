@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v2.0-operativa
+// @version: v2.1-drilldown
 // Dashboard Vini — KPI, alert, ultimi movimenti, distribuzione tipologie
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -42,10 +42,14 @@ function formatDate(isoStr) {
 export default function DashboardVini() {
   const navigate = useNavigate();
 
-  const [stats, setStats]     = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [stats, setStats]         = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [drilldown, setDrilldown] = useState(null); // null | "senza_listino"
+
+  const toggleDrilldown = (key) =>
+    setDrilldown((prev) => (prev === key ? null : key));
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -98,7 +102,9 @@ export default function DashboardVini() {
           color:   stats.vini_senza_listino > 0
                      ? "bg-orange-50 border-orange-200 text-orange-900"
                      : "bg-neutral-50 border-neutral-200 text-neutral-700",
-          sub:     stats.vini_senza_listino > 0 ? "da completare" : "tutto ok",
+          sub:     stats.vini_senza_listino > 0 ? "clicca per vedere la lista" : "tutto ok",
+          drilldownKey: "senza_listino",
+          clickable: stats.vini_senza_listino > 0,
         },
       ]
     : [];
@@ -224,9 +230,21 @@ export default function DashboardVini() {
             {kpiTiles.map((tile) => (
               <div
                 key={tile.label}
-                className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}
+                onClick={() => tile.clickable && toggleDrilldown(tile.drilldownKey)}
+                className={`rounded-2xl border p-5 shadow-sm transition
+                  ${tile.color}
+                  ${tile.clickable ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : ""}
+                  ${drilldown === tile.drilldownKey ? "ring-2 ring-orange-400" : ""}
+                `}
               >
-                <div className="text-2xl mb-2">{tile.icon}</div>
+                <div className="flex justify-between items-start">
+                  <div className="text-2xl mb-2">{tile.icon}</div>
+                  {tile.clickable && (
+                    <span className="text-[10px] font-semibold opacity-50 uppercase tracking-wide">
+                      {drilldown === tile.drilldownKey ? "▲ chiudi" : "▼ lista"}
+                    </span>
+                  )}
+                </div>
                 <div className="text-3xl font-bold tracking-tight">
                   {tile.value?.toLocaleString("it-IT")}
                 </div>
@@ -234,6 +252,72 @@ export default function DashboardVini() {
                 <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── DRILLDOWN: SENZA LISTINO ─────────────────────── */}
+        {drilldown === "senza_listino" && stats?.vini_senza_listino_list?.length > 0 && (
+          <div className="bg-white rounded-3xl border border-orange-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-orange-50 border-b border-orange-200 flex items-center justify-between">
+              <div>
+                <div className="font-semibold text-orange-900">
+                  {stats.vini_senza_listino_list.length} vini senza prezzo listino
+                </div>
+                <div className="text-xs text-orange-700 mt-0.5">
+                  Clicca su un vino per aprire la scheda e aggiungere il prezzo.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrilldown(null)}
+                className="text-orange-400 hover:text-orange-700 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-auto max-h-96">
+              <table className="w-full text-sm">
+                <thead className="bg-orange-50 sticky top-0">
+                  <tr className="text-xs text-orange-700 uppercase tracking-wide border-b border-orange-100">
+                    <th className="px-4 py-2 text-left">ID</th>
+                    <th className="px-4 py-2 text-left">Tipologia</th>
+                    <th className="px-4 py-2 text-left">Vino</th>
+                    <th className="px-4 py-2 text-left">Produttore</th>
+                    <th className="px-4 py-2 text-center">Annata</th>
+                    <th className="px-4 py-2 text-center">Prezzo carta</th>
+                    <th className="px-4 py-2 text-center">Giacenza</th>
+                    <th className="px-4 py-2 text-center"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.vini_senza_listino_list.map((v) => (
+                    <tr
+                      key={v.id}
+                      className="border-b border-neutral-100 hover:bg-orange-50 cursor-pointer transition"
+                      onClick={() => navigate(`/vini/magazzino/${v.id}`)}
+                    >
+                      <td className="px-4 py-2 text-xs text-neutral-400 font-mono">{v.id}</td>
+                      <td className="px-4 py-2 text-xs text-neutral-600">{v.TIPOLOGIA}</td>
+                      <td className="px-4 py-2 font-semibold text-neutral-900">{v.DESCRIZIONE}</td>
+                      <td className="px-4 py-2 text-neutral-600">{v.PRODUTTORE || "—"}</td>
+                      <td className="px-4 py-2 text-center text-neutral-600">{v.ANNATA || "—"}</td>
+                      <td className="px-4 py-2 text-center text-neutral-600">
+                        {v.PREZZO_CARTA != null && v.PREZZO_CARTA !== ""
+                          ? `${Number(v.PREZZO_CARTA).toFixed(2)} €`
+                          : <span className="text-neutral-400">—</span>}
+                      </td>
+                      <td className="px-4 py-2 text-center font-semibold text-neutral-700">
+                        {v.QTA_TOTALE ?? 0} bt
+                      </td>
+                      <td className="px-4 py-2 text-center text-amber-600 text-xs font-semibold">
+                        Apri →
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
