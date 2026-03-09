@@ -1,4 +1,4 @@
-# @version: v1.1-magazzino-duplicati
+# @version: v1.2-magazzino-note-rolecheck
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Vini Magazzino
@@ -338,8 +338,32 @@ def update_vino_magazzino(
     if not data:
         return {"status": "no_changes"}
 
+    # Legge QTA_TOTALE prima dell'aggiornamento
+    qta_prima = int(row["QTA_TOTALE"] or 0)
+
     db.update_vino(vino_id, data)
     updated = db.get_vino_by_id(vino_id)
+
+    # Se sono stati toccati campi QTA_*, registra RETTIFICA automatica
+    qta_fields = {"QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3"}
+    if qta_fields.intersection(data.keys()):
+        qta_dopo = int((updated["QTA_TOTALE"] if updated else 0) or 0)
+        if qta_dopo != qta_prima:
+            utente = _get_username(current_user)
+            try:
+                db.registra_movimento(
+                    vino_id=vino_id,
+                    tipo="RETTIFICA",
+                    qta=qta_dopo if qta_dopo > 0 else 0,
+                    utente=utente,
+                    note=f"Aggiornamento diretto giacenze (da {qta_prima} a {qta_dopo} bt)",
+                    origine="GESTIONALE-EDIT",
+                )
+                # Rilegge dopo la rettifica per avere QTA_TOTALE aggiornata
+                updated = db.get_vino_by_id(vino_id)
+            except Exception:
+                pass  # Il salvataggio del vino è già avvenuto; il log fallisce silenziosamente
+
     return dict(updated) if updated else {"id": vino_id}
 
 
@@ -400,7 +424,16 @@ def delete_movimento(
     movimento_id: int,
     current_user: Any = Depends(get_current_user),
 ):
-    # per ora nessun controllo di ruolo, ma potrebbe essere solo admin/sommelier
+    # Solo admin o sommelier possono eliminare movimenti
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if role not in ("admin", "sommelier"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata ad admin o sommelier.",
+        )
     db.delete_movimento(movimento_id)
     return {"status": "ok"}
 
@@ -421,14 +454,14 @@ def list_note(
     return [dict(n) for n in note]
 
 
-@router.post("/{vino_id}/note", summary="Aggiungi nota per vino")
+@router.post(“/{vino_id}/note”, summary=”Aggiungi nota per vino”)
 def aggiungi_nota(
     vino_id: int,
     payload: NotaCreate,
     current_user: Any = Depends(get_current_user),
 ):
     if not payload.nota.strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La nota non può essere vuota")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=”La nota non può essere vuota”)
 
     autore = _get_username(current_user)
 
@@ -440,67 +473,20 @@ def aggiungi_nota(
 
     note = db.list_note_vino(vino_id)
     return [dict(n) for n in note]
-    
-@router.post("/duplicate-check", response_model=VinoMagazzinoDuplicateCheckResponse, summary="Controllo duplicati prima della creazione")
-def duplicate_check(
-    payload: VinoMagazzinoDuplicateCheckRequest,
+
+
+@router.delete(“/{vino_id}/note/{nota_id}”, summary=”Elimina una nota”)
+def elimina_nota(
+    vino_id: int,
+    nota_id: int,
     current_user: Any = Depends(get_current_user),
 ):
-    descr = (payload.DESCRIZIONE or "").strip()
-    if not descr:
-        return {"duplicates": []}
+    # Verifica che il vino esista
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=”Vino non trovato”)
 
-    # Ricerca larga: uso search_vini su text e poi filtro in python
-    rows = db.search_vini(text=descr)
+    db.delete_nota(nota_id)
 
-    def norm(s: Any) -> str:
-        return str(s or "").strip().lower()
-
-    descr_n = norm(payload.DESCRIZIONE)
-    prod_n = norm(payload.PRODUTTORE)
-    ann_n = norm(payload.ANNATA)
-    fmt_n = norm(payload.FORMATO)
-
-    out = []
-    for r in rows:
-        rr = dict(r)
-        # criteri “sani”: descrizione molto simile + (produttore o annata o formato)
-        r_descr = norm(rr.get("DESCRIZIONE"))
-        if not r_descr:
-          continue
-
-        # match semplice: contenimento (poi lo affiniamo domani se vuoi con fuzzy)
-        if descr_n not in r_descr and r_descr not in descr_n:
-            continue
-
-        r_prod = norm(rr.get("PRODUTTORE"))
-        r_ann = norm(rr.get("ANNATA"))
-        r_fmt = norm(rr.get("FORMATO"))
-
-        ok_extra = False
-        if prod_n and r_prod and (prod_n in r_prod or r_prod in prod_n):
-            ok_extra = True
-        if ann_n and r_ann and ann_n == r_ann:
-            ok_extra = True
-        if fmt_n and r_fmt and fmt_n == r_fmt:
-            ok_extra = True
-
-        # se non ho extra, lo considero comunque “possibile duplicato” ma più soft:
-        # qui lo includo lo stesso (scelta C: avviso), però potremmo limitarlo.
-        out.append(
-            {
-                "id": rr.get("id"),
-                "DESCRIZIONE": rr.get("DESCRIZIONE"),
-                "PRODUTTORE": rr.get("PRODUTTORE"),
-                "ANNATA": rr.get("ANNATA"),
-                "FORMATO": rr.get("FORMATO"),
-                "NAZIONE": rr.get("NAZIONE"),
-                "REGIONE": rr.get("REGIONE"),
-                "QTA_TOTALE": rr.get("QTA_TOTALE") or 0,
-                "PREZZO_CARTA": rr.get("PREZZO_CARTA"),
-            }
-        )
-
-    # Limite per non fare esplodere UI
-    out = out[:50]
-    return {"duplicates": out}
+    note = db.list_note_vino(vino_id)
+    return [dict(n) for n in note]

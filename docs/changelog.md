@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-03-09 — Magazzino vini: edit, note, movimenti, role check (v2026.03.09b)
+
+### Security
+- `vini_magazzino_router.py`: aggiunto role check su `DELETE /movimenti/{id}` — solo admin o sommelier possono eliminare movimenti (#12 chiuso)
+- Rimosso endpoint `/vini/magazzino/duplicate-check` ridondante (#10 chiuso) — mantenuto solo `POST /check-duplicati` (più pulito, usa `find_potential_duplicates` DB-side)
+
+### Added
+- `vini_magazzino_db.py`: aggiunta funzione `delete_nota(nota_id)` per eliminare note operative
+- `vini_magazzino_router.py`: aggiunto `DELETE /{vino_id}/note/{nota_id}` — elimina nota e ritorna lista aggiornata
+- `MagazzinoViniDettaglio.jsx` (v2.0): riscritta con tre sezioni:
+  - **Anagrafica** — view + edit mode inline (PATCH `/vini/magazzino/{id}`) con tutti i campi
+  - **Giacenze per locazione** — view + edit separato; salvataggio registra automaticamente RETTIFICA nello storico movimenti se QTA_TOTALE cambia
+  - **Note operative** — add + delete note (usa `GET/POST/DELETE /note`)
+- `MovimentiCantina.jsx` (v2.0): migrato da `fetch` grezzo ad `apiFetch` (redirect 401 automatico); aggiunto bottone elimina movimento (visibile solo ad admin/sommelier)
+
+### Changed
+- `MagazzinoVini.jsx`: rimosso bottone logout locale (gestito globalmente da `Header.jsx`)
+- `MagazzinoViniDettaglio.jsx`: rimosso bottone logout locale
+
+### Docs
+- `roadmap.md`: aggiornati task #10, #12 come chiusi; aggiornate feature #17 (Magazzino Vini)
+
+---
+
 ## 2026-03-09 — Gestione utenti, permessi moduli, sicurezza auth (v2026.03.09)
 
 ### Security

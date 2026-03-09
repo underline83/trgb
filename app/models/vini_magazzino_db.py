@@ -747,6 +747,19 @@ def list_note_vino(vino_id: int) -> List[sqlite3.Row]:
     conn.close()
     return list(rows)
 
+
+def delete_nota(nota_id: int) -> None:
+    """Elimina una nota per ID."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM vini_magazzino_note WHERE id = ?;",
+        (nota_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
 # ---------------------------------------------------------
 # RICERCA DUPLICATI PER INSERIMENTO
 # ---------------------------------------------------------

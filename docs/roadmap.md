@@ -65,17 +65,17 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [x] Importata da `carta_vini_service.py` — rimossi import `unicodedata` e `re` inutilizzati
 
 ## 10. Endpoint duplicate-check duplicati (magazzino)
-- [ ] Valutare quale logica tenere tra `/check-duplicati` e `/duplicate-check`
-- [ ] Rimuovere il duplicato, aggiornare eventuali chiamate frontend
+- [x] Rimosso `/duplicate-check` ridondante — mantenuto solo `POST /check-duplicati` — 2026-03-09
+
+> ✅ **Chiuso** — endpoint consolidato.
 
 ## 11. Bug prezzo=0 nella preview HTML carta vini
 - [x] `carta_vini_service.py`: allineato `if prezzo:` → `if prezzo not in (None, "")` — commit `b5d282a` — 2026-03-08
 
-## 12. FORCE import senza check ruolo
-- [ ] In `vini_magazzino_router.py`: aggiungere controllo `if current_user.role != "admin": raise HTTPException(403)`
-- [ ] Allineare comportamento con quanto documentato in `Modulo_MagazzinoVini.md`
+## 12. DELETE movimento senza check ruolo
+- [x] `vini_magazzino_router.py`: aggiunto role check su `DELETE /movimenti/{id}` — solo `admin` o `sommelier` — 2026-03-09
 
-> ⚠️ **Confermato aperto** — riga 403: `# per ora nessun controllo di ruolo`
+> ✅ **Chiuso** — 403 Forbidden per tutti gli altri ruoli.
 
 ---
 
@@ -105,7 +105,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Dashboard acquisti con grafici
 
 ## 17. Modulo Magazzino Vini
-- [ ] Pagina Movimenti Cantina (carichi/scarichi con storico)
+- [x] Pagina Movimenti Cantina con storico e delete (admin/sommelier) — 2026-03-09
+- [x] Edit vino da UI (anagrafica + prezzi + flag) — `MagazzinoViniDettaglio.jsx` v2.0 — 2026-03-09
+- [x] Note operative per vino (add + delete) — 2026-03-09
+- [x] Giacenze per locazione editabili da UI — 2026-03-09
 - [ ] Filtri lato server per dataset grandi
 - [ ] Sincronizzazione storico prezzi
 - [ ] Import Excel con diff interattivo
@@ -167,6 +170,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | 8 | Rimosso `console.log` debug da `LoginForm.jsx` | 2026-03-08 | `9a34957` |
 | 9 | `slugify` deduplicata — importata da `carta_vini_service` | 2026-03-08 | `b5d282a` |
 | 11 | Bug prezzo=0 HTML preview carta vini | 2026-03-08 | `b5d282a` |
+| 10 | Endpoint duplicate-check duplicati — rimosso `/duplicate-check` | 2026-03-09 | — |
+| 12 | Role check su delete movimento — solo admin/sommelier | 2026-03-09 | — |
 
 ---
 
