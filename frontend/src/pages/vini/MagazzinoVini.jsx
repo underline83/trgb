@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v1.4-no-local-logout
+// @version: v1.5-single-dettaglio-btn
 // Pagina Magazzino Vini — Lista + Dettaglio base (read-only) con filtri avanzati
 // NOTE: rimosso ogni uso di id_excel (non necessario)
 
@@ -620,7 +620,7 @@ export default function MagazzinoVini() {
                   Dettaglio vino
                 </h2>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Vista sintetica; qui agganceremo movimenti e note.
+                  Giacenze, movimenti e note nella scheda completa.
                 </p>
               </div>
 
@@ -637,16 +637,9 @@ export default function MagazzinoVini() {
                       <button
                         type="button"
                         onClick={() => navigate(`/vini/magazzino/${selectedVino.id}`)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 shadow-sm transition"
-                      >
-                        🍷 Apri dettaglio
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/vini/magazzino/${selectedVino.id}/movimenti`)}
                         className="px-3 py-2 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
                       >
-                        📦 Movimenti
+                        🍷 Apri scheda completa
                       </button>
                     </div>
 
