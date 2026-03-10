@@ -69,6 +69,21 @@ export default function FattureMenu() {
               acquisti a partire dalle fatture importate.
             </p>
           </Link>
+
+          {/* CATEGORIE FORNITORI */}
+          <Link
+            to="/admin/fatture/categorie"
+            className="bg-purple-50 border border-purple-200 text-purple-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+          >
+            <div className="text-5xl mb-3">🏷️</div>
+            <h2 className="text-xl font-semibold font-playfair">
+              Categorie Fornitori
+            </h2>
+            <p className="text-neutral-700 text-sm mt-1">
+              Assegna categorie ai fornitori, gestisci l'albero Cat.1 → Cat.2
+              e analizza la spesa per categoria.
+            </p>
+          </Link>
         </div>
       </div>
     </div>

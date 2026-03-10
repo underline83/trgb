@@ -49,6 +49,7 @@ import CorrispettiviAnnual from "./pages/admin/CorrispettiviAnnual";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
+import FattureCategorie from "./pages/admin/FattureCategorie";
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -117,6 +118,7 @@ export default function App() {
         <Route path="/admin/fatture" element={<FattureMenu />} />
         <Route path="/admin/fatture/import" element={<FattureImport />} />
         <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
+        <Route path="/admin/fatture/categorie" element={<FattureCategorie />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

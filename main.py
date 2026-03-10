@@ -34,6 +34,7 @@ from app.routers.admin_finance import router as admin_finance_router
 
 # FATTURAZIONE ELETTRONICA (XML)
 from app.routers import fe_import
+from app.routers import fe_categorie_router
 
 # DIPENDENTI & TURNI — nuovo modulo
 from app.routers.dipendenti import router as dipendenti_router
@@ -118,6 +119,7 @@ app.include_router(admin_finance_router)
 
 # FATTURAZIONE ELETTRONICA (XML)
 app.include_router(fe_import.router)
+app.include_router(fe_categorie_router.router)
 
 # DIPENDENTI & TURNI
 # (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)
