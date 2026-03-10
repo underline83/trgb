@@ -413,9 +413,10 @@ def list_movimenti_globali(
 def autocomplete_vini(
     q: str = Query(..., min_length=1, description="Testo da cercare"),
     limit: int = Query(10, ge=1, le=30),
+    solo_disponibili: bool = Query(False, description="Se true, mostra solo vini con giacenza > 0"),
     current_user: Any = Depends(get_current_user),
 ):
-    rows = db.search_vini_autocomplete(q, limit=limit)
+    rows = db.search_vini_autocomplete(q, limit=limit, solo_disponibili=solo_disponibili)
     return [dict(r) for r in rows]
 
 

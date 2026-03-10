@@ -121,7 +121,7 @@ export default function ViniVendite() {
     const timer = setTimeout(async () => {
       try {
         const res = await apiFetch(
-          `${API_BASE}/vini/magazzino/autocomplete?q=${encodeURIComponent(searchText)}&limit=8`
+          `${API_BASE}/vini/magazzino/autocomplete?q=${encodeURIComponent(searchText)}&limit=8&solo_disponibili=true`
         );
         if (res.ok) {
           const data = await res.json();

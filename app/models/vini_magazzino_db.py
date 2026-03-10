@@ -849,16 +849,22 @@ def list_movimenti_globali(
     }
 
 
-def search_vini_autocomplete(text: str, limit: int = 10) -> List[sqlite3.Row]:
+def search_vini_autocomplete(
+    text: str, limit: int = 10, solo_disponibili: bool = False
+) -> List[sqlite3.Row]:
     """
     Ricerca veloce per autocompletamento — restituisce id, descrizione,
     produttore, annata, QTA_TOTALE. Usata dal form registrazione rapida.
+
+    Se solo_disponibili=True, filtra solo vini con QTA_TOTALE > 0
+    (usato dalle Vendite per non mostrare vini esauriti).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
     like = f"%{text}%"
+    filtro_qta = "AND COALESCE(QTA_TOTALE, 0) > 0" if solo_disponibili else ""
     rows = cur.execute(
-        """
+        f"""
         SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, TIPOLOGIA,
                QTA_TOTALE, EURO_LISTINO, PREZZO_CARTA,
                FRIGORIFERO, QTA_FRIGO,
@@ -866,8 +872,9 @@ def search_vini_autocomplete(text: str, limit: int = 10) -> List[sqlite3.Row]:
                LOCAZIONE_2, QTA_LOC2,
                LOCAZIONE_3, QTA_LOC3
         FROM vini_magazzino
-        WHERE DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?
-           OR DENOMINAZIONE LIKE ? OR CAST(id AS TEXT) = ?
+        WHERE (DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ?
+           OR DENOMINAZIONE LIKE ? OR CAST(id AS TEXT) = ?)
+        {filtro_qta}
         ORDER BY
             CASE WHEN DESCRIZIONE LIKE ? THEN 0 ELSE 1 END,
             DESCRIZIONE
@@ -881,8 +888,8 @@ def search_vini_autocomplete(text: str, limit: int = 10) -> List[sqlite3.Row]:
 
 def delete_movimento(movimento_id: int) -> None:
     """
-    Elimina un movimento e ricalcola QTA_TOTALE partendo da QTA_TOTALE=0
-    rigiocando tutti i movimenti in ordine cronologico.
+    Elimina un movimento e ricalcola QTA_TOTALE + QTA per locazione
+    partendo da zero e rigiocando tutti i movimenti in ordine cronologico.
     (Scelta conservativa per evitare disallineamenti.)
     """
     conn = get_magazzino_connection()
@@ -907,15 +914,18 @@ def delete_movimento(movimento_id: int) -> None:
     )
     conn.commit()
 
-    # Ricalcola QTA_TOTALE da zero rigiocando tutti i movimenti
+    # Azzera QTA_TOTALE e tutte le locazioni
     cur.execute(
-        "UPDATE vini_magazzino SET QTA_TOTALE = 0 WHERE id = ?;",
+        """UPDATE vini_magazzino
+           SET QTA_TOTALE = 0, QTA_FRIGO = 0, QTA_LOC1 = 0, QTA_LOC2 = 0, QTA_LOC3 = 0
+           WHERE id = ?;""",
         (vino_id,),
     )
 
+    # Rigioca tutti i movimenti rimasti in ordine cronologico
     rows = cur.execute(
         """
-        SELECT tipo, qta
+        SELECT tipo, qta, locazione
         FROM vini_magazzino_movimenti
         WHERE vino_id = ?
         ORDER BY datetime(data_mov), id;
@@ -924,19 +934,30 @@ def delete_movimento(movimento_id: int) -> None:
     ).fetchall()
 
     qta_tot = 0
+    qta_loc = {"frigo": 0, "loc1": 0, "loc2": 0, "loc3": 0}
+
     for r in rows:
         t = r["tipo"]
         q = r["qta"]
+        loc = r["locazione"]
+
         if t == "CARICO":
             qta_tot += q
+            if loc and loc in qta_loc:
+                qta_loc[loc] += q
         elif t in ("SCARICO", "VENDITA"):
             qta_tot -= q
+            if loc and loc in qta_loc:
+                qta_loc[loc] -= q
         elif t == "RETTIFICA":
             qta_tot = q
+            # RETTIFICA è globale, non tocca le singole locazioni
 
     cur.execute(
-        "UPDATE vini_magazzino SET QTA_TOTALE = ? WHERE id = ?;",
-        (qta_tot, vino_id),
+        """UPDATE vini_magazzino
+           SET QTA_TOTALE = ?, QTA_FRIGO = ?, QTA_LOC1 = ?, QTA_LOC2 = ?, QTA_LOC3 = ?
+           WHERE id = ?;""",
+        (qta_tot, qta_loc["frigo"], qta_loc["loc1"], qta_loc["loc2"], qta_loc["loc3"], vino_id),
     )
     conn.commit()
     conn.close()

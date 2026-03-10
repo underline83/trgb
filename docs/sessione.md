@@ -25,6 +25,19 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 5. **Impostazioni Ordinamento Carta in Strumenti** — UI per riordinare tipologie, nazioni, regioni (con frecce ▲▼) e configurare filtri carta (qta minima, mostra negativi, mostra senza prezzo). Usa le API `/settings/vini/*` già esistenti.
 6. **CantinaTools.jsx v2.0** — riscritto con 4 sezioni: Sync, Import/Export, Genera Carta (HTML+PDF+Word), Impostazioni Ordinamento
 
+### Header + pulizia Logout
+1. **Header.jsx v2.0** — riscritto con Tailwind: sticky top, logo cliccabile → Home, username + ruolo a destra, logout discreto
+2. **Rimossi logout duplicati** da ViniCarta.jsx e MagazzinoViniNuovo.jsx (il logout è già nell'Header globale)
+
+### Analisi modulo Ricette/FoodCost
+Analisi completa del modulo (nessuna modifica al codice, solo ricognizione):
+- **Funziona (~40%):** Crea ricetta, crea ingrediente, lista ingredienti con ultimo prezzo
+- **A metà:** RicetteIngredientiPrezzi chiama endpoint che non esistono
+- **Placeholder:** RicetteArchivio, RicetteImport (solo "in sviluppo...")
+- **Problema architetturale:** due DB paralleli (`foodcost.db` attivo vs `ricette.sqlite3` definito ma mai usato); router `ricette.py` non montato in main.py
+- **Endpoint mancanti:** suppliers, price history CRUD, recipe edit/delete
+- Da decidere nella prossima sessione se/come rifare
+
 ### Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta (v2026.03.10b)
 1. **Nuovo router `vini_cantina_tools_router.py`** — 6 endpoint backend:
    - `POST /sync-from-excel` → sincronizza vini.sqlite3 → cantina (upsert: anagrafica aggiornata, giacenze intatte per vini esistenti)
@@ -133,6 +146,15 @@ marco ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart trgb-backend, /usr/bin/syst
 
 ---
 
+## Prossima sessione — TODO
+
+1. **Riordinare la roadmap** — priorità, cose da togliere/aggiungere, decidere prossimi step
+2. **Carta Vini — pagina web pubblica** — generare una pagina internet aggiornata con la carta vini (da cantina)
+3. **Carta Vini — PDF con indici cliccabili** — TOC con link interni che portano alle sezioni tipologia/regione
+4. **Decidere sul modulo Ricette/FoodCost** — consolidare i due DB? rifare la UI? priorità rispetto ad altro?
+
+---
+
 ## File chiave — dove trovare le cose
 
 ```
@@ -141,21 +163,27 @@ app/services/auth_service.py         — auth con password hashate sha256_crypt
 app/core/security.py                 — JWT + sha256_crypt
 app/core/config.py                   — SECRET_KEY (da .env)
 app/routers/vini_magazzino_router.py — magazzino vini, prefix /vini/magazzino
+app/routers/vini_cantina_tools_router.py — strumenti cantina (6 endpoint + genera carta)
+app/routers/vini_settings_router.py  — impostazioni carta (tipologie, nazioni, regioni, filtri)
 app/models/vini_magazzino_db.py      — DB module vini: CRUD, movimenti, bulk, autocomplete
 app/services/carta_vini_service.py   — builder HTML/PDF carta vini
 frontend/src/App.jsx                 — TUTTE le route React
 frontend/src/config/api.js           — API_BASE url + apiFetch() con gestione 401
+frontend/src/components/Header.jsx   — header globale con logout (v2.0 Tailwind)
 frontend/src/pages/vini/ViniMenu.jsx          — menu principale modulo vini
 frontend/src/pages/vini/ViniVendite.jsx       — vendite bottiglia/calici
 frontend/src/pages/vini/MagazzinoVini.jsx     — lista cantina con filtri
 frontend/src/pages/vini/MagazzinoViniDettaglio.jsx — scheda vino (anagrafica+giacenze+movimenti+note)
 frontend/src/pages/vini/MagazzinoAdmin.jsx    — modifica massiva (admin)
 frontend/src/pages/vini/RegistroMovimenti.jsx — log globale movimenti (admin)
-frontend/src/pages/vini/CantinaTools.jsx     — strumenti sync/import/export/carta (admin)
-frontend/src/components/vini/MagazzinoSubMenu.jsx — submenu cantina
-app/routers/vini_cantina_tools_router.py     — router strumenti cantina (6 endpoint)
+frontend/src/pages/vini/CantinaTools.jsx     — strumenti cantina v2.0 (admin): sync, import/export, genera carta, impostazioni ordinamento
+frontend/src/components/vini/MagazzinoSubMenu.jsx — submenu cantina (con Genera Carta PDF diretto)
+frontend/src/pages/ricette/           — modulo ricette (parzialmente implementato, vedi analisi sopra)
+app/routers/foodcost_*.py             — 3 router foodcost (ingredienti, ricette, analytics)
+app/models/foodcost_db.py             — DB foodcost attivo (ingredienti, ricette, prezzi, fatture)
+app/models/ricette_db.py              — DB ricette alternativo (NON ATTIVO, più ricco ma non usato)
 docs/changelog.md                    — changelog formato Keep a Changelog
-docs/roadmap.md                      — task aperti
+docs/roadmap.md                      — task aperti (da riordinare prossima sessione)
 docs/prompt_canvas.md                — regole operative per generare codice
 docs/database.md                     — schema completo tutti i DB
 ```
