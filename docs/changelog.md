@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-03-11a — Riepilogo Chiusure + bugfix Dashboard e Import
+
+### Added
+- **CorrispettiviRiepilogo.jsx** — nuova pagina `/vendite/riepilogo` con riepilogo chiusure mese per mese, accordion per anno, KPI complessivi, click-through a dashboard mensile
+- **Tab "Riepilogo"** in VenditeNav (ora 5 tab)
+- **Tile "Riepilogo Mensile"** nel hub Gestione Vendite
+- **scripts/report_chiusure_mensili.py** — report CLI chiusure da lanciare sul server
+
+### Fixed
+- **CorrispettiviDashboard 401** — usava `fetch()` senza JWT; sostituito con `apiFetch()`
+- **Dashboard ignora query params** — click da Riepilogo a `/vendite/dashboard?year=2025&month=1` ora apre il mese corretto (legge `year`/`month` da URL con `useSearchParams`)
+- **ImportResult senza conteggi** — endpoint non restituiva `inserted`/`updated`; aggiunti al modello Pydantic e alla risposta
+
+---
+
 ## 2026-03-10g — Gestione Vendite v2.0: promozione a modulo top-level
 
 ### Added

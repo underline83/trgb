@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-10 (sessione 4 — Gestione Vendite v2.0)
+> Ultima sessione: 2026-03-11 (sessione 4 — Gestione Vendite v2.0 + Riepilogo + bugfix)
 
 ---
 
@@ -15,14 +15,14 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 4)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-11, sessione 4)
 
 ### Gestione Vendite v2.0 — Promozione a modulo top-level
 
 1. **Promosso "Gestione Vendite"** (ex Corrispettivi) da sotto-sezione Admin a modulo di primo livello nella Home
-2. **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route)
-3. **VenditeNav.jsx** — barra navigazione persistente (4 tab: Chiusure, Dashboard, Annuale, Import)
-4. **CorrispettiviMenu → hub "Gestione Vendite"** con mini-KPI (corrispettivi mese, incassi mese, media giornaliera, giorni aperti), VersionBadge, tile Confronto Annuale, grid 3 colonne
+2. **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route + 1 nuova)
+3. **VenditeNav.jsx** — barra navigazione persistente (5 tab: Riepilogo, Chiusure, Dashboard, Annuale, Import)
+4. **CorrispettiviMenu → hub "Gestione Vendite"** con mini-KPI, VersionBadge, tile Riepilogo e Confronto Annuale, grid 3 colonne
 5. **CorrispettiviGestione** → VenditeNav, route `/vendite/chiusure`
 6. **CorrispettiviDashboard** → VenditeNav, route `/vendite/dashboard`, titolo aggiornato
 7. **CorrispettiviAnnual** → VenditeNav, route `/vendite/annual`
@@ -32,6 +32,20 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 11. **modules.json** — aggiunto modulo `vendite`
 12. **versions.jsx** — Corrispettivi v1.5→v2.0 "Gestione Vendite", Sistema v4.0→v4.1
 13. **Design doc** — `docs/design_gestione_vendite.md` con piano evolutivo in 5 fasi
+
+### Riepilogo Chiusure — Nuova pagina
+
+14. **CorrispettiviRiepilogo.jsx** (`/vendite/riepilogo`) — riepilogo chiusure mese per mese multi-anno con accordion, KPI complessivi, tabella dettaglio mensile con click-through a dashboard
+
+### Bugfix
+
+15. **CorrispettiviDashboard 401** — usava `fetch()` senza JWT token; sostituito con `apiFetch()`
+16. **Dashboard ignora query params URL** — navigazione da Riepilogo a Dashboard con `?year=...&month=...` ora funziona (usa `useSearchParams`)
+17. **ImportResult senza conteggi** — endpoint non restituiva `inserted`/`updated`; aggiunti campi al modello Pydantic e alla risposta
+
+### Analisi Excel 2026
+
+18. **Verificato nuovo formato Excel** — foglio 1 (dati giornalieri) compatibile al 100% con parser esistente; foglio 2 contiene nuova struttura breakdown pranzo/cena con coperti, POS, contanti, TheFork, altro, preconto, fatture (da gestire in fase 2)
 
 ---
 
@@ -176,9 +190,9 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Push al VPS** — Marco deve fare `./push.sh "" -f` dal Mac (molti commit, migrazione 007)
-2. **Test in produzione** — verificare migrazione 007 + nuove route `/vendite/*` e `/acquisti/*`
-3. **Gestione Vendite Fase 2** — coperti e scontrino medio (design doc: `docs/design_gestione_vendite.md`)
+1. **Deploy** — `git pull && cd frontend && npm run build && sudo systemctl restart trgb-backend`
+2. **Test in produzione** — verificare route `/vendite/*`, riepilogo, dashboard con query params, import con conteggi
+3. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio (design doc: `docs/design_gestione_vendite.md`)
 4. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2
 5. **RicetteImport** — implementare import/export JSON ricette
 6. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
