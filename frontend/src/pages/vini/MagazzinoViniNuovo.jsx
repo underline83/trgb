@@ -52,12 +52,6 @@ export default function MagazzinoViniNuovo() {
   const [dupCandidates, setDupCandidates] = useState([]);
   const [showDupConfirm, setShowDupConfirm] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    window.location.reload();
-  };
-
   const [form, setForm] = useState({
     TIPOLOGIA: "",
     NAZIONE: "ITALIA",
@@ -331,13 +325,6 @@ export default function MagazzinoViniNuovo() {
               className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
             >
               ← Torna al Magazzino
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:-translate-y-0.5 shadow-sm transition"
-            >
-              Logout
             </button>
           </div>
         </div>

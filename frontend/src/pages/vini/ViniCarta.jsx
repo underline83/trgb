@@ -16,11 +16,6 @@ export default function ViniCarta() {
   const cartaPublicUrl = `${API_BASE}/vini/carta`;
   const cartaPublicSiteUrl = "https://trgb.tregobbi.it/carta-vini";
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    window.location.reload();
-  };
 
   // --------------------------------------------------
   // IMPORT EXCEL (solo carta)
@@ -97,23 +92,13 @@ export default function ViniCarta() {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              type="button"
-              onClick={() => navigate("/vini")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Menu Vini
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm transition"
-            >
-              Logout
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/vini")}
+            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+          >
+            ← Menu Vini
+          </button>
         </div>
 
         {/* BOTTONI */}
