@@ -1,0 +1,210 @@
+// @version: v2.0-ricette-dettaglio
+// Dettaglio Ricetta — visualizzazione con food cost calcolato
+// Mostra: header, ingredienti con costi, totale, % food cost
+
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE } from "../../config/api";
+
+const FC = `${API_BASE}/foodcost`;
+
+function FcBadge({ pct }) {
+  if (pct == null) return <span className="text-neutral-400">n/d</span>;
+  let color = "bg-green-100 text-green-800 border-green-300";
+  if (pct > 35) color = "bg-yellow-100 text-yellow-800 border-yellow-300";
+  if (pct > 45) color = "bg-red-100 text-red-800 border-red-300";
+  return (
+    <span className={`text-sm font-bold px-3 py-1 rounded-full border ${color}`}>
+      {pct.toFixed(1)}%
+    </span>
+  );
+}
+
+export default function RicetteDettaglio() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [ricetta, setRicetta] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const resp = await fetch(`${FC}/ricette/${id}`);
+      if (!resp.ok) throw new Error("Ricetta non trovata");
+      setRicetta(await resp.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+        <p className="text-neutral-500">Caricamento...</p>
+      </div>
+    );
+  }
+
+  if (error || !ricetta) {
+    return (
+      <div className="min-h-screen bg-neutral-100 p-6">
+        <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
+          <p className="text-red-600 mb-4">{error || "Ricetta non trovata"}</p>
+          <button onClick={() => navigate("/ricette/archivio")} className="text-amber-700 underline">
+            Torna all'archivio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const r = ricetta;
+
+  return (
+    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-8 sm:p-12 border border-neutral-200">
+
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 font-playfair">
+                {r.name}
+              </h1>
+              {r.is_base && (
+                <span className="text-xs bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded-full font-semibold">
+                  Base
+                </span>
+              )}
+            </div>
+            <p className="text-neutral-600 text-sm">
+              {r.category_name || "Senza categoria"} &middot; Resa: {r.yield_qty} {r.yield_unit}
+              {r.prep_time ? ` \u00B7 Prep: ${r.prep_time} min` : ""}
+            </p>
+          </div>
+          <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
+            <button
+              onClick={() => navigate(`/ricette/modifica/${r.id}`)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition"
+            >
+              Modifica
+            </button>
+            <button
+              onClick={() => navigate("/ricette/archivio")}
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
+            >
+              &larr; Archivio
+            </button>
+          </div>
+        </div>
+
+        {r.note && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-900">
+            {r.note}
+          </div>
+        )}
+
+        {/* RIEPILOGO FOOD COST */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-center">
+            <div className="text-xs text-neutral-500 mb-1">Costo totale</div>
+            <div className="text-xl font-bold text-neutral-900">
+              {r.total_cost != null ? `${r.total_cost.toFixed(2)} \u20AC` : "\u2014"}
+            </div>
+          </div>
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-center">
+            <div className="text-xs text-neutral-500 mb-1">Costo / {r.yield_unit || "unit\u00E0"}</div>
+            <div className="text-xl font-bold text-neutral-900">
+              {r.cost_per_unit != null ? `${r.cost_per_unit.toFixed(2)} \u20AC` : "\u2014"}
+            </div>
+          </div>
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-center">
+            <div className="text-xs text-neutral-500 mb-1">Prezzo vendita</div>
+            <div className="text-xl font-bold text-neutral-900">
+              {r.selling_price != null ? `${r.selling_price.toFixed(2)} \u20AC` : "\u2014"}
+            </div>
+          </div>
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-center">
+            <div className="text-xs text-neutral-500 mb-1">Food Cost %</div>
+            <div className="text-xl">
+              <FcBadge pct={r.food_cost_pct} />
+            </div>
+          </div>
+        </div>
+
+        {/* TABELLA INGREDIENTI */}
+        <h2 className="text-lg font-semibold font-playfair text-neutral-800 mb-3">
+          Composizione ({r.items.length} righe)
+        </h2>
+
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden mb-6">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-100 text-neutral-700">
+              <tr>
+                <th className="p-3 text-left font-semibold">#</th>
+                <th className="p-3 text-left font-semibold">Ingrediente / Sub-ricetta</th>
+                <th className="p-3 text-right font-semibold">Q.t\u00E0</th>
+                <th className="p-3 text-left font-semibold">Unit\u00E0</th>
+                <th className="p-3 text-right font-semibold">Costo unit.</th>
+                <th className="p-3 text-right font-semibold">Costo riga</th>
+                <th className="p-3 text-left font-semibold">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {r.items.map((item, idx) => (
+                <tr key={item.id} className={`border-t border-neutral-100 ${item.sub_recipe_id ? "bg-blue-50/30" : ""}`}>
+                  <td className="p-3 text-neutral-500">{idx + 1}</td>
+                  <td className="p-3 font-medium text-neutral-900">
+                    {item.sub_recipe_id ? (
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-bold">SUB</span>
+                        {item.sub_recipe_name || `Ricetta #${item.sub_recipe_id}`}
+                      </span>
+                    ) : (
+                      item.ingredient_name || `Ing. #${item.ingredient_id}`
+                    )}
+                  </td>
+                  <td className="p-3 text-right">{item.qty}</td>
+                  <td className="p-3 text-neutral-600">{item.unit}</td>
+                  <td className="p-3 text-right text-neutral-600">
+                    {item.unit_cost != null ? `${item.unit_cost.toFixed(4)} \u20AC` : "\u2014"}
+                  </td>
+                  <td className="p-3 text-right font-semibold">
+                    {item.line_cost != null ? `${item.line_cost.toFixed(2)} \u20AC` : "\u2014"}
+                  </td>
+                  <td className="p-3 text-neutral-500 text-xs">{item.note || ""}</td>
+                </tr>
+              ))}
+            </tbody>
+            {r.total_cost != null && (
+              <tfoot className="bg-amber-50 border-t-2 border-amber-300">
+                <tr>
+                  <td colSpan={5} className="p-3 text-right font-semibold text-amber-900">
+                    TOTALE
+                  </td>
+                  <td className="p-3 text-right font-bold text-amber-900 text-base">
+                    {r.total_cost.toFixed(2)} \u20AC
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+
+        {/* INFO AGGIUNTIVE */}
+        <div className="text-xs text-neutral-400 text-right">
+          Creata: {r.created_at || "\u2014"} &middot; Aggiornata: {r.updated_at || "\u2014"}
+        </div>
+
+      </div>
+    </div>
+  );
+}

@@ -28,13 +28,16 @@ import CantinaTools from "./pages/vini/CantinaTools";
 // --- DASHBOARD VINI ---
 import DashboardVini from "./pages/vini/DashboardVini";
 
-// --- GESTIONE RICETTE ---
+// --- GESTIONE RICETTE & FOOD COST ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
 import RicetteNuova from "./pages/ricette/RicetteNuova";
 import RicetteArchivio from "./pages/ricette/RicetteArchivio";
+import RicetteDettaglio from "./pages/ricette/RicetteDettaglio";
+import RicetteModifica from "./pages/ricette/RicetteModifica";
 import RicetteImport from "./pages/ricette/RicetteImport";
 import RicetteIngredienti from "./pages/ricette/RicetteIngredienti";
 import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
+import RicetteMatching from "./pages/ricette/RicetteMatching";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -91,13 +94,16 @@ export default function App() {
         {/* --- DASHBOARD VINI --- */}
         <Route path="/vini/dashboard" element={<DashboardVini />} />
 
-        {/* --- GESTIONE RICETTE --- */}
+        {/* --- GESTIONE RICETTE & FOOD COST --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
         <Route path="/ricette/nuova" element={<RicetteNuova />} />
         <Route path="/ricette/archivio" element={<RicetteArchivio />} />
+        <Route path="/ricette/:id" element={<RicetteDettaglio />} />
+        <Route path="/ricette/modifica/:id" element={<RicetteModifica />} />
         <Route path="/ricette/import" element={<RicetteImport />} />
         <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
         <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
+        <Route path="/ricette/matching" element={<RicetteMatching />} />
 
         {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />

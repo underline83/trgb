@@ -11,30 +11,37 @@ export default function RicetteMenu() {
   const tiles = [
     {
       title: "Nuova ricetta",
-      subtitle: "Inserimento manuale guidato",
+      subtitle: "Inserimento guidato con sub-ricette",
       icon: "➕",
-      onClick: () => navigate("/ricette/nuova"), // pagina futura
+      onClick: () => navigate("/ricette/nuova"),
       color: "bg-amber-50 border-amber-200 text-amber-900",
     },
     {
       title: "Archivio ricette",
-      subtitle: "Cerca, modifica, duplica",
+      subtitle: "Lista completa con food cost calcolato",
       icon: "📚",
-      onClick: () => navigate("/ricette/archivio"), // pagina futura
+      onClick: () => navigate("/ricette/archivio"),
       color: "bg-blue-50 border-blue-200 text-blue-900",
     },
     {
-      title: "Ingredienti & database",
-      subtitle: "Materie prime condivise con Food Cost",
+      title: "Ingredienti & prezzi",
+      subtitle: "Anagrafica, fornitori, storico prezzi",
       icon: "🧾",
-      onClick: () => navigate("/ricette/ingredienti"), // pagina futura
+      onClick: () => navigate("/ricette/ingredienti"),
       color: "bg-green-50 border-green-200 text-green-900",
     },
     {
+      title: "Matching fatture",
+      subtitle: "Collega righe fattura XML agli ingredienti",
+      icon: "🔗",
+      onClick: () => navigate("/ricette/matching"),
+      color: "bg-purple-50 border-purple-200 text-purple-900",
+    },
+    {
       title: "Import / Export",
-      subtitle: "JSON, backup, integrazione con GPT",
+      subtitle: "JSON, backup, integrazione",
       icon: "📥",
-      onClick: () => navigate("/ricette/import"), // pagina futura
+      onClick: () => navigate("/ricette/import"),
       color: "bg-neutral-50 border-neutral-300 text-neutral-800",
     },
   ];
