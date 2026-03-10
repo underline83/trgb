@@ -146,6 +146,19 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] La tabella `dipendenti_allegati` esiste nel DB ma non ha endpoint né pagina frontend
 - [ ] Decidere se implementare o rimuovere la tabella
 
+## 25. Sistema permessi centralizzato per ruolo
+> Oggi i check ruolo sono sparsi nei router (`if role not in ("admin", "sommelier", "sala")`) e nel frontend (`canDelete`). Serve un sistema unico che permetta di configurare chi può fare cosa, e di escludere ruoli da funzioni specifiche senza toccare N file.
+
+- [ ] Creare `app/core/permissions.py` con matrice permessi (ruolo → azioni consentite)
+- [ ] Creare dependency FastAPI `require_role(*roles)` e `require_permission(action)` da usare nei router
+- [ ] Definire azioni granulari: `vini.vendita`, `vini.delete_movimento`, `vini.edit_anagrafica`, `vini.strumenti`, `admin.utenti`, etc.
+- [ ] Configurazione permessi in file JSON o tabella DB (modificabile da UI admin in futuro)
+- [ ] Migrare tutti i check ruolo esistenti al nuovo sistema
+- [ ] Frontend: endpoint `GET /auth/permissions` che restituisce le azioni consentite per il ruolo corrente
+- [ ] Frontend: hook `usePermissions()` → sostituisce i check `role === "admin"` sparsi nei componenti
+- [ ] Prevedere esclusione per ruolo (es. sala può fare vendita ma NON strumenti cantina)
+- [ ] Pagina admin per gestire la matrice permessi (fase futura)
+
 ---
 
 # 📅 Rilasci
