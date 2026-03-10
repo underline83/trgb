@@ -24,7 +24,6 @@ import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
 import MagazzinoAdmin from "./pages/vini/MagazzinoAdmin";
 import RegistroMovimenti from "./pages/vini/RegistroMovimenti";
 import CantinaTools from "./pages/vini/CantinaTools";
-import GeneraCartaCantina from "./pages/vini/GeneraCartaCantina";
 
 // --- DASHBOARD VINI ---
 import DashboardVini from "./pages/vini/DashboardVini";
@@ -87,7 +86,6 @@ export default function App() {
         <Route path="/vini/magazzino/admin" element={<MagazzinoAdmin />} />
         <Route path="/vini/magazzino/registro" element={<RegistroMovimenti />} />
         <Route path="/vini/magazzino/tools" element={<CantinaTools />} />
-        <Route path="/vini/magazzino/carta" element={<GeneraCartaCantina />} />
         <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
 
         {/* --- DASHBOARD VINI --- */}

@@ -4,6 +4,7 @@
 
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { API_BASE } from "../../config/api";
 
 const base =
   "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border shadow-sm transition";
@@ -32,12 +33,15 @@ export default function MagazzinoSubMenu() {
           ➕ Nuovo vino
         </NavLink>
 
-        <NavLink
-          to="/vini/magazzino/carta"
-          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+        <button
+          onClick={() => {
+            const token = localStorage.getItem("token");
+            window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/pdf?token=${token}`, "_blank");
+          }}
+          className={`${base} ${inactive}`}
         >
           📄 Genera Carta PDF
-        </NavLink>
+        </button>
 
         {role === "admin" && (
           <NavLink
