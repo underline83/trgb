@@ -1,7 +1,7 @@
 // src/pages/admin/CorrispettiviDashboard.jsx
 // @version: v2.0-vendite — Dashboard Vendite
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
 import {
   LineChart,
@@ -59,10 +59,17 @@ function calcMonthNavigation(year, month, delta) {
 
 export default function CorrispettiviDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const today = getTodayYearMonth();
-  const [year, setYear] = useState(today.year);
-  const [month, setMonth] = useState(today.month);
+  const [year, setYear] = useState(() => {
+    const p = parseInt(searchParams.get("year"));
+    return p >= 2000 && p <= 2100 ? p : today.year;
+  });
+  const [month, setMonth] = useState(() => {
+    const p = parseInt(searchParams.get("month"));
+    return p >= 1 && p <= 12 ? p : today.month;
+  });
 
   const [monthlyStats, setMonthlyStats] = useState(null);
   const [topDays, setTopDays] = useState(null);
