@@ -1,7 +1,7 @@
 // @version: v1.4-zip-support
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 export default function FattureImport() {
   const navigate = useNavigate();
@@ -28,12 +28,7 @@ export default function FattureImport() {
     setFattureLoading(true);
     setFattureError(null);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/contabilita/fe/fatture`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture`);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -125,13 +120,8 @@ export default function FattureImport() {
       const formData = new FormData();
       files.forEach((file) => formData.append("files", file));
 
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(`${API_BASE}/contabilita/fe/import`, {
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/import`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 
@@ -161,14 +151,8 @@ export default function FattureImport() {
     setDetailLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `${API_BASE}/contabilita/fe/fatture/${fatturaId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const res = await apiFetch(
+        `${API_BASE}/contabilita/fe/fatture/${fatturaId}`
       );
 
       if (!res.ok) {

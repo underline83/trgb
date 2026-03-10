@@ -355,6 +355,25 @@ async def import_fatture_xml(
     return result
 
 
+@router.delete(
+    "/fatture",
+    summary="Svuota tutte le fatture importate (reset completo)",
+)
+def reset_fatture():
+    """
+    Elimina tutte le fatture e righe dal DB.
+    Utile per reimportare da zero.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM fe_righe")
+    cur.execute("DELETE FROM fe_fatture")
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "message": "Tutte le fatture sono state eliminate."}
+
+
 @router.get(
     "/fatture",
     response_model=List[Dict[str, Any]],

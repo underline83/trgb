@@ -1,7 +1,7 @@
 // @version: v1.0-fe-dashboard
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 export default function FattureDashboard() {
   const navigate = useNavigate();
@@ -19,12 +19,7 @@ export default function FattureDashboard() {
   const fetchFattureBase = async () => {
     setFattureLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/contabilita/fe/fatture`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture`);
       if (!res.ok) {
         throw new Error("Errore nel caricamento fatture.");
       }
@@ -42,17 +37,12 @@ export default function FattureDashboard() {
     setStatsError(null);
 
     try {
-      const token = localStorage.getItem("token");
       const query =
         yearParam === "all" ? "" : `?year=${encodeURIComponent(yearParam)}`;
 
       const [resFor, resMens] = await Promise.all([
-        fetch(`${API_BASE}/contabilita/fe/stats/fornitori${query}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE}/contabilita/fe/stats/mensili${query}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiFetch(`${API_BASE}/contabilita/fe/stats/fornitori${query}`),
+        apiFetch(`${API_BASE}/contabilita/fe/stats/mensili${query}`),
       ]);
 
       if (!resFor.ok) {
