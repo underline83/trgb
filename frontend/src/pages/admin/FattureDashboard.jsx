@@ -1,308 +1,534 @@
-// @version: v1.0-fe-dashboard
+// @version: v2.0-dashboard-avanzata
+// Dashboard acquisti fatture elettroniche — KPI, grafici, categorie, anomalie
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from "recharts";
+
+const FE = `${API_BASE}/contabilita/fe`;
+
+// Colori per la donut chart categorie
+const CAT_COLORS = [
+  "#d97706", "#2563eb", "#dc2626", "#059669", "#7c3aed",
+  "#db2777", "#0891b2", "#65a30d", "#ea580c", "#6366f1",
+  "#78716c",
+];
+
+const fmt = (v) =>
+  v != null
+    ? v.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "-";
+
+const fmtK = (v) => {
+  if (v == null) return "-";
+  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return fmt(v);
+};
 
 export default function FattureDashboard() {
   const navigate = useNavigate();
 
+  // State
   const [fatture, setFatture] = useState([]);
-  const [fattureLoading, setFattureLoading] = useState(false);
-
   const [selectedYear, setSelectedYear] = useState("all");
-  const [statsSuppliers, setStatsSuppliers] = useState([]);
-  const [statsMonthly, setStatsMonthly] = useState([]);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [statsError, setStatsError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // carica le fatture solo per derivare gli anni disponibili
-  const fetchFattureBase = async () => {
-    setFattureLoading(true);
-    try {
-      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture`);
-      if (!res.ok) {
-        throw new Error("Errore nel caricamento fatture.");
-      }
-      const data = await res.json();
-      setFatture(data || []);
-    } catch {
-      // per la dashboard basta derivare gli anni, non blocchiamo tutto
-    } finally {
-      setFattureLoading(false);
-    }
-  };
+  // Data sections
+  const [kpi, setKpi] = useState(null);
+  const [categorie, setCategorie] = useState([]);
+  const [topFornitori, setTopFornitori] = useState({ fornitori: [], totale_globale: 0 });
+  const [confronto, setConfronto] = useState(null);
+  const [anomalie, setAnomalie] = useState([]);
+  const [mensili, setMensili] = useState([]);
 
-  const fetchStats = async (yearParam = "all") => {
-    setStatsLoading(true);
-    setStatsError(null);
-
-    try {
-      const query =
-        yearParam === "all" ? "" : `?year=${encodeURIComponent(yearParam)}`;
-
-      const [resFor, resMens] = await Promise.all([
-        apiFetch(`${API_BASE}/contabilita/fe/stats/fornitori${query}`),
-        apiFetch(`${API_BASE}/contabilita/fe/stats/mensili${query}`),
-      ]);
-
-      if (!resFor.ok) {
-        const err = await resFor.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore stats fornitori.");
-      }
-      if (!resMens.ok) {
-        const err = await resMens.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore stats mensili.");
-      }
-
-      const dataFor = await resFor.json();
-      const dataMens = await resMens.json();
-
-      setStatsSuppliers(dataFor || []);
-      setStatsMonthly(dataMens || []);
-    } catch (e) {
-      setStatsError(e.message);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
-
+  // Carica anni disponibili
   useEffect(() => {
-    fetchFattureBase();
-    fetchStats("all");
+    (async () => {
+      try {
+        const res = await apiFetch(`${FE}/fatture`);
+        if (res.ok) setFatture(await res.json());
+      } catch { /* ok */ }
+    })();
   }, []);
 
   const availableYears = useMemo(() => {
     const years = new Set();
     fatture.forEach((f) => {
-      if (f.data_fattura) {
-        const y = f.data_fattura.slice(0, 4);
-        if (y) years.add(y);
-      }
+      if (f.data_fattura) years.add(f.data_fattura.slice(0, 4));
     });
     return Array.from(years).sort();
   }, [fatture]);
 
+  // Fetch all stats quando cambia l'anno
+  const fetchAll = async (yearParam) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const q = yearParam === "all" ? "" : `?year=${yearParam}`;
+      const qYear = yearParam === "all" ? null : Number(yearParam);
+
+      const promises = [
+        apiFetch(`${FE}/stats/kpi${q}`),
+        apiFetch(`${FE}/stats/per-categoria${q}`),
+        apiFetch(`${FE}/stats/top-fornitori${q}${q ? "&" : "?"}limit=10`),
+        apiFetch(`${FE}/stats/mensili${q}`),
+      ];
+
+      // Confronto e anomalie solo se anno specifico
+      if (qYear) {
+        promises.push(apiFetch(`${FE}/stats/confronto-annuale?year=${qYear}`));
+        promises.push(apiFetch(`${FE}/stats/anomalie?year=${qYear}&soglia_pct=30`));
+      }
+
+      const results = await Promise.all(promises);
+
+      // Check errors
+      for (const r of results) {
+        if (!r.ok) throw new Error("Errore nel caricamento statistiche");
+      }
+
+      const [kpiRes, catRes, topRes, mensRes] = await Promise.all(
+        results.slice(0, 4).map((r) => r.json())
+      );
+
+      setKpi(kpiRes);
+      setCategorie(catRes);
+      setTopFornitori(topRes);
+      setMensili(mensRes);
+
+      if (qYear && results.length > 4) {
+        const [confRes, anomRes] = await Promise.all(
+          results.slice(4).map((r) => r.json())
+        );
+        setConfronto(confRes);
+        setAnomalie(anomRes);
+      } else {
+        setConfronto(null);
+        setAnomalie([]);
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll("all");
+  }, []);
+
+  const handleYearChange = (val) => {
+    setSelectedYear(val);
+    fetchAll(val);
+  };
+
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 p-4 sm:p-6 font-sans">
+      <div className="max-w-7xl mx-auto">
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
-              📈 Dashboard Acquisti da Fatture
+            <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 font-playfair">
+              Dashboard Acquisti
             </h1>
-            <p className="text-neutral-600 text-sm sm:text-base">
-              Analisi degli acquisti a partire dalle fatture elettroniche
-              importate: top fornitori, andamento mensile e volumi per anno.
-            </p>
-            {fattureLoading && (
-              <p className="text-xs text-neutral-500 mt-1">
-                Caricamento base dati fatture…
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/fatture")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Menu Fatture
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-50 shadow-sm transition"
-            >
-              ← Amministrazione
-            </button>
-          </div>
-        </div>
-
-        {/* FILTRO ANNO */}
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold font-playfair text-amber-900">
-              Riepilogo acquisti per anno
-            </h2>
-            <p className="text-xs text-neutral-600">
-              I dati si basano esclusivamente sulle fatture XML importate nel
-              modulo.
+            <p className="text-neutral-500 text-sm mt-1">
+              Analisi fatture elettroniche importate
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-neutral-600">
-              Anno di riferimento:
-            </label>
+          <div className="flex items-center gap-3">
             <select
               value={selectedYear}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedYear(val);
-                fetchStats(val === "all" ? "all" : Number(val));
-              }}
-              className="text-sm border border-neutral-300 rounded-xl px-3 py-1 bg-white shadow-sm"
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="text-sm border border-neutral-300 rounded-xl px-3 py-2 bg-white shadow-sm font-medium"
             >
               <option value="all">Tutti gli anni</option>
               {availableYears.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
+            <button onClick={() => navigate("/admin/fatture")}
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 shadow-sm transition">
+              ← Menu Fatture
+            </button>
           </div>
         </div>
 
-        {statsError && (
+        {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 mb-4">
-            Errore nel caricamento delle statistiche: {statsError}
+            {error}
           </div>
         )}
 
-        {statsLoading && (
-          <p className="text-sm text-neutral-500 mb-4">
-            Caricamento statistiche in corso…
-          </p>
-        )}
+        {loading ? (
+          <div className="text-center py-20 text-neutral-400">Caricamento dashboard...</div>
+        ) : (
+          <>
+            {/* ── KPI CARDS ── */}
+            {kpi && <KpiCards kpi={kpi} />}
 
-        {!statsLoading && !statsError && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* TABELLA FORNITORI */}
-            <div className="border border-neutral-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-50">
-                <h3 className="text-sm font-semibold text-neutral-800">
-                  Top fornitori per totale acquisti
-                </h3>
-                <p className="text-[11px] text-neutral-500">
-                  Ordinati per totale fatture in euro.
-                </p>
+            {/* ── ROW 1: Andamento mensile + Categorie ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <div className="lg:col-span-2">
+                <ChartMensile data={mensili} selectedYear={selectedYear} />
               </div>
-              <div className="max-h-64 overflow-y-auto">
-                {statsSuppliers.length === 0 ? (
-                  <p className="text-xs text-neutral-500 px-4 py-3">
-                    Nessun dato disponibile per il periodo selezionato.
-                  </p>
-                ) : (
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-neutral-50 text-neutral-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Fornitore</th>
-                        <th className="px-3 py-2 text-right">N. fatture</th>
-                        <th className="px-3 py-2 text-right">Totale €</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statsSuppliers.map((s, idx) => (
-                        <tr
-                          key={`${s.fornitore_nome}-${idx}`}
-                          className="border-t border-neutral-200 hover:bg-neutral-50"
-                        >
-                          <td className="px-3 py-2 align-top">
-                            <div className="flex flex-col">
-                              <span className="font-medium">
-                                {s.fornitore_nome}
-                              </span>
-                              {s.fornitore_piva && (
-                                <span className="text-[10px] text-neutral-500">
-                                  P.IVA: {s.fornitore_piva}
-                                </span>
-                              )}
-                              <span className="text-[10px] text-neutral-500 mt-0.5">
-                                {s.primo_acquisto} → {s.ultimo_acquisto}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-right align-middle">
-                            {s.numero_fatture}
-                          </td>
-                          <td className="px-3 py-2 text-right align-middle">
-                            {s.totale_fatture != null
-                              ? s.totale_fatture.toLocaleString("it-IT", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+              <div>
+                <ChartCategorie data={categorie} />
               </div>
             </div>
 
-            {/* TABELLA MENSILE */}
-            <div className="border border-neutral-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-50">
-                <h3 className="text-sm font-semibold text-neutral-800">
-                  Andamento mensile degli acquisti
-                </h3>
-                <p className="text-[11px] text-neutral-500">
-                  Numero fatture e totale per mese.
-                </p>
-              </div>
-              <div className="max-h-64 overflow-y-auto">
-                {statsMonthly.length === 0 ? (
-                  <p className="text-xs text-neutral-500 px-4 py-3">
-                    Nessun dato disponibile per il periodo selezionato.
+            {/* ── ROW 2: Top fornitori + Confronto annuale ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              <TopFornitoriCard data={topFornitori} />
+              {confronto ? (
+                <ChartConfronto data={confronto} />
+              ) : (
+                <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-6 flex items-center justify-center">
+                  <p className="text-sm text-neutral-400 text-center">
+                    Seleziona un anno specifico per vedere il confronto con l'anno precedente
                   </p>
-                ) : (
-                  <table className="min-w-full text-xs">
-                    <thead className="bg-neutral-50 text-neutral-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Anno</th>
-                        <th className="px-3 py-2 text-left">Mese</th>
-                        <th className="px-3 py-2 text-right">N. fatture</th>
-                        <th className="px-3 py-2 text-right">Totale €</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {statsMonthly.map((m, idx) => (
-                        <tr
-                          key={`${m.anno}-${m.mese}-${idx}`}
-                          className="border-t border-neutral-200 hover:bg-neutral-50"
-                        >
-                          <td className="px-3 py-2 align-middle">{m.anno}</td>
-                          <td className="px-3 py-2 align-middle">
-                            {String(m.mese).padStart(2, "0")}
-                          </td>
-                          <td className="px-3 py-2 text-right align-middle">
-                            {m.numero_fatture}
-                          </td>
-                          <td className="px-3 py-2 text-right align-middle">
-                            {m.totale_fatture != null
-                              ? m.totale_fatture.toLocaleString("it-IT", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* LINK RAPIDO ALL'IMPORT */}
-        <div className="mt-8 border-t border-neutral-200 pt-4 flex justify-between items-center">
-          <p className="text-xs text-neutral-500">
-            Per aggiornare i dati della dashboard importa nuove fatture dalla
-            pagina dedicata.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate("/admin/fatture/import")}
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition"
-          >
-            Vai all&apos;Import XML →
-          </button>
-        </div>
+            {/* ── ROW 3: Anomalie ── */}
+            {anomalie.length > 0 && <AnomalieCard data={anomalie} year={selectedYear} />}
+
+            {/* FOOTER */}
+            <div className="mt-4 border-t border-neutral-200 pt-4 flex justify-between items-center">
+              <p className="text-xs text-neutral-400">
+                Dati basati sulle fatture XML importate. Autofatture e fornitori esclusi non sono inclusi.
+              </p>
+              <button onClick={() => navigate("/admin/fatture/import")}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition">
+                Import XML →
+              </button>
+            </div>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// KPI CARDS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function KpiCards({ kpi }) {
+  const cards = [
+    {
+      label: "Totale Spesa",
+      value: `€ ${fmt(kpi.totale_spesa)}`,
+      sub: kpi.delta_pct != null
+        ? `${kpi.delta_pct > 0 ? "+" : ""}${kpi.delta_pct}% vs ${kpi.prev_year}`
+        : null,
+      subColor: kpi.delta_pct > 0 ? "text-red-600" : kpi.delta_pct < 0 ? "text-green-600" : "text-neutral-500",
+      bg: "bg-amber-50 border-amber-200",
+      icon: "€",
+    },
+    {
+      label: "Fatture",
+      value: kpi.n_fatture,
+      sub: null,
+      bg: "bg-blue-50 border-blue-200",
+      icon: "#",
+    },
+    {
+      label: "Fornitori Attivi",
+      value: kpi.n_fornitori,
+      sub: null,
+      bg: "bg-green-50 border-green-200",
+      icon: "F",
+    },
+    {
+      label: "Media Mensile",
+      value: `€ ${fmt(kpi.spesa_media_mensile)}`,
+      sub: null,
+      bg: "bg-purple-50 border-purple-200",
+      icon: "M",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      {cards.map((c) => (
+        <div key={c.label} className={`rounded-2xl border p-4 shadow-sm ${c.bg}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-7 h-7 rounded-lg bg-white/70 flex items-center justify-center text-xs font-bold text-neutral-600">
+              {c.icon}
+            </span>
+            <span className="text-[11px] text-neutral-600 font-medium uppercase tracking-wide">{c.label}</span>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold text-neutral-900 font-playfair">{c.value}</div>
+          {c.sub && <div className={`text-xs mt-1 font-medium ${c.subColor}`}>{c.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHART ANDAMENTO MENSILE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function ChartMensile({ data, selectedYear }) {
+  const NOMI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    // raggruppa per anno-mese
+    const map = {};
+    data.forEach((d) => {
+      const key = `${d.anno}-${d.mese}`;
+      map[key] = d.totale_fatture || 0;
+    });
+
+    if (selectedYear !== "all") {
+      return NOMI.map((n, i) => {
+        const m = String(i + 1).padStart(2, "0");
+        return { mese: n, totale: map[`${selectedYear}-${m}`] || 0 };
+      });
+    }
+
+    // Tutti gli anni: usa le entries ordinate
+    return data.map((d) => ({
+      mese: `${NOMI[parseInt(d.mese) - 1]} ${d.anno}`,
+      totale: d.totale_fatture || 0,
+    }));
+  }, [data, selectedYear]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-neutral-800 mb-3">Andamento Mensile Acquisti</h3>
+      {chartData.length === 0 ? (
+        <p className="text-xs text-neutral-400 py-10 text-center">Nessun dato</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+            <XAxis dataKey="mese" tick={{ fontSize: 10 }} />
+            <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={55} />
+            <Tooltip
+              formatter={(v) => [`€ ${fmt(v)}`, "Totale"]}
+              contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e5e5" }}
+            />
+            <Bar dataKey="totale" fill="#d97706" radius={[4, 4, 0, 0]} name="Spesa" />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHART CATEGORIE (DONUT)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function ChartCategorie({ data }) {
+  const totale = useMemo(() => data.reduce((s, d) => s + (d.totale || 0), 0), [data]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 h-full">
+      <h3 className="text-sm font-semibold text-neutral-800 mb-2">Spesa per Categoria</h3>
+      {data.length === 0 ? (
+        <p className="text-xs text-neutral-400 py-10 text-center">
+          Assegna categorie ai fornitori per visualizzare
+        </p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={170}>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="totale"
+                nameKey="categoria"
+                cx="50%"
+                cy="50%"
+                innerRadius={40}
+                outerRadius={70}
+                paddingAngle={2}
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v, name) => [`€ ${fmt(v)} (${totale > 0 ? Math.round(v / totale * 100) : 0}%)`, name]}
+                contentStyle={{ fontSize: 11, borderRadius: 12 }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1 mt-1 max-h-32 overflow-y-auto">
+            {data.map((d, i) => (
+              <div key={d.categoria} className="flex items-center gap-2 text-[11px]">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
+                />
+                <span className="truncate flex-1 text-neutral-700">{d.categoria}</span>
+                <span className="font-medium text-neutral-900 tabular-nums">
+                  {totale > 0 ? Math.round((d.totale / totale) * 100) : 0}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TOP FORNITORI (barre orizzontali)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function TopFornitoriCard({ data }) {
+  const { fornitori, totale_globale } = data;
+  const maxVal = fornitori.length > 0 ? fornitori[0].totale : 1;
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-neutral-800 mb-3">Top 10 Fornitori</h3>
+      {fornitori.length === 0 ? (
+        <p className="text-xs text-neutral-400 py-10 text-center">Nessun dato</p>
+      ) : (
+        <div className="space-y-2">
+          {fornitori.map((f, i) => (
+            <div key={i}>
+              <div className="flex justify-between items-baseline mb-0.5">
+                <span className="text-xs font-medium text-neutral-800 truncate max-w-[60%]">
+                  {f.fornitore_nome}
+                </span>
+                <div className="flex items-center gap-2">
+                  {f.categoria && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      {f.categoria}
+                    </span>
+                  )}
+                  <span className="text-xs font-semibold text-neutral-900 tabular-nums">
+                    € {fmt(f.totale)}
+                  </span>
+                  <span className="text-[10px] text-neutral-400 tabular-nums w-10 text-right">
+                    {f.pct}%
+                  </span>
+                </div>
+              </div>
+              <div className="w-full bg-neutral-100 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full transition-all"
+                  style={{
+                    width: `${maxVal > 0 ? (f.totale / maxVal) * 100 : 0}%`,
+                    backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+          <div className="text-[10px] text-neutral-400 text-right mt-2 pt-2 border-t border-neutral-100">
+            Totale complessivo: € {fmt(totale_globale)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFRONTO ANNUALE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function ChartConfronto({ data }) {
+  const { year, prev_year, chart_data } = data;
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
+      <h3 className="text-sm font-semibold text-neutral-800 mb-3">
+        Confronto {prev_year} vs {year}
+      </h3>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={chart_data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
+          <XAxis dataKey="mese" tick={{ fontSize: 10 }} />
+          <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={55} />
+          <Tooltip
+            formatter={(v, name) => [`€ ${fmt(v)}`, name]}
+            contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e5e5" }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey={String(prev_year)} fill="#94a3b8" radius={[4, 4, 0, 0]} />
+          <Bar dataKey={String(year)} fill="#d97706" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ANOMALIE / ALERT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function AnomalieCard({ data, year }) {
+  const tipoStyles = {
+    aumento: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", label: "Aumento" },
+    diminuzione: { bg: "bg-green-50", border: "border-green-200", text: "text-green-700", label: "Diminuzione" },
+    nuovo: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-700", label: "Nuovo" },
+    scomparso: { bg: "bg-neutral-50", border: "border-neutral-300", text: "text-neutral-600", label: "Scomparso" },
+  };
+
+  // Mostra max 8
+  const visible = data.slice(0, 8);
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 mb-4">
+      <h3 className="text-sm font-semibold text-neutral-800 mb-1">
+        Variazioni Significative vs {Number(year) - 1}
+      </h3>
+      <p className="text-[11px] text-neutral-400 mb-3">
+        Fornitori con variazione superiore al 30% rispetto all'anno precedente
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {visible.map((a, i) => {
+          const s = tipoStyles[a.tipo] || tipoStyles.aumento;
+          return (
+            <div key={i} className={`rounded-xl border p-3 ${s.bg} ${s.border}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${s.text} bg-white/60`}>
+                  {s.label}
+                </span>
+                {a.delta_pct != null && (
+                  <span className={`text-xs font-bold ${s.text}`}>
+                    {a.delta_pct > 0 ? "+" : ""}{a.delta_pct}%
+                  </span>
+                )}
+              </div>
+              <div className="text-xs font-medium text-neutral-800 truncate">{a.fornitore}</div>
+              <div className="text-[10px] text-neutral-500 mt-0.5">
+                {a.tipo === "nuovo"
+                  ? `€ ${fmt(a.totale_corrente)} (${a.n_fatture} fatt.)`
+                  : a.tipo === "scomparso"
+                    ? `Era € ${fmt(a.totale_precedente)}`
+                    : `€ ${fmt(a.totale_precedente)} → € ${fmt(a.totale_corrente)}`
+                }
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {data.length > 8 && (
+        <p className="text-[10px] text-neutral-400 mt-2 text-right">
+          +{data.length - 8} altre variazioni
+        </p>
+      )}
     </div>
   );
 }

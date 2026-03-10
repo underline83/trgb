@@ -641,3 +641,282 @@ def stats_mensili(
     conn.close()
 
     return [dict(r) for r in rows]
+
+
+# -------------------------------------------------------------------
+# ENDPOINT STATISTICHE AVANZATE (dashboard v2)
+# -------------------------------------------------------------------
+
+# Filtro base per escludere autofatture e fornitori esclusi
+_EXCL_JOIN = """
+    LEFT JOIN fe_fornitore_categoria fc
+        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+        OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+"""
+_EXCL_WHERE = "COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
+
+
+@router.get("/stats/kpi", summary="KPI principali per la dashboard")
+def stats_kpi(
+    year: int | None = Query(None),
+):
+    """
+    Ritorna KPI aggregati:
+    - totale_spesa, n_fatture, n_fornitori, spesa_media_mensile
+    - se year != None, confronta con anno precedente (delta %)
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    def _kpi_for_year(y: int | None):
+        where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
+        params: list = []
+        if y is not None:
+            where += " AND substr(f.data_fattura, 1, 4) = ?"
+            params.append(str(y))
+        cur.execute(f"""
+            SELECT
+                ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale_spesa,
+                COUNT(*) AS n_fatture,
+                COUNT(DISTINCT COALESCE(f.fornitore_piva, f.fornitore_nome)) AS n_fornitori,
+                COUNT(DISTINCT substr(f.data_fattura, 1, 7)) AS n_mesi
+            FROM fe_fatture f {_EXCL_JOIN}
+            WHERE {where}
+        """, params)
+        row = dict(cur.fetchone())
+        n_mesi = row.pop("n_mesi", 1) or 1
+        row["spesa_media_mensile"] = round((row["totale_spesa"] or 0) / n_mesi, 2)
+        return row
+
+    kpi = _kpi_for_year(year)
+    kpi["year"] = year
+
+    # Confronto anno precedente
+    if year is not None:
+        prev = _kpi_for_year(year - 1)
+        kpi["prev_year"] = year - 1
+        kpi["prev_totale_spesa"] = prev["totale_spesa"]
+        if prev["totale_spesa"] and prev["totale_spesa"] > 0:
+            kpi["delta_pct"] = round(
+                ((kpi["totale_spesa"] or 0) - prev["totale_spesa"]) / prev["totale_spesa"] * 100, 1
+            )
+        else:
+            kpi["delta_pct"] = None
+    else:
+        kpi["prev_year"] = None
+        kpi["prev_totale_spesa"] = None
+        kpi["delta_pct"] = None
+
+    conn.close()
+    return kpi
+
+
+@router.get("/stats/per-categoria", summary="Spesa per categoria (per donut chart)")
+def stats_per_categoria_dashboard(
+    year: int | None = Query(None),
+):
+    """Totale spesa raggruppato per Cat.1 (per la donut chart)."""
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
+    params: list = []
+    if year is not None:
+        where += " AND substr(f.data_fattura, 1, 4) = ?"
+        params.append(str(year))
+
+    cur.execute(f"""
+        SELECT
+            COALESCE(c.nome, '(Non categorizzato)') AS categoria,
+            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
+            COUNT(*) AS n_fatture
+        FROM fe_fatture f
+        {_EXCL_JOIN}
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        WHERE {where}
+        GROUP BY c.nome
+        ORDER BY totale DESC
+    """, params)
+
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+@router.get("/stats/top-fornitori", summary="Top N fornitori con barre")
+def stats_top_fornitori(
+    year: int | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """Top fornitori per spesa, con percentuale sul totale."""
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
+    params: list = []
+    if year is not None:
+        where += " AND substr(f.data_fattura, 1, 4) = ?"
+        params.append(str(year))
+
+    # Totale globale per calcolo %
+    cur.execute(f"""
+        SELECT ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale_globale
+        FROM fe_fatture f {_EXCL_JOIN}
+        WHERE {where}
+    """, params)
+    totale_globale = cur.fetchone()["totale_globale"] or 1
+
+    cur.execute(f"""
+        SELECT
+            f.fornitore_nome,
+            f.fornitore_piva,
+            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
+            COUNT(*) AS n_fatture,
+            COALESCE(c.nome, '') AS categoria
+        FROM fe_fatture f
+        {_EXCL_JOIN}
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        WHERE {where}
+        GROUP BY f.fornitore_nome, f.fornitore_piva
+        ORDER BY totale DESC
+        LIMIT ?
+    """, params + [limit])
+
+    rows = []
+    for r in cur.fetchall():
+        d = dict(r)
+        d["pct"] = round(d["totale"] / totale_globale * 100, 1) if totale_globale else 0
+        rows.append(d)
+
+    conn.close()
+    return {"fornitori": rows, "totale_globale": totale_globale}
+
+
+@router.get("/stats/confronto-annuale", summary="Confronto mese per mese anno corrente vs precedente")
+def stats_confronto_annuale(
+    year: int = Query(..., description="Anno di riferimento"),
+):
+    """
+    Per ogni mese, ritorna spesa anno corrente e anno precedente
+    per il grafico di confronto.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    results = []
+    for y in [year - 1, year]:
+        cur.execute(f"""
+            SELECT
+                substr(f.data_fattura, 6, 2) AS mese,
+                ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale
+            FROM fe_fatture f
+            {_EXCL_JOIN}
+            WHERE f.data_fattura IS NOT NULL
+              AND substr(f.data_fattura, 1, 4) = ?
+              AND {_EXCL_WHERE}
+            GROUP BY mese
+            ORDER BY mese ASC
+        """, (str(y),))
+        data = {r["mese"]: r["totale"] for r in cur.fetchall()}
+        results.append({"year": y, "data": data})
+
+    # Costruisci array 12 mesi
+    MESI = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+    NOMI_MESI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+    chart_data = []
+    for i, m in enumerate(MESI):
+        prev_val = results[0]["data"].get(m, 0) or 0
+        curr_val = results[1]["data"].get(m, 0) or 0
+        chart_data.append({
+            "mese": NOMI_MESI[i],
+            "mese_num": m,
+            f"{year - 1}": prev_val,
+            f"{year}": curr_val,
+        })
+
+    conn.close()
+    return {"year": year, "prev_year": year - 1, "chart_data": chart_data}
+
+
+@router.get("/stats/anomalie", summary="Anomalie e variazioni significative fornitori")
+def stats_anomalie(
+    year: int = Query(...),
+    soglia_pct: float = Query(30, description="Soglia variazione % per segnalazione"),
+):
+    """
+    Identifica fornitori con variazioni significative anno su anno:
+    - Nuovi fornitori (non presenti anno precedente)
+    - Fornitori scomparsi (presenti anno prec, non quest'anno)
+    - Variazioni > soglia_pct
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    def _fornitori_per_anno(y):
+        cur.execute(f"""
+            SELECT
+                COALESCE(f.fornitore_piva, f.fornitore_nome) AS chiave,
+                f.fornitore_nome,
+                ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
+                COUNT(*) AS n_fatture
+            FROM fe_fatture f
+            {_EXCL_JOIN}
+            WHERE f.data_fattura IS NOT NULL
+              AND substr(f.data_fattura, 1, 4) = ?
+              AND {_EXCL_WHERE}
+            GROUP BY chiave
+        """, (str(y),))
+        return {r["chiave"]: dict(r) for r in cur.fetchall()}
+
+    curr = _fornitori_per_anno(year)
+    prev = _fornitori_per_anno(year - 1)
+
+    anomalie = []
+
+    # Nuovi fornitori (non in anno precedente)
+    for k, v in curr.items():
+        if k not in prev:
+            anomalie.append({
+                "tipo": "nuovo",
+                "fornitore": v["fornitore_nome"],
+                "totale_corrente": v["totale"],
+                "totale_precedente": 0,
+                "delta_pct": None,
+                "n_fatture": v["n_fatture"],
+            })
+        else:
+            p = prev[k]
+            if p["totale"] and p["totale"] > 0:
+                delta = round((v["totale"] - p["totale"]) / p["totale"] * 100, 1)
+                if abs(delta) >= soglia_pct:
+                    anomalie.append({
+                        "tipo": "aumento" if delta > 0 else "diminuzione",
+                        "fornitore": v["fornitore_nome"],
+                        "totale_corrente": v["totale"],
+                        "totale_precedente": p["totale"],
+                        "delta_pct": delta,
+                        "n_fatture": v["n_fatture"],
+                    })
+
+    # Fornitori scomparsi
+    for k, p in prev.items():
+        if k not in curr:
+            anomalie.append({
+                "tipo": "scomparso",
+                "fornitore": p["fornitore_nome"],
+                "totale_corrente": 0,
+                "totale_precedente": p["totale"],
+                "delta_pct": -100,
+                "n_fatture": 0,
+            })
+
+    # Ordina per impatto economico
+    anomalie.sort(key=lambda x: abs(x.get("totale_corrente", 0) - x.get("totale_precedente", 0)), reverse=True)
+
+    conn.close()
+    return anomalie
