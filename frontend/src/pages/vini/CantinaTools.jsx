@@ -17,7 +17,6 @@ export default function CantinaTools() {
   const [importResult, setImportResult] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showCartaPreview, setShowCartaPreview] = useState(false);
   const [forzaGiacenze, setForzaGiacenze] = useState(false);
 
   // -------------------------------------------------------
@@ -108,23 +107,6 @@ export default function CantinaTools() {
   };
 
   // -------------------------------------------------------
-  // GENERA CARTA DA CANTINA
-  // -------------------------------------------------------
-  const handleCartaPreview = () => {
-    setShowCartaPreview((prev) => !prev);
-  };
-
-  const handleCartaPdf = () => {
-    const token = localStorage.getItem("token");
-    window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/pdf?token=${token}`, "_blank");
-  };
-
-  const handleCartaDocx = () => {
-    const token = localStorage.getItem("token");
-    window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/docx?token=${token}`, "_blank");
-  };
-
-  // -------------------------------------------------------
   // RENDER
   // -------------------------------------------------------
   return (
@@ -138,7 +120,7 @@ export default function CantinaTools() {
               🔧 Strumenti Cantina
             </h1>
             <p className="text-neutral-600">
-              Sincronizzazione Excel ↔ Cantina, export e generazione carta.
+              Sincronizzazione Excel ↔ Cantina, export, registro movimenti e modifica massiva.
             </p>
           </div>
           <div className="flex gap-2">
@@ -156,6 +138,24 @@ export default function CantinaTools() {
             </button>
           </div>
         </div>
+
+        {/* ACCESSO RAPIDO: REGISTRO & MODIFICA MASSIVA */}
+        <div className="mb-8 flex flex-wrap gap-3">
+          <button
+            onClick={() => navigate("/vini/magazzino/registro")}
+            className="px-6 py-3 rounded-2xl text-sm font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow transition flex items-center gap-2"
+          >
+            📜 Registro Movimenti
+          </button>
+          <button
+            onClick={() => navigate("/vini/magazzino/admin")}
+            className="px-6 py-3 rounded-2xl text-sm font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow transition flex items-center gap-2"
+          >
+            📋 Modifica Massiva
+          </button>
+        </div>
+
+        <hr className="border-neutral-200 mb-8" />
 
         {/* ERRORE GLOBALE */}
         {error && (
@@ -296,59 +296,6 @@ export default function CantinaTools() {
           )}
         </div>
 
-        <hr className="border-neutral-200 mb-8" />
-
-        {/* SEZIONE 3: GENERA CARTA */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-amber-900 font-playfair mb-3 flex items-center gap-2">
-            📜 Genera Carta dei Vini (da Cantina)
-          </h2>
-          <p className="text-sm text-neutral-600 mb-4">
-            Genera la carta dei vini leggendo dal DB cantina invece che dall'Excel.
-            Usa le stesse impostazioni di ordinamento e filtro.
-          </p>
-
-          <div className="flex flex-wrap gap-3 mb-4">
-            <button
-              onClick={handleCartaPreview}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition"
-            >
-              {showCartaPreview ? "Chiudi anteprima" : "👁 Anteprima HTML"}
-            </button>
-            <button
-              onClick={handleCartaPdf}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition"
-            >
-              📄 Scarica PDF
-            </button>
-            <button
-              onClick={handleCartaDocx}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition"
-            >
-              📝 Scarica Word
-            </button>
-          </div>
-
-          {showCartaPreview && (
-            <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200">
-                <div className="text-sm font-semibold text-neutral-800">
-                  Anteprima Carta Vini (da Cantina)
-                </div>
-                <div className="text-xs text-neutral-500">
-                  Questa carta è generata dal database cantina, non dall'Excel.
-                </div>
-              </div>
-              <iframe
-                src={`${API_BASE}/vini/cantina-tools/carta-cantina`}
-                title="Carta Vini da Cantina"
-                className="w-full"
-                style={{ height: "70vh", border: "none" }}
-              />
-            </div>
-          )}
-        </div>
-
         {/* INFO */}
         <div className="mt-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
           <p className="font-semibold mb-1">Come funziona il flusso:</p>
@@ -356,7 +303,7 @@ export default function CantinaTools() {
           <p>2. Clicca "Avvia sincronizzazione" qui per portare i dati nella cantina</p>
           <p>3. Oppure: importa direttamente un Excel nella cantina (salta il vecchio sistema)</p>
           <p>4. Esporta la cantina in Excel per lavorare offline</p>
-          <p>5. Genera la carta dal DB cantina quando sei pronto</p>
+          <p>5. Usa "Genera Carta PDF" dal menu Cantina per scaricare la carta</p>
         </div>
       </div>
     </div>

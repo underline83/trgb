@@ -32,26 +32,21 @@ export default function MagazzinoSubMenu() {
           ➕ Nuovo vino
         </NavLink>
 
-        {role === "admin" && (<>
-          <NavLink
-            to="/vini/magazzino/registro"
-            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-          >
-            📜 Registro movimenti
-          </NavLink>
-          <NavLink
-            to="/vini/magazzino/admin"
-            className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
-          >
-            📋 Modifica massiva
-          </NavLink>
+        <NavLink
+          to="/vini/magazzino/carta"
+          className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
+        >
+          📄 Genera Carta PDF
+        </NavLink>
+
+        {role === "admin" && (
           <NavLink
             to="/vini/magazzino/tools"
             className={({ isActive }) => `${base} ${isActive ? active : inactive}`}
           >
             🔧 Strumenti
           </NavLink>
-        </>)}
+        )}
       </div>
     </div>
   );
