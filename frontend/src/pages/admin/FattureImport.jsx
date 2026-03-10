@@ -1,4 +1,4 @@
-// @version: v1.3-fe-import
+// @version: v1.4-zip-support
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
@@ -59,10 +59,11 @@ export default function FattureImport() {
   // -----------------------------------
   const handleFileChange = (e) => {
     const fileList = Array.from(e.target.files || []);
-    const xmlFiles = fileList.filter((f) =>
-      f.name?.toLowerCase().endsWith(".xml")
-    );
-    setFiles(xmlFiles);
+    const validFiles = fileList.filter((f) => {
+      const lower = f.name?.toLowerCase() || "";
+      return lower.endsWith(".xml") || lower.endsWith(".zip");
+    });
+    setFiles(validFiles);
     setUploadResult(null);
     setUploadError(null);
   };
@@ -94,16 +95,17 @@ export default function FattureImport() {
     const droppedFiles = Array.from(e.dataTransfer?.files || []);
     if (!droppedFiles.length) return;
 
-    const xmlFiles = droppedFiles.filter((f) =>
-      f.name?.toLowerCase().endsWith(".xml")
-    );
+    const validFiles = droppedFiles.filter((f) => {
+      const lower = f.name?.toLowerCase() || "";
+      return lower.endsWith(".xml") || lower.endsWith(".zip");
+    });
 
-    if (!xmlFiles.length) {
-      setUploadError("I file trascinati non contengono XML di fattura.");
+    if (!validFiles.length) {
+      setUploadError("I file trascinati non contengono XML o ZIP di fattura.");
       return;
     }
 
-    setFiles(xmlFiles);
+    setFiles(validFiles);
   };
 
   // -----------------------------------
@@ -111,7 +113,7 @@ export default function FattureImport() {
   // -----------------------------------
   const handleUpload = async () => {
     if (!files || files.length === 0) {
-      setUploadError("Seleziona o trascina almeno un file XML di fattura.");
+      setUploadError("Seleziona o trascina almeno un file XML o ZIP di fattura.");
       return;
     }
 
@@ -229,8 +231,8 @@ export default function FattureImport() {
                 Zona import massivo XML
               </h2>
               <p className="text-sm text-neutral-600 mb-3">
-                Trascina qui i file XML oppure selezionali dal tuo computer.
-                Puoi importare anche decine di file in una volta sola. I
+                Trascina qui file XML o archivi ZIP (anche con sottocartelle).
+                Puoi importare centinaia di fatture in una volta sola. I
                 duplicati vengono automaticamente scartati.
               </p>
 
@@ -247,15 +249,16 @@ export default function FattureImport() {
                 onDrop={handleDrop}
               >
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Trascina qui i file XML di fattura
+                  Trascina qui file XML o ZIP di fatture
                 </label>
                 <p className="text-xs text-neutral-500 mb-3">
                   Oppure clicca sul pulsante qui sotto per scegliere i file.
+                  Gli archivi ZIP con sottocartelle mensili sono supportati.
                 </p>
 
                 <input
                   type="file"
-                  accept=".xml"
+                  accept=".xml,.zip"
                   multiple
                   onClick={(e) => {
                     e.target.value = null;
@@ -282,8 +285,9 @@ export default function FattureImport() {
               </div>
 
               <p className="text-xs text-neutral-500 mt-2">
-                Formato atteso: file FatturaPA tipo{" "}
-                <span className="font-mono">ITxxxxxxxxxxxx_*.xml</span>.
+                Formati accettati: file XML FatturaPA ({" "}
+                <span className="font-mono">ITxxxxxxxxxxxx_*.xml</span>) oppure
+                archivi ZIP contenenti XML (anche organizzati in sottocartelle).
               </p>
             </div>
 
@@ -336,6 +340,17 @@ export default function FattureImport() {
                       Fatture già presenti (saltate):{" "}
                       <strong>{uploadResult.gia_presenti.length}</strong>
                     </p>
+                  )}
+                {uploadResult.errori &&
+                  uploadResult.errori.length > 0 && (
+                    <div className="mt-2 text-xs text-red-700">
+                      <p className="font-semibold">File con errori ({uploadResult.errori.length}):</p>
+                      <ul className="list-disc list-inside mt-1">
+                        {uploadResult.errori.map((e, i) => (
+                          <li key={i}>{e.filename}: {e.errore}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
               </div>
             )}

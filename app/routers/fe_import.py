@@ -1,4 +1,4 @@
-# @version: v1.1-sqlite-fe
+# @version: v1.2-zip-support
 # -*- coding: utf-8 -*-
 """
 Router per importazione fatture elettroniche XML (uso statistico / controllo acquisti).
@@ -8,12 +8,15 @@ Router per importazione fatture elettroniche XML (uso statistico / controllo acq
     fe_righe
 
 - Usa il DB: app/data/foodcost.db
+- Supporta upload di file XML singoli, multipli, e archivi ZIP contenenti XML.
 """
 
 import datetime
 import hashlib
+import io
 import sqlite3
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -111,6 +114,183 @@ def _to_float(v: str | None) -> float | None:
 
 
 # -------------------------------------------------------------------
+# ZIP HELPERS
+# -------------------------------------------------------------------
+
+def _extract_xmls_from_zip(zip_content: bytes, zip_filename: str) -> List[tuple[str, bytes]]:
+    """
+    Estrae tutti i file .xml da un archivio ZIP (anche annidato in sottocartelle).
+    Supporta anche ZIP contenenti altri ZIP (un livello).
+    Ritorna lista di (filename, content).
+    """
+    results: List[tuple[str, bytes]] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as zf:
+            for entry in zf.namelist():
+                lower = entry.lower()
+                # salta directory e file nascosti (es. __MACOSX)
+                if entry.endswith("/") or "/__MACOSX" in entry or entry.startswith("__MACOSX"):
+                    continue
+                if lower.endswith(".xml"):
+                    xml_data = zf.read(entry)
+                    # usa solo il nome file, non il path interno allo zip
+                    fname = entry.split("/")[-1] if "/" in entry else entry
+                    results.append((fname, xml_data))
+                elif lower.endswith(".zip"):
+                    # ZIP annidato — un livello di ricorsione
+                    inner_zip = zf.read(entry)
+                    try:
+                        inner_results = _extract_xmls_from_zip(inner_zip, entry)
+                        results.extend(inner_results)
+                    except Exception:
+                        pass  # ZIP corrotto interno, skip
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File {zip_filename}: archivio ZIP non valido o corrotto",
+        )
+    return results
+
+
+def _process_single_xml(
+    content: bytes,
+    filename: str,
+    cur: sqlite3.Cursor,
+    conn: sqlite3.Connection,
+    importate: List[Dict[str, Any]],
+    gia_presenti: List[Dict[str, Any]],
+    errori: List[Dict[str, Any]],
+) -> None:
+    """
+    Processa un singolo XML di fattura: dedup, parse, inserisci in DB.
+    """
+    if not content:
+        return
+
+    xml_hash = hashlib.sha256(content).hexdigest()
+
+    # controllo duplicati
+    cur.execute(
+        "SELECT id, fornitore_nome, numero_fattura, data_fattura "
+        "FROM fe_fatture WHERE xml_hash = ?",
+        (xml_hash,),
+    )
+    existing = cur.fetchone()
+    if existing:
+        gia_presenti.append(
+            {
+                "filename": filename,
+                "fattura_id": existing["id"],
+                "fornitore": existing["fornitore_nome"],
+                "numero_fattura": existing["numero_fattura"],
+                "data_fattura": existing["data_fattura"],
+            }
+        )
+        return
+
+    # parsing XML
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError:
+        errori.append({"filename": filename, "errore": "XML non valido"})
+        return
+
+    # HEADER: fornitore, numero, data
+    fornitore_nome = _find_text(root, "Denominazione") or _find_text(root, "Nome")
+    fornitore_piva = _find_text(root, "IdCodice") or _find_text(root, "CodiceFiscale")
+
+    numero_fattura = _find_text(root, "Numero")
+    data_fattura_str = _find_text(root, "Data")
+
+    imponibile_str = _find_text(root, "ImponibileImporto")
+    iva_str = _find_text(root, "Imposta")
+    totale_str = _find_text(root, "ImportoTotaleDocumento")
+
+    imponibile_totale = _to_float(imponibile_str)
+    iva_totale = _to_float(iva_str)
+    totale_fattura = _to_float(totale_str)
+
+    now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
+
+    cur.execute(
+        """
+        INSERT INTO fe_fatture (
+            fornitore_nome, fornitore_piva,
+            numero_fattura, data_fattura,
+            imponibile_totale, iva_totale, totale_fattura,
+            valuta, xml_hash, xml_filename, data_import
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            fornitore_nome or "Sconosciuto",
+            fornitore_piva,
+            numero_fattura,
+            data_fattura_str,
+            imponibile_totale,
+            iva_totale,
+            totale_fattura,
+            "EUR",
+            xml_hash,
+            filename,
+            now,
+        ),
+    )
+    fattura_id = cur.lastrowid
+
+    # Righe fattura
+    dettaglio_linee = root.findall(".//{*}DettaglioLinee")
+
+    for line in dettaglio_linee:
+        numero_linea_str = _find_text(line, "NumeroLinea")
+        descrizione = _find_text(line, "Descrizione")
+        quantita_str = _find_text(line, "Quantita")
+        prezzo_unitario_str = _find_text(line, "PrezzoUnitario")
+        prezzo_totale_str = _find_text(line, "PrezzoTotale")
+        um = _find_text(line, "UnitaMisura")
+        aliquota_str = _find_text(line, "AliquotaIVA")
+
+        numero_linea = int(numero_linea_str) if numero_linea_str else None
+
+        cur.execute(
+            """
+            INSERT INTO fe_righe (
+                fattura_id, numero_linea, descrizione,
+                quantita, unita_misura,
+                prezzo_unitario, prezzo_totale, aliquota_iva,
+                categoria_grezza, note_analisi
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                fattura_id,
+                numero_linea,
+                descrizione,
+                _to_float(quantita_str),
+                um,
+                _to_float(prezzo_unitario_str),
+                _to_float(prezzo_totale_str),
+                _to_float(aliquota_str),
+                None,
+                None,
+            ),
+        )
+
+    conn.commit()
+
+    importate.append(
+        {
+            "filename": filename,
+            "fattura_id": fattura_id,
+            "fornitore": fornitore_nome or "Sconosciuto",
+            "numero_fattura": numero_fattura,
+            "data_fattura": data_fattura_str,
+            "totale_fattura": totale_fattura,
+        }
+    )
+
+
+# -------------------------------------------------------------------
 # ENDPOINTS PRINCIPALI
 # -------------------------------------------------------------------
 
@@ -118,14 +298,18 @@ def _to_float(v: str | None) -> float | None:
     "/import",
     response_model=Dict[str, Any],
     status_code=status.HTTP_201_CREATED,
-    summary="Importa uno o più file XML di fattura elettronica",
+    summary="Importa file XML e/o ZIP di fatture elettroniche",
 )
 async def import_fatture_xml(
     files: List[UploadFile] = File(...),
 ):
     """
-    Importa uno o più file XML di fattura elettronica nel DB foodcost.db.
-    Evita duplicati usando un hash del contenuto XML.
+    Importa fatture elettroniche nel DB foodcost.db.
+    Accetta:
+    - File XML singoli o multipli (FatturaPA)
+    - Archivi ZIP contenenti file XML (anche in sottocartelle)
+    - Mix di XML e ZIP nella stessa richiesta
+    Evita duplicati usando un hash SHA256 del contenuto XML.
     """
     conn = _get_conn()
     _ensure_tables(conn)
@@ -133,149 +317,42 @@ async def import_fatture_xml(
 
     importate: List[Dict[str, Any]] = []
     gia_presenti: List[Dict[str, Any]] = []
+    errori: List[Dict[str, Any]] = []
 
     for file in files:
         content = await file.read()
         if not content:
             continue
 
-        xml_hash = hashlib.sha256(content).hexdigest()
+        fname = file.filename or "unknown"
+        lower = fname.lower()
 
-        # controllo duplicati
-        cur.execute(
-            "SELECT id, fornitore_nome, numero_fattura, data_fattura "
-            "FROM fe_fatture WHERE xml_hash = ?",
-            (xml_hash,),
-        )
-        existing = cur.fetchone()
-        if existing:
-            gia_presenti.append(
-                {
-                    "filename": file.filename,
-                    "fattura_id": existing["id"],
-                    "fornitore": existing["fornitore_nome"],
-                    "numero_fattura": existing["numero_fattura"],
-                    "data_fattura": existing["data_fattura"],
-                }
-            )
-            continue
-
-        # parsing XML
-        try:
-            root = ET.fromstring(content)
-        except ET.ParseError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File {file.filename}: XML non valido",
-            )
-
-        # HEADER: fornitore, numero, data
-        fornitore_nome = _find_text(root, "Denominazione") or _find_text(
-            root, "Nome"
-        )
-        fornitore_piva = _find_text(root, "IdCodice") or _find_text(
-            root, "CodiceFiscale"
-        )
-
-        numero_fattura = _find_text(root, "Numero")
-        data_fattura_str = _find_text(root, "Data")
-
-        imponibile_str = _find_text(root, "ImponibileImporto")
-        iva_str = _find_text(root, "Imposta")
-        totale_str = _find_text(root, "ImportoTotaleDocumento")
-
-        imponibile_totale = _to_float(imponibile_str)
-        iva_totale = _to_float(iva_str)
-        totale_fattura = _to_float(totale_str)
-
-        now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
-
-        # Inserimento fattura
-        cur.execute(
-            """
-            INSERT INTO fe_fatture (
-                fornitore_nome, fornitore_piva,
-                numero_fattura, data_fattura,
-                imponibile_totale, iva_totale, totale_fattura,
-                valuta, xml_hash, xml_filename, data_import
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            ,
-            (
-                fornitore_nome or "Sconosciuto",
-                fornitore_piva,
-                numero_fattura,
-                data_fattura_str,  # salvo stringa ISO originale
-                imponibile_totale,
-                iva_totale,
-                totale_fattura,
-                "EUR",
-                xml_hash,
-                file.filename,
-                now,
-            ),
-        )
-        fattura_id = cur.lastrowid
-
-        # Righe fattura
-        dettaglio_linee = root.findall(".//{*}DettaglioLinee")
-
-        for line in dettaglio_linee:
-            numero_linea_str = _find_text(line, "NumeroLinea")
-            descrizione = _find_text(line, "Descrizione")
-            quantita_str = _find_text(line, "Quantita")
-            prezzo_unitario_str = _find_text(line, "PrezzoUnitario")
-            prezzo_totale_str = _find_text(line, "PrezzoTotale")
-            um = _find_text(line, "UnitaMisura")
-            aliquota_str = _find_text(line, "AliquotaIVA")
-
-            numero_linea = int(numero_linea_str) if numero_linea_str else None
-
-            cur.execute(
-                """
-                INSERT INTO fe_righe (
-                    fattura_id, numero_linea, descrizione,
-                    quantita, unita_misura,
-                    prezzo_unitario, prezzo_totale, aliquota_iva,
-                    categoria_grezza, note_analisi
+        if lower.endswith(".zip"):
+            # estrai tutti gli XML dallo ZIP
+            xml_entries = _extract_xmls_from_zip(content, fname)
+            for xml_name, xml_content in xml_entries:
+                _process_single_xml(
+                    xml_content, xml_name, cur, conn,
+                    importate, gia_presenti, errori,
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """
-                ,
-                (
-                    fattura_id,
-                    numero_linea,
-                    descrizione,
-                    _to_float(quantita_str),
-                    um,
-                    _to_float(prezzo_unitario_str),
-                    _to_float(prezzo_totale_str),
-                    _to_float(aliquota_str),
-                    None,
-                    None,
-                ),
+        elif lower.endswith(".xml"):
+            _process_single_xml(
+                content, fname, cur, conn,
+                importate, gia_presenti, errori,
             )
-
-        conn.commit()
-
-        importate.append(
-            {
-                "filename": file.filename,
-                "fattura_id": fattura_id,
-                "fornitore": fornitore_nome or "Sconosciuto",
-                "numero_fattura": numero_fattura,
-                "data_fattura": data_fattura_str,
-                "totale_fattura": totale_fattura,
-            }
-        )
+        else:
+            errori.append({"filename": fname, "errore": "Formato non supportato (solo XML e ZIP)"})
 
     conn.close()
 
-    return {
+    result: Dict[str, Any] = {
         "importate": importate,
         "gia_presenti": gia_presenti,
     }
+    if errori:
+        result["errori"] = errori
+
+    return result
 
 
 @router.get(
