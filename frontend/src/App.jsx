@@ -46,6 +46,7 @@ import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 import CorrispettiviAnnual from "./pages/admin/CorrispettiviAnnual";
+import CorrispettiviRiepilogo from "./pages/admin/CorrispettiviRiepilogo";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
@@ -115,6 +116,7 @@ export default function App() {
 
         {/* --- GESTIONE VENDITE --- */}
         <Route path="/vendite" element={<CorrispettiviMenu />} />
+        <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
         <Route path="/vendite/chiusure" element={<CorrispettiviGestione />} />
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/vendite/annual" element={<CorrispettiviAnnual />} />

@@ -90,6 +90,20 @@ export default function CorrispettiviMenu() {
           {/* MENU GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
+            {/* RIEPILOGO MENSILE */}
+            <Link
+              to="/vendite/riepilogo"
+              className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+            >
+              <div className="text-5xl mb-3">📋</div>
+              <h2 className="text-xl font-semibold font-playfair">
+                Riepilogo Mensile
+              </h2>
+              <p className="text-neutral-700 text-sm mt-1">
+                Lista chiusure mese per mese, totali annuali e medie giornaliere.
+              </p>
+            </Link>
+
             {/* CALENDARIO & CHIUSURE */}
             <Link
               to="/vendite/chiusure"
