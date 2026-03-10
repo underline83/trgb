@@ -517,8 +517,7 @@ def list_fatture(
             f.id, f.fornitore_nome, f.fornitore_piva,
             f.numero_fattura, f.data_fattura,
             f.imponibile_totale, f.iva_totale, f.totale_fattura,
-            f.valuta, f.xml_filename, f.data_import,
-            COALESCE(f.is_autofattura, 0) AS is_autofattura
+            f.valuta, f.xml_filename, f.data_import
         FROM fe_fatture f {cat_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC

@@ -1,6 +1,6 @@
-// @version: v1.0-elenco-fatture
+// @version: v1.1-elenco-fix
 // Elenco fatture con filtri avanzati, ricerca, paginazione
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
@@ -15,100 +15,129 @@ const PAGE_SIZE = 50;
 
 export default function FattureElenco() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
-  // Filtri dallo URL
-  const initialSearch = searchParams.get("q") || "";
-  const initialYear = searchParams.get("year") || "";
-  const initialMonth = searchParams.get("month") || "";
-  const initialFornitore = searchParams.get("fornitore") || "";
-
-  const [search, setSearch] = useState(initialSearch);
-  const [yearFilter, setYearFilter] = useState(initialYear);
-  const [monthFilter, setMonthFilter] = useState(initialMonth);
-  const [fornitoreFilter, setFornitoreFilter] = useState(initialFornitore);
+  // Filtri
+  const [search, setSearch] = useState(searchParams.get("q") || "");
+  const [yearFilter, setYearFilter] = useState(searchParams.get("year") || "");
+  const [monthFilter, setMonthFilter] = useState(searchParams.get("month") || "");
+  const [fornitoreFilter, setFornitoreFilter] = useState("");
   const [importoMin, setImportoMin] = useState("");
   const [importoMax, setImportoMax] = useState("");
 
-  const [data, setData] = useState({ fatture: [], total: 0, totale_importo: 0 });
+  const [fatture, setFatture] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [totaleImporto, setTotaleImporto] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
-
-  // Anni disponibili
   const [years, setYears] = useState([]);
 
+  // Carica anni disponibili (una sola volta)
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiFetch(`${FE}/fatture?limit=1&offset=0`);
+        const res = await apiFetch(`${FE}/fatture?limit=5000`);
         if (!res.ok) return;
-        // fetch all to get years
-        const all = await apiFetch(`${FE}/fatture?limit=5000`);
-        if (all.ok) {
-          const d = await all.json();
-          const ySet = new Set();
-          (d.fatture || []).forEach((f) => {
-            if (f.data_fattura) ySet.add(f.data_fattura.slice(0, 4));
-          });
-          setYears(Array.from(ySet).sort());
-        }
+        const json = await res.json();
+        const list = json.fatture || json || [];
+        const ySet = new Set();
+        list.forEach((f) => {
+          if (f.data_fattura) ySet.add(f.data_fattura.slice(0, 4));
+        });
+        setYears(Array.from(ySet).sort());
       } catch { /* ok */ }
     })();
   }, []);
 
-  // Ref per i filtri correnti (evita loop di refetch su ogni keystroke)
-  const filtersRef = React.useRef({ search, yearFilter, monthFilter, fornitoreFilter, importoMin, importoMax });
-  filtersRef.current = { search, yearFilter, monthFilter, fornitoreFilter, importoMin, importoMax };
+  // Funzione di fetch — prende i filtri come parametri espliciti
+  async function doFetch(opts = {}) {
+    const s = opts.search ?? search;
+    const y = opts.year ?? yearFilter;
+    const m = opts.month ?? monthFilter;
+    const forn = opts.fornitore ?? fornitoreFilter;
+    const imin = opts.importoMin ?? importoMin;
+    const imax = opts.importoMax ?? importoMax;
+    const pg = opts.page ?? 0;
 
-  const fetchData = useCallback(async (pg = 0) => {
     setLoading(true);
+    setError(null);
     try {
-      const f = filtersRef.current;
       const params = new URLSearchParams();
-      if (f.search.trim()) params.set("search", f.search.trim());
-      if (f.yearFilter) params.set("year", f.yearFilter);
-      if (f.monthFilter) params.set("month", f.monthFilter);
-      if (f.fornitoreFilter) params.set("fornitore", f.fornitoreFilter);
-      if (f.importoMin) params.set("importo_min", f.importoMin);
-      if (f.importoMax) params.set("importo_max", f.importoMax);
+      if (s.trim()) params.set("search", s.trim());
+      if (y) params.set("year", y);
+      if (m) params.set("month", m);
+      if (forn) params.set("fornitore", forn);
+      if (imin) params.set("importo_min", imin);
+      if (imax) params.set("importo_max", imax);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pg * PAGE_SIZE));
 
-      const res = await apiFetch(`${FE}/fatture?${params.toString()}`);
-      if (!res.ok) throw new Error("Errore");
+      const url = `${FE}/fatture?${params.toString()}`;
+      console.log("[FattureElenco] fetch:", url);
+
+      const res = await apiFetch(url);
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error("[FattureElenco] API error:", res.status, errBody);
+        throw new Error(`Errore API: ${res.status}`);
+      }
+
       const json = await res.json();
-      setData(json);
+      console.log("[FattureElenco] response:", { total: json.total, n: (json.fatture || []).length });
+
+      // Supporta sia il nuovo formato {fatture, total} che il vecchio [lista]
+      if (Array.isArray(json)) {
+        setFatture(json);
+        setTotal(json.length);
+        setTotaleImporto(json.reduce((s, f) => s + (f.totale_fattura || 0), 0));
+      } else {
+        setFatture(json.fatture || []);
+        setTotal(json.total || 0);
+        setTotaleImporto(json.totale_importo || 0);
+      }
       setPage(pg);
-    } catch {
-      setData({ fatture: [], total: 0, totale_importo: 0 });
+    } catch (e) {
+      console.error("[FattureElenco] fetch error:", e);
+      setError(e.message || "Errore nel caricamento");
+      setFatture([]);
+      setTotal(0);
+      setTotaleImporto(0);
     } finally {
       setLoading(false);
     }
+  }
+
+  // Fetch iniziale
+  useEffect(() => {
+    doFetch({ page: 0 });
   }, []);
 
-  // Fetch iniziale + refetch quando cambiano i filtri select (anno/mese)
-  useEffect(() => {
-    fetchData(0);
-  }, [yearFilter, monthFilter]);
+  // Refetch quando cambiano i select (anno/mese)
+  function handleYearChange(val) {
+    setYearFilter(val);
+    doFetch({ year: val, page: 0 });
+  }
+  function handleMonthChange(val) {
+    setMonthFilter(val);
+    doFetch({ month: val, page: 0 });
+  }
 
-  const totalPages = Math.ceil(data.total / PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
   const MESI = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
-  const handleSearchKey = (e) => {
-    if (e.key === "Enter") fetchData(0);
-  };
+  const hasFilters = search || yearFilter || monthFilter || fornitoreFilter || importoMin || importoMax;
 
-  const clearFilters = () => {
+  function clearFilters() {
     setSearch("");
     setYearFilter("");
     setMonthFilter("");
     setFornitoreFilter("");
     setImportoMin("");
     setImportoMax("");
-  };
-
-  const hasFilters = search || yearFilter || monthFilter || fornitoreFilter || importoMin || importoMax;
+    doFetch({ search: "", year: "", month: "", fornitore: "", importoMin: "", importoMax: "", page: 0 });
+  }
 
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
@@ -121,7 +150,7 @@ export default function FattureElenco() {
               Elenco Fatture
             </h1>
             <p className="text-neutral-500 text-xs mt-0.5">
-              {data.total} fatture — Totale: € {fmt(data.totale_importo)}
+              {total} fatture — Totale: € {fmt(totaleImporto)}
             </p>
           </div>
         </div>
@@ -129,28 +158,26 @@ export default function FattureElenco() {
         {/* SEARCH + FILTERS */}
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 mb-4">
           <div className="flex flex-col sm:flex-row gap-3">
-            {/* Search bar */}
             <div className="flex-1 relative">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={handleSearchKey}
+                onKeyDown={(e) => { if (e.key === "Enter") doFetch({ page: 0 }); }}
                 placeholder="Cerca per fornitore, P.IVA, numero fattura..."
                 className="w-full text-sm border border-neutral-300 rounded-xl px-4 py-2.5 pr-10 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
               />
               <button
-                onClick={() => fetchData(0)}
+                onClick={() => doFetch({ page: 0 })}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-amber-800 text-sm transition"
               >
                 ⌕
               </button>
             </div>
 
-            {/* Quick filters */}
             <select
               value={yearFilter}
-              onChange={(e) => setYearFilter(e.target.value)}
+              onChange={(e) => handleYearChange(e.target.value)}
               className="text-sm border border-neutral-300 rounded-xl px-3 py-2 bg-white"
             >
               <option value="">Tutti gli anni</option>
@@ -161,7 +188,7 @@ export default function FattureElenco() {
 
             <select
               value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
+              onChange={(e) => handleMonthChange(e.target.value)}
               className="text-sm border border-neutral-300 rounded-xl px-3 py-2 bg-white"
             >
               <option value="">Tutti i mesi</option>
@@ -189,48 +216,39 @@ export default function FattureElenco() {
             )}
           </div>
 
-          {/* Advanced filters panel */}
           {showFilters && (
             <div className="mt-3 pt-3 border-t border-neutral-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-[10px] text-neutral-500 font-medium uppercase tracking-wide">Importo min</label>
-                <input
-                  type="number"
-                  value={importoMin}
-                  onChange={(e) => setImportoMin(e.target.value)}
-                  placeholder="€ 0"
-                  className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1"
-                />
+                <input type="number" value={importoMin} onChange={(e) => setImportoMin(e.target.value)}
+                  placeholder="€ 0" className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1" />
               </div>
               <div>
                 <label className="text-[10px] text-neutral-500 font-medium uppercase tracking-wide">Importo max</label>
-                <input
-                  type="number"
-                  value={importoMax}
-                  onChange={(e) => setImportoMax(e.target.value)}
-                  placeholder="€ 99999"
-                  className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1"
-                />
+                <input type="number" value={importoMax} onChange={(e) => setImportoMax(e.target.value)}
+                  placeholder="€ 99999" className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1" />
               </div>
               <div className="col-span-2">
                 <label className="text-[10px] text-neutral-500 font-medium uppercase tracking-wide">Fornitore specifico</label>
-                <input
-                  type="text"
-                  value={fornitoreFilter}
-                  onChange={(e) => setFornitoreFilter(e.target.value)}
-                  placeholder="Nome esatto fornitore"
-                  className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1"
-                />
+                <input type="text" value={fornitoreFilter} onChange={(e) => setFornitoreFilter(e.target.value)}
+                  placeholder="Nome esatto fornitore" className="w-full text-sm border border-neutral-300 rounded-lg px-3 py-1.5 mt-1" />
               </div>
             </div>
           )}
         </div>
 
+        {/* ERROR */}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 mb-4">
+            {error}
+          </div>
+        )}
+
         {/* TABLE */}
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
           {loading ? (
             <div className="text-center py-16 text-neutral-400 text-sm">Caricamento...</div>
-          ) : data.fatture.length === 0 ? (
+          ) : fatture.length === 0 ? (
             <div className="text-center py-16 text-neutral-400 text-sm">
               Nessuna fattura trovata{hasFilters ? " con i filtri selezionati" : ""}
             </div>
@@ -249,65 +267,38 @@ export default function FattureElenco() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.fatture.map((f, i) => (
+                    {fatture.map((f) => (
                       <tr
                         key={f.id}
                         className="border-b border-neutral-100 hover:bg-amber-50/40 cursor-pointer transition"
                         onClick={() => navigate(`/admin/fatture/dettaglio/${f.id}`)}
                       >
-                        <td className="px-4 py-2.5 tabular-nums text-neutral-700 whitespace-nowrap">
-                          {f.data_fattura || "-"}
-                        </td>
+                        <td className="px-4 py-2.5 tabular-nums text-neutral-700 whitespace-nowrap">{f.data_fattura || "-"}</td>
                         <td className="px-4 py-2.5">
-                          <div className="font-medium text-neutral-800 truncate max-w-[250px]">
-                            {f.fornitore_nome || "-"}
-                          </div>
+                          <div className="font-medium text-neutral-800 truncate max-w-[250px]">{f.fornitore_nome || "-"}</div>
                         </td>
-                        <td className="px-4 py-2.5 text-neutral-500 tabular-nums hidden sm:table-cell">
-                          {f.fornitore_piva || "-"}
-                        </td>
-                        <td className="px-4 py-2.5 text-neutral-600 whitespace-nowrap">
-                          {f.numero_fattura || "-"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-900 tabular-nums whitespace-nowrap">
-                          € {fmt(f.totale_fattura)}
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className="text-amber-500 text-sm">→</span>
-                        </td>
+                        <td className="px-4 py-2.5 text-neutral-500 tabular-nums hidden sm:table-cell">{f.fornitore_piva || "-"}</td>
+                        <td className="px-4 py-2.5 text-neutral-600 whitespace-nowrap">{f.numero_fattura || "-"}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-900 tabular-nums whitespace-nowrap">€ {fmt(f.totale_fattura)}</td>
+                        <td className="px-4 py-2.5 text-center"><span className="text-amber-500 text-sm">→</span></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* PAGINATION */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
                   <p className="text-xs text-neutral-500">
-                    Pagina {page + 1} di {totalPages} ({data.total} risultati)
+                    Pagina {page + 1} di {totalPages} ({total} risultati)
                   </p>
                   <div className="flex gap-1">
-                    <button
-                      disabled={page === 0}
-                      onClick={() => fetchData(page - 1)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                        page === 0
-                          ? "bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed"
-                          : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-                      }`}
-                    >
+                    <button disabled={page === 0} onClick={() => doFetch({ page: page - 1 })}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${page === 0 ? "bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed" : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"}`}>
                       ← Prec
                     </button>
-                    <button
-                      disabled={page >= totalPages - 1}
-                      onClick={() => fetchData(page + 1)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                        page >= totalPages - 1
-                          ? "bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed"
-                          : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-                      }`}
-                    >
+                    <button disabled={page >= totalPages - 1} onClick={() => doFetch({ page: page + 1 })}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${page >= totalPages - 1 ? "bg-neutral-50 text-neutral-300 border-neutral-100 cursor-not-allowed" : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"}`}>
                       Succ →
                     </button>
                   </div>
