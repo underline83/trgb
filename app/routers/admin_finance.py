@@ -50,6 +50,8 @@ def ensure_daily_closures_table(conn: sqlite3.Connection) -> None:
 class ImportResult(BaseModel):
     status: str
     year: str   # "archivio" oppure "2025", "2026", ...
+    inserted: int = 0
+    updated: int = 0
 
 
 class DailyClosureBase(BaseModel):
@@ -238,6 +240,8 @@ async def import_corrispettivi_file(
     return ImportResult(
         status="ok",
         year=year,
+        inserted=inserted,
+        updated=updated,
     )# ---------------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
 # ---------------------------------------------------------
