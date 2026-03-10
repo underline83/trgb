@@ -236,7 +236,9 @@ def list_fornitori_categorizzati():
             s.nome AS sottocategoria_nome,
             COALESCE(fc.escluso, 0) AS escluso,
             fc.motivo_esclusione,
-            fc.alias_di
+            fc.alias_di,
+            MAX(COALESCE(f.is_autofattura, 0)) AS is_autofattura,
+            GROUP_CONCAT(DISTINCT f.tipo_documento) AS tipi_documento
         FROM fe_fatture f
         LEFT JOIN fe_fornitore_categoria fc
             ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
@@ -496,7 +498,7 @@ def stats_per_categoria(year: Optional[int] = None):
     conn = _get_conn()
     cur = conn.cursor()
 
-    where = "WHERE f.data_fattura IS NOT NULL AND COALESCE(fc.escluso, 0) = 0"
+    where = "WHERE f.data_fattura IS NOT NULL AND COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
     params = []
     if year:
         where += " AND substr(f.data_fattura, 1, 4) = ?"

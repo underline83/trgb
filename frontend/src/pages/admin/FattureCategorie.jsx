@@ -160,12 +160,13 @@ function TabFornitori({ categorie, onRefresh }) {
 
   // Conta e filtra
   const nEsclusi = fornitori.filter((f) => f.escluso).length;
-  const attivi = fornitori.filter((f) => !f.escluso);
+  const nAutofatture = fornitori.filter((f) => f.is_autofattura && !f.escluso).length;
+  const attivi = fornitori.filter((f) => !f.escluso && !f.is_autofattura);
   const nAssegnati = attivi.filter((f) => f.categoria_id).length;
   const nTotali = attivi.length;
 
   // Applica filtri
-  let filtered = showEsclusi ? fornitori.filter((f) => f.escluso) : attivi;
+  let filtered = showEsclusi ? fornitori.filter((f) => f.escluso || f.is_autofattura) : attivi;
   if (!showEsclusi) {
     if (filter === "assegnati") filtered = filtered.filter((f) => f.categoria_id);
     if (filter === "non_assegnati") filtered = filtered.filter((f) => !f.categoria_id);
@@ -205,7 +206,9 @@ function TabFornitori({ categorie, onRefresh }) {
               : "bg-neutral-50 text-neutral-600 border-neutral-300 hover:bg-neutral-100"
           }`}
         >
-          {showEsclusi ? `Esclusi (${nEsclusi}) — torna alla lista` : `Esclusi (${nEsclusi})`}
+          {showEsclusi
+            ? `Esclusi (${nEsclusi + nAutofatture}) — torna alla lista`
+            : `Esclusi / Autofatture (${nEsclusi + nAutofatture})`}
         </button>
         {!showEsclusi && (
           <span className="text-xs text-neutral-500">
@@ -216,8 +219,9 @@ function TabFornitori({ categorie, onRefresh }) {
 
       {showEsclusi && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Questi fornitori sono esclusi dalle analisi (auto-fatture, duplicati, ecc.).
-          Clicca "Ripristina" per reinserirli nella lista attiva.
+          Questi fornitori sono esclusi dalle analisi. Le <strong>autofatture</strong> (TD16-TD19,
+          reverse charge) vengono escluse automaticamente perché il CedentePrestatore siete voi stessi.
+          I fornitori marcati manualmente possono essere ripristinati.
         </div>
       )}
 
@@ -252,12 +256,16 @@ function TabFornitori({ categorie, onRefresh }) {
                 const isSaving = saving === key;
 
                 if (showEsclusi) {
+                  const isAuto = f.is_autofattura;
                   return (
-                    <tr key={key} className="border-t border-neutral-200 bg-red-50/30">
+                    <tr key={key} className={`border-t border-neutral-200 ${isAuto ? "bg-orange-50/30" : "bg-red-50/30"}`}>
                       <td className="px-3 py-2">
                         <div className="font-medium text-neutral-500 line-through">{f.fornitore_nome}</div>
                         {f.fornitore_piva && (
                           <div className="text-[10px] text-neutral-400 font-mono">{f.fornitore_piva}</div>
+                        )}
+                        {f.tipi_documento && (
+                          <div className="text-[9px] text-neutral-400 mt-0.5">Tipo: {f.tipi_documento}</div>
                         )}
                       </td>
                       <td className="px-3 py-2 text-right text-neutral-400">{f.n_fatture}</td>
@@ -265,18 +273,26 @@ function TabFornitori({ categorie, onRefresh }) {
                         {f.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-3 py-2">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
-                          {f.motivo_esclusione || "escluso"}
-                        </span>
+                        {isAuto ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">
+                            autofattura
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                            {f.motivo_esclusione || "escluso"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <button
-                          disabled={isSaving}
-                          onClick={() => handleEscludi(f, false, null)}
-                          className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-50 text-green-800 border border-green-200 hover:bg-green-100 transition disabled:opacity-50"
-                        >
-                          Ripristina
-                        </button>
+                        {!isAuto && (
+                          <button
+                            disabled={isSaving}
+                            onClick={() => handleEscludi(f, false, null)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-50 text-green-800 border border-green-200 hover:bg-green-100 transition disabled:opacity-50"
+                          >
+                            Ripristina
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

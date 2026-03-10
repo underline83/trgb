@@ -103,6 +103,63 @@ def _find_text(root: ET.Element, tag: str) -> str | None:
     return None
 
 
+def _find_text_in(parent: ET.Element, tag: str) -> str | None:
+    """Cerca un tag dentro un parent specifico (ignora namespace)."""
+    if parent is None:
+        return None
+    el = parent.find(f".//{{*}}{tag}")
+    if el is not None and el.text is not None:
+        return el.text.strip()
+    return None
+
+
+def _find_node(root: ET.Element, tag: str) -> ET.Element | None:
+    """Trova il primo nodo con nome `tag` (ignora namespace)."""
+    return root.find(f".//{{*}}{tag}")
+
+
+def _extract_fornitore(root: ET.Element) -> tuple[str | None, str | None]:
+    """
+    Estrae il fornitore (CedentePrestatore) dalla struttura FatturaPA.
+
+    Struttura FatturaPA:
+      FatturaElettronicaHeader
+        ├─ DatiTrasmissione
+        │   └─ IdTrasmittente (NON e' il fornitore!)
+        ├─ CedentePrestatore (= FORNITORE REALE)
+        │   └─ DatiAnagrafici
+        │       ├─ IdFiscaleIVA → IdCodice
+        │       └─ Anagrafica → Denominazione
+        └─ CessionarioCommittente (= DESTINATARIO / noi)
+
+    Il bug precedente: _find_text(root, "Denominazione") prendeva il
+    primo <Denominazione> nell'XML, che poteva essere in DatiTrasmissione
+    o CessionarioCommittente invece che in CedentePrestatore.
+    """
+    cedente = _find_node(root, "CedentePrestatore")
+    if cedente is not None:
+        nome = _find_text_in(cedente, "Denominazione")
+        if nome is None:
+            # Persona fisica: Nome + Cognome
+            n = _find_text_in(cedente, "Nome")
+            c = _find_text_in(cedente, "Cognome")
+            if n and c:
+                nome = f"{n} {c}"
+            elif c:
+                nome = c
+
+        piva = _find_text_in(cedente, "IdCodice")
+        if piva is None:
+            piva = _find_text_in(cedente, "CodiceFiscale")
+
+        return nome, piva
+
+    # Fallback: vecchio metodo (per XML non standard)
+    nome = _find_text(root, "Denominazione") or _find_text(root, "Nome")
+    piva = _find_text(root, "IdCodice") or _find_text(root, "CodiceFiscale")
+    return nome, piva
+
+
 def _to_float(v: str | None) -> float | None:
     if v is None:
         return None
@@ -195,9 +252,15 @@ def _process_single_xml(
         errori.append({"filename": filename, "errore": "XML non valido"})
         return
 
-    # HEADER: fornitore, numero, data
-    fornitore_nome = _find_text(root, "Denominazione") or _find_text(root, "Nome")
-    fornitore_piva = _find_text(root, "IdCodice") or _find_text(root, "CodiceFiscale")
+    # HEADER: tipo documento, fornitore, numero, data
+    tipo_documento = _find_text(root, "TipoDocumento")  # TD01, TD04, TD16-TD19, ...
+
+    # Autofatture: TD16-TD21, TD27 — il CedentePrestatore e' noi stessi
+    AUTOFATTURA_TYPES = {"TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD27"}
+    is_autofattura = 1 if tipo_documento in AUTOFATTURA_TYPES else 0
+
+    # Fornitore: estrai specificamente da CedentePrestatore
+    fornitore_nome, fornitore_piva = _extract_fornitore(root)
 
     numero_fattura = _find_text(root, "Numero")
     data_fattura_str = _find_text(root, "Data")
@@ -218,9 +281,10 @@ def _process_single_xml(
             fornitore_nome, fornitore_piva,
             numero_fattura, data_fattura,
             imponibile_totale, iva_totale, totale_fattura,
-            valuta, xml_hash, xml_filename, data_import
+            valuta, xml_hash, xml_filename, data_import,
+            tipo_documento, is_autofattura
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             fornitore_nome or "Sconosciuto",
@@ -234,6 +298,8 @@ def _process_single_xml(
             xml_hash,
             filename,
             now,
+            tipo_documento,
+            is_autofattura,
         ),
     )
     fattura_id = cur.lastrowid
@@ -478,10 +544,10 @@ def stats_fornitori(
     cur = conn.cursor()
 
     params: list = []
-    where_clauses: list[str] = ["data_fattura IS NOT NULL"]
+    where_clauses: list[str] = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
 
     if year is not None:
-        where_clauses.append("substr(data_fattura, 1, 4) = ?")
+        where_clauses.append("substr(f.data_fattura, 1, 4) = ?")
         params.append(str(year))
 
     where_sql = " AND ".join(where_clauses)
@@ -545,6 +611,7 @@ def stats_mensili(
             WHERE f.data_fattura IS NOT NULL
               AND substr(f.data_fattura, 1, 4) = ?
               AND COALESCE(fc.escluso, 0) = 0
+              AND COALESCE(f.is_autofattura, 0) = 0
             GROUP BY anno, mese
             ORDER BY mese ASC
             """,
@@ -564,6 +631,7 @@ def stats_mensili(
                 OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
             WHERE f.data_fattura IS NOT NULL
               AND COALESCE(fc.escluso, 0) = 0
+              AND COALESCE(f.is_autofattura, 0) = 0
             GROUP BY anno, mese
             ORDER BY anno DESC, mese ASC
             """
