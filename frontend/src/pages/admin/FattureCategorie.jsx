@@ -1,5 +1,6 @@
-// @version: v1.0-categorie-fornitori
+// @version: v1.1-esclusione-fornitori
 // Pagina gestione categorie fornitori — 2 tab: Impostazioni albero + Assegnazione fornitori
+// v1.1: aggiunto supporto esclusione fornitori (auto-fatture, duplicati)
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -93,9 +94,10 @@ function TabFornitori({ categorie, onRefresh }) {
   const nav = useNavigate();
   const [fornitori, setFornitori] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("tutti"); // tutti | assegnati | non_assegnati
+  const [filter, setFilter] = useState("tutti"); // tutti | assegnati | non_assegnati | esclusi
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(null); // piva being saved
+  const [showEsclusi, setShowEsclusi] = useState(false);
 
   const fetchFornitori = async () => {
     setLoading(true);
@@ -134,17 +136,47 @@ function TabFornitori({ categorie, onRefresh }) {
     }
   };
 
-  // filtro
-  let filtered = fornitori;
-  if (filter === "assegnati") filtered = filtered.filter((f) => f.categoria_id);
-  if (filter === "non_assegnati") filtered = filtered.filter((f) => !f.categoria_id);
+  const handleEscludi = async (forn, escluso, motivo) => {
+    const key = forn.fornitore_piva || forn.fornitore_nome;
+    setSaving(key);
+    try {
+      await apiFetch(`${CAT_BASE}/fornitori/escludi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fornitore_piva: forn.fornitore_piva,
+          fornitore_nome: forn.fornitore_nome,
+          escluso,
+          motivo_esclusione: motivo,
+        }),
+      });
+      await fetchFornitori();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Conta e filtra
+  const nEsclusi = fornitori.filter((f) => f.escluso).length;
+  const attivi = fornitori.filter((f) => !f.escluso);
+  const nAssegnati = attivi.filter((f) => f.categoria_id).length;
+  const nTotali = attivi.length;
+
+  // Applica filtri
+  let filtered = showEsclusi ? fornitori.filter((f) => f.escluso) : attivi;
+  if (!showEsclusi) {
+    if (filter === "assegnati") filtered = filtered.filter((f) => f.categoria_id);
+    if (filter === "non_assegnati") filtered = filtered.filter((f) => !f.categoria_id);
+  }
   if (search.trim()) {
     const q = search.toLowerCase();
-    filtered = filtered.filter((f) => f.fornitore_nome?.toLowerCase().includes(q));
+    filtered = filtered.filter((f) =>
+      f.fornitore_nome?.toLowerCase().includes(q) ||
+      f.fornitore_piva?.includes(q)
+    );
   }
-
-  const nAssegnati = fornitori.filter((f) => f.categoria_id).length;
-  const nTotali = fornitori.length;
 
   if (loading) return <p className="text-neutral-500 text-sm">Caricamento fornitori...</p>;
 
@@ -153,20 +185,41 @@ function TabFornitori({ categorie, onRefresh }) {
       {/* BARRA FILTRI */}
       <div className="flex flex-wrap gap-3 mb-4 items-center">
         <input
-          type="text" placeholder="Cerca fornitore..."
+          type="text" placeholder="Cerca fornitore o P.IVA..."
           value={search} onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64"
         />
-        <select value={filter} onChange={(e) => setFilter(e.target.value)}
-          className="px-3 py-2 border border-neutral-300 rounded-xl text-sm">
-          <option value="tutti">Tutti ({nTotali})</option>
-          <option value="non_assegnati">Da assegnare ({nTotali - nAssegnati})</option>
-          <option value="assegnati">Assegnati ({nAssegnati})</option>
-        </select>
-        <span className="text-xs text-neutral-500">
-          {nAssegnati}/{nTotali} categorizzati ({nTotali > 0 ? Math.round(nAssegnati / nTotali * 100) : 0}%)
-        </span>
+        {!showEsclusi && (
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}
+            className="px-3 py-2 border border-neutral-300 rounded-xl text-sm">
+            <option value="tutti">Tutti ({nTotali})</option>
+            <option value="non_assegnati">Da assegnare ({nTotali - nAssegnati})</option>
+            <option value="assegnati">Assegnati ({nAssegnati})</option>
+          </select>
+        )}
+        <button
+          onClick={() => setShowEsclusi(!showEsclusi)}
+          className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
+            showEsclusi
+              ? "bg-red-50 text-red-800 border-red-200"
+              : "bg-neutral-50 text-neutral-600 border-neutral-300 hover:bg-neutral-100"
+          }`}
+        >
+          {showEsclusi ? `Esclusi (${nEsclusi}) — torna alla lista` : `Esclusi (${nEsclusi})`}
+        </button>
+        {!showEsclusi && (
+          <span className="text-xs text-neutral-500">
+            {nAssegnati}/{nTotali} categorizzati ({nTotali > 0 ? Math.round(nAssegnati / nTotali * 100) : 0}%)
+          </span>
+        )}
       </div>
+
+      {showEsclusi && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          Questi fornitori sono esclusi dalle analisi (auto-fatture, duplicati, ecc.).
+          Clicca "Ripristina" per reinserirli nella lista attiva.
+        </div>
+      )}
 
       {/* TABELLA */}
       <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
@@ -177,9 +230,18 @@ function TabFornitori({ categorie, onRefresh }) {
                 <th className="px-3 py-2 text-left">Fornitore</th>
                 <th className="px-3 py-2 text-right">Fatture</th>
                 <th className="px-3 py-2 text-right">Totale €</th>
-                <th className="px-3 py-2 text-left">Categoria</th>
-                <th className="px-3 py-2 text-left">Sotto-categoria</th>
-                <th className="px-3 py-2 text-center">Dettaglio</th>
+                {showEsclusi ? (
+                  <>
+                    <th className="px-3 py-2 text-left">Motivo</th>
+                    <th className="px-3 py-2 text-center">Azioni</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-3 py-2 text-left">Categoria</th>
+                    <th className="px-3 py-2 text-left">Sotto-categoria</th>
+                    <th className="px-3 py-2 text-center">Azioni</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -187,6 +249,39 @@ function TabFornitori({ categorie, onRefresh }) {
                 const key = f.fornitore_piva || f.fornitore_nome;
                 const selCat = categorie.find((c) => c.id === f.categoria_id);
                 const subcats = selCat?.sottocategorie || [];
+                const isSaving = saving === key;
+
+                if (showEsclusi) {
+                  return (
+                    <tr key={key} className="border-t border-neutral-200 bg-red-50/30">
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-neutral-500 line-through">{f.fornitore_nome}</div>
+                        {f.fornitore_piva && (
+                          <div className="text-[10px] text-neutral-400 font-mono">{f.fornitore_piva}</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right text-neutral-400">{f.n_fatture}</td>
+                      <td className="px-3 py-2 text-right text-neutral-400">
+                        {f.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">
+                          {f.motivo_esclusione || "escluso"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          disabled={isSaving}
+                          onClick={() => handleEscludi(f, false, null)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-50 text-green-800 border border-green-200 hover:bg-green-100 transition disabled:opacity-50"
+                        >
+                          Ripristina
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
                   <tr key={key} className={`border-t border-neutral-200 ${!f.categoria_id ? "bg-amber-50/40" : ""}`}>
                     <td className="px-3 py-2">
@@ -202,7 +297,7 @@ function TabFornitori({ categorie, onRefresh }) {
                     <td className="px-3 py-2">
                       <select
                         value={f.categoria_id || ""}
-                        disabled={saving === key}
+                        disabled={isSaving}
                         onChange={(e) => {
                           const newCatId = e.target.value ? Number(e.target.value) : null;
                           handleAssign(f, newCatId, null);
@@ -218,7 +313,7 @@ function TabFornitori({ categorie, onRefresh }) {
                     <td className="px-3 py-2">
                       <select
                         value={f.sottocategoria_id || ""}
-                        disabled={saving === key || !f.categoria_id}
+                        disabled={isSaving || !f.categoria_id}
                         onChange={(e) => {
                           const newSubId = e.target.value ? Number(e.target.value) : null;
                           handleAssign(f, f.categoria_id, newSubId);
@@ -232,14 +327,30 @@ function TabFornitori({ categorie, onRefresh }) {
                       </select>
                     </td>
                     <td className="px-3 py-2 text-center">
-                      {f.fornitore_piva && (
+                      <div className="flex gap-1 justify-center">
+                        {f.fornitore_piva && (
+                          <button
+                            onClick={() => nav(`/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva)}`)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition"
+                          >
+                            Prodotti
+                          </button>
+                        )}
                         <button
-                          onClick={() => nav(`/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva)}`)}
-                          className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition"
+                          disabled={isSaving}
+                          onClick={() => {
+                            const motivo = window.prompt(
+                              "Motivo esclusione:\n• auto-fattura (siamo noi)\n• duplicato\n• test\n• altro",
+                              "auto-fattura"
+                            );
+                            if (motivo !== null) handleEscludi(f, true, motivo);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[10px] font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition disabled:opacity-50"
+                          title="Escludi questo fornitore dalle analisi"
                         >
-                          Prodotti →
+                          Escludi
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 );

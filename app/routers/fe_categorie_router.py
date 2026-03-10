@@ -1,4 +1,4 @@
-# @version: v1.0
+# @version: v1.1-esclusione-fornitori
 # -*- coding: utf-8 -*-
 """
 Router per gestione categorie fornitori fatture elettroniche.
@@ -58,6 +58,15 @@ class FornitoreAssign(BaseModel):
     categoria_id: Optional[int] = None
     sottocategoria_id: Optional[int] = None
     note: Optional[str] = None
+
+
+class FornitoreEscludi(BaseModel):
+    """Marca un fornitore come escluso (auto-fattura, duplicato, ecc.)."""
+    fornitore_piva: Optional[str] = None
+    fornitore_nome: str
+    escluso: bool = True
+    motivo_esclusione: Optional[str] = None  # 'auto-fattura', 'duplicato', 'test'
+    alias_di: Optional[str] = None  # P.IVA fornitore principale (per merge)
 
 
 # ─── CATEGORIE (livello 1) ─────────────────────────────────────
@@ -224,7 +233,10 @@ def list_fornitori_categorizzati():
             fc.sottocategoria_id,
             fc.note AS cat_note,
             c.nome AS categoria_nome,
-            s.nome AS sottocategoria_nome
+            s.nome AS sottocategoria_nome,
+            COALESCE(fc.escluso, 0) AS escluso,
+            fc.motivo_esclusione,
+            fc.alias_di
         FROM fe_fatture f
         LEFT JOIN fe_fornitore_categoria fc
             ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
@@ -280,6 +292,60 @@ def assegna_fornitore(body: FornitoreAssign):
                 INSERT INTO fe_fornitore_categoria (fornitore_piva, fornitore_nome, categoria_id, sottocategoria_id, note)
                 VALUES (NULL, ?, ?, ?, ?)
             """, (body.fornitore_nome, body.categoria_id, body.sottocategoria_id, body.note))
+
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ─── ESCLUSIONE FORNITORI (auto-fatture, duplicati) ───────────
+
+@router.post("/fornitori/escludi", summary="Marca/smarca un fornitore come escluso")
+def escludi_fornitore(body: FornitoreEscludi):
+    """
+    Marca un fornitore come escluso (auto-fattura = noi stessi, duplicato, test).
+    I fornitori esclusi vengono nascosti dalle analisi e dashboard.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+
+    if body.fornitore_piva:
+        cur.execute("SELECT id FROM fe_fornitore_categoria WHERE fornitore_piva = ?",
+                     (body.fornitore_piva,))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute("""
+                UPDATE fe_fornitore_categoria
+                SET escluso = ?, motivo_esclusione = ?, alias_di = ?
+                WHERE fornitore_piva = ?
+            """, (1 if body.escluso else 0, body.motivo_esclusione,
+                  body.alias_di, body.fornitore_piva))
+        else:
+            cur.execute("""
+                INSERT INTO fe_fornitore_categoria
+                (fornitore_piva, fornitore_nome, escluso, motivo_esclusione, alias_di)
+                VALUES (?, ?, ?, ?, ?)
+            """, (body.fornitore_piva, body.fornitore_nome,
+                  1 if body.escluso else 0, body.motivo_esclusione, body.alias_di))
+    else:
+        cur.execute(
+            "SELECT id FROM fe_fornitore_categoria WHERE fornitore_nome = ? AND fornitore_piva IS NULL",
+            (body.fornitore_nome,))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute("""
+                UPDATE fe_fornitore_categoria
+                SET escluso = ?, motivo_esclusione = ?, alias_di = ?
+                WHERE id = ?
+            """, (1 if body.escluso else 0, body.motivo_esclusione,
+                  body.alias_di, existing["id"]))
+        else:
+            cur.execute("""
+                INSERT INTO fe_fornitore_categoria
+                (fornitore_piva, fornitore_nome, escluso, motivo_esclusione, alias_di)
+                VALUES (NULL, ?, ?, ?, ?)
+            """, (body.fornitore_nome, 1 if body.escluso else 0,
+                  body.motivo_esclusione, body.alias_di))
 
     conn.commit()
     conn.close()
@@ -430,7 +496,7 @@ def stats_per_categoria(year: Optional[int] = None):
     conn = _get_conn()
     cur = conn.cursor()
 
-    where = "WHERE f.data_fattura IS NOT NULL"
+    where = "WHERE f.data_fattura IS NOT NULL AND COALESCE(fc.escluso, 0) = 0"
     params = []
     if year:
         where += " AND substr(f.data_fattura, 1, 4) = ?"

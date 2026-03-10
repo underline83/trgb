@@ -489,15 +489,19 @@ def stats_fornitori(
     cur.execute(
         f"""
         SELECT
-            fornitore_nome,
-            fornitore_piva,
+            f.fornitore_nome,
+            f.fornitore_piva,
             COUNT(*) AS numero_fatture,
-            SUM(COALESCE(totale_fattura, 0)) AS totale_fatture,
-            MIN(data_fattura) AS primo_acquisto,
-            MAX(data_fattura) AS ultimo_acquisto
-        FROM fe_fatture
+            SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture,
+            MIN(f.data_fattura) AS primo_acquisto,
+            MAX(f.data_fattura) AS ultimo_acquisto
+        FROM fe_fatture f
+        LEFT JOIN fe_fornitore_categoria fc
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
         WHERE {where_sql}
-        GROUP BY fornitore_nome, fornitore_piva
+          AND COALESCE(fc.escluso, 0) = 0
+        GROUP BY f.fornitore_nome, f.fornitore_piva
         ORDER BY totale_fatture DESC
         """,
         params,
@@ -530,13 +534,17 @@ def stats_mensili(
         cur.execute(
             """
             SELECT
-                substr(data_fattura, 1, 4) AS anno,
-                substr(data_fattura, 6, 2) AS mese,
+                substr(f.data_fattura, 1, 4) AS anno,
+                substr(f.data_fattura, 6, 2) AS mese,
                 COUNT(*) AS numero_fatture,
-                SUM(COALESCE(totale_fattura, 0)) AS totale_fatture
-            FROM fe_fatture
-            WHERE data_fattura IS NOT NULL
-              AND substr(data_fattura, 1, 4) = ?
+                SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
+            FROM fe_fatture f
+            LEFT JOIN fe_fornitore_categoria fc
+                ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+                OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+            WHERE f.data_fattura IS NOT NULL
+              AND substr(f.data_fattura, 1, 4) = ?
+              AND COALESCE(fc.escluso, 0) = 0
             GROUP BY anno, mese
             ORDER BY mese ASC
             """,
@@ -546,12 +554,16 @@ def stats_mensili(
         cur.execute(
             """
             SELECT
-                substr(data_fattura, 1, 4) AS anno,
-                substr(data_fattura, 6, 2) AS mese,
+                substr(f.data_fattura, 1, 4) AS anno,
+                substr(f.data_fattura, 6, 2) AS mese,
                 COUNT(*) AS numero_fatture,
-                SUM(COALESCE(totale_fattura, 0)) AS totale_fatture
-            FROM fe_fatture
-            WHERE data_fattura IS NOT NULL
+                SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
+            FROM fe_fatture f
+            LEFT JOIN fe_fornitore_categoria fc
+                ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+                OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+            WHERE f.data_fattura IS NOT NULL
+              AND COALESCE(fc.escluso, 0) = 0
             GROUP BY anno, mese
             ORDER BY anno DESC, mese ASC
             """
