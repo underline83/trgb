@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const FOODCOST_BASE = `${API_BASE}/foodcost`;
 
@@ -28,7 +28,7 @@ export default function RicetteIngredientiPrezzi() {
 
   const loadPrezzi = async () => {
     setLoading(true);
-    const r = await fetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`);
+    const r = await apiFetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`);
     if (!r.ok) {
       setLoading(false);
       return;
@@ -52,7 +52,7 @@ export default function RicetteIngredientiPrezzi() {
       return;
     }
 
-    await fetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`, {
+    await apiFetch(`${FOODCOST_BASE}/ingredienti/${id}/prezzi`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -72,7 +72,7 @@ export default function RicetteIngredientiPrezzi() {
   const deletePrezzo = async (prezzoId) => {
     if (!window.confirm("Eliminare questo prezzo dallo storico?")) return;
 
-    await fetch(`${FOODCOST_BASE}/prezzi/${prezzoId}`, {
+    await apiFetch(`${FOODCOST_BASE}/prezzi/${prezzoId}`, {
       method: "DELETE",
     });
 

@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -32,7 +32,7 @@ export default function RicetteDettaglio() {
     setLoading(true);
     setError("");
     try {
-      const resp = await fetch(`${FC}/ricette/${id}`);
+      const resp = await apiFetch(`${FC}/ricette/${id}`);
       if (!resp.ok) throw new Error("Ricetta non trovata");
       setRicetta(await resp.json());
     } catch (err) {
@@ -75,6 +75,9 @@ export default function RicetteDettaglio() {
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
+              <span className="text-sm font-mono bg-slate-700 text-white px-2 py-0.5 rounded">
+                R{String(r.id).padStart(3, "0")}
+              </span>
               <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 font-playfair">
                 {r.name}
               </h1>

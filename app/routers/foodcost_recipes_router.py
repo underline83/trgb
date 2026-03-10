@@ -496,6 +496,27 @@ def create_recipe_category(payload: RecipeCategoryCreate):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: LISTA SUB-RICETTE (per selettore)
+#   ⚠️  DEVE stare PRIMA di /ricette/{recipe_id}
+# ─────────────────────────────────────────────
+
+@router.get("/ricette/basi")
+def list_basi():
+    """Lista ricette-base per il selettore sub-ricette nel form."""
+    conn = get_foodcost_connection()
+    rows = conn.execute(
+        """
+        SELECT id, name, yield_qty, yield_unit
+        FROM recipes
+        WHERE is_base = 1 AND is_active = 1
+        ORDER BY name COLLATE NOCASE
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: LISTA RICETTE (con food cost)
 # ─────────────────────────────────────────────
 
@@ -745,23 +766,3 @@ def delete_ricetta(recipe_id: int):
     conn.commit()
     conn.close()
     return {"status": "ok", "detail": "Ricetta disattivata"}
-
-
-# ─────────────────────────────────────────────
-#   ENDPOINT: LISTA SUB-RICETTE (per selettore)
-# ─────────────────────────────────────────────
-
-@router.get("/ricette/basi")
-def list_basi():
-    """Lista ricette-base per il selettore sub-ricette nel form."""
-    conn = get_foodcost_connection()
-    rows = conn.execute(
-        """
-        SELECT id, name, yield_qty, yield_unit
-        FROM recipes
-        WHERE is_base = 1 AND is_active = 1
-        ORDER BY name COLLATE NOCASE
-        """
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]

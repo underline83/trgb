@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 // Unità di misura standardizzate
 const UNITS = ["kg", "g", "L", "ml", "pz", "confezione", "vaschetta", "bottiglia"];
@@ -45,7 +45,7 @@ export default function RicetteIngredienti() {
     setErrorMsg("");
 
     try {
-      const resp = await fetch(`${API_BASE}/foodcost/ingredients`);
+      const resp = await apiFetch(`${API_BASE}/foodcost/ingredients`);
       if (!resp.ok) throw new Error("Errore caricamento ingredienti");
       const data = await resp.json();
       setItems(data || []);
@@ -59,7 +59,7 @@ export default function RicetteIngredienti() {
 
   const loadCategories = async () => {
     try {
-      const resp = await fetch(`${API_BASE}/foodcost/categories`);
+      const resp = await apiFetch(`${API_BASE}/foodcost/categories`);
       if (!resp.ok) return;
       const data = await resp.json();
       setCategories(data || []);
@@ -70,7 +70,7 @@ export default function RicetteIngredienti() {
 
   const loadSuppliers = async () => {
     try {
-      const resp = await fetch(`${API_BASE}/foodcost/suppliers`);
+      const resp = await apiFetch(`${API_BASE}/foodcost/suppliers`);
       if (!resp.ok) return;
       const data = await resp.json();
       setSuppliers(data || []);
@@ -110,7 +110,7 @@ export default function RicetteIngredienti() {
 
     try {
       // 1) CREA INGREDIENTE
-      const respIng = await fetch(`${API_BASE}/foodcost/ingredients`, {
+      const respIng = await apiFetch(`${API_BASE}/foodcost/ingredients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadIngredient),
@@ -135,7 +135,7 @@ export default function RicetteIngredienti() {
           note: `Inserimento iniziale da UI ingredienti`,
         };
 
-        const respPrice = await fetch(`${API_BASE}/foodcost/prices`, {
+        const respPrice = await apiFetch(`${API_BASE}/foodcost/prices`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payloadPrice),

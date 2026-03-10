@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -38,7 +38,7 @@ export default function RicetteArchivio() {
     setLoading(true);
     setError("");
     try {
-      const resp = await fetch(`${FC}/ricette`);
+      const resp = await apiFetch(`${FC}/ricette`);
       if (!resp.ok) throw new Error("Errore caricamento ricette");
       const data = await resp.json();
       setRicette(data || []);
@@ -76,7 +76,7 @@ export default function RicetteArchivio() {
   const handleDisattiva = async (id, nome) => {
     if (!window.confirm(`Disattivare "${nome}"?`)) return;
     try {
-      const resp = await fetch(`${FC}/ricette/${id}`, { method: "DELETE" });
+      const resp = await apiFetch(`${FC}/ricette/${id}`, { method: "DELETE" });
       if (!resp.ok) throw new Error("Errore");
       await loadRicette();
     } catch (err) {
@@ -165,6 +165,7 @@ export default function RicetteArchivio() {
               <table className="w-full text-sm">
                 <thead className="bg-neutral-100 text-neutral-700">
                   <tr>
+                    <th className="p-3 text-left font-semibold">ID</th>
                     <th className="p-3 text-left font-semibold">Nome</th>
                     <th className="p-3 text-left font-semibold">Categoria</th>
                     <th className="p-3 text-center font-semibold">Tipo</th>
@@ -183,6 +184,11 @@ export default function RicetteArchivio() {
                       className="border-t border-neutral-100 hover:bg-amber-50/40 transition cursor-pointer"
                       onClick={() => navigate(`/ricette/${r.id}`)}
                     >
+                      <td className="p-3">
+                        <span className="text-xs font-mono bg-slate-700 text-white px-1.5 py-0.5 rounded">
+                          R{String(r.id).padStart(3, "0")}
+                        </span>
+                      </td>
                       <td className="p-3 font-medium text-neutral-900">
                         {r.name}
                       </td>

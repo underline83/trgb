@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -37,9 +37,9 @@ export default function RicetteNuova() {
     const load = async () => {
       try {
         const [rIng, rBasi, rCat] = await Promise.all([
-          fetch(`${FC}/ingredients`),
-          fetch(`${FC}/ricette/basi`),
-          fetch(`${FC}/ricette/categorie`),
+          apiFetch(`${FC}/ingredients`),
+          apiFetch(`${FC}/ricette/basi`),
+          apiFetch(`${FC}/ricette/categorie`),
         ]);
         if (rIng.ok) setIngredienti(await rIng.json());
         if (rBasi.ok) setBasi(await rBasi.json());
@@ -150,7 +150,7 @@ export default function RicetteNuova() {
 
     setSaving(true);
     try {
-      const resp = await fetch(`${FC}/ricette`, {
+      const resp = await apiFetch(`${FC}/ricette`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -28,7 +28,7 @@ export default function RicetteMatching() {
   // Load data
   const loadPending = async () => {
     try {
-      const resp = await fetch(`${FC}/matching/pending`);
+      const resp = await apiFetch(`${FC}/matching/pending`);
       if (!resp.ok) throw new Error("Errore caricamento righe pendenti");
       setPending(await resp.json());
     } catch (err) {
@@ -38,7 +38,7 @@ export default function RicetteMatching() {
 
   const loadMappings = async () => {
     try {
-      const resp = await fetch(`${FC}/matching/mappings`);
+      const resp = await apiFetch(`${FC}/matching/mappings`);
       if (!resp.ok) throw new Error("Errore caricamento mappings");
       setMappings(await resp.json());
     } catch (err) {
@@ -61,7 +61,7 @@ export default function RicetteMatching() {
     setSuggestions([]);
     setLoadingSugg(true);
     try {
-      const resp = await fetch(`${FC}/matching/suggest?riga_id=${riga.riga_id}`);
+      const resp = await apiFetch(`${FC}/matching/suggest?riga_id=${riga.riga_id}`);
       if (resp.ok) setSuggestions(await resp.json());
     } catch (err) {
       console.error(err);
@@ -74,7 +74,7 @@ export default function RicetteMatching() {
   const handleConfirm = async (rigaId, ingredientId) => {
     setError("");
     try {
-      const resp = await fetch(`${FC}/matching/confirm`, {
+      const resp = await apiFetch(`${FC}/matching/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ riga_id: rigaId, ingredient_id: ingredientId }),
@@ -93,7 +93,7 @@ export default function RicetteMatching() {
     setAutoResult(null);
     setError("");
     try {
-      const resp = await fetch(`${FC}/matching/auto`, { method: "POST" });
+      const resp = await apiFetch(`${FC}/matching/auto`, { method: "POST" });
       if (!resp.ok) throw new Error("Errore auto-match");
       const result = await resp.json();
       setAutoResult(result);
@@ -107,7 +107,7 @@ export default function RicetteMatching() {
   const handleDeleteMapping = async (mappingId) => {
     if (!window.confirm("Eliminare questo mapping?")) return;
     try {
-      await fetch(`${FC}/matching/mappings/${mappingId}`, { method: "DELETE" });
+      await apiFetch(`${FC}/matching/mappings/${mappingId}`, { method: "DELETE" });
       await loadMappings();
     } catch (err) {
       setError("Errore eliminazione mapping.");
