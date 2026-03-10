@@ -20,6 +20,7 @@ export default function FattureImport() {
   const [detailError, setDetailError] = useState(null);
 
   const [isDragging, setIsDragging] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // -----------------------------------
   // FETCH FATTURE LISTA
@@ -166,6 +167,31 @@ export default function FattureImport() {
       setDetailError(e.message);
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // -----------------------------------
+  // RESET DB FATTURE
+  // -----------------------------------
+  const handleReset = async () => {
+    if (!window.confirm("Sei sicuro? Verranno eliminate TUTTE le fatture importate. Questa azione non è reversibile.")) return;
+    setResetting(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/contabilita/fe/fatture`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Errore durante il reset.");
+      }
+      setFatture([]);
+      setSelectedFattura(null);
+      setUploadResult(null);
+      setFiles([]);
+    } catch (e) {
+      setUploadError(e.message);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -564,11 +590,25 @@ export default function FattureImport() {
           </div>
         </div>
 
-        {/* LINK ALLA DASHBOARD */}
-        <div className="mt-8 border-t border-neutral-200 pt-4 flex justify-between items-center">
-          <p className="text-xs text-neutral-500">
-            I dati importati alimentano la Dashboard Acquisti da Fatture.
-          </p>
+        {/* FOOTER: DASHBOARD + RESET */}
+        <div className="mt-8 border-t border-neutral-200 pt-4 flex flex-wrap justify-between items-center gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={resetting || fatture.length === 0}
+              onClick={handleReset}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
+                resetting || fatture.length === 0
+                  ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                  : "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+              }`}
+            >
+              {resetting ? "Eliminazione..." : `Svuota DB (${fatture.length} fatture)`}
+            </button>
+            <p className="text-xs text-neutral-500">
+              I dati importati alimentano la Dashboard Acquisti.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => navigate("/admin/fatture/dashboard")}
