@@ -128,7 +128,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Creare `006_fe_import.py` per `fe_fatture`/`fe_righe`
 
 ## 20. Carta Vini — miglioramenti UI
-- [ ] Ordinamento drag&drop tipologie
+- [x] Ordinamento tipologie/nazioni/regioni — UI con frecce ▲▼ in Strumenti — 2026-03-10
+- [x] Filtri carta configurabili (qta minima, mostra negativi, mostra senza prezzo) — 2026-03-10
+- [ ] **Pagina web pubblica aggiornata** — generare una pagina internet con la carta vini sempre aggiornata (da cantina)
+- [ ] **PDF con indici cliccabili** — TOC con link interni che portano alle sezioni tipologia/regione
 - [ ] Anteprima carta con filtri dinamici
 - [ ] Versioning della carta vini (storico PDF)
 - [ ] Template multipli (eventi, degustazioni)
