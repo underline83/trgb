@@ -117,7 +117,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------------------------------------------------------
 # CRUD UTENTI (usato da users_router)
 # ---------------------------------------------------------------------------
-VALID_ROLES = {"admin", "chef", "sommelier", "viewer"}
+VALID_ROLES = {"admin", "chef", "sommelier", "sala", "viewer"}
 
 def list_users() -> list:
     return [{"username": k, "role": v["role"]} for k, v in USERS.items()]

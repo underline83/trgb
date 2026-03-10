@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
-const ROLES = ["admin", "chef", "sommelier", "viewer"];
+const ROLES = ["admin", "chef", "sommelier", "sala", "viewer"];
 
 const ROLE_LABELS = {
   admin: "👑 Admin",
   chef: "👨‍🍳 Chef",
   sommelier: "🍷 Sommelier",
+  sala: "🍽️ Sala",
   viewer: "👁 Viewer",
 };
 

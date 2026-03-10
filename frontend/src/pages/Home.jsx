@@ -24,7 +24,7 @@ export default function Home() {
       .then(setModules)
       .catch(() => {
         // Fallback: mostra tutti i moduli
-        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["admin", "chef", "sommelier", "viewer"] })));
+        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["admin", "chef", "sommelier", "sala", "viewer"] })));
       })
       .finally(() => setLoading(false));
   }, []);

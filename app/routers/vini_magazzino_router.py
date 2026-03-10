@@ -543,15 +543,15 @@ def delete_movimento(
     movimento_id: int,
     current_user: Any = Depends(get_current_user),
 ):
-    # Solo admin o sommelier possono eliminare movimenti
+    # Solo admin, sommelier o sala possono eliminare movimenti
     role = (
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if role not in ("admin", "sommelier"):
+    if role not in ("admin", "sommelier", "sala"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operazione riservata ad admin o sommelier.",
+            detail="Operazione riservata ad admin, sommelier o sala.",
         )
     db.delete_movimento(movimento_id)
     return {"status": "ok"}

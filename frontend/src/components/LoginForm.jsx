@@ -6,18 +6,21 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const ROLE_COLORS = {
   admin:      "border-amber-500",
   sommelier:  "border-purple-500",
+  sala:       "border-rose-500",
   chef:       "border-emerald-500",
   viewer:     "border-slate-400",
 };
 const ROLE_BG = {
   admin:      "bg-amber-50",
   sommelier:  "bg-purple-50",
+  sala:       "bg-rose-50",
   chef:       "bg-emerald-50",
   viewer:     "bg-slate-50",
 };
 const ROLE_LABELS = {
   admin:      "Admin",
   sommelier:  "Sommelier",
+  sala:       "Sala",
   chef:       "Chef",
   viewer:     "Viewer",
 };
@@ -155,6 +158,7 @@ export default function LoginForm({ setToken, setRole }) {
                 text-white text-xl font-bold
                 ${u.role === "admin" ? "bg-amber-500" :
                   u.role === "sommelier" ? "bg-purple-500" :
+                  u.role === "sala" ? "bg-rose-500" :
                   u.role === "chef" ? "bg-emerald-500" : "bg-slate-400"}
               `}>
                 {getInitials(u.display_name)}
@@ -207,6 +211,7 @@ export default function LoginForm({ setToken, setRole }) {
           text-white text-2xl font-bold
           ${selectedUser.role === "admin" ? "bg-amber-500" :
             selectedUser.role === "sommelier" ? "bg-purple-500" :
+            selectedUser.role === "sala" ? "bg-rose-500" :
             selectedUser.role === "chef" ? "bg-emerald-500" : "bg-slate-400"}
         `}>
           {getInitials(selectedUser.display_name)}

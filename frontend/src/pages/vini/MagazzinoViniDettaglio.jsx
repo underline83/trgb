@@ -62,7 +62,7 @@ export default function MagazzinoViniDettaglio() {
   const navigate = useNavigate();
   const { id } = useParams();
   const role = localStorage.getItem("role");
-  const canDelete = role === "admin" || role === "sommelier";
+  const canDelete = role === "admin" || role === "sommelier" || role === "sala";
 
   // ── stato base ───────────────────────────────────────
   const [vino, setVino]       = useState(null);
@@ -520,7 +520,7 @@ export default function MagazzinoViniDettaglio() {
           <div className="bg-white border border-neutral-200 border-t-0">
             <SectionHeader title="Movimenti cantina">
               {movLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
-              {!canDelete && <span className="text-[11px] text-neutral-400">Elimina: solo admin/sommelier</span>}
+              {!canDelete && <span className="text-[11px] text-neutral-400">Elimina: solo admin/sommelier/sala</span>}
             </SectionHeader>
             <div className="p-5 space-y-5">
               {/* form */}

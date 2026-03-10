@@ -5,14 +5,15 @@ import { API_BASE, apiFetch } from "../../config/api";
 // ---------------------------------------------------------------------------
 // COSTANTI
 // ---------------------------------------------------------------------------
-const ROLES = ["chef", "sommelier", "viewer"];
+const ROLES = ["chef", "sommelier", "sala", "viewer"];
 const ROLE_LABELS = {
   admin:     { label: "Admin",     icon: "👑" },
   chef:      { label: "Chef",      icon: "👨‍🍳" },
   sommelier: { label: "Sommelier", icon: "🍷" },
+  sala:      { label: "Sala",      icon: "🍽️" },
   viewer:    { label: "Viewer",    icon: "👁" },
 };
-const ALL_ROLES = ["admin", "chef", "sommelier", "viewer"];
+const ALL_ROLES = ["admin", "chef", "sommelier", "sala", "viewer"];
 
 // ---------------------------------------------------------------------------
 // COMPONENTE PRINCIPALE

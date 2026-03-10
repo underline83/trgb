@@ -17,7 +17,7 @@ from app.services.auth_service import get_current_user
 router = APIRouter(prefix="/settings/modules", tags=["modules"])
 
 MODULES_FILE = Path(__file__).resolve().parent.parent / "data" / "modules.json"
-VALID_ROLES = {"admin", "chef", "sommelier", "viewer"}
+VALID_ROLES = {"admin", "chef", "sommelier", "sala", "viewer"}
 
 
 def _load() -> list:

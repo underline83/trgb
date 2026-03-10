@@ -2,19 +2,19 @@
   {
     "username": "marco",
     "display_name": "Marco",
-    "password_hash": "$5$62ba12a40ba131dd$RGTyc2hwZPy.8sg2DB9JzTVeRRpmYuzLlHrTKCbeHFC",
+    "password_hash": "$5$9f3c0f832d71b3cc$t1.EDykW2L/tskqjXPPYYXLDFPyiSOMxNtqF6bn.Kl6",
     "role": "admin"
   },
   {
     "username": "iryna",
     "display_name": "Iryna",
-    "password_hash": "$5$7499b0596fc3aa54$Xnuul.UFzRhuIWMdwaVzmlSg439Ps25UXu6cumcRTq4",
-    "role": "sommelier"
+    "password_hash": "$5$38cbc67abdc3c6a6$ASegfBJJHSC.eQhz5ATGA5cX0c22rDmuIxdmgNWplC4",
+    "role": "sala"
   },
   {
     "username": "paolo",
     "display_name": "Paolo",
-    "password_hash": "$5$3e888d2c87f009a3$rLTjLjCiXNhTJBQSZIPKZvD5rtcin4Y5pQd51r2d7w9",
-    "role": "sommelier"
+    "password_hash": "$5$b6f07ed5c6f0aeb0$pV5uipiSl0uJBSJzicYROGCthdaIhAiUYJSYrqJviA8",
+    "role": "sala"
   }
 ]
