@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
+import ViniNav from "./ViniNav";
 import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
@@ -194,12 +194,12 @@ export default function MagazzinoAdmin() {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-100 p-4">
-      <div className="max-w-[100rem] mx-auto space-y-4">
+    <div className="min-h-screen bg-neutral-100">
+      <ViniNav current="cantina" />
+      <div className="max-w-[100rem] mx-auto p-4 space-y-4">
 
         {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-neutral-200">
-          <MagazzinoSubMenu />
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mt-2">
             <div>
               <h1 className="text-2xl font-bold text-amber-900 font-playfair">

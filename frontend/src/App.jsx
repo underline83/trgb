@@ -119,14 +119,15 @@ export default function App() {
         <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/admin/corrispettivi/annual" element={<CorrispettiviAnnual />} />
 
-        <Route path="/admin/fatture" element={<FattureMenu />} />
-        <Route path="/admin/fatture/elenco" element={<FattureElenco />} />
-        <Route path="/admin/fatture/dettaglio/:id" element={<FattureDettaglio />} />
-        <Route path="/admin/fatture/fornitori" element={<FattureFornitoriElenco />} />
-        <Route path="/admin/fatture/import" element={<FattureImport />} />
-        <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
-        <Route path="/admin/fatture/categorie" element={<FattureCategorie />} />
-        <Route path="/admin/fatture/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
+        {/* --- GESTIONE ACQUISTI --- */}
+        <Route path="/acquisti" element={<FattureMenu />} />
+        <Route path="/acquisti/elenco" element={<FattureElenco />} />
+        <Route path="/acquisti/dettaglio/:id" element={<FattureDettaglio />} />
+        <Route path="/acquisti/fornitori" element={<FattureFornitoriElenco />} />
+        <Route path="/acquisti/import" element={<FattureImport />} />
+        <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
+        <Route path="/acquisti/categorie" element={<FattureCategorie />} />
+        <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

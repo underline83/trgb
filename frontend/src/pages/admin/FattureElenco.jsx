@@ -271,7 +271,7 @@ export default function FattureElenco() {
                       <tr
                         key={f.id}
                         className="border-b border-neutral-100 hover:bg-amber-50/40 cursor-pointer transition"
-                        onClick={() => navigate(`/admin/fatture/dettaglio/${f.id}`)}
+                        onClick={() => navigate(`/acquisti/dettaglio/${f.id}`)}
                       >
                         <td className="px-4 py-2.5 tabular-nums text-neutral-700 whitespace-nowrap">{f.data_fattura || "-"}</td>
                         <td className="px-4 py-2.5">

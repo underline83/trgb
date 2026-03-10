@@ -212,7 +212,7 @@ export default function FattureFornitoriElenco() {
                         className="border-t border-neutral-200 hover:bg-amber-50/40 cursor-pointer transition"
                         onClick={() =>
                           navigate(
-                            `/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva || f.fornitore_nome)}`
+                            `/acquisti/fornitore/${encodeURIComponent(f.fornitore_piva || f.fornitore_nome)}`
                           )
                         }
                       >

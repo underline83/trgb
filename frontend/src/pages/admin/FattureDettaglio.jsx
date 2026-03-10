@@ -57,7 +57,7 @@ export default function FattureDettaglio() {
           <div className="bg-white rounded-2xl border border-red-200 p-8 text-center">
             <p className="text-red-700 font-medium mb-4">{error || "Fattura non trovata"}</p>
             <button
-              onClick={() => navigate("/admin/fatture/elenco")}
+              onClick={() => navigate("/acquisti/elenco")}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition"
             >
               ← Torna all'elenco
@@ -99,7 +99,7 @@ export default function FattureDettaglio() {
               )}
               {fattura.fornitore_piva && (
                 <button
-                  onClick={() => navigate(`/admin/fatture/fornitore/${encodeURIComponent(fattura.fornitore_piva)}`)}
+                  onClick={() => navigate(`/acquisti/fornitore/${encodeURIComponent(fattura.fornitore_piva)}`)}
                   className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium underline underline-offset-2 transition"
                 >
                   Vedi tutte le fatture di questo fornitore →

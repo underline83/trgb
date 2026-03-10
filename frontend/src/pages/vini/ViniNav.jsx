@@ -1,17 +1,17 @@
-// @version: v1.0-fatture-nav
-// Tab navigation persistente per la sezione fatture
+// @version: v1.0-vini-nav
+// Tab navigation persistente per la sezione vini
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "dashboard", label: "Dashboard", path: "/acquisti/dashboard", icon: "📈" },
-  { key: "elenco", label: "Elenco", path: "/acquisti/elenco", icon: "📋" },
-  { key: "fornitori", label: "Fornitori", path: "/acquisti/fornitori", icon: "🏢" },
-  { key: "import", label: "Import", path: "/acquisti/import", icon: "📤" },
-  { key: "categorie", label: "Categorie", path: "/acquisti/categorie", icon: "🏷️" },
+  { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
+  { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
+  { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
+  { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
+  { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️" },
 ];
 
-export default function FattureNav({ current }) {
+export default function ViniNav({ current }) {
   const navigate = useNavigate();
 
   return (
@@ -21,10 +21,10 @@ export default function FattureNav({ current }) {
           {/* Left: brand + tabs */}
           <div className="flex items-center gap-1">
             <button
-              onClick={() => navigate("/acquisti")}
+              onClick={() => navigate("/vini")}
               className="text-sm font-bold text-amber-900 font-playfair mr-4 hover:text-amber-700 transition whitespace-nowrap"
             >
-              Acquisti
+              Vini
             </button>
             <div className="flex gap-0.5">
               {TABS.map((tab) => {

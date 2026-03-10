@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-10 (sessione 2 — Food Cost v2)
+> Ultima sessione: 2026-03-10 (sessione 3 — Gestione Acquisti v2.0 + ViniNav)
 
 ---
 
@@ -15,7 +15,36 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 2)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 3)
+
+### Gestione Acquisti v2.0 — Promozione a modulo top-level
+
+1. **Promosso "Gestione Acquisti"** da sotto-sezione Admin a modulo di primo livello nella Home
+2. **Route migrate** da `/admin/fatture/*` a `/acquisti/*` (8 route, 10+ file aggiornati)
+3. **Pagina Elenco Fornitori** (`/acquisti/fornitori`) — lista con ricerca, ordinamento, filtro anno, 4 KPI cards, click-through a dettaglio
+4. **Pagina Elenco Fatture** (`/acquisti/elenco`) — ricerca full-text, filtri avanzati, paginazione server-side
+5. **Pagina Dettaglio Fattura** (`/acquisti/dettaglio/:id`) — info complete, righe, link fornitore
+6. **Fix ricerca elenco fatture** — rimosso response_model errato, semplificato fetch, rimosso is_autofattura dal SELECT
+7. **Fix drill-down dashboard** — click per-bar/per-slice invece di chart-level
+8. **FattureNav** — barra navigazione persistente con 5 tab (Dashboard, Elenco, Fornitori, Import, Categorie)
+9. **Home.jsx** — tile "Gestione Acquisti" con icona e badge versione
+10. **AdminMenu** — rimossa tile fatture, aggiornato subtitle
+11. **modules.json** — aggiunto modulo `acquisti`
+12. **Docs/Modulo_Acquisti.md** — documentazione completa
+
+### ViniNav — Navigazione persistente per modulo Vini
+
+1. **ViniNav.jsx** — barra navigazione identica a FattureNav (5 tab: Carta, Vendite, Cantina, Dashboard, Impostazioni)
+2. **Applicata a 11 pagine** vini: ViniCarta, ViniVendite, MagazzinoVini, DashboardVini, ViniImpostazioni, MagazzinoViniNuovo, MagazzinoViniDettaglio, RegistroMovimenti, MagazzinoAdmin, CantinaTools, MovimentiCantina
+3. **MagazzinoSubMenu rimosso** — sostituito da ViniNav in tutte le pagine
+
+### Versioning
+- **versions.jsx** aggiornato: Vini v3.5→v3.6, Fatture v1.2→v2.0, Sistema v3.5→v4.0
+- Label fatture cambiata da "Fatture XML" a "Gestione Acquisti"
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 2)
 
 ### Modulo Ricette & Food Cost v2 — REBUILD COMPLETO
 
@@ -111,13 +140,13 @@ Fonte di verita': `frontend/src/config/versions.js`
 
 | Modulo | Versione | Stato | Note |
 |--------|----------|-------|------|
-| Cantina & Vini | v3.5 | stabile | Carta, vendite, magazzino, dashboard, strumenti |
+| Cantina & Vini | v3.6 | stabile | Carta, vendite, magazzino, dashboard, strumenti, ViniNav |
+| Gestione Acquisti | v2.0 | stabile | Fatture XML, fornitori, dashboard, categorie (top-level) |
 | Ricette & Food Cost | v2.0 | beta | Ricette, sub-ricette, matching fatture, ingredienti |
 | Corrispettivi | v1.5 | stabile | Import Excel, chiusura cassa |
-| Fatture XML | v1.2 | stabile | Import XML acquisti, analisi fornitore |
 | Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
 | Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
-| Sistema | v3.5 | stabile | Versione globale gestionale |
+| Sistema | v4.0 | stabile | Versione globale gestionale |
 
 Le versioni sono mostrate visualmente nella UI:
 - **Home** — badge versione su ogni tile modulo + footer sistema

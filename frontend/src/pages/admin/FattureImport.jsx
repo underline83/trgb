@@ -594,7 +594,7 @@ export default function FattureImport() {
           </div>
           <button
             type="button"
-            onClick={() => navigate("/admin/fatture/dashboard")}
+            onClick={() => navigate("/acquisti/dashboard")}
             className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 transition"
           >
             Vai alla Dashboard Acquisti →

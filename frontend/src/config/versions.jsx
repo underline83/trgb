@@ -3,7 +3,7 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.5",
+    version: "3.6",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -21,8 +21,8 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   fatture: {
-    version: "1.2",
-    label: "Fatture XML",
+    version: "2.0",
+    label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
   },
@@ -39,7 +39,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   sistema: {
-    version: "3.5",
+    version: "4.0",
     label: "Sistema",
     status: "stabile",
     color: "green",

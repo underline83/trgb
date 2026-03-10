@@ -61,25 +61,6 @@ export default function AdminMenu() {
             </p>
           </Link>
 
-          {/* FATTURE ELETTRONICHE */}
-          <Link
-            to="/admin/fatture"
-            className="
-              bg-amber-50 border border-amber-200 text-amber-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">🧾</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Fatture Elettroniche (XML)
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Import XML acquisti, analisi per fornitore e dashboard mensile.
-            </p>
-          </Link>
-
           {/* DIPENDENTI — MENU */}
           <Link
             to="/admin/dipendenti"

@@ -341,7 +341,7 @@ function TabFornitori({ categorie, onRefresh }) {
                       <div className="flex gap-1 justify-center">
                         {f.fornitore_piva && (
                           <button
-                            onClick={() => nav(`/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva)}`)}
+                            onClick={() => nav(`/acquisti/fornitore/${encodeURIComponent(f.fornitore_piva)}`)}
                             className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition"
                           >
                             Prodotti

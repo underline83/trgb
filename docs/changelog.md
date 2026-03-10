@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-03-10f — Gestione Acquisti v2.0 + ViniNav + Versioning v4.0
+
+### Added
+- **Modulo "Gestione Acquisti"** promosso a sezione top-level nella Home
+- **Route migrate** da `/admin/fatture/*` a `/acquisti/*` (8 route)
+- **FattureFornitoriElenco.jsx** — elenco fornitori con ricerca, ordinamento, KPI
+- **ViniNav.jsx** — barra navigazione persistente per modulo Vini (5 tab)
+- **ViniNav applicata** a 11 pagine vini (rimosso MagazzinoSubMenu)
+- **Tile "Gestione Acquisti"** nella Home
+- **Docs/Modulo_Acquisti.md** — documentazione completa
+
+### Changed
+- **Home.jsx** — aggiunta entry `acquisti`, subtitle admin aggiornato
+- **AdminMenu.jsx** — rimossa tile Fatture
+- **FattureMenu.jsx** — rinominato "Gestione Acquisti", 3 colonne, link Home
+- **FattureNav.jsx** — brand "Acquisti", link Home
+- **modules.json** — aggiunto modulo `acquisti`
+- **versions.jsx** — Vini v3.6, Fatture v2.0, Sistema v4.0
+
+---
+
 ## 2026-03-10e — Sistema versioning moduli
 
 ### Added

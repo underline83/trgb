@@ -7,6 +7,13 @@
     "roles": ["admin", "sommelier", "sala", "viewer"]
   },
   {
+    "key": "acquisti",
+    "label": "Gestione Acquisti",
+    "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
+    "icon": "📦",
+    "roles": ["admin"]
+  },
+  {
     "key": "ricette",
     "label": "Gestione Ricette",
     "description": "Archivio ricette, costi, stampa PDF",
@@ -23,7 +30,7 @@
   {
     "key": "admin",
     "label": "Amministrazione",
-    "description": "Corrispettivi, fatture, dipendenti, utenti",
+    "description": "Corrispettivi, dipendenti, utenti, impostazioni",
     "icon": "🧾",
     "roles": ["admin"]
   }

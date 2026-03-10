@@ -234,7 +234,7 @@ export default function FattureDashboard() {
               <p className="text-xs text-neutral-400">
                 Autofatture e fornitori esclusi non sono inclusi nei dati.
               </p>
-              <button onClick={() => navigate("/admin/fatture/import")}
+              <button onClick={() => navigate("/acquisti/import")}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition">
                 Import XML →
               </button>
@@ -479,7 +479,7 @@ function TopFornitoriCard({ data, navigate }) {
               key={i}
               className="cursor-pointer hover:bg-neutral-50 rounded-lg px-1 -mx-1 py-0.5 transition"
               onClick={() => {
-                if (f.fornitore_piva) navigate(`/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva)}`);
+                if (f.fornitore_piva) navigate(`/acquisti/fornitore/${encodeURIComponent(f.fornitore_piva)}`);
               }}
             >
               <div className="flex justify-between items-baseline mb-0.5">
@@ -606,7 +606,7 @@ function DrillPanel({ drill, onClose, navigate }) {
                 <tr
                   key={f.id || i}
                   className="border-b border-neutral-100 hover:bg-amber-50/50 cursor-pointer transition"
-                  onClick={() => f.id && navigate(`/admin/fatture/dettaglio/${f.id}`)}
+                  onClick={() => f.id && navigate(`/acquisti/dettaglio/${f.id}`)}
                 >
                   <td className="py-1.5 pr-3 tabular-nums text-neutral-700 whitespace-nowrap">
                     {f.data_fattura || "-"}

@@ -5,7 +5,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
+import ViniNav from "./ViniNav";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
@@ -276,8 +276,9 @@ export default function MagazzinoViniDettaglio() {
 
   // ── render ───────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-4xl mx-auto space-y-0">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <ViniNav current="cantina" />
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-0">
 
         {/* HEADER */}
         <div className="bg-white shadow-2xl rounded-t-3xl px-8 pt-8 pb-4 border border-neutral-200 border-b-0">
@@ -314,7 +315,6 @@ export default function MagazzinoViniDettaglio() {
               </button>
             </div>
           </div>
-          <MagazzinoSubMenu showDettaglio />
         </div>
 
         {loading && <div className="bg-white px-8 py-6 border border-neutral-200 border-t-0 rounded-b-3xl"><p className="text-sm text-neutral-500">Caricamento…</p></div>}

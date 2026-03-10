@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
+import ViniNav from "./ViniNav";
 
 const TIPO_LABELS = {
   CARICO:    { label: "Carico",    icon: "⬆️", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -82,8 +82,10 @@ export default function RegistroMovimenti() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <ViniNav current="cantina" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
 
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
@@ -103,7 +105,6 @@ export default function RegistroMovimenti() {
           </div>
         </div>
 
-        <MagazzinoSubMenu />
 
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 mb-6 space-y-3">
@@ -230,6 +231,7 @@ export default function RegistroMovimenti() {
           </div>
         )}
 
+      </div>
       </div>
     </div>
   );

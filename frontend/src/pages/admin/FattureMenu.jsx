@@ -27,7 +27,7 @@ export default function FattureMenu() {
 
   const handleSearch = () => {
     if (search.trim()) {
-      navigate(`/admin/fatture/elenco?q=${encodeURIComponent(search.trim())}`);
+      navigate(`/acquisti/elenco?q=${encodeURIComponent(search.trim())}`);
     }
   };
 
@@ -42,19 +42,19 @@ export default function FattureMenu() {
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
-              Fatture Elettroniche
+              Gestione Acquisti
             </h1>
             <p className="text-neutral-500 text-sm">
-              Import, analisi e categorizzazione acquisti da fatture XML
+              Import fatture XML, analisi fornitori, categorie e dashboard acquisti
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <button
               type="button"
-              onClick={() => navigate("/admin")}
+              onClick={() => navigate("/")}
               className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
             >
-              ← Amministrazione
+              ← Home
             </button>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function FattureMenu() {
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
-            to="/admin/fatture/dashboard"
+            to="/acquisti/dashboard"
             className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -112,7 +112,7 @@ export default function FattureMenu() {
           </Link>
 
           <Link
-            to="/admin/fatture/elenco"
+            to="/acquisti/elenco"
             className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -130,7 +130,7 @@ export default function FattureMenu() {
           </Link>
 
           <Link
-            to="/admin/fatture/fornitori"
+            to="/acquisti/fornitori"
             className="bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -148,7 +148,7 @@ export default function FattureMenu() {
           </Link>
 
           <Link
-            to="/admin/fatture/import"
+            to="/acquisti/import"
             className="bg-green-50 border border-green-200 text-green-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -161,7 +161,7 @@ export default function FattureMenu() {
           </Link>
 
           <Link
-            to="/admin/fatture/categorie"
+            to="/acquisti/categorie"
             className="bg-purple-50 border border-purple-200 text-purple-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">

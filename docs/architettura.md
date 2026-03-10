@@ -148,9 +148,14 @@ Ruoli esistenti: `admin`, `chef`, `sommelier`, `viewer`
 /admin/corrispettivi/import — Import Excel corrispettivi
 /admin/corrispettivi/gestione — Gestione chiusure
 /admin/corrispettivi/dashboard — Dashboard corrispettivi
-/admin/fatture              — Menu Fatture Elettroniche
-/admin/fatture/import       — Import FE XML
-/admin/fatture/dashboard    — Dashboard acquisti
+/acquisti                   — Menu Gestione Acquisti
+/acquisti/dashboard         — Dashboard acquisti
+/acquisti/elenco            — Elenco fatture
+/acquisti/dettaglio/:id     — Dettaglio fattura
+/acquisti/fornitori         — Elenco fornitori
+/acquisti/fornitore/:piva   — Dettaglio fornitore
+/acquisti/import            — Import FE XML
+/acquisti/categorie         — Categorie fornitori
 /admin/dipendenti           — Menu Dipendenti
 /admin/dipendenti/anagrafica — Anagrafica dipendenti
 /admin/dipendenti/turni     — Turni dipendenti
@@ -158,6 +163,7 @@ Ruoli esistenti: `admin`, `chef`, `sommelier`, `viewer`
 ```
 
 ✅ `/admin/corrispettivi/annual` — aggiunta (Fix #6, 2026-03-08)
+✅ `/acquisti/*` — Gestione Acquisti promosso a modulo top-level (2026-03-10)
 
 ---
 
@@ -195,14 +201,14 @@ IP VPS: `80.211.131.156` (Aruba, Ubuntu 22.04)
 # 9. Versioni e dipendenze
 
 ```
-Master Version ................. 2026.03.08
+Master Version ................. 2026.03.10
 Core Backend ................... v1.8.0
 Core Frontend .................. v1.4.0
 
 Modulo Vini (Carta) ............ v2025.12.01  — stabile
 Modulo Magazzino Vini ......... v2025.12.03  — stabile
 Modulo Corrispettivi ........... v2026.01.01  — operativo
-Modulo Fatture XML ............. v2025.12.05  — operativo (Fase 2 in roadmap)
+Modulo Gestione Acquisti ....... v2.0         — stabile (top-level)
 Modulo FoodCost ................ v2025.11.28  — in sviluppo
 Modulo Dipendenti .............. v2025.12.01  — operativo
 

@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import MagazzinoSubMenu from "../../components/vini/MagazzinoSubMenu";
+import ViniNav from "./ViniNav";
 
 const uniq = (arr) =>
   Array.from(new Set(arr.filter((x) => x && String(x).trim() !== ""))).sort(
@@ -230,8 +230,10 @@ export default function MagazzinoVini() {
   // RENDER
   // ------------------------------------------------
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 lg:p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <ViniNav current="cantina" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row justify-between gap-4 mb-4">
           <div>
@@ -255,9 +257,6 @@ export default function MagazzinoVini() {
         </div>
 
         {/* SUBMENU */}
-        <div className="mb-6">
-          <MagazzinoSubMenu />
-        </div>
 
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner mb-6 space-y-4">
@@ -800,6 +799,7 @@ export default function MagazzinoVini() {
           </div>
         </div>
 
+      </div>
       </div>
     </div>
   );
