@@ -22,18 +22,30 @@ USERS_FILE = Path(__file__).resolve().parent.parent / "data" / "users.json"
 # CARICA / SALVA UTENTI
 # ---------------------------------------------------------------------------
 def _load_users() -> dict:
-    """Legge users.json e restituisce un dict {username: {password_hash, role}}."""
+    """Legge users.json e restituisce un dict {username: {password_hash, role, display_name}}."""
     if not USERS_FILE.exists():
         return {}
     with open(USERS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return {u["username"]: {"password_hash": u["password_hash"], "role": u["role"]} for u in data}
+    return {
+        u["username"]: {
+            "password_hash": u["password_hash"],
+            "role": u["role"],
+            "display_name": u.get("display_name", u["username"].capitalize()),
+        }
+        for u in data
+    }
 
 
 def _save_users(users: dict) -> None:
     """Serializza il dict utenti e lo scrive su users.json."""
     data = [
-        {"username": k, "password_hash": v["password_hash"], "role": v["role"]}
+        {
+            "username": k,
+            "display_name": v.get("display_name", k.capitalize()),
+            "password_hash": v["password_hash"],
+            "role": v["role"],
+        }
         for k, v in users.items()
     ]
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -70,6 +82,7 @@ def authenticate_user(username: str, password: str):
         "access_token": access_token,
         "token_type": "bearer",
         "role": user["role"],
+        "display_name": user.get("display_name", username.capitalize()),
     }
 
 # ---------------------------------------------------------------------------
@@ -139,6 +152,18 @@ def change_password(username: str, new_password: str, current_password: str = No
             raise HTTPException(status_code=400, detail="Password attuale non corretta")
     USERS[username]["password_hash"] = security.get_password_hash(new_password)
     _save_users(USERS)
+
+
+def list_tiles() -> list:
+    """Restituisce la lista utenti per le tile di login (senza hash)."""
+    return [
+        {
+            "username": k,
+            "display_name": v.get("display_name", k.capitalize()),
+            "role": v["role"],
+        }
+        for k, v in USERS.items()
+    ]
 
 
 def change_role(username: str, new_role: str) -> None:

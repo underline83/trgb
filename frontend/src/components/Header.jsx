@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
-  const username = localStorage.getItem("username") || "";
+  const username = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
   const role = localStorage.getItem("role") || "";
 
   return (
