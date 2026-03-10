@@ -442,7 +442,6 @@ def reset_fatture():
 
 @router.get(
     "/fatture",
-    response_model=List[Dict[str, Any]],
     summary="Elenco fatture elettroniche importate con filtri",
 )
 def list_fatture(

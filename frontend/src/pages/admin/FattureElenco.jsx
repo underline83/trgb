@@ -57,16 +57,21 @@ export default function FattureElenco() {
     })();
   }, []);
 
+  // Ref per i filtri correnti (evita loop di refetch su ogni keystroke)
+  const filtersRef = React.useRef({ search, yearFilter, monthFilter, fornitoreFilter, importoMin, importoMax });
+  filtersRef.current = { search, yearFilter, monthFilter, fornitoreFilter, importoMin, importoMax };
+
   const fetchData = useCallback(async (pg = 0) => {
     setLoading(true);
     try {
+      const f = filtersRef.current;
       const params = new URLSearchParams();
-      if (search.trim()) params.set("search", search.trim());
-      if (yearFilter) params.set("year", yearFilter);
-      if (monthFilter) params.set("month", monthFilter);
-      if (fornitoreFilter) params.set("fornitore", fornitoreFilter);
-      if (importoMin) params.set("importo_min", importoMin);
-      if (importoMax) params.set("importo_max", importoMax);
+      if (f.search.trim()) params.set("search", f.search.trim());
+      if (f.yearFilter) params.set("year", f.yearFilter);
+      if (f.monthFilter) params.set("month", f.monthFilter);
+      if (f.fornitoreFilter) params.set("fornitore", f.fornitoreFilter);
+      if (f.importoMin) params.set("importo_min", f.importoMin);
+      if (f.importoMax) params.set("importo_max", f.importoMax);
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(pg * PAGE_SIZE));
 
@@ -80,11 +85,12 @@ export default function FattureElenco() {
     } finally {
       setLoading(false);
     }
-  }, [search, yearFilter, monthFilter, fornitoreFilter, importoMin, importoMax]);
+  }, []);
 
+  // Fetch iniziale + refetch quando cambiano i filtri select (anno/mese)
   useEffect(() => {
     fetchData(0);
-  }, [fetchData]);
+  }, [yearFilter, monthFilter]);
 
   const totalPages = Math.ceil(data.total / PAGE_SIZE);
   const MESI = ["", "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
