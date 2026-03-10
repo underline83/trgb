@@ -28,9 +28,16 @@
     "roles": ["admin", "chef"]
   },
   {
+    "key": "vendite",
+    "label": "Gestione Vendite",
+    "description": "Corrispettivi, chiusure cassa, dashboard vendite, confronto annuale",
+    "icon": "💵",
+    "roles": ["admin"]
+  },
+  {
     "key": "admin",
     "label": "Amministrazione",
-    "description": "Corrispettivi, dipendenti, utenti, impostazioni",
+    "description": "Dipendenti, utenti, impostazioni",
     "icon": "🧾",
     "roles": ["admin"]
   }

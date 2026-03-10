@@ -1,8 +1,8 @@
 // src/pages/admin/CorrispettiviDashboard.jsx
-// Dashboard Corrispettivi — TRGB
-
+// @version: v2.0-vendite — Dashboard Vendite
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VenditeNav from "./VenditeNav";
 import {
   LineChart,
   Line,
@@ -239,41 +239,20 @@ export default function CorrispettiviDashboard() {
   }, [pag]);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <VenditeNav current="dashboard" />
+
+      <div className="p-6">
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
-              Corrispettivi — Dashboard
+              Vendite — Dashboard Mensile
             </h1>
             <p className="text-neutral-600">
               Analisi mensile, incassi per giorno e controllo chiusure cassa.
             </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-3 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Amministrazione
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin/corrispettivi/gestione")}
-              className="px-3 py-2 rounded-xl text-sm font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 shadow-sm transition"
-            >
-              Modulo Chiusura Giornaliera
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin/corrispettivi/annual")}
-              className="px-3 py-2 rounded-xl text-sm font-medium border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 shadow-sm transition"
-            >
-              Confronto annuale →
-            </button>
           </div>
         </div>
 
@@ -508,7 +487,7 @@ export default function CorrispettiviDashboard() {
                               )} — Diff: € ${formatCurrency(diff)}`
                         }
                         onClick={() =>
-                          navigate(`/admin/corrispettivi/gestione?date=${g.date}`)
+                          navigate(`/vendite/chiusure?date=${g.date}`)
                         }
                       >
                         <div className="flex justify-between items-center mb-0.5">
@@ -767,6 +746,7 @@ export default function CorrispettiviDashboard() {
             </section>
           </>
         )}
+      </div>
       </div>
     </div>
   );

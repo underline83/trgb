@@ -42,25 +42,6 @@ export default function AdminMenu() {
         {/* GRID MENU */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           
-          {/* CORRISPETTIVI */}
-          <Link
-            to="/admin/corrispettivi"
-            className="
-              bg-yellow-50 border border-yellow-200 text-yellow-900
-              rounded-2xl p-8 shadow
-              hover:shadow-xl hover:-translate-y-1 transition transform
-              text-center
-            "
-          >
-            <div className="text-5xl mb-3">💵</div>
-            <h2 className="text-xl font-semibold font-playfair">
-              Corrispettivi &amp; Chiusura Cassa
-            </h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Import da Excel, registrazione giornaliera e gestione cassa.
-            </p>
-          </Link>
-
           {/* DIPENDENTI — MENU */}
           <Link
             to="/admin/dipendenti"

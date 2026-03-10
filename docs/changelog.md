@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-03-10g — Gestione Vendite v2.0: promozione a modulo top-level
+
+### Added
+- **Modulo "Gestione Vendite"** promosso a sezione top-level nella Home (ex Corrispettivi)
+- **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route)
+- **VenditeNav.jsx** — barra navigazione persistente per sezione vendite (4 tab: Chiusure, Dashboard, Annuale, Import)
+- **VenditeMenu hub** — pagina menu rinnovata con mini-KPI, VersionBadge, tile Confronto Annuale
+- **Tile "Gestione Vendite"** nella Home con badge versione
+
+### Changed
+- **CorrispettiviMenu.jsx** → hub "Gestione Vendite" con VenditeNav + KPI
+- **CorrispettiviGestione.jsx** — VenditeNav, route `/vendite/chiusure`
+- **CorrispettiviDashboard.jsx** — VenditeNav, route `/vendite/dashboard`
+- **CorrispettiviAnnual.jsx** — VenditeNav, route `/vendite/annual`
+- **CorrispettiviImport.jsx** — VenditeNav, route `/vendite/import`
+- **AdminMenu.jsx** — rimossa tile Corrispettivi
+- **Home.jsx** — aggiunta entry `vendite`, subtitle admin aggiornato
+- **modules.json** — aggiunto modulo `vendite`, aggiornato admin
+- **versions.jsx** — Corrispettivi v2.0 "Gestione Vendite", Sistema v4.1
+
+---
+
 ## 2026-03-10f — Gestione Acquisti v2.0 + ViniNav + Versioning v4.0
 
 ### Added

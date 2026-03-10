@@ -1,6 +1,7 @@
-// @version: v1.2
+// @version: v2.0-vendite
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VenditeNav from "./VenditeNav";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -75,7 +76,10 @@ export default function CorrispettiviImport() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <VenditeNav current="import" />
+
+      <div className="p-6">
       <div className="max-w-3xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
@@ -86,23 +90,6 @@ export default function CorrispettiviImport() {
             <p className="text-neutral-600 text-sm sm:text-base">
               Carica il file annuale dei corrispettivi per popolare il gestionale.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/corrispettivi")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Torna ai Corrispettivi
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm transition"
-            >
-              ← Amministrazione
-            </button>
           </div>
         </div>
 
@@ -198,6 +185,7 @@ export default function CorrispettiviImport() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

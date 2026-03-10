@@ -113,11 +113,12 @@ export default function App() {
         {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />
 
-        <Route path="/admin/corrispettivi" element={<CorrispettiviMenu />} />
-        <Route path="/admin/corrispettivi/import" element={<CorrispettiviImport />} />
-        <Route path="/admin/corrispettivi/gestione" element={<CorrispettiviGestione />} />
-        <Route path="/admin/corrispettivi/dashboard" element={<CorrispettiviDashboard />} />
-        <Route path="/admin/corrispettivi/annual" element={<CorrispettiviAnnual />} />
+        {/* --- GESTIONE VENDITE --- */}
+        <Route path="/vendite" element={<CorrispettiviMenu />} />
+        <Route path="/vendite/chiusure" element={<CorrispettiviGestione />} />
+        <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
+        <Route path="/vendite/annual" element={<CorrispettiviAnnual />} />
+        <Route path="/vendite/import" element={<CorrispettiviImport />} />
 
         {/* --- GESTIONE ACQUISTI --- */}
         <Route path="/acquisti" element={<FattureMenu />} />

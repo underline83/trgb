@@ -1,8 +1,8 @@
 // src/pages/admin/CorrispettiviAnnual.jsx
-// Confronto Annuale Corrispettivi — TRGB
-
+// @version: v2.0-vendite — Confronto Annuale
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VenditeNav from "./VenditeNav";
 import {
   BarChart,
   Bar,
@@ -82,16 +82,12 @@ export default function CorrispettiviAnnual() {
   const deltaPositive = data && data.delta_incassi >= 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
+    <div className="min-h-screen bg-gray-50 font-sans">
+      <VenditeNav current="annual" />
+
+      <div className="p-6">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate("/admin/corrispettivi/dashboard")}
-            className="text-gray-500 hover:text-gray-800 text-sm"
-          >
-            ← Dashboard
-          </button>
           <h1 className="text-2xl font-bold text-gray-800">Confronto Annuale</h1>
         </div>
 
@@ -259,6 +255,7 @@ export default function CorrispettiviAnnual() {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );

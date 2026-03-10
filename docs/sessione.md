@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-10 (sessione 3 — Gestione Acquisti v2.0 + ViniNav)
+> Ultima sessione: 2026-03-10 (sessione 4 — Gestione Vendite v2.0)
 
 ---
 
@@ -15,32 +15,36 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 3)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 4)
 
-### Gestione Acquisti v2.0 — Promozione a modulo top-level
+### Gestione Vendite v2.0 — Promozione a modulo top-level
 
-1. **Promosso "Gestione Acquisti"** da sotto-sezione Admin a modulo di primo livello nella Home
-2. **Route migrate** da `/admin/fatture/*` a `/acquisti/*` (8 route, 10+ file aggiornati)
-3. **Pagina Elenco Fornitori** (`/acquisti/fornitori`) — lista con ricerca, ordinamento, filtro anno, 4 KPI cards, click-through a dettaglio
-4. **Pagina Elenco Fatture** (`/acquisti/elenco`) — ricerca full-text, filtri avanzati, paginazione server-side
-5. **Pagina Dettaglio Fattura** (`/acquisti/dettaglio/:id`) — info complete, righe, link fornitore
-6. **Fix ricerca elenco fatture** — rimosso response_model errato, semplificato fetch, rimosso is_autofattura dal SELECT
-7. **Fix drill-down dashboard** — click per-bar/per-slice invece di chart-level
-8. **FattureNav** — barra navigazione persistente con 5 tab (Dashboard, Elenco, Fornitori, Import, Categorie)
-9. **Home.jsx** — tile "Gestione Acquisti" con icona e badge versione
-10. **AdminMenu** — rimossa tile fatture, aggiornato subtitle
-11. **modules.json** — aggiunto modulo `acquisti`
-12. **Docs/Modulo_Acquisti.md** — documentazione completa
+1. **Promosso "Gestione Vendite"** (ex Corrispettivi) da sotto-sezione Admin a modulo di primo livello nella Home
+2. **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route)
+3. **VenditeNav.jsx** — barra navigazione persistente (4 tab: Chiusure, Dashboard, Annuale, Import)
+4. **CorrispettiviMenu → hub "Gestione Vendite"** con mini-KPI (corrispettivi mese, incassi mese, media giornaliera, giorni aperti), VersionBadge, tile Confronto Annuale, grid 3 colonne
+5. **CorrispettiviGestione** → VenditeNav, route `/vendite/chiusure`
+6. **CorrispettiviDashboard** → VenditeNav, route `/vendite/dashboard`, titolo aggiornato
+7. **CorrispettiviAnnual** → VenditeNav, route `/vendite/annual`
+8. **CorrispettiviImport** → VenditeNav, route `/vendite/import`
+9. **Home.jsx** — tile "Gestione Vendite" con icona e badge, subtitle admin aggiornato
+10. **AdminMenu** — rimossa tile Corrispettivi
+11. **modules.json** — aggiunto modulo `vendite`
+12. **versions.jsx** — Corrispettivi v1.5→v2.0 "Gestione Vendite", Sistema v4.0→v4.1
+13. **Design doc** — `docs/design_gestione_vendite.md` con piano evolutivo in 5 fasi
 
-### ViniNav — Navigazione persistente per modulo Vini
+---
 
-1. **ViniNav.jsx** — barra navigazione identica a FattureNav (5 tab: Carta, Vendite, Cantina, Dashboard, Impostazioni)
-2. **Applicata a 11 pagine** vini: ViniCarta, ViniVendite, MagazzinoVini, DashboardVini, ViniImpostazioni, MagazzinoViniNuovo, MagazzinoViniDettaglio, RegistroMovimenti, MagazzinoAdmin, CantinaTools, MovimentiCantina
-3. **MagazzinoSubMenu rimosso** — sostituito da ViniNav in tutte le pagine
+## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 3)
 
-### Versioning
-- **versions.jsx** aggiornato: Vini v3.5→v3.6, Fatture v1.2→v2.0, Sistema v3.5→v4.0
-- Label fatture cambiata da "Fatture XML" a "Gestione Acquisti"
+### Gestione Acquisti v2.0 + ViniNav
+
+1. Promosso "Gestione Acquisti" da sotto-sezione Admin a modulo top-level
+2. Route migrate da `/admin/fatture/*` a `/acquisti/*` (8 route)
+3. Pagina Elenco Fornitori, Elenco Fatture, Dettaglio Fattura
+4. Fix ricerca elenco fatture + Fix drill-down dashboard
+5. FattureNav, ViniNav (applicata a 11 pagine)
+6. versions.jsx: Vini v3.6, Fatture v2.0, Sistema v4.0
 
 ---
 
@@ -143,16 +147,17 @@ Fonte di verita': `frontend/src/config/versions.js`
 | Cantina & Vini | v3.6 | stabile | Carta, vendite, magazzino, dashboard, strumenti, ViniNav |
 | Gestione Acquisti | v2.0 | stabile | Fatture XML, fornitori, dashboard, categorie (top-level) |
 | Ricette & Food Cost | v2.0 | beta | Ricette, sub-ricette, matching fatture, ingredienti |
-| Corrispettivi | v1.5 | stabile | Import Excel, chiusura cassa |
+| Gestione Vendite | v2.0 | stabile | Corrispettivi, chiusure cassa, dashboard, confronto annuale (top-level) |
 | Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
 | Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
-| Sistema | v4.0 | stabile | Versione globale gestionale |
+| Sistema | v4.1 | stabile | Versione globale gestionale |
 
 Le versioni sono mostrate visualmente nella UI:
 - **Home** — badge versione su ogni tile modulo + footer sistema
-- **ViniMenu** — badge v3.5 nell'header
+- **ViniMenu** — badge v3.6 nell'header
 - **RicetteMenu** — badge v2.0 nell'header
-- **AdminMenu** — badge v3.5 nell'header
+- **VenditeMenu** — badge v2.0 nell'header
+- **AdminMenu** — badge v4.1 nell'header
 
 ---
 
@@ -171,12 +176,13 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Push al VPS** — Marco deve fare `./push.sh "" -f` dal Mac (5 commit, migrazione 007)
-2. **Test in produzione** — verificare che la migrazione 007 funzioni (drop + ricrea tabelle)
-3. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2 (`/foodcost/ingredients/{id}/prezzi`)
-4. **RicetteImport** — implementare import/export JSON ricette
-5. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
-6. **Riordinare la roadmap** — pulizia task completati
+1. **Push al VPS** — Marco deve fare `./push.sh "" -f` dal Mac (molti commit, migrazione 007)
+2. **Test in produzione** — verificare migrazione 007 + nuove route `/vendite/*` e `/acquisti/*`
+3. **Gestione Vendite Fase 2** — coperti e scontrino medio (design doc: `docs/design_gestione_vendite.md`)
+4. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2
+5. **RicetteImport** — implementare import/export JSON ricette
+6. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
+7. **Riordinare la roadmap** — pulizia task completati
 
 ---
 
@@ -204,6 +210,16 @@ app/models/foodcost_db.py                 — DB foodcost (tabelle base)
 app/migrations/007_foodcost_v2.py         — migrazione v2 (drop+ricrea tabelle ricette)
 docs/design_ricette_foodcost_v2.md        — design document completo
 
+# --- MODULO GESTIONE VENDITE (ex Corrispettivi) ---
+app/routers/admin_finance.py              — backend corrispettivi, prefix /admin/finance
+frontend/src/pages/admin/VenditeNav.jsx   — barra navigazione persistente (4 tab)
+frontend/src/pages/admin/CorrispettiviMenu.jsx      — hub "Gestione Vendite" (/vendite)
+frontend/src/pages/admin/CorrispettiviGestione.jsx   — chiusura cassa (/vendite/chiusure)
+frontend/src/pages/admin/CorrispettiviDashboard.jsx  — dashboard mensile (/vendite/dashboard)
+frontend/src/pages/admin/CorrispettiviAnnual.jsx     — confronto annuale (/vendite/annual)
+frontend/src/pages/admin/CorrispettiviImport.jsx     — import Excel (/vendite/import)
+docs/design_gestione_vendite.md            — design document evolutivo (5 fasi)
+
 # --- FRONTEND ---
 frontend/src/App.jsx                   — TUTTE le route React
 frontend/src/config/api.js             — API_BASE + apiFetch()
@@ -217,6 +233,7 @@ frontend/src/pages/vini/               — pagine modulo vini
 docs/changelog.md                      — changelog formato Keep a Changelog
 docs/roadmap.md                        — task aperti
 docs/design_ricette_foodcost_v2.md     — design ricette/foodcost v2
+docs/design_gestione_vendite.md        — design vendite (5 fasi evolutive)
 docs/Modulo_FoodCost.md                — documentazione modulo food cost
 ```
 
@@ -230,6 +247,7 @@ docs/Modulo_FoodCost.md                — documentazione modulo food cost
 | `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
 | `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
 | `app/data/foodcost.db` | FoodCost + FE XML + Ricette v2 | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, fe_fatture, fe_righe; migraz. 001-007 |
+| `app/data/admin_finance.sqlite3` | Gestione Vendite (corrispettivi) | daily_closures; import Excel multi-anno |
 | `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
 
 ---

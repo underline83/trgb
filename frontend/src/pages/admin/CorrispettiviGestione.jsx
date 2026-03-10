@@ -1,6 +1,7 @@
-// @version: v1.0
+// @version: v2.0-vendite
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VenditeNav from "./VenditeNav";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -179,7 +180,10 @@ export default function CorrispettiviGestione() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <VenditeNav current="chiusure" />
+
+      <div className="p-6">
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
 
         {/* HEADER */}
@@ -192,23 +196,6 @@ export default function CorrispettiviGestione() {
               Inserisci i valori della chiusura cassa per la data selezionata.
               Il sistema calcola automaticamente totale incassi e differenza.
             </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/corrispettivi")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
-            >
-              ← Torna ai Corrispettivi
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm transition"
-            >
-              ← Amministrazione
-            </button>
           </div>
         </div>
 
@@ -366,6 +353,7 @@ export default function CorrispettiviGestione() {
             <span className="text-sm text-red-700">Errore: {error}</span>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

@@ -7,8 +7,9 @@ import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 const MENU_CONFIG = {
   vini:     { title: "Gestione Vini",         subtitle: "Carta, cantina, vendite, dashboard",              icon: "\uD83C\uDF77", go: "/vini",      color: "bg-amber-50 border-amber-200 text-amber-900",       vKey: "vini" },
   acquisti: { title: "Gestione Acquisti",     subtitle: "Fatture XML, fornitori, dashboard, categorie",    icon: "\uD83D\uDCE6", go: "/acquisti",  color: "bg-teal-50 border-teal-200 text-teal-900",          vKey: "fatture" },
+  vendite:  { title: "Gestione Vendite",     subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale", icon: "\uD83D\uDCB5", go: "/vendite", color: "bg-yellow-50 border-yellow-200 text-yellow-900", vKey: "corrispettivi" },
   ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-blue-50 border-blue-200 text-blue-900",          vKey: "ricette" },
-  admin:    { title: "Amministrazione",       subtitle: "Corrispettivi, dipendenti, utenti, impostazioni", icon: "\uD83E\uDDFE", go: "/admin",     color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
+  admin:    { title: "Amministrazione",       subtitle: "Dipendenti, utenti, impostazioni",                icon: "\uD83E\uDDFE", go: "/admin",     color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
 };
 
 export default function Home() {

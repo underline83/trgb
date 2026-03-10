@@ -15,8 +15,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
-    version: "1.5",
-    label: "Corrispettivi",
+    version: "2.0",
+    label: "Gestione Vendite",
     status: "stabile",
     color: "green",
   },
@@ -39,7 +39,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   sistema: {
-    version: "4.0",
+    version: "4.1",
     label: "Sistema",
     status: "stabile",
     color: "green",
