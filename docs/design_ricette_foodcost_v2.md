@@ -1,6 +1,6 @@
 # Modulo Ricette & Food Cost v2 — Design Document
 **Data:** 2026-03-10
-**Stato:** BOZZA — da approvare prima dello sviluppo
+**Stato:** IMPLEMENTATO — backend + frontend completi (2026-03-10)
 
 ---
 

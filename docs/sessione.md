@@ -1,7 +1,7 @@
-# 📋 TRGB — Briefing per Nuova Sessione
+# TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-10
+> Ultima sessione: 2026-03-10 (sessione 2 — Food Cost v2)
 
 ---
 
@@ -15,177 +15,157 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-10)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-10, sessione 2)
 
-### Riorganizzazione menu Cantina + fix PDF + Impostazioni Carta (v2026.03.10c)
-1. **Menu Cantina semplificato** — ora 3 voci + admin: Cantina, Nuovo vino, Genera Carta PDF + (admin) Strumenti
-2. **"Genera Carta PDF" nel submenu** — bottone diretto che scarica il PDF senza pagine intermedie
-3. **Registro Movimenti + Modifica Massiva** spostati dentro Strumenti (pulsanti rapidi in cima)
-4. **Fix PDF cantina** — corretto frontespizio: classi CSS (`front-logo`, `front-title`, `front-subtitle`), wrapper `carta-body`, `base_url`, caricamento CSS → ora identico al vecchio sistema
-5. **Impostazioni Ordinamento Carta in Strumenti** — UI per riordinare tipologie, nazioni, regioni (con frecce ▲▼) e configurare filtri carta (qta minima, mostra negativi, mostra senza prezzo). Usa le API `/settings/vini/*` già esistenti.
-6. **CantinaTools.jsx v2.0** — riscritto con 4 sezioni: Sync, Import/Export, Genera Carta (HTML+PDF+Word), Impostazioni Ordinamento
+### Modulo Ricette & Food Cost v2 — REBUILD COMPLETO
 
-### Header + pulizia Logout
-1. **Header.jsx v2.0** — riscritto con Tailwind: sticky top, logo cliccabile → Home, username + ruolo a destra, logout discreto
-2. **Rimossi logout duplicati** da ViniCarta.jsx e MagazzinoViniNuovo.jsx (il logout è già nell'Header globale)
+Rifacimento totale del modulo ricette e food cost, partendo da zero. Il vecchio codice e' stato eliminato (ricette.py, ricette_db.py) e sostituito con un sistema completamente nuovo.
 
-### Analisi modulo Ricette/FoodCost
-Analisi completa del modulo (nessuna modifica al codice, solo ricognizione):
-- **Funziona (~40%):** Crea ricetta, crea ingrediente, lista ingredienti con ultimo prezzo
-- **A metà:** RicetteIngredientiPrezzi chiama endpoint che non esistono
-- **Placeholder:** RicetteArchivio, RicetteImport (solo "in sviluppo...")
-- **Problema architetturale:** due DB paralleli (`foodcost.db` attivo vs `ricette.sqlite3` definito ma mai usato); router `ricette.py` non montato in main.py
-- **Endpoint mancanti:** suppliers, price history CRUD, recipe edit/delete
-- Da decidere nella prossima sessione se/come rifare
+#### Bug fix vendite vini
+1. **DELETE movimento non riconcilia locazioni** — `delete_movimento()` ora azzera TUTTE le colonne quantita' (QTA_TOTALE, QTA_FRIGO, QTA_LOC1/2/3) e ripercorre tutti i movimenti inclusa la locazione
+2. **Ricerca vendite mostra vini a giacenza zero** — aggiunto parametro `solo_disponibili` a `search_vini_autocomplete()`, usato nel frontend ViniVendite
 
-### Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta (v2026.03.10b)
-1. **Nuovo router `vini_cantina_tools_router.py`** — 6 endpoint backend:
-   - `POST /sync-from-excel` → sincronizza vini.sqlite3 → cantina (upsert: anagrafica aggiornata, giacenze intatte per vini esistenti)
-   - `POST /import-excel` → import diretto Excel → cantina (senza passare dal vecchio DB)
-   - `GET /export-excel` → esporta cantina in .xlsx compatibile con Excel storico
-   - `GET /carta-cantina` → genera carta HTML dal DB cantina
-   - `GET /carta-cantina/pdf` → genera PDF carta dal DB cantina
-   - `GET /carta-cantina/docx` → genera DOCX carta dal DB cantina
-2. **Nuovo: `CantinaTools.jsx`** — pagina frontend admin-only con 3 sezioni: Sync, Import/Export, Genera Carta
-3. **Colonna ORIGINE** in `vini_magazzino` — flag 'EXCEL' o 'MANUALE' per tracciare provenienza
-4. **Auth via query token** per endpoint di download (PDF/DOCX/Export usano `?token=...`)
-5. **Route + SubMenu** — `/vini/magazzino/tools`, link "🔧 Strumenti" (admin only)
+#### Login PIN + ruolo "sala"
+1. **Login tile-based** — rimosso form username/password, sostituito con selezione utente via tile colorate + PIN pad numerico con dot indicators e shake animation su PIN errato
+2. **3 utenti reali** — Marco (admin, PIN 5261), Iryna (sala, PIN 0000), Paolo (sala, PIN 0000)
+3. **Ruolo "sala"** — nuovo ruolo equivalente a sommelier, propagato su 13+ file (router, frontend, modules.json)
+4. **Endpoint `/auth/tiles`** — ritorna lista utenti per la UI di login (pubblico, senza token)
 
-### Reforming completo modulo vini (stesso giorno, prima sessione)
-1. **ViniMenu.jsx** — da 6 a 5 voci: rimossa "Movimenti Cantina" (orfana), rinominato "Magazzino Vini" → "🍷 Cantina"
-2. **MagazzinoSubMenu.jsx** — semplificato da 6 a 6 pulsanti: Cantina, Nuovo vino + admin-only: Registro movimenti, Modifica massiva, Strumenti
-3. **App.jsx** — rimosse route orfane `/vini/movimenti` e `/vini/magazzino/:id/movimenti`
-4. **MagazzinoViniDettaglio.jsx** — fix layout form movimenti (grid 5→4 colonne), emoji nei tipi, bottone "← Cantina"
-5. **MagazzinoVini.jsx** — titolo → "Cantina", aggiunto bottone "✕ Pulisci filtri"
-6. **DashboardVini.jsx** — aggiornati pulsanti accesso rapido (+ Vendite, fix link Impostazioni `/vini/settings`, rinominato Cantina)
-7. **Nuovo: RegistroMovimenti.jsx** — pagina admin-only log globale movimenti cantina, filtri tipo/testo/date, paginazione 50/pagina
+#### Backend Food Cost v2
+1. **Migrazione 007** — drop tabelle vecchie, crea nuove: `recipe_categories` (8 categorie default), `recipes` v2 (con is_base, selling_price, prep_time, category_id), `recipe_items` v2 (con sub_recipe_id), `ingredient_supplier_map`
+2. **`foodcost_recipes_router.py`** (~500 righe) — CRUD ricette completo con calcolo food cost ricorsivo, conversione unita', sub-ricette
+3. **`foodcost_matching_router.py`** (~400 righe) — matching fatture XML a ingredienti con fuzzy search, auto-match, gestione mappings
+4. **`foodcost_ingredients_router.py`** esteso — PUT ingredient, GET suppliers, CRUD prezzi
+5. **`foodcost_db.py`** semplificato — solo tabelle base, il resto via migrazioni
+6. **Eliminati file orfani**: `app/routers/ricette.py`, `app/models/ricette_db.py`
 
-### Sessione precedente (2026-03-09)
-1. **Hub Vendite** — `ViniVendite.jsx` riscritta: toggle Bottiglia/Calici, autocomplete vini, storico filtrato VENDITA, KPI
-2. **Locazione obbligatoria** — `registra_movimento()` aggiorna QTA_<LOC>, validazione giacenza insufficiente (HTTP 400)
-3. **Nomi locazioni dinamici** — dropdown con nomi reali per vino + quantità disponibili
-4. **Admin bulk edit** — `MagazzinoAdmin.jsx`: tabella 21 colonne, filtri, salvataggio bulk, delete per riga (admin only)
-5. **Endpoint backend** — `bulk_update_vini()`, `delete_vino()`, `list_movimenti_globali()`, `search_vini_autocomplete()`
+#### Frontend Food Cost v2
+1. **`RicetteArchivio.jsx`** — tabella ricette con food cost %, badge colorati, filtri, azioni
+2. **`RicetteNuova.jsx`** — form v2: categorie DB, checkbox "ricetta base", sub-ricette, riordino righe
+3. **`RicetteDettaglio.jsx`** (NUOVO) — visualizzazione con card riepilogo + tabella costi per riga
+4. **`RicetteModifica.jsx`** (NUOVO) — form precaricato con PUT
+5. **`RicetteMatching.jsx`** (NUOVO) — matching fatture a 2 tab + auto-match
+6. **`RicetteMenu.jsx`** — aggiunta tile matching fatture
+7. **`App.jsx`** — nuove route: `/ricette/:id`, `/ricette/modifica/:id`, `/ricette/matching`
+
+#### Design doc + Roadmap
+- **`docs/design_ricette_foodcost_v2.md`** — documento di design completo
+- **Task #25** in roadmap — sistema permessi centralizzato (TODO futuro)
+
+### Deploy pendente
+Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazione 007 che richiede full deploy).
 
 ---
 
-## Cosa abbiamo fatto nelle sessioni precedenti (2026-03-08/09)
+## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 1)
 
-1. **Fix #1 — Auth reale** — `auth_service.py` riscritto: password hashate sha256_crypt, `security.verify_password()` ✅
-2. **SECRET_KEY da .env** — `python-dotenv`, `load_dotenv()`, `.env` gitignored ✅
-3. **Audit completo** — backend, frontend, DB, auth, route, docs verificati
-4. **Documentazione consolidata** — da 18 a 13 file
-5. **Setup git server VPS** — bare repo + post-receive hook deploy automatico
-6. **Fix #6/#7/#9/#11** — route annual, apiFetch centralizzato, slugify, prezzo carta ✅
-7. **Fix #3** — `Depends(get_current_user)` su 5 router pubblici ✅
+1. **Riorganizzazione menu Cantina** + fix PDF + Impostazioni Carta
+2. **Header v2.0** Tailwind + pulizia logout duplicati
+3. **Strumenti Cantina** — ponte Excel-Cantina + Genera Carta (6 endpoint backend)
+4. **Reforming completo modulo vini** — menu, submenu, route, UX
+5. **Analisi modulo Ricette/FoodCost** — ricognizione stato (40% funzionante, architettura da rifare)
 
 ---
 
 ## Stato attuale del codice — cose critiche da sapere
 
-### 🟠 FORCE IMPORT SENZA CHECK RUOLO
+### Modulo Ricette & Food Cost v2 (NUOVO)
+- **Backend completo**: 3 router (recipes, matching, ingredients) + migrazione 007
+- **Frontend completo**: 7 pagine (menu, archivio, nuova, dettaglio, modifica, matching, ingredienti + prezzi)
+- **Calcolo food cost**: ricorsivo con sub-ricette, cycle detection, conversione unita'
+- **Matching fatture**: collegamento righe FE XML a ingredienti, fuzzy + auto-match
+- **DB**: foodcost.db con migrazioni 001-007, tabelle recipes/recipe_items/recipe_categories/ingredient_supplier_map
+- **Route attive**:
+  - `/ricette` → RicetteMenu
+  - `/ricette/nuova` → RicetteNuova
+  - `/ricette/archivio` → RicetteArchivio
+  - `/ricette/:id` → RicetteDettaglio
+  - `/ricette/modifica/:id` → RicetteModifica
+  - `/ricette/ingredienti` → RicetteIngredienti
+  - `/ricette/ingredienti/:id/prezzi` → RicetteIngredientiPrezzi
+  - `/ricette/matching` → RicetteMatching
+  - `/ricette/import` → RicetteImport (placeholder)
+
+### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
-### 🟡 `.env` non esiste sul VPS
-Il file `.env` con `SECRET_KEY` è stato creato in locale (gitignored). Sul VPS va creato manualmente:
-```
-/home/marco/trgb/trgb/.env
-SECRET_KEY=<chiave-forte-diversa-da-quella-locale>
-```
-Poi `pip install python-dotenv` sul VPS se non già installato.
+### `.env` non esiste sul VPS
+Il file `.env` con `SECRET_KEY` e' stato creato in locale (gitignored). Sul VPS va creato manualmente.
 
-### 🟢 Modulo Vini — struttura attuale dopo reforming
+### Modulo Vini — struttura attuale dopo reforming
 **Menu principale** (`ViniMenu.jsx`): 5 voci — Carta dei Vini, Vendite, Cantina, Dashboard, Impostazioni
-**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · Genera Carta PDF (download diretto) · (admin) Strumenti
-**Strumenti** (`CantinaTools.jsx` v2.0): Registro Movimenti + Modifica Massiva (pulsanti rapidi) · Sync Excel → Cantina · Import/Export Excel · Genera Carta (HTML+PDF+Word) · Impostazioni Ordinamento Carta (tipologie, nazioni, regioni, filtri)
-**Route attive**:
-- `/vini` → ViniMenu
-- `/vini/carta` → ViniCarta (NON TOCCARE — paracadute Excel)
-- `/vini/vendite` → ViniVendite (Bottiglia/Calici)
-- `/vini/settings` → ViniImpostazioni
-- `/vini/dashboard` → DashboardVini
-- `/vini/magazzino` → MagazzinoVini (lista cantina)
-- `/vini/magazzino/nuovo` → MagazzinoViniNuovo
-- `/vini/magazzino/admin` → MagazzinoAdmin (bulk edit, admin only)
-- `/vini/magazzino/registro` → RegistroMovimenti (log globale, admin only)
-- `/vini/magazzino/tools` → CantinaTools (sync/import/export/genera carta, admin only)
-- `/vini/magazzino/:id` → MagazzinoViniDettaglio (scheda vino con movimenti + note)
+**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina, Nuovo vino, Genera Carta PDF, (admin) Strumenti
+**Strumenti** (`CantinaTools.jsx` v2.0): Registro Movimenti + Modifica Massiva + Sync + Import/Export + Genera Carta + Impostazioni Ordinamento
 
-**Route eliminate**: `/vini/movimenti`, `/vini/magazzino/:id/movimenti` (movimenti ora solo dalla scheda vino)
-**File dead code**: `MovimentiCantina.jsx` — non più importato né raggiungibile, da eliminare quando si vuole
-
-### 🟢 Sistema movimenti e locazioni
-- Locazione **obbligatoria** per VENDITA e SCARICO (backend + frontend)
-- Backend valida giacenza insufficiente → HTTP 400
+### Sistema movimenti e locazioni
+- Locazione obbligatoria per VENDITA e SCARICO
+- Backend valida giacenza insufficiente (HTTP 400)
 - Vendite taggate `[BOTTIGLIA]` o `[CALICI]` nel campo note
-- Locazioni con nomi dinamici per vino (FRIGORIFERO, LOCAZIONE_1/2/3)
-- Costanti: `LOCAZIONI_VALIDE`, `LOCAZIONE_TO_COLUMN` in `vini_magazzino_db.py`
+- DELETE movimento riconcilia tutte le colonne quantita' (fix sessione 2)
 
 ---
 
 ## Task aperti prioritizzati
 
-Vai su `docs/roadmap.md` per la lista completa con dettagli.
-Ordine suggerito per lavorare:
+Vai su `docs/roadmap.md` per la lista completa.
 
-| # | Task | Difficoltà | Impatto |
-|---|------|-----------|---------|
-| ~~1~~ | ~~Sostituire mock auth con hash reali~~ | ~~Alto~~ | ~~Critico~~ | ✅ |
-| ~~3~~ | ~~Auth su endpoint pubblici~~ | ~~Medio~~ | ~~Critico~~ | ✅ |
-| ~~6~~ | ~~Route `/annual` + pagina confronto annuale~~ | ~~Facile~~ | ~~Medio~~ | ✅ |
-| ~~7~~ | ~~`apiFetch()` centralizzato (gestione 401)~~ | ~~Medio~~ | ~~Alto~~ | ✅ |
-| ~~9~~ | ~~`slugify` deduplicata~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
-| ~~11~~ | ~~Fix `if prezzo:` HTML preview~~ | ~~Facile~~ | ~~Basso~~ | ✅ |
-| 2 | Aggiornare `.env.production` a HTTPS | Facile (15min) | Medio |
-
-**Azione pendente (manuale su VPS):**
-Il post-receive hook funziona ma non riesce a riavviare i servizi. Verificare il path di systemctl (`which systemctl`) e aggiungere via `sudo visudo`:
-```
-marco ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart trgb-backend, /usr/bin/systemctl restart trgb-frontend
-```
+| # | Task | Stato |
+|---|------|-------|
+| 2 | Aggiornare `.env.production` a HTTPS | Aperto |
+| 25 | Sistema permessi centralizzato | TODO |
+| - | RicetteImport (import/export JSON) | Placeholder |
+| - | Aggiornare RicetteIngredientiPrezzi per nuovi endpoint v2 | Da fare |
 
 ---
 
 ## Prossima sessione — TODO
 
-1. **Riordinare la roadmap** — priorità, cose da togliere/aggiungere, decidere prossimi step
-2. **Carta Vini — pagina web pubblica** — generare una pagina internet aggiornata con la carta vini (da cantina)
-3. **Carta Vini — PDF con indici cliccabili** — TOC con link interni che portano alle sezioni tipologia/regione
-4. **Decidere sul modulo Ricette/FoodCost** — consolidare i due DB? rifare la UI? priorità rispetto ad altro?
+1. **Push al VPS** — Marco deve fare `./push.sh "" -f` dal Mac (5 commit, migrazione 007)
+2. **Test in produzione** — verificare che la migrazione 007 funzioni (drop + ricrea tabelle)
+3. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2 (`/foodcost/ingredients/{id}/prezzi`)
+4. **RicetteImport** — implementare import/export JSON ricette
+5. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
+6. **Riordinare la roadmap** — pulizia task completati
 
 ---
 
 ## File chiave — dove trovare le cose
 
 ```
-main.py                              — entry point, include tutti i router
-app/services/auth_service.py         — auth con password hashate sha256_crypt
-app/core/security.py                 — JWT + sha256_crypt
-app/core/config.py                   — SECRET_KEY (da .env)
-app/routers/vini_magazzino_router.py — magazzino vini, prefix /vini/magazzino
-app/routers/vini_cantina_tools_router.py — strumenti cantina (6 endpoint + genera carta)
-app/routers/vini_settings_router.py  — impostazioni carta (tipologie, nazioni, regioni, filtri)
-app/models/vini_magazzino_db.py      — DB module vini: CRUD, movimenti, bulk, autocomplete
-app/services/carta_vini_service.py   — builder HTML/PDF carta vini
-frontend/src/App.jsx                 — TUTTE le route React
-frontend/src/config/api.js           — API_BASE url + apiFetch() con gestione 401
-frontend/src/components/Header.jsx   — header globale con logout (v2.0 Tailwind)
-frontend/src/pages/vini/ViniMenu.jsx          — menu principale modulo vini
-frontend/src/pages/vini/ViniVendite.jsx       — vendite bottiglia/calici
-frontend/src/pages/vini/MagazzinoVini.jsx     — lista cantina con filtri
-frontend/src/pages/vini/MagazzinoViniDettaglio.jsx — scheda vino (anagrafica+giacenze+movimenti+note)
-frontend/src/pages/vini/MagazzinoAdmin.jsx    — modifica massiva (admin)
-frontend/src/pages/vini/RegistroMovimenti.jsx — log globale movimenti (admin)
-frontend/src/pages/vini/CantinaTools.jsx     — strumenti cantina v2.0 (admin): sync, import/export, genera carta, impostazioni ordinamento
-frontend/src/components/vini/MagazzinoSubMenu.jsx — submenu cantina (con Genera Carta PDF diretto)
-frontend/src/pages/ricette/           — modulo ricette (parzialmente implementato, vedi analisi sopra)
-app/routers/foodcost_*.py             — 3 router foodcost (ingredienti, ricette, analytics)
-app/models/foodcost_db.py             — DB foodcost attivo (ingredienti, ricette, prezzi, fatture)
-app/models/ricette_db.py              — DB ricette alternativo (NON ATTIVO, più ricco ma non usato)
-docs/changelog.md                    — changelog formato Keep a Changelog
-docs/roadmap.md                      — task aperti (da riordinare prossima sessione)
-docs/prompt_canvas.md                — regole operative per generare codice
-docs/database.md                     — schema completo tutti i DB
+main.py                                — entry point, include tutti i router
+app/services/auth_service.py           — auth PIN sha256_crypt + ruolo "sala"
+app/core/security.py                   — JWT + sha256_crypt
+app/core/config.py                     — SECRET_KEY (da .env)
+app/data/users.json                    — store utenti (marco/iryna/paolo)
+
+# --- MODULO VINI ---
+app/routers/vini_magazzino_router.py   — magazzino vini, prefix /vini/magazzino
+app/routers/vini_cantina_tools_router.py — strumenti cantina
+app/routers/vini_settings_router.py    — impostazioni carta
+app/models/vini_magazzino_db.py        — DB cantina: CRUD, movimenti, bulk, autocomplete
+app/services/carta_vini_service.py     — builder HTML/PDF carta vini
+
+# --- MODULO RICETTE & FOOD COST v2 ---
+app/routers/foodcost_recipes_router.py    — CRUD ricette + calcolo food cost ricorsivo
+app/routers/foodcost_matching_router.py   — matching fatture XML → ingredienti
+app/routers/foodcost_ingredients_router.py — CRUD ingredienti + prezzi + suppliers
+app/models/foodcost_db.py                 — DB foodcost (tabelle base)
+app/migrations/007_foodcost_v2.py         — migrazione v2 (drop+ricrea tabelle ricette)
+docs/design_ricette_foodcost_v2.md        — design document completo
+
+# --- FRONTEND ---
+frontend/src/App.jsx                   — TUTTE le route React
+frontend/src/config/api.js             — API_BASE + apiFetch()
+frontend/src/components/Header.jsx     — header globale
+frontend/src/components/LoginForm.jsx  — login tile PIN
+frontend/src/pages/ricette/            — 8 pagine modulo ricette/foodcost v2
+frontend/src/pages/vini/               — pagine modulo vini
+
+# --- DOCS ---
+docs/changelog.md                      — changelog formato Keep a Changelog
+docs/roadmap.md                        — task aperti
+docs/design_ricette_foodcost_v2.md     — design ricette/foodcost v2
+docs/Modulo_FoodCost.md                — documentazione modulo food cost
 ```
 
 ---
@@ -196,8 +176,8 @@ docs/database.md                     — schema completo tutti i DB
 |----------|--------|------|
 | `app/data/vini.sqlite3` | Carta Vini (legacy Excel) | NON TOCCARE — paracadute; schema v2.1 |
 | `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
-| `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri (usati da entrambi i generatori carta) |
-| `app/data/foodcost.db` | FoodCost + FE XML | ingredienti, ricette, fe_fatture, fe_righe; migraz. 001-005 |
+| `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
+| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v2 | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, fe_fatture, fe_righe; migraz. 001-007 |
 | `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
 
 ---
@@ -214,32 +194,20 @@ docs/database.md                     — schema completo tutti i DB
 2. `git commit` + `git push` dal Mac → il VPS si aggiorna automaticamente via post-receive hook
 3. Su Windows: `git pull` in VS Code
 
-**La fonte di verità è sempre il Mac. Non modificare direttamente sul VPS o Windows.**
+**La fonte di verita' e' sempre il Mac. Non modificare direttamente sul VPS o Windows.**
 
 ## Deploy — comandi utili
 
 ```bash
-# ── NUOVO FLUSSO (automatico) ──────────────────────────
-# Il remote su Mac punta al bare repo sul VPS:
-# origin → marco@80.211.131.156:/home/marco/trgb/trgb.git
-
-# 1. Da Mac — commit e push (il VPS si aggiorna automaticamente)
+# Da Mac — commit e push (VPS si aggiorna automaticamente)
 git add <file> && git commit -m "fix: #N descrizione" && git push
-# → hook post-receive esegue: git checkout, pip install se serve, npm install se serve, restart servizi
 
-# 2. Su Windows (aggiornare il remote se non fatto):
+# Per full deploy (con migrazione 007):
+./push.sh "" -f
+
+# Su Windows (aggiornare remote se non fatto):
 git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
 git pull origin main
-
-# ── VECCHIO FLUSSO MANUALE (fallback se hook non funziona) ─
-# ssh marco@80.211.131.156
-# cd /home/marco/trgb/trgb
-# ./scripts/deploy.sh -b    # quick: checkout + restart servizi
-# ./scripts/deploy.sh -a    # full: + pip install + npm build
-# ./scripts/deploy.sh -c    # safe: + backup DB prima del deploy
-
-# ── Setup bare repo (da eseguire UNA SOLA VOLTA sul VPS) ───
-# ./scripts/setup_git_server.sh
 ```
 
 ---

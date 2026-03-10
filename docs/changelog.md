@@ -3,6 +3,50 @@
 
 ---
 
+## 2026-03-10d — Modulo Ricette & Food Cost v2 (rebuild completo)
+
+### Added
+- **Login tile-based con PIN** — selezione utente via tile colorate + PIN pad numerico, shake animation su errore, supporto tastiera
+- **Ruolo "sala"** — nuovo ruolo equivalente a sommelier, propagato su 13+ file (router, modules.json, frontend)
+- **Endpoint `GET /auth/tiles`** — lista utenti per UI login (pubblico)
+- **Migrazione 007** — drop tabelle ricette vecchie, crea: `recipe_categories` (8 default), `recipes` v2 (is_base, selling_price, prep_time, category_id), `recipe_items` v2 (sub_recipe_id), `ingredient_supplier_map`
+- **`foodcost_recipes_router.py`** (~500 righe) — CRUD ricette con:
+  - Calcolo food cost ricorsivo con cycle detection
+  - Sistema conversione unita' (kg/g, L/ml/cl, pz)
+  - Sub-ricette (ingredient_id OR sub_recipe_id, mutuamente esclusivi)
+  - Response: total_cost, cost_per_unit, food_cost_pct
+  - Endpoint: GET/POST/PUT/DELETE ricette, GET/POST categorie, GET basi
+- **`foodcost_matching_router.py`** (~400 righe) — matching fatture XML a ingredienti:
+  - GET /matching/pending, GET /matching/suggest (fuzzy SequenceMatcher)
+  - POST /matching/confirm, POST /matching/auto (batch)
+  - GET/DELETE /matching/mappings
+- **`foodcost_ingredients_router.py`** esteso — PUT ingredient, GET suppliers, GET/POST/DELETE prezzi
+- **`RicetteDettaglio.jsx`** — visualizzazione ricetta con 4 card riepilogo (costo totale, costo/porzione, vendita, FC%), tabella ingredienti con costo riga, totale footer
+- **`RicetteModifica.jsx`** — form modifica precaricato, salva con PUT
+- **`RicetteMatching.jsx`** — UI matching fatture a 2 tab (pending + mappings), suggerimenti fuzzy, auto-match
+- **Route**: `/ricette/:id`, `/ricette/modifica/:id`, `/ricette/matching`
+- **`docs/design_ricette_foodcost_v2.md`** — design document completo del modulo
+- **Task #25 roadmap** — sistema permessi centralizzato (TODO)
+
+### Changed
+- **`RicetteArchivio.jsx`** — riscritto: tabella con food cost %, badge colorati (verde/giallo/rosso), filtri nome/tipo/categoria, azioni modifica/disattiva
+- **`RicetteNuova.jsx`** — riscritto v2: categorie da DB, checkbox "ricetta base", pulsanti separati +Ingrediente/+Sub-ricetta, riordino righe, prezzo vendita, tempo preparazione
+- **`RicetteMenu.jsx`** — aggiunta tile "Matching fatture"
+- **`foodcost_db.py`** — semplificato, solo tabelle base (migrazioni fanno il resto)
+- **`App.jsx`** — registrate 3 nuove route ricette + 1 matching
+- **`app/data/users.json`** — 3 utenti reali (marco admin, iryna/paolo sala) con PIN hash
+- **`auth_service.py`** — display_name, list_tiles(), ruolo "sala" in VALID_ROLES
+
+### Fixed
+- **`delete_movimento()`** — ora riconcilia TUTTE le colonne quantita' (QTA_FRIGO, QTA_LOC1/2/3), non solo QTA_TOTALE
+- **Ricerca vendite** — `search_vini_autocomplete()` con parametro `solo_disponibili=true` per nascondere vini a giacenza zero
+
+### Removed
+- **`app/routers/ricette.py`** — router orfano mai montato (sostituito da foodcost_recipes_router)
+- **`app/models/ricette_db.py`** — DB parallelo mai usato (sostituito da foodcost_db con migrazioni)
+
+---
+
 ## 2026-03-10c — Riorganizzazione menu Cantina + fix PDF + Impostazioni Carta
 
 ### Added
