@@ -288,6 +288,142 @@ def assegna_fornitore(body: FornitoreAssign):
 
 # ─── STATS PER CATEGORIA ───────────────────────────────────────
 
+# ─── CATEGORIZZAZIONE PRODOTTI (per riga fattura) ──────────────
+
+class ProdottoAssign(BaseModel):
+    """Assegna categoria a un prodotto (descrizione) di un fornitore."""
+    fornitore_piva: Optional[str] = None
+    fornitore_nome: str
+    descrizione: str
+    categoria_id: Optional[int] = None
+    sottocategoria_id: Optional[int] = None
+
+
+def _normalize_desc(desc: str) -> str:
+    """Normalizza descrizione per matching: lowercase, strip, collapse spaces."""
+    import re
+    return re.sub(r"\s+", " ", desc.strip().lower())
+
+
+@router.get("/fornitori/{fornitore_piva}/prodotti",
+            summary="Lista prodotti unici di un fornitore con categoria")
+def list_prodotti_fornitore(fornitore_piva: str):
+    """
+    Ritorna tutti i prodotti unici (descrizioni) acquistati da un fornitore,
+    con la categoria assegnata (se presente) e totali qty/spesa.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+
+    # Cerca per P.IVA, fallback per nome
+    cur.execute("""
+        SELECT
+            r.descrizione,
+            COUNT(*) AS n_righe,
+            ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale_spesa,
+            ROUND(AVG(COALESCE(r.prezzo_unitario, 0)), 2) AS prezzo_medio,
+            SUM(COALESCE(r.quantita, 0)) AS quantita_totale,
+            r.unita_misura,
+            r.categoria_id,
+            r.sottocategoria_id,
+            c.nome AS categoria_nome,
+            s.nome AS sottocategoria_nome
+        FROM fe_righe r
+        JOIN fe_fatture f ON r.fattura_id = f.id
+        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
+        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
+        WHERE f.fornitore_piva = ?
+          AND r.descrizione IS NOT NULL
+          AND r.descrizione != ''
+        GROUP BY LOWER(TRIM(r.descrizione))
+        ORDER BY totale_spesa DESC
+    """, (fornitore_piva,))
+
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+@router.post("/fornitori/prodotti/assegna",
+             summary="Assegna categoria a un prodotto (aggiorna tutte le righe)")
+def assegna_prodotto(body: ProdottoAssign):
+    """
+    Assegna una categoria a tutte le righe fattura che matchano
+    la descrizione per questo fornitore. Salva anche il mapping
+    per auto-categorizzare import futuri.
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    desc_norm = _normalize_desc(body.descrizione)
+
+    # 1. Aggiorna tutte le righe esistenti per questo fornitore + descrizione
+    cur.execute("""
+        UPDATE fe_righe
+        SET categoria_id = ?, sottocategoria_id = ?
+        WHERE id IN (
+            SELECT r.id FROM fe_righe r
+            JOIN fe_fatture f ON r.fattura_id = f.id
+            WHERE f.fornitore_piva = ?
+              AND LOWER(TRIM(r.descrizione)) = ?
+        )
+    """, (body.categoria_id, body.sottocategoria_id,
+          body.fornitore_piva, desc_norm))
+
+    # 2. Salva/aggiorna il mapping per futuri import
+    cur.execute("""
+        SELECT id FROM fe_prodotto_categoria_map
+        WHERE fornitore_piva = ? AND descrizione_norm = ?
+    """, (body.fornitore_piva, desc_norm))
+    existing = cur.fetchone()
+
+    if existing:
+        cur.execute("""
+            UPDATE fe_prodotto_categoria_map
+            SET categoria_id = ?, sottocategoria_id = ?
+            WHERE id = ?
+        """, (body.categoria_id, body.sottocategoria_id, existing["id"]))
+    else:
+        cur.execute("""
+            INSERT INTO fe_prodotto_categoria_map
+            (fornitore_piva, fornitore_nome, descrizione_norm, categoria_id, sottocategoria_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (body.fornitore_piva, body.fornitore_nome, desc_norm,
+              body.categoria_id, body.sottocategoria_id))
+
+    n_updated = cur.execute("SELECT changes()").fetchone()[0]
+    conn.commit()
+    conn.close()
+    return {"ok": True, "righe_aggiornate": n_updated}
+
+
+@router.get("/fornitori/{fornitore_piva}/stats",
+            summary="Riepilogo prodotti per categoria di un fornitore")
+def stats_fornitore(fornitore_piva: str):
+    """Breakdown spesa per categoria dentro un singolo fornitore."""
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT
+            COALESCE(c.nome, '(Non categorizzato)') AS categoria,
+            COALESCE(s.nome, '') AS sottocategoria,
+            COUNT(*) AS n_righe,
+            ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale_spesa
+        FROM fe_righe r
+        JOIN fe_fatture f ON r.fattura_id = f.id
+        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
+        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
+        WHERE f.fornitore_piva = ?
+          AND r.descrizione IS NOT NULL
+        GROUP BY c.nome, s.nome
+        ORDER BY totale_spesa DESC
+    """, (fornitore_piva,))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+# ─── STATS GLOBALI ──────────────────────────────────────────────
+
 @router.get("/stats", summary="Riepilogo spesa per categoria")
 def stats_per_categoria(year: Optional[int] = None):
     """Totale spesa raggruppato per Cat.1 e Cat.2."""

@@ -90,6 +90,7 @@ export default function FattureCategorie() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function TabFornitori({ categorie, onRefresh }) {
+  const nav = useNavigate();
   const [fornitori, setFornitori] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("tutti"); // tutti | assegnati | non_assegnati
@@ -178,6 +179,7 @@ function TabFornitori({ categorie, onRefresh }) {
                 <th className="px-3 py-2 text-right">Totale €</th>
                 <th className="px-3 py-2 text-left">Categoria</th>
                 <th className="px-3 py-2 text-left">Sotto-categoria</th>
+                <th className="px-3 py-2 text-center">Dettaglio</th>
               </tr>
             </thead>
             <tbody>
@@ -228,6 +230,16 @@ function TabFornitori({ categorie, onRefresh }) {
                           <option key={s.id} value={s.id}>{s.nome}</option>
                         ))}
                       </select>
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {f.fornitore_piva && (
+                        <button
+                          onClick={() => nav(`/admin/fatture/fornitore/${encodeURIComponent(f.fornitore_piva)}`)}
+                          className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 transition"
+                        >
+                          Prodotti →
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
