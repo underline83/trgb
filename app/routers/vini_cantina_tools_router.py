@@ -206,10 +206,19 @@ def sync_from_excel(
     """
     _require_admin(current_user)
 
+    # Leggi tutti i vini dall'Excel in una sola connessione
     conn_excel = get_carta_connection()
     cur = conn_excel.cursor()
     rows = cur.execute("SELECT * FROM vini;").fetchall()
     conn_excel.close()
+
+    # Carica mappa id_excel → id_cantina in una sola query
+    conn_mag = mag_db.get_magazzino_connection()
+    cur_mag = conn_mag.cursor()
+    existing_map = {}
+    for row in cur_mag.execute("SELECT id, id_excel FROM vini_magazzino WHERE id_excel IS NOT NULL;"):
+        existing_map[row["id_excel"]] = row["id"]
+    conn_mag.close()
 
     inseriti = 0
     aggiornati = 0
@@ -241,14 +250,7 @@ def sync_from_excel(
                 "ORIGINE": "EXCEL",
             }
 
-            # Controlla se esiste già in cantina
-            conn_mag = mag_db.get_magazzino_connection()
-            cur_mag = conn_mag.cursor()
-            existing = cur_mag.execute(
-                "SELECT id FROM vini_magazzino WHERE id_excel = ?;",
-                (r["id"],),
-            ).fetchone()
-            conn_mag.close()
+            existing_id = existing_map.get(r["id"])
 
             # Giacenze dall'Excel
             qta_frigo = r["N_FRIGO"] or 0
@@ -256,7 +258,7 @@ def sync_from_excel(
             qta_loc2 = r["N_LOC2"] or 0
             qta_totale = r["QTA"] or 0
 
-            if not existing:
+            if not existing_id:
                 # Vino nuovo: importa sempre le giacenze
                 data["QTA_FRIGO"] = qta_frigo
                 data["QTA_LOC1"] = qta_loc1
@@ -269,8 +271,8 @@ def sync_from_excel(
             mag_db.upsert_vino_from_carta(data)
 
             # Forza giacenze sui vini già esistenti (dopo l'upsert)
-            if existing and forza_giacenze:
-                mag_db.update_vino(existing["id"], {
+            if existing_id and forza_giacenze:
+                mag_db.update_vino(existing_id, {
                     "QTA_FRIGO": qta_frigo,
                     "QTA_LOC1": qta_loc1,
                     "QTA_LOC2": qta_loc2,
@@ -582,40 +584,41 @@ def carta_cantina_pdf(
     Genera il PDF della carta vini dal DB cantina.
     """
     rows = _load_vini_cantina_ordinati()
-    data_str = datetime.now().strftime("%d/%m/%Y")
+    data_oggi = datetime.now().strftime("%d/%m/%Y")
 
-    # Front page
-    logo_html = ""
-    if LOGO_PATH.exists():
-        logo_html = f"<img src='file://{LOGO_PATH}' class='logo' />"
-
-    front_page = f"""
+    # Front page — identico al vecchio sistema (stesse classi CSS)
+    frontespizio = f"""
     <div class="front-page">
-        {logo_html}
-        <h1 class="main-title">OSTERIA TRE GOBBI</h1>
-        <h2 class="subtitle">CARTA DEI VINI</h2>
-        <p class="subtitle">(da Cantina — {data_str})</p>
+        <img src="file://{LOGO_PATH}" class="front-logo">
+        <div class="front-title">CARTA VINI</div>
+        <div class="front-subtitle">Aggiornata al {data_oggi}</div>
     </div>
     """
 
     toc_html = build_carta_toc_html(rows)
     body_html = build_carta_body_html(rows)
+    carta = f"<div class='carta-body'>{body_html}</div>"
 
-    full_html = f"""<!DOCTYPE html>
-<html lang="it">
-<head><meta charset="utf-8"><title>Carta Vini Cantina</title></head>
-<body>
-    {front_page}
-    {toc_html}
-    {body_html}
-</body>
-</html>"""
+    full_html = f"""
+    <html>
+    <head>
+        <meta charset='utf-8'>
+        <link rel='stylesheet' href='/static/css/carta_pdf.css'>
+    </head>
+    <body>
+        {frontespizio}
+        {toc_html}
+        {carta}
+    </body>
+    </html>
+    """
 
-    css_str = CSS_PDF.read_text() if CSS_PDF.exists() else ""
     out_path = STATIC_DIR / "carta_vini_cantina.pdf"
 
-    html_obj = HTML(string=full_html, base_url=str(STATIC_DIR))
-    html_obj.write_pdf(str(out_path), stylesheets=[CSS(string=css_str)])
+    HTML(string=full_html, base_url=str(BASE_DIR)).write_pdf(
+        str(out_path),
+        stylesheets=[CSS(filename=str(CSS_PDF))],
+    )
 
     return FileResponse(
         str(out_path),
