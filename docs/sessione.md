@@ -17,7 +17,15 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ## Cosa abbiamo fatto nell'ultima sessione (2026-03-10)
 
-### Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta
+### Riorganizzazione menu Cantina + fix PDF + Impostazioni Carta (v2026.03.10c)
+1. **Menu Cantina semplificato** — ora 3 voci + admin: Cantina, Nuovo vino, Genera Carta PDF + (admin) Strumenti
+2. **"Genera Carta PDF" nel submenu** — bottone diretto che scarica il PDF senza pagine intermedie
+3. **Registro Movimenti + Modifica Massiva** spostati dentro Strumenti (pulsanti rapidi in cima)
+4. **Fix PDF cantina** — corretto frontespizio: classi CSS (`front-logo`, `front-title`, `front-subtitle`), wrapper `carta-body`, `base_url`, caricamento CSS → ora identico al vecchio sistema
+5. **Impostazioni Ordinamento Carta in Strumenti** — UI per riordinare tipologie, nazioni, regioni (con frecce ▲▼) e configurare filtri carta (qta minima, mostra negativi, mostra senza prezzo). Usa le API `/settings/vini/*` già esistenti.
+6. **CantinaTools.jsx v2.0** — riscritto con 4 sezioni: Sync, Import/Export, Genera Carta (HTML+PDF+Word), Impostazioni Ordinamento
+
+### Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta (v2026.03.10b)
 1. **Nuovo router `vini_cantina_tools_router.py`** — 6 endpoint backend:
    - `POST /sync-from-excel` → sincronizza vini.sqlite3 → cantina (upsert: anagrafica aggiornata, giacenze intatte per vini esistenti)
    - `POST /import-excel` → import diretto Excel → cantina (senza passare dal vecchio DB)
@@ -75,7 +83,8 @@ Poi `pip install python-dotenv` sul VPS se non già installato.
 
 ### 🟢 Modulo Vini — struttura attuale dopo reforming
 **Menu principale** (`ViniMenu.jsx`): 5 voci — Carta dei Vini, Vendite, Cantina, Dashboard, Impostazioni
-**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · (admin) Registro movimenti · Modifica massiva · Strumenti
+**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina · Nuovo vino · Genera Carta PDF (download diretto) · (admin) Strumenti
+**Strumenti** (`CantinaTools.jsx` v2.0): Registro Movimenti + Modifica Massiva (pulsanti rapidi) · Sync Excel → Cantina · Import/Export Excel · Genera Carta (HTML+PDF+Word) · Impostazioni Ordinamento Carta (tipologie, nazioni, regioni, filtri)
 **Route attive**:
 - `/vini` → ViniMenu
 - `/vini/carta` → ViniCarta (NON TOCCARE — paracadute Excel)

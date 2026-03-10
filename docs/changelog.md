@@ -3,7 +3,28 @@
 
 ---
 
-## 2026-03-10 — Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta (v2026.03.10b)
+## 2026-03-10c — Riorganizzazione menu Cantina + fix PDF + Impostazioni Carta
+
+### Added
+- **"📄 Genera Carta PDF"** nel submenu Cantina — bottone diretto che scarica il PDF senza pagine intermedie (visibile a tutti)
+- **Impostazioni Ordinamento Carta** in Strumenti — UI completa per:
+  - Ordine Tipologie (lista riordinabile con frecce ▲▼ + salva)
+  - Ordine Nazioni (lista riordinabile + salva)
+  - Ordine Regioni per nazione (select nazione → lista riordinabile + salva)
+  - Filtri Carta (quantità minima, mostra negativi, mostra senza prezzo)
+- **Registro Movimenti** e **Modifica Massiva** accessibili da Strumenti (pulsanti rapidi in cima)
+
+### Changed
+- **MagazzinoSubMenu.jsx**: rimossi "Registro movimenti" e "Modifica massiva" dal menu (spostati in Strumenti); aggiunto bottone "Genera Carta PDF"
+- **CantinaTools.jsx** (v2.0): riscritto con 4 sezioni: Sync, Import/Export, Genera Carta (HTML+PDF+Word), Impostazioni Ordinamento
+- **vini_cantina_tools_router.py**: fix PDF frontespizio — corrette classi CSS (`front-logo`, `front-title`, `front-subtitle`), aggiunto wrapper `carta-body`, corretto `base_url` e caricamento CSS per match esatto con vecchio sistema
+
+### Fixed
+- **PDF cantina**: logo non visibile, titolo sbagliato, frontespizio su 2 pagine, subtitle diverso — ora identico al PDF generato dal vecchio sistema
+
+---
+
+## 2026-03-10b — Strumenti Cantina: ponte Excel ↔ Cantina + Genera Carta
 
 ### Added
 - **vini_cantina_tools_router.py**: nuovo router backend con 6 endpoint:
