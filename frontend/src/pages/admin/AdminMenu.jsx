@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { VersionBadge } from "../../config/versions";
 
 export default function AdminMenu() {
   const navigate = useNavigate();
@@ -11,9 +12,12 @@ export default function AdminMenu() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-center sm:text-left mb-4 text-amber-900 tracking-wide font-playfair">
-              🧾 Amministrazione — Osteria Tre Gobbi
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-4xl font-bold text-center sm:text-left text-amber-900 tracking-wide font-playfair">
+                🧾 Amministrazione
+              </h1>
+              <VersionBadge modulo="sistema" />
+            </div>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
               Seleziona un modulo amministrativo da gestire.
             </p>

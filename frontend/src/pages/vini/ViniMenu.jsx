@@ -1,8 +1,9 @@
-// @version: v4.0-reforming-cantina
+// @version: v4.1-versioned
 // Menu Gestione Vini — Reforming completo modulo vini
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { VersionBadge } from "../../config/versions";
 
 export default function ViniMenu() {
   const navigate = useNavigate();
@@ -13,9 +14,12 @@ export default function ViniMenu() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-center sm:text-left mb-4 text-amber-900 tracking-wide font-playfair">
-              🍷 Gestione Vini — Osteria Tre Gobbi
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-4xl font-bold text-center sm:text-left text-amber-900 tracking-wide font-playfair">
+                🍷 Gestione Vini
+              </h1>
+              <VersionBadge modulo="vini" />
+            </div>
             <p className="text-center sm:text-left text-neutral-600 mb-2">
               Cantina, vendite, analisi e configurazione.
             </p>

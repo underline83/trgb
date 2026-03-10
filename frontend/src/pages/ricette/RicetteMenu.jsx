@@ -1,9 +1,10 @@
-// @version: v1.0-ricette-menu
+// @version: v1.1-versioned
 // Menu principale Gestione Ricette — Tre Gobbi
 // Coerente con Home & Gestione Vini
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { VersionBadge } from "../../config/versions";
 
 export default function RicetteMenu() {
   const navigate = useNavigate();
@@ -53,9 +54,12 @@ export default function RicetteMenu() {
         {/* HEADER + TORNA A HOME */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2 text-center sm:text-left">
-              📘 Gestione Ricette — Osteria Tre Gobbi
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-4xl font-bold text-amber-900 tracking-wide font-playfair text-center sm:text-left">
+                📘 Ricette & Food Cost
+              </h1>
+              <VersionBadge modulo="ricette" />
+            </div>
             <p className="text-neutral-600 text-center sm:text-left">
               Archivio strutturato di ricette, ingredienti e costi.
             </p>

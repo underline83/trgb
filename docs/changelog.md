@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-03-10e — Sistema versioning moduli
+
+### Added
+- **`frontend/src/config/versions.js`** — config centralizzata versioni moduli + componente `VersionBadge` riutilizzabile
+- **Badge versione su Home** — ogni tile modulo mostra la versione corrente con colore (verde=stabile, blu=beta)
+- **Badge versione su menu moduli** — ViniMenu (v3.5), RicetteMenu (v2.0), AdminMenu (v3.5)
+- **Footer sistema** — versione globale in fondo alla Home
+- **Mappa versioni in SESSIONE.md** — tabella riepilogativa + reminder aggiornamento
+
+---
+
 ## 2026-03-10d — Modulo Ricette & Food Cost v2 (rebuild completo)
 
 ### Added

@@ -105,6 +105,28 @@ Il file `.env` con `SECRET_KEY` e' stato creato in locale (gitignored). Sul VPS 
 
 ---
 
+## Mappa versioni moduli
+
+Fonte di verita': `frontend/src/config/versions.js`
+
+| Modulo | Versione | Stato | Note |
+|--------|----------|-------|------|
+| Cantina & Vini | v3.5 | stabile | Carta, vendite, magazzino, dashboard, strumenti |
+| Ricette & Food Cost | v2.0 | beta | Ricette, sub-ricette, matching fatture, ingredienti |
+| Corrispettivi | v1.5 | stabile | Import Excel, chiusura cassa |
+| Fatture XML | v1.2 | stabile | Import XML acquisti, analisi fornitore |
+| Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
+| Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
+| Sistema | v3.5 | stabile | Versione globale gestionale |
+
+Le versioni sono mostrate visualmente nella UI:
+- **Home** — badge versione su ogni tile modulo + footer sistema
+- **ViniMenu** — badge v3.5 nell'header
+- **RicetteMenu** — badge v2.0 nell'header
+- **AdminMenu** — badge v3.5 nell'header
+
+---
+
 ## Task aperti prioritizzati
 
 Vai su `docs/roadmap.md` per la lista completa.
@@ -156,6 +178,7 @@ docs/design_ricette_foodcost_v2.md        — design document completo
 # --- FRONTEND ---
 frontend/src/App.jsx                   — TUTTE le route React
 frontend/src/config/api.js             — API_BASE + apiFetch()
+frontend/src/config/versions.js        — MODULE_VERSIONS + VersionBadge (UNICA fonte versioni)
 frontend/src/components/Header.jsx     — header globale
 frontend/src/components/LoginForm.jsx  — login tile PIN
 frontend/src/pages/ricette/            — 8 pagine modulo ricette/foodcost v2
@@ -217,3 +240,8 @@ git pull origin main
 Sostituisci la sezione **"Cosa abbiamo fatto"** con i task completati oggi.
 Aggiorna la tabella dei task se ne hai chiusi.
 Aggiorna la data in cima.
+
+**IMPORTANTE:** Quando aggiungi/modifichi funzionalita' significative a un modulo, aggiorna anche la versione:
+1. Cambia il numero in `frontend/src/config/versions.js` (unica fonte di verita')
+2. Aggiorna la tabella "Mappa versioni moduli" qui sopra
+3. Menziona il bump di versione nel changelog

@@ -1,19 +1,18 @@
-// @version: v2.6-modules-per-role
+// @version: v3.0-versioned-modules
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
+import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 
 const MENU_CONFIG = {
-  vini:     { title: "Gestione Vini",    subtitle: "Carta, database, vendite, impostazioni",       icon: "🍷", go: "/vini",     color: "bg-amber-50 border-amber-200 text-amber-900" },
-  ricette:  { title: "Gestione Ricette", subtitle: "Archivio ricette, costi, stampa PDF",          icon: "📘", go: "/ricette",  color: "bg-blue-50 border-blue-200 text-blue-900" },
-  foodcost: { title: "Food Cost",        subtitle: "Analisi costi, materie prime, porzioni",       icon: "📊", go: "/foodcost", color: "bg-green-50 border-green-200 text-green-900" },
-  admin:    { title: "Amministrazione",  subtitle: "Corrispettivi, fatture, dipendenti, utenti",   icon: "🧾", go: "/admin",    color: "bg-neutral-50 border-neutral-300 text-neutral-800" },
+  vini:     { title: "Gestione Vini",         subtitle: "Carta, cantina, vendite, dashboard",           icon: "\uD83C\uDF77", go: "/vini",     color: "bg-amber-50 border-amber-200 text-amber-900",     vKey: "vini" },
+  ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture", icon: "\uD83D\uDCD8", go: "/ricette",  color: "bg-blue-50 border-blue-200 text-blue-900",        vKey: "ricette" },
+  admin:    { title: "Amministrazione",       subtitle: "Corrispettivi, fatture, dipendenti, utenti",   icon: "\uD83E\uDDFE", go: "/admin",    color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
 };
 
 export default function Home() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin";
 
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,13 +22,11 @@ export default function Home() {
       .then((r) => r.json())
       .then(setModules)
       .catch(() => {
-        // Fallback: mostra tutti i moduli
         setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["admin", "chef", "sommelier", "sala", "viewer"] })));
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Mostra modulo se il ruolo corrente è nella lista roles
   const visibleModules = modules.filter((m) => m.roles?.includes(role));
 
   return (
@@ -55,7 +52,10 @@ export default function Home() {
                   onClick={() => navigate(cfg.go)}
                   className={`rounded-2xl border shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${cfg.color}`}
                 >
-                  <div className="text-4xl mb-2">{cfg.icon}</div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="text-4xl">{cfg.icon}</div>
+                    <VersionBadge modulo={cfg.vKey} />
+                  </div>
                   <div className="text-xl font-semibold">{cfg.title}</div>
                   <div className="text-sm opacity-80">{cfg.subtitle}</div>
                 </div>
@@ -63,6 +63,11 @@ export default function Home() {
             })}
           </div>
         )}
+
+        {/* Footer versione sistema */}
+        <div className="mt-12 text-center text-xs text-neutral-400">
+          TRGB Gestionale v{MODULE_VERSIONS.sistema.version} — Osteria Tre Gobbi, Bergamo
+        </div>
       </div>
     </div>
   );
