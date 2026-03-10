@@ -1,7 +1,8 @@
-// @version: v1.4-zip-support
+// @version: v1.5-with-nav
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import FattureNav from "./FattureNav";
 
 export default function FattureImport() {
   const navigate = useNavigate();
@@ -37,7 +38,8 @@ export default function FattureImport() {
       }
 
       const data = await res.json();
-      setFatture(data || []);
+      // Backend now returns {fatture, total, totale_importo}
+      setFatture(data.fatture || data || []);
     } catch (e) {
       setFattureError(e.message);
     } finally {
@@ -199,37 +201,18 @@ export default function FattureImport() {
   // RENDER
   // -----------------------------------
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <FattureNav current="import" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
-              📤 Import Fatture Elettroniche (XML)
-            </h1>
-            <p className="text-neutral-600 text-sm sm:text-base">
-              Carica i file XML di fattura elettronica, evita i duplicati e
-              consulta l&apos;elenco delle fatture importate con relativo
-              dettaglio.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button
-              type="button"
-              onClick={() => navigate("/admin/fatture")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Menu Fatture
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-50 shadow-sm transition"
-            >
-              ← Amministrazione
-            </button>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            Import Fatture Elettroniche (XML)
+          </h1>
+          <p className="text-neutral-500 text-sm">
+            Carica file XML o archivi ZIP. I duplicati vengono scartati automaticamente.
+          </p>
         </div>
 
         {/* GRID CONTENUTO PRINCIPALE */}
@@ -617,6 +600,7 @@ export default function FattureImport() {
             Vai alla Dashboard Acquisti →
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

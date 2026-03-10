@@ -443,30 +443,92 @@ def reset_fatture():
 @router.get(
     "/fatture",
     response_model=List[Dict[str, Any]],
-    summary="Elenco fatture elettroniche importate",
+    summary="Elenco fatture elettroniche importate con filtri",
 )
-def list_fatture():
+def list_fatture(
+    search: str | None = Query(None, description="Cerca per fornitore, numero, P.IVA"),
+    year: int | None = Query(None),
+    month: str | None = Query(None),
+    fornitore: str | None = Query(None, description="Nome fornitore esatto"),
+    importo_min: float | None = Query(None),
+    importo_max: float | None = Query(None),
+    categoria: str | None = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
+    offset: int = Query(0, ge=0),
+):
     conn = _get_conn()
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    cur.execute(
+    where_parts = ["1=1"]
+    params: list = []
+
+    if search:
+        where_parts.append(
+            "(UPPER(f.fornitore_nome) LIKE ? OR f.fornitore_piva LIKE ? OR f.numero_fattura LIKE ?)"
+        )
+        q = f"%{search.upper()}%"
+        params.extend([q, f"%{search}%", f"%{search}%"])
+
+    if year is not None:
+        where_parts.append("substr(f.data_fattura, 1, 4) = ?")
+        params.append(str(year))
+
+    if month is not None:
+        where_parts.append("substr(f.data_fattura, 6, 2) = ?")
+        params.append(month.zfill(2))
+
+    if fornitore:
+        where_parts.append("f.fornitore_nome = ?")
+        params.append(fornitore)
+
+    if importo_min is not None:
+        where_parts.append("COALESCE(f.totale_fattura, 0) >= ?")
+        params.append(importo_min)
+
+    if importo_max is not None:
+        where_parts.append("COALESCE(f.totale_fattura, 0) <= ?")
+        params.append(importo_max)
+
+    need_cat_join = categoria is not None
+    cat_join = ""
+    if need_cat_join:
+        cat_join = f"""
+            {_EXCL_JOIN}
+            LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         """
+        if categoria == "(Non categorizzato)":
+            where_parts.append("fc.categoria_id IS NULL")
+        else:
+            where_parts.append("c.nome = ?")
+            params.append(categoria)
+
+    where_sql = " AND ".join(where_parts)
+
+    # Count totale
+    cur.execute(f"""
+        SELECT COUNT(*) AS cnt, ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS tot
+        FROM fe_fatture f {cat_join}
+        WHERE {where_sql}
+    """, params)
+    summary = dict(cur.fetchone())
+
+    cur.execute(f"""
         SELECT
-            id, fornitore_nome, fornitore_piva,
-            numero_fattura, data_fattura,
-            imponibile_totale, iva_totale, totale_fattura,
-            valuta, xml_filename, data_import
-        FROM fe_fatture
-        ORDER BY
-            COALESCE(data_fattura, '') DESC,
-            id DESC
-        """
-    )
-    rows = cur.fetchall()
+            f.id, f.fornitore_nome, f.fornitore_piva,
+            f.numero_fattura, f.data_fattura,
+            f.imponibile_totale, f.iva_totale, f.totale_fattura,
+            f.valuta, f.xml_filename, f.data_import,
+            COALESCE(f.is_autofattura, 0) AS is_autofattura
+        FROM fe_fatture f {cat_join}
+        WHERE {where_sql}
+        ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
+        LIMIT ? OFFSET ?
+    """, params + [limit, offset])
+    rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
-    return [dict(row) for row in rows]
+    return {"fatture": rows, "total": summary["cnt"] or 0, "totale_importo": summary["tot"] or 0}
 
 
 @router.get(

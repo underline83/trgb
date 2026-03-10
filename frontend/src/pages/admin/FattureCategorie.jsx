@@ -1,9 +1,9 @@
-// @version: v1.1-esclusione-fornitori
+// @version: v1.2-with-nav
 // Pagina gestione categorie fornitori — 2 tab: Impostazioni albero + Assegnazione fornitori
-// v1.1: aggiunto supporto esclusione fornitori (auto-fatture, duplicati)
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import FattureNav from "./FattureNav";
 
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
 
@@ -32,24 +32,18 @@ export default function FattureCategorie() {
   useEffect(() => { fetchCategorie(); }, [fetchCategorie]);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <FattureNav current="categorie" />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-amber-900 font-playfair mb-1">
-              🏷️ Categorie Fornitori
-            </h1>
-            <p className="text-neutral-600 text-sm">
-              Assegna una categoria a ogni fornitore e gestisci l'albero delle categorie.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button onClick={() => navigate("/admin/fatture")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
-              ← Menu Fatture
-            </button>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-amber-900 font-playfair mb-1">
+            Categorie Fornitori
+          </h1>
+          <p className="text-neutral-500 text-sm">
+            Assegna una categoria a ogni fornitore e gestisci l'albero delle categorie.
+          </p>
         </div>
 
         {/* TABS */}
@@ -80,6 +74,7 @@ export default function FattureCategorie() {
         ) : (
           <TabImpostazioni categorie={categorie} onRefresh={fetchCategorie} />
         )}
+      </div>
       </div>
     </div>
   );

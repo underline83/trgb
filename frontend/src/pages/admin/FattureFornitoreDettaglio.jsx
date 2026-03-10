@@ -1,8 +1,9 @@
-// @version: v1.0-prodotti-fornitore
+// @version: v1.1-with-nav
 // Pagina dettaglio fornitore: lista prodotti acquistati con categorizzazione per riga
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import FattureNav from "./FattureNav";
 
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
 
@@ -77,24 +78,19 @@ export default function FattureFornitoreDettaglio() {
   const totaleSpesa = prodotti.reduce((s, p) => s + (p.totale_spesa || 0), 0);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-7xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <FattureNav current="categorie" />
+      <div className="max-w-7xl mx-auto p-4 sm:p-6">
+      <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-amber-900 font-playfair mb-1">
               Prodotti — {loading ? "..." : fornNome}
             </h1>
-            <p className="text-neutral-600 text-sm">
+            <p className="text-neutral-500 text-sm">
               Categorizza i singoli prodotti acquistati da questo fornitore.
-              I mapping vengono salvati e applicati automaticamente ai futuri import.
             </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:items-end">
-            <button onClick={() => navigate("/admin/fatture/categorie")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
-              ← Categorie Fornitori
-            </button>
           </div>
         </div>
 
@@ -239,6 +235,7 @@ export default function FattureFornitoreDettaglio() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
