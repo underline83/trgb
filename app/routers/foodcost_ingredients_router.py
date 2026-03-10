@@ -447,3 +447,190 @@ def create_ingredient(payload: IngredientCreate):
         is_active=row["is_active"],
         created_at=row["created_at"],
     )
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: AGGIORNA INGREDIENTE
+#   PUT /foodcost/ingredients/{ingredient_id}
+# ─────────────────────────────────────────────
+
+class IngredientUpdate(BaseModel):
+    name: Optional[str] = None
+    default_unit: Optional[str] = None
+    category_id: Optional[int] = None
+    codice_interno: Optional[str] = None
+    allergeni: Optional[str] = None
+    note: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+@router.put("/{ingredient_id}", response_model=IngredientDetail)
+def update_ingredient(ingredient_id: int, payload: IngredientUpdate):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+    updates = []
+    params = []
+    for col in ["name", "default_unit", "category_id", "codice_interno", "allergeni", "note", "is_active"]:
+        val = getattr(payload, col)
+        if val is not None:
+            updates.append(f"{col} = ?")
+            params.append(val.strip() if isinstance(val, str) else val)
+
+    if updates:
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(ingredient_id)
+        cur.execute(f"UPDATE ingredients SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+
+    row = cur.execute(
+        """
+        SELECT i.id, i.name, i.default_unit, i.codice_interno, i.category_id,
+               i.allergeni, i.note, i.is_active, i.created_at, c.name AS category_name
+        FROM ingredients i
+        LEFT JOIN ingredient_categories c ON c.id = i.category_id
+        WHERE i.id = ?
+        """,
+        (ingredient_id,),
+    ).fetchone()
+    conn.close()
+
+    return IngredientDetail(**dict(row))
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: FORNITORI
+#   GET /foodcost/ingredients/suppliers
+# ─────────────────────────────────────────────
+
+class SupplierOut(BaseModel):
+    id: int
+    name: str
+    partita_iva: Optional[str] = None
+
+
+@router.get("/suppliers", response_model=List[SupplierOut])
+def list_suppliers():
+    """Lista fornitori (dalla tabella suppliers, alimentata da fatture XML)."""
+    conn = get_foodcost_connection()
+    rows = conn.execute(
+        "SELECT id, name, partita_iva FROM suppliers ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    conn.close()
+    return [SupplierOut(**dict(r)) for r in rows]
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: STORICO PREZZI INGREDIENTE
+#   GET /foodcost/ingredients/{ingredient_id}/prezzi
+#   POST /foodcost/ingredients/{ingredient_id}/prezzi
+#   DELETE /foodcost/ingredients/prezzi/{prezzo_id}
+# ─────────────────────────────────────────────
+
+class PriceOut(BaseModel):
+    id: int
+    ingredient_id: int
+    supplier_id: int
+    supplier_name: Optional[str] = None
+    unit_price: float
+    original_price: Optional[float] = None
+    original_unit: Optional[str] = None
+    original_qty: Optional[float] = None
+    price_date: str
+    note: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class PriceCreate(BaseModel):
+    supplier_id: int
+    unit_price: float = Field(..., gt=0)
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    price_date: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.get("/{ingredient_id}/prezzi", response_model=List[PriceOut])
+def list_ingredient_prices(ingredient_id: int):
+    conn = get_foodcost_connection()
+    rows = conn.execute(
+        """
+        SELECT p.id, p.ingredient_id, p.supplier_id, s.name AS supplier_name,
+               p.unit_price, p.original_price, p.original_unit, p.original_qty,
+               p.price_date, p.note, p.created_at
+        FROM ingredient_prices p
+        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        WHERE p.ingredient_id = ?
+        ORDER BY date(p.price_date) DESC, p.id DESC
+        """,
+        (ingredient_id,),
+    ).fetchall()
+    conn.close()
+    return [PriceOut(**dict(r)) for r in rows]
+
+
+@router.post("/{ingredient_id}/prezzi", response_model=PriceOut)
+def create_ingredient_price(ingredient_id: int, payload: PriceCreate):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    # Verifica ingrediente
+    ing = cur.execute("SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+    if not ing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+    # Verifica fornitore
+    sup = cur.execute("SELECT id FROM suppliers WHERE id = ?", (payload.supplier_id,)).fetchone()
+    if not sup:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Fornitore non trovato")
+
+    price_date = payload.price_date or date.today().isoformat()
+
+    cur.execute(
+        """
+        INSERT INTO ingredient_prices (ingredient_id, supplier_id, unit_price,
+                                       quantity, unit, price_date, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (ingredient_id, payload.supplier_id, payload.unit_price,
+         payload.quantity, payload.unit, price_date, payload.note),
+    )
+    new_id = cur.lastrowid
+    conn.commit()
+
+    row = cur.execute(
+        """
+        SELECT p.id, p.ingredient_id, p.supplier_id, s.name AS supplier_name,
+               p.unit_price, p.original_price, p.original_unit, p.original_qty,
+               p.price_date, p.note, p.created_at
+        FROM ingredient_prices p
+        LEFT JOIN suppliers s ON s.id = p.supplier_id
+        WHERE p.id = ?
+        """,
+        (new_id,),
+    ).fetchone()
+    conn.close()
+    return PriceOut(**dict(row))
+
+
+@router.delete("/prezzi/{prezzo_id}")
+def delete_price(prezzo_id: int):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT id FROM ingredient_prices WHERE id = ?", (prezzo_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Prezzo non trovato")
+
+    cur.execute("DELETE FROM ingredient_prices WHERE id = ?", (prezzo_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}

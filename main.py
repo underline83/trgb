@@ -27,6 +27,7 @@ from app.routers import vini_cantina_tools_router
 from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
+from app.routers import foodcost_matching_router
 
 # AMMINISTRAZIONE (corrispettivi & analisi) — modulo unico
 from app.routers.admin_finance import router as admin_finance_router
@@ -105,6 +106,11 @@ app.include_router(
     foodcost_recipes_router.router,
     prefix="/foodcost",
     tags=["foodcost-recipes"],
+)
+app.include_router(
+    foodcost_matching_router.router,
+    prefix="/foodcost",
+    tags=["foodcost-matching"],
 )
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
