@@ -97,7 +97,7 @@ export default function FattureMenu() {
         </div>
 
         {/* GRID MENU */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link
             to="/admin/fatture/dashboard"
             className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
@@ -125,6 +125,24 @@ export default function FattureMenu() {
             {kpi && (
               <span className="inline-block mt-2 text-[10px] font-medium bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full">
                 {kpi.n_fatture} fatture
+              </span>
+            )}
+          </Link>
+
+          <Link
+            to="/admin/fatture/fornitori"
+            className="bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">🏢</span>
+              <h2 className="text-lg font-semibold font-playfair">Fornitori</h2>
+            </div>
+            <p className="text-neutral-600 text-xs">
+              Elenco fornitori, spesa totale, numero fatture e storico acquisti.
+            </p>
+            {kpi && (
+              <span className="inline-block mt-2 text-[10px] font-medium bg-teal-200/60 text-teal-800 px-2 py-0.5 rounded-full">
+                {kpi.n_fornitori} fornitori
               </span>
             )}
           </Link>

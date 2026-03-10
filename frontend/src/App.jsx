@@ -53,6 +53,7 @@ import FattureCategorie from "./pages/admin/FattureCategorie";
 import FattureFornitoreDettaglio from "./pages/admin/FattureFornitoreDettaglio";
 import FattureElenco from "./pages/admin/FattureElenco";
 import FattureDettaglio from "./pages/admin/FattureDettaglio";
+import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -121,6 +122,7 @@ export default function App() {
         <Route path="/admin/fatture" element={<FattureMenu />} />
         <Route path="/admin/fatture/elenco" element={<FattureElenco />} />
         <Route path="/admin/fatture/dettaglio/:id" element={<FattureDettaglio />} />
+        <Route path="/admin/fatture/fornitori" element={<FattureFornitoriElenco />} />
         <Route path="/admin/fatture/import" element={<FattureImport />} />
         <Route path="/admin/fatture/dashboard" element={<FattureDashboard />} />
         <Route path="/admin/fatture/categorie" element={<FattureCategorie />} />
