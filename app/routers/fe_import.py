@@ -656,6 +656,75 @@ _EXCL_JOIN = """
 _EXCL_WHERE = "COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
 
 
+@router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
+def stats_drill(
+    year: int | None = Query(None),
+    month: str | None = Query(None, description="Mese in formato 01-12"),
+    categoria: str | None = Query(None, description="Nome categoria (Cat.1)"),
+):
+    """
+    Ritorna lista fatture filtrate per mese e/o categoria.
+    Usato dal drill-down della dashboard quando si clicca su un mese o una fetta.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    where_parts = [f"f.data_fattura IS NOT NULL", _EXCL_WHERE]
+    params: list = []
+
+    if year is not None:
+        where_parts.append("substr(f.data_fattura, 1, 4) = ?")
+        params.append(str(year))
+
+    if month is not None:
+        where_parts.append("substr(f.data_fattura, 6, 2) = ?")
+        params.append(month.zfill(2))
+
+    if categoria is not None:
+        if categoria == "(Non categorizzato)":
+            where_parts.append("fc.categoria_id IS NULL")
+        else:
+            where_parts.append("c.nome = ?")
+            params.append(categoria)
+
+    where_sql = " AND ".join(where_parts)
+
+    cur.execute(f"""
+        SELECT
+            f.id,
+            f.fornitore_nome,
+            f.fornitore_piva,
+            f.numero_fattura,
+            f.data_fattura,
+            ROUND(COALESCE(f.totale_fattura, 0), 2) AS totale_fattura,
+            COALESCE(c.nome, '') AS categoria
+        FROM fe_fatture f
+        {_EXCL_JOIN}
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        WHERE {where_sql}
+        ORDER BY f.data_fattura DESC, f.totale_fattura DESC
+        LIMIT 200
+    """, params)
+
+    rows = [dict(r) for r in cur.fetchall()]
+
+    # Calcola totale e conteggio
+    cur.execute(f"""
+        SELECT
+            COUNT(*) AS n_fatture,
+            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale
+        FROM fe_fatture f
+        {_EXCL_JOIN}
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        WHERE {where_sql}
+    """, params)
+    summary = dict(cur.fetchone())
+
+    conn.close()
+    return {"fatture": rows, "n_fatture": summary["n_fatture"], "totale": summary["totale"]}
+
+
 @router.get("/stats/kpi", summary="KPI principali per la dashboard")
 def stats_kpi(
     year: int | None = Query(None),

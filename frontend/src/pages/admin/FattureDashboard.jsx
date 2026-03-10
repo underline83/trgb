@@ -1,8 +1,9 @@
-// @version: v2.0-dashboard-avanzata
+// @version: v2.2-drill-down-complete
 // Dashboard acquisti fatture elettroniche — KPI, grafici, categorie, anomalie
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -44,6 +45,28 @@ export default function FattureDashboard() {
   const [confronto, setConfronto] = useState(null);
   const [anomalie, setAnomalie] = useState([]);
   const [mensili, setMensili] = useState([]);
+
+  // Drill-down state
+  const [drill, setDrill] = useState(null); // { label, fatture, n_fatture, totale, loading }
+
+  const openDrill = useCallback(async ({ label, year: drillYear, month, categoria }) => {
+    setDrill({ label, fatture: [], n_fatture: 0, totale: 0, loading: true });
+    try {
+      const params = new URLSearchParams();
+      const y = drillYear || (selectedYear !== "all" ? selectedYear : null);
+      if (y) params.set("year", y);
+      if (month) params.set("month", month);
+      if (categoria) params.set("categoria", categoria);
+      const res = await apiFetch(`${FE}/stats/drill?${params.toString()}`);
+      if (!res.ok) throw new Error("Errore");
+      const data = await res.json();
+      setDrill({ label, ...data, loading: false });
+    } catch {
+      setDrill((prev) => prev ? { ...prev, loading: false } : null);
+    }
+  }, [selectedYear]);
+
+  const closeDrill = () => setDrill(null);
 
   // Carica anni disponibili
   useEffect(() => {
@@ -170,13 +193,16 @@ export default function FattureDashboard() {
             {/* ── KPI CARDS ── */}
             {kpi && <KpiCards kpi={kpi} />}
 
+            {/* ── DRILL-DOWN PANEL ── */}
+            {drill && <DrillPanel drill={drill} onClose={closeDrill} navigate={navigate} />}
+
             {/* ── ROW 1: Andamento mensile + Categorie ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
               <div className="lg:col-span-2">
-                <ChartMensile data={mensili} selectedYear={selectedYear} />
+                <ChartMensile data={mensili} selectedYear={selectedYear} onDrill={openDrill} />
               </div>
               <div>
-                <ChartCategorie data={categorie} />
+                <ChartCategorie data={categorie} onDrill={openDrill} />
               </div>
             </div>
 
@@ -277,12 +303,11 @@ function KpiCards({ kpi }) {
 // CHART ANDAMENTO MENSILE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function ChartMensile({ data, selectedYear }) {
+function ChartMensile({ data, selectedYear, onDrill }) {
   const NOMI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
-    // raggruppa per anno-mese
     const map = {};
     data.forEach((d) => {
       const key = `${d.anno}-${d.mese}`;
@@ -292,25 +317,42 @@ function ChartMensile({ data, selectedYear }) {
     if (selectedYear !== "all") {
       return NOMI.map((n, i) => {
         const m = String(i + 1).padStart(2, "0");
-        return { mese: n, totale: map[`${selectedYear}-${m}`] || 0 };
+        return { mese: n, mese_num: m, anno: selectedYear, totale: map[`${selectedYear}-${m}`] || 0 };
       });
     }
 
-    // Tutti gli anni: usa le entries ordinate
     return data.map((d) => ({
       mese: `${NOMI[parseInt(d.mese) - 1]} ${d.anno}`,
+      mese_num: d.mese,
+      anno: d.anno,
       totale: d.totale_fatture || 0,
     }));
   }, [data, selectedYear]);
 
+  const handleClick = (entry) => {
+    if (!entry || !entry.activePayload?.[0]) return;
+    const d = entry.activePayload[0].payload;
+    if (d.totale <= 0) return;
+    const meseLabel = NOMI[parseInt(d.mese_num) - 1] || d.mese;
+    onDrill({
+      label: `${meseLabel} ${d.anno}`,
+      year: d.anno,
+      month: d.mese_num,
+    });
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4">
-      <h3 className="text-sm font-semibold text-neutral-800 mb-3">Andamento Mensile Acquisti</h3>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-sm font-semibold text-neutral-800">Andamento Mensile Acquisti</h3>
+        <span className="text-[10px] text-neutral-400">Clicca su una barra per il dettaglio</span>
+      </div>
       {chartData.length === 0 ? (
         <p className="text-xs text-neutral-400 py-10 text-center">Nessun dato</p>
       ) : (
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+            onClick={handleClick} style={{ cursor: "pointer" }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
             <XAxis dataKey="mese" tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={55} />
@@ -331,12 +373,22 @@ function ChartMensile({ data, selectedYear }) {
 // CHART CATEGORIE (DONUT)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function ChartCategorie({ data }) {
+function ChartCategorie({ data, onDrill }) {
   const totale = useMemo(() => data.reduce((s, d) => s + (d.totale || 0), 0), [data]);
+
+  const handlePieClick = (entry) => {
+    if (!entry || !entry.categoria || entry.totale <= 0) return;
+    onDrill({ label: `Cat: ${entry.categoria}`, categoria: entry.categoria });
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 h-full">
-      <h3 className="text-sm font-semibold text-neutral-800 mb-2">Spesa per Categoria</h3>
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-semibold text-neutral-800">Spesa per Categoria</h3>
+        {data.length > 0 && (
+          <span className="text-[10px] text-neutral-400">Clicca per dettaglio</span>
+        )}
+      </div>
       {data.length === 0 ? (
         <p className="text-xs text-neutral-400 py-10 text-center">
           Assegna categorie ai fornitori per visualizzare
@@ -354,6 +406,8 @@ function ChartCategorie({ data }) {
                 innerRadius={40}
                 outerRadius={70}
                 paddingAngle={2}
+                onClick={handlePieClick}
+                style={{ cursor: "pointer" }}
               >
                 {data.map((_, i) => (
                   <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
@@ -367,7 +421,11 @@ function ChartCategorie({ data }) {
           </ResponsiveContainer>
           <div className="space-y-1 mt-1 max-h-32 overflow-y-auto">
             {data.map((d, i) => (
-              <div key={d.categoria} className="flex items-center gap-2 text-[11px]">
+              <div
+                key={d.categoria}
+                className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5"
+                onClick={() => handlePieClick(d)}
+              >
                 <span
                   className="w-2.5 h-2.5 rounded-full shrink-0"
                   style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
@@ -468,6 +526,96 @@ function ChartConfronto({ data }) {
           <Bar dataKey={String(year)} fill="#d97706" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DRILL-DOWN PANEL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function DrillPanel({ drill, onClose, navigate }) {
+  const { label, fatture, n_fatture, totale, loading } = drill;
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-lg p-4 mb-4 animate-fadeIn">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-3">
+        <div>
+          <h3 className="text-sm font-bold text-amber-900">
+            Dettaglio: {label}
+          </h3>
+          {!loading && (
+            <p className="text-[11px] text-neutral-500 mt-0.5">
+              {n_fatture} fattur{n_fatture === 1 ? "a" : "e"} — Totale: € {fmt(totale)}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          className="w-7 h-7 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 text-sm font-bold transition"
+          title="Chiudi"
+        >
+          ×
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-neutral-400 text-sm">Caricamento...</div>
+      ) : fatture.length === 0 ? (
+        <div className="text-center py-8 text-neutral-400 text-sm">Nessuna fattura trovata</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-neutral-200 text-left text-neutral-500">
+                <th className="py-2 pr-3 font-medium">Data</th>
+                <th className="py-2 pr-3 font-medium">Numero</th>
+                <th className="py-2 pr-3 font-medium">Fornitore</th>
+                <th className="py-2 pr-3 font-medium">P.IVA</th>
+                <th className="py-2 text-right font-medium">Importo</th>
+                <th className="py-2 w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {fatture.map((f, i) => (
+                <tr
+                  key={f.id || i}
+                  className="border-b border-neutral-100 hover:bg-amber-50/50 transition"
+                >
+                  <td className="py-1.5 pr-3 tabular-nums text-neutral-700 whitespace-nowrap">
+                    {f.data_fattura || "-"}
+                  </td>
+                  <td className="py-1.5 pr-3 text-neutral-700 whitespace-nowrap">
+                    {f.numero_fattura || "-"}
+                  </td>
+                  <td className="py-1.5 pr-3 font-medium text-neutral-800 max-w-[200px] truncate">
+                    {f.fornitore_nome || "-"}
+                  </td>
+                  <td className="py-1.5 pr-3 text-neutral-500 tabular-nums whitespace-nowrap">
+                    {f.fornitore_piva || "-"}
+                  </td>
+                  <td className="py-1.5 text-right font-semibold text-neutral-900 tabular-nums whitespace-nowrap">
+                    € {fmt(f.totale_fattura)}
+                  </td>
+                  <td className="py-1.5 text-center">
+                    {f.id && (
+                      <button
+                        onClick={() => navigate(`/admin/fatture/dettaglio/${f.id}`)}
+                        className="text-amber-600 hover:text-amber-800 font-bold transition"
+                        title="Vai al dettaglio"
+                      >
+                        →
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
