@@ -16,7 +16,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const monthNames = [
   "Gennaio",
@@ -79,7 +79,7 @@ export default function CorrispettiviDashboard() {
       setError(null);
       try {
         // 1) Stats mensili
-        const monthlyRes = await fetch(
+        const monthlyRes = await apiFetch(
           `${API_BASE}/admin/finance/stats/monthly?year=${year}&month=${month}`
         );
         if (!monthlyRes.ok) {
@@ -89,7 +89,7 @@ export default function CorrispettiviDashboard() {
         if (cancelled) return;
 
         // 2) Top/bottom days anno
-        const topRes = await fetch(
+        const topRes = await apiFetch(
           `${API_BASE}/admin/finance/stats/top-days?year=${year}&limit=10`
         );
         if (!topRes.ok) {
