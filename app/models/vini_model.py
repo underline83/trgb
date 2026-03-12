@@ -66,6 +66,10 @@ def init_database() -> None:
 def clear_vini_table(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     cur.execute("DELETE FROM vini;")
+    # Reset AUTOINCREMENT counter so IDs restart from 1.
+    # Senza questo, ogni re-import genera ID nuovi (501, 502, ...)
+    # che rompono il collegamento id_excel in vini_magazzino.
+    cur.execute("DELETE FROM sqlite_sequence WHERE name='vini';")
     conn.commit()
 
 

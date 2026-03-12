@@ -215,13 +215,26 @@ def sync_from_excel(
     # Carica mappa id_excel → id_cantina in una sola query
     conn_mag = mag_db.get_magazzino_connection()
     cur_mag = conn_mag.cursor()
-    existing_map = {}
-    for row in cur_mag.execute("SELECT id, id_excel FROM vini_magazzino WHERE id_excel IS NOT NULL;"):
-        existing_map[row["id_excel"]] = row["id"]
+    existing_map = {}          # id_excel → id_cantina
+    natural_key_map = {}       # (desc_upper, prod_upper, annata, formato) → (id_cantina, id_excel)
+    for row in cur_mag.execute(
+        "SELECT id, id_excel, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO FROM vini_magazzino;"
+    ):
+        if row["id_excel"] is not None:
+            existing_map[row["id_excel"]] = row["id"]
+        # Fallback: chiave naturale per recuperare match quando id_excel cambia
+        nk = (
+            (row["DESCRIZIONE"] or "").strip().upper(),
+            (row["PRODUTTORE"] or "").strip().upper(),
+            (row["ANNATA"] or "").strip(),
+            (row["FORMATO"] or "").strip(),
+        )
+        natural_key_map[nk] = (row["id"], row["id_excel"])
     conn_mag.close()
 
     inseriti = 0
     aggiornati = 0
+    ricollegati = 0           # vini matchati per chiave naturale (id_excel aggiornato)
     giacenze_forzate = 0
     errori = []
 
@@ -251,6 +264,23 @@ def sync_from_excel(
             }
 
             existing_id = existing_map.get(r["id"])
+
+            # FALLBACK: se id_excel non matcha, cerca per chiave naturale
+            # e aggiorna il collegamento id_excel nel DB cantina
+            if not existing_id:
+                nk = (
+                    (r["DESCRIZIONE"] or "").strip().upper(),
+                    (r["PRODUTTORE"] or "").strip().upper(),
+                    (r["ANNATA"] or "").strip(),
+                    (r["FORMATO"] or "").strip(),
+                )
+                match = natural_key_map.get(nk)
+                if match:
+                    cantina_id, old_id_excel = match
+                    existing_id = cantina_id
+                    # Aggiorna id_excel nel DB cantina per mantenere il collegamento
+                    mag_db.update_vino(cantina_id, {"id_excel": r["id"]})
+                    ricollegati += 1
 
             # Giacenze dall'Excel
             qta_frigo = r["N_FRIGO"] or 0
@@ -286,6 +316,8 @@ def sync_from_excel(
             errori.append(f"{desc} ({prod}): {e}")
 
     msg = f"Sincronizzazione completata: {inseriti} nuovi, {aggiornati} aggiornati"
+    if ricollegati:
+        msg += f", {ricollegati} ricollegati per chiave naturale"
     if forza_giacenze:
         msg += f", {giacenze_forzate} giacenze sovrascritte da Excel"
     if errori:
@@ -296,6 +328,7 @@ def sync_from_excel(
         "totale_excel": len(rows),
         "inseriti": inseriti,
         "aggiornati": aggiornati,
+        "ricollegati": ricollegati,
         "giacenze_forzate": giacenze_forzate,
         "forza_giacenze": forza_giacenze,
         "errori": errori,
@@ -338,6 +371,23 @@ async def import_excel_to_cantina(
     finally:
         os.unlink(tmp.name)
 
+    # Pre-carica mappa di vini esistenti per match veloce
+    conn_mag = mag_db.get_magazzino_connection()
+    cur_mag = conn_mag.cursor()
+    # Mappa: chiave naturale → id cantina (per match robusto)
+    natural_key_map = {}
+    for vrow in cur_mag.execute(
+        "SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO FROM vini_magazzino;"
+    ):
+        nk = (
+            (vrow["DESCRIZIONE"] or "").strip().upper(),
+            (vrow["PRODUTTORE"] or "").strip().upper(),
+            (vrow["ANNATA"] or "").strip(),
+            (vrow["FORMATO"] or "").strip(),
+        )
+        natural_key_map[nk] = vrow["id"]
+    conn_mag.close()
+
     inseriti = 0
     aggiornati = 0
     errori = []
@@ -379,28 +429,23 @@ async def import_excel_to_cantina(
             if not data.get("NAZIONE"):
                 data["NAZIONE"] = "SCONOSCIUTA"
 
-            # Creiamo il vino in cantina (senza id_excel per import diretto,
-            # usiamo DESCRIZIONE+PRODUTTORE+ANNATA come chiave naturale)
-            # Per import diretto usiamo create_vino (non upsert)
-            # perché non c'è id_excel
-
-            # Cerca duplicato per decidere insert vs skip
-            dupes = mag_db.find_potential_duplicates(
-                descrizione=data["DESCRIZIONE"],
-                produttore=data.get("PRODUTTORE"),
-                annata=data.get("ANNATA"),
-                formato=data.get("FORMATO"),
+            # Cerca match per chiave naturale (DESCRIZIONE+PRODUTTORE+ANNATA+FORMATO)
+            nk = (
+                (data["DESCRIZIONE"] or "").strip().upper(),
+                (data.get("PRODUTTORE") or "").strip().upper(),
+                (data.get("ANNATA") or "").strip(),
+                (data.get("FORMATO") or "").strip(),
             )
+            existing_id = natural_key_map.get(nk)
 
-            if dupes:
-                # Aggiorna il primo match
-                vino_id = dupes[0]["id"]
+            if existing_id:
+                # Aggiorna il vino esistente (senza toccare giacenze)
                 update_data = {
                     k: v for k, v in data.items()
                     if k not in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_TOTALE")
                     and v is not None
                 }
-                mag_db.update_vino(vino_id, update_data)
+                mag_db.update_vino(existing_id, update_data)
                 aggiornati += 1
             else:
                 # Nuovo: importa con giacenze
@@ -411,7 +456,9 @@ async def import_excel_to_cantina(
                 # Serve almeno una locazione per create_vino
                 if not any([data.get("FRIGORIFERO"), data.get("LOCAZIONE_1"), data.get("LOCAZIONE_2")]):
                     data["FRIGORIFERO"] = "Frigo"
-                mag_db.create_vino(data)
+                new_id = mag_db.create_vino(data)
+                # Aggiungi alla mappa per evitare doppi inserimenti nello stesso import
+                natural_key_map[nk] = new_id
                 inseriti += 1
 
         except Exception as e:
@@ -427,6 +474,83 @@ async def import_excel_to_cantina(
         "errori": errori,
         "msg": f"Import completato: {inseriti} nuovi, {aggiornati} aggiornati"
         + (f", {len(errori)} errori" if errori else ""),
+    }
+
+
+# =============================================================
+# 2b. PULIZIA DUPLICATI
+# =============================================================
+@router.post("/cleanup-duplicates", summary="Rimuovi vini duplicati dalla cantina")
+def cleanup_duplicates(
+    dry_run: bool = Query(
+        True,
+        description="Se true, mostra solo i duplicati senza eliminarli",
+    ),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Trova e rimuove vini duplicati nella cantina.
+    Duplicati = stessa DESCRIZIONE + PRODUTTORE + ANNATA + FORMATO (case-insensitive).
+    Mantiene il record con id più basso (il primo inserito).
+    """
+    _require_admin(current_user)
+
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+
+    # Trova gruppi di duplicati
+    groups = cur.execute("""
+        SELECT
+            UPPER(TRIM(COALESCE(DESCRIZIONE, ''))) AS dk,
+            UPPER(TRIM(COALESCE(PRODUTTORE, '')))  AS pk,
+            TRIM(COALESCE(ANNATA, ''))              AS ak,
+            TRIM(COALESCE(FORMATO, ''))             AS fk,
+            COUNT(*) AS cnt,
+            GROUP_CONCAT(id, ',') AS ids
+        FROM vini_magazzino
+        GROUP BY dk, pk, ak, fk
+        HAVING cnt > 1
+        ORDER BY cnt DESC, dk
+    """).fetchall()
+
+    duplicati = []
+    ids_to_delete = []
+
+    for g in groups:
+        ids_list = sorted(int(x) for x in g["ids"].split(","))
+        keep_id = ids_list[0]
+        delete_ids = ids_list[1:]
+        ids_to_delete.extend(delete_ids)
+        duplicati.append({
+            "descrizione": g["dk"],
+            "produttore": g["pk"],
+            "annata": g["ak"],
+            "formato": g["fk"],
+            "copie": g["cnt"],
+            "keep_id": keep_id,
+            "delete_ids": delete_ids,
+        })
+
+    eliminati = 0
+    if not dry_run and ids_to_delete:
+        placeholders = ",".join("?" * len(ids_to_delete))
+        cur.execute(f"DELETE FROM vini_magazzino WHERE id IN ({placeholders})", ids_to_delete)
+        conn.commit()
+        eliminati = len(ids_to_delete)
+
+    conn.close()
+
+    return {
+        "status": "ok",
+        "dry_run": dry_run,
+        "gruppi_duplicati": len(duplicati),
+        "vini_da_eliminare": len(ids_to_delete),
+        "eliminati": eliminati,
+        "duplicati": duplicati[:50],  # limita output
+        "msg": (
+            f"Trovati {len(duplicati)} gruppi ({len(ids_to_delete)} copie). "
+            + (f"Eliminati {eliminati} duplicati." if not dry_run else "Dry-run: nessuna modifica.")
+        ),
     }
 
 

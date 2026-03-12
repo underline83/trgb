@@ -59,6 +59,8 @@ export default function CantinaTools() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState(null);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
   const [error, setError] = useState("");
   const [forzaGiacenze, setForzaGiacenze] = useState(false);
   const [showCartaPreview, setShowCartaPreview] = useState(false);
@@ -239,6 +241,16 @@ export default function CantinaTools() {
     window.open(`${API_BASE}/vini/cantina-tools/export-excel?token=${token}`, "_blank");
   };
 
+  const handleCleanupDuplicates = async (dryRun) => {
+    setCleanupLoading(true); setError(""); setCleanupResult(null);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/cleanup-duplicates?dry_run=${dryRun}`, { method: "POST" });
+      if (!resp.ok) { const txt = await resp.text().catch(() => ""); throw new Error(txt || `Errore server: ${resp.status}`); }
+      setCleanupResult(await resp.json());
+    } catch (e) { setError(e?.message || "Errore pulizia duplicati."); }
+    finally { setCleanupLoading(false); }
+  };
+
   // -------------------------------------------------------
   // RENDER
   // -------------------------------------------------------
@@ -387,6 +399,83 @@ export default function CantinaTools() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        <hr className="border-neutral-200 mb-8" />
+
+        {/* ============================================= */}
+        {/* SEZIONE 2b: PULIZIA DUPLICATI */}
+        {/* ============================================= */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold text-amber-900 font-playfair mb-3">
+            🧹 Pulizia Duplicati
+          </h2>
+          <p className="text-sm text-neutral-600 mb-4">
+            Trova e rimuove vini duplicati nella cantina (stessa descrizione, produttore, annata e formato).
+            Mantiene il record originale e rimuove le copie.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => handleCleanupDuplicates(true)} disabled={cleanupLoading}
+              className={`px-6 py-3 rounded-2xl text-sm font-semibold shadow transition ${
+                cleanupLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                  : "bg-amber-700 text-white hover:bg-amber-800"
+              }`}>
+              {cleanupLoading ? "Analisi in corso…" : "🔍 Analizza duplicati"}
+            </button>
+
+            {cleanupResult && cleanupResult.gruppi_duplicati > 0 && cleanupResult.dry_run && (
+              <button onClick={() => {
+                  if (window.confirm(`Eliminare ${cleanupResult.vini_da_eliminare} vini duplicati?`)) {
+                    handleCleanupDuplicates(false);
+                  }
+                }}
+                disabled={cleanupLoading}
+                className="px-6 py-3 rounded-2xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow transition">
+                🗑️ Elimina {cleanupResult.vini_da_eliminare} duplicati
+              </button>
+            )}
+          </div>
+
+          {cleanupResult && (
+            <div className={`mt-4 rounded-xl p-4 text-sm border ${
+              cleanupResult.gruppi_duplicati === 0
+                ? "bg-green-50 border-green-200"
+                : cleanupResult.dry_run
+                  ? "bg-yellow-50 border-yellow-200"
+                  : "bg-green-50 border-green-200"
+            }`}>
+              <p className={`font-semibold mb-2 ${
+                cleanupResult.gruppi_duplicati === 0 ? "text-green-800" : cleanupResult.dry_run ? "text-yellow-800" : "text-green-800"
+              }`}>{cleanupResult.msg}</p>
+              {cleanupResult.duplicati?.length > 0 && (
+                <div className="max-h-60 overflow-y-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-neutral-100 text-neutral-700">
+                        <th className="border border-neutral-200 px-2 py-1 text-left">Descrizione</th>
+                        <th className="border border-neutral-200 px-2 py-1 text-left">Produttore</th>
+                        <th className="border border-neutral-200 px-2 py-1">Annata</th>
+                        <th className="border border-neutral-200 px-2 py-1">Copie</th>
+                        <th className="border border-neutral-200 px-2 py-1">ID mantenuto</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cleanupResult.duplicati.map((d, i) => (
+                        <tr key={i} className="hover:bg-yellow-50">
+                          <td className="border border-neutral-200 px-2 py-1">{d.descrizione}</td>
+                          <td className="border border-neutral-200 px-2 py-1">{d.produttore}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-center">{d.annata}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-center font-semibold text-red-600">x{d.copie}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-center">{d.keep_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
