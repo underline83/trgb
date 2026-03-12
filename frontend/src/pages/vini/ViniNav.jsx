@@ -1,5 +1,6 @@
-// @version: v1.0-vini-nav
+// @version: v2.0-vini-nav
 // Tab navigation persistente per la sezione vini
+// Impostazioni visibile solo per admin e sommelier
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -8,11 +9,14 @@ const TABS = [
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
   { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
   { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
-  { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️" },
+  { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
 
 export default function ViniNav({ current }) {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+
+  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">
@@ -27,7 +31,7 @@ export default function ViniNav({ current }) {
               Vini
             </button>
             <div className="flex gap-0.5">
-              {TABS.map((tab) => {
+              {visibleTabs.map((tab) => {
                 const active = current === tab.key;
                 return (
                   <button
