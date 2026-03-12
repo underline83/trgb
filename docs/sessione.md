@@ -280,16 +280,49 @@ docs/Modulo_FoodCost.md                — documentazione modulo food cost
 
 **La fonte di verita' e' sempre il Mac. Non modificare direttamente sul VPS o Windows.**
 
-## Deploy — comandi utili
+## Deploy — PROCEDURA OBBLIGATORIA
+
+> **IMPORTANTE PER CLAUDE:** Dopo ogni commit, ricorda SEMPRE a Marco di fare il deploy
+> con `push.sh`. Non dare mai comandi manuali (`git push`, `git pull`, `ssh`...).
+> Lo script `push.sh` nella root del progetto fa TUTTO automaticamente:
+> commit + push + deploy sul VPS.
+
+### Uso di push.sh (UNICO metodo di deploy)
 
 ```bash
-# Da Mac — commit e push (VPS si aggiorna automaticamente)
-git add <file> && git commit -m "fix: #N descrizione" && git push
+# Deploy rapido (git pull + restart backend/frontend):
+./push.sh "messaggio commit"
 
-# Per full deploy (con migrazione 007):
-./push.sh "" -f
+# Deploy completo (git pull + pip install + npm install + restart):
+./push.sh "messaggio commit" -f
 
-# Su Windows (aggiornare remote se non fatto):
+# Se non ci sono modifiche da committare ma serve solo pushare:
+./push.sh ""
+
+# Se serve npm run build sul frontend, usare -f:
+./push.sh "fix: descrizione" -f
+```
+
+### Cosa fa push.sh:
+1. Se ci sono modifiche locali → `git add -A && git commit`
+2. `git push` al remote VPS
+3. SSH al VPS → `git pull` + restart servizi
+4. Con `-f`: anche `pip install` + `npm install`
+
+### Quando usare -f (full deploy):
+- Nuove dipendenze Python (`requirements.txt`)
+- Nuove dipendenze npm (`package.json`)
+- Dopo modifiche al frontend che richiedono rebuild
+
+### NOTA: Claude NON può eseguire push.sh
+Lo script richiede accesso SSH al VPS che non è disponibile dalla sandbox Cowork.
+Marco deve lanciarlo dal terminale del Mac:
+```bash
+cd ~/trgb/trgb && ./push.sh "messaggio" -f
+```
+
+### Su Windows (aggiornare remote se non fatto):
+```bash
 git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
 git pull origin main
 ```
