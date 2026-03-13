@@ -10,7 +10,7 @@ Tabelle per gestione finanziaria completa:
 MIGRATION_ID = 15
 
 
-def run(conn):
+def upgrade(conn):
     cur = conn.cursor()
 
     # ── Movimenti finanziari (cuore del modulo) ──
