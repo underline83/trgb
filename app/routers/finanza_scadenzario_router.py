@@ -603,13 +603,13 @@ def estrai_crea_scadenza(req: ScadenzaCreate, current_user=Depends(get_current_u
     ))
     scadenza_id = cur.lastrowid
 
-    # Cerca movimenti storici che matchano
+    # Cerca movimenti storici che matchano (match ESATTO sulla descrizione)
     pattern = req.match_pattern or req.titolo
     movimenti = cur.execute("""
         SELECT id, data, ABS(dare) AS importo FROM finanza_movimenti
-        WHERE UPPER(descrizione) LIKE ? AND dare < 0
+        WHERE UPPER(descrizione) = UPPER(?) AND dare < 0
         ORDER BY data ASC
-    """, (f"%{pattern.upper()}%",)).fetchall()
+    """, (pattern,)).fetchall()
 
     rate_create = 0
     for i, m in enumerate(movimenti):

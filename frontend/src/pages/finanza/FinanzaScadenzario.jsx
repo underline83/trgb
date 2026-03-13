@@ -119,13 +119,20 @@ export default function FinanzaScadenzario() {
 
   const loadSuggerimenti = async () => {
     setLoadingSugg(true);
+    setMsg("");
     try {
       const resp = await apiFetch(`${FC}/estrai-suggerimenti`);
       if (resp.ok) {
         const data = await resp.json();
         setSuggerimenti(data.suggerimenti || []);
+        if (data.suggerimenti?.length === 0) setMsg("Nessun pattern ricorrente trovato nei movimenti.");
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        setMsg(`Errore ${resp.status}: ${err.detail || resp.statusText}`);
       }
-    } catch (_) {}
+    } catch (e) {
+      setMsg(`Errore: ${e.message}`);
+    }
     setLoadingSugg(false);
   };
 
@@ -393,7 +400,9 @@ export default function FinanzaScadenzario() {
                 </div>
 
                 {msg && (
-                  <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">{msg}</div>
+                  <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
+                    msg.startsWith("Errore") ? "border-red-300 bg-red-50 text-red-800" : "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  }`}>{msg}</div>
                 )}
 
                 {suggerimenti.length === 0 && !loadingSugg ? (
