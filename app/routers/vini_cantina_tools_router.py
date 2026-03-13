@@ -818,3 +818,460 @@ def carta_cantina_docx(
         filename=f"carta_vini_cantina_{datetime.now().strftime('%Y%m%d')}.docx",
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+# =============================================================
+# 7. INVENTARIO PDF — TUTTI I VINI
+# =============================================================
+def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any]]:
+    """
+    Carica tutti i vini dal DB cantina per report inventario.
+    Se solo_giacenza=True, filtra solo quelli con QTA_TOTALE > 0.
+    """
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    where = "WHERE QTA_TOTALE > 0" if solo_giacenza else ""
+    rows = cur.execute(f"""
+        SELECT
+            id, TIPOLOGIA, NAZIONE, REGIONE, CODICE,
+            DESCRIZIONE, DENOMINAZIONE, PRODUTTORE,
+            ANNATA, FORMATO,
+            PREZZO_CARTA, EURO_LISTINO,
+            FRIGORIFERO, QTA_FRIGO,
+            LOCAZIONE_1, QTA_LOC1,
+            LOCAZIONE_2, QTA_LOC2,
+            LOCAZIONE_3, QTA_LOC3,
+            QTA_TOTALE,
+            CARTA, STATO_VENDITA, STATO_RIORDINO,
+            DISCONTINUATO
+        FROM vini_magazzino
+        {where}
+        ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE, ANNATA
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def _inventario_css() -> str:
+    """CSS inline per i report inventario."""
+    return """
+    @page {
+        size: A4 landscape;
+        margin: 12mm 10mm 12mm 10mm;
+        @bottom-center {
+            content: "Pagina " counter(page) " di " counter(pages);
+            font-size: 8px;
+            color: #666;
+        }
+    }
+    body {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 9px;
+        color: #222;
+        margin: 0;
+        padding: 0;
+    }
+    .header {
+        text-align: center;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #6B2D5B;
+        padding-bottom: 8px;
+    }
+    .header h1 {
+        font-size: 18px;
+        color: #6B2D5B;
+        margin: 0 0 4px 0;
+    }
+    .header .subtitle {
+        font-size: 10px;
+        color: #666;
+    }
+    .section-title {
+        font-size: 13px;
+        font-weight: bold;
+        color: #6B2D5B;
+        margin: 14px 0 6px 0;
+        padding: 3px 6px;
+        background: #f3e8f0;
+        border-left: 3px solid #6B2D5B;
+        page-break-after: avoid;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 8px;
+        page-break-inside: auto;
+    }
+    tr { page-break-inside: avoid; }
+    th {
+        background: #6B2D5B;
+        color: white;
+        font-weight: bold;
+        padding: 4px 5px;
+        text-align: left;
+        font-size: 8px;
+        text-transform: uppercase;
+    }
+    td {
+        padding: 3px 5px;
+        border-bottom: 1px solid #ddd;
+        vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #faf7fa; }
+    .num { text-align: right; }
+    .qta-zero { color: #bbb; }
+    .qta-pos { color: #1a7d1a; font-weight: bold; }
+    .totale-row {
+        font-weight: bold;
+        background: #f3e8f0 !important;
+        border-top: 2px solid #6B2D5B;
+    }
+    .totale-row td { background: #f3e8f0 !important; padding: 5px; }
+    .loc-header {
+        font-size: 14px;
+        font-weight: bold;
+        color: #fff;
+        background: #6B2D5B;
+        margin: 16px 0 6px 0;
+        padding: 6px 10px;
+        border-radius: 4px;
+        page-break-after: avoid;
+    }
+    .summary-box {
+        display: inline-block;
+        background: #f3e8f0;
+        border: 1px solid #d4b8cc;
+        border-radius: 6px;
+        padding: 6px 14px;
+        margin: 2px 6px;
+        text-align: center;
+    }
+    .summary-box .label { font-size: 8px; color: #666; }
+    .summary-box .value { font-size: 14px; font-weight: bold; color: #6B2D5B; }
+    .summary-row { text-align: center; margin: 10px 0 14px 0; }
+    """
+
+
+def _fmt_qta(q: int) -> str:
+    """Formatta quantita con classe CSS."""
+    if q == 0:
+        return '<span class="qta-zero">0</span>'
+    return f'<span class="qta-pos">{q}</span>'
+
+
+def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> str:
+    """Costruisce tabella HTML per inventario."""
+    loc_cols = ""
+    if show_locations:
+        loc_cols = """
+            <th>Frigo</th><th class="num">Qta</th>
+            <th>Loc. 1</th><th class="num">Qta</th>
+            <th>Loc. 2</th><th class="num">Qta</th>
+            <th>Loc. 3</th><th class="num">Qta</th>
+        """
+
+    html = f"""
+    <table>
+        <thead><tr>
+            <th>Tipologia</th>
+            <th>Nazione</th>
+            <th>Regione</th>
+            <th>Produttore</th>
+            <th>Descrizione</th>
+            <th>Annata</th>
+            <th>Formato</th>
+            <th class="num">Prezzo</th>
+            {loc_cols}
+            <th class="num">Totale</th>
+        </tr></thead>
+        <tbody>
+    """
+
+    tot_bottiglie = 0
+    for v in vini:
+        qta = v.get("QTA_TOTALE") or 0
+        tot_bottiglie += qta
+        prezzo = v.get("PREZZO_CARTA")
+        prezzo_str = f"&euro; {float(prezzo):.2f}" if prezzo else ""
+
+        loc_tds = ""
+        if show_locations:
+            loc_tds = f"""
+                <td>{v.get('FRIGORIFERO') or ''}</td>
+                <td class="num">{_fmt_qta(v.get('QTA_FRIGO') or 0)}</td>
+                <td>{v.get('LOCAZIONE_1') or ''}</td>
+                <td class="num">{_fmt_qta(v.get('QTA_LOC1') or 0)}</td>
+                <td>{v.get('LOCAZIONE_2') or ''}</td>
+                <td class="num">{_fmt_qta(v.get('QTA_LOC2') or 0)}</td>
+                <td>{v.get('LOCAZIONE_3') or ''}</td>
+                <td class="num">{_fmt_qta(v.get('QTA_LOC3') or 0)}</td>
+            """
+
+        html += f"""
+        <tr>
+            <td>{v.get('TIPOLOGIA') or ''}</td>
+            <td>{v.get('NAZIONE') or ''}</td>
+            <td>{v.get('REGIONE') or ''}</td>
+            <td>{v.get('PRODUTTORE') or ''}</td>
+            <td>{v.get('DESCRIZIONE') or ''}</td>
+            <td>{v.get('ANNATA') or ''}</td>
+            <td>{v.get('FORMATO') or ''}</td>
+            <td class="num">{prezzo_str}</td>
+            {loc_tds}
+            <td class="num">{_fmt_qta(qta)}</td>
+        </tr>
+        """
+
+    colspan = 12 + (8 if show_locations else 0)
+    html += f"""
+        <tr class="totale-row">
+            <td colspan="{colspan - 1}">TOTALE: {len(vini)} vini</td>
+            <td class="num">{tot_bottiglie}</td>
+        </tr>
+        </tbody>
+    </table>
+    """
+    return html
+
+
+@router.get("/inventario/pdf", summary="PDF inventario completo")
+def inventario_pdf(
+    current_user: Any = Depends(_get_user_from_query_token),
+):
+    """
+    Genera PDF con tutti i vini in cantina — inventario completo.
+    """
+    vini = _load_all_vini_inventario(solo_giacenza=False)
+    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
+    tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
+    tot_con_giacenza = sum(1 for v in vini if (v.get("QTA_TOTALE") or 0) > 0)
+
+    table_html = _build_inventario_table(vini, show_locations=True)
+
+    full_html = f"""
+    <html><head><meta charset="utf-8">
+    <style>{_inventario_css()}</style>
+    </head><body>
+        <div class="header">
+            <h1>INVENTARIO CANTINA &mdash; TUTTI I VINI</h1>
+            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-box">
+                <div class="label">Referenze</div>
+                <div class="value">{len(vini)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Con giacenza</div>
+                <div class="value">{tot_con_giacenza}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Bottiglie totali</div>
+                <div class="value">{tot_bott}</div>
+            </div>
+        </div>
+        {table_html}
+    </body></html>
+    """
+
+    out_path = STATIC_DIR / "inventario_completo.pdf"
+    HTML(string=full_html).write_pdf(
+        str(out_path),
+        stylesheets=[CSS(string=_inventario_css())],
+    )
+
+    return FileResponse(
+        str(out_path),
+        filename=f"inventario_completo_{datetime.now().strftime('%Y%m%d')}.pdf",
+        media_type="application/pdf",
+    )
+
+
+# =============================================================
+# 8. INVENTARIO PDF — SOLO CON GIACENZA
+# =============================================================
+@router.get("/inventario/giacenza/pdf", summary="PDF inventario con giacenza")
+def inventario_giacenza_pdf(
+    current_user: Any = Depends(_get_user_from_query_token),
+):
+    """
+    Genera PDF con solo i vini che hanno giacenza > 0.
+    """
+    vini = _load_all_vini_inventario(solo_giacenza=True)
+    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
+    tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
+
+    table_html = _build_inventario_table(vini, show_locations=True)
+
+    full_html = f"""
+    <html><head><meta charset="utf-8">
+    <style>{_inventario_css()}</style>
+    </head><body>
+        <div class="header">
+            <h1>INVENTARIO CANTINA &mdash; VINI CON GIACENZA</h1>
+            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-box">
+                <div class="label">Referenze con giacenza</div>
+                <div class="value">{len(vini)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Bottiglie totali</div>
+                <div class="value">{tot_bott}</div>
+            </div>
+        </div>
+        {table_html}
+    </body></html>
+    """
+
+    out_path = STATIC_DIR / "inventario_giacenza.pdf"
+    HTML(string=full_html).write_pdf(
+        str(out_path),
+        stylesheets=[CSS(string=_inventario_css())],
+    )
+
+    return FileResponse(
+        str(out_path),
+        filename=f"inventario_giacenza_{datetime.now().strftime('%Y%m%d')}.pdf",
+        media_type="application/pdf",
+    )
+
+
+# =============================================================
+# 9. INVENTARIO PDF — PER LOCAZIONE
+# =============================================================
+@router.get("/inventario/locazioni/pdf", summary="PDF inventario per locazione")
+def inventario_locazioni_pdf(
+    current_user: Any = Depends(_get_user_from_query_token),
+):
+    """
+    Genera PDF con vini raggruppati e separati per locazione fisica.
+    Ogni locazione ha la sua sezione con i vini presenti li.
+    """
+    vini = _load_all_vini_inventario(solo_giacenza=True)
+    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    # Raggruppa per locazione
+    locazioni: Dict[str, List[Dict]] = {}
+
+    for v in vini:
+        # Frigorifero
+        qta_f = v.get("QTA_FRIGO") or 0
+        if qta_f > 0:
+            loc_name = v.get("FRIGORIFERO") or "Frigorifero"
+            loc_key = f"FRIGO:{loc_name}"
+            locazioni.setdefault(loc_key, []).append({**v, "_qta_loc": qta_f})
+
+        # Locazione 1
+        qta_1 = v.get("QTA_LOC1") or 0
+        if qta_1 > 0:
+            loc_name = v.get("LOCAZIONE_1") or "Locazione 1"
+            loc_key = f"LOC1:{loc_name}"
+            locazioni.setdefault(loc_key, []).append({**v, "_qta_loc": qta_1})
+
+        # Locazione 2
+        qta_2 = v.get("QTA_LOC2") or 0
+        if qta_2 > 0:
+            loc_name = v.get("LOCAZIONE_2") or "Locazione 2"
+            loc_key = f"LOC2:{loc_name}"
+            locazioni.setdefault(loc_key, []).append({**v, "_qta_loc": qta_2})
+
+        # Locazione 3
+        qta_3 = v.get("QTA_LOC3") or 0
+        if qta_3 > 0:
+            loc_name = v.get("LOCAZIONE_3") or "Locazione 3"
+            loc_key = f"LOC3:{loc_name}"
+            locazioni.setdefault(loc_key, []).append({**v, "_qta_loc": qta_3})
+
+    # Costruisci HTML per ogni locazione
+    sections_html = ""
+    grand_total = 0
+
+    for loc_key in sorted(locazioni.keys()):
+        loc_vini = locazioni[loc_key]
+        loc_label = loc_key.split(":", 1)[1] if ":" in loc_key else loc_key
+        tot_loc = sum(v["_qta_loc"] for v in loc_vini)
+        grand_total += tot_loc
+
+        sections_html += f'<div class="loc-header">{loc_label} &mdash; {len(loc_vini)} vini, {tot_loc} bottiglie</div>'
+        sections_html += """
+        <table>
+            <thead><tr>
+                <th>Tipologia</th>
+                <th>Produttore</th>
+                <th>Descrizione</th>
+                <th>Annata</th>
+                <th>Formato</th>
+                <th class="num">Prezzo</th>
+                <th class="num">Qta in loc.</th>
+                <th class="num">Qta totale</th>
+            </tr></thead>
+            <tbody>
+        """
+
+        for v in loc_vini:
+            prezzo = v.get("PREZZO_CARTA")
+            prezzo_str = f"&euro; {float(prezzo):.2f}" if prezzo else ""
+            sections_html += f"""
+            <tr>
+                <td>{v.get('TIPOLOGIA') or ''}</td>
+                <td>{v.get('PRODUTTORE') or ''}</td>
+                <td>{v.get('DESCRIZIONE') or ''}</td>
+                <td>{v.get('ANNATA') or ''}</td>
+                <td>{v.get('FORMATO') or ''}</td>
+                <td class="num">{prezzo_str}</td>
+                <td class="num">{_fmt_qta(v['_qta_loc'])}</td>
+                <td class="num">{_fmt_qta(v.get('QTA_TOTALE') or 0)}</td>
+            </tr>
+            """
+
+        sections_html += f"""
+            <tr class="totale-row">
+                <td colspan="6">Totale {loc_label}</td>
+                <td class="num">{tot_loc}</td>
+                <td></td>
+            </tr>
+            </tbody>
+        </table>
+        """
+
+    tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
+
+    full_html = f"""
+    <html><head><meta charset="utf-8">
+    <style>{_inventario_css()}</style>
+    </head><body>
+        <div class="header">
+            <h1>INVENTARIO CANTINA &mdash; PER LOCAZIONE</h1>
+            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-box">
+                <div class="label">Locazioni</div>
+                <div class="value">{len(locazioni)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Referenze con giacenza</div>
+                <div class="value">{len(vini)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Bottiglie totali</div>
+                <div class="value">{tot_bott}</div>
+            </div>
+        </div>
+        {sections_html}
+    </body></html>
+    """
+
+    out_path = STATIC_DIR / "inventario_locazioni.pdf"
+    HTML(string=full_html).write_pdf(
+        str(out_path),
+        stylesheets=[CSS(string=_inventario_css())],
+    )
+
+    return FileResponse(
+        str(out_path),
+        filename=f"inventario_locazioni_{datetime.now().strftime('%Y%m%d')}.pdf",
+        media_type="application/pdf",
+    )

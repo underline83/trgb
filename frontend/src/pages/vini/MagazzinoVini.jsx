@@ -257,6 +257,35 @@ export default function MagazzinoVini() {
               className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
               Genera Carta PDF
             </button>
+            <div className="relative group">
+              <button
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 shadow-sm transition">
+                Stampe Inventario ▾
+              </button>
+              <div className="hidden group-hover:flex flex-col absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg z-20 min-w-[220px]">
+                <button onClick={() => {
+                    const token = localStorage.getItem("token");
+                    window.open(`${API_BASE}/vini/cantina-tools/inventario/pdf?token=${token}`, "_blank");
+                  }}
+                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 rounded-t-xl transition">
+                  Tutti i vini
+                </button>
+                <button onClick={() => {
+                    const token = localStorage.getItem("token");
+                    window.open(`${API_BASE}/vini/cantina-tools/inventario/giacenza/pdf?token=${token}`, "_blank");
+                  }}
+                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 transition">
+                  Solo con giacenza
+                </button>
+                <button onClick={() => {
+                    const token = localStorage.getItem("token");
+                    window.open(`${API_BASE}/vini/cantina-tools/inventario/locazioni/pdf?token=${token}`, "_blank");
+                  }}
+                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 rounded-b-xl transition">
+                  Per locazione
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

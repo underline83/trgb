@@ -89,3 +89,5 @@ static/carta_vini_staff.pdf
 # =====================
 run_server_vps.sh
 run_frontend_vps.sh
+# Claude Code worktrees
+.claude/
