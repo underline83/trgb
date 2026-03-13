@@ -38,6 +38,10 @@ export default function FinanzaMovimenti() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 
+  // Ordinamento
+  const [sortBy, setSortBy] = useState("data");
+  const [sortDir, setSortDir] = useState("desc");
+
   // Expand
   const [expandedId, setExpandedId] = useState(null);
 
@@ -53,7 +57,7 @@ export default function FinanzaMovimenti() {
 
   useEffect(() => {
     loadMovimenti();
-  }, [dataDa, dataA, filtroCat1, filtroStato, filtroTipo, search, page, vista]);
+  }, [dataDa, dataA, filtroCat1, filtroStato, filtroTipo, search, page, vista, sortBy, sortDir]);
 
   const loadMovimenti = async () => {
     setLoading(true);
@@ -69,6 +73,8 @@ export default function FinanzaMovimenti() {
       if (filtroStato) p.set("stato", filtroStato);
       if (filtroTipo) p.set("tipo", filtroTipo);
       if (search) p.set("search", search);
+      p.set("sort_by", sortBy);
+      p.set("sort_dir", sortDir);
 
       const resp = await apiFetch(`${FC}/movimenti?${p}`);
       if (!resp.ok) throw new Error("Errore caricamento");
@@ -85,6 +91,23 @@ export default function FinanzaMovimenti() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const catList = vista === "finanziario" ? (valori.cat1_fin || []) : (valori.cat1 || []);
   const tipiList = vista === "finanziario" ? (valori.tipi_finanziario || []) : (valori.tipi_analitico || []);
+
+  const toggleSort = (col) => {
+    if (sortBy === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir(col === "descrizione" ? "asc" : "desc");
+    }
+    setPage(0);
+  };
+
+  const SortIcon = ({ col }) => {
+    if (sortBy !== col) return <span className="text-neutral-300 ml-0.5">&#8597;</span>;
+    return <span className="text-violet-600 ml-0.5">{sortDir === "asc" ? "▲" : "▼"}</span>;
+  };
+
+  const thClass = "pb-2 cursor-pointer hover:text-violet-700 select-none transition";
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -164,14 +187,14 @@ export default function FinanzaMovimenti() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-neutral-500 text-xs">
-                    <th className="pb-2 w-8">St.</th>
-                    <th className="pb-2 w-24">Data</th>
-                    <th className="pb-2">Descrizione</th>
-                    <th className="pb-2 w-28">Cat.1</th>
-                    <th className="pb-2 w-28">Cat.2</th>
-                    {vista === "finanziario" && <th className="pb-2 w-32">Fin. Desc</th>}
-                    <th className="pb-2 w-24 text-right">Dare</th>
-                    <th className="pb-2 w-24 text-right">Avere</th>
+                    <th className={`${thClass} w-8`} onClick={() => toggleSort("stato")}>St.<SortIcon col="stato" /></th>
+                    <th className={`${thClass} w-24`} onClick={() => toggleSort("data")}>Data<SortIcon col="data" /></th>
+                    <th className={thClass} onClick={() => toggleSort("descrizione")}>Descrizione<SortIcon col="descrizione" /></th>
+                    <th className={`${thClass} w-28`} onClick={() => toggleSort(vista === "finanziario" ? "cat1_fin" : "cat1")}>Cat.1<SortIcon col={vista === "finanziario" ? "cat1_fin" : "cat1"} /></th>
+                    <th className={`${thClass} w-28`} onClick={() => toggleSort(vista === "finanziario" ? "cat2_fin" : "cat2")}>Cat.2<SortIcon col={vista === "finanziario" ? "cat2_fin" : "cat2"} /></th>
+                    {vista === "finanziario" && <th className={`${thClass} w-32`} onClick={() => toggleSort("descrizione_finanziaria")}>Fin. Desc<SortIcon col="descrizione_finanziaria" /></th>}
+                    <th className={`${thClass} w-24 text-right`} onClick={() => toggleSort("dare")}>Dare<SortIcon col="dare" /></th>
+                    <th className={`${thClass} w-24 text-right`} onClick={() => toggleSort("avere")}>Avere<SortIcon col="avere" /></th>
                   </tr>
                 </thead>
                 <tbody>

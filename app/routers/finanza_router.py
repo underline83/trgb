@@ -210,6 +210,8 @@ def get_movimenti(
     vista: str = "analitico",  # "analitico" | "finanziario"
     anno: Optional[int] = None,
     mese: Optional[str] = None,
+    sort_by: str = "data",
+    sort_dir: str = "desc",
     limit: int = Query(50, le=500),
     offset: int = 0,
     current_user=Depends(get_current_user),
@@ -272,8 +274,19 @@ def get_movimenti(
 
     total = conn.execute(f"SELECT COUNT(*) FROM finanza_movimenti{where_sql}", params).fetchone()[0]
 
+    # Ordinamento sicuro
+    ALLOWED_SORT = {
+        "data", "descrizione", "dare", "avere", "stato",
+        "cat1", "cat2", "cat1_fin", "cat2_fin",
+        "tipo_analitico", "tipo_finanziario",
+        "descrizione_finanziaria", "cat_debito",
+        "anno_analitico", "anno_finanziario",
+    }
+    col = sort_by if sort_by in ALLOWED_SORT else "data"
+    direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
+
     rows = conn.execute(
-        f"SELECT * FROM finanza_movimenti{where_sql} ORDER BY data DESC, id DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM finanza_movimenti{where_sql} ORDER BY {col} {direction}, id DESC LIMIT ? OFFSET ?",
         params + [limit, offset],
     ).fetchall()
 
