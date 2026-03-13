@@ -176,6 +176,37 @@ async def import_excel(
         ))
         imported += 1
 
+    # Auto-categorizzazione con regole esistenti
+    auto_cat = 0
+    try:
+        regole = cur.execute("SELECT * FROM finanza_regole_cat").fetchall()
+        for regola in regole:
+            r = dict(regola)
+            pattern = r["pattern"]
+            if not pattern:
+                continue
+            sets = []
+            params = []
+            for col in ["cat1", "cat2", "tipo_analitico", "cat1_fin", "cat2_fin",
+                         "tipo_finanziario", "descrizione_finanziaria", "cat_debito"]:
+                val = r.get(col, "")
+                if val:
+                    sets.append(f"{col} = ?")
+                    params.append(val)
+            if not sets:
+                continue
+            sets.append("updated_at = CURRENT_TIMESTAMP")
+            result = cur.execute(
+                f"UPDATE finanza_movimenti SET {', '.join(sets)} WHERE UPPER(descrizione) LIKE ? AND (cat1 = '' OR cat1 IS NULL)",
+                params + [f"%{pattern}%"],
+            )
+            matched = result.rowcount
+            if matched > 0:
+                cur.execute("UPDATE finanza_regole_cat SET num_match = num_match + ? WHERE id = ?", (matched, r["id"]))
+                auto_cat += matched
+    except Exception:
+        pass  # Se la tabella regole non esiste ancora, ignora
+
     # Log
     cur.execute("""
         INSERT INTO finanza_import_log (filename, righe_importate, righe_scartate)
@@ -189,6 +220,7 @@ async def import_excel(
         "ok": True,
         "righe_importate": imported,
         "righe_scartate": skipped,
+        "auto_categorizzati": auto_cat,
         "filename": file.filename,
     }
 
@@ -571,3 +603,195 @@ def reset_data(current_user=Depends(get_current_user)):
     conn.commit()
     conn.close()
     return {"ok": True, "message": "Tutti i movimenti finanza eliminati"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# REGOLE CATEGORIZZAZIONE
+# ═══════════════════════════════════════════════════════════════════
+
+class RegolaCreate(BaseModel):
+    pattern: str
+    fornitore_nome: str = ""
+    fornitore_piva: str = ""
+    cat1: str = ""
+    cat2: str = ""
+    tipo_analitico: str = ""
+    cat1_fin: str = ""
+    cat2_fin: str = ""
+    tipo_finanziario: str = ""
+    descrizione_finanziaria: str = ""
+    cat_debito: str = ""
+
+
+@router.get("/regole")
+def get_regole(current_user=Depends(get_current_user)):
+    """Lista tutte le regole di categorizzazione."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM finanza_regole_cat ORDER BY pattern"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/regole")
+def create_regola(req: RegolaCreate, current_user=Depends(get_current_user)):
+    """Crea una nuova regola di categorizzazione."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO finanza_regole_cat (
+            pattern, fornitore_nome, fornitore_piva,
+            cat1, cat2, tipo_analitico,
+            cat1_fin, cat2_fin, tipo_finanziario, descrizione_finanziaria,
+            cat_debito
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        req.pattern.upper(), req.fornitore_nome, req.fornitore_piva,
+        req.cat1, req.cat2, req.tipo_analitico,
+        req.cat1_fin, req.cat2_fin, req.tipo_finanziario, req.descrizione_finanziaria,
+        req.cat_debito,
+    ))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return {"ok": True, "id": new_id}
+
+
+@router.put("/regole/{regola_id}")
+def update_regola(regola_id: int, req: RegolaCreate, current_user=Depends(get_current_user)):
+    """Aggiorna una regola esistente."""
+    conn = get_db()
+    conn.execute("""
+        UPDATE finanza_regole_cat SET
+            pattern=?, fornitore_nome=?, fornitore_piva=?,
+            cat1=?, cat2=?, tipo_analitico=?,
+            cat1_fin=?, cat2_fin=?, tipo_finanziario=?, descrizione_finanziaria=?,
+            cat_debito=?, updated_at=CURRENT_TIMESTAMP
+        WHERE id=?
+    """, (
+        req.pattern.upper(), req.fornitore_nome, req.fornitore_piva,
+        req.cat1, req.cat2, req.tipo_analitico,
+        req.cat1_fin, req.cat2_fin, req.tipo_finanziario, req.descrizione_finanziaria,
+        req.cat_debito, regola_id,
+    ))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.delete("/regole/{regola_id}")
+def delete_regola(regola_id: int, current_user=Depends(get_current_user)):
+    if current_user["role"] != "admin":
+        raise HTTPException(403, "Solo admin")
+    conn = get_db()
+    conn.execute("DELETE FROM finanza_regole_cat WHERE id=?", (regola_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.post("/auto-categorizza")
+def auto_categorizza(current_user=Depends(get_current_user)):
+    """Applica tutte le regole ai movimenti non ancora categorizzati."""
+    if current_user["role"] != "admin":
+        raise HTTPException(403, "Solo admin")
+
+    conn = get_db()
+    regole = conn.execute("SELECT * FROM finanza_regole_cat").fetchall()
+
+    if not regole:
+        conn.close()
+        return {"ok": True, "aggiornati": 0, "message": "Nessuna regola definita"}
+
+    total_updated = 0
+    for regola in regole:
+        r = dict(regola)
+        pattern = r["pattern"]
+        if not pattern:
+            continue
+
+        # Trova movimenti che matchano e non hanno ancora cat1 assegnata
+        movimenti = conn.execute("""
+            SELECT id FROM finanza_movimenti
+            WHERE UPPER(descrizione) LIKE ?
+            AND (cat1 = '' OR cat1 IS NULL)
+        """, (f"%{pattern}%",)).fetchall()
+
+        if not movimenti:
+            continue
+
+        # Costruisci SET dinamico solo per campi non vuoti
+        sets = []
+        params = []
+        for col in ["cat1", "cat2", "tipo_analitico", "cat1_fin", "cat2_fin",
+                     "tipo_finanziario", "descrizione_finanziaria", "cat_debito"]:
+            val = r.get(col, "")
+            if val:
+                sets.append(f"{col} = ?")
+                params.append(val)
+
+        if not sets:
+            continue
+
+        sets.append("updated_at = CURRENT_TIMESTAMP")
+        ids = [m["id"] for m in movimenti]
+        placeholders = ",".join("?" * len(ids))
+
+        conn.execute(
+            f"UPDATE finanza_movimenti SET {', '.join(sets)} WHERE id IN ({placeholders})",
+            params + ids,
+        )
+
+        # Aggiorna contatore match
+        conn.execute(
+            "UPDATE finanza_regole_cat SET num_match = num_match + ? WHERE id = ?",
+            (len(ids), r["id"]),
+        )
+        total_updated += len(ids)
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "aggiornati": total_updated}
+
+
+@router.get("/fornitori-acquisti")
+def get_fornitori_acquisti(current_user=Depends(get_current_user)):
+    """Lista fornitori dal modulo acquisti (fe_fatture) per suggerimenti."""
+    conn = get_db()
+    try:
+        rows = conn.execute("""
+            SELECT DISTINCT fornitore_nome, fornitore_piva,
+                   COUNT(*) AS num_fatture,
+                   SUM(totale_fattura) AS totale
+            FROM fe_fatture
+            WHERE fornitore_nome != ''
+            GROUP BY fornitore_piva
+            ORDER BY fornitore_nome
+        """).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        conn.close()
+        return []
+
+
+@router.get("/movimenti-non-categorizzati")
+def get_non_categorizzati(
+    limit: int = Query(20, le=100),
+    current_user=Depends(get_current_user),
+):
+    """Lista descrizioni uniche senza categoria, per facilitare la creazione regole."""
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT descrizione, COUNT(*) AS num,
+               COALESCE(SUM(dare), 0) AS tot_dare,
+               COALESCE(SUM(avere), 0) AS tot_avere
+        FROM finanza_movimenti
+        WHERE (cat1 = '' OR cat1 IS NULL)
+        GROUP BY UPPER(descrizione)
+        ORDER BY num DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
