@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-11 (sessione 4 — Gestione Vendite v2.0 + Riepilogo + bugfix)
+> Ultima sessione: 2026-03-13 (sessione 5 — Ricette & Food Cost v3.0: Matching avanzato)
 
 ---
 
@@ -15,37 +15,54 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-11, sessione 4)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-13, sessione 5)
+
+### Ricette & Food Cost v3.0 — Matching avanzato + Smart Create + Esclusioni
+
+#### Ricette module reforming (completamento sessione precedente)
+1. **RicetteDashboard.jsx** — pagina dashboard con 5 KPI (ricette, basi, FC medio, critiche, buone) + tabelle top5 FC e top5 margini
+2. **RicetteSettings.jsx** — pagina strumenti con export JSON, export PDF per ricetta, import JSON (sostituisce vecchio RicetteImport)
+3. **App.jsx** — route `/ricette/dashboard`, `/ricette/settings`, redirect `/ricette/import` → `/ricette/settings`
+4. **Fix endpoint ordering** in `foodcost_recipes_router.py` — path statici (`/stats/dashboard`, `/export/json`) spostati PRIMA del dynamic `/{recipe_id}`
+
+#### Matching: rimozione LIMIT
+5. **Rimosso LIMIT 100** dalla query pending — il matching mostrava solo 100 ingredienti su migliaia
+6. **Rimosso completamente il LIMIT** anche a 2000 (Marco: "saranno anche oltre 2000")
+
+#### Smart Create — creazione intelligente ingredienti
+7. **Pipeline pulizia nomi** — `_NOISE_PATTERNS` (regex per codici, date, quantita), `_UNIT_MAP` (conversione unita fattura → standard), `_CATEGORY_HINTS` (keyword → categoria: carne, pesce, latticini, verdure, frutta, pasta, olio, bevande)
+8. **`GET /matching/smart-suggest`** — raggruppa righe pending per descrizione normalizzata, fuzzy-match contro ingredienti esistenti, suggerisce nome/unita/categoria
+9. **`POST /matching/bulk-create`** — crea ingredienti in blocco con auto-mapping + salvataggio prezzi
+10. **Tab "Smart Create"** in RicetteMatching — analisi, checkbox con editing inline nome/unita/categoria, creazione in blocco
+
+#### Esclusione fornitori
+11. **Esclusione query** — LEFT JOIN `fe_fornitore_categoria` con filtro `escluso=0` su pending e smart-suggest
+12. **`GET /matching/suppliers`** — lista fornitori da righe pending con stato esclusione e conteggio
+13. **`POST /matching/suppliers/toggle-exclusion`** — toggle flag escluso in `fe_fornitore_categoria`
+14. **Tab "Fornitori"** in RicetteMatching — tabella con nome, P.IVA, categoria, righe pending, stato, toggle Escludi/Riattiva
+
+#### Ignora descrizioni non-ingrediente
+15. **Migration 012** — tabelle `matching_description_exclusions` + `matching_ignored_righe`
+16. **`POST /matching/ignore-description`** — salva descrizione normalizzata + righe come ignorate
+17. **`GET /matching/ignored-descriptions`** — lista con conteggio righe
+18. **`DELETE /matching/ignored-descriptions/{id}`** — ripristino
+19. **Filtro** in pending e smart-suggest per escludere righe/descrizioni ignorate
+20. **Pulsante "Ignora"** su ogni suggerimento Smart Create + sezione espandibile "Descrizioni ignorate" con ripristino
+
+#### Versioni
+21. **versions.jsx** — Ricette v2.0→v3.0, Sistema v4.1→v4.2
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-11, sessione 4)
 
 ### Gestione Vendite v2.0 — Promozione a modulo top-level
 
 1. **Promosso "Gestione Vendite"** (ex Corrispettivi) da sotto-sezione Admin a modulo di primo livello nella Home
 2. **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route + 1 nuova)
 3. **VenditeNav.jsx** — barra navigazione persistente (5 tab: Riepilogo, Chiusure, Dashboard, Annuale, Import)
-4. **CorrispettiviMenu → hub "Gestione Vendite"** con mini-KPI, VersionBadge, tile Riepilogo e Confronto Annuale, grid 3 colonne
-5. **CorrispettiviGestione** → VenditeNav, route `/vendite/chiusure`
-6. **CorrispettiviDashboard** → VenditeNav, route `/vendite/dashboard`, titolo aggiornato
-7. **CorrispettiviAnnual** → VenditeNav, route `/vendite/annual`
-8. **CorrispettiviImport** → VenditeNav, route `/vendite/import`
-9. **Home.jsx** — tile "Gestione Vendite" con icona e badge, subtitle admin aggiornato
-10. **AdminMenu** — rimossa tile Corrispettivi
-11. **modules.json** — aggiunto modulo `vendite`
-12. **versions.jsx** — Corrispettivi v1.5→v2.0 "Gestione Vendite", Sistema v4.0→v4.1
-13. **Design doc** — `docs/design_gestione_vendite.md` con piano evolutivo in 5 fasi
-
-### Riepilogo Chiusure — Nuova pagina
-
-14. **CorrispettiviRiepilogo.jsx** (`/vendite/riepilogo`) — riepilogo chiusure mese per mese multi-anno con accordion, KPI complessivi, tabella dettaglio mensile con click-through a dashboard
-
-### Bugfix
-
-15. **CorrispettiviDashboard 401** — usava `fetch()` senza JWT token; sostituito con `apiFetch()`
-16. **Dashboard ignora query params URL** — navigazione da Riepilogo a Dashboard con `?year=...&month=...` ora funziona (usa `useSearchParams`)
-17. **ImportResult senza conteggi** — endpoint non restituiva `inserted`/`updated`; aggiunti campi al modello Pydantic e alla risposta
-
-### Analisi Excel 2026
-
-18. **Verificato nuovo formato Excel** — foglio 1 (dati giornalieri) compatibile al 100% con parser esistente; foglio 2 contiene nuova struttura breakdown pranzo/cena con coperti, POS, contanti, TheFork, altro, preconto, fatture (da gestire in fase 2)
+4. **CorrispettiviRiepilogo.jsx** — riepilogo chiusure mese per mese multi-anno
+5. **Bugfix**: Dashboard 401 (apiFetch), query params URL, ImportResult conteggi
 
 ---
 
@@ -120,8 +137,8 @@ Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazio
 - **Backend completo**: 3 router (recipes, matching, ingredients) + migrazione 007
 - **Frontend completo**: 7 pagine (menu, archivio, nuova, dettaglio, modifica, matching, ingredienti + prezzi)
 - **Calcolo food cost**: ricorsivo con sub-ricette, cycle detection, conversione unita'
-- **Matching fatture**: collegamento righe FE XML a ingredienti, fuzzy + auto-match
-- **DB**: foodcost.db con migrazioni 001-007, tabelle recipes/recipe_items/recipe_categories/ingredient_supplier_map
+- **Matching fatture**: collegamento righe FE XML a ingredienti, fuzzy + auto-match + smart create + esclusioni fornitori/descrizioni
+- **DB**: foodcost.db con migrazioni 001-012, tabelle recipes/recipe_items/recipe_categories/ingredient_supplier_map/matching_description_exclusions/matching_ignored_righe
 - **Route attive**:
   - `/ricette` → RicetteMenu
   - `/ricette/nuova` → RicetteNuova
@@ -130,8 +147,9 @@ Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazio
   - `/ricette/modifica/:id` → RicetteModifica
   - `/ricette/ingredienti` → RicetteIngredienti
   - `/ricette/ingredienti/:id/prezzi` → RicetteIngredientiPrezzi
-  - `/ricette/matching` → RicetteMatching
-  - `/ricette/import` → RicetteImport (placeholder)
+  - `/ricette/matching` → RicetteMatching (4 tab: Da associare, Smart Create, Mappings, Fornitori)
+  - `/ricette/dashboard` → RicetteDashboard
+  - `/ricette/settings` → RicetteSettings (ex RicetteImport)
 
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
@@ -160,18 +178,18 @@ Fonte di verita': `frontend/src/config/versions.js`
 |--------|----------|-------|------|
 | Cantina & Vini | v3.6 | stabile | Carta, vendite, magazzino, dashboard, strumenti, ViniNav |
 | Gestione Acquisti | v2.0 | stabile | Fatture XML, fornitori, dashboard, categorie (top-level) |
-| Ricette & Food Cost | v2.0 | beta | Ricette, sub-ricette, matching fatture, ingredienti |
+| Ricette & Food Cost | v3.0 | beta | Ricette, sub-ricette, matching fatture, smart create, esclusioni fornitori/descrizioni |
 | Gestione Vendite | v2.0 | stabile | Corrispettivi, chiusure cassa, dashboard, confronto annuale (top-level) |
 | Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
 | Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
-| Sistema | v4.1 | stabile | Versione globale gestionale |
+| Sistema | v4.2 | stabile | Versione globale gestionale |
 
 Le versioni sono mostrate visualmente nella UI:
 - **Home** — badge versione su ogni tile modulo + footer sistema
 - **ViniMenu** — badge v3.6 nell'header
-- **RicetteMenu** — badge v2.0 nell'header
+- **RicetteMenu** — badge v3.0 nell'header
 - **VenditeMenu** — badge v2.0 nell'header
-- **AdminMenu** — badge v4.1 nell'header
+- **AdminMenu** — badge v4.2 nell'header
 
 ---
 
@@ -190,11 +208,11 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Deploy** — `git pull && cd frontend && npm run build && sudo systemctl restart trgb-backend`
-2. **Test in produzione** — verificare route `/vendite/*`, riepilogo, dashboard con query params, import con conteggi
-3. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio (design doc: `docs/design_gestione_vendite.md`)
-4. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2
-5. **RicetteImport** — implementare import/export JSON ricette
+1. **Deploy v3.0** — `./push.sh "Ricette v3.0: matching avanzato + smart create + esclusioni" -f`
+2. **Test in produzione** — verificare Smart Create, Fornitori, Ignora descrizioni, Dashboard ricette, Settings
+3. **Conversioni unita ingredienti** — gestire equivalenze kg↔g, L↔ml ecc. per ingredienti comprati in un'unita e usati in un'altra
+4. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio
+5. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2
 6. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
 7. **Riordinare la roadmap** — pulizia task completati
 
@@ -218,10 +236,11 @@ app/services/carta_vini_service.py     — builder HTML/PDF carta vini
 
 # --- MODULO RICETTE & FOOD COST v2 ---
 app/routers/foodcost_recipes_router.py    — CRUD ricette + calcolo food cost ricorsivo
-app/routers/foodcost_matching_router.py   — matching fatture XML → ingredienti
+app/routers/foodcost_matching_router.py   — matching fatture XML → ingredienti + smart create + esclusioni
 app/routers/foodcost_ingredients_router.py — CRUD ingredienti + prezzi + suppliers
 app/models/foodcost_db.py                 — DB foodcost (tabelle base)
 app/migrations/007_foodcost_v2.py         — migrazione v2 (drop+ricrea tabelle ricette)
+app/migrations/012_matching_description_exclusions.py — tabelle ignora descrizioni matching
 docs/design_ricette_foodcost_v2.md        — design document completo
 
 # --- MODULO GESTIONE VENDITE (ex Corrispettivi) ---
@@ -240,7 +259,7 @@ frontend/src/config/api.js             — API_BASE + apiFetch()
 frontend/src/config/versions.js        — MODULE_VERSIONS + VersionBadge (UNICA fonte versioni)
 frontend/src/components/Header.jsx     — header globale
 frontend/src/components/LoginForm.jsx  — login tile PIN
-frontend/src/pages/ricette/            — 8 pagine modulo ricette/foodcost v2
+frontend/src/pages/ricette/            — 10 pagine modulo ricette/foodcost v3 (+ Dashboard, Settings)
 frontend/src/pages/vini/               — pagine modulo vini
 
 # --- DOCS ---
@@ -260,7 +279,7 @@ docs/Modulo_FoodCost.md                — documentazione modulo food cost
 | `app/data/vini.sqlite3` | Carta Vini (legacy Excel) | NON TOCCARE — paracadute; schema v2.1 |
 | `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
 | `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
-| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v2 | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, fe_fatture, fe_righe; migraz. 001-007 |
+| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v3 | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, fe_fatture, fe_righe, fe_fornitore_categoria, matching_description_exclusions, matching_ignored_righe; migraz. 001-012 |
 | `app/data/admin_finance.sqlite3` | Gestione Vendite (corrispettivi) | daily_closures; import Excel multi-anno |
 | `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
 

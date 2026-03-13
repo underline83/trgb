@@ -147,10 +147,15 @@ UNIT_TO_BASE = {
 }
 
 
-def convert_qty(qty: float, from_unit: str, to_unit: str) -> Optional[float]:
+def convert_qty(qty: float, from_unit: str, to_unit: str,
+                ingredient_id: int = None, cur=None) -> Optional[float]:
     """
     Converte una quantità da from_unit a to_unit.
-    Ritorna None se la conversione non è possibile (unità incompatibili).
+
+    1. Se ingredient_id e cur sono forniti, cerca prima conversioni personalizzate
+       nella tabella ingredient_unit_conversions (es. 1 pz = 60g per le uova)
+    2. Altrimenti usa le conversioni standard (kg↔g↔mg, L↔ml↔cl)
+    3. Ritorna None se la conversione non è possibile (unità incompatibili).
     """
     fu = from_unit.strip().lower()
     tu = to_unit.strip().lower()
@@ -158,6 +163,13 @@ def convert_qty(qty: float, from_unit: str, to_unit: str) -> Optional[float]:
     if fu == tu:
         return qty
 
+    # 1. Prova conversione personalizzata per ingrediente
+    if ingredient_id and cur:
+        custom = _get_custom_conversion(cur, ingredient_id, fu, tu)
+        if custom is not None:
+            return qty * custom
+
+    # 2. Conversione standard
     f_base = UNIT_TO_BASE.get(fu)
     t_base = UNIT_TO_BASE.get(tu)
 
@@ -180,6 +192,83 @@ def convert_qty(qty: float, from_unit: str, to_unit: str) -> Optional[float]:
         return None
 
     return qty * f_base / t_base
+
+
+def _get_custom_conversion(cur, ingredient_id: int, fu: str, tu: str) -> Optional[float]:
+    """
+    Cerca una conversione personalizzata per un ingrediente.
+    Cerca sia diretta (from→to) sia inversa (to→from con 1/factor).
+    """
+    # Diretta
+    row = cur.execute(
+        """
+        SELECT factor FROM ingredient_unit_conversions
+        WHERE ingredient_id = ? AND LOWER(from_unit) = ? AND LOWER(to_unit) = ?
+        """,
+        (ingredient_id, fu, tu),
+    ).fetchone()
+    if row:
+        return row["factor"]
+
+    # Inversa
+    row = cur.execute(
+        """
+        SELECT factor FROM ingredient_unit_conversions
+        WHERE ingredient_id = ? AND LOWER(from_unit) = ? AND LOWER(to_unit) = ?
+        """,
+        (ingredient_id, tu, fu),
+    ).fetchone()
+    if row and row["factor"] != 0:
+        return 1.0 / row["factor"]
+
+    # Prova conversione a catena: from → intermediario → to
+    # Es: pz → g (custom) poi g → kg (standard)
+    customs = cur.execute(
+        """
+        SELECT from_unit, to_unit, factor FROM ingredient_unit_conversions
+        WHERE ingredient_id = ? AND (LOWER(from_unit) = ? OR LOWER(to_unit) = ?)
+        """,
+        (ingredient_id, fu, fu),
+    ).fetchall()
+
+    for c in customs:
+        c_from = c["from_unit"].strip().lower()
+        c_to = c["to_unit"].strip().lower()
+
+        if c_from == fu:
+            # from → c_to (custom), c_to → to (standard?)
+            intermediate = c["factor"]
+            std = _standard_convert(c_to, tu)
+            if std is not None:
+                return intermediate * std
+        elif c_to == fu:
+            # from → c_from (inverse custom), c_from → to (standard?)
+            if c["factor"] != 0:
+                intermediate = 1.0 / c["factor"]
+                std = _standard_convert(c_from, tu)
+                if std is not None:
+                    return intermediate * std
+
+    return None
+
+
+def _standard_convert(fu: str, tu: str) -> Optional[float]:
+    """Conversione solo standard (senza custom), usata internamente."""
+    fu = fu.strip().lower()
+    tu = tu.strip().lower()
+    if fu == tu:
+        return 1.0
+    f_base = UNIT_TO_BASE.get(fu)
+    t_base = UNIT_TO_BASE.get(tu)
+    if f_base is None or t_base is None:
+        return None
+    weight_units = {"kg", "g", "mg"}
+    volume_units = {"l", "ml", "cl"}
+    if (fu in weight_units) != (tu in weight_units) and (fu in volume_units) != (tu in volume_units):
+        if fu == "pz" and tu == "pz":
+            return 1.0
+        return None
+    return f_base / t_base
 
 
 # ─────────────────────────────────────────────
@@ -266,8 +355,9 @@ def _calc_item_cost(cur, item, visited: Set[int]) -> Optional[float]:
         if default_unit is None:
             return None
 
-        # Converti qty nell'unità base dell'ingrediente
-        converted = convert_qty(qty, unit, default_unit)
+        # Converti qty nell'unità base dell'ingrediente (con supporto conversioni custom)
+        converted = convert_qty(qty, unit, default_unit,
+                                ingredient_id=item["ingredient_id"], cur=cur)
         if converted is None:
             # Unità incompatibili — usa qty direttamente (es. "pz")
             return qty * unit_cost

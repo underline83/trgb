@@ -1,5 +1,5 @@
-// @version: v1.0-prezzi-ingredienti
-// Storico prezzi ingrediente (multi-fornitore, media, ultimo prezzo)
+// @version: v2.0-prezzi-ingredienti-conversioni
+// Storico prezzi ingrediente + conversioni unità personalizzate
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,6 +7,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 
 const FOODCOST_BASE = `${API_BASE}/foodcost`;
+const FC = FOODCOST_BASE;
 
 export default function RicetteIngredientiPrezzi() {
   const navigate = useNavigate();
@@ -26,6 +27,14 @@ export default function RicetteIngredientiPrezzi() {
     new Date().toISOString().slice(0, 10) // yyyy-mm-dd
   );
   const [note, setNote] = useState("");
+
+  // Conversioni personalizzate
+  const [conversions, setConversions] = useState([]);
+  const [showConversions, setShowConversions] = useState(false);
+  const [convFromUnit, setConvFromUnit] = useState("pz");
+  const [convToUnit, setConvToUnit] = useState("kg");
+  const [convFactor, setConvFactor] = useState("");
+  const [convNote, setConvNote] = useState("");
 
   const loadPrezzi = async () => {
     setLoading(true);
@@ -79,6 +88,56 @@ export default function RicetteIngredientiPrezzi() {
 
     await loadPrezzi();
   };
+
+  // ─── CONVERSIONI PERSONALIZZATE ──────────────
+
+  const loadConversions = async () => {
+    try {
+      const resp = await apiFetch(`${FC}/ingredients/${id}/conversions`);
+      if (resp.ok) setConversions(await resp.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const addConversion = async () => {
+    if (!convFactor || parseFloat(convFactor) <= 0) {
+      alert("Inserisci un fattore di conversione valido.");
+      return;
+    }
+    try {
+      const resp = await apiFetch(`${FC}/ingredients/${id}/conversions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from_unit: convFromUnit,
+          to_unit: convToUnit,
+          factor: parseFloat(convFactor),
+          note: convNote || null,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        alert(`Errore: ${err}`);
+        return;
+      }
+      setConvFactor("");
+      setConvNote("");
+      await loadConversions();
+    } catch (err) {
+      alert(`Errore: ${err.message}`);
+    }
+  };
+
+  const deleteConversion = async (convId) => {
+    if (!window.confirm("Eliminare questa conversione?")) return;
+    await apiFetch(`${FC}/ingredients/conversions/${convId}`, { method: "DELETE" });
+    await loadConversions();
+  };
+
+  useEffect(() => {
+    if (showConversions && conversions.length === 0) loadConversions();
+  }, [showConversions]);
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -231,6 +290,132 @@ export default function RicetteIngredientiPrezzi() {
             </table>
           </div>
         )}
+
+        {/* ═══════════ CONVERSIONI PERSONALIZZATE ═══════════ */}
+        <div className="mt-10 border-t border-neutral-200 pt-6">
+          <button
+            onClick={() => setShowConversions(!showConversions)}
+            className="text-lg font-playfair font-semibold text-amber-900 hover:text-amber-700 flex items-center gap-2"
+          >
+            <span>{showConversions ? "▾" : "▸"}</span>
+            Conversioni unità personalizzate
+            {conversions.length > 0 && (
+              <span className="text-xs font-mono font-normal bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                {conversions.length}
+              </span>
+            )}
+          </button>
+
+          <p className="text-sm text-neutral-500 mt-1 mb-4">
+            Definisci equivalenze tra unità per questo ingrediente (es. 1 pz = 0.06 kg per le uova, 1 mazzetto = 0.03 kg).
+            Le conversioni standard (kg↔g, L↔ml↔cl) funzionano già automaticamente.
+          </p>
+
+          {showConversions && (
+            <div>
+              {/* Form nuova conversione */}
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-4">
+                <h3 className="text-sm font-semibold text-blue-800 mb-3">Aggiungi conversione</h3>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">1 x</label>
+                    <select
+                      value={convFromUnit}
+                      onChange={(e) => setConvFromUnit(e.target.value)}
+                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="pz">pz</option>
+                      <option value="mazzetto">mazzetto</option>
+                      <option value="bottiglia">bottiglia</option>
+                      <option value="lattina">lattina</option>
+                      <option value="confezione">confezione</option>
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="L">L</option>
+                      <option value="ml">ml</option>
+                      <option value="cl">cl</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-neutral-500 pb-2">=</div>
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">Equivale a</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="0.06"
+                      value={convFactor}
+                      onChange={(e) => setConvFactor(e.target.value)}
+                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm w-28 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">Unità dest.</label>
+                    <select
+                      value={convToUnit}
+                      onChange={(e) => setConvToUnit(e.target.value)}
+                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="L">L</option>
+                      <option value="ml">ml</option>
+                      <option value="cl">cl</option>
+                      <option value="pz">pz</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-600 block mb-1">Note</label>
+                    <input
+                      type="text"
+                      placeholder="(opzionale)"
+                      value={convNote}
+                      onChange={(e) => setConvNote(e.target.value)}
+                      className="border border-blue-200 rounded-lg px-3 py-2 text-sm w-36 bg-white"
+                    />
+                  </div>
+                  <button
+                    onClick={addConversion}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow transition"
+                  >
+                    Aggiungi
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista conversioni esistenti */}
+              {conversions.length === 0 ? (
+                <p className="text-sm text-neutral-400 italic">
+                  Nessuna conversione personalizzata. Le conversioni standard (kg↔g, L↔ml) sono già attive.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {conversions.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-4 py-3"
+                    >
+                      <div>
+                        <span className="font-medium text-sm text-neutral-900">
+                          1 {c.from_unit} = {c.factor} {c.to_unit}
+                        </span>
+                        {c.note && (
+                          <span className="text-xs text-neutral-400 ml-2">({c.note})</span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deleteConversion(c.id)}
+                        className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 transition"
+                      >
+                        Elimina
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
       </div>
     </div>

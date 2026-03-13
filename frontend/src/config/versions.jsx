@@ -9,7 +9,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "2.0",
+    version: "3.0",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -39,7 +39,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   sistema: {
-    version: "4.1",
+    version: "4.2",
     label: "Sistema",
     status: "stabile",
     color: "green",

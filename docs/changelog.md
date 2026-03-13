@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-03-13a — Ricette & Food Cost v3.0: Matching avanzato + Smart Create + Esclusioni
+
+### Added
+- **Smart Create** — tab nel Matching che analizza le righe fattura pending, raggruppa per descrizione normalizzata, pulisce i nomi con pipeline regex, suggerisce unita/categoria, fuzzy-match contro ingredienti esistenti, e crea ingredienti in blocco con auto-mapping
+- **Esclusione fornitori** — tab "Fornitori" nel Matching: lista tutti i fornitori con righe pending, toggle per escludere quelli che non vendono ingredienti (servizi, attrezzature, ecc.). Endpoint `GET/POST /matching/suppliers`, toggle-exclusion
+- **Ignora descrizioni non-ingrediente** — pulsante "Ignora" su ogni suggerimento Smart Create per escludere voci come trasporto, spedizione, consulenze. Tabelle `matching_description_exclusions` + `matching_ignored_righe`. Endpoint CRUD `/matching/ignore-description`, `/matching/ignored-descriptions`
+- **Sezione "Descrizioni ignorate"** — espandibile in fondo al tab Smart Create, con ripristino one-click
+- **RicetteDashboard.jsx** — pagina dashboard con 5 KPI + tabelle top5 FC e margini
+- **RicetteSettings.jsx** — pagina strumenti con export JSON, export PDF per ricetta, import JSON
+- **Migration 012** — `matching_description_exclusions` + `matching_ignored_righe`
+
+### Changed
+- **foodcost_matching_router.py** v3.0 — pipeline pulizia nomi (_NOISE_PATTERNS, _UNIT_MAP, _CATEGORY_HINTS), smart-suggest con grouping, bulk-create, esclusione fornitori e descrizioni nei query pending/smart-suggest
+- **RicetteMatching.jsx** v5.0 — 4 tab: Da associare, Smart Create (con Ignora), Mappings, Fornitori
+- **foodcost_recipes_router.py** — fix endpoint ordering (static paths prima di `{recipe_id}`)
+- **App.jsx** — route `/ricette/dashboard`, `/ricette/settings`, redirect `/ricette/import` → `/ricette/settings`
+- **Rimosso LIMIT 100** dalla query pending matching (mostrava solo 100 ingredienti su migliaia)
+- **versions.jsx** — Ricette v2.0→v3.0, Sistema v4.1→v4.2
+
+---
+
 ## 2026-03-11a — Riepilogo Chiusure + bugfix Dashboard e Import
 
 ### Added

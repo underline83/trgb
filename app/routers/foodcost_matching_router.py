@@ -141,13 +141,43 @@ def _fuzzy_score(a: str, b: str) -> float:
 
 def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
                           riga: dict, fattore_conversione: float) -> None:
-    """Salva un prezzo in ingredient_prices a partire da una riga fattura."""
+    """
+    Salva un prezzo in ingredient_prices a partire da una riga fattura.
+
+    Normalizza il prezzo nell'unità base dell'ingrediente usando:
+    1. Il fattore_conversione esplicito dal mapping (se != 1.0)
+    2. La conversione automatica unità fattura → default_unit ingrediente
+    """
+    from app.routers.foodcost_recipes_router import convert_qty
+
     prezzo_unitario = riga.get("prezzo_unitario")
     if prezzo_unitario is None or prezzo_unitario <= 0:
         return
 
-    # Prezzo convertito nell'unità base dell'ingrediente
-    unit_price = prezzo_unitario / fattore_conversione if fattore_conversione else prezzo_unitario
+    # Se c'è un fattore di conversione esplicito, usalo
+    if fattore_conversione and fattore_conversione != 1.0:
+        unit_price = prezzo_unitario / fattore_conversione
+    else:
+        # Prova conversione automatica unità fattura → default_unit
+        unit_fattura = (riga.get("unita_misura") or "").strip()
+        default_unit = None
+        row = cur.execute(
+            "SELECT default_unit FROM ingredients WHERE id = ?", (ingredient_id,)
+        ).fetchone()
+        if row:
+            default_unit = row["default_unit"]
+
+        if unit_fattura and default_unit:
+            # Converti 1 unità fattura in unità ingrediente
+            converted = convert_qty(1.0, unit_fattura, default_unit,
+                                    ingredient_id=ingredient_id, cur=cur)
+            if converted is not None and converted != 0:
+                # prezzo_unitario è €/unità_fattura → €/default_unit
+                unit_price = prezzo_unitario / converted
+            else:
+                unit_price = prezzo_unitario
+        else:
+            unit_price = prezzo_unitario
 
     now = datetime.utcnow().isoformat()
     cur.execute(

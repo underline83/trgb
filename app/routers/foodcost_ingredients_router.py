@@ -1,5 +1,5 @@
- #!/usr/bin/env python3
-# @version: v1.3-foodcost-ingredients-router
+#!/usr/bin/env python3
+# @version: v1.4-foodcost-ingredients-conversions
 # -*- coding: utf-8 -*-
 """
 Router anagrafica ingredienti (foodcost)
@@ -631,6 +631,121 @@ def delete_price(prezzo_id: int):
         raise HTTPException(status_code=404, detail="Prezzo non trovato")
 
     cur.execute("DELETE FROM ingredient_prices WHERE id = ?", (prezzo_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: CONVERSIONI UNITÀ PERSONALIZZATE
+#   GET /foodcost/ingredients/{id}/conversions
+#   POST /foodcost/ingredients/{id}/conversions
+#   DELETE /foodcost/ingredients/conversions/{conversion_id}
+# ─────────────────────────────────────────────
+
+class UnitConversionOut(BaseModel):
+    id: int
+    ingredient_id: int
+    from_unit: str
+    to_unit: str
+    factor: float
+    note: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class UnitConversionCreate(BaseModel):
+    from_unit: str = Field(..., min_length=1)
+    to_unit: str = Field(..., min_length=1)
+    factor: float = Field(..., gt=0)
+    note: Optional[str] = None
+
+
+@router.get("/{ingredient_id}/conversions", response_model=List[UnitConversionOut])
+def list_ingredient_conversions(ingredient_id: int):
+    """Lista conversioni personalizzate per un ingrediente."""
+    conn = get_foodcost_connection()
+    rows = conn.execute(
+        """
+        SELECT id, ingredient_id, from_unit, to_unit, factor, note, created_at
+        FROM ingredient_unit_conversions
+        WHERE ingredient_id = ?
+        ORDER BY from_unit, to_unit
+        """,
+        (ingredient_id,),
+    ).fetchall()
+    conn.close()
+    return [UnitConversionOut(**dict(r)) for r in rows]
+
+
+@router.post("/{ingredient_id}/conversions", response_model=UnitConversionOut)
+def create_ingredient_conversion(ingredient_id: int, payload: UnitConversionCreate):
+    """
+    Crea una conversione personalizzata per un ingrediente.
+    Es: 1 pz = 0.06 kg (uova), 1 mazzetto = 0.03 kg (basilico)
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    # Verifica ingrediente
+    ing = cur.execute("SELECT id FROM ingredients WHERE id = ?", (ingredient_id,)).fetchone()
+    if not ing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ingrediente non trovato")
+
+    fu = payload.from_unit.strip()
+    tu = payload.to_unit.strip()
+
+    if fu.lower() == tu.lower():
+        conn.close()
+        raise HTTPException(status_code=400, detail="from_unit e to_unit devono essere diversi")
+
+    # Upsert
+    existing = cur.execute(
+        """
+        SELECT id FROM ingredient_unit_conversions
+        WHERE ingredient_id = ? AND LOWER(from_unit) = LOWER(?) AND LOWER(to_unit) = LOWER(?)
+        """,
+        (ingredient_id, fu, tu),
+    ).fetchone()
+
+    if existing:
+        cur.execute(
+            "UPDATE ingredient_unit_conversions SET factor = ?, note = ? WHERE id = ?",
+            (payload.factor, payload.note, existing["id"]),
+        )
+        new_id = existing["id"]
+    else:
+        cur.execute(
+            """
+            INSERT INTO ingredient_unit_conversions (ingredient_id, from_unit, to_unit, factor, note)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (ingredient_id, fu, tu, payload.factor, payload.note),
+        )
+        new_id = cur.lastrowid
+
+    conn.commit()
+
+    row = cur.execute(
+        "SELECT * FROM ingredient_unit_conversions WHERE id = ?", (new_id,)
+    ).fetchone()
+    conn.close()
+    return UnitConversionOut(**dict(row))
+
+
+@router.delete("/conversions/{conversion_id}")
+def delete_ingredient_conversion(conversion_id: int):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute(
+        "SELECT id FROM ingredient_unit_conversions WHERE id = ?", (conversion_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Conversione non trovata")
+
+    cur.execute("DELETE FROM ingredient_unit_conversions WHERE id = ?", (conversion_id,))
     conn.commit()
     conn.close()
     return {"status": "ok"}
