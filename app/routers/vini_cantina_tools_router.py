@@ -185,6 +185,45 @@ def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
 
 
 # =============================================================
+# 0. RESET DATABASE CANTINA
+# =============================================================
+@router.post("/reset-database", summary="Azzera completamente il DB cantina")
+def reset_database(
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Elimina TUTTI i dati dal DB cantina: vini, movimenti e note.
+    Operazione irreversibile — solo admin.
+    """
+    _require_admin(current_user)
+
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+
+    # Conta prima di cancellare (per il report)
+    n_vini = cur.execute("SELECT COUNT(*) FROM vini_magazzino").fetchone()[0]
+    n_mov = cur.execute("SELECT COUNT(*) FROM vini_magazzino_movimenti").fetchone()[0]
+    n_note = cur.execute("SELECT COUNT(*) FROM vini_magazzino_note").fetchone()[0]
+
+    # Svuota le tabelle (ordine: figlie prima, poi padre)
+    cur.execute("DELETE FROM vini_magazzino_note;")
+    cur.execute("DELETE FROM vini_magazzino_movimenti;")
+    cur.execute("DELETE FROM vini_magazzino;")
+
+    # Reset autoincrement
+    cur.execute("DELETE FROM sqlite_sequence WHERE name IN ('vini_magazzino', 'vini_magazzino_movimenti', 'vini_magazzino_note');")
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "ok",
+        "msg": f"Database cantina azzerato: {n_vini} vini, {n_mov} movimenti, {n_note} note eliminati.",
+        "eliminati": {"vini": n_vini, "movimenti": n_mov, "note": n_note},
+    }
+
+
+# =============================================================
 # 1. SYNC DA EXCEL (vini.sqlite3 → cantina)
 # =============================================================
 @router.post("/sync-from-excel", summary="Sincronizza DB Excel → Cantina")

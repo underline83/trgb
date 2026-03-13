@@ -61,6 +61,8 @@ export default function CantinaTools() {
   const [importLoading, setImportLoading] = useState(false);
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
+  const [resetLoading, setResetLoading] = useState(false);
   const [error, setError] = useState("");
   const [forzaGiacenze, setForzaGiacenze] = useState(false);
   const [showCartaPreview, setShowCartaPreview] = useState(false);
@@ -251,6 +253,39 @@ export default function CantinaTools() {
     finally { setCleanupLoading(false); }
   };
 
+  const handleResetDatabase = async () => {
+    setResetLoading(true); setError(""); setResetResult(null);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/reset-database`, { method: "POST" });
+      if (!resp.ok) { const txt = await resp.text().catch(() => ""); throw new Error(txt || `Errore server: ${resp.status}`); }
+      setResetResult(await resp.json());
+    } catch (e) { setError(e?.message || "Errore reset database."); }
+    finally { setResetLoading(false); }
+  };
+
+  const handleResetAndReimport = async (file) => {
+    if (!file) return;
+    // Step 1: reset
+    setResetLoading(true); setError(""); setResetResult(null); setImportResult(null);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/reset-database`, { method: "POST" });
+      if (!resp.ok) { const txt = await resp.text().catch(() => ""); throw new Error(txt || `Errore reset: ${resp.status}`); }
+      const resetData = await resp.json();
+      setResetResult(resetData);
+    } catch (e) { setError(e?.message || "Errore reset database."); setResetLoading(false); return; }
+    setResetLoading(false);
+
+    // Step 2: import
+    setImportLoading(true);
+    try {
+      const form = new FormData(); form.append("file", file);
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-excel`, { method: "POST", body: form });
+      if (!resp.ok) { const txt = await resp.text().catch(() => ""); throw new Error(txt || `Errore import: ${resp.status}`); }
+      setImportResult(await resp.json());
+    } catch (e) { setError(e?.message || "Errore import dopo reset."); }
+    finally { setImportLoading(false); }
+  };
+
   // -------------------------------------------------------
   // RENDER
   // -------------------------------------------------------
@@ -381,7 +416,30 @@ export default function CantinaTools() {
               className="px-6 py-3 rounded-2xl text-sm font-semibold border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 shadow transition">
               📥 Esporta Cantina → Excel
             </button>
+
+            <label className={`px-6 py-3 rounded-2xl text-sm font-semibold shadow transition cursor-pointer text-center ${
+              resetLoading || importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-red-600 text-white hover:bg-red-700"
+            }`}>
+              {resetLoading ? "Reset in corso…" : importLoading ? "Importazione…" : "Azzera e Ricarica da Excel"}
+              <input type="file" accept=".xlsx,.xls" className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && window.confirm(
+                    "ATTENZIONE: Questo cancellerà TUTTI i vini, movimenti e note dalla cantina, poi importerà il file Excel selezionato.\n\nContinuare?"
+                  )) {
+                    handleResetAndReimport(file);
+                  }
+                  e.target.value = "";
+                }}
+                disabled={resetLoading || importLoading} />
+            </label>
           </div>
+
+          {resetResult && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
+              {resetResult.msg}
+            </div>
+          )}
 
           {importResult && (
             <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-sm">
