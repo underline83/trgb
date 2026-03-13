@@ -1,4 +1,4 @@
-// @version: v3.0-versioned-modules
+// @version: v3.1-banca-module
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -9,6 +9,7 @@ const MENU_CONFIG = {
   acquisti: { title: "Gestione Acquisti",     subtitle: "Fatture XML, fornitori, dashboard, categorie",    icon: "\uD83D\uDCE6", go: "/acquisti",  color: "bg-teal-50 border-teal-200 text-teal-900",          vKey: "fatture" },
   vendite:  { title: "Gestione Vendite",     subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale", icon: "\uD83D\uDCB5", go: "/vendite", color: "bg-yellow-50 border-yellow-200 text-yellow-900", vKey: "corrispettivi" },
   ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-blue-50 border-blue-200 text-blue-900",          vKey: "ricette" },
+  banca:    { title: "Banca",                subtitle: "Movimenti bancari, categorie, pagamenti fornitori", icon: "\uD83C\uDFE6", go: "/banca",     color: "bg-emerald-50 border-emerald-200 text-emerald-900", vKey: "banca" },
   admin:    { title: "Amministrazione",       subtitle: "Dipendenti, utenti, impostazioni",                icon: "\uD83E\uDDFE", go: "/admin",     color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
 };
 

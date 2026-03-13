@@ -1,4 +1,4 @@
-// @version: v5.0-matching-ignore-descriptions
+// @version: v5.1-matching-select-all
 // UI Matching Fatture → Ingredienti + Smart Auto-Create + Esclusione Fornitori + Ignora Descrizioni
 // Collega righe fatture XML importate agli ingredienti del food cost
 // Con analisi intelligente per suggerire e creare ingredienti in blocco
@@ -149,20 +149,8 @@ export default function RicetteMatching() {
       const data = await resp.json();
       setSmartSuggestions(data);
 
-      // Pre-seleziona quelli senza match esistente
-      const sel = {};
-      for (const s of data) {
-        if (!s.existing_match) {
-          sel[s.suggested_name] = {
-            name: s.suggested_name,
-            unit: s.suggested_unit,
-            category: s.suggested_category || "",
-            riga_ids: s.riga_ids,
-            selected: true,
-          };
-        }
-      }
-      setSmartSelected(sel);
+      // Default: nessuno selezionato – l'utente sceglie manualmente
+      setSmartSelected({});
     } catch (err) {
       setError(err.message);
     } finally {
@@ -564,6 +552,37 @@ export default function RicetteMatching() {
               >
                 {smartLoading ? "Analisi in corso..." : "Analizza righe pending"}
               </button>
+
+              {smartSuggestions.length > 0 && (
+                <>
+                  <button
+                    onClick={() => {
+                      const sel = {};
+                      for (const s of smartSuggestions) {
+                        if (!s.existing_match) {
+                          sel[s.suggested_name] = {
+                            name: s.suggested_name,
+                            unit: s.suggested_unit,
+                            category: s.suggested_category || "",
+                            riga_ids: s.riga_ids,
+                            selected: true,
+                          };
+                        }
+                      }
+                      setSmartSelected(sel);
+                    }}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
+                  >
+                    Seleziona tutti
+                  </button>
+                  <button
+                    onClick={() => setSmartSelected({})}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition"
+                  >
+                    Deseleziona tutti
+                  </button>
+                </>
+              )}
 
               {selectedCount > 0 && (
                 <button

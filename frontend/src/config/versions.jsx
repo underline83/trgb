@@ -26,6 +26,12 @@ const MODULE_VERSIONS = {
     status: "stabile",
     color: "green",
   },
+  banca: {
+    version: "1.0",
+    label: "Banca",
+    status: "beta",
+    color: "blue",
+  },
   dipendenti: {
     version: "1.0",
     label: "Dipendenti",

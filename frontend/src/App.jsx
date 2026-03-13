@@ -1,4 +1,4 @@
-// @version: v3.6-ricette-reforming
+// @version: v3.7-banca-module
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -60,6 +60,14 @@ import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
 import DipendentiCosti from "./pages/admin/DipendentiCosti";
+
+// --- BANCA ---
+import BancaMenu from "./pages/banca/BancaMenu";
+import BancaDashboard from "./pages/banca/BancaDashboard";
+import BancaMovimenti from "./pages/banca/BancaMovimenti";
+import BancaImport from "./pages/banca/BancaImport";
+import BancaCategorie from "./pages/banca/BancaCategorie";
+import BancaCrossRef from "./pages/banca/BancaCrossRef";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -134,6 +142,14 @@ export default function App() {
         <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
         <Route path="/acquisti/categorie" element={<FattureCategorie />} />
         <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
+
+        {/* --- BANCA --- */}
+        <Route path="/banca" element={<BancaMenu />} />
+        <Route path="/banca/dashboard" element={<BancaDashboard />} />
+        <Route path="/banca/movimenti" element={<BancaMovimenti />} />
+        <Route path="/banca/import" element={<BancaImport />} />
+        <Route path="/banca/categorie" element={<BancaCategorie />} />
+        <Route path="/banca/crossref" element={<BancaCrossRef />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

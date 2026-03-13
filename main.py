@@ -39,6 +39,9 @@ from app.routers import fe_categorie_router
 # DIPENDENTI & TURNI — nuovo modulo
 from app.routers.dipendenti import router as dipendenti_router
 
+# BANCA — movimenti bancari
+from app.routers import banca_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -124,6 +127,9 @@ app.include_router(fe_categorie_router.router)
 # DIPENDENTI & TURNI
 # (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)
 app.include_router(dipendenti_router)
+
+# BANCA
+app.include_router(banca_router.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])

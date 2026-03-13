@@ -35,6 +35,13 @@
     "roles": ["admin"]
   },
   {
+    "key": "banca",
+    "label": "Banca",
+    "description": "Movimenti bancari, categorie, pagamenti fornitori",
+    "icon": "🏦",
+    "roles": ["admin"]
+  },
+  {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Dipendenti, utenti, impostazioni",
