@@ -853,7 +853,7 @@ def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any
 
 
 def _inventario_css() -> str:
-    """CSS inline per i report inventario."""
+    """CSS inline per i report inventario — stile leggero, poco inchiostro."""
     return """
     @page {
         size: A4 landscape;
@@ -861,40 +861,31 @@ def _inventario_css() -> str:
         @bottom-center {
             content: "Pagina " counter(page) " di " counter(pages);
             font-size: 8px;
-            color: #666;
+            color: #999;
         }
     }
     body {
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-size: 9px;
-        color: #222;
+        color: #333;
         margin: 0;
         padding: 0;
     }
     .header {
         text-align: center;
         margin-bottom: 10px;
-        border-bottom: 2px solid #6B2D5B;
-        padding-bottom: 8px;
+        border-bottom: 1px solid #999;
+        padding-bottom: 6px;
     }
     .header h1 {
-        font-size: 18px;
-        color: #6B2D5B;
-        margin: 0 0 4px 0;
+        font-size: 16px;
+        color: #333;
+        margin: 0 0 3px 0;
+        font-weight: bold;
     }
     .header .subtitle {
-        font-size: 10px;
-        color: #666;
-    }
-    .section-title {
-        font-size: 13px;
-        font-weight: bold;
-        color: #6B2D5B;
-        margin: 14px 0 6px 0;
-        padding: 3px 6px;
-        background: #f3e8f0;
-        border-left: 3px solid #6B2D5B;
-        page-break-after: avoid;
+        font-size: 9px;
+        color: #777;
     }
     table {
         width: 100%;
@@ -904,58 +895,54 @@ def _inventario_css() -> str:
     }
     tr { page-break-inside: avoid; }
     th {
-        background: #6B2D5B;
-        color: white;
+        background: none;
+        color: #333;
         font-weight: bold;
         padding: 4px 5px;
         text-align: left;
         font-size: 8px;
         text-transform: uppercase;
+        border-bottom: 2px solid #333;
     }
     td {
         padding: 3px 5px;
-        border-bottom: 1px solid #ddd;
+        border-bottom: 1px solid #ccc;
         vertical-align: top;
     }
-    tr:nth-child(even) td { background: #faf7fa; }
     .num { text-align: right; }
     .qta-zero { color: #bbb; }
-    .qta-pos { color: #1a7d1a; font-weight: bold; }
+    .qta-pos { font-weight: bold; }
     .totale-row {
         font-weight: bold;
-        background: #f3e8f0 !important;
-        border-top: 2px solid #6B2D5B;
+        border-top: 2px solid #333;
     }
-    .totale-row td { background: #f3e8f0 !important; padding: 5px; }
+    .totale-row td { padding: 5px; }
     .loc-header {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: bold;
-        color: #fff;
-        background: #6B2D5B;
+        color: #333;
         margin: 16px 0 6px 0;
-        padding: 6px 10px;
-        border-radius: 4px;
+        padding: 4px 0;
+        border-bottom: 1px solid #999;
         page-break-after: avoid;
     }
     .summary-box {
         display: inline-block;
-        background: #f3e8f0;
-        border: 1px solid #d4b8cc;
-        border-radius: 6px;
-        padding: 6px 14px;
+        border: 1px solid #ccc;
+        padding: 5px 14px;
         margin: 2px 6px;
         text-align: center;
     }
-    .summary-box .label { font-size: 8px; color: #666; }
-    .summary-box .value { font-size: 14px; font-weight: bold; color: #6B2D5B; }
-    .summary-row { text-align: center; margin: 10px 0 14px 0; }
+    .summary-box .label { font-size: 8px; color: #777; }
+    .summary-box .value { font-size: 13px; font-weight: bold; color: #333; }
+    .summary-row { text-align: center; margin: 8px 0 12px 0; }
     """
 
 
 def _fmt_qta(q: int) -> str:
     """Formatta quantita con classe CSS."""
     if q == 0:
-        return '<span class="qta-zero">0</span>'
+        return '<span class="qta-zero">-</span>'
     return f'<span class="qta-pos">{q}</span>'
 
 
@@ -1194,7 +1181,7 @@ def inventario_locazioni_pdf(
         tot_loc = sum(v["_qta_loc"] for v in loc_vini)
         grand_total += tot_loc
 
-        sections_html += f'<div class="loc-header">{loc_label} &mdash; {len(loc_vini)} vini, {tot_loc} bottiglie</div>'
+        sections_html += f'<div class="loc-header">{loc_label} — {len(loc_vini)} vini, {tot_loc} bottiglie</div>'
         sections_html += """
         <table>
             <thead><tr>
