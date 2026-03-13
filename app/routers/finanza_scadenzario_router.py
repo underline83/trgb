@@ -124,29 +124,6 @@ def list_scadenze(
 
 
 # ═══════════════════════════════════════════════════════════════════
-# DETTAGLIO SCADENZA con rate
-# ═══════════════════════════════════════════════════════════════════
-
-@router.get("/{scadenza_id}")
-def get_scadenza(scadenza_id: int, current_user=Depends(get_current_user)):
-    conn = get_db()
-    scad = conn.execute("SELECT * FROM finanza_scadenze WHERE id = ?", (scadenza_id,)).fetchone()
-    if not scad:
-        conn.close()
-        raise HTTPException(404, "Scadenza non trovata")
-
-    rate = conn.execute("""
-        SELECT * FROM finanza_rate WHERE scadenza_id = ? ORDER BY numero_rata, data_scadenza
-    """, (scadenza_id,)).fetchall()
-
-    conn.close()
-    return {
-        "scadenza": dict(scad),
-        "rate": [dict(r) for r in rate],
-    }
-
-
-# ═══════════════════════════════════════════════════════════════════
 # CREA SCADENZA (+ genera rate automaticamente)
 # ═══════════════════════════════════════════════════════════════════
 
@@ -667,4 +644,27 @@ def estrai_crea_scadenza(req: ScadenzaCreate, current_user=Depends(get_current_u
         "id": scadenza_id,
         "rate_create": rate_create,
         "message": f"Scadenza creata con {rate_create} rate storiche (già pagate)",
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DETTAGLIO SCADENZA con rate (DEVE essere l'ultima GET con parametro!)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/{scadenza_id}")
+def get_scadenza(scadenza_id: int, current_user=Depends(get_current_user)):
+    conn = get_db()
+    scad = conn.execute("SELECT * FROM finanza_scadenze WHERE id = ?", (scadenza_id,)).fetchone()
+    if not scad:
+        conn.close()
+        raise HTTPException(404, "Scadenza non trovata")
+
+    rate = conn.execute("""
+        SELECT * FROM finanza_rate WHERE scadenza_id = ? ORDER BY numero_rata, data_scadenza
+    """, (scadenza_id,)).fetchall()
+
+    conn.close()
+    return {
+        "scadenza": dict(scad),
+        "rate": [dict(r) for r in rate],
     }
