@@ -419,3 +419,252 @@ def dashboard_overview(current_user=Depends(get_current_user)):
         "prossime_scadenze": [dict(r) for r in prossime],
         "per_tipo": [dict(r) for r in per_tipo],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ESTRAZIONE INTELLIGENTE — Analizza movimenti e suggerisci scadenze
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/estrai-suggerimenti")
+def estrai_suggerimenti(current_user=Depends(get_current_user)):
+    """
+    Analizza i movimenti finanza esistenti per trovare pattern ricorrenti
+    (prestiti, rateizzazioni, affitti, spese fisse) e suggerire scadenze.
+    """
+    conn = get_db()
+    suggerimenti = []
+
+    # 1. PRESTITI — Cerca pagamenti ricorrenti con importo simile e pattern nel nome
+    prestiti_patterns = conn.execute("""
+        SELECT descrizione,
+               COUNT(*) AS num_pagamenti,
+               ROUND(AVG(ABS(dare)), 2) AS importo_medio,
+               MIN(ABS(dare)) AS importo_min,
+               MAX(ABS(dare)) AS importo_max,
+               MIN(data) AS prima_data,
+               MAX(data) AS ultima_data,
+               cat1, cat2, cat1_fin, cat2_fin, descrizione_finanziaria, cat_debito
+        FROM finanza_movimenti
+        WHERE dare < 0 AND descrizione != ''
+        AND (
+            UPPER(descrizione) LIKE '%PRESTIT%'
+            OR UPPER(descrizione) LIKE '%MUTUO%'
+            OR UPPER(descrizione) LIKE '%FINANZIAMENTO%'
+            OR UPPER(descrizione_finanziaria) LIKE '%PRESTIT%'
+            OR UPPER(descrizione_finanziaria) LIKE '%MUTUO%'
+            OR UPPER(cat_debito) LIKE '%PRESTIT%'
+        )
+        GROUP BY UPPER(descrizione)
+        HAVING COUNT(*) >= 3
+        ORDER BY num_pagamenti DESC
+    """).fetchall()
+
+    for p in prestiti_patterns:
+        p = dict(p)
+        # Determina giorno scadenza dal pattern delle date
+        giorni = conn.execute("""
+            SELECT CAST(strftime('%%d', data) AS INTEGER) AS giorno, COUNT(*) AS n
+            FROM finanza_movimenti
+            WHERE UPPER(descrizione) = UPPER(?) AND dare < 0
+            GROUP BY giorno ORDER BY n DESC LIMIT 1
+        """, (p["descrizione"],)).fetchone()
+
+        giorno = giorni["giorno"] if giorni else 0
+
+        suggerimenti.append({
+            "tipo_suggerito": "PRESTITO",
+            "titolo": p["descrizione"],
+            "ente": "",
+            "importo_rata": p["importo_medio"],
+            "importo_min": p["importo_min"],
+            "importo_max": p["importo_max"],
+            "num_pagamenti_trovati": p["num_pagamenti"],
+            "prima_data": p["prima_data"],
+            "ultima_data": p["ultima_data"],
+            "giorno_scadenza": giorno,
+            "frequenza": "MENSILE",
+            "cat1": p["cat1"] or "",
+            "cat2": p["cat2"] or "",
+            "cat1_fin": p["cat1_fin"] or "",
+            "cat2_fin": p["cat2_fin"] or "",
+            "descrizione_finanziaria": p["descrizione_finanziaria"] or "",
+            "cat_debito": p["cat_debito"] or "",
+            "match_pattern": p["descrizione"].upper(),
+        })
+
+    # 2. RATEIZZAZIONI ENTI — Cerca Agenzia Entrate, F24, INPS
+    rate_enti = conn.execute("""
+        SELECT descrizione,
+               COUNT(*) AS num_pagamenti,
+               ROUND(AVG(ABS(dare)), 2) AS importo_medio,
+               MIN(ABS(dare)) AS importo_min,
+               MAX(ABS(dare)) AS importo_max,
+               MIN(data) AS prima_data,
+               MAX(data) AS ultima_data,
+               cat1, cat2, cat1_fin, cat2_fin, descrizione_finanziaria, cat_debito
+        FROM finanza_movimenti
+        WHERE dare < 0 AND descrizione != ''
+        AND (
+            UPPER(descrizione) LIKE '%AGENZIA%ENTRAT%'
+            OR UPPER(descrizione) LIKE '%RISCOSSIONE%'
+            OR UPPER(descrizione) LIKE '%RATEIZZAZIONE%'
+            OR UPPER(descrizione) LIKE '%EQUITALIA%'
+        )
+        GROUP BY UPPER(descrizione)
+        HAVING COUNT(*) >= 2
+        ORDER BY num_pagamenti DESC
+    """).fetchall()
+
+    for r in rate_enti:
+        r = dict(r)
+        suggerimenti.append({
+            "tipo_suggerito": "RATEIZZAZIONE_ENTE",
+            "titolo": r["descrizione"],
+            "ente": "Agenzia Entrate-Riscossione",
+            "importo_rata": r["importo_medio"],
+            "importo_min": r["importo_min"],
+            "importo_max": r["importo_max"],
+            "num_pagamenti_trovati": r["num_pagamenti"],
+            "prima_data": r["prima_data"],
+            "ultima_data": r["ultima_data"],
+            "giorno_scadenza": 0,
+            "frequenza": "MENSILE",
+            "cat1": r["cat1"] or "", "cat2": r["cat2"] or "",
+            "cat1_fin": r["cat1_fin"] or "", "cat2_fin": r["cat2_fin"] or "",
+            "descrizione_finanziaria": r["descrizione_finanziaria"] or "",
+            "cat_debito": r["cat_debito"] or "",
+            "match_pattern": r["descrizione"].upper(),
+        })
+
+    # 3. AFFITTI e SPESE FISSE — Pagamenti ricorrenti con importo quasi identico
+    ricorrenti = conn.execute("""
+        SELECT descrizione,
+               COUNT(*) AS num_pagamenti,
+               ROUND(AVG(ABS(dare)), 2) AS importo_medio,
+               MIN(ABS(dare)) AS importo_min,
+               MAX(ABS(dare)) AS importo_max,
+               MIN(data) AS prima_data,
+               MAX(data) AS ultima_data,
+               cat1, cat2, cat1_fin, cat2_fin, descrizione_finanziaria, cat_debito
+        FROM finanza_movimenti
+        WHERE dare < 0 AND descrizione != ''
+        AND UPPER(descrizione) NOT LIKE '%PRESTIT%'
+        AND UPPER(descrizione) NOT LIKE '%MUTUO%'
+        AND UPPER(descrizione) NOT LIKE '%AGENZIA%'
+        AND UPPER(descrizione) NOT LIKE '%RISCOSSIONE%'
+        AND UPPER(descrizione) NOT LIKE '%RATEIZZAZIONE%'
+        GROUP BY UPPER(descrizione)
+        HAVING COUNT(*) >= 6
+        AND (MAX(ABS(dare)) - MIN(ABS(dare))) / AVG(ABS(dare)) < 0.15
+        ORDER BY num_pagamenti DESC
+        LIMIT 20
+    """).fetchall()
+
+    for r in ricorrenti:
+        r = dict(r)
+        desc_upper = r["descrizione"].upper()
+        tipo = "AFFITTO" if "AFFIT" in desc_upper or "CANONE" in desc_upper or "LOCAT" in desc_upper else "SPESA_FISSA"
+
+        giorni = conn.execute("""
+            SELECT CAST(strftime('%%d', data) AS INTEGER) AS giorno, COUNT(*) AS n
+            FROM finanza_movimenti
+            WHERE UPPER(descrizione) = UPPER(?) AND dare < 0
+            GROUP BY giorno ORDER BY n DESC LIMIT 1
+        """, (r["descrizione"],)).fetchone()
+
+        suggerimenti.append({
+            "tipo_suggerito": tipo,
+            "titolo": r["descrizione"],
+            "ente": "",
+            "importo_rata": r["importo_medio"],
+            "importo_min": r["importo_min"],
+            "importo_max": r["importo_max"],
+            "num_pagamenti_trovati": r["num_pagamenti"],
+            "prima_data": r["prima_data"],
+            "ultima_data": r["ultima_data"],
+            "giorno_scadenza": giorni["giorno"] if giorni else 0,
+            "frequenza": "MENSILE",
+            "cat1": r["cat1"] or "", "cat2": r["cat2"] or "",
+            "cat1_fin": r["cat1_fin"] or "", "cat2_fin": r["cat2_fin"] or "",
+            "descrizione_finanziaria": r["descrizione_finanziaria"] or "",
+            "cat_debito": r["cat_debito"] or "",
+            "match_pattern": r["descrizione"].upper(),
+        })
+
+    conn.close()
+    return {"suggerimenti": suggerimenti, "totale": len(suggerimenti)}
+
+
+@router.post("/estrai-crea")
+def estrai_crea_scadenza(req: ScadenzaCreate, current_user=Depends(get_current_user)):
+    """
+    Crea una scadenza e retroattivamente crea le rate dai movimenti storici.
+    Le rate passate vengono segnate come PAGATA.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Crea la scadenza
+    cur.execute("""
+        INSERT INTO finanza_scadenze (
+            tipo, titolo, descrizione, ente,
+            importo_totale, importo_rata, num_rate,
+            data_inizio, data_fine, giorno_scadenza, frequenza,
+            fattura_id, fattura_numero, fattura_fornitore,
+            cat1, cat2, cat1_fin, cat2_fin,
+            tipo_analitico, tipo_finanziario, descrizione_finanziaria, cat_debito,
+            match_pattern, note
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    """, (
+        req.tipo, req.titolo, req.descrizione, req.ente,
+        req.importo_totale, req.importo_rata, req.num_rate,
+        req.data_inizio, req.data_fine, req.giorno_scadenza, req.frequenza,
+        req.fattura_id, req.fattura_numero, req.fattura_fornitore,
+        req.cat1, req.cat2, req.cat1_fin, req.cat2_fin,
+        req.tipo_analitico, req.tipo_finanziario, req.descrizione_finanziaria, req.cat_debito,
+        req.match_pattern, req.note,
+    ))
+    scadenza_id = cur.lastrowid
+
+    # Cerca movimenti storici che matchano
+    pattern = req.match_pattern or req.titolo
+    movimenti = cur.execute("""
+        SELECT id, data, ABS(dare) AS importo FROM finanza_movimenti
+        WHERE UPPER(descrizione) LIKE ? AND dare < 0
+        ORDER BY data ASC
+    """, (f"%{pattern.upper()}%",)).fetchall()
+
+    rate_create = 0
+    for i, m in enumerate(movimenti):
+        m = dict(m)
+        cur.execute("""
+            INSERT INTO finanza_rate (
+                scadenza_id, numero_rata, data_scadenza, importo,
+                importo_pagato, data_pagamento, stato, movimento_id
+            ) VALUES (?, ?, ?, ?, ?, ?, 'PAGATA', ?)
+        """, (
+            scadenza_id, i + 1, m["data"], m["importo"],
+            m["importo"], m["data"], m["id"],
+        ))
+        rate_create += 1
+
+    # Aggiorna totali nella scadenza
+    if rate_create > 0:
+        totale_pagato = sum(dict(m)["importo"] for m in movimenti)
+        cur.execute("""
+            UPDATE finanza_scadenze SET
+                num_rate = ?,
+                data_inizio = ?,
+                importo_totale = CASE WHEN importo_totale = 0 THEN ? ELSE importo_totale END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (rate_create, dict(movimenti[0])["data"], totale_pagato, scadenza_id))
+
+    conn.commit()
+    conn.close()
+    return {
+        "ok": True,
+        "id": scadenza_id,
+        "rate_create": rate_create,
+        "message": f"Scadenza creata con {rate_create} rate storiche (già pagate)",
+    }

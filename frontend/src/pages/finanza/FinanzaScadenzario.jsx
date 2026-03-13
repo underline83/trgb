@@ -49,6 +49,9 @@ export default function FinanzaScadenzario() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [dettaglio, setDettaglio] = useState(null);
+  const [suggerimenti, setSuggerimenti] = useState([]);
+  const [loadingSugg, setLoadingSugg] = useState(false);
+  const [creatingId, setCreatingId] = useState(null);
 
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { if (tab === "lista") loadScadenze(); }, [filtroTipo, filtroStato]);
@@ -114,6 +117,57 @@ export default function FinanzaScadenzario() {
     loadAll();
   };
 
+  const loadSuggerimenti = async () => {
+    setLoadingSugg(true);
+    try {
+      const resp = await apiFetch(`${FC}/estrai-suggerimenti`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setSuggerimenti(data.suggerimenti || []);
+      }
+    } catch (_) {}
+    setLoadingSugg(false);
+  };
+
+  const handleCreaFromSugg = async (sugg) => {
+    setCreatingId(sugg.match_pattern);
+    try {
+      const body = {
+        tipo: sugg.tipo_suggerito,
+        titolo: sugg.titolo,
+        ente: sugg.ente || "",
+        importo_rata: sugg.importo_rata,
+        importo_totale: 0,
+        num_rate: 0,
+        data_inizio: sugg.prima_data || "",
+        data_fine: "",
+        giorno_scadenza: sugg.giorno_scadenza || 0,
+        frequenza: sugg.frequenza || "MENSILE",
+        cat1: sugg.cat1 || "", cat2: sugg.cat2 || "",
+        cat1_fin: sugg.cat1_fin || "", cat2_fin: sugg.cat2_fin || "",
+        tipo_analitico: sugg.tipo_analitico || "",
+        tipo_finanziario: sugg.tipo_finanziario || "",
+        descrizione_finanziaria: sugg.descrizione_finanziaria || "",
+        cat_debito: sugg.cat_debito || "",
+        match_pattern: sugg.match_pattern || "",
+        note: `Estratto automaticamente da ${sugg.num_pagamenti_trovati} pagamenti storici`,
+        genera_rate: false,
+      };
+      const resp = await apiFetch(`${FC}/estrai-crea`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setMsg(`"${sugg.titolo}" creato con ${data.rate_create} rate storiche`);
+        loadSuggerimenti();
+        loadAll();
+      }
+    } catch (_) { setMsg("Errore creazione"); }
+    setCreatingId(null);
+  };
+
   const startEdit = (s) => {
     setEditId(s.id);
     setForm({
@@ -152,6 +206,7 @@ export default function FinanzaScadenzario() {
           {[
             { id: "overview", label: "Panoramica" },
             { id: "lista", label: `Scadenze (${scadenze.length})` },
+            { id: "estrai", label: "Estrai da movimenti" },
             { id: "nuova", label: editId ? "Modifica" : "Nuova" },
             ...(dettaglio ? [{ id: "dettaglio", label: `Dettaglio: ${dettaglio.scadenza.titolo}` }] : []),
           ].map((t) => (
@@ -316,6 +371,86 @@ export default function FinanzaScadenzario() {
                               </span>
                             )}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ESTRAI DA MOVIMENTI */}
+            {tab === "estrai" && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs text-neutral-400">
+                    Analizza i movimenti importati per trovare pagamenti ricorrenti (prestiti, rateizzazioni, affitti, spese fisse).
+                  </p>
+                  <button onClick={loadSuggerimenti} disabled={loadingSugg}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 text-white hover:bg-violet-700 shadow transition disabled:opacity-50">
+                    {loadingSugg ? "Analisi..." : "Analizza movimenti"}
+                  </button>
+                </div>
+
+                {msg && (
+                  <div className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">{msg}</div>
+                )}
+
+                {suggerimenti.length === 0 && !loadingSugg ? (
+                  <div className="text-center py-8 text-neutral-400">
+                    Clicca "Analizza movimenti" per trovare pattern ricorrenti nei tuoi dati.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {suggerimenti.map((s, i) => {
+                      const info = getTipoInfo(s.tipo_suggerito);
+                      const isCreating = creatingId === s.match_pattern;
+                      return (
+                        <div key={i} className="rounded-xl border border-neutral-200 p-4 hover:shadow-md transition">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{info.icon}</span>
+                              <div>
+                                <div className="text-sm font-semibold text-neutral-800">{s.titolo}</div>
+                                <div className="text-[10px] text-neutral-400">
+                                  {info.label} — {s.num_pagamenti_trovati} pagamenti trovati
+                                  {s.ente && ` — ${s.ente}`}
+                                </div>
+                              </div>
+                            </div>
+                            <button onClick={() => handleCreaFromSugg(s)} disabled={isCreating}
+                              className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition disabled:opacity-50">
+                              {isCreating ? "Creazione..." : "Crea scadenza"}
+                            </button>
+                          </div>
+                          <div className="mt-3 grid grid-cols-5 gap-3 text-xs">
+                            <div>
+                              <span className="text-neutral-400">Importo medio</span>
+                              <div className="font-mono font-semibold text-red-600">{fmt(s.importo_rata)}</div>
+                            </div>
+                            <div>
+                              <span className="text-neutral-400">Range</span>
+                              <div className="font-mono text-neutral-600">{fmt(s.importo_min)} — {fmt(s.importo_max)}</div>
+                            </div>
+                            <div>
+                              <span className="text-neutral-400">Periodo</span>
+                              <div className="text-neutral-600">{fmtDate(s.prima_data)} → {fmtDate(s.ultima_data)}</div>
+                            </div>
+                            <div>
+                              <span className="text-neutral-400">Giorno</span>
+                              <div className="text-neutral-600">{s.giorno_scadenza || "variabile"}</div>
+                            </div>
+                            <div>
+                              <span className="text-neutral-400">Categorie</span>
+                              <div className="text-neutral-600 truncate">{s.cat1 || s.cat1_fin || "—"} / {s.cat2 || s.cat2_fin || "—"}</div>
+                            </div>
+                          </div>
+                          {(s.descrizione_finanziaria || s.cat_debito) && (
+                            <div className="mt-1 text-[10px] text-violet-500">
+                              {s.descrizione_finanziaria && `Fin: ${s.descrizione_finanziaria}`}
+                              {s.cat_debito && ` — Debito: ${s.cat_debito}`}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
