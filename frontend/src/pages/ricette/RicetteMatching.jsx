@@ -1,5 +1,5 @@
-// @version: v3.0-matching-smart-create
-// UI Matching Fatture → Ingredienti + Smart Auto-Create
+// @version: v4.0-matching-fornitori
+// UI Matching Fatture → Ingredienti + Smart Auto-Create + Esclusione Fornitori
 // Collega righe fatture XML importate agli ingredienti del food cost
 // Con analisi intelligente per suggerire e creare ingredienti in blocco
 
@@ -17,7 +17,7 @@ export default function RicetteMatching() {
   const [mappings, setMappings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("pending"); // pending | mappings | smart
+  const [tab, setTab] = useState("pending"); // pending | mappings | smart | fornitori
 
   // Stato per suggerimenti matching manuale
   const [selectedRiga, setSelectedRiga] = useState(null);
@@ -33,6 +33,12 @@ export default function RicetteMatching() {
   const [smartSelected, setSmartSelected] = useState({}); // key: suggestedName → editable fields
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Fornitori state
+  const [suppliers, setSuppliers] = useState([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [suppliersFilter, setSuppliersFilter] = useState("");
+  const [togglingSupplier, setTogglingSupplier] = useState(null); // piva or nome being toggled
 
   // Filtro per tab pending
   const [filterText, setFilterText] = useState("");
@@ -225,6 +231,56 @@ export default function RicetteMatching() {
     }
   };
 
+  // ─── FORNITORI (Supplier exclusion) ────────────────
+
+  const loadSuppliers = async () => {
+    setSuppliersLoading(true);
+    try {
+      const resp = await apiFetch(`${FC}/matching/suppliers`);
+      if (!resp.ok) throw new Error("Errore caricamento fornitori");
+      setSuppliers(await resp.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSuppliersLoading(false);
+    }
+  };
+
+  const handleToggleExclusion = async (supplier) => {
+    const key = supplier.fornitore_piva || supplier.fornitore_nome;
+    setTogglingSupplier(key);
+    setError("");
+    try {
+      const resp = await apiFetch(`${FC}/matching/suppliers/toggle-exclusion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fornitore_nome: supplier.fornitore_nome,
+          fornitore_piva: supplier.fornitore_piva || null,
+          escluso: supplier.escluso ? 0 : 1,
+          motivo_esclusione: supplier.escluso ? null : "Escluso manualmente",
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      // Reload suppliers and pending (exclusion changes pending count)
+      await Promise.all([loadSuppliers(), loadPending()]);
+    } catch (err) {
+      setError(`Errore toggle esclusione: ${err.message}`);
+    } finally {
+      setTogglingSupplier(null);
+    }
+  };
+
+  const filteredSuppliers = suppliersFilter
+    ? suppliers.filter(
+        (s) =>
+          (s.fornitore_nome || "").toLowerCase().includes(suppliersFilter.toLowerCase()) ||
+          (s.fornitore_piva || "").includes(suppliersFilter)
+      )
+    : suppliers;
+
+  const excludedCount = suppliers.filter((s) => s.escluso).length;
+
   const selectedCount = Object.values(smartSelected).filter((s) => s.selected !== false).length;
 
   // Filtro pending
@@ -318,6 +374,16 @@ export default function RicetteMatching() {
             }`}
           >
             Mappings ({mappings.length})
+          </button>
+          <button
+            onClick={() => { setTab("fornitori"); if (suppliers.length === 0) loadSuppliers(); }}
+            className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
+              tab === "fornitori"
+                ? "bg-purple-100 text-purple-900 border border-purple-300 border-b-white -mb-[3px]"
+                : "text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            Fornitori {excludedCount > 0 && `(${excludedCount} esclusi)`}
           </button>
         </div>
 
@@ -590,7 +656,7 @@ export default function RicetteMatching() {
               </>
             )}
           </div>
-        ) : (
+        ) : tab === "mappings" ? (
           /* ═══════════ TAB MAPPINGS ═══════════ */
           <div>
             {mappings.length === 0 ? (
@@ -628,6 +694,126 @@ export default function RicetteMatching() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ═══════════ TAB FORNITORI ═══════════ */
+          <div>
+            <div className="mb-4">
+              <p className="text-sm text-neutral-600 mb-3">
+                Escludi i fornitori che non vendono ingredienti (servizi, attrezzature, consulenze, ecc.).
+                Le loro righe fattura non appariranno nel matching.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={loadSuppliers}
+                  disabled={suppliersLoading}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                    suppliersLoading
+                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                      : "bg-purple-600 text-white hover:bg-purple-700"
+                  }`}
+                >
+                  {suppliersLoading ? "Caricamento..." : "Aggiorna lista"}
+                </button>
+                <input
+                  type="text"
+                  value={suppliersFilter}
+                  onChange={(e) => setSuppliersFilter(e.target.value)}
+                  placeholder="Filtra per nome o P.IVA..."
+                  className="w-full sm:w-72 px-4 py-2 border border-neutral-300 rounded-xl text-sm focus:ring-purple-500 focus:border-purple-500"
+                />
+                {suppliersFilter && (
+                  <span className="text-xs text-neutral-500">
+                    {filteredSuppliers.length} di {suppliers.length}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {suppliersLoading ? (
+              <div className="text-center py-12 text-neutral-500">Caricamento fornitori...</div>
+            ) : suppliers.length === 0 ? (
+              <div className="text-center py-12 text-neutral-500">
+                Nessun fornitore trovato nelle righe fattura pendenti.
+              </div>
+            ) : (
+              <div className="border border-neutral-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-neutral-100 text-neutral-700">
+                    <tr>
+                      <th className="p-3 text-left font-semibold">Fornitore</th>
+                      <th className="p-3 text-left font-semibold">P.IVA</th>
+                      <th className="p-3 text-left font-semibold">Categoria</th>
+                      <th className="p-3 text-center font-semibold">Righe pending</th>
+                      <th className="p-3 text-center font-semibold">Stato</th>
+                      <th className="p-3 text-right font-semibold">Azione</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSuppliers.map((s) => {
+                      const key = s.fornitore_piva || s.fornitore_nome;
+                      const isToggling = togglingSupplier === key;
+                      return (
+                        <tr
+                          key={key}
+                          className={`border-t border-neutral-100 transition ${
+                            s.escluso ? "bg-red-50/50" : "hover:bg-neutral-50"
+                          }`}
+                        >
+                          <td className="p-3 text-neutral-900 font-medium">{s.fornitore_nome || "\u2014"}</td>
+                          <td className="p-3 text-neutral-600 text-xs font-mono">{s.fornitore_piva || "\u2014"}</td>
+                          <td className="p-3 text-neutral-600 text-xs">{s.categoria_nome || "\u2014"}</td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              s.n_righe_pending > 50
+                                ? "bg-amber-100 text-amber-800"
+                                : s.n_righe_pending > 10
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-neutral-100 text-neutral-600"
+                            }`}>
+                              {s.n_righe_pending}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            {s.escluso ? (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+                                Escluso
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                                Attivo
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => handleToggleExclusion(s)}
+                              disabled={isToggling}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                                isToggling
+                                  ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                                  : s.escluso
+                                  ? "bg-green-100 text-green-800 border border-green-300 hover:bg-green-200"
+                                  : "bg-red-100 text-red-800 border border-red-300 hover:bg-red-200"
+                              }`}
+                            >
+                              {isToggling ? "..." : s.escluso ? "Riattiva" : "Escludi"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {excludedCount > 0 && (
+              <div className="mt-4 bg-purple-50 border border-purple-200 rounded-xl p-3 text-sm text-purple-800">
+                <strong>{excludedCount}</strong> fornitor{excludedCount === 1 ? "e" : "i"} esclus{excludedCount === 1 ? "o" : "i"} dal matching.
+                Le loro righe fattura non vengono considerate.
               </div>
             )}
           </div>

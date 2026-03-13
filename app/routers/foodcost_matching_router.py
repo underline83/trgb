@@ -182,7 +182,7 @@ def list_pending_rows(
 ):
     """
     Righe fattura che non hanno ancora un match in ingredient_supplier_map.
-    Sono le righe da abbinare manualmente. Nessun limite — carica tutto.
+    Esclude fornitori marcati come 'escluso' in fe_fornitore_categoria.
     """
     conn = get_foodcost_connection()
     cur = conn.cursor()
@@ -209,11 +209,15 @@ def list_pending_rows(
             r.prezzo_totale
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+        LEFT JOIN fe_fornitore_categoria fc
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
         WHERE r.id NOT IN (
             SELECT ip.riga_fattura_id
             FROM ingredient_prices ip
             WHERE ip.riga_fattura_id IS NOT NULL
         )
+        AND COALESCE(fc.escluso, 0) = 0
         {where_extra}
         ORDER BY f.data_fattura DESC, r.id
         """,
@@ -568,6 +572,114 @@ def delete_mapping(mapping_id: int):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: FORNITORI CON STATO ESCLUSIONE
+# ─────────────────────────────────────────────
+
+class SupplierMatchingInfo(BaseModel):
+    fornitore_nome: str
+    fornitore_piva: Optional[str] = None
+    n_righe_pending: int = 0
+    escluso: bool = False
+    motivo_esclusione: Optional[str] = None
+    categoria_nome: Optional[str] = None
+
+
+@router.get("/suppliers", response_model=List[SupplierMatchingInfo])
+def list_suppliers_for_matching():
+    """
+    Lista fornitori unici dalle righe pending (non ancora matchate),
+    con stato esclusione e conteggio righe.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    rows = cur.execute(
+        """
+        SELECT
+            f.fornitore_nome,
+            f.fornitore_piva,
+            COUNT(r.id) AS n_righe_pending,
+            COALESCE(fc.escluso, 0) AS escluso,
+            fc.motivo_esclusione,
+            c.nome AS categoria_nome
+        FROM fe_righe r
+        JOIN fe_fatture f ON f.id = r.fattura_id
+        LEFT JOIN fe_fornitore_categoria fc
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        WHERE r.id NOT IN (
+            SELECT ip.riga_fattura_id
+            FROM ingredient_prices ip
+            WHERE ip.riga_fattura_id IS NOT NULL
+        )
+        GROUP BY f.fornitore_nome, f.fornitore_piva
+        ORDER BY n_righe_pending DESC
+        """
+    ).fetchall()
+
+    conn.close()
+    return [
+        SupplierMatchingInfo(
+            fornitore_nome=r["fornitore_nome"],
+            fornitore_piva=r["fornitore_piva"],
+            n_righe_pending=r["n_righe_pending"],
+            escluso=bool(r["escluso"]),
+            motivo_esclusione=r["motivo_esclusione"],
+            categoria_nome=r["categoria_nome"],
+        )
+        for r in rows
+    ]
+
+
+class ToggleExclusionRequest(BaseModel):
+    fornitore_nome: str
+    fornitore_piva: Optional[str] = None
+    escluso: bool
+    motivo_esclusione: Optional[str] = None
+
+
+@router.post("/suppliers/toggle-exclusion")
+def toggle_supplier_exclusion(payload: ToggleExclusionRequest):
+    """Toggle esclusione fornitore dal matching ingredienti."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    piva = payload.fornitore_piva
+    nome = payload.fornitore_nome
+
+    if piva:
+        existing = cur.execute(
+            "SELECT id FROM fe_fornitore_categoria WHERE fornitore_piva = ?", (piva,)
+        ).fetchone()
+    else:
+        existing = cur.execute(
+            "SELECT id FROM fe_fornitore_categoria WHERE fornitore_nome = ? AND fornitore_piva IS NULL",
+            (nome,),
+        ).fetchone()
+
+    escluso_val = 1 if payload.escluso else 0
+
+    if existing:
+        cur.execute(
+            "UPDATE fe_fornitore_categoria SET escluso = ?, motivo_esclusione = ? WHERE id = ?",
+            (escluso_val, payload.motivo_esclusione, existing["id"]),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO fe_fornitore_categoria (fornitore_piva, fornitore_nome, escluso, motivo_esclusione)
+            VALUES (?, ?, ?, ?)
+            """,
+            (piva, nome, escluso_val, payload.motivo_esclusione),
+        )
+
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "escluso": payload.escluso}
+
+
+# ─────────────────────────────────────────────
 #   SMART SUGGEST — Analisi intelligente pending
 # ─────────────────────────────────────────────
 
@@ -725,18 +837,22 @@ def smart_suggest():
     conn = get_foodcost_connection()
     cur = conn.cursor()
 
-    # 1. Carica tutte le righe pending
+    # 1. Carica tutte le righe pending (esclude fornitori esclusi)
     pending = cur.execute(
         """
         SELECT r.id AS riga_id, r.descrizione, r.unita_misura,
                f.fornitore_nome, f.fornitore_piva
         FROM fe_righe r
         JOIN fe_fatture f ON f.id = r.fattura_id
+        LEFT JOIN fe_fornitore_categoria fc
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
         WHERE r.id NOT IN (
             SELECT ip.riga_fattura_id
             FROM ingredient_prices ip
             WHERE ip.riga_fattura_id IS NOT NULL
         )
+        AND COALESCE(fc.escluso, 0) = 0
         """
     ).fetchall()
 
