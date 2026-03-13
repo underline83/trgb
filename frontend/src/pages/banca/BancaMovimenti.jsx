@@ -32,6 +32,9 @@ export default function BancaMovimenti() {
   // Tutte le coppie cat/subcat per il dropdown di modifica
   const [catSubcatPairs, setCatSubcatPairs] = useState([]);
 
+  // Expanded description
+  const [expandedDescId, setExpandedDescId] = useState(null);
+
   // Editing state
   const [editingId, setEditingId] = useState(null);
   const [editCat, setEditCat] = useState("");
@@ -222,8 +225,13 @@ export default function BancaMovimenti() {
                     return (
                       <tr key={m.id} className={`border-b border-neutral-100 transition ${isEditing ? "bg-blue-50" : "hover:bg-neutral-50"}`}>
                         <td className="py-2.5 text-xs text-neutral-500 whitespace-nowrap">{m.data_contabile}</td>
-                        <td className="py-2.5 text-xs" title={m.descrizione}>
-                          <div className="truncate max-w-md">{m.descrizione}</div>
+                        <td
+                          className="py-2.5 text-xs cursor-pointer"
+                          onClick={() => setExpandedDescId(expandedDescId === m.id ? null : m.id)}
+                        >
+                          <div className={expandedDescId === m.id ? "whitespace-normal break-words" : "truncate max-w-md"}>
+                            {m.descrizione}
+                          </div>
                           {m.categoria_custom && !isEditing && (
                             <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
                               style={{ backgroundColor: (m.cat_colore || "#6b7280") + "20", color: m.cat_colore }}>
