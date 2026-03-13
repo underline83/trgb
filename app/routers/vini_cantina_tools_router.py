@@ -827,6 +827,8 @@ def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any
     """
     Carica tutti i vini dal DB cantina per report inventario.
     Se solo_giacenza=True, filtra solo quelli con QTA_TOTALE > 0.
+    Ordinamento identico alla carta vini (tipologia_order, nazioni_order,
+    regioni_order dalle impostazioni, poi produttore, descrizione, annata).
     """
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
@@ -846,10 +848,26 @@ def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any
             DISCONTINUATO
         FROM vini_magazzino
         {where}
-        ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE, ANNATA
     """).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+
+    vini = [dict(r) for r in rows]
+
+    # Ordinamento carta vini: usa le tabelle di impostazioni
+    tip_map, naz_map, reg_map = _load_ordinamenti()
+
+    def sort_key(r):
+        return (
+            tip_map.get(r["TIPOLOGIA"], 9999),
+            naz_map.get(r["NAZIONE"], 9999),
+            reg_map.get(r.get("CODICE"), 9999),
+            (r["PRODUTTORE"] or "").upper(),
+            (r["DESCRIZIONE"] or "").upper(),
+            r["ANNATA"] or "",
+        )
+
+    vini.sort(key=sort_key)
+    return vini
 
 
 def _inventario_css() -> str:
