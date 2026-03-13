@@ -132,7 +132,7 @@ async def import_excel(
         data_val = parse_date(row[3])
         descrizione = safe_str(row[4])
 
-        if not descrizione:
+        if not data_val or not descrizione:
             skipped += 1
             continue
 
