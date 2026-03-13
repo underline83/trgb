@@ -496,6 +496,146 @@ def create_recipe_category(payload: RecipeCategoryCreate):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: DASHBOARD STATS
+#   ⚠️  DEVE stare PRIMA di /ricette/{recipe_id}
+# ─────────────────────────────────────────────
+
+@router.get("/ricette/stats/dashboard")
+def dashboard_stats():
+    """Statistiche aggregate per la dashboard food cost."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    rows = cur.execute(
+        """
+        SELECT r.id, r.name, r.is_base, r.yield_qty, r.yield_unit,
+               r.selling_price, rc.name AS category_name
+        FROM recipes r
+        LEFT JOIN recipe_categories rc ON rc.id = r.category_id
+        WHERE r.is_active = 1
+        ORDER BY r.name COLLATE NOCASE
+        """
+    ).fetchall()
+
+    ricette = []
+    for row in rows:
+        d = dict(row)
+        d = _enrich_recipe_with_costs(cur, d)
+        ricette.append(d)
+
+    conn.close()
+
+    # Calcola statistiche
+    attive = [r for r in ricette if not r.get("is_base")]
+    basi = [r for r in ricette if r.get("is_base")]
+    fc_values = [r["food_cost_pct"] for r in attive if r.get("food_cost_pct") is not None]
+    avg_fc = sum(fc_values) / len(fc_values) if fc_values else 0
+    critiche = [r for r in attive if r.get("food_cost_pct") and r["food_cost_pct"] > 45]
+    buone = [r for r in attive if r.get("food_cost_pct") and r["food_cost_pct"] <= 30]
+
+    # Top 5 food cost più alto
+    top_fc = sorted(
+        [r for r in attive if r.get("food_cost_pct") is not None],
+        key=lambda r: r["food_cost_pct"],
+        reverse=True,
+    )[:5]
+
+    # Top 5 food cost più basso (migliori margini)
+    best_margin = sorted(
+        [r for r in attive if r.get("food_cost_pct") is not None],
+        key=lambda r: r["food_cost_pct"],
+    )[:5]
+
+    return {
+        "totale_ricette": len(attive),
+        "totale_basi": len(basi),
+        "food_cost_medio": round(avg_fc, 1),
+        "ricette_critiche": len(critiche),
+        "ricette_buone": len(buone),
+        "top_food_cost": [
+            {"id": r["id"], "name": r["name"], "category": r.get("category_name"), "food_cost_pct": round(r["food_cost_pct"], 1),
+             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price")}
+            for r in top_fc
+        ],
+        "best_margin": [
+            {"id": r["id"], "name": r["name"], "category": r.get("category_name"), "food_cost_pct": round(r["food_cost_pct"], 1),
+             "total_cost": round(r.get("total_cost", 0), 2), "selling_price": r.get("selling_price")}
+            for r in best_margin
+        ],
+    }
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: EXPORT RICETTE JSON
+#   ⚠️  DEVE stare PRIMA di /ricette/{recipe_id}
+# ─────────────────────────────────────────────
+
+@router.get("/ricette/export/json")
+def export_ricette_json():
+    """Esporta tutte le ricette attive in formato JSON."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    rows = cur.execute(
+        """
+        SELECT r.*, rc.name AS category_name
+        FROM recipes r
+        LEFT JOIN recipe_categories rc ON rc.id = r.category_id
+        WHERE r.is_active = 1
+        ORDER BY r.name COLLATE NOCASE
+        """
+    ).fetchall()
+
+    result = []
+    for row in rows:
+        r = dict(row)
+        items = cur.execute(
+            """
+            SELECT ri.ingredient_id, ri.sub_recipe_id, ri.qty, ri.unit, ri.note,
+                   i.name AS ingredient_name,
+                   sr.name AS sub_recipe_name
+            FROM recipe_items ri
+            LEFT JOIN (SELECT id, name FROM (
+                SELECT id, name FROM ingredients WHERE id IS NOT NULL
+            )) i ON i.id = ri.ingredient_id
+            LEFT JOIN recipes sr ON sr.id = ri.sub_recipe_id
+            WHERE ri.recipe_id = ?
+            ORDER BY ri.sort_order
+            """,
+            (r["id"],),
+        ).fetchall()
+
+        result.append({
+            "name": r["name"],
+            "category": r.get("category_name"),
+            "is_base": bool(r.get("is_base")),
+            "yield_qty": r["yield_qty"],
+            "yield_unit": r["yield_unit"],
+            "selling_price": r.get("selling_price"),
+            "prep_time": r.get("prep_time"),
+            "note": r.get("note"),
+            "items": [
+                {
+                    "ingredient": dict(item).get("ingredient_name"),
+                    "sub_recipe": dict(item).get("sub_recipe_name"),
+                    "qty": item["qty"],
+                    "unit": item["unit"],
+                    "note": item["note"],
+                }
+                for item in items
+            ],
+        })
+
+    conn.close()
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={"export_date": datetime.utcnow().isoformat(), "ricette": result},
+        headers={"Content-Disposition": "attachment; filename=ricette_export.json"},
+    )
+
+
+# ─────────────────────────────────────────────
 #   ENDPOINT: LISTA SUB-RICETTE (per selettore)
 #   ⚠️  DEVE stare PRIMA di /ricette/{recipe_id}
 # ─────────────────────────────────────────────
@@ -766,3 +906,153 @@ def delete_ricetta(recipe_id: int):
     conn.commit()
     conn.close()
     return {"status": "ok", "detail": "Ricetta disattivata"}
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: EXPORT RICETTA SINGOLA → PDF
+# ─────────────────────────────────────────────
+
+@router.get("/ricette/{recipe_id}/pdf")
+def export_ricetta_pdf(recipe_id: int):
+    """Genera un PDF con il dettaglio di una ricetta e il suo food cost."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    row = cur.execute(
+        """
+        SELECT r.*, rc.name AS category_name
+        FROM recipes r
+        LEFT JOIN recipe_categories rc ON rc.id = r.category_id
+        WHERE r.id = ?
+        """,
+        (recipe_id,),
+    ).fetchone()
+
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ricetta non trovata")
+
+    r = dict(row)
+    r = _enrich_recipe_with_costs(cur, r)
+
+    # Carica items con nomi
+    items = cur.execute(
+        """
+        SELECT ri.*, i.name AS ingredient_name, sr.name AS sub_recipe_name
+        FROM recipe_items ri
+        LEFT JOIN ingredients i ON i.id = ri.ingredient_id
+        LEFT JOIN recipes sr ON sr.id = ri.sub_recipe_id
+        WHERE ri.recipe_id = ?
+        ORDER BY ri.sort_order
+        """,
+        (recipe_id,),
+    ).fetchall()
+
+    conn.close()
+
+    # Genera PDF
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from fastapi.responses import StreamingResponse
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=15*mm,
+                            leftMargin=20*mm, rightMargin=20*mm)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Titolo
+    title_style = ParagraphStyle("RTitle", parent=styles["Heading1"],
+                                  fontSize=18, spaceAfter=6, textColor=colors.HexColor("#78350f"))
+    story.append(Paragraph(r["name"], title_style))
+
+    # Info
+    info_parts = []
+    if r.get("category_name"):
+        info_parts.append(f"Categoria: {r['category_name']}")
+    info_parts.append(f"Resa: {r['yield_qty']} {r['yield_unit']}")
+    if r.get("prep_time"):
+        info_parts.append(f"Tempo: {r['prep_time']} min")
+    if r.get("is_base"):
+        info_parts.append("(Ricetta base)")
+    story.append(Paragraph(" | ".join(info_parts), styles["Normal"]))
+    story.append(Spacer(1, 8))
+
+    # KPI
+    kpi_data = [["Costo totale", "Costo/unità", "Prezzo vendita", "Food Cost %"]]
+    kpi_row = [
+        f"€ {r.get('total_cost', 0):.2f}",
+        f"€ {r.get('cost_per_unit', 0):.2f}",
+        f"€ {r.get('selling_price', 0):.2f}" if r.get("selling_price") else "—",
+        f"{r.get('food_cost_pct', 0):.1f}%" if r.get("food_cost_pct") else "—",
+    ]
+    kpi_data.append(kpi_row)
+    kpi_table = Table(kpi_data, colWidths=[doc.width / 4] * 4)
+    kpi_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#78350f")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d4d4d4")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 12))
+
+    # Tabella ingredienti
+    story.append(Paragraph("Composizione", styles["Heading2"]))
+    story.append(Spacer(1, 4))
+
+    table_data = [["#", "Ingrediente", "Qtà", "Unità", "Note"]]
+    for idx, item in enumerate(items, 1):
+        it = dict(item)
+        name = it.get("ingredient_name") or it.get("sub_recipe_name") or "?"
+        if it.get("sub_recipe_id"):
+            name = f"[SUB] {name}"
+        table_data.append([
+            str(idx),
+            name,
+            f"{it['qty']:.2f}",
+            it["unit"],
+            it.get("note") or "",
+        ])
+
+    col_widths = [20, doc.width - 160, 50, 40, 50]
+    t = Table(table_data, colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e5e5")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(t)
+
+    # Note
+    if r.get("note"):
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(f"Note: {r['note']}", styles["Italic"]))
+
+    # Footer
+    story.append(Spacer(1, 20))
+    footer_style = ParagraphStyle("Footer", parent=styles["Normal"],
+                                   fontSize=7, textColor=colors.grey)
+    story.append(Paragraph(f"Generato da TRGB Gestionale — {datetime.now().strftime('%d/%m/%Y %H:%M')}", footer_style))
+
+    doc.build(story)
+    buf.seek(0)
+
+    safe_name = r["name"].replace(" ", "_").replace("/", "-")[:40]
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=ricetta_{safe_name}.pdf"},
+    )

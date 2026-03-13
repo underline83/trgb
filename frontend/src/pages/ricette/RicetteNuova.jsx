@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import RicetteNav from "./RicetteNav";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -176,6 +177,7 @@ export default function RicetteNuova() {
   // ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+      <RicetteNav current="archivio" />
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 sm:p-12 border border-neutral-200">
 
         {/* HEADER */}
@@ -189,13 +191,6 @@ export default function RicetteNuova() {
             </p>
           </div>
           <div className="flex gap-2 justify-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/ricette/archivio")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              &larr; Archivio
-            </button>
           </div>
         </div>
 

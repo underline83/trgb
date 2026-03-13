@@ -1,4 +1,4 @@
-// @version: v3.5-auth-users
+// @version: v3.6-ricette-reforming
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -34,10 +34,11 @@ import RicetteNuova from "./pages/ricette/RicetteNuova";
 import RicetteArchivio from "./pages/ricette/RicetteArchivio";
 import RicetteDettaglio from "./pages/ricette/RicetteDettaglio";
 import RicetteModifica from "./pages/ricette/RicetteModifica";
-import RicetteImport from "./pages/ricette/RicetteImport";
 import RicetteIngredienti from "./pages/ricette/RicetteIngredienti";
 import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
 import RicetteMatching from "./pages/ricette/RicetteMatching";
+import RicetteDashboard from "./pages/ricette/RicetteDashboard";
+import RicetteSettings from "./pages/ricette/RicetteSettings";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -106,10 +107,12 @@ export default function App() {
         <Route path="/ricette/archivio" element={<RicetteArchivio />} />
         <Route path="/ricette/:id" element={<RicetteDettaglio />} />
         <Route path="/ricette/modifica/:id" element={<RicetteModifica />} />
-        <Route path="/ricette/import" element={<RicetteImport />} />
         <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
         <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
         <Route path="/ricette/matching" element={<RicetteMatching />} />
+        <Route path="/ricette/dashboard" element={<RicetteDashboard />} />
+        <Route path="/ricette/settings" element={<RicetteSettings />} />
+        <Route path="/ricette/import" element={<Navigate to="/ricette/settings" replace />} />
 
         {/* --- AREA AMMINISTRAZIONE --- */}
         <Route path="/admin" element={<AdminMenu />} />

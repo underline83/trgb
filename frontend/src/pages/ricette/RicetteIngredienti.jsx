@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import RicetteNav from "./RicetteNav";
 
 // Unità di misura standardizzate
 const UNITS = ["kg", "g", "L", "ml", "pz", "confezione", "vaschetta", "bottiglia"];
@@ -171,6 +172,7 @@ export default function RicetteIngredienti() {
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+      <RicetteNav current="ingredienti" />
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
         {/* HEADER + BACK */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
@@ -183,13 +185,6 @@ export default function RicetteIngredienti() {
             </p>
           </div>
           <div className="flex gap-2 justify-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/ricette")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Torna al Menu Ricette
-            </button>
           </div>
         </div>
 

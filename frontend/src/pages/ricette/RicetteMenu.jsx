@@ -1,113 +1,145 @@
-// @version: v1.1-versioned
-// Menu principale Gestione Ricette — Tre Gobbi
-// Coerente con Home & Gestione Vini
-
-import React from "react";
+// @version: v2.0-hub-kpi
+// Menu hub Gestione Ricette — con KPI rapidi e accesso veloce
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE, apiFetch } from "../../config/api";
 import { VersionBadge } from "../../config/versions";
+import RicetteNav from "./RicetteNav";
 
 export default function RicetteMenu() {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+  const isAdmin = role === "admin" || role === "sommelier";
+
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/foodcost/ricette`);
+        if (r.ok) {
+          const ricette = await r.json();
+          const attive = ricette.filter((r) => !r.is_disabled);
+          const fcValues = attive.filter((r) => r.food_cost_pct != null).map((r) => r.food_cost_pct);
+          const avgFc = fcValues.length > 0 ? fcValues.reduce((a, b) => a + b, 0) / fcValues.length : 0;
+          const critiche = fcValues.filter((v) => v > 45).length;
+          const basi = attive.filter((r) => r.is_base).length;
+          setStats({ totale: attive.length, avgFc, critiche, basi });
+        }
+      } catch {}
+    })();
+  }, []);
 
   const tiles = [
     {
       title: "Nuova ricetta",
       subtitle: "Inserimento guidato con sub-ricette",
       icon: "➕",
-      onClick: () => navigate("/ricette/nuova"),
+      path: "/ricette/nuova",
       color: "bg-amber-50 border-amber-200 text-amber-900",
     },
     {
       title: "Archivio ricette",
       subtitle: "Lista completa con food cost calcolato",
       icon: "📚",
-      onClick: () => navigate("/ricette/archivio"),
+      path: "/ricette/archivio",
       color: "bg-blue-50 border-blue-200 text-blue-900",
     },
     {
       title: "Ingredienti & prezzi",
       subtitle: "Anagrafica, fornitori, storico prezzi",
       icon: "🧾",
-      onClick: () => navigate("/ricette/ingredienti"),
+      path: "/ricette/ingredienti",
       color: "bg-green-50 border-green-200 text-green-900",
     },
-    {
-      title: "Matching fatture",
-      subtitle: "Collega righe fattura XML agli ingredienti",
-      icon: "🔗",
-      onClick: () => navigate("/ricette/matching"),
-      color: "bg-purple-50 border-purple-200 text-purple-900",
-    },
-    {
-      title: "Import / Export",
-      subtitle: "JSON, backup, integrazione",
-      icon: "📥",
-      onClick: () => navigate("/ricette/import"),
-      color: "bg-neutral-50 border-neutral-300 text-neutral-800",
-    },
+    ...(isAdmin
+      ? [
+          {
+            title: "Matching fatture",
+            subtitle: "Collega righe fattura XML agli ingredienti",
+            icon: "🔗",
+            path: "/ricette/matching",
+            color: "bg-purple-50 border-purple-200 text-purple-900",
+          },
+          {
+            title: "Dashboard",
+            subtitle: "Panoramica food cost e analisi margini",
+            icon: "📊",
+            path: "/ricette/dashboard",
+            color: "bg-indigo-50 border-indigo-200 text-indigo-900",
+          },
+          {
+            title: "Strumenti",
+            subtitle: "Import/export, backup, PDF ricette",
+            icon: "⚙️",
+            path: "/ricette/settings",
+            color: "bg-neutral-50 border-neutral-300 text-neutral-800",
+          },
+        ]
+      : []),
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
+    <div className="min-h-screen bg-neutral-100 font-sans">
+      <RicetteNav current="" />
+      <div className="max-w-5xl mx-auto p-4 sm:p-6">
 
-        {/* HEADER + TORNA A HOME */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-bold text-amber-900 tracking-wide font-playfair text-center sm:text-left">
-                📘 Ricette & Food Cost
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+                Ricette & Food Cost
               </h1>
               <VersionBadge modulo="ricette" />
             </div>
-            <p className="text-neutral-600 text-center sm:text-left">
+            <p className="text-neutral-600">
               Archivio strutturato di ricette, ingredienti e costi.
             </p>
           </div>
-
-          <div className="flex justify-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="
-                px-4 py-2 rounded-xl text-sm font-medium
-                border border-neutral-300 bg-neutral-50
-                hover:bg-neutral-100 hover:-translate-y-0.5
-                shadow-sm transition
-              "
-            >
-              ← Torna alla Home
-            </button>
-          </div>
         </div>
 
-        {/* GRID MENU RICETTE */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {/* KPI CARDS */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">
+              <div className="text-2xl font-bold text-amber-900">{stats.totale}</div>
+              <div className="text-xs text-neutral-500 mt-1">Ricette attive</div>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">
+              <div className={`text-2xl font-bold ${stats.avgFc > 40 ? "text-red-600" : stats.avgFc > 30 ? "text-yellow-600" : "text-green-600"}`}>
+                {stats.avgFc.toFixed(1)}%
+              </div>
+              <div className="text-xs text-neutral-500 mt-1">Food Cost medio</div>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">
+              <div className={`text-2xl font-bold ${stats.critiche > 0 ? "text-red-600" : "text-green-600"}`}>
+                {stats.critiche}
+              </div>
+              <div className="text-xs text-neutral-500 mt-1">FC &gt; 45%</div>
+            </div>
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">
+              <div className="text-2xl font-bold text-blue-700">{stats.basi}</div>
+              <div className="text-xs text-neutral-500 mt-1">Ricette base</div>
+            </div>
+          </div>
+        )}
+
+        {/* GRID MENU */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tiles.map((tile) => (
             <button
               key={tile.title}
               type="button"
-              onClick={tile.onClick}
-              className={`
-                ${tile.color}
-                w-full text-left
-                rounded-2xl border p-7 shadow
-                hover:shadow-xl hover:-translate-y-1
-                transition transform cursor-pointer
-              `}
-              style={{ fontFamily: "Inter", borderWidth: "1px" }}
+              onClick={() => navigate(tile.path)}
+              className={`${tile.color} w-full text-left rounded-2xl border p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform cursor-pointer`}
             >
-              <div className="text-4xl mb-3">{tile.icon}</div>
-              <div className="text-xl font-semibold font-playfair mb-1">
-                {tile.title}
-              </div>
-              <div className="text-sm text-neutral-700 opacity-90">
-                {tile.subtitle}
-              </div>
+              <div className="text-3xl mb-2">{tile.icon}</div>
+              <div className="text-lg font-semibold font-playfair mb-1">{tile.title}</div>
+              <div className="text-sm text-neutral-700 opacity-90">{tile.subtitle}</div>
             </button>
           ))}
         </div>
-
       </div>
     </div>
   );
