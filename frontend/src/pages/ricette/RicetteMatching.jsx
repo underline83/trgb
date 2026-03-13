@@ -1,5 +1,5 @@
-// @version: v4.0-matching-fornitori
-// UI Matching Fatture → Ingredienti + Smart Auto-Create + Esclusione Fornitori
+// @version: v5.0-matching-ignore-descriptions
+// UI Matching Fatture → Ingredienti + Smart Auto-Create + Esclusione Fornitori + Ignora Descrizioni
 // Collega righe fatture XML importate agli ingredienti del food cost
 // Con analisi intelligente per suggerire e creare ingredienti in blocco
 
@@ -39,6 +39,11 @@ export default function RicetteMatching() {
   const [suppliersLoading, setSuppliersLoading] = useState(false);
   const [suppliersFilter, setSuppliersFilter] = useState("");
   const [togglingSupplier, setTogglingSupplier] = useState(null); // piva or nome being toggled
+
+  // Ignored descriptions state
+  const [ignoredDescs, setIgnoredDescs] = useState([]);
+  const [ignoringItem, setIgnoringItem] = useState(null); // suggestedName being ignored
+  const [showIgnored, setShowIgnored] = useState(false);
 
   // Filtro per tab pending
   const [filterText, setFilterText] = useState("");
@@ -228,6 +233,62 @@ export default function RicetteMatching() {
       setError(`Errore creazione: ${err.message}`);
     } finally {
       setBulkLoading(false);
+    }
+  };
+
+  // ─── IGNORA DESCRIZIONI (non ingredienti) ──────────
+
+  const loadIgnoredDescs = async () => {
+    try {
+      const resp = await apiFetch(`${FC}/matching/ignored-descriptions`);
+      if (resp.ok) setIgnoredDescs(await resp.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleIgnoreDescription = async (suggestion) => {
+    setIgnoringItem(suggestion.suggested_name);
+    setError("");
+    try {
+      const resp = await apiFetch(`${FC}/matching/ignore-description`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          descrizione_normalizzata: suggestion.suggested_name,
+          riga_ids: suggestion.riga_ids,
+          motivo: "Non è un ingrediente",
+          raw_examples: suggestion.raw_descriptions,
+        }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      // Rimuovi dalla lista smart suggestions
+      setSmartSuggestions((prev) => prev.filter((s) => s.suggested_name !== suggestion.suggested_name));
+      // Rimuovi da selected se c'era
+      setSmartSelected((prev) => {
+        const copy = { ...prev };
+        delete copy[suggestion.suggested_name];
+        return copy;
+      });
+      // Aggiorna pending count e lista ignorati
+      await Promise.all([loadPending(), loadIgnoredDescs()]);
+    } catch (err) {
+      setError(`Errore ignora: ${err.message}`);
+    } finally {
+      setIgnoringItem(null);
+    }
+  };
+
+  const handleRestoreIgnored = async (exclusionId) => {
+    setError("");
+    try {
+      const resp = await apiFetch(`${FC}/matching/ignored-descriptions/${exclusionId}`, {
+        method: "DELETE",
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      await Promise.all([loadPending(), loadIgnoredDescs()]);
+    } catch (err) {
+      setError(`Errore ripristino: ${err.message}`);
     }
   };
 
@@ -550,15 +611,29 @@ export default function RicetteMatching() {
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          {/* Checkbox */}
-                          <label className="mt-1 flex-shrink-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSmartItem(s.suggested_name, s)}
-                              className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
-                            />
-                          </label>
+                          {/* Checkbox + Ignora */}
+                          <div className="mt-1 flex-shrink-0 flex flex-col items-center gap-1">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSmartItem(s.suggested_name, s)}
+                                className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            </label>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleIgnoreDescription(s); }}
+                              disabled={ignoringItem === s.suggested_name}
+                              title="Non è un ingrediente — ignora"
+                              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition ${
+                                ignoringItem === s.suggested_name
+                                  ? "bg-neutral-200 text-neutral-400"
+                                  : "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                              }`}
+                            >
+                              {ignoringItem === s.suggested_name ? "..." : "Ignora"}
+                            </button>
+                          </div>
 
                           <div className="flex-1 min-w-0">
                             {/* Nome + badges */}
@@ -653,6 +728,48 @@ export default function RicetteMatching() {
                     </button>
                   </div>
                 )}
+
+                {/* Sezione descrizioni ignorate */}
+                <div className="mt-6 border-t border-neutral-200 pt-4">
+                  <button
+                    onClick={() => { setShowIgnored(!showIgnored); if (!showIgnored && ignoredDescs.length === 0) loadIgnoredDescs(); }}
+                    className="text-sm text-neutral-500 hover:text-neutral-700 flex items-center gap-1"
+                  >
+                    <span>{showIgnored ? "▾" : "▸"}</span>
+                    Descrizioni ignorate {ignoredDescs.length > 0 && `(${ignoredDescs.length})`}
+                  </button>
+
+                  {showIgnored && (
+                    <div className="mt-2 space-y-1">
+                      {ignoredDescs.length === 0 ? (
+                        <p className="text-xs text-neutral-400">Nessuna descrizione ignorata.</p>
+                      ) : (
+                        ignoredDescs.map((d) => (
+                          <div
+                            key={d.id}
+                            className="flex items-center justify-between bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2"
+                          >
+                            <div>
+                              <span className="text-sm text-neutral-700 font-medium">{d.descrizione_normalizzata}</span>
+                              <span className="text-xs text-neutral-400 ml-2">({d.n_righe} righe)</span>
+                              {d.raw_examples && (
+                                <div className="text-xs text-neutral-400 mt-0.5 truncate max-w-md">
+                                  {d.raw_examples}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleRestoreIgnored(d.id)}
+                              className="px-2 py-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition"
+                            >
+                              Ripristina
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>

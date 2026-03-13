@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v2.0-foodcost-matching-smart
+# @version: v3.0-foodcost-matching-ignore
 # -*- coding: utf-8 -*-
 
 """
@@ -17,6 +17,9 @@ Flusso:
 6. DELETE /foodcost/matching/mappings/{id} → elimina un mapping
 7. GET  /foodcost/matching/smart-suggest  → AI: analizza pending e suggerisce nuovi ingredienti
 8. POST /foodcost/matching/bulk-create    → AI: crea ingredienti in blocco + auto-match
+9. POST /foodcost/matching/ignore-description → ignora una descrizione (non ingrediente)
+10. GET  /foodcost/matching/ignored-descriptions → lista descrizioni ignorate
+11. DELETE /foodcost/matching/ignored-descriptions/{id} → ri-attiva descrizione
 """
 
 import re
@@ -216,6 +219,9 @@ def list_pending_rows(
             SELECT ip.riga_fattura_id
             FROM ingredient_prices ip
             WHERE ip.riga_fattura_id IS NOT NULL
+        )
+        AND r.id NOT IN (
+            SELECT mir.riga_id FROM matching_ignored_righe mir
         )
         AND COALESCE(fc.escluso, 0) = 0
         {where_extra}
@@ -680,6 +686,121 @@ def toggle_supplier_exclusion(payload: ToggleExclusionRequest):
 
 
 # ─────────────────────────────────────────────
+#   ENDPOINT: IGNORA DESCRIZIONI (non ingredienti)
+# ─────────────────────────────────────────────
+
+class IgnoreDescriptionRequest(BaseModel):
+    descrizione_normalizzata: str
+    riga_ids: List[int] = []
+    motivo: Optional[str] = None
+    raw_examples: Optional[List[str]] = None
+
+
+class IgnoredDescriptionOut(BaseModel):
+    id: int
+    descrizione_normalizzata: str
+    raw_examples: Optional[str] = None
+    motivo: Optional[str] = None
+    n_righe: int = 0
+    created_at: Optional[str] = None
+
+
+@router.post("/ignore-description")
+def ignore_description(payload: IgnoreDescriptionRequest):
+    """
+    Ignora una descrizione dal matching (es. trasporto, spedizione, consulenza).
+    Salva la descrizione normalizzata + segna tutte le righe collegate come ignorate.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    desc_norm = payload.descrizione_normalizzata.strip().upper()
+    if not desc_norm or len(desc_norm) < 2:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Descrizione troppo corta")
+
+    # Upsert nella tabella exclusions
+    existing = cur.execute(
+        "SELECT id FROM matching_description_exclusions WHERE descrizione_normalizzata = ?",
+        (desc_norm,),
+    ).fetchone()
+
+    raw_ex = ", ".join(payload.raw_examples[:5]) if payload.raw_examples else None
+
+    if existing:
+        exclusion_id = existing["id"]
+        cur.execute(
+            "UPDATE matching_description_exclusions SET motivo = ?, raw_examples = ? WHERE id = ?",
+            (payload.motivo, raw_ex, exclusion_id),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO matching_description_exclusions (descrizione_normalizzata, raw_examples, motivo)
+            VALUES (?, ?, ?)
+            """,
+            (desc_norm, raw_ex, payload.motivo),
+        )
+        exclusion_id = cur.lastrowid
+
+    # Segna le righe come ignorate
+    for riga_id in payload.riga_ids:
+        cur.execute(
+            "INSERT OR IGNORE INTO matching_ignored_righe (riga_id, exclusion_id) VALUES (?, ?)",
+            (riga_id, exclusion_id),
+        )
+
+    conn.commit()
+    conn.close()
+
+    return {"status": "ok", "exclusion_id": exclusion_id, "righe_ignored": len(payload.riga_ids)}
+
+
+@router.get("/ignored-descriptions", response_model=List[IgnoredDescriptionOut])
+def list_ignored_descriptions():
+    """Lista tutte le descrizioni ignorate dal matching."""
+    conn = get_foodcost_connection()
+    rows = conn.execute(
+        """
+        SELECT mde.id, mde.descrizione_normalizzata, mde.raw_examples,
+               mde.motivo, mde.created_at,
+               COUNT(mir.riga_id) AS n_righe
+        FROM matching_description_exclusions mde
+        LEFT JOIN matching_ignored_righe mir ON mir.exclusion_id = mde.id
+        GROUP BY mde.id
+        ORDER BY mde.descrizione_normalizzata
+        """
+    ).fetchall()
+    conn.close()
+
+    return [IgnoredDescriptionOut(**dict(r)) for r in rows]
+
+
+@router.delete("/ignored-descriptions/{exclusion_id}")
+def remove_ignored_description(exclusion_id: int):
+    """Rimuovi una descrizione dalla lista ignorati (riattiva le righe)."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute(
+        "SELECT id FROM matching_description_exclusions WHERE id = ?", (exclusion_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Esclusione non trovata")
+
+    # Rimuovi righe ignorate collegate
+    cur.execute("DELETE FROM matching_ignored_righe WHERE exclusion_id = ?", (exclusion_id,))
+    # Rimuovi exclusion
+    cur.execute("DELETE FROM matching_description_exclusions WHERE id = ?", (exclusion_id,))
+
+    conn.commit()
+    conn.close()
+
+    return {"status": "ok", "detail": "Descrizione riattivata"}
+
+
+# ─────────────────────────────────────────────
 #   SMART SUGGEST — Analisi intelligente pending
 # ─────────────────────────────────────────────
 
@@ -837,7 +958,7 @@ def smart_suggest():
     conn = get_foodcost_connection()
     cur = conn.cursor()
 
-    # 1. Carica tutte le righe pending (esclude fornitori esclusi)
+    # 1. Carica tutte le righe pending (esclude fornitori esclusi + righe ignorate)
     pending = cur.execute(
         """
         SELECT r.id AS riga_id, r.descrizione, r.unita_misura,
@@ -852,9 +973,20 @@ def smart_suggest():
             FROM ingredient_prices ip
             WHERE ip.riga_fattura_id IS NOT NULL
         )
+        AND r.id NOT IN (
+            SELECT mir.riga_id FROM matching_ignored_righe mir
+        )
         AND COALESCE(fc.escluso, 0) = 0
         """
     ).fetchall()
+
+    # 1b. Carica descrizioni ignorate per filtrare nuove righe con stessa descrizione
+    ignored_descs = {
+        r["descrizione_normalizzata"]
+        for r in cur.execute(
+            "SELECT descrizione_normalizzata FROM matching_description_exclusions"
+        ).fetchall()
+    }
 
     # 2. Carica ingredienti esistenti per fuzzy match
     existing_ingredients = cur.execute(
@@ -881,6 +1013,10 @@ def smart_suggest():
         key = cleaned.upper()
 
         if not key or len(key) < 3:
+            continue
+
+        # Salta descrizioni già ignorate
+        if key in ignored_descs:
             continue
 
         if key not in groups:
