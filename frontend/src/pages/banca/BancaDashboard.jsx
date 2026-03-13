@@ -1,5 +1,6 @@
-// @version: v1.1-banca-dashboard
+// @version: v1.2-banca-dashboard
 // Dashboard Banca — panoramica saldo, entrate/uscite, andamento, breakdown
+// v1.2: nuovo selettore periodi (Mese con scelta mese/anno, Anno con scelta anno, Personalizzato)
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -12,31 +13,65 @@ const fmt = (n) =>
     ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : "—";
 
+const MESI = [
+  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+];
+const MESI_SHORT = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+
+// Anni disponibili per selezione
+const ANNI = [];
+for (let y = 2020; y <= new Date().getFullYear() + 1; y++) ANNI.push(y);
+
 export default function BancaDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dashboard, setDashboard] = useState(null);
   const [andamento, setAndamento] = useState([]);
-  const [periodo, setPeriodo] = useState("mese"); // mese corrente
+
+  // Modalità periodo: "mese" | "anno" | "custom" | "tutto"
+  const [modo, setModo] = useState("mese");
+
+  // Per modo "mese"
+  const now = new Date();
+  const [selMese, setSelMese] = useState(now.getMonth()); // 0-based
+  const [selAnnoMese, setSelAnnoMese] = useState(now.getFullYear());
+
+  // Per modo "anno"
+  const [selAnno, setSelAnno] = useState(now.getFullYear());
+
+  // Per modo "custom"
+  const [customDa, setCustomDa] = useState("");
+  const [customA, setCustomA] = useState("");
+
+  // Date effettive calcolate
   const [dataDa, setDataDa] = useState("");
   const [dataA, setDataA] = useState("");
 
-  // Default: mese corrente
+  // Calcola date in base al modo selezionato
   useEffect(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    setDataDa(`${y}-${m}-01`);
-    // ultimo giorno del mese
-    const last = new Date(y, now.getMonth() + 1, 0);
-    setDataA(`${y}-${m}-${String(last.getDate()).padStart(2, "0")}`);
-  }, []);
-
-  useEffect(() => {
-    if (!dataDa || !dataA) return;
-    loadData();
-  }, [dataDa, dataA]);
+    if (modo === "mese") {
+      const y = selAnnoMese;
+      const m = selMese;
+      const da = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+      const last = new Date(y, m + 1, 0);
+      const a = `${y}-${String(m + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+      setDataDa(da);
+      setDataA(a);
+    } else if (modo === "anno") {
+      setDataDa(`${selAnno}-01-01`);
+      setDataA(`${selAnno}-12-31`);
+    } else if (modo === "custom") {
+      if (customDa && customA) {
+        setDataDa(customDa);
+        setDataA(customA);
+      }
+    } else if (modo === "tutto") {
+      setDataDa("2020-01-01");
+      setDataA("2030-12-31");
+    }
+  }, [modo, selMese, selAnnoMese, selAnno, customDa, customA]);
 
   // Scegli raggruppamento automatico in base al range
   const calcRaggruppamento = (da, a) => {
@@ -49,17 +84,22 @@ export default function BancaDashboard() {
   };
 
   const raggruppamento = calcRaggruppamento(dataDa, dataA);
-
   const raggrLabels = { giorno: "giornaliero", settimana: "settimanale", mese: "mensile" };
+
+  useEffect(() => {
+    if (!dataDa || !dataA) return;
+    loadData();
+  }, [dataDa, dataA]);
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
       const qs = `?data_da=${dataDa}&data_a=${dataA}`;
+      const raggr = calcRaggruppamento(dataDa, dataA);
       const [dashResp, andResp] = await Promise.all([
         apiFetch(`${FC}/dashboard${qs}`),
-        apiFetch(`${FC}/andamento${qs}&raggruppamento=${raggruppamento}`),
+        apiFetch(`${FC}/andamento${qs}&raggruppamento=${raggr}`),
       ]);
       if (!dashResp.ok) throw new Error("Errore caricamento dashboard");
       if (!andResp.ok) throw new Error("Errore caricamento andamento");
@@ -72,27 +112,21 @@ export default function BancaDashboard() {
     }
   };
 
-  // Preset periodi
-  const setPreset = (type) => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    if (type === "mese") {
-      setDataDa(`${y}-${String(m + 1).padStart(2, "0")}-01`);
-      const last = new Date(y, m + 1, 0);
-      setDataA(`${y}-${String(m + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`);
-    } else if (type === "mese-prec") {
-      const pm = m === 0 ? 11 : m - 1;
-      const py = m === 0 ? y - 1 : y;
-      setDataDa(`${py}-${String(pm + 1).padStart(2, "0")}-01`);
-      const last = new Date(py, pm + 1, 0);
-      setDataA(`${py}-${String(pm + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`);
-    } else if (type === "anno") {
-      setDataDa(`${y}-01-01`);
-      setDataA(`${y}-12-31`);
-    } else if (type === "tutto") {
-      setDataDa("2020-01-01");
-      setDataA("2030-12-31");
+  // Navigazione mese avanti/indietro
+  const mesePrev = () => {
+    if (selMese === 0) {
+      setSelMese(11);
+      setSelAnnoMese(selAnnoMese - 1);
+    } else {
+      setSelMese(selMese - 1);
+    }
+  };
+  const meseNext = () => {
+    if (selMese === 11) {
+      setSelMese(0);
+      setSelAnnoMese(selAnnoMese + 1);
+    } else {
+      setSelMese(selMese + 1);
     }
   };
 
@@ -100,6 +134,30 @@ export default function BancaDashboard() {
   const maxAbs = andamento.length
     ? Math.max(...andamento.map((a) => Math.max(a.entrate || 0, a.uscite || 0)), 1)
     : 1;
+
+  // Etichetta periodo per il titolo
+  const periodoLabel = modo === "mese"
+    ? `${MESI[selMese]} ${selAnnoMese}`
+    : modo === "anno"
+    ? `Anno ${selAnno}`
+    : modo === "tutto"
+    ? "Tutti i dati"
+    : `${dataDa} — ${dataA}`;
+
+  // Bottone modo attivo
+  const modoBtn = (key, label) => (
+    <button
+      key={key}
+      onClick={() => setModo(key)}
+      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+        modo === key
+          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+          : "border-neutral-200 bg-neutral-50 hover:bg-emerald-50 hover:border-emerald-300"
+      }`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
@@ -112,37 +170,113 @@ export default function BancaDashboard() {
           Panoramica movimenti bancari Tre Gobbi S.R.L.
         </p>
 
-        {/* Filtri periodo */}
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="flex gap-1">
-            {[
-              ["mese", "Mese"],
-              ["mese-prec", "Mese prec."],
-              ["anno", "Anno"],
-              ["tutto", "Tutto"],
-            ].map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => setPreset(k)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 bg-neutral-50 hover:bg-emerald-50 hover:border-emerald-300 transition"
-              >
-                {l}
-              </button>
-            ))}
+        {/* Selettore periodo */}
+        <div className="mb-6 space-y-3">
+          {/* Riga 1: bottoni modo */}
+          <div className="flex flex-wrap items-center gap-2">
+            {modoBtn("mese", "Mese")}
+            {modoBtn("anno", "Anno")}
+            {modoBtn("custom", "Personalizzato")}
+            {modoBtn("tutto", "Tutto")}
           </div>
-          <input
-            type="date"
-            value={dataDa}
-            onChange={(e) => setDataDa(e.target.value)}
-            className="border rounded-lg px-2 py-1 text-sm"
-          />
-          <span className="text-neutral-400 text-xs">→</span>
-          <input
-            type="date"
-            value={dataA}
-            onChange={(e) => setDataA(e.target.value)}
-            className="border rounded-lg px-2 py-1 text-sm"
-          />
+
+          {/* Riga 2: controlli specifici per modo */}
+          <div className="flex flex-wrap items-center gap-2">
+            {modo === "mese" && (
+              <>
+                <button
+                  onClick={mesePrev}
+                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                  title="Mese precedente"
+                >
+                  ←
+                </button>
+                <select
+                  value={selMese}
+                  onChange={(e) => setSelMese(Number(e.target.value))}
+                  className="border rounded-lg px-2 py-1 text-sm bg-white"
+                >
+                  {MESI.map((m, i) => (
+                    <option key={i} value={i}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={selAnnoMese}
+                  onChange={(e) => setSelAnnoMese(Number(e.target.value))}
+                  className="border rounded-lg px-2 py-1 text-sm bg-white"
+                >
+                  {ANNI.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={meseNext}
+                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                  title="Mese successivo"
+                >
+                  →
+                </button>
+              </>
+            )}
+
+            {modo === "anno" && (
+              <>
+                <button
+                  onClick={() => setSelAnno(selAnno - 1)}
+                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                >
+                  ←
+                </button>
+                <select
+                  value={selAnno}
+                  onChange={(e) => setSelAnno(Number(e.target.value))}
+                  className="border rounded-lg px-2 py-1 text-sm bg-white"
+                >
+                  {ANNI.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setSelAnno(selAnno + 1)}
+                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                >
+                  →
+                </button>
+                <span className="text-xs text-neutral-400 ml-2">
+                  Raggruppamento: mensile
+                </span>
+              </>
+            )}
+
+            {modo === "custom" && (
+              <>
+                <input
+                  type="date"
+                  value={customDa}
+                  onChange={(e) => setCustomDa(e.target.value)}
+                  className="border rounded-lg px-2 py-1 text-sm"
+                />
+                <span className="text-neutral-400 text-xs">→</span>
+                <input
+                  type="date"
+                  value={customA}
+                  onChange={(e) => setCustomA(e.target.value)}
+                  className="border rounded-lg px-2 py-1 text-sm"
+                />
+                {customDa && customA && (
+                  <span className="text-xs text-neutral-400 ml-2">
+                    Raggruppamento: {raggrLabels[raggruppamento]}
+                  </span>
+                )}
+              </>
+            )}
+
+            {modo === "tutto" && (
+              <span className="text-xs text-neutral-400">
+                Tutti i movimenti disponibili — raggruppamento: {raggrLabels[raggruppamento]}
+              </span>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -203,7 +337,9 @@ export default function BancaDashboard() {
             {/* Grafico andamento (barre CSS) */}
             {andamento.length > 1 && (
               <div className="mb-8">
-                <h2 className="text-lg font-semibold text-neutral-800 mb-3">Andamento {raggrLabels[raggruppamento]}</h2>
+                <h2 className="text-lg font-semibold text-neutral-800 mb-3">
+                  Andamento {raggrLabels[raggruppamento]} — {periodoLabel}
+                </h2>
                 <div className="w-full">
                   <div className="flex items-end gap-1 w-full">
                     {andamento.map((a, i) => {
@@ -211,7 +347,7 @@ export default function BancaDashboard() {
                       const hU = Math.max((a.uscite / maxAbs) * 140, 2);
                       const periodo = a.periodo || "";
                       const day = raggruppamento === "mese"
-                        ? (["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"][parseInt(periodo.slice(-2), 10) - 1] || periodo.slice(-2))
+                        ? (MESI_SHORT[parseInt(periodo.slice(-2), 10) - 1] || periodo.slice(-2))
                         : raggruppamento === "settimana"
                         ? "W" + periodo.slice(-2)
                         : periodo.slice(-2);
