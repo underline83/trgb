@@ -1,4 +1,4 @@
-// @version: v1.0-banca-dashboard
+// @version: v1.1-banca-dashboard
 // Dashboard Banca — panoramica saldo, entrate/uscite, andamento, breakdown
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -190,27 +190,27 @@ export default function BancaDashboard() {
             {andamento.length > 1 && (
               <div className="mb-8">
                 <h2 className="text-lg font-semibold text-neutral-800 mb-3">Andamento giornaliero</h2>
-                <div className="overflow-x-auto">
-                  <div className="flex items-end gap-px" style={{ minWidth: andamento.length * 28 }}>
+                <div className="w-full">
+                  <div className="flex items-end gap-1 w-full">
                     {andamento.map((a, i) => {
-                      const hE = Math.max((a.entrate / maxAbs) * 120, 2);
-                      const hU = Math.max((a.uscite / maxAbs) * 120, 2);
+                      const hE = Math.max((a.entrate / maxAbs) * 140, 2);
+                      const hU = Math.max((a.uscite / maxAbs) * 140, 2);
                       const day = (a.periodo || "").slice(-2);
                       return (
-                        <div key={i} className="flex flex-col items-center" style={{ width: 24 }}>
-                          <div className="flex gap-px items-end" style={{ height: 130 }}>
+                        <div key={i} className="flex-1 flex flex-col items-center min-w-0">
+                          <div className="flex gap-px items-end w-full justify-center" style={{ height: 150 }}>
                             <div
-                              className="bg-emerald-400 rounded-t"
-                              style={{ width: 10, height: hE }}
+                              className="bg-emerald-400 rounded-t flex-1 max-w-[14px]"
+                              style={{ height: hE }}
                               title={`Entrate: ${fmt(a.entrate)}`}
                             />
                             <div
-                              className="bg-red-400 rounded-t"
-                              style={{ width: 10, height: hU }}
+                              className="bg-red-400 rounded-t flex-1 max-w-[14px]"
+                              style={{ height: hU }}
                               title={`Uscite: ${fmt(a.uscite)}`}
                             />
                           </div>
-                          <div className="text-[9px] text-neutral-400 mt-1">{day}</div>
+                          <div className="text-[9px] text-neutral-400 mt-1 truncate w-full text-center">{day}</div>
                         </div>
                       );
                     })}

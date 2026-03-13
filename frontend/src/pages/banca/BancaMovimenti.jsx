@@ -1,5 +1,5 @@
-// @version: v1.0-banca-movimenti
-// Lista movimenti bancari con filtri
+// @version: v1.1-banca-movimenti
+// Lista movimenti bancari con filtri + modifica categoria inline
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import BancaNav from "./BancaNav";
@@ -26,8 +26,16 @@ export default function BancaMovimenti() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 50;
 
-  // Categorie disponibili
+  // Categorie disponibili (tutte quelle presenti nei movimenti)
   const [categorie, setCategorie] = useState([]);
+  // Tutte le coppie cat/subcat per il dropdown di modifica
+  const [catSubcatPairs, setCatSubcatPairs] = useState([]);
+
+  // Editing state
+  const [editingId, setEditingId] = useState(null);
+  const [editCat, setEditCat] = useState("");
+  const [editSubcat, setEditSubcat] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     apiFetch(`${FC}/categorie`)
@@ -35,6 +43,15 @@ export default function BancaMovimenti() {
       .then((data) => {
         const cats = [...new Set(data.map((c) => c.categoria_banca))].sort();
         setCategorie(cats);
+        // Coppie uniche cat - subcat
+        const pairs = data.map((c) => ({
+          cat: c.categoria_banca,
+          sub: c.sottocategoria_banca || "",
+          label: c.sottocategoria_banca
+            ? `${c.categoria_banca} - ${c.sottocategoria_banca}`
+            : c.categoria_banca,
+        }));
+        setCatSubcatPairs(pairs);
       })
       .catch(() => {});
   }, []);
@@ -68,6 +85,53 @@ export default function BancaMovimenti() {
     }
   };
 
+  const startEdit = (m) => {
+    setEditingId(m.id);
+    setEditCat(m.categoria_banca || "");
+    setEditSubcat(m.sottocategoria_banca || "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditCat("");
+    setEditSubcat("");
+  };
+
+  const saveCategoria = async (movId) => {
+    setSaving(true);
+    try {
+      const resp = await apiFetch(`${FC}/movimenti/${movId}/categoria`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoria_banca: editCat,
+          sottocategoria_banca: editSubcat,
+        }),
+      });
+      if (!resp.ok) throw new Error("Errore salvataggio");
+      // Aggiorna localmente
+      setMovimenti((prev) =>
+        prev.map((m) =>
+          m.id === movId
+            ? { ...m, categoria_banca: editCat, sottocategoria_banca: editSubcat }
+            : m
+        )
+      );
+      cancelEdit();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelectPair = (val) => {
+    // val = "cat|subcat"
+    const [c, s] = val.split("|");
+    setEditCat(c || "");
+    setEditSubcat(s || "");
+  };
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -78,7 +142,7 @@ export default function BancaMovimenti() {
           Movimenti Bancari
         </h1>
         <p className="text-neutral-600 text-sm mb-6">
-          {total} movimenti totali.
+          {total} movimenti totali. Clicca sulla categoria per modificarla.
         </p>
 
         {/* Filtri */}
@@ -147,36 +211,92 @@ export default function BancaMovimenti() {
                   <tr className="border-b text-left text-neutral-500 text-xs">
                     <th className="pb-2 w-24">Data</th>
                     <th className="pb-2">Descrizione</th>
-                    <th className="pb-2 w-40">Categoria</th>
+                    <th className="pb-2 w-48">Categoria</th>
                     <th className="pb-2 w-28 text-right">Importo</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {movimenti.map((m) => (
-                    <tr key={m.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition">
-                      <td className="py-2.5 text-xs text-neutral-500 whitespace-nowrap">{m.data_contabile}</td>
-                      <td className="py-2.5 text-xs" title={m.descrizione}>
-                        <div className="truncate max-w-md">{m.descrizione}</div>
-                        {m.categoria_custom && (
-                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                            style={{ backgroundColor: m.cat_colore + "20", color: m.cat_colore }}>
-                            {m.cat_icona} {m.categoria_custom}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 text-xs text-neutral-500">
-                        <div>{m.categoria_banca}</div>
-                        {m.sottocategoria_banca && (
-                          <div className="text-[10px] text-neutral-400">{m.sottocategoria_banca}</div>
-                        )}
-                      </td>
-                      <td className={`py-2.5 text-xs text-right font-mono font-semibold whitespace-nowrap ${
-                        m.importo >= 0 ? "text-emerald-700" : "text-red-600"
-                      }`}>
-                        {m.importo >= 0 ? "+" : ""}{fmt(m.importo)}
-                      </td>
-                    </tr>
-                  ))}
+                  {movimenti.map((m) => {
+                    const isEditing = editingId === m.id;
+                    return (
+                      <tr key={m.id} className={`border-b border-neutral-100 transition ${isEditing ? "bg-blue-50" : "hover:bg-neutral-50"}`}>
+                        <td className="py-2.5 text-xs text-neutral-500 whitespace-nowrap">{m.data_contabile}</td>
+                        <td className="py-2.5 text-xs" title={m.descrizione}>
+                          <div className="truncate max-w-md">{m.descrizione}</div>
+                          {m.categoria_custom && !isEditing && (
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                              style={{ backgroundColor: (m.cat_colore || "#6b7280") + "20", color: m.cat_colore }}>
+                              {m.cat_icona} {m.categoria_custom}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 text-xs">
+                          {isEditing ? (
+                            <div className="flex flex-col gap-1.5">
+                              <select
+                                value={`${editCat}|${editSubcat}`}
+                                onChange={(e) => handleSelectPair(e.target.value)}
+                                className="border rounded-lg px-2 py-1 text-xs w-full"
+                              >
+                                <option value="|">— Seleziona —</option>
+                                {catSubcatPairs.map((p, i) => (
+                                  <option key={i} value={`${p.cat}|${p.sub}`}>{p.label}</option>
+                                ))}
+                              </select>
+                              <div className="text-[10px] text-neutral-400 mt-0.5">
+                                Oppure scrivi una nuova:
+                              </div>
+                              <div className="flex gap-1">
+                                <input
+                                  value={editCat}
+                                  onChange={(e) => setEditCat(e.target.value)}
+                                  placeholder="Categoria"
+                                  className="border rounded px-1.5 py-0.5 text-xs flex-1"
+                                />
+                                <input
+                                  value={editSubcat}
+                                  onChange={(e) => setEditSubcat(e.target.value)}
+                                  placeholder="Sotto"
+                                  className="border rounded px-1.5 py-0.5 text-xs flex-1"
+                                />
+                              </div>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => saveCategoria(m.id)}
+                                  disabled={saving || !editCat.trim()}
+                                  className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                                >
+                                  {saving ? "..." : "Salva"}
+                                </button>
+                                <button
+                                  onClick={cancelEdit}
+                                  className="px-2 py-0.5 rounded text-[11px] border border-neutral-300 hover:bg-neutral-100"
+                                >
+                                  Annulla
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => startEdit(m)}
+                              className="cursor-pointer hover:bg-emerald-50 rounded-lg px-1.5 py-1 -mx-1.5 transition"
+                              title="Clicca per modificare la categoria"
+                            >
+                              <div className="text-neutral-500">{m.categoria_banca}</div>
+                              {m.sottocategoria_banca && (
+                                <div className="text-[10px] text-neutral-400">{m.sottocategoria_banca}</div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className={`py-2.5 text-xs text-right font-mono font-semibold whitespace-nowrap ${
+                          m.importo >= 0 ? "text-emerald-700" : "text-red-600"
+                        }`}>
+                          {m.importo >= 0 ? "+" : ""}{fmt(m.importo)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

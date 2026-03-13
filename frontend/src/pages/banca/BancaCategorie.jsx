@@ -1,5 +1,5 @@
-// @version: v1.0-banca-categorie
-// Gestione categorie banca con mapping personalizzato
+// @version: v1.1-banca-categorie
+// Gestione categorie banca con mapping personalizzato + drill-down movimenti
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import BancaNav from "./BancaNav";
@@ -28,6 +28,16 @@ export default function BancaCategorie() {
     tipo: "uscita",
   });
   const [saving, setSaving] = useState(false);
+
+  // Drill-down: movimenti della categoria selezionata
+  const [expandedKey, setExpandedKey] = useState(null);
+  const [drillMovimenti, setDrillMovimenti] = useState([]);
+  const [drillLoading, setDrillLoading] = useState(false);
+
+  // Inline re-categorize in drill-down
+  const [reCategorizingId, setReCategorizingId] = useState(null);
+  const [reCatValue, setReCatValue] = useState("|");
+  const [reSaving, setReSaving] = useState(false);
 
   useEffect(() => {
     loadCategorie();
@@ -92,6 +102,70 @@ export default function BancaCategorie() {
     } catch (_) {}
   };
 
+  // Drill-down: carica movimenti per categoria
+  const toggleDrill = async (c) => {
+    const key = `${c.categoria_banca}|${c.sottocategoria_banca || ""}`;
+    if (expandedKey === key) {
+      setExpandedKey(null);
+      setDrillMovimenti([]);
+      return;
+    }
+    setExpandedKey(key);
+    setDrillLoading(true);
+    setReCategorizingId(null);
+    try {
+      const resp = await apiFetch(
+        `${FC}/movimenti?categoria=${encodeURIComponent(c.categoria_banca)}&limit=200`
+      );
+      if (!resp.ok) throw new Error("Errore");
+      const data = await resp.json();
+      // Filtra per sottocategoria se presente
+      const filtered = c.sottocategoria_banca
+        ? data.movimenti.filter((m) => m.sottocategoria_banca === c.sottocategoria_banca)
+        : data.movimenti;
+      setDrillMovimenti(filtered);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDrillLoading(false);
+    }
+  };
+
+  // Cambia categoria di un movimento dal drill-down
+  const saveReCategory = async (movId) => {
+    const [newCat, newSub] = reCatValue.split("|");
+    if (!newCat) return;
+    setReSaving(true);
+    try {
+      const resp = await apiFetch(`${FC}/movimenti/${movId}/categoria`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categoria_banca: newCat,
+          sottocategoria_banca: newSub || "",
+        }),
+      });
+      if (!resp.ok) throw new Error("Errore");
+      // Rimuovi dalla lista drill-down (ha cambiato categoria)
+      setDrillMovimenti((prev) => prev.filter((m) => m.id !== movId));
+      setReCategorizingId(null);
+      // Ricarica categorie per aggiornare i conteggi
+      await loadCategorie();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReSaving(false);
+    }
+  };
+
+  // Coppie cat|subcat per il dropdown di re-categorizzazione
+  const catPairs = categorie.map((c) => ({
+    val: `${c.categoria_banca}|${c.sottocategoria_banca || ""}`,
+    label: c.sottocategoria_banca
+      ? `${c.categoria_banca} - ${c.sottocategoria_banca}`
+      : c.categoria_banca,
+  }));
+
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <BancaNav current="categorie" />
@@ -100,7 +174,7 @@ export default function BancaCategorie() {
           Categorie
         </h1>
         <p className="text-neutral-600 text-sm mb-6">
-          Mappa le categorie della banca alle tue categorie personalizzate per una migliore organizzazione.
+          Mappa le categorie della banca alle tue. Clicca su una categoria per vedere i movimenti e riassegnarli.
         </p>
 
         {error && (
@@ -120,6 +194,7 @@ export default function BancaCategorie() {
             {categorie.map((c) => {
               const key = `${c.categoria_banca}|${c.sottocategoria_banca || ""}`;
               const isEditing = editingId === key;
+              const isExpanded = expandedKey === key;
 
               return (
                 <div
@@ -127,13 +202,18 @@ export default function BancaCategorie() {
                   className={`rounded-xl border p-4 transition ${
                     isEditing
                       ? "bg-blue-50 border-blue-300"
+                      : isExpanded
+                      ? "bg-neutral-50 border-emerald-300"
                       : c.categoria_custom
                       ? "bg-emerald-50/50 border-emerald-200"
                       : "bg-white border-neutral-200"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => !isEditing && toggleDrill(c)}
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-semibold text-neutral-800">
                           {c.categoria_banca}
@@ -143,6 +223,9 @@ export default function BancaCategorie() {
                             — {c.sottocategoria_banca}
                           </span>
                         )}
+                        <span className="text-[10px] text-neutral-400">
+                          {isExpanded ? "▼" : "▶"}
+                        </span>
                       </div>
                       <div className="text-xs text-neutral-500">
                         {c.num_movimenti} movimenti · Totale: <span className={`font-mono font-semibold ${c.totale >= 0 ? "text-emerald-600" : "text-red-600"}`}>
@@ -165,14 +248,14 @@ export default function BancaCategorie() {
                       {!isEditing ? (
                         <>
                           <button
-                            onClick={() => startEdit(c)}
+                            onClick={(e) => { e.stopPropagation(); startEdit(c); }}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
                           >
                             {c.categoria_custom ? "Modifica" : "Mappa"}
                           </button>
                           {c.map_id && (
                             <button
-                              onClick={() => deleteMap(c.map_id)}
+                              onClick={(e) => { e.stopPropagation(); deleteMap(c.map_id); }}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
                             >
                               Rimuovi
@@ -199,6 +282,7 @@ export default function BancaCategorie() {
                     </div>
                   </div>
 
+                  {/* Mapping form */}
                   {isEditing && (
                     <div className="mt-3 pt-3 border-t border-blue-200 grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="sm:col-span-2">
@@ -237,6 +321,79 @@ export default function BancaCategorie() {
                           ))}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Drill-down: movimenti della categoria */}
+                  {isExpanded && !isEditing && (
+                    <div className="mt-3 pt-3 border-t border-emerald-200">
+                      {drillLoading ? (
+                        <div className="text-center py-4 text-neutral-400 text-sm">Caricamento movimenti...</div>
+                      ) : drillMovimenti.length === 0 ? (
+                        <div className="text-center py-4 text-neutral-400 text-sm">Nessun movimento in questa categoria.</div>
+                      ) : (
+                        <div className="max-h-80 overflow-y-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b text-neutral-500">
+                                <th className="pb-1.5 text-left w-20">Data</th>
+                                <th className="pb-1.5 text-left">Descrizione</th>
+                                <th className="pb-1.5 text-right w-24">Importo</th>
+                                <th className="pb-1.5 text-center w-28">Azione</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {drillMovimenti.map((m) => (
+                                <tr key={m.id} className="border-b border-neutral-100 hover:bg-white transition">
+                                  <td className="py-1.5 text-neutral-500">{m.data_contabile}</td>
+                                  <td className="py-1.5 truncate max-w-xs" title={m.descrizione}>{m.descrizione}</td>
+                                  <td className={`py-1.5 text-right font-mono font-semibold ${m.importo >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                    {m.importo >= 0 ? "+" : ""}{fmt(m.importo)}
+                                  </td>
+                                  <td className="py-1.5 text-center">
+                                    {reCategorizingId === m.id ? (
+                                      <div className="flex items-center gap-1">
+                                        <select
+                                          value={reCatValue}
+                                          onChange={(e) => setReCatValue(e.target.value)}
+                                          className="border rounded px-1 py-0.5 text-[10px] max-w-[130px]"
+                                        >
+                                          <option value="|">— Seleziona —</option>
+                                          {catPairs
+                                            .filter((p) => p.val !== key)
+                                            .map((p, i) => (
+                                              <option key={i} value={p.val}>{p.label}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                          onClick={() => saveReCategory(m.id)}
+                                          disabled={reSaving || reCatValue === "|"}
+                                          className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                                        >
+                                          {reSaving ? "..." : "OK"}
+                                        </button>
+                                        <button
+                                          onClick={() => setReCategorizingId(null)}
+                                          className="px-1.5 py-0.5 rounded text-[10px] border hover:bg-neutral-100"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => { setReCategorizingId(m.id); setReCatValue("|"); }}
+                                        className="px-2 py-0.5 rounded text-[10px] border border-neutral-300 hover:bg-neutral-100 transition"
+                                      >
+                                        Sposta
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

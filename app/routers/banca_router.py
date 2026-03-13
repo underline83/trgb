@@ -57,6 +57,11 @@ class CategoriaMapRequest(BaseModel):
     tipo: Optional[str] = "uscita"  # entrata | uscita | altro
 
 
+class UpdateMovimentoCategoria(BaseModel):
+    categoria_banca: str
+    sottocategoria_banca: Optional[str] = ""
+
+
 class CrossRefLinkRequest(BaseModel):
     movimento_id: int
     fattura_id: int
@@ -269,6 +274,24 @@ def get_movimenti(
     conn.close()
 
     return {"total": total, "movimenti": rows}
+
+
+@router.patch("/movimenti/{movimento_id}/categoria")
+def update_movimento_categoria(movimento_id: int, req: UpdateMovimentoCategoria):
+    """Aggiorna categoria di un singolo movimento."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE banca_movimenti
+        SET categoria_banca = ?, sottocategoria_banca = ?
+        WHERE id = ?
+    """, (req.categoria_banca, req.sottocategoria_banca or "", movimento_id))
+    conn.commit()
+    if cur.rowcount == 0:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+    conn.close()
+    return {"ok": True}
 
 
 # ═══════════════════════════════════════════════════════
