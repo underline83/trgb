@@ -25,6 +25,7 @@ for (let y = 2020; y <= new Date().getFullYear() + 1; y++) ANNI.push(y);
 
 export default function BancaDashboard() {
   const navigate = useNavigate();
+  const isViewer = localStorage.getItem("role") === "viewer";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dashboard, setDashboard] = useState(null);
@@ -290,13 +291,17 @@ export default function BancaDashboard() {
         ) : !dashboard || dashboard.totals.num_movimenti === 0 ? (
           <div className="text-center py-12 text-neutral-500">
             Nessun movimento trovato per il periodo selezionato.
-            <br />
-            <button
-              onClick={() => navigate("/banca/import")}
-              className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition"
-            >
-              Importa CSV
-            </button>
+            {!isViewer && (
+              <>
+                <br />
+                <button
+                  onClick={() => navigate("/banca/import")}
+                  className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition"
+                >
+                  Importa CSV
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

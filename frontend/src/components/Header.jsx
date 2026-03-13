@@ -8,8 +8,17 @@ export default function Header({ onLogout }) {
   const username = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
   const role = localStorage.getItem("role") || "";
 
+  const isViewer = role === "viewer";
+
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm">
+      {isViewer && (
+        <div className="bg-amber-50 border-b border-amber-200 text-center py-1">
+          <span className="text-xs text-amber-700 font-medium">
+            Accesso in sola lettura — non puoi modificare o caricare dati
+          </span>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
 
         {/* LEFT — Logo + titolo */}

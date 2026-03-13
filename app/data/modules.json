@@ -11,41 +11,41 @@
     "label": "Gestione Acquisti",
     "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
     "icon": "📦",
-    "roles": ["admin"]
+    "roles": ["admin", "viewer"]
   },
   {
     "key": "ricette",
     "label": "Gestione Ricette",
     "description": "Archivio ricette, costi, stampa PDF",
     "icon": "📘",
-    "roles": ["admin", "chef"]
+    "roles": ["admin", "chef", "viewer"]
   },
   {
     "key": "foodcost",
     "label": "Food Cost",
     "description": "Analisi costi, materie prime, porzioni",
     "icon": "📊",
-    "roles": ["admin", "chef"]
+    "roles": ["admin", "chef", "viewer"]
   },
   {
     "key": "vendite",
     "label": "Gestione Vendite",
     "description": "Corrispettivi, chiusure cassa, dashboard vendite, confronto annuale",
     "icon": "💵",
-    "roles": ["admin"]
+    "roles": ["admin", "viewer"]
   },
   {
     "key": "banca",
     "label": "Banca",
     "description": "Movimenti bancari, categorie, pagamenti fornitori",
     "icon": "🏦",
-    "roles": ["admin"]
+    "roles": ["admin", "viewer"]
   },
   {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Dipendenti, utenti, impostazioni",
     "icon": "🧾",
-    "roles": ["admin"]
+    "roles": ["admin", "viewer"]
   }
 ]

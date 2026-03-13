@@ -8,9 +8,11 @@ try:
 except ImportError:
     pass  # python-dotenv non installato — le env var vengono dal sistema
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 # MODULO MIGRAZIONI
 from app.migrations.migration_runner import run_migrations
@@ -70,6 +72,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ----------------------------------------
+# MIDDLEWARE READ-ONLY PER RUOLO "viewer"
+# Blocca POST/PUT/PATCH/DELETE per utenti con ruolo viewer.
+# Permette solo GET/HEAD/OPTIONS + il login POST.
+# ----------------------------------------
+class ReadOnlyViewerMiddleware(BaseHTTPMiddleware):
+    WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+    # Endpoint permessi anche in scrittura (login)
+    ALLOWED_WRITE_PATHS = {"/auth/login"}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in self.WRITE_METHODS:
+            # Controlla se è un path sempre permesso
+            if request.url.path not in self.ALLOWED_WRITE_PATHS:
+                # Estrai token dall'header Authorization
+                auth = request.headers.get("authorization", "")
+                if auth.startswith("Bearer "):
+                    token = auth[7:]
+                    try:
+                        from app.core.security import decode_access_token
+                        payload = decode_access_token(token)
+                        if payload.get("role") == "viewer":
+                            return JSONResponse(
+                                status_code=403,
+                                content={"detail": "Accesso in sola lettura — operazione non permessa per l'utente ospite"},
+                            )
+                    except Exception:
+                        pass  # Token invalido — lascia gestire al router
+        return await call_next(request)
+
+
+app.add_middleware(ReadOnlyViewerMiddleware)
 
 
 # ----------------------------------------

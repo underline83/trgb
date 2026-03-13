@@ -12,6 +12,7 @@ const fmt = (n) =>
     : "—";
 
 export default function BancaMovimenti() {
+  const isViewer = localStorage.getItem("role") === "viewer";
   const [movimenti, setMovimenti] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -142,7 +143,7 @@ export default function BancaMovimenti() {
           Movimenti Bancari
         </h1>
         <p className="text-neutral-600 text-sm mb-6">
-          {total} movimenti totali. Clicca sulla categoria per modificarla.
+          {total} movimenti totali.{!isViewer && " Clicca sulla categoria per modificarla."}
         </p>
 
         {/* Filtri */}
@@ -278,9 +279,9 @@ export default function BancaMovimenti() {
                             </div>
                           ) : (
                             <div
-                              onClick={() => startEdit(m)}
-                              className="cursor-pointer hover:bg-emerald-50 rounded-lg px-1.5 py-1 -mx-1.5 transition"
-                              title="Clicca per modificare la categoria"
+                              onClick={isViewer ? undefined : () => startEdit(m)}
+                              className={`rounded-lg px-1.5 py-1 -mx-1.5 transition ${isViewer ? "" : "cursor-pointer hover:bg-emerald-50"}`}
+                              title={isViewer ? undefined : "Clicca per modificare la categoria"}
                             >
                               <div className="text-neutral-500">{m.categoria_banca}</div>
                               {m.sottocategoria_banca && (

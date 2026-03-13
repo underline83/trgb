@@ -17,6 +17,7 @@ const COLORI_PRESET = [
 ];
 
 export default function BancaCategorie() {
+  const isViewer = localStorage.getItem("role") === "viewer";
   const [categorie, setCategorie] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -247,13 +248,15 @@ export default function BancaCategorie() {
                     <div className="flex gap-2 flex-shrink-0">
                       {!isEditing ? (
                         <>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); startEdit(c); }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
-                          >
-                            {c.categoria_custom ? "Modifica" : "Mappa"}
-                          </button>
-                          {c.map_id && (
+                          {!isViewer && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); startEdit(c); }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
+                            >
+                              {c.categoria_custom ? "Modifica" : "Mappa"}
+                            </button>
+                          )}
+                          {!isViewer && c.map_id && (
                             <button
                               onClick={(e) => { e.stopPropagation(); deleteMap(c.map_id); }}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
@@ -339,7 +342,7 @@ export default function BancaCategorie() {
                                 <th className="pb-1.5 text-left w-20">Data</th>
                                 <th className="pb-1.5 text-left">Descrizione</th>
                                 <th className="pb-1.5 text-right w-24">Importo</th>
-                                <th className="pb-1.5 text-center w-28">Azione</th>
+                                {!isViewer && <th className="pb-1.5 text-center w-28">Azione</th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -350,6 +353,7 @@ export default function BancaCategorie() {
                                   <td className={`py-1.5 text-right font-mono font-semibold ${m.importo >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                                     {m.importo >= 0 ? "+" : ""}{fmt(m.importo)}
                                   </td>
+                                  {!isViewer && (
                                   <td className="py-1.5 text-center">
                                     {reCategorizingId === m.id ? (
                                       <div className="flex items-center gap-1">
@@ -388,6 +392,7 @@ export default function BancaCategorie() {
                                       </button>
                                     )}
                                   </td>
+                                  )}
                                 </tr>
                               ))}
                             </tbody>

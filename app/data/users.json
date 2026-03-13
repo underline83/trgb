@@ -16,5 +16,11 @@
     "display_name": "Paolo",
     "password_hash": "$5$b6f07ed5c6f0aeb0$pV5uipiSl0uJBSJzicYROGCthdaIhAiUYJSYrqJviA8",
     "role": "sala"
+  },
+  {
+    "username": "ospite",
+    "display_name": "Ospite",
+    "password_hash": "$5$a5d930d3a713628d$vPslvbYD5eCSO0okIxtc077G4aML/28VWfcG.e1EjT0",
+    "role": "viewer"
   }
 ]
