@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v1.0-foodcost-matching
+# @version: v2.0-foodcost-matching-smart
 # -*- coding: utf-8 -*-
 
 """
@@ -9,18 +9,17 @@ Gestisce il collegamento automatico tra righe fattura XML e ingredienti
 del food cost, con aggiornamento prezzi automatico.
 
 Flusso:
-1. GET /foodcost/matching/pending    → righe fattura non ancora abbinate
-2. GET /foodcost/matching/suggest    → suggerimenti match per una riga
-3. POST /foodcost/matching/confirm   → conferma match (salva in ingredient_supplier_map + prezzo)
-4. POST /foodcost/matching/auto      → auto-match tutte le righe con mapping noto
-5. GET /foodcost/matching/mappings   → lista mapping esistenti
+1. GET  /foodcost/matching/pending        → righe fattura non ancora abbinate
+2. GET  /foodcost/matching/suggest        → suggerimenti match per una riga
+3. POST /foodcost/matching/confirm        → conferma match (salva in ingredient_supplier_map + prezzo)
+4. POST /foodcost/matching/auto           → auto-match tutte le righe con mapping noto
+5. GET  /foodcost/matching/mappings       → lista mapping esistenti
 6. DELETE /foodcost/matching/mappings/{id} → elimina un mapping
-
-Il matching usa ingredient_supplier_map: una volta che l'utente conferma
-"questa riga di questo fornitore = questo ingrediente", il sistema lo ricorda
-e le prossime fatture dello stesso fornitore vengono abbinate automaticamente.
+7. GET  /foodcost/matching/smart-suggest  → AI: analizza pending e suggerisce nuovi ingredienti
+8. POST /foodcost/matching/bulk-create    → AI: crea ingredienti in blocco + auto-match
 """
 
+import re
 from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
@@ -179,12 +178,11 @@ def _save_price_from_riga(cur, ingredient_id: int, supplier_id: int,
 
 @router.get("/pending", response_model=List[PendingRow])
 def list_pending_rows(
-    limit: int = Query(100, ge=1, le=500),
     fornitore: Optional[str] = None,
 ):
     """
     Righe fattura che non hanno ancora un match in ingredient_supplier_map.
-    Sono le righe da abbinare manualmente.
+    Sono le righe da abbinare manualmente. Nessun limite — carica tutto.
     """
     conn = get_foodcost_connection()
     cur = conn.cursor()
@@ -194,8 +192,6 @@ def list_pending_rows(
     if fornitore:
         where_extra = "AND f.fornitore_nome LIKE ?"
         params.append(f"%{fornitore}%")
-
-    params.append(limit)
 
     rows = cur.execute(
         f"""
@@ -220,7 +216,6 @@ def list_pending_rows(
         )
         {where_extra}
         ORDER BY f.data_fattura DESC, r.id
-        LIMIT ?
         """,
         params,
     ).fetchall()
@@ -570,3 +565,423 @@ def delete_mapping(mapping_id: int):
     conn.close()
 
     return {"status": "ok", "detail": "Mapping eliminato"}
+
+
+# ─────────────────────────────────────────────
+#   SMART SUGGEST — Analisi intelligente pending
+# ─────────────────────────────────────────────
+
+# Pattern comuni da rimuovere nella pulizia nome
+_NOISE_PATTERNS = [
+    r"\bCF\s*\d+",            # codici tipo CF12345
+    r"\bCOD\.?\s*\w+",        # COD. ABC123
+    r"\bART\.?\s*\w+",        # ART. 123
+    r"\bRIF\.?\s*\w+",        # RIF. 123
+    r"\bLOTTO\s*\w+",         # LOTTO ABC
+    r"\bSCAD\.?\s*[\d/.-]+",  # SCAD. 12/2025
+    r"\bKG\s*[\d.,]+",        # KG 0,500
+    r"\bLT\s*[\d.,]+",        # LT 0,750
+    r"\bN\.\s*\d+",           # N. 12
+    r"\bPZ\.?\s*\d+",         # PZ 24
+    r"\bCONF\.?\s*\d+",       # CONF 6
+    r"\d+\s*X\s*\d+",         # 6X500, 12 X 100
+    r"\bBIO\b",               # rimuovi "BIO" come noise (lo aggiungiamo in nota)
+    r"\bIGP\b",
+    r"\bDOP\b",
+    r"\bDOC\b",
+    r"\bSTG\b",
+    r"[€$]\s*[\d.,]+",        # prezzi
+    r"\d{2}[/-]\d{2}[/-]\d{2,4}",  # date
+]
+
+# Mapping unità fattura → unità ingrediente
+_UNIT_MAP = {
+    "KG": "kg", "KGM": "kg", "CHILO": "kg", "KILO": "kg",
+    "GR": "g", "G": "g", "GRM": "g", "GRAMMI": "g",
+    "LT": "L", "L": "L", "LTR": "L", "LITRI": "L", "LITRO": "L",
+    "ML": "ml", "MLT": "ml",
+    "CL": "cl",
+    "PZ": "pz", "NR": "pz", "N": "pz", "PEZZI": "pz", "PEZZO": "pz",
+    "CF": "pz", "CONF": "pz", "CONFEZIONE": "pz",
+    "BT": "pz", "BTL": "pz", "BOTTIGLIA": "pz",
+    "SC": "pz", "SCATOLA": "pz",
+    "CT": "pz", "CARTONE": "pz",
+    "PKG": "pz",
+}
+
+# Keyword → categoria suggerita
+_CATEGORY_HINTS = {
+    "carne": ["MANZO", "VITELLO", "MAIALE", "POLLO", "AGNELLO", "CONIGLIO", "ANATRA",
+              "FESA", "COSTATA", "FILETTO", "BISTECCA", "BRACIOLA", "LONZA", "COPPA",
+              "GUANCIA", "OSSOBUCO", "PETTO", "COSCIA", "SALSICCIA", "SALAME", "PROSCIUTTO",
+              "BRESAOLA", "SPECK", "PANCETTA", "LARDO", "COTECHINO"],
+    "pesce": ["SALMONE", "TONNO", "MERLUZZO", "BACCALA", "GAMBERO", "SCAMPO",
+              "CALAMARO", "POLPO", "SEPPIA", "COZZE", "VONGOLE", "ORATA", "BRANZINO",
+              "TROTA", "PESCE", "ACCIUGA", "SARDINA", "SGOMBRO", "RANA PESCATRICE"],
+    "latticini": ["LATTE", "PANNA", "BURRO", "FORMAGGIO", "MOZZARELLA", "RICOTTA",
+                  "GORGONZOLA", "PARMIGIANO", "GRANA", "PECORINO", "MASCARPONE",
+                  "STRACCHINO", "TALEGGIO", "YOGURT", "FONTINA", "PROVOLONE"],
+    "verdure": ["POMODORO", "ZUCCHINA", "MELANZANA", "PEPERONE", "CIPOLLA", "AGLIO",
+                "CAROTA", "SEDANO", "PATATA", "INSALATA", "LATTUGA", "RUCOLA",
+                "SPINACI", "CAVOLO", "BROCCOLI", "CARCIOFO", "ASPARAGO", "FUNGHI",
+                "PORCINI", "RADICCHIO", "ZUCCA", "FINOCCHIO", "FAGIOLINI"],
+    "frutta": ["MELA", "PERA", "ARANCIA", "LIMONE", "FRAGOLA", "LAMPONE", "MIRTILLO",
+               "BANANA", "UVA", "PESCA", "ALBICOCCA", "CILIEGIA", "FICO", "CASTAGNA",
+               "NOCE", "MANDORLA", "NOCCIOLA", "PISTACCHIO", "FRUTTA"],
+    "pasta e cereali": ["PASTA", "SPAGHETTI", "PENNE", "RIGATONI", "TAGLIATELLE",
+                        "LASAGNA", "RISO", "RISOTTO", "FARINA", "SEMOLA",
+                        "PANE", "GRISSINI", "FOCACCIA", "POLENTA", "GNOCCHI"],
+    "olio e condimenti": ["OLIO", "ACETO", "BALSAMICO", "SALE", "PEPE", "SPEZIE",
+                           "BASILICO", "ROSMARINO", "SALVIA", "ORIGANO", "PREZZEMOLO",
+                           "CAPPERI", "OLIVE", "SENAPE", "MAIONESE", "KETCHUP"],
+    "bevande": ["VINO", "BIRRA", "ACQUA", "SUCCO", "CAFFE", "CAFFÈ", "THE", "COCA",
+                "ARANCIATA", "SPRITE", "TONICA"],
+}
+
+
+def _clean_ingredient_name(raw_desc: str) -> str:
+    """Pulisce la descrizione fattura per ricavare un nome ingrediente pulito."""
+    name = raw_desc.strip().upper()
+
+    # Rimuovi pattern rumorosi
+    for pattern in _NOISE_PATTERNS:
+        name = re.sub(pattern, "", name, flags=re.IGNORECASE)
+
+    # Rimuovi punteggiatura superflua
+    name = re.sub(r"[*#@!\[\]{}()|]", "", name)
+    # Rimuovi spazi multipli
+    name = re.sub(r"\s+", " ", name).strip()
+    # Rimuovi trattini iniziali/finali
+    name = name.strip("-–— .,;:/")
+
+    # Title case
+    if name:
+        name = name.title()
+
+    return name or raw_desc.strip().title()
+
+
+def _guess_unit(unita_misura: Optional[str]) -> str:
+    """Converte l'unità fattura in unità standard ingrediente."""
+    if not unita_misura:
+        return "kg"
+    clean = unita_misura.strip().upper()
+    return _UNIT_MAP.get(clean, "kg")
+
+
+def _guess_category(name_upper: str) -> Optional[str]:
+    """Suggerisce una categoria basandosi su keyword nel nome."""
+    for cat, keywords in _CATEGORY_HINTS.items():
+        for kw in keywords:
+            if kw in name_upper:
+                return cat
+    return None
+
+
+class SmartSuggestion(BaseModel):
+    """Un ingrediente suggerito dall'analisi smart delle righe pending."""
+    suggested_name: str
+    raw_descriptions: List[str]  # descrizioni originali dalle fatture
+    suggested_unit: str
+    suggested_category: Optional[str] = None
+    fornitori: List[str]  # nomi fornitori coinvolti
+    righe_count: int  # quante righe pending verrebbero matchate
+    riga_ids: List[int]  # ID delle righe pending coinvolte
+    existing_match: Optional[Dict[str, Any]] = None  # se esiste già un ingrediente simile
+    has_bio: bool = False
+    has_dop_igp: bool = False
+
+
+class BulkCreateItem(BaseModel):
+    """Singolo ingrediente da creare in bulk."""
+    name: str
+    default_unit: str
+    category_name: Optional[str] = None
+    riga_ids: List[int]  # righe da collegare automaticamente
+    note: Optional[str] = None
+
+
+class BulkCreateRequest(BaseModel):
+    """Richiesta di creazione ingredienti in blocco."""
+    items: List[BulkCreateItem]
+
+
+class BulkCreateResult(BaseModel):
+    """Risultato della creazione in blocco."""
+    created: int
+    matched: int
+    errors: List[str] = []
+
+
+@router.get("/smart-suggest", response_model=List[SmartSuggestion])
+def smart_suggest():
+    """
+    Analisi intelligente delle righe fattura pending.
+
+    Raggruppa per descrizione normalizzata, pulisce i nomi,
+    suggerisce unità e categoria, e segnala se esiste già un
+    ingrediente simile nel sistema.
+    """
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    # 1. Carica tutte le righe pending
+    pending = cur.execute(
+        """
+        SELECT r.id AS riga_id, r.descrizione, r.unita_misura,
+               f.fornitore_nome, f.fornitore_piva
+        FROM fe_righe r
+        JOIN fe_fatture f ON f.id = r.fattura_id
+        WHERE r.id NOT IN (
+            SELECT ip.riga_fattura_id
+            FROM ingredient_prices ip
+            WHERE ip.riga_fattura_id IS NOT NULL
+        )
+        """
+    ).fetchall()
+
+    # 2. Carica ingredienti esistenti per fuzzy match
+    existing_ingredients = cur.execute(
+        "SELECT id, name, default_unit FROM ingredients WHERE is_active = 1"
+    ).fetchall()
+
+    # 3. Carica mapping esistenti per escludere ciò che ha già un mapping
+    existing_maps = cur.execute(
+        """
+        SELECT DISTINCT UPPER(descrizione_fornitore) AS desc_upper,
+               supplier_id
+        FROM ingredient_supplier_map
+        """
+    ).fetchall()
+    mapped_set = {(row["desc_upper"], row["supplier_id"]) for row in existing_maps}
+
+    conn.close()
+
+    # 4. Raggruppa per descrizione normalizzata
+    groups = {}  # key: cleaned_name_upper → {info}
+    for row in pending:
+        desc = row["descrizione"] or ""
+        cleaned = _clean_ingredient_name(desc)
+        key = cleaned.upper()
+
+        if not key or len(key) < 3:
+            continue
+
+        if key not in groups:
+            groups[key] = {
+                "cleaned": cleaned,
+                "raw_descs": set(),
+                "units": [],
+                "fornitori": set(),
+                "riga_ids": [],
+                "has_bio": False,
+                "has_dop_igp": False,
+            }
+
+        g = groups[key]
+        g["raw_descs"].add(desc.strip())
+        if row["unita_misura"]:
+            g["units"].append(row["unita_misura"])
+        if row["fornitore_nome"]:
+            g["fornitori"].add(row["fornitore_nome"])
+        g["riga_ids"].append(row["riga_id"])
+
+        desc_upper = desc.upper()
+        if "BIO" in desc_upper:
+            g["has_bio"] = True
+        if any(kw in desc_upper for kw in ["DOP", "IGP", "DOC", "STG"]):
+            g["has_dop_igp"] = True
+
+    # 5. Costruisci suggerimenti
+    suggestions = []
+    for key, g in groups.items():
+        # Unità più frequente
+        if g["units"]:
+            from collections import Counter
+            unit_counts = Counter(u.strip().upper() for u in g["units"])
+            most_common_unit = unit_counts.most_common(1)[0][0]
+            suggested_unit = _guess_unit(most_common_unit)
+        else:
+            suggested_unit = "kg"
+
+        # Categoria
+        suggested_cat = _guess_category(key)
+
+        # Controlla se esiste già un ingrediente simile
+        existing_match = None
+        best_score = 0
+        for ing in existing_ingredients:
+            score = _fuzzy_score(key, ing["name"])
+            if score > best_score:
+                best_score = score
+                if score > 60:
+                    existing_match = {
+                        "id": ing["id"],
+                        "name": ing["name"],
+                        "score": round(score, 1),
+                    }
+
+        # Nota arricchita
+        name = g["cleaned"]
+        if g["has_bio"]:
+            name = name.rstrip() + " Bio" if "Bio" not in name else name
+        if g["has_dop_igp"]:
+            for label in ["Dop", "Igp", "Doc", "Stg"]:
+                if label.upper() in " ".join(g["raw_descs"]).upper() and label not in name:
+                    name = name.rstrip() + f" {label}"
+                    break
+
+        suggestions.append(SmartSuggestion(
+            suggested_name=name,
+            raw_descriptions=sorted(g["raw_descs"])[:5],  # max 5 esempi
+            suggested_unit=suggested_unit,
+            suggested_category=suggested_cat,
+            fornitori=sorted(g["fornitori"]),
+            righe_count=len(g["riga_ids"]),
+            riga_ids=g["riga_ids"],
+            existing_match=existing_match,
+            has_bio=g["has_bio"],
+            has_dop_igp=g["has_dop_igp"],
+        ))
+
+    # Ordina: prima quelli con più righe (più impatto)
+    suggestions.sort(key=lambda s: s.righe_count, reverse=True)
+
+    return suggestions
+
+
+@router.post("/bulk-create", response_model=BulkCreateResult)
+def bulk_create_ingredients(
+    payload: BulkCreateRequest,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Crea ingredienti in blocco e auto-matcha le righe fattura collegate.
+
+    Per ogni item:
+    1. Crea l'ingrediente (o riusa se esiste già per nome esatto)
+    2. Per ogni riga_id collegata: crea il supplier mapping + salva il prezzo
+    """
+    username = (
+        current_user.get("username") if isinstance(current_user, dict)
+        else getattr(current_user, "username", "system")
+    )
+
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    created = 0
+    matched = 0
+    errors = []
+    now = datetime.utcnow().isoformat()
+
+    for item in payload.items:
+        try:
+            name = item.name.strip()
+            if not name:
+                errors.append("Nome vuoto — saltato")
+                continue
+
+            # Controlla se esiste già un ingrediente con lo stesso nome
+            existing = cur.execute(
+                "SELECT id FROM ingredients WHERE UPPER(name) = UPPER(?)",
+                (name,),
+            ).fetchone()
+
+            if existing:
+                ingredient_id = existing["id"]
+            else:
+                # Gestisci categoria
+                category_id = None
+                if item.category_name:
+                    cat = cur.execute(
+                        "SELECT id FROM ingredient_categories WHERE UPPER(name) = UPPER(?)",
+                        (item.category_name.strip(),),
+                    ).fetchone()
+                    if cat:
+                        category_id = cat["id"]
+                    else:
+                        cur.execute(
+                            "INSERT INTO ingredient_categories (name) VALUES (?)",
+                            (item.category_name.strip().title(),),
+                        )
+                        category_id = cur.lastrowid
+
+                # Crea ingrediente
+                cur.execute(
+                    """
+                    INSERT INTO ingredients (name, default_unit, category_id, note, is_active, created_at)
+                    VALUES (?, ?, ?, ?, 1, ?)
+                    """,
+                    (name, item.default_unit, category_id, item.note, now),
+                )
+                ingredient_id = cur.lastrowid
+                created += 1
+
+            # Auto-match tutte le righe collegate
+            for riga_id in item.riga_ids:
+                riga = cur.execute(
+                    """
+                    SELECT r.id AS riga_id, r.fattura_id, r.descrizione, r.quantita,
+                           r.unita_misura, r.prezzo_unitario, r.prezzo_totale,
+                           f.fornitore_nome, f.fornitore_piva, f.numero_fattura, f.data_fattura
+                    FROM fe_righe r
+                    JOIN fe_fatture f ON f.id = r.fattura_id
+                    WHERE r.id = ?
+                    """,
+                    (riga_id,),
+                ).fetchone()
+
+                if not riga:
+                    continue
+
+                # Già matchata? Skip
+                already = cur.execute(
+                    "SELECT id FROM ingredient_prices WHERE riga_fattura_id = ?",
+                    (riga_id,),
+                ).fetchone()
+                if already:
+                    continue
+
+                # Trova/crea supplier
+                supplier_id = _get_or_create_supplier(
+                    cur, riga["fornitore_nome"], riga["fornitore_piva"]
+                )
+
+                # Crea mapping se non esiste
+                existing_map = cur.execute(
+                    """
+                    SELECT id FROM ingredient_supplier_map
+                    WHERE ingredient_id = ? AND supplier_id = ? AND UPPER(descrizione_fornitore) = UPPER(?)
+                    """,
+                    (ingredient_id, supplier_id, riga["descrizione"]),
+                ).fetchone()
+
+                if not existing_map:
+                    cur.execute(
+                        """
+                        INSERT INTO ingredient_supplier_map (
+                            ingredient_id, supplier_id, descrizione_fornitore,
+                            unita_fornitore, fattore_conversione, is_default,
+                            confirmed_by, created_at
+                        ) VALUES (?, ?, ?, ?, 1.0, 0, ?, ?)
+                        """,
+                        (
+                            ingredient_id, supplier_id,
+                            riga["descrizione"],
+                            riga["unita_misura"],
+                            username, now,
+                        ),
+                    )
+
+                # Salva prezzo
+                _save_price_from_riga(cur, ingredient_id, supplier_id, dict(riga), 1.0)
+                matched += 1
+
+        except Exception as e:
+            errors.append(f"{item.name}: {str(e)}")
+
+    conn.commit()
+    conn.close()
+
+    return BulkCreateResult(created=created, matched=matched, errors=errors)

@@ -1,6 +1,7 @@
-// @version: v2.0-matching-fatture
-// UI Matching Fatture → Ingredienti
+// @version: v3.0-matching-smart-create
+// UI Matching Fatture → Ingredienti + Smart Auto-Create
 // Collega righe fatture XML importate agli ingredienti del food cost
+// Con analisi intelligente per suggerire e creare ingredienti in blocco
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,15 +17,25 @@ export default function RicetteMatching() {
   const [mappings, setMappings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("pending"); // pending | mappings
+  const [tab, setTab] = useState("pending"); // pending | mappings | smart
 
-  // Stato per suggerimenti matching
+  // Stato per suggerimenti matching manuale
   const [selectedRiga, setSelectedRiga] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSugg, setLoadingSugg] = useState(false);
 
   // Auto-match stats
   const [autoResult, setAutoResult] = useState(null);
+
+  // Smart create state
+  const [smartSuggestions, setSmartSuggestions] = useState([]);
+  const [smartLoading, setSmartLoading] = useState(false);
+  const [smartSelected, setSmartSelected] = useState({}); // key: suggestedName → editable fields
+  const [bulkResult, setBulkResult] = useState(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Filtro per tab pending
+  const [filterText, setFilterText] = useState("");
 
   // Load data
   const loadPending = async () => {
@@ -71,14 +82,14 @@ export default function RicetteMatching() {
     }
   };
 
-  // Conferma match
+  // Conferma match manuale
   const handleConfirm = async (rigaId, ingredientId) => {
     setError("");
     try {
       const resp = await apiFetch(`${FC}/matching/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ riga_id: rigaId, ingredient_id: ingredientId }),
+        body: JSON.stringify({ riga_fattura_id: rigaId, ingredient_id: ingredientId }),
       });
       if (!resp.ok) throw new Error(await resp.text());
       setSelectedRiga(null);
@@ -115,10 +126,120 @@ export default function RicetteMatching() {
     }
   };
 
+  // ─── SMART CREATE ───────────────────────────
+
+  const loadSmartSuggestions = async () => {
+    setSmartLoading(true);
+    setError("");
+    setBulkResult(null);
+    try {
+      const resp = await apiFetch(`${FC}/matching/smart-suggest`);
+      if (!resp.ok) throw new Error("Errore analisi intelligente");
+      const data = await resp.json();
+      setSmartSuggestions(data);
+
+      // Pre-seleziona quelli senza match esistente
+      const sel = {};
+      for (const s of data) {
+        if (!s.existing_match) {
+          sel[s.suggested_name] = {
+            name: s.suggested_name,
+            unit: s.suggested_unit,
+            category: s.suggested_category || "",
+            riga_ids: s.riga_ids,
+            selected: true,
+          };
+        }
+      }
+      setSmartSelected(sel);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSmartLoading(false);
+    }
+  };
+
+  const toggleSmartItem = (suggestedName, suggestion) => {
+    setSmartSelected((prev) => {
+      const copy = { ...prev };
+      if (copy[suggestedName]) {
+        // Toggle off
+        delete copy[suggestedName];
+      } else {
+        // Toggle on
+        copy[suggestedName] = {
+          name: suggestion.suggested_name,
+          unit: suggestion.suggested_unit,
+          category: suggestion.suggested_category || "",
+          riga_ids: suggestion.riga_ids,
+          selected: true,
+        };
+      }
+      return copy;
+    });
+  };
+
+  const updateSmartItem = (suggestedName, field, value) => {
+    setSmartSelected((prev) => ({
+      ...prev,
+      [suggestedName]: { ...prev[suggestedName], [field]: value },
+    }));
+  };
+
+  const handleBulkCreate = async () => {
+    const items = Object.values(smartSelected)
+      .filter((s) => s.selected !== false)
+      .map((s) => ({
+        name: s.name,
+        default_unit: s.unit,
+        category_name: s.category || null,
+        riga_ids: s.riga_ids,
+        note: null,
+      }));
+
+    if (items.length === 0) {
+      setError("Seleziona almeno un ingrediente da creare.");
+      return;
+    }
+
+    setBulkLoading(true);
+    setError("");
+    setBulkResult(null);
+    try {
+      const resp = await apiFetch(`${FC}/matching/bulk-create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const result = await resp.json();
+      setBulkResult(result);
+      // Ricarica dati
+      await loadAll();
+      // Ricarica suggerimenti smart
+      await loadSmartSuggestions();
+    } catch (err) {
+      setError(`Errore creazione: ${err.message}`);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const selectedCount = Object.values(smartSelected).filter((s) => s.selected !== false).length;
+
+  // Filtro pending
+  const filteredPending = filterText
+    ? pending.filter(
+        (r) =>
+          (r.descrizione || "").toLowerCase().includes(filterText.toLowerCase()) ||
+          (r.fornitore_nome || "").toLowerCase().includes(filterText.toLowerCase())
+      )
+    : pending;
+
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
       <RicetteNav current="matching" />
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 sm:p-12 border border-neutral-200">
+      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200">
 
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
@@ -152,6 +273,20 @@ export default function RicetteMatching() {
           </div>
         )}
 
+        {bulkResult && (
+          <div className="mb-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-800 px-4 py-3 text-sm">
+            Creazione completata: <strong>{bulkResult.created}</strong> ingredienti creati, <strong>{bulkResult.matched}</strong> righe associate.
+            {bulkResult.errors?.length > 0 && (
+              <details className="mt-1">
+                <summary className="cursor-pointer font-semibold text-red-700">Errori ({bulkResult.errors.length})</summary>
+                <ul className="list-disc pl-5 text-xs text-red-600 mt-1">
+                  {bulkResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+
         {/* TAB SELECTOR */}
         <div className="flex gap-2 mb-6 border-b border-neutral-200 pb-2">
           <button
@@ -165,6 +300,16 @@ export default function RicetteMatching() {
             Da associare ({pending.length})
           </button>
           <button
+            onClick={() => { setTab("smart"); if (smartSuggestions.length === 0) loadSmartSuggestions(); }}
+            className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
+              tab === "smart"
+                ? "bg-blue-100 text-blue-900 border border-blue-300 border-b-white -mb-[3px]"
+                : "text-neutral-600 hover:text-neutral-900"
+            }`}
+          >
+            Smart Create
+          </button>
+          <button
             onClick={() => setTab("mappings")}
             className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
               tab === "mappings"
@@ -172,96 +317,281 @@ export default function RicetteMatching() {
                 : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
-            Mappings attivi ({mappings.length})
+            Mappings ({mappings.length})
           </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12 text-neutral-500">Caricamento...</div>
         ) : tab === "pending" ? (
-          /* TAB PENDING */
+          /* ═══════════ TAB PENDING ═══════════ */
           <div>
             {pending.length === 0 ? (
               <div className="text-center py-12 text-neutral-500">
-                Tutte le righe fattura sono state associate. Ottimo!
+                Tutte le righe fattura sono state associate!
               </div>
             ) : (
-              <div className="space-y-2">
-                {pending.map((riga) => (
-                  <div key={riga.riga_id} className="flex flex-col gap-2">
-                    <div
-                      onClick={() => handleSelectRiga(riga)}
-                      className={`flex flex-wrap items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
-                        selectedRiga?.riga_id === riga.riga_id
-                          ? "bg-amber-50 border-amber-300 shadow"
-                          : "bg-white border-neutral-200 hover:border-amber-200 hover:bg-amber-50/30"
+              <>
+                {/* Search filter */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    placeholder="Filtra per descrizione o fornitore..."
+                    className="w-full sm:w-96 px-4 py-2 border border-neutral-300 rounded-xl text-sm focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  {filterText && (
+                    <span className="text-xs text-neutral-500 ml-2">
+                      {filteredPending.length} di {pending.length} righe
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                  {filteredPending.map((riga) => (
+                    <div key={riga.riga_id} className="flex flex-col gap-2">
+                      <div
+                        onClick={() => handleSelectRiga(riga)}
+                        className={`flex flex-wrap items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
+                          selectedRiga?.riga_id === riga.riga_id
+                            ? "bg-amber-50 border-amber-300 shadow"
+                            : "bg-white border-neutral-200 hover:border-amber-200 hover:bg-amber-50/30"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-[200px]">
+                          <div className="font-medium text-neutral-900 text-sm">
+                            {riga.descrizione}
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-0.5">
+                            Fornitore: {riga.fornitore_nome || riga.fornitore_piva || "\u2014"}
+                          </div>
+                        </div>
+                        <div className="text-sm text-neutral-700">
+                          {riga.quantita} {riga.unita_misura} &middot; {riga.prezzo_unitario != null ? `${Number(riga.prezzo_unitario).toFixed(2)} \u20AC` : "\u2014"}
+                        </div>
+                        <div className="text-xs text-neutral-400">
+                          {riga.data_fattura}
+                        </div>
+                      </div>
+
+                      {/* Suggerimenti per la riga selezionata */}
+                      {selectedRiga?.riga_id === riga.riga_id && (
+                        <div className="ml-6 border-l-2 border-amber-300 pl-4 pb-2 space-y-1">
+                          {loadingSugg ? (
+                            <p className="text-xs text-neutral-500">Caricamento suggerimenti...</p>
+                          ) : suggestions.length === 0 ? (
+                            <p className="text-xs text-neutral-500">
+                              Nessun suggerimento. Usa la tab "Smart Create" per creare l'ingrediente automaticamente.
+                            </p>
+                          ) : (
+                            suggestions.map((s) => (
+                              <div
+                                key={s.ingredient_id}
+                                className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-lg p-3 hover:border-green-300 transition"
+                              >
+                                <div>
+                                  <span className="font-medium text-sm text-neutral-900">
+                                    {s.ingredient_name}
+                                  </span>
+                                  <span className="text-xs text-neutral-500 ml-2">
+                                    ({s.default_unit}) &middot; {s.confidence.toFixed(0)}%
+                                  </span>
+                                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                    s.reason === "exact_desc" ? "bg-green-100 text-green-700"
+                                      : s.reason === "same_supplier" ? "bg-blue-100 text-blue-700"
+                                      : "bg-yellow-100 text-yellow-700"
+                                  }`}>
+                                    {s.reason}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleConfirm(riga.riga_id, s.ingredient_id)}
+                                  className="px-3 py-1 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition"
+                                >
+                                  Conferma
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : tab === "smart" ? (
+          /* ═══════════ TAB SMART CREATE ═══════════ */
+          <div>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <button
+                onClick={loadSmartSuggestions}
+                disabled={smartLoading}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
+                  smartLoading
+                    ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {smartLoading ? "Analisi in corso..." : "Analizza righe pending"}
+              </button>
+
+              {selectedCount > 0 && (
+                <button
+                  onClick={handleBulkCreate}
+                  disabled={bulkLoading}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
+                    bulkLoading
+                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                      : "bg-green-700 text-white hover:bg-green-800"
+                  }`}
+                >
+                  {bulkLoading ? "Creazione..." : `Crea ${selectedCount} ingredienti`}
+                </button>
+              )}
+            </div>
+
+            {smartSuggestions.length === 0 && !smartLoading ? (
+              <div className="text-center py-12 text-neutral-500">
+                Clicca "Analizza righe pending" per avviare l'analisi intelligente delle fatture.
+              </div>
+            ) : smartLoading ? (
+              <div className="text-center py-12 text-neutral-500">Analisi in corso...</div>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-600 mb-4">
+                  Trovati <strong>{smartSuggestions.length}</strong> possibili ingredienti.
+                  Seleziona quelli da creare, modifica nome/unità/categoria se necessario, poi clicca "Crea".
+                </p>
+
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                  {smartSuggestions.map((s) => {
+                    const isSelected = !!smartSelected[s.suggested_name];
+                    const editData = smartSelected[s.suggested_name];
+                    const hasExisting = !!s.existing_match;
+
+                    return (
+                      <div
+                        key={s.suggested_name}
+                        className={`rounded-xl border p-4 transition ${
+                          isSelected
+                            ? "bg-blue-50 border-blue-300 shadow-sm"
+                            : hasExisting
+                            ? "bg-yellow-50/50 border-yellow-200"
+                            : "bg-white border-neutral-200"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Checkbox */}
+                          <label className="mt-1 flex-shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSmartItem(s.suggested_name, s)}
+                              className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </label>
+
+                          <div className="flex-1 min-w-0">
+                            {/* Nome + badges */}
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              {isSelected ? (
+                                <input
+                                  type="text"
+                                  value={editData.name}
+                                  onChange={(e) => updateSmartItem(s.suggested_name, "name", e.target.value)}
+                                  className="font-semibold text-sm text-neutral-900 border border-blue-300 rounded-lg px-2 py-1 bg-white flex-1 min-w-[200px] focus:ring-blue-500 focus:border-blue-500"
+                                />
+                              ) : (
+                                <span className="font-semibold text-sm text-neutral-900">
+                                  {s.suggested_name}
+                                </span>
+                              )}
+
+                              <span className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-full border border-neutral-200">
+                                {s.righe_count} {s.righe_count === 1 ? "riga" : "righe"}
+                              </span>
+
+                              {s.has_bio && (
+                                <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">BIO</span>
+                              )}
+                              {s.has_dop_igp && (
+                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">DOP/IGP</span>
+                              )}
+                            </div>
+
+                            {/* Existing match warning */}
+                            {hasExisting && (
+                              <div className="text-xs text-yellow-700 bg-yellow-100 border border-yellow-200 rounded-lg px-2 py-1 mb-1">
+                                Ingrediente simile esistente: <strong>{s.existing_match.name}</strong> (similarità {s.existing_match.score}%)
+                              </div>
+                            )}
+
+                            {/* Info riga */}
+                            <div className="text-xs text-neutral-500 mb-1">
+                              Fornitori: {s.fornitori.join(", ")}
+                            </div>
+                            <div className="text-xs text-neutral-400">
+                              Es: {s.raw_descriptions.slice(0, 2).join(" | ")}
+                            </div>
+
+                            {/* Edit fields when selected */}
+                            {isSelected && (
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <select
+                                  value={editData.unit}
+                                  onChange={(e) => updateSmartItem(s.suggested_name, "unit", e.target.value)}
+                                  className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white focus:ring-blue-500"
+                                >
+                                  <option value="kg">kg</option>
+                                  <option value="g">g</option>
+                                  <option value="L">L</option>
+                                  <option value="ml">ml</option>
+                                  <option value="cl">cl</option>
+                                  <option value="pz">pz</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  value={editData.category}
+                                  onChange={(e) => updateSmartItem(s.suggested_name, "category", e.target.value)}
+                                  placeholder="Categoria (opzionale)"
+                                  className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white flex-1 min-w-[150px] focus:ring-blue-500"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Bottom action bar */}
+                {selectedCount > 0 && (
+                  <div className="mt-4 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <span className="text-sm text-blue-800">
+                      <strong>{selectedCount}</strong> ingredienti selezionati per la creazione
+                    </span>
+                    <button
+                      onClick={handleBulkCreate}
+                      disabled={bulkLoading}
+                      className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                        bulkLoading
+                          ? "bg-neutral-300 text-neutral-500"
+                          : "bg-green-700 text-white hover:bg-green-800"
                       }`}
                     >
-                      <div className="flex-1 min-w-[200px]">
-                        <div className="font-medium text-neutral-900 text-sm">
-                          {riga.descrizione}
-                        </div>
-                        <div className="text-xs text-neutral-500 mt-0.5">
-                          Fornitore: {riga.fornitore_nome || riga.fornitore_piva || "\u2014"}
-                          {riga.codice_articolo && ` \u00B7 Cod: ${riga.codice_articolo}`}
-                        </div>
-                      </div>
-                      <div className="text-sm text-neutral-700">
-                        {riga.quantita} {riga.unita_misura} &middot; {riga.prezzo_unitario != null ? `${Number(riga.prezzo_unitario).toFixed(2)} \u20AC` : "\u2014"}
-                      </div>
-                      <div className="text-xs text-neutral-400">
-                        {riga.data_fattura}
-                      </div>
-                    </div>
-
-                    {/* Suggerimenti per la riga selezionata */}
-                    {selectedRiga?.riga_id === riga.riga_id && (
-                      <div className="ml-6 border-l-2 border-amber-300 pl-4 pb-2 space-y-1">
-                        {loadingSugg ? (
-                          <p className="text-xs text-neutral-500">Caricamento suggerimenti...</p>
-                        ) : suggestions.length === 0 ? (
-                          <p className="text-xs text-neutral-500">
-                            Nessun suggerimento trovato. Crea prima l'ingrediente nella sezione Ingredienti.
-                          </p>
-                        ) : (
-                          suggestions.map((s) => (
-                            <div
-                              key={s.ingredient_id}
-                              className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-lg p-3 hover:border-green-300 transition"
-                            >
-                              <div>
-                                <span className="font-medium text-sm text-neutral-900">
-                                  {s.ingredient_name}
-                                </span>
-                                <span className="text-xs text-neutral-500 ml-2">
-                                  ({s.default_unit}) &middot; Score: {(s.score * 100).toFixed(0)}%
-                                </span>
-                                {s.match_type && (
-                                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                                    s.match_type === "exact" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
-                                  }`}>
-                                    {s.match_type}
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => handleConfirm(riga.riga_id, s.ingredient_id)}
-                                className="px-3 py-1 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition"
-                              >
-                                Conferma
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
+                      {bulkLoading ? "Creazione..." : "Crea e Associa tutto"}
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         ) : (
-          /* TAB MAPPINGS */
+          /* ═══════════ TAB MAPPINGS ═══════════ */
           <div>
             {mappings.length === 0 ? (
               <div className="text-center py-12 text-neutral-500">
@@ -283,7 +613,7 @@ export default function RicetteMatching() {
                     {mappings.map((m) => (
                       <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50">
                         <td className="p-3 text-neutral-900">{m.descrizione_fornitore}</td>
-                        <td className="p-3 text-neutral-600">{m.supplier_name || "\u2014"}</td>
+                        <td className="p-3 text-neutral-600">{m.fornitore_nome || "\u2014"}</td>
                         <td className="p-3 font-medium text-neutral-900">{m.ingredient_name || "\u2014"}</td>
                         <td className="p-3 text-center text-neutral-600">{m.fattore_conversione || 1}</td>
                         <td className="p-3 text-right">
