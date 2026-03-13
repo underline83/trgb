@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-13 (sessione 5 — Ricette & Food Cost v3.0: Matching avanzato)
+> Ultima sessione: 2026-03-13 (sessione 5b — Banca v1.0 + Conversioni unità + Smart Create UX)
 
 ---
 
@@ -15,42 +15,49 @@ La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-13, sessione 5)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-13, sessione 5b)
 
-### Ricette & Food Cost v3.0 — Matching avanzato + Smart Create + Esclusioni
+### Modulo Banca v1.0 + Conversioni unità ingredienti + Smart Create UX
 
-#### Ricette module reforming (completamento sessione precedente)
-1. **RicetteDashboard.jsx** — pagina dashboard con 5 KPI (ricette, basi, FC medio, critiche, buone) + tabelle top5 FC e top5 margini
-2. **RicetteSettings.jsx** — pagina strumenti con export JSON, export PDF per ricetta, import JSON (sostituisce vecchio RicetteImport)
-3. **App.jsx** — route `/ricette/dashboard`, `/ricette/settings`, redirect `/ricette/import` → `/ricette/settings`
-4. **Fix endpoint ordering** in `foodcost_recipes_router.py` — path statici (`/stats/dashboard`, `/export/json`) spostati PRIMA del dynamic `/{recipe_id}`
+#### Modulo Banca v1.0 (NUOVO)
+1. **Migration 014** — 4 tabelle: `banca_movimenti` (con dedup_hash UNIQUE), `banca_categorie_map` (mapping cat banca → custom), `banca_fatture_link` (cross-ref movimenti↔fatture), `banca_import_log`
+2. **`banca_router.py`** v1.0 — 11 endpoint:
+   - `POST /banca/import` — upload CSV Banco BPM, parsing italiano (date dd/mm/yyyy, importi con virgola), dedup via hash MD5(data+importo+descrizione), split categoria/sottocategoria
+   - `GET /banca/movimenti` — lista con filtri (data_da/a, categoria, tipo entrata/uscita, search) + paginazione + JOIN categorie custom
+   - `GET /banca/dashboard` — KPI (entrate, uscite, saldo, num_movimenti) + breakdown per categoria entrate/uscite + ultimi 10
+   - `GET /banca/categorie` — lista categorie banca con mapping custom
+   - `POST /banca/categorie/map` — upsert mapping custom (nome, colore, icona, tipo)
+   - `DELETE /banca/categorie/map/{id}` — elimina mapping
+   - `GET /banca/cross-ref` — movimenti uscita con fatture collegate + suggerimenti auto (±5% importo, ±10 giorni)
+   - `POST /banca/cross-ref/link` — collega movimento↔fattura
+   - `DELETE /banca/cross-ref/link/{id}` — scollega
+   - `GET /banca/import-log` — storico import
+   - `GET /banca/andamento` — serie temporale entrate/uscite per giorno/settimana/mese
+3. **BancaNav.jsx** — tab navigation emerald (Dashboard, Movimenti, Categorie, Fatture, Import)
+4. **BancaMenu.jsx** — menu 5 card con VersionBadge
+5. **BancaDashboard.jsx** — 4 KPI cards + grafico barre CSS giornaliero + breakdown per categoria (progress bars) + ultimi movimenti + filtri periodo con preset (mese/mese prec/anno/tutto)
+6. **BancaMovimenti.jsx** — tabella con paginazione, filtri data/categoria/tipo/search, display categoria custom con colore
+7. **BancaImport.jsx** — upload CSV + feedback risultato (nuovi/duplicati/periodo) + storico importazioni
+8. **BancaCategorie.jsx** — lista categorie banca con inline editing per mapping custom (nome, tipo, palette 10 colori)
+9. **BancaCrossRef.jsx** — lista uscite con status collegamento, suggerimenti fatture espandibili, link/unlink
 
-#### Matching: rimozione LIMIT
-5. **Rimosso LIMIT 100** dalla query pending — il matching mostrava solo 100 ingredienti su migliaia
-6. **Rimosso completamente il LIMIT** anche a 2000 (Marco: "saranno anche oltre 2000")
+#### Conversioni unità per ingrediente
+10. **Migration 013** — tabella `ingredient_unit_conversions` (ingredient_id, from_unit, to_unit, factor, note, UNIQUE)
+11. **`convert_qty` potenziato** — accetta `ingredient_id` e `cur` opzionali; cerca custom conversions (diretta, inversa, chain via `_get_custom_conversion`), fallback a `_standard_convert`
+12. **`_save_price_from_riga`** auto-normalizza prezzi fattura usando `convert_qty` con ingredient_id
+13. **Endpoint CRUD** in ingredients router v1.4: `GET/POST/{id}/conversions`, `DELETE /conversions/{id}`
+14. **UI conversioni** in RicetteIngredientiPrezzi.jsx v2.0 — sezione espandibile con form (from_unit, factor, to_unit, note) + lista esistenti con delete
 
-#### Smart Create — creazione intelligente ingredienti
-7. **Pipeline pulizia nomi** — `_NOISE_PATTERNS` (regex per codici, date, quantita), `_UNIT_MAP` (conversione unita fattura → standard), `_CATEGORY_HINTS` (keyword → categoria: carne, pesce, latticini, verdure, frutta, pasta, olio, bevande)
-8. **`GET /matching/smart-suggest`** — raggruppa righe pending per descrizione normalizzata, fuzzy-match contro ingredienti esistenti, suggerisce nome/unita/categoria
-9. **`POST /matching/bulk-create`** — crea ingredienti in blocco con auto-mapping + salvataggio prezzi
-10. **Tab "Smart Create"** in RicetteMatching — analisi, checkbox con editing inline nome/unita/categoria, creazione in blocco
+#### Smart Create UX
+15. **Default tutti deselezionati** — `loadSmartSuggestions` ora imposta `setSmartSelected({})` invece di pre-selezionare
+16. **Pulsanti "Seleziona tutti" / "Deseleziona tutti"** — visibili quando ci sono suggerimenti, "Seleziona tutti" seleziona solo quelli senza match esistente
 
-#### Esclusione fornitori
-11. **Esclusione query** — LEFT JOIN `fe_fornitore_categoria` con filtro `escluso=0` su pending e smart-suggest
-12. **`GET /matching/suppliers`** — lista fornitori da righe pending con stato esclusione e conteggio
-13. **`POST /matching/suppliers/toggle-exclusion`** — toggle flag escluso in `fe_fornitore_categoria`
-14. **Tab "Fornitori"** in RicetteMatching — tabella con nome, P.IVA, categoria, righe pending, stato, toggle Escludi/Riattiva
-
-#### Ignora descrizioni non-ingrediente
-15. **Migration 012** — tabelle `matching_description_exclusions` + `matching_ignored_righe`
-16. **`POST /matching/ignore-description`** — salva descrizione normalizzata + righe come ignorate
-17. **`GET /matching/ignored-descriptions`** — lista con conteggio righe
-18. **`DELETE /matching/ignored-descriptions/{id}`** — ripristino
-19. **Filtro** in pending e smart-suggest per escludere righe/descrizioni ignorate
-20. **Pulsante "Ignora"** su ogni suggerimento Smart Create + sezione espandibile "Descrizioni ignorate" con ripristino
-
-#### Versioni
-21. **versions.jsx** — Ricette v2.0→v3.0, Sistema v4.1→v4.2
+#### Integrazione
+17. **main.py** — registrato `banca_router`
+18. **App.jsx** v3.7 — 6 route `/banca/*`
+19. **Home.jsx** v3.1 — card Banca in homepage
+20. **versions.jsx** — Banca v1.0 beta
+21. **modules.json** — modulo banca (admin only)
 
 ---
 
@@ -151,6 +158,18 @@ Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazio
   - `/ricette/dashboard` → RicetteDashboard
   - `/ricette/settings` → RicetteSettings (ex RicetteImport)
 
+### Modulo Banca v1.0 (NUOVO)
+- **Backend**: `banca_router.py` con 11 endpoint, prefix `/banca`
+- **Frontend**: 7 pagine in `frontend/src/pages/banca/`
+- **DB**: foodcost.db con migrazioni 013-014, tabelle `banca_movimenti`, `banca_categorie_map`, `banca_fatture_link`, `banca_import_log`, `ingredient_unit_conversions`
+- **Route attive**:
+  - `/banca` → BancaMenu
+  - `/banca/dashboard` → BancaDashboard
+  - `/banca/movimenti` → BancaMovimenti
+  - `/banca/import` → BancaImport
+  - `/banca/categorie` → BancaCategorie
+  - `/banca/crossref` → BancaCrossRef
+
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
@@ -178,8 +197,9 @@ Fonte di verita': `frontend/src/config/versions.js`
 |--------|----------|-------|------|
 | Cantina & Vini | v3.6 | stabile | Carta, vendite, magazzino, dashboard, strumenti, ViniNav |
 | Gestione Acquisti | v2.0 | stabile | Fatture XML, fornitori, dashboard, categorie (top-level) |
-| Ricette & Food Cost | v3.0 | beta | Ricette, sub-ricette, matching fatture, smart create, esclusioni fornitori/descrizioni |
+| Ricette & Food Cost | v3.0 | beta | Ricette, sub-ricette, matching fatture, smart create, esclusioni, conversioni unità |
 | Gestione Vendite | v2.0 | stabile | Corrispettivi, chiusure cassa, dashboard, confronto annuale (top-level) |
+| **Banca** | **v1.0** | **beta** | **Movimenti bancari, categorie custom, cross-ref fatture, dashboard** |
 | Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
 | Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
 | Sistema | v4.2 | stabile | Versione globale gestionale |
@@ -189,6 +209,7 @@ Le versioni sono mostrate visualmente nella UI:
 - **ViniMenu** — badge v3.6 nell'header
 - **RicetteMenu** — badge v3.0 nell'header
 - **VenditeMenu** — badge v2.0 nell'header
+- **BancaMenu** — badge v1.0 beta nell'header
 - **AdminMenu** — badge v4.2 nell'header
 
 ---
@@ -208,13 +229,14 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Deploy v3.0** — `./push.sh "Ricette v3.0: matching avanzato + smart create + esclusioni" -f`
-2. **Test in produzione** — verificare Smart Create, Fornitori, Ignora descrizioni, Dashboard ricette, Settings
-3. **Conversioni unita ingredienti** — gestire equivalenze kg↔g, L↔ml ecc. per ingredienti comprati in un'unita e usati in un'altra
-4. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio
-5. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2
-6. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
-7. **Riordinare la roadmap** — pulizia task completati
+1. **Deploy completo** — `./push.sh "Banca v1.0 + conversioni unità + smart create UX" -f` (migrazioni 013+014, nuovo modulo banca, 7 pagine frontend)
+2. **Test Banca in produzione** — import CSV, dashboard, categorie, cross-ref fatture
+3. **Test conversioni unità** — verificare normalizzazione prezzi e chain conversions
+4. **Promemoria import banca** — Marco vuole che l'app ricordi di caricare il CSV periodicamente (da implementare)
+5. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio
+6. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2 (usa ancora `/ingredienti/${id}/prezzi` vecchio)
+7. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
+8. **Riordinare la roadmap** — pulizia task completati
 
 ---
 
@@ -241,7 +263,12 @@ app/routers/foodcost_ingredients_router.py — CRUD ingredienti + prezzi + suppl
 app/models/foodcost_db.py                 — DB foodcost (tabelle base)
 app/migrations/007_foodcost_v2.py         — migrazione v2 (drop+ricrea tabelle ricette)
 app/migrations/012_matching_description_exclusions.py — tabelle ignora descrizioni matching
+app/migrations/013_ingredient_unit_conversions.py — conversioni unità per ingrediente
+app/migrations/014_banca_movimenti.py     — tabelle modulo banca (movimenti, categorie, cross-ref, log)
 docs/design_ricette_foodcost_v2.md        — design document completo
+
+# --- MODULO BANCA ---
+app/routers/banca_router.py              — import CSV, movimenti, dashboard, categorie, cross-ref, andamento
 
 # --- MODULO GESTIONE VENDITE (ex Corrispettivi) ---
 app/routers/admin_finance.py              — backend corrispettivi, prefix /admin/finance
@@ -260,6 +287,7 @@ frontend/src/config/versions.js        — MODULE_VERSIONS + VersionBadge (UNICA
 frontend/src/components/Header.jsx     — header globale
 frontend/src/components/LoginForm.jsx  — login tile PIN
 frontend/src/pages/ricette/            — 10 pagine modulo ricette/foodcost v3 (+ Dashboard, Settings)
+frontend/src/pages/banca/              — 7 pagine modulo banca v1.0 (Nav, Menu, Dashboard, Movimenti, Import, Categorie, CrossRef)
 frontend/src/pages/vini/               — pagine modulo vini
 
 # --- DOCS ---
@@ -279,7 +307,7 @@ docs/Modulo_FoodCost.md                — documentazione modulo food cost
 | `app/data/vini.sqlite3` | Carta Vini (legacy Excel) | NON TOCCARE — paracadute; schema v2.1 |
 | `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
 | `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
-| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v3 | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, fe_fatture, fe_righe, fe_fornitore_categoria, matching_description_exclusions, matching_ignored_righe; migraz. 001-012 |
+| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v3 + Banca | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, ingredient_unit_conversions, fe_fatture, fe_righe, fe_fornitore_categoria, matching_description_exclusions, matching_ignored_righe, banca_movimenti, banca_categorie_map, banca_fatture_link, banca_import_log; migraz. 001-014 |
 | `app/data/admin_finance.sqlite3` | Gestione Vendite (corrispettivi) | daily_closures; import Excel multi-anno |
 | `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
 

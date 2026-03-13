@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-03-13b — Modulo Banca v1.0 + Conversioni unità ingredienti + Smart Create UX
+
+### Added
+- **Modulo Banca v1.0** — nuovo modulo completo per monitoraggio movimenti bancari
+  - **Migration 014** — 4 tabelle: `banca_movimenti`, `banca_categorie_map`, `banca_fatture_link`, `banca_import_log`
+  - **banca_router.py** — 11 endpoint: import CSV Banco BPM con dedup (hash data+importo+descrizione), lista movimenti con filtri (data/categoria/tipo/search + paginazione), dashboard aggregati (KPI + breakdown per categoria + ultimi movimenti), categorie mapping banca→custom (CRUD), cross-ref fatture XML (match automatico ±5% importo ±10 giorni, link/unlink manuale), andamento temporale (giorno/settimana/mese), storico import
+  - **6 pagine frontend**: BancaNav (tabs emerald), BancaMenu (5 card), BancaDashboard (4 KPI + grafico barre CSS + breakdown entrate/uscite per categoria + ultimi movimenti + filtri periodo con preset), BancaMovimenti (tabella filtrata + paginazione), BancaImport (upload CSV + storico), BancaCategorie (mapping custom con colori), BancaCrossRef (collega pagamenti a fatture con suggerimenti automatici)
+  - **Integrazione**: main.py, App.jsx (6 route `/banca/*`), Home.jsx (card Banca), versions.jsx (Banca v1.0 beta), modules.json
+- **Conversioni unità per ingrediente** — sistema conversioni custom + chain resolution
+  - **Migration 013** — tabella `ingredient_unit_conversions` (per-ingredient custom conversions)
+  - **`convert_qty` potenziato** — cerca prima conversioni custom (diretta, inversa, chain), poi fallback a standard
+  - **`_save_price_from_riga`** — auto-normalizza prezzi fattura usando `convert_qty`
+  - **Endpoint CRUD** in ingredients router: GET/POST/DELETE conversioni per ingrediente
+  - **UI** in RicetteIngredientiPrezzi.jsx v2.0 — sezione espandibile "Conversioni unità personalizzate"
+- **Smart Create: Seleziona/Deseleziona tutti** — pulsanti nel tab Smart Create + default tutti deselezionati (l'utente sceglie manualmente)
+
+### Changed
+- **RicetteMatching.jsx** v5.1 — aggiunta select all/deselect all + default deselected
+- **foodcost_recipes_router.py** — `convert_qty` accetta `ingredient_id` e `cur` opzionali per custom conversions
+- **foodcost_matching_router.py** — `_save_price_from_riga` con auto-normalizzazione prezzo
+- **foodcost_ingredients_router.py** v1.4 — endpoint conversioni unità
+- **RicetteIngredientiPrezzi.jsx** v2.0 — sezione conversioni
+- **versions.jsx** — aggiunta Banca v1.0 beta
+- **App.jsx** v3.7 — 6 route banca
+- **Home.jsx** v3.1 — card Banca in homepage
+- **modules.json** — aggiunto modulo banca (admin only)
+
+---
+
 ## 2026-03-13a — Ricette & Food Cost v3.0: Matching avanzato + Smart Create + Esclusioni
 
 ### Added
