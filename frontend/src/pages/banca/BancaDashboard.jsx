@@ -38,6 +38,20 @@ export default function BancaDashboard() {
     loadData();
   }, [dataDa, dataA]);
 
+  // Scegli raggruppamento automatico in base al range
+  const calcRaggruppamento = (da, a) => {
+    if (!da || !a) return "giorno";
+    const d1 = new Date(da), d2 = new Date(a);
+    const diffDays = (d2 - d1) / (1000 * 60 * 60 * 24);
+    if (diffDays > 180) return "mese";
+    if (diffDays > 45) return "settimana";
+    return "giorno";
+  };
+
+  const raggruppamento = calcRaggruppamento(dataDa, dataA);
+
+  const raggrLabels = { giorno: "giornaliero", settimana: "settimanale", mese: "mensile" };
+
   const loadData = async () => {
     setLoading(true);
     setError("");
@@ -45,7 +59,7 @@ export default function BancaDashboard() {
       const qs = `?data_da=${dataDa}&data_a=${dataA}`;
       const [dashResp, andResp] = await Promise.all([
         apiFetch(`${FC}/dashboard${qs}`),
-        apiFetch(`${FC}/andamento${qs}&raggruppamento=giorno`),
+        apiFetch(`${FC}/andamento${qs}&raggruppamento=${raggruppamento}`),
       ]);
       if (!dashResp.ok) throw new Error("Errore caricamento dashboard");
       if (!andResp.ok) throw new Error("Errore caricamento andamento");
@@ -189,13 +203,18 @@ export default function BancaDashboard() {
             {/* Grafico andamento (barre CSS) */}
             {andamento.length > 1 && (
               <div className="mb-8">
-                <h2 className="text-lg font-semibold text-neutral-800 mb-3">Andamento giornaliero</h2>
+                <h2 className="text-lg font-semibold text-neutral-800 mb-3">Andamento {raggrLabels[raggruppamento]}</h2>
                 <div className="w-full">
                   <div className="flex items-end gap-1 w-full">
                     {andamento.map((a, i) => {
                       const hE = Math.max((a.entrate / maxAbs) * 140, 2);
                       const hU = Math.max((a.uscite / maxAbs) * 140, 2);
-                      const day = (a.periodo || "").slice(-2);
+                      const periodo = a.periodo || "";
+                      const day = raggruppamento === "mese"
+                        ? (["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"][parseInt(periodo.slice(-2), 10) - 1] || periodo.slice(-2))
+                        : raggruppamento === "settimana"
+                        ? "W" + periodo.slice(-2)
+                        : periodo.slice(-2);
                       return (
                         <div key={i} className="flex-1 flex flex-col items-center min-w-0">
                           <div className="flex gap-px items-end w-full justify-center" style={{ height: 150 }}>
