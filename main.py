@@ -46,6 +46,7 @@ from app.routers import banca_router
 
 # FINANZA — gestione finanziaria completa
 from app.routers import finanza_router
+from app.routers import finanza_scadenzario_router
 
 
 # Esegui le migrazioni PRIMA di creare l'app
@@ -172,6 +173,7 @@ app.include_router(banca_router.router)
 
 # FINANZA
 app.include_router(finanza_router.router)
+app.include_router(finanza_scadenzario_router.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])

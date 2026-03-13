@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/finanza/dashboard", icon: "📊" },
   { key: "movimenti", label: "Movimenti", path: "/finanza/movimenti", icon: "📋" },
+  { key: "scadenzario", label: "Scadenzario", path: "/finanza/scadenzario", icon: "📅", roles: ["admin"] },
   { key: "categorie", label: "Categorie", path: "/finanza/categorie", icon: "🏷️", roles: ["admin"] },
   { key: "import", label: "Import", path: "/finanza/import", icon: "📥", roles: ["admin"] },
 ];

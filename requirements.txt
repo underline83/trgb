@@ -23,6 +23,9 @@ jinja2
 # Word / DOCX
 python-docx
 
+# Date utilities
+python-dateutil
+
 # Variabili d'ambiente (.env)
 python-dotenv
 

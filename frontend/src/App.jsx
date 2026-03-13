@@ -75,6 +75,7 @@ import FinanzaDashboard from "./pages/finanza/FinanzaDashboard";
 import FinanzaMovimenti from "./pages/finanza/FinanzaMovimenti";
 import FinanzaImport from "./pages/finanza/FinanzaImport";
 import FinanzaCategorie from "./pages/finanza/FinanzaCategorie";
+import FinanzaScadenzario from "./pages/finanza/FinanzaScadenzario";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -164,6 +165,7 @@ export default function App() {
         <Route path="/finanza/movimenti" element={<FinanzaMovimenti />} />
         <Route path="/finanza/import" element={<FinanzaImport />} />
         <Route path="/finanza/categorie" element={<FinanzaCategorie />} />
+        <Route path="/finanza/scadenzario" element={<FinanzaScadenzario />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

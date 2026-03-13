@@ -6,6 +6,7 @@ import { VersionBadge } from "../../config/versions";
 const CARDS = [
   { title: "Dashboard", desc: "Vista analitica e finanziaria, pivot mensili, categorie", icon: "📊", path: "/finanza/dashboard" },
   { title: "Movimenti", desc: "Lista completa con filtri, doppia classificazione, riconciliazione", icon: "📋", path: "/finanza/movimenti" },
+  { title: "Scadenzario", desc: "Rateizzazioni, mutui, prestiti, affitti e spese fisse", icon: "📅", path: "/finanza/scadenzario", admin: true },
   { title: "Categorie & Regole", desc: "Gestisci regole di auto-categorizzazione, collega fornitori", icon: "🏷️", path: "/finanza/categorie", admin: true },
   { title: "Import Excel", desc: "Carica il file movimenti Excel", icon: "📥", path: "/finanza/import", admin: true },
 ];
