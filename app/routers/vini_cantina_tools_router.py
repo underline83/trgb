@@ -823,16 +823,88 @@ def carta_cantina_docx(
 # =============================================================
 # 7. INVENTARIO PDF — TUTTI I VINI
 # =============================================================
-def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any]]:
+def _load_all_vini_inventario(
+    solo_giacenza: bool = False,
+    tipologia: Optional[str] = None,
+    nazione: Optional[str] = None,
+    regione: Optional[str] = None,
+    produttore: Optional[str] = None,
+    annata: Optional[str] = None,
+    formato: Optional[str] = None,
+    carta: Optional[str] = None,
+    stato_vendita: Optional[str] = None,
+    stato_riordino: Optional[str] = None,
+    discontinuato: Optional[str] = None,
+    qta_min: Optional[int] = None,
+    qta_max: Optional[int] = None,
+    prezzo_min: Optional[float] = None,
+    prezzo_max: Optional[float] = None,
+    text: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     """
-    Carica tutti i vini dal DB cantina per report inventario.
-    Se solo_giacenza=True, filtra solo quelli con QTA_TOTALE > 0.
+    Carica vini dal DB cantina per report inventario con filtri componibili.
     Ordinamento identico alla carta vini (tipologia_order, nazioni_order,
     regioni_order dalle impostazioni, poi produttore, descrizione, annata).
     """
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
-    where = "WHERE QTA_TOTALE > 0" if solo_giacenza else ""
+
+    conditions: List[str] = []
+    params: List[Any] = []
+
+    if solo_giacenza:
+        conditions.append("QTA_TOTALE > 0")
+    if tipologia:
+        conditions.append("TIPOLOGIA = ?")
+        params.append(tipologia)
+    if nazione:
+        conditions.append("NAZIONE = ?")
+        params.append(nazione)
+    if regione:
+        conditions.append("REGIONE = ?")
+        params.append(regione)
+    if produttore:
+        conditions.append("PRODUTTORE = ?")
+        params.append(produttore)
+    if annata:
+        conditions.append("ANNATA = ?")
+        params.append(annata)
+    if formato:
+        conditions.append("FORMATO = ?")
+        params.append(formato)
+    if carta:
+        conditions.append("CARTA = ?")
+        params.append(carta)
+    if stato_vendita:
+        conditions.append("STATO_VENDITA = ?")
+        params.append(stato_vendita)
+    if stato_riordino:
+        conditions.append("STATO_RIORDINO = ?")
+        params.append(stato_riordino)
+    if discontinuato:
+        conditions.append("DISCONTINUATO = ?")
+        params.append(discontinuato)
+    if qta_min is not None:
+        conditions.append("QTA_TOTALE >= ?")
+        params.append(qta_min)
+    if qta_max is not None:
+        conditions.append("QTA_TOTALE <= ?")
+        params.append(qta_max)
+    if prezzo_min is not None:
+        conditions.append("PREZZO_CARTA >= ?")
+        params.append(prezzo_min)
+    if prezzo_max is not None:
+        conditions.append("PREZZO_CARTA <= ?")
+        params.append(prezzo_max)
+    if text:
+        conditions.append(
+            "(DESCRIZIONE LIKE ? OR PRODUTTORE LIKE ? OR DENOMINAZIONE LIKE ?)"
+        )
+        like = f"%{text}%"
+        params.extend([like, like, like])
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
     rows = cur.execute(f"""
         SELECT
             id, TIPOLOGIA, NAZIONE, REGIONE, CODICE,
@@ -848,7 +920,7 @@ def _load_all_vini_inventario(solo_giacenza: bool = False) -> List[Dict[str, Any
             DISCONTINUATO
         FROM vini_magazzino
         {where}
-    """).fetchall()
+    """, params).fetchall()
     conn.close()
 
     vini = [dict(r) for r in rows]
@@ -1280,3 +1352,167 @@ def inventario_locazioni_pdf(
         filename=f"inventario_locazioni_{datetime.now().strftime('%Y%m%d')}.pdf",
         media_type="application/pdf",
     )
+
+
+# =============================================================
+# 10. INVENTARIO PDF — FILTRATO (filtri componibili)
+# =============================================================
+def _build_filtri_subtitle(kwargs: Dict[str, Any]) -> str:
+    """Costruisce stringa leggibile dei filtri attivi."""
+    labels = {
+        "tipologia": "Tipologia",
+        "nazione": "Nazione",
+        "regione": "Regione",
+        "produttore": "Produttore",
+        "annata": "Annata",
+        "formato": "Formato",
+        "carta": "In carta",
+        "stato_vendita": "Stato vendita",
+        "stato_riordino": "Stato riordino",
+        "discontinuato": "Discontinuato",
+        "text": "Testo",
+    }
+    parts = []
+    for k, label in labels.items():
+        v = kwargs.get(k)
+        if v:
+            parts.append(f"{label}: {v}")
+    # Range quantita
+    qmin = kwargs.get("qta_min")
+    qmax = kwargs.get("qta_max")
+    if qmin is not None and qmax is not None:
+        parts.append(f"Qta: {qmin}-{qmax}")
+    elif qmin is not None:
+        parts.append(f"Qta >= {qmin}")
+    elif qmax is not None:
+        parts.append(f"Qta <= {qmax}")
+    # Range prezzo
+    pmin = kwargs.get("prezzo_min")
+    pmax = kwargs.get("prezzo_max")
+    if pmin is not None and pmax is not None:
+        parts.append(f"Prezzo: {pmin:.2f}-{pmax:.2f}")
+    elif pmin is not None:
+        parts.append(f"Prezzo >= {pmin:.2f}")
+    elif pmax is not None:
+        parts.append(f"Prezzo <= {pmax:.2f}")
+    if kwargs.get("solo_giacenza"):
+        parts.append("Solo con giacenza")
+    return " | ".join(parts) if parts else "Nessun filtro"
+
+
+@router.get("/inventario/filtrato/pdf", summary="PDF inventario con filtri componibili")
+def inventario_filtrato_pdf(
+    current_user: Any = Depends(_get_user_from_query_token),
+    tipologia: Optional[str] = Query(None),
+    nazione: Optional[str] = Query(None),
+    regione: Optional[str] = Query(None),
+    produttore: Optional[str] = Query(None),
+    annata: Optional[str] = Query(None),
+    formato: Optional[str] = Query(None),
+    carta: Optional[str] = Query(None),
+    stato_vendita: Optional[str] = Query(None),
+    stato_riordino: Optional[str] = Query(None),
+    discontinuato: Optional[str] = Query(None),
+    qta_min: Optional[int] = Query(None),
+    qta_max: Optional[int] = Query(None),
+    prezzo_min: Optional[float] = Query(None),
+    prezzo_max: Optional[float] = Query(None),
+    solo_giacenza: bool = Query(False),
+    text: Optional[str] = Query(None),
+):
+    """
+    Genera PDF inventario con filtri combinabili via query string.
+    Tutti i filtri sono opzionali e componibili tra loro.
+    """
+    filter_kwargs = dict(
+        solo_giacenza=solo_giacenza,
+        tipologia=tipologia,
+        nazione=nazione,
+        regione=regione,
+        produttore=produttore,
+        annata=annata,
+        formato=formato,
+        carta=carta,
+        stato_vendita=stato_vendita,
+        stato_riordino=stato_riordino,
+        discontinuato=discontinuato,
+        qta_min=qta_min,
+        qta_max=qta_max,
+        prezzo_min=prezzo_min,
+        prezzo_max=prezzo_max,
+        text=text,
+    )
+
+    vini = _load_all_vini_inventario(**filter_kwargs)
+    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
+    tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
+    filtri_str = _build_filtri_subtitle(filter_kwargs)
+
+    table_html = _build_inventario_table(vini, show_locations=True)
+
+    full_html = f"""
+    <html><head><meta charset="utf-8">
+    <style>{_inventario_css()}</style>
+    </head><body>
+        <div class="header">
+            <h1>INVENTARIO CANTINA &mdash; FILTRATO</h1>
+            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
+            <div class="subtitle" style="margin-top:3px;">{filtri_str}</div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-box">
+                <div class="label">Referenze</div>
+                <div class="value">{len(vini)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Bottiglie totali</div>
+                <div class="value">{tot_bott}</div>
+            </div>
+        </div>
+        {table_html}
+    </body></html>
+    """
+
+    out_path = STATIC_DIR / "inventario_filtrato.pdf"
+    HTML(string=full_html).write_pdf(
+        str(out_path),
+        stylesheets=[CSS(string=_inventario_css())],
+    )
+
+    return FileResponse(
+        str(out_path),
+        filename=f"inventario_filtrato_{datetime.now().strftime('%Y%m%d')}.pdf",
+        media_type="application/pdf",
+    )
+
+
+# =============================================================
+# 10b. ENDPOINT: valori distinti per popolare i filtri frontend
+# =============================================================
+@router.get("/inventario/filtri-options", summary="Valori distinti per filtri inventario")
+def inventario_filtri_options(
+    current_user: Any = Depends(get_current_user),
+):
+    """Restituisce i valori distinti per popolare le select dei filtri."""
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+
+    def distinct(col):
+        rows = cur.execute(
+            f"SELECT DISTINCT {col} FROM vini_magazzino "
+            f"WHERE {col} IS NOT NULL AND {col} != '' ORDER BY {col}"
+        ).fetchall()
+        return [r[0] for r in rows]
+
+    result = {
+        "tipologie": distinct("TIPOLOGIA"),
+        "nazioni": distinct("NAZIONE"),
+        "regioni": distinct("REGIONE"),
+        "produttori": distinct("PRODUTTORE"),
+        "annate": distinct("ANNATA"),
+        "formati": distinct("FORMATO"),
+        "stati_vendita": distinct("STATO_VENDITA"),
+        "stati_riordino": distinct("STATO_RIORDINO"),
+    }
+    conn.close()
+    return result

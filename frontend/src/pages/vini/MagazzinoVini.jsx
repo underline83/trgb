@@ -2,7 +2,7 @@
 // @version: v2.0-reforming-cantina
 // Pagina Cantina — Lista Vini + Dettaglio base (read-only) con filtri avanzati
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
@@ -12,12 +12,201 @@ const uniq = (arr) =>
     (a, b) => String(a).localeCompare(String(b), "it", { sensitivity: "base" })
   );
 
+// ── Pannello filtri stampa inventario ─────────────────────
+function StampaFiltrata({ onClose }) {
+  const [options, setOptions] = useState(null);
+  const [f, setF] = useState({
+    tipologia: "", nazione: "", regione: "", produttore: "",
+    annata: "", formato: "", carta: "", stato_vendita: "",
+    stato_riordino: "", discontinuato: "", solo_giacenza: false,
+    qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
+  });
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`)
+      .then(r => r.json()).then(setOptions).catch(() => {});
+  }, []);
+
+  const set = (k) => (e) => setF(prev => ({
+    ...prev, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value
+  }));
+
+  const activeCount = Object.entries(f).filter(([k, v]) =>
+    v !== "" && v !== false
+  ).length;
+
+  const genera = () => {
+    const token = localStorage.getItem("token");
+    const p = new URLSearchParams();
+    p.set("token", token);
+    Object.entries(f).forEach(([k, v]) => {
+      if (v !== "" && v !== false) p.set(k, String(v));
+    });
+    window.open(`${API_BASE}/vini/cantina-tools/inventario/filtrato/pdf?${p}`, "_blank");
+  };
+
+  const pulisci = () => setF({
+    tipologia: "", nazione: "", regione: "", produttore: "",
+    annata: "", formato: "", carta: "", stato_vendita: "",
+    stato_riordino: "", discontinuato: "", solo_giacenza: false,
+    qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
+  });
+
+  const sel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-300";
+  const inp = sel;
+  const lbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-auto"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200">
+          <h3 className="text-base font-bold text-neutral-800">Stampa inventario filtrato</h3>
+          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-lg">&times;</button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          {/* Ricerca libera */}
+          <div>
+            <label className={lbl}>Ricerca libera</label>
+            <input type="text" value={f.text} onChange={set("text")} placeholder="Descrizione, produttore, denominazione..." className={inp} />
+          </div>
+
+          {/* Selects principali */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div>
+              <label className={lbl}>Tipologia</label>
+              <select value={f.tipologia} onChange={set("tipologia")} className={sel}>
+                <option value="">Tutte</option>
+                {options?.tipologie?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Nazione</label>
+              <select value={f.nazione} onChange={set("nazione")} className={sel}>
+                <option value="">Tutte</option>
+                {options?.nazioni?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Regione</label>
+              <select value={f.regione} onChange={set("regione")} className={sel}>
+                <option value="">Tutte</option>
+                {options?.regioni?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Produttore</label>
+              <select value={f.produttore} onChange={set("produttore")} className={sel}>
+                <option value="">Tutti</option>
+                {options?.produttori?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Annata</label>
+              <select value={f.annata} onChange={set("annata")} className={sel}>
+                <option value="">Tutte</option>
+                {options?.annate?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Formato</label>
+              <select value={f.formato} onChange={set("formato")} className={sel}>
+                <option value="">Tutti</option>
+                {options?.formati?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Stato / Flag */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className={lbl}>In carta</label>
+              <select value={f.carta} onChange={set("carta")} className={sel}>
+                <option value="">Tutti</option>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Stato vendita</label>
+              <select value={f.stato_vendita} onChange={set("stato_vendita")} className={sel}>
+                <option value="">Tutti</option>
+                {options?.stati_vendita?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Stato riordino</label>
+              <select value={f.stato_riordino} onChange={set("stato_riordino")} className={sel}>
+                <option value="">Tutti</option>
+                {options?.stati_riordino?.map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Discontinuato</label>
+              <select value={f.discontinuato} onChange={set("discontinuato")} className={sel}>
+                <option value="">Tutti</option>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Range quantita e prezzo */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className={lbl}>Qta min</label>
+              <input type="number" value={f.qta_min} onChange={set("qta_min")} placeholder="0" className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>Qta max</label>
+              <input type="number" value={f.qta_max} onChange={set("qta_max")} placeholder="..." className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>Prezzo min</label>
+              <input type="number" step="0.01" value={f.prezzo_min} onChange={set("prezzo_min")} placeholder="0.00" className={inp} />
+            </div>
+            <div>
+              <label className={lbl}>Prezzo max</label>
+              <input type="number" step="0.01" value={f.prezzo_max} onChange={set("prezzo_max")} placeholder="..." className={inp} />
+            </div>
+          </div>
+
+          {/* Checkbox giacenza */}
+          <label className="inline-flex items-center gap-2 text-xs text-neutral-700">
+            <input type="checkbox" checked={f.solo_giacenza} onChange={set("solo_giacenza")} className="rounded border-neutral-400" />
+            <span>Solo vini con giacenza positiva</span>
+          </label>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-200 bg-neutral-50 rounded-b-2xl">
+          <div className="flex gap-2">
+            <button onClick={pulisci}
+              className="px-3 py-1.5 text-xs rounded-lg border border-neutral-300 hover:bg-neutral-100 transition">
+              Pulisci filtri
+            </button>
+            {activeCount > 0 && (
+              <span className="text-xs text-neutral-500 self-center">{activeCount} filtri attivi</span>
+            )}
+          </div>
+          <button onClick={genera}
+            className="px-5 py-2 text-sm font-semibold rounded-xl bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition">
+            Genera PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function MagazzinoVini() {
   const navigate = useNavigate();
 
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showStampaFiltrata, setShowStampaFiltrata] = useState(false);
 
   const [selectedVino, setSelectedVino] = useState(null);
 
@@ -281,8 +470,13 @@ export default function MagazzinoVini() {
                     const token = localStorage.getItem("token");
                     window.open(`${API_BASE}/vini/cantina-tools/inventario/locazioni/pdf?token=${token}`, "_blank");
                   }}
-                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 rounded-b-xl transition">
+                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 transition">
                   Per locazione
+                </button>
+                <div className="border-t border-neutral-100" />
+                <button onClick={() => setShowStampaFiltrata(true)}
+                  className="px-4 py-2.5 text-sm text-left hover:bg-amber-50 rounded-b-xl transition font-medium">
+                  Con filtri...
                 </button>
               </div>
             </div>
@@ -834,6 +1028,10 @@ export default function MagazzinoVini() {
 
       </div>
       </div>
+
+      {showStampaFiltrata && (
+        <StampaFiltrata onClose={() => setShowStampaFiltrata(false)} />
+      )}
     </div>
   );
 }
