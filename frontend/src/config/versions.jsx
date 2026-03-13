@@ -32,6 +32,12 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  finanza: {
+    version: "1.0",
+    label: "Finanza",
+    status: "beta",
+    color: "blue",
+  },
   dipendenti: {
     version: "1.0",
     label: "Dipendenti",

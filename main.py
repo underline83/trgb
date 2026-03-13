@@ -44,6 +44,9 @@ from app.routers.dipendenti import router as dipendenti_router
 # BANCA — movimenti bancari
 from app.routers import banca_router
 
+# FINANZA — gestione finanziaria completa
+from app.routers import finanza_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -166,6 +169,9 @@ app.include_router(dipendenti_router)
 
 # BANCA
 app.include_router(banca_router.router)
+
+# FINANZA
+app.include_router(finanza_router.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])

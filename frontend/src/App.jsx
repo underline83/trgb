@@ -69,6 +69,12 @@ import BancaImport from "./pages/banca/BancaImport";
 import BancaCategorie from "./pages/banca/BancaCategorie";
 import BancaCrossRef from "./pages/banca/BancaCrossRef";
 
+// --- FINANZA ---
+import FinanzaMenu from "./pages/finanza/FinanzaMenu";
+import FinanzaDashboard from "./pages/finanza/FinanzaDashboard";
+import FinanzaMovimenti from "./pages/finanza/FinanzaMovimenti";
+import FinanzaImport from "./pages/finanza/FinanzaImport";
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -150,6 +156,12 @@ export default function App() {
         <Route path="/banca/import" element={<BancaImport />} />
         <Route path="/banca/categorie" element={<BancaCategorie />} />
         <Route path="/banca/crossref" element={<BancaCrossRef />} />
+
+        {/* --- FINANZA --- */}
+        <Route path="/finanza" element={<FinanzaMenu />} />
+        <Route path="/finanza/dashboard" element={<FinanzaDashboard />} />
+        <Route path="/finanza/movimenti" element={<FinanzaMovimenti />} />
+        <Route path="/finanza/import" element={<FinanzaImport />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

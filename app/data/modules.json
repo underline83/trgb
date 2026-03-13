@@ -42,6 +42,13 @@
     "roles": ["admin", "viewer"]
   },
   {
+    "key": "finanza",
+    "label": "Finanza",
+    "description": "Gestione finanziaria, vista analitica e di cassa, riconciliazione",
+    "icon": "💰",
+    "roles": ["admin", "viewer"]
+  },
+  {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Dipendenti, utenti, impostazioni",
