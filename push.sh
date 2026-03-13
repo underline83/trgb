@@ -50,8 +50,8 @@ if [[ "$MODE" == "-f" ]]; then
     $VENV/bin/pip install -r requirements.txt -q
     cd $VPS_DIR/frontend && npm install --silent
     cd $VPS_DIR
-    sudo systemctl restart trgb-backend
-    sudo systemctl restart trgb-frontend
+    sudo /bin/systemctl restart trgb-backend
+    sudo /bin/systemctl restart trgb-frontend
     echo '✅ Deploy FULL completato'
   "
 else
@@ -60,8 +60,8 @@ else
     set -e
     cd $VPS_DIR
     git pull
-    sudo systemctl restart trgb-backend
-    sudo systemctl restart trgb-frontend
+    sudo /bin/systemctl restart trgb-backend
+    sudo /bin/systemctl restart trgb-frontend
     echo '✅ Deploy QUICK completato'
   "
 fi
