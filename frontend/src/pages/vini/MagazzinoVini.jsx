@@ -1,11 +1,12 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v3.0-cascading-loc-filters
-// Pagina Cantina — Lista Vini + Dettaglio base (read-only) con filtri avanzati
+// @version: v4.0-scheda-inline
+// Pagina Cantina — Lista Vini + Dettaglio + Scheda completa inline modificabile
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
+import SchedaVino from "./SchedaVino";
 
 const uniq = (arr) =>
   Array.from(new Set(arr.filter((x) => x && String(x).trim() !== ""))).sort(
@@ -292,6 +293,8 @@ export default function MagazzinoVini() {
   const [showStampaFiltrata, setShowStampaFiltrata] = useState(false);
 
   const [selectedVino, setSelectedVino] = useState(null);
+  const [openSchedaId, setOpenSchedaId] = useState(null);
+  const schedaRef = useRef(null);
 
   // ------- FILTRI --------
   const [searchId, setSearchId] = useState("");
@@ -537,7 +540,14 @@ export default function MagazzinoVini() {
     frigoNome, frigoSpazio, loc1Nome, loc1Spazio, loc2Nome, loc2Spazio,
   ]);
 
-  const handleRowClick = (vino) => setSelectedVino(vino);
+  const handleRowClick = (vino) => {
+    setSelectedVino(vino);
+    setOpenSchedaId(vino.id);
+    // Scroll to scheda after render
+    setTimeout(() => {
+      schedaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
 
   // ------------------------------------------------
   // RENDER
@@ -1092,15 +1102,11 @@ export default function MagazzinoVini() {
 
                 {selectedVino && (
                   <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/vini/magazzino/${selectedVino.id}`)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
-                      >
-                        🍷 Apri scheda completa
-                      </button>
-                    </div>
+                    {openSchedaId === selectedVino.id && (
+                      <div className="text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                        Scheda completa aperta sotto
+                      </div>
+                    )}
 
                     <div>
                       <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mb-1">
@@ -1251,6 +1257,22 @@ export default function MagazzinoVini() {
             </div>
           </div>
         </div>
+
+        {/* ── SCHEDA COMPLETA INLINE ────────────────── */}
+        {openSchedaId && (
+          <div ref={schedaRef} className="mt-6">
+            <SchedaVino
+              vinoId={openSchedaId}
+              inline={true}
+              onClose={() => { setOpenSchedaId(null); }}
+              onVinoUpdated={(updatedVino) => {
+                // Aggiorna la lista con i dati modificati
+                setVini(prev => prev.map(v => v.id === updatedVino.id ? { ...v, ...updatedVino } : v));
+                setSelectedVino(prev => prev && prev.id === updatedVino.id ? { ...prev, ...updatedVino } : prev);
+              }}
+            />
+          </div>
+        )}
 
       </div>
       </div>
