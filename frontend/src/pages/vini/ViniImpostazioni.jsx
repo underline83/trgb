@@ -86,10 +86,11 @@ export default function ViniImpostazioni() {
   const [locEditNome, setLocEditNome] = useState("");
   const [locEditSpaziText, setLocEditSpaziText] = useState(""); // "Fila 1, Fila 2, ..."
   const [locConfigSaving, setLocConfigSaving] = useState(false);
-  const [locExpandedVal, setLocExpandedVal] = useState(null); // valore espanso per vedere vini
-  const [locViniDetail, setLocViniDetail] = useState([]);      // vini per il valore espanso
+  const [locExpandedVal, setLocExpandedVal] = useState(null);
+  const [locViniDetail, setLocViniDetail] = useState([]);
   const [locViniLoading, setLocViniLoading] = useState(false);
-  const [locViniEdits, setLocViniEdits] = useState({});        // {vinoId: nuovoValore}
+  const [locViniEdits, setLocViniEdits] = useState({});
+  const [locGiacenzaWarning, setLocGiacenzaWarning] = useState(null); // {vini, toApply} per conferma
 
   // --- Impostazioni ordinamento ---
   const [tipologie, setTipologie] = useState([]);
@@ -259,19 +260,18 @@ export default function ViniImpostazioni() {
     } catch (e) { setError(e?.message || "Errore estrazione valori."); } finally { setLocLoading(false); }
   };
   const SVUOTA = "__SVUOTA__";
-  const handleApplicaMapping = async () => {
+
+  const _buildToApply = () => {
     const toApply = {};
     for (const [k, v] of Object.entries(locMapping)) {
-      if (v === SVUOTA) toApply[k] = "";  // svuota → stringa vuota
+      if (v === SVUOTA) toApply[k] = "";
       else if (v && v.trim()) toApply[k] = v.trim();
     }
-    if (Object.keys(toApply).length === 0) { setLocMsg("Nessuna sostituzione da applicare."); return; }
-    const svuotaCount = Object.values(toApply).filter(v => v === "").length;
-    const msg = svuotaCount > 0
-      ? `Applicare ${Object.keys(toApply).length} sostituzioni (di cui ${svuotaCount} svuotamenti) nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`
-      : `Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`;
-    if (!window.confirm(msg)) return;
-    setLocSaving(true); setError(""); setLocMsg("");
+    return toApply;
+  };
+
+  const _executeMapping = async (toApply) => {
+    setLocSaving(true); setError(""); setLocMsg(""); setLocGiacenzaWarning(null);
     try {
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-normalizza`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -280,9 +280,42 @@ export default function ViniImpostazioni() {
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
       const data = await resp.json();
       setLocMsg(data.msg);
-      // Ricarica i valori aggiornati
       handleEstraiValori(locCampo);
     } catch (e) { setError(e?.message || "Errore applicazione mapping."); } finally { setLocSaving(false); }
+  };
+
+  const handleApplicaMapping = async () => {
+    const toApply = _buildToApply();
+    if (Object.keys(toApply).length === 0) { setLocMsg("Nessuna sostituzione da applicare."); return; }
+
+    // Controlla se ci sono svuotamenti
+    const valoriDaSvuotare = Object.entries(toApply).filter(([, v]) => v === "").map(([k]) => k);
+
+    if (valoriDaSvuotare.length > 0) {
+      // Pre-check giacenze
+      try {
+        const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-check-giacenze`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ campo: locCampo, valori: valoriDaSvuotare }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.totale > 0) {
+            // Mostra il pannello warning con i vini
+            setLocGiacenzaWarning({ vini: data.vini_con_giacenza, toApply });
+            return; // non procedere, aspetta conferma dall'utente
+          }
+        }
+      } catch { /* se il check fallisce, procedi comunque con confirm */ }
+    }
+
+    // Nessun problema di giacenza: conferma semplice
+    const svuotaCount = valoriDaSvuotare.length;
+    const msg = svuotaCount > 0
+      ? `Applicare ${Object.keys(toApply).length} sostituzioni (di cui ${svuotaCount} svuotamenti) nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`
+      : `Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`;
+    if (!window.confirm(msg)) return;
+    _executeMapping(toApply);
   };
 
   const handleToggleViniDetail = async (valore) => {
@@ -783,22 +816,66 @@ export default function ViniImpostazioni() {
                 </table>
               </div>
 
+              {/* WARNING GIACENZE */}
+              {locGiacenzaWarning && (
+                <div className="border-t border-red-300 bg-red-50 px-4 py-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <span className="text-lg">⚠️</span>
+                    <div>
+                      <p className="text-sm font-semibold text-red-800">
+                        Attenzione: {locGiacenzaWarning.vini.length} vin{locGiacenzaWarning.vini.length === 1 ? "o ha" : "i hanno"} ancora giacenza in questa locazione
+                      </p>
+                      <p className="text-xs text-red-700 mt-0.5">Svuotando la locazione, questi vini perderanno il riferimento alla posizione fisica.</p>
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto mb-3 space-y-1">
+                    {locGiacenzaWarning.vini.map(vino => (
+                      <div key={vino.id} className="flex items-center justify-between bg-white border border-red-200 rounded-lg px-3 py-1.5 text-xs">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-neutral-800">{vino.descrizione}</span>
+                          <span className="text-neutral-500 ml-1">
+                            {vino.produttore}{vino.annata ? ` · ${vino.annata}` : ""}
+                          </span>
+                        </div>
+                        <div className="shrink-0 ml-2 flex items-center gap-2">
+                          <span className="text-xs text-neutral-500">{vino.locazione}</span>
+                          <span className="font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded">Qta: {vino.quantita}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => _executeMapping(locGiacenzaWarning.toApply)}
+                      disabled={locSaving}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow transition">
+                      {locSaving ? "Applicazione…" : "Procedi comunque"}
+                    </button>
+                    <button onClick={() => setLocGiacenzaWarning(null)}
+                      className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
+                      Annulla
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* APPLICA */}
-              <div className="bg-neutral-50 border-t border-neutral-200 px-4 py-3 flex items-center justify-between">
-                <span className="text-xs text-neutral-600">
-                  {pendingMappings > 0
-                    ? `${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"} da applicare`
-                    : "Nessuna sostituzione impostata"}
-                </span>
-                <button onClick={handleApplicaMapping} disabled={locSaving || pendingMappings === 0}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                    locSaving || pendingMappings === 0
-                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}>
-                  {locSaving ? "Salvataggio…" : `Applica ${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"}`}
-                </button>
-              </div>
+              {!locGiacenzaWarning && (
+                <div className="bg-neutral-50 border-t border-neutral-200 px-4 py-3 flex items-center justify-between">
+                  <span className="text-xs text-neutral-600">
+                    {pendingMappings > 0
+                      ? `${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"} da applicare`
+                      : "Nessuna sostituzione impostata"}
+                  </span>
+                  <button onClick={handleApplicaMapping} disabled={locSaving || pendingMappings === 0}
+                    className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                      locSaving || pendingMappings === 0
+                        ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}>
+                    {locSaving ? "Salvataggio…" : `Applica ${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"}`}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

@@ -1863,6 +1863,55 @@ async def get_vini_per_locazione(
     }
 
 
+@router.post("/locazioni-check-giacenze", summary="Verifica giacenze prima di svuotare")
+async def check_giacenze_locazione(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """
+    Dato un elenco di valori da svuotare, ritorna i vini con giacenza > 0.
+    Body: { "campo": "frigorifero", "valori": ["Frigo-1-1", "Frigo"] }
+    """
+    body = await request.json()
+    campo = body.get("campo")
+    valori = body.get("valori", [])
+
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, "Campo non valido.")
+    if not valori:
+        return {"vini_con_giacenza": []}
+
+    col = LOCATION_FIELDS[campo]["column"]
+    qta_col = LOCATION_FIELDS[campo]["qta_column"]
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(valori))
+    rows = cur.execute(
+        f"SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, {col}, {qta_col} "
+        f"FROM vini_magazzino WHERE {col} IN ({placeholders}) "
+        f"AND {qta_col} IS NOT NULL AND {qta_col} > 0 "
+        f"ORDER BY {qta_col} DESC",
+        valori,
+    ).fetchall()
+    conn.close()
+
+    return {
+        "vini_con_giacenza": [
+            {
+                "id": r["id"],
+                "descrizione": r["DESCRIZIONE"],
+                "produttore": r["PRODUTTORE"],
+                "annata": r["ANNATA"],
+                "locazione": r[col],
+                "quantita": r[qta_col],
+            }
+            for r in rows
+        ],
+        "totale": len(rows),
+    }
+
+
 @router.post("/locazioni-vino-update", summary="Aggiorna locazione singolo vino")
 async def update_vino_locazione(
     request: Request,
