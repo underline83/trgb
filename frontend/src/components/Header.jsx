@@ -36,7 +36,7 @@ export default function Header({ onLogout }) {
           </span>
         </div>
 
-        {/* RIGHT — User info + logout */}
+        {/* RIGHT — User info + actions + logout */}
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <div className="text-sm font-medium text-neutral-800 leading-tight">{username}</div>
@@ -44,6 +44,13 @@ export default function Header({ onLogout }) {
               <div className="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">{role}</div>
             )}
           </div>
+          <button
+            onClick={() => navigate("/cambio-pin")}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
+            title="Cambia PIN"
+          >
+            🔑
+          </button>
           <button
             onClick={onLogout}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"

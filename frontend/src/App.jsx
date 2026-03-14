@@ -65,6 +65,9 @@ import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
 import DipendentiCosti from "./pages/admin/DipendentiCosti";
 
+// --- CAMBIO PIN ---
+import CambioPIN from "./pages/CambioPIN";
+
 // --- BANCA ---
 import BancaMenu from "./pages/banca/BancaMenu";
 import BancaDashboard from "./pages/banca/BancaDashboard";
@@ -177,6 +180,9 @@ export default function App() {
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
         <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
         <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
+
+        {/* --- CAMBIO PIN --- */}
+        <Route path="/cambio-pin" element={<CambioPIN />} />
 
         {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
         <Route path="/admin/impostazioni" element={<ImpostazioniSistema />} />
