@@ -37,6 +37,10 @@ export default function ChiusuraTurno() {
   const [message, setMessage] = useState(null);
   const [existingId, setExistingId] = useState(null);
 
+  // Fondo cassa
+  const [fondoCassaInizio, setFondoCassaInizio] = useState("");
+  const [fondoCassaFine, setFondoCassaFine] = useState("");
+
   // Dati numerici
   const [preconto, setPreconto] = useState("");
   const [fatture, setFatture] = useState("");
@@ -78,6 +82,7 @@ export default function ChiusuraTurno() {
 
   // ── Reset form ──
   const resetForm = () => {
+    setFondoCassaInizio(""); setFondoCassaFine("");
     setPreconto(""); setFatture(""); setCoperti("");
     setContanti(""); setPosBpm(""); setPosSella("");
     setTheforkpay(""); setOtherEpay(""); setBonifici(""); setMance("");
@@ -119,6 +124,8 @@ export default function ChiusuraTurno() {
       }
       if (!res.ok) throw new Error("Errore caricamento");
       const data = await res.json();
+      setFondoCassaInizio(data.fondo_cassa_inizio?.toString() ?? "");
+      setFondoCassaFine(data.fondo_cassa_fine?.toString() ?? "");
       setPreconto(data.preconto?.toString() ?? "");
       setFatture(data.fatture?.toString() ?? "");
       setCoperti(data.coperti?.toString() ?? "");
@@ -180,6 +187,8 @@ export default function ChiusuraTurno() {
         body: JSON.stringify({
           date,
           turno,
+          fondo_cassa_inizio: toNumber(fondoCassaInizio),
+          fondo_cassa_fine: toNumber(fondoCassaFine),
           preconto: toNumber(preconto),
           fatture: toNumber(fatture),
           coperti: toNumber(coperti),
@@ -271,6 +280,15 @@ export default function ChiusuraTurno() {
           <div className="bg-white rounded-2xl p-8 text-center text-neutral-400 animate-pulse">Caricamento...</div>
         ) : (
           <>
+            {/* FONDO CASSA */}
+            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">💰 Fondo cassa</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <NumberField label="Inizio servizio" value={fondoCassaInizio} onChange={setFondoCassaInizio} icon="🟢" />
+                <NumberField label="Fine servizio" value={fondoCassaFine} onChange={setFondoCassaFine} icon="🔴" />
+              </div>
+            </div>
+
             {/* DATI PRINCIPALI */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">Dati servizio</h2>

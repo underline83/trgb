@@ -32,6 +32,8 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             turno TEXT NOT NULL CHECK (turno IN ('pranzo', 'cena')),
+            fondo_cassa_inizio REAL DEFAULT 0,
+            fondo_cassa_fine REAL DEFAULT 0,
             contanti REAL DEFAULT 0,
             pos_bpm REAL DEFAULT 0,
             pos_sella REAL DEFAULT 0,
@@ -81,6 +83,13 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+
+    # Migration: add fondo_cassa columns if missing
+    existing_cols = {row[1] for row in cur.execute("PRAGMA table_info(shift_closures)").fetchall()}
+    if "fondo_cassa_inizio" not in existing_cols:
+        cur.execute("ALTER TABLE shift_closures ADD COLUMN fondo_cassa_inizio REAL DEFAULT 0")
+    if "fondo_cassa_fine" not in existing_cols:
+        cur.execute("ALTER TABLE shift_closures ADD COLUMN fondo_cassa_fine REAL DEFAULT 0")
 
     # Table: shift_preconti (tavoli aperti non battuti)
     cur.execute(
@@ -150,6 +159,8 @@ class ChecklistResponseOut(ChecklistResponseBase):
 class ShiftClosureBase(BaseModel):
     date: date_type
     turno: str = Field(..., pattern="^(pranzo|cena)$")
+    fondo_cassa_inizio: float = 0
+    fondo_cassa_fine: float = 0
     contanti: float = 0
     pos_bpm: float = 0
     pos_sella: float = 0
@@ -234,6 +245,8 @@ async def get_shift_closure(
                 id,
                 date,
                 turno,
+                fondo_cassa_inizio,
+                fondo_cassa_fine,
                 contanti,
                 pos_bpm,
                 pos_sella,
@@ -320,6 +333,8 @@ async def get_shift_closure(
         id=row["id"],
         date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
         turno=row["turno"],
+        fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
+        fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
         contanti=row["contanti"],
         pos_bpm=row["pos_bpm"],
         pos_sella=row["pos_sella"],
@@ -392,6 +407,8 @@ async def upsert_shift_closure(
                 """
                 UPDATE shift_closures
                 SET
+                    fondo_cassa_inizio = ?,
+                    fondo_cassa_fine = ?,
                     contanti = ?,
                     pos_bpm = ?,
                     pos_sella = ?,
@@ -408,6 +425,8 @@ async def upsert_shift_closure(
                 WHERE id = ?
                 """,
                 (
+                    payload.fondo_cassa_inizio,
+                    payload.fondo_cassa_fine,
                     payload.contanti,
                     payload.pos_bpm,
                     payload.pos_sella,
@@ -430,6 +449,8 @@ async def upsert_shift_closure(
                 INSERT INTO shift_closures (
                     date,
                     turno,
+                    fondo_cassa_inizio,
+                    fondo_cassa_fine,
                     contanti,
                     pos_bpm,
                     pos_sella,
@@ -444,11 +465,13 @@ async def upsert_shift_closure(
                     note,
                     created_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     date_str,
                     payload.turno,
+                    payload.fondo_cassa_inizio,
+                    payload.fondo_cassa_fine,
                     payload.contanti,
                     payload.pos_bpm,
                     payload.pos_sella,
@@ -527,6 +550,8 @@ async def upsert_shift_closure(
                 id,
                 date,
                 turno,
+                fondo_cassa_inizio,
+                fondo_cassa_fine,
                 contanti,
                 pos_bpm,
                 pos_sella,
@@ -606,6 +631,8 @@ async def upsert_shift_closure(
         id=row["id"],
         date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
         turno=row["turno"],
+        fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
+        fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
         contanti=row["contanti"],
         pos_bpm=row["pos_bpm"],
         pos_sella=row["pos_sella"],
@@ -659,6 +686,8 @@ async def list_shift_closures(
                 id,
                 date,
                 turno,
+                fondo_cassa_inizio,
+                fondo_cassa_fine,
                 contanti,
                 pos_bpm,
                 pos_sella,
