@@ -1,4 +1,4 @@
-# @version: v1.3-dashboard-kpi-values
+# @version: v1.4-aperte-calici-kpi
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)
@@ -1103,12 +1103,29 @@ def get_dashboard_stats() -> Dict[str, Any]:
     kpi_vendite = cur.execute(
         """
         SELECT
+            COALESCE(SUM(CASE WHEN date(data_mov) = date('now')
+                              THEN qta END), 0) AS vendute_oggi,
             COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-7 days')
                               THEN qta END), 0) AS vendute_7gg,
             COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-30 days')
                               THEN qta END), 0) AS vendute_30gg
         FROM vini_magazzino_movimenti
         WHERE tipo = 'VENDITA';
+        """
+    ).fetchone()
+
+    # KPI aperte per calici (VENDITA con tag [CALICI] nelle note)
+    kpi_aperte = cur.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN date(data_mov) = date('now')
+                              THEN qta END), 0) AS aperte_oggi,
+            COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-7 days')
+                              THEN qta END), 0) AS aperte_7gg,
+            COALESCE(SUM(CASE WHEN datetime(data_mov) >= datetime('now', '-30 days')
+                              THEN qta END), 0) AS aperte_30gg
+        FROM vini_magazzino_movimenti
+        WHERE tipo = 'VENDITA' AND note LIKE '%[CALICI]%';
         """
     ).fetchone()
 
@@ -1236,8 +1253,12 @@ def get_dashboard_stats() -> Dict[str, Any]:
         "total_alert_carta":          len(alert_carta),
         "total_vini_fermi":           len(vini_fermi),
         "vini_senza_listino_list":    [dict(r) for r in senza_listino],
+        "vendute_oggi":               kpi_vendite["vendute_oggi"],
         "vendute_7gg":                kpi_vendite["vendute_7gg"],
         "vendute_30gg":               kpi_vendite["vendute_30gg"],
+        "aperte_oggi":                kpi_aperte["aperte_oggi"],
+        "aperte_7gg":                 kpi_aperte["aperte_7gg"],
+        "aperte_30gg":                kpi_aperte["aperte_30gg"],
         "vendite_recenti":            [dict(r) for r in vendite_recenti],
         "movimenti_operativi":        [dict(r) for r in movimenti_operativi],
         "top_venduti_30gg":           [dict(r) for r in top_venduti],

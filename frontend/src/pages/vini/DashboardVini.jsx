@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v3.0-expandable-kpi-values
+// @version: v3.1-aperte-calici-kpi
 // Dashboard Vini — KPI, alert, ultimi movimenti, distribuzione tipologie
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -149,19 +149,59 @@ export default function DashboardVini() {
   const kpiVendite = stats
     ? [
         {
-          label:   "Vendute ultimi 7gg",
+          label:   "Vendute oggi",
+          value:   stats.vendute_oggi ?? 0,
+          icon:    "🛒",
+          color:   "bg-violet-50 border-violet-200 text-violet-900",
+          sub:     "bottiglie",
+        },
+        {
+          label:   "Vendute 7gg",
           value:   stats.vendute_7gg ?? 0,
           icon:    "🛒",
           color:   "bg-violet-50 border-violet-200 text-violet-900",
           sub:     "bottiglie",
         },
         {
-          label:   "Vendute ultimi 30gg",
+          label:   "Vendute 30gg",
           value:   stats.vendute_30gg ?? 0,
           icon:    "📈",
           color:   "bg-violet-50 border-violet-200 text-violet-900",
           sub:     "bottiglie",
         },
+      ]
+    : [];
+
+  // ── KPI tiles — riga aperte calici ───────────────────────
+  const kpiAperte = stats
+    ? [
+        {
+          label:   "Aperte oggi",
+          value:   stats.aperte_oggi ?? 0,
+          icon:    "🥂",
+          color:   "bg-rose-50 border-rose-200 text-rose-900",
+          sub:     "calici",
+        },
+        {
+          label:   "Aperte 7gg",
+          value:   stats.aperte_7gg ?? 0,
+          icon:    "🥂",
+          color:   "bg-rose-50 border-rose-200 text-rose-900",
+          sub:     "calici",
+        },
+        {
+          label:   "Aperte 30gg",
+          value:   stats.aperte_30gg ?? 0,
+          icon:    "🥂",
+          color:   "bg-rose-50 border-rose-200 text-rose-900",
+          sub:     "calici",
+        },
+      ]
+    : [];
+
+  // ── KPI tiles — riga valori ──────────────────────────────
+  const kpiValori = stats
+    ? [
         {
           label:   "Valore acquisto",
           value:   `${((stats.valore_acquisto ?? 0) / 1000).toFixed(1)}k`,
@@ -407,9 +447,37 @@ export default function DashboardVini() {
             ))}
           </div>
 
-          {/* riga vendite + valori */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* riga vendite */}
+          <div className="grid grid-cols-3 gap-4">
             {kpiVendite.map((tile) => (
+              <div key={tile.label} className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}>
+                <div className="text-2xl mb-2">{tile.icon}</div>
+                <div className="text-3xl font-bold tracking-tight">
+                  {tile.value?.toLocaleString("it-IT")}
+                </div>
+                <div className="text-xs font-semibold mt-1 opacity-80">{tile.label}</div>
+                <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* riga aperte calici */}
+          <div className="grid grid-cols-3 gap-4">
+            {kpiAperte.map((tile) => (
+              <div key={tile.label} className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}>
+                <div className="text-2xl mb-2">{tile.icon}</div>
+                <div className="text-3xl font-bold tracking-tight">
+                  {tile.value?.toLocaleString("it-IT")}
+                </div>
+                <div className="text-xs font-semibold mt-1 opacity-80">{tile.label}</div>
+                <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* riga valori */}
+          <div className="grid grid-cols-2 gap-4">
+            {kpiValori.map((tile) => (
               <div key={tile.label} className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}>
                 <div className="text-2xl mb-2">{tile.icon}</div>
                 <div className="text-3xl font-bold tracking-tight">
