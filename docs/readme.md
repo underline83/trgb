@@ -1,18 +1,19 @@
-# 🚀 TRGB Gestionale
+# TRGB Gestionale
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
-**Versione:** 2026.03.14
+**Versione:** 2026.03.14 — Sistema v4.3
 
 ---
 
 # 1. Panoramica del Progetto
 
-TRGB Gestionale è un'applicazione web interna composta da:
+TRGB Gestionale e' un'applicazione web interna composta da:
 
-- **Backend** FastAPI (Python 3.12) — API REST, autenticazione JWT, SQLite
+- **Backend** FastAPI (Python 3.12) — API REST, autenticazione JWT con PIN, SQLite
 - **Frontend** React 18 + Vite + TailwindCSS
 - **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
+- **Deploy automatico** via `git push` → post-receive hook su VPS
 
-Moduli attivi: Carta Vini, Magazzino Vini, Gestione Acquisti, Gestione Vendite, Ricette & FoodCost, Banca, Dipendenti & Turni.
+Moduli attivi: Cantina & Vini (v3.7), Gestione Acquisti (v2.0), Ricette & Food Cost (v3.0), Gestione Vendite (v2.0) con Chiusure Turno, Banca (v1.0), Finanza (v1.0), Dipendenti & Turni (v1.0).
 
 ---
 
@@ -26,37 +27,42 @@ trgb/
 │   ├── services/       — Logica applicativa
 │   ├── models/         — Schema DB + CRUD
 │   ├── repositories/   — Query ordinate
-│   ├── migrations/     — Migrazioni foodcost.db
-│   └── data/           — Database SQLite
+│   ├── migrations/     — Migrazioni foodcost.db (001–017)
+│   └── data/           — Database SQLite (6 file)
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx, main.jsx
 │   │   ├── components/
 │   │   ├── pages/
-│   │   └── config/api.js
+│   │   └── config/api.js, versions.jsx
 │   ├── .env.development
 │   └── .env.production
 ├── static/             — CSS, font, asset statici
 ├── docs/               — Documentazione tecnica
 ├── scripts/
-│   └── deploy.sh       — Script deploy VPS
+│   ├── deploy.sh       — Script deploy VPS (fallback manuale)
+│   └── push.sh         — Deploy automatico (commit + push + restart)
 └── main.py             — Entry point FastAPI
 ```
 
 ---
 
-# 3. File .env
+# 3. Configurazione Ambiente
 
-### `.env.development`
+### `.env` (backend, gitignored)
+```
+SECRET_KEY=<chiave-segreta-jwt>
+```
+
+### `.env.development` (frontend)
 ```
 VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-### `.env.production`
+### `.env.production` (frontend)
 ```
-VITE_API_BASE_URL=http://80.211.131.156:8000
+VITE_API_BASE_URL=https://trgb.tregobbi.it
 ```
-⚠️ Da aggiornare a `https://trgb.tregobbi.it` (task #2 Roadmap)
 
 ---
 
@@ -65,10 +71,8 @@ VITE_API_BASE_URL=http://80.211.131.156:8000
 ```bash
 # Doppio click su run_servers.command
 # oppure manualmente:
-
 source ~/trgb/venv-trgb/bin/activate
 uvicorn main:app --reload --port 8000
-
 cd frontend && npm run dev
 ```
 
@@ -80,11 +84,18 @@ Endpoints locali:
 
 # 5. Deploy su VPS
 
+### Deploy automatico (metodo principale)
+```bash
+./push.sh "messaggio commit"       # quick (git pull + restart)
+./push.sh "messaggio commit" -f    # full (+ pip + npm install)
+```
+
+### Deploy manuale (fallback)
 ```bash
 ssh marco@80.211.131.156
 cd /home/marco/trgb/trgb
-./scripts/deploy.sh -b    # quick (solo restart)
-./scripts/deploy.sh -a    # full (pip + npm + restart)
+./scripts/deploy.sh -b    # quick
+./scripts/deploy.sh -a    # full
 ./scripts/deploy.sh -c    # safe (backup DB + full)
 ```
 
@@ -111,44 +122,94 @@ Dominio frontend: `https://app.tregobbi.it` → `127.0.0.1:5173`
 
 # 8. Moduli
 
-### Carta Vini
-Import Excel → normalizzazione → DB → generazione HTML/PDF/DOCX.
-Documentazione: `docs/Modulo_Vini.md`, `docs/Database_Vini.md`
+### Cantina & Vini (v3.7)
+Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI, vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX. Strumenti cantina: sync Excel, import/export, modifica massiva.
+Docs: `docs/modulo_vini.md`, `docs/modulo_magazzino_vini.md`
 
-### Magazzino Vini
-Giacenze vini, locazioni, prezzi carta/listino, import SAFE/FORCE.
-Documentazione: `docs/Modulo_MagazzinoVini.md`
+### Gestione Acquisti (v2.0)
+Import FatturaPA XML, dashboard acquisti con drill-down, elenco fornitori, categorie a 2 livelli, esclusioni fornitori.
+Docs: `docs/Modulo_Acquisti.md`
 
-### Corrispettivi
-Import Excel corrispettivi, chiusure giornaliere, statistiche mensili/annuali, dashboard.
-Documentazione: `docs/Modulo_Corrispettivi.md`
+### Ricette & Food Cost (v3.0)
+Ingredienti, fornitori, storico prezzi, ricette con sub-ricette, calcolo food cost ricorsivo, matching fatture con Smart Create, conversioni unita' personalizzate.
+Docs: `docs/modulo_foodcost.md`
 
-### Gestione Acquisti (ex Fatture Elettroniche)
-Import FatturaPA XML, dashboard acquisti, elenco fornitori, categorie, drill-down.
-Documentazione: `docs/Modulo_Acquisti.md`
+### Gestione Vendite (v2.0)
+Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa), pre-conti, spese dinamiche, fondo cassa, riepilogo mensile, dashboard, confronto annuale.
+Docs: `docs/modulo_corrispettivi.md`
 
-### FoodCost
-Ingredienti, fornitori, storico prezzi, ricette.
-Documentazione: `docs/Modulo_FoodCost.md`, `docs/Database_FoodCost.md`
+### Banca (v1.0)
+Import CSV Banco BPM, movimenti con categorie custom, dashboard, cross-reference con fatture XML, andamento temporale.
 
-### Dipendenti & Turni
-Anagrafica, tipologie turno, calendario.
-Documentazione: `docs/Modulo_Dipendenti.md`
+### Finanza (v1.0)
+Import Excel movimenti finanziari, scadenzario pagamenti, categorie a doppia classificazione.
 
----
-
-# 9. Documentazione completa
-
-Indice → `docs/Index.md`
+### Dipendenti & Turni (v1.0)
+Anagrafica, tipologie turno, calendario. Allegati predisposti nel DB ma non ancora implementati.
+Docs: `docs/modulo_dipendenti.md`
 
 ---
 
-# 10. Roadmap
+# 9. Autenticazione
 
-Task prioritari aperti → `docs/Roadmap.md`
+- Login via PIN numerico (4+ cifre) con selezione utente tile-based
+- JWT token (HS256, 60 min scadenza)
+- 4 utenti: marco (admin), iryna (sala), paolo (sala), ospite (viewer)
+- 5 ruoli: admin, chef, sommelier, sala, viewer
+- Cambio PIN self-service + reset admin da Header
+- Middleware ReadOnlyViewer blocca scritture per ruolo "viewer"
 
-Stato attuale (2026-03-08):
-- ⚠️ Auth mock con password in chiaro (task #1)
-- ⚠️ Endpoint finanziari senza autenticazione (task #3)
-- ⚠️ `.env.production` usa HTTP, non HTTPS (task #2)
-- 🔄 Fix bug corrispettivi deployati (task #5 ✅)
+---
+
+# 10. Database
+
+6 file SQLite in `app/data/`:
+
+| File | Moduli |
+|------|--------|
+| `vini.sqlite3` | Carta Vini (legacy Excel) |
+| `vini_magazzino.sqlite3` | Cantina (magazzino vini moderno) |
+| `vini_settings.sqlite3` | Ordinamenti e filtri carta |
+| `foodcost.db` | FoodCost, Fatture XML, Ricette, Banca, Finanza (migrazioni 001–017) |
+| `admin_finance.sqlite3` | Vendite, Chiusure turno |
+| `dipendenti.sqlite3` | Dipendenti e turni (creato a runtime) |
+
+Schema dettagliato → `docs/database.md`
+
+---
+
+# 11. Documentazione completa
+
+| File | Contenuto |
+|------|-----------|
+| `docs/architettura.md` | Architettura tecnica completa |
+| `docs/database.md` | Schema tutti i database |
+| `docs/deploy.md` | Guida deploy VPS e locale |
+| `docs/changelog.md` | Storico rilasci |
+| `docs/roadmap.md` | Task aperti e pianificati |
+| `docs/sessione.md` | Briefing per sessioni Claude |
+| `docs/modulo_*.md` | Documentazione per modulo |
+
+---
+
+# 12. Versioni Moduli
+
+Fonte di verita': `frontend/src/config/versions.jsx`
+
+| Modulo | Versione | Stato |
+|--------|----------|-------|
+| Cantina & Vini | v3.7 | stabile |
+| Gestione Acquisti | v2.0 | stabile |
+| Ricette & Food Cost | v3.0 | beta |
+| Gestione Vendite | v2.0 | stabile |
+| Banca | v1.0 | beta |
+| Finanza | v1.0 | beta |
+| Dipendenti | v1.0 | stabile |
+| Login & Ruoli | v2.0 | stabile |
+| Sistema | v4.3 | stabile |
+
+---
+
+# 13. Roadmap
+
+Task prioritari aperti → `docs/roadmap.md`

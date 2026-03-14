@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-03-14c — Cambio PIN self-service + reset admin
+
+### Added
+- **Pagina CambioPIN** (`/cambio-pin`) — accessibile a tutti gli utenti loggati
+  - Cambio PIN proprio: verifica PIN attuale (obbligatorio per non-admin) + nuovo PIN + conferma
+  - Sezione admin: lista utenti con pulsante "Reset → 0000" per ciascuno
+  - PinInput component: type=password, inputMode=numeric, filtra non-digit
+- **Icona 🔑 nel Header** — accanto al logout, per accesso rapido alla pagina Cambio PIN
+- **Route `/cambio-pin`** in App.jsx + import CambioPIN
+
+---
+
+## 2026-03-14b — Chiusure Turno: modulo completo fine servizio
+
+### Added
+- **Modulo Chiusure Turno** — sistema completo per chiusura fine servizio (pranzo/cena)
+  - **`chiusure_turno.py`** — backend con tabelle: `shift_closures` (con fondo_cassa_inizio/fine), `shift_checklist_config`, `shift_checklist_responses`, `shift_preconti`, `shift_spese`
+  - **`ChiusuraTurno.jsx`** v2.0 — form completo con:
+    - Preconto rinominato "Chiusura Parziale" (pranzo) / "Chiusura" (cena) dinamicamente
+    - Sezione Pre-conti: righe dinamiche (tavolo + importo) per tavoli non battuti
+    - Sezione Spese: righe dinamiche (tipo: scontrino/fattura/personale/altro + descrizione + importo)
+    - Fondo Cassa: inizio e fine servizio
+    - **Logica cena cumulativa**: staff inserisce totali giornalieri, il sistema sottrae pranzo per calcolare parziali cena
+    - Hint "pranzo €X → parz. cena €Y" sotto ogni campo in modalita' cena
+    - Banner esplicativo in modalita' cena
+    - Riepilogo differenziato: pranzo mostra totali semplici, cena mostra giorno→pranzo→parziale
+    - Quadratura: `(incassi + preconti) - chiusura_parziale`
+  - **`ChiusureTurnoLista.jsx`** — pagina admin con lista completa chiusure
+    - Filtri: range date (default ultimi 30 giorni), turno (tutti/pranzo/cena)
+    - Totali periodo: n. chiusure, totale incassi, totale coperti, totale spese
+    - Ogni riga: data, turno badge, inserita da (created_by), chiusura, incassi, coperti, spese, quadratura (dot verde/rosso)
+    - Espandi per dettaglio: incassi breakdown, fondo cassa, pre-conti, spese con badge tipo, note
+    - Pulsante "Modifica" per riaprire il form
+- **VenditeNav aggiornato** — tab "Fine Turno" visibile a tutti, altri tab admin-only
+- **Route** `/vendite/fine-turno` → ChiusuraTurno, `/vendite/chiusure` → ChiusureTurnoLista (sostituisce vecchio CorrispettiviGestione)
+
+### Changed
+- **VenditeNav.jsx** v2.0 — visibilita' tab per ruolo (`roles: null` = tutti, `roles: ["admin"]` = solo admin)
+- **App.jsx** — nuove route + vecchio `/vendite/chiusure-old` preservato come fallback
+- **admin_finance.sqlite3** — nuove tabelle shift_closures, shift_preconti, shift_spese con auto-migrazione colonne
+
+---
+
 ## 2026-03-14 — Cantina & Vini v3.7: Filtri locazione gerarchici, Dashboard KPI valore, Modifica massiva migliorata
 
 ### Added

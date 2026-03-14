@@ -1,19 +1,21 @@
 # Database — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-08
+**Ultimo aggiornamento:** 2026-03-14
 
 Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono in `app/data/`.
 
 | File | Moduli | Schema |
 |------|--------|--------|
-| `vini.sqlite3` | Carta Vini, Magazzino Vini | v2.1 — creato da `vini_db.py` |
+| `vini.sqlite3` | Carta Vini | v2.1 — creato da `vini_db.py` |
+| `vini_magazzino.sqlite3` | Cantina (magazzino vini) | v3.7 — creato da `vini_magazzino_db.py` |
 | `vini_settings.sqlite3` | Settings Carta Vini | v1.4 — creato da `vini_settings.py` |
-| `foodcost.db` | FoodCost, Fatture XML | v1.6 — gestito da `migration_runner.py` (migrazioni 001–005) |
+| `foodcost.db` | FoodCost, FE XML, Banca, Finanza | v3.0 — gestito da `migration_runner.py` (001–017) |
+| `admin_finance.sqlite3` | Vendite, Chiusure Turno | v2.0 — chiusure turno con pre-conti e spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | v1.0 — creato a runtime da `dipendenti_db.py` |
 
 ---
 
 # 1. `vini.sqlite3`
-_Gestisce la Carta dei Vini. È un DB operazionale: sovrascritto ad ogni import Excel._
+_Gestisce la Carta dei Vini. E' un DB operazionale: sovrascritto ad ogni import Excel._
 
 ## Tabella `vini`
 Tabella unica con tutte le informazioni per generazione carta, ricerca, ordinamento, scorte.
@@ -22,176 +24,152 @@ Tabella unica con tutte le informazioni per generazione carta, ricerca, ordiname
 |---------|------|------|
 | id | INT PK | Autoincrement |
 | TIPOLOGIA | TEXT | Categoria macro (es. BIANCHI ITALIA) |
-| NAZIONE | TEXT | Italia, Francia… |
-| CODICE | TEXT | Codice regione (IT01, FR05…) |
-| REGIONE | TEXT | Regione vino (Lombardia, Champagne…) |
-| CARTA | TEXT | 'SI' o 'NO' — inclusione nella carta |
+| NAZIONE | TEXT | Italia, Francia... |
+| CODICE | TEXT | Codice regione (IT01, FR05...) |
+| REGIONE | TEXT | Regione vino |
+| CARTA | TEXT | 'SI' o 'NO' |
 | DESCRIZIONE | TEXT | Nome vino / denominazione |
 | ANNATA | TEXT | Anno o "s.a." |
-| PRODUTTORE | TEXT | Produttore |
+| PRODUTTORE | TEXT | |
 | PREZZO | REAL | Prezzo ristorante |
-| FORMATO | TEXT | MN, DM, MG, CL… (validato con CHECK) |
-| N_FRIGO | INT | Bottiglie in frigorifero |
-| N_LOC1 | INT | Bottiglie in locazione 1 |
-| N_LOC2 | INT | Bottiglie in locazione 2 |
+| FORMATO | TEXT | MN, DM, MG, CL... |
+| N_FRIGO, N_LOC1, N_LOC2 | INT | Bottiglie per locazione |
 | QTA | INT | Totale disponibile |
-| IPRATICO | TEXT | Campo interno |
-| DENOMINAZIONE | TEXT | Denominazione ufficiale |
-| FRIGORIFERO | TEXT | Testo libero |
-| LOCAZIONE_1 | TEXT | Nome locazione 1 |
-| LOCAZIONE_2 | TEXT | Nome locazione 2 |
-| DISTRIBUTORE | TEXT | Nome distributore |
+| FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2 | TEXT | Nomi locazioni |
 | EURO_LISTINO | REAL | Prezzo listino fornitore |
 | SCONTO | REAL | % sconto |
 
-Le tabelle di ordinamento (`tipologia_order`, `nazioni_order`, `regioni_order`, `filtri_carta`) stanno in `vini_settings.sqlite3`, non qui.
+---
 
-## Import Excel
-Gestito da `vini_model.py` — endpoint `POST /vini/upload`. Foglio obbligatorio: `VINI`.
-Sequenza: parsing → normalizzazione (`normalize_dataframe()`) → `clear_vini_table()` → insert atomico.
+# 2. `vini_magazzino.sqlite3`
+_Magazzino vini moderno. Sostituisce progressivamente il DB legacy._
 
-## Generazione Carta
-- HTML: `GET /vini/carta` — `build_carta_body_html_htmlsafe()`
-- PDF: `GET /vini/carta/pdf` — WeasyPrint, font locali Mac / font sistema VPS
-- DOCX: `GET /vini/carta/docx` — python-docx
+## Tabella `vini_magazzino`
+| Colonna | Tipo | Note |
+|---------|------|------|
+| id | INT PK | ID interno (immutabile) |
+| id_excel | TEXT | Origine Excel |
+| DESCRIZIONE, PRODUTTORE, REGIONE, NAZIONE, TIPOLOGIA | TEXT | Anagrafica |
+| ANNATA, DENOMINAZIONE, FORMATO, GRADI | TEXT | |
+| FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2 | TEXT | Nomi locazioni |
+| QTA_FRIGO, QTA_LOC1, QTA_LOC2, QTA_LOC3 | INT | Bottiglie per locazione |
+| QTA_TOTALE | INT | Calcolata automaticamente |
+| EURO_LISTINO, EURO_CARTA | REAL | Prezzi |
+| CARTA, IPRATICO | TEXT | Flag SI/NO |
+| STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE | TEXT | Stati operativi |
+| DISCONTINUATO | INT | Flag vino da non ricomprare |
+| ORIGINE | TEXT | 'EXCEL' o 'MANUALE' |
+| NOTE | TEXT | |
 
-## Convenzioni
-- `TIPOLOGIA` va aggiornata anche in `TIPOLOGIA_VALIDE` (vini_db.py e vini_settings.py)
-- `PREZZO` = prezzo ristorante, `EURO_LISTINO` = listino fornitore
-- Ogni modifica schema richiede: aggiornare `vini_db.py` + questo file + verificare upload + PDF
+## Tabella `movimenti_cantina`
+| id | vino_id (FK) | tipo | qta | note | utente | data_mov | locazione |
+
+## Tabella `vini_magazzino_note`
+| id | vino_id (FK) | testo | utente | data |
 
 ---
 
-# 2. `vini_settings.sqlite3`
-_Ordinamenti e filtri della carta vini. Gestito da `vini_settings.py`._
+# 3. `vini_settings.sqlite3`
+_Ordinamenti e filtri della carta vini._
 
 | Tabella | Contenuto |
 |---------|-----------|
 | `tipologia_order` | Ordine tipologie nella carta |
 | `nazioni_order` | Ordine nazioni |
-| `regioni_order` | Ordine regioni |
+| `regioni_order` | Ordine regioni per nazione |
 | `filtri_carta` | Filtri attivi (min_qta, mostra_negativi, mostra_senza_prezzo) |
 
 ---
 
-# 3. `foodcost.db`
-_FoodCost + Fatture Elettroniche XML. Gestito da `migration_runner.py` (migrazioni 001–005)._
+# 4. `foodcost.db`
+_FoodCost + Fatture XML + Banca + Finanza. Gestito da `migration_runner.py` (001–017)._
 
-> ⚠️ Le tabelle `fe_fatture` e `fe_righe` sono create a runtime da `fe_import.py`, non da una migrazione dedicata (task #19 Roadmap).
+## Tabelle FoodCost
 
-## Tabella `suppliers`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| name | TEXT | Nome fornitore |
-| codice_fiscale | TEXT | Opzionale |
-| partita_iva | TEXT | |
-| codice_sdi | TEXT | |
-| pec | TEXT | |
-| note | TEXT | |
-| created_at | TEXT | Timestamp |
+### `suppliers`
+| id | name | codice_fiscale | partita_iva | codice_sdi | pec | note | created_at |
 
-## Tabella `ingredient_categories`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| name | TEXT | Nome univoco |
-| description | TEXT | |
+### `ingredient_categories`
+| id | name | description |
 
-## Tabella `ingredients`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| name | TEXT | Nome ingrediente |
-| codice_interno | TEXT | SKU interno |
-| category_id | INT FK | → ingredient_categories.id |
-| default_unit | TEXT | Unità base (kg, g, L, ml, pz…) |
-| allergeni | TEXT | |
-| note | TEXT | |
-| is_active | INT | Default 1 |
-| created_at | TEXT | |
+### `ingredients`
+| id | name | codice_interno | category_id (FK) | default_unit | allergeni | note | is_active | created_at |
 
-## Tabella `ingredient_prices`
+### `ingredient_prices`
 Storico prezzi multi-fornitore. Mai sovrascritti — ogni fattura aggiunge una riga.
+| id | ingredient_id (FK) | supplier_id (FK) | price_date | unit_price | quantity | unit | invoice_id | note | created_at |
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| ingredient_id | INT FK | → ingredients.id |
-| supplier_id | INT FK | → suppliers.id |
-| price_date | TEXT | Data fattura |
-| unit_price | REAL | Prezzo per default_unit |
-| quantity | REAL | Quantità confezione |
-| unit | TEXT | Unità confezione |
-| invoice_id | INT FK | → fe_fatture.id (campo legacy: `invoices.id`) |
-| note | TEXT | |
-| created_at | TEXT | |
+### `ingredient_supplier_map`
+Mapping descrizione fornitore → ingrediente per auto-match.
+| ingredient_id | supplier_id | codice_fornitore | unita_fornitore | fattore_conversione |
 
-## Tabella `fe_fatture`
-> ⚠️ Si chiama `fe_fatture`, NON `invoices` (nome vecchio della pianificazione).
+### `ingredient_unit_conversions`
+Conversioni unita' personalizzate per ingrediente (migrazione 013).
+| ingredient_id | from_unit | to_unit | fattore_conversione | note |
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| fornitore_nome | TEXT | |
-| fornitore_piva | TEXT | |
-| numero_fattura | TEXT | |
-| data_fattura | TEXT | YYYY-MM-DD |
-| imponibile_totale | REAL | |
-| iva_totale | REAL | |
-| totale_fattura | REAL | |
-| valuta | TEXT | Default EUR |
-| xml_hash | TEXT | SHA-256 anti-duplicazione |
-| xml_filename | TEXT | Nome file originale |
-| data_import | TEXT | Timestamp |
+### `recipe_categories`
+| id | name | sort_order |
 
-## Tabella `fe_righe`
-> ⚠️ Si chiama `fe_righe`, NON `invoice_lines`.
+### `recipes`
+| id | name | category_id (FK) | is_base | yield_qty | yield_unit | selling_price | prep_time | note | is_active | created_at |
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| fattura_id | INT FK | → fe_fatture.id |
-| numero_linea | INT | |
-| descrizione | TEXT | |
-| quantita | REAL | |
-| unita_misura | TEXT | |
-| prezzo_unitario | REAL | |
-| prezzo_totale | REAL | |
-| aliquota_iva | REAL | |
-| categoria_grezza | TEXT | Facoltativa |
-| note_analisi | TEXT | |
+### `recipe_items`
+| id | recipe_id (FK) | ingredient_id (FK) | sub_recipe_id (FK) | qty | unit | note |
 
-## Tabella `recipes`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| name | TEXT | |
-| category | TEXT | ANTIPASTO, PRIMO, DOLCE… |
-| yield_qty | REAL | Resa |
-| yield_unit | TEXT | |
-| notes | TEXT | |
-| is_active | INT | Default 1 |
-| created_at | TEXT | |
+## Tabelle Fatture Elettroniche
 
-## Tabella `recipe_items`
-| Colonna | Tipo | Note |
-|---------|------|------|
-| id | INT PK | |
-| recipe_id | INT FK | → recipes.id |
-| ingredient_id | INT FK | → ingredients.id |
-| qty | REAL | Riferita alla resa |
-| unit | TEXT | |
-| note | TEXT | |
-| order_index | INT | |
-| created_at | TEXT | |
+### `fe_fatture`
+| id | fornitore_nome | fornitore_piva | numero_fattura | data_fattura | imponibile_totale | iva_totale | totale_fattura | valuta | xml_hash | xml_filename | data_import |
 
-## Relazioni
-`suppliers` → `ingredient_prices` ← `ingredients` ← `ingredient_categories`
-`fe_fatture` → `fe_righe`
-`recipes` → `recipe_items` ← `ingredients`
+### `fe_righe`
+| id | fattura_id (FK) | numero_linea | descrizione | quantita | unita_misura | prezzo_unitario | prezzo_totale | aliquota_iva | categoria_grezza | note_analisi |
 
-> Collegamento `fe_righe` → `ingredients` non ancora implementato — previsto Fase 2 (task #16 Roadmap)
+### `fe_categorie` / `fe_sottocategorie`
+Categorie a 2 livelli per classificazione fornitori.
+
+### `fe_fornitore_categoria`
+| fornitore_piva | fornitore_nome | categoria_id | sottocategoria_id | note |
+
+### `fe_fornitore_esclusione`
+| fornitore_piva | fornitore_nome | escluso | motivo_esclusione | alias_di |
+
+### Tabelle matching
+- `matching_description_exclusions` — descrizioni non-ingrediente da ignorare
+- `matching_ignored_righe` — righe fattura ignorate nel matching
+
+## Tabelle Banca (migrazione 014)
+
+### `banca_movimenti`
+| id | data_contabile | data_valuta | causale | importo | saldo | categoria_banca | sottocategoria_banca | tipo | dedup_hash (UNIQUE) |
+
+### `banca_categorie_map`
+| id | categoria_banca | sottocategoria_banca | categoria_custom | colore | icona | tipo |
+
+### `banca_fatture_link`
+| id | movimento_id (FK) | fattura_id (FK) | note |
+
+### `banca_import_log`
+| id | filename | data_import | num_movimenti |
+
+## Tabelle Finanza (migrazioni 015–017)
+
+### `finanza_movimenti`
+Movimenti finanziari importati da Excel.
+
+### `finanza_categorie`
+Classificazione a doppia categoria.
+
+### `finanza_scadenzario`
+Scadenze pagamenti.
+
+## Relazioni principali
+
+```
+suppliers → ingredient_prices ← ingredients ← ingredient_categories
+fe_fatture → fe_righe → ingredient_supplier_map → ingredients
+recipes → recipe_items ← ingredients (o sub_recipe_id → recipes)
+banca_movimenti → banca_fatture_link ← fe_fatture
+```
 
 ## Convenzioni
 - Prezzi mai sovrascritti, sempre storicizzati
@@ -200,12 +178,39 @@ Storico prezzi multi-fornitore. Mai sovrascritti — ogni fattura aggiunge una r
 
 ---
 
-# 4. `dipendenti.sqlite3`
+# 5. `admin_finance.sqlite3`
+_Vendite e chiusure turno._
+
+### `daily_closures`
+| date (PK) | corrispettivi | iva_10 | iva_22 | fatture | contanti_finali | pos_bpm | pos_sella | theforkpay | other_e_payments | bonifici | mance | note | is_closed |
+
+### `shift_closures`
+Chiusure per turno (pranzo/cena) con logica cumulativa.
+| id | date | turno | fondo_cassa_inizio | fondo_cassa_fine | contanti | pos_bpm | pos_sella | theforkpay | other_e_payments | bonifici | mance | preconto | fatture | coperti | totale_incassi | note | created_by | created_at | updated_at |
+
+### `shift_checklist_config`
+| id | turno | label | ordine | attivo |
+
+### `shift_checklist_responses`
+| id | shift_closure_id (FK) | checklist_item_id (FK) | checked | note |
+
+### `shift_preconti`
+Pre-conti (tavoli non battuti): tavolo + importo per chiusura.
+| id | shift_closure_id (FK) | tavolo | importo | note |
+
+### `shift_spese`
+Spese per chiusura: scontrino/fattura/personale/altro.
+| id | shift_closure_id (FK) | tipo | descrizione | importo |
+
+---
+
+# 6. `dipendenti.sqlite3`
 _Dipendenti e turni. Creato a runtime da `init_dipendenti_db()` in `dipendenti_db.py`._
 
 | Tabella | Contenuto |
 |---------|-----------|
-| `dipendenti` | Anagrafica (nome, ruolo, contratto, ore, costo) |
-| `turni` | Turni lavorativi (data, ora_inizio, ora_fine) |
-| `presenze` | Presenze effettive |
-| `allegati` | Allegati dipendente (tabella creata, endpoint non ancora implementato — task #22) |
+| `dipendenti` | Anagrafica (nome, cognome, ruolo, contratto, dati personali, IBAN) |
+| `turno_tipo` | Tipologie turno (codice, nome, orari, colore) |
+| `turno_calendario` | Assegnazioni turno per data |
+| `dipendenti_costi` | Costi dipendente (stipendio, periodo) |
+| `dipendenti_allegati` | Allegati (tabella creata, endpoint non implementato — task #22) |
