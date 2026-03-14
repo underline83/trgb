@@ -82,6 +82,19 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # Table: shift_preconti (tavoli aperti non battuti)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_preconti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shift_closure_id INTEGER NOT NULL,
+            tavolo TEXT NOT NULL,
+            importo REAL DEFAULT 0,
+            FOREIGN KEY (shift_closure_id) REFERENCES shift_closures(id)
+        )
+        """
+    )
+
     conn.commit()
 
 
@@ -113,6 +126,16 @@ class ChecklistItemOut(ChecklistItemBase):
     created_at: str
 
 
+class PrecontoBase(BaseModel):
+    tavolo: str
+    importo: float = 0
+
+
+class PrecontoOut(PrecontoBase):
+    id: int
+    shift_closure_id: int
+
+
 class ChecklistResponseBase(BaseModel):
     checklist_item_id: int
     checked: int = 0
@@ -142,6 +165,7 @@ class ShiftClosureBase(BaseModel):
 
 class ShiftClosureIn(ShiftClosureBase):
     checklist: Optional[List[ChecklistResponseBase]] = None
+    preconti: Optional[List[PrecontoBase]] = None
 
 
 class ShiftClosureOut(ShiftClosureBase):
@@ -151,6 +175,7 @@ class ShiftClosureOut(ShiftClosureBase):
     created_at: str
     updated_at: Optional[str] = None
     checklist: List[ChecklistResponseOut] = []
+    preconti: List[PrecontoOut] = []
 
 
 # ---------------------------------------------------------
@@ -255,6 +280,18 @@ async def get_shift_closure(
         )
         checklist_rows = cur.fetchall()
 
+        # Get preconti
+        cur.execute(
+            """
+            SELECT id, shift_closure_id, tavolo, importo
+            FROM shift_preconti
+            WHERE shift_closure_id = ?
+            ORDER BY id ASC
+            """,
+            (shift_closure_id,),
+        )
+        preconti_rows = cur.fetchall()
+
     finally:
         conn.close()
 
@@ -267,6 +304,16 @@ async def get_shift_closure(
             note=r["note"],
         )
         for r in checklist_rows
+    ]
+
+    preconti_items = [
+        PrecontoOut(
+            id=r["id"],
+            shift_closure_id=r["shift_closure_id"],
+            tavolo=r["tavolo"],
+            importo=r["importo"],
+        )
+        for r in preconti_rows
     ]
 
     return ShiftClosureOut(
@@ -289,6 +336,7 @@ async def get_shift_closure(
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         checklist=checklist_items,
+        preconti=preconti_items,
     )
 
 
@@ -452,6 +500,24 @@ async def upsert_shift_closure(
                     ),
                 )
 
+        # Handle preconti
+        # Delete existing preconti
+        cur.execute(
+            "DELETE FROM shift_preconti WHERE shift_closure_id = ?",
+            (shift_closure_id,),
+        )
+        # Insert new preconti
+        if payload.preconti:
+            for p in payload.preconti:
+                if p.tavolo.strip():
+                    cur.execute(
+                        """
+                        INSERT INTO shift_preconti (shift_closure_id, tavolo, importo)
+                        VALUES (?, ?, ?)
+                        """,
+                        (shift_closure_id, p.tavolo.strip(), p.importo),
+                    )
+
         conn.commit()
 
         # Reload the record
@@ -500,6 +566,18 @@ async def upsert_shift_closure(
         )
         checklist_rows = cur.fetchall()
 
+        # Reload preconti
+        cur.execute(
+            """
+            SELECT id, shift_closure_id, tavolo, importo
+            FROM shift_preconti
+            WHERE shift_closure_id = ?
+            ORDER BY id ASC
+            """,
+            (shift_closure_id,),
+        )
+        preconti_rows = cur.fetchall()
+
     finally:
         conn.close()
 
@@ -512,6 +590,16 @@ async def upsert_shift_closure(
             note=r["note"],
         )
         for r in checklist_rows
+    ]
+
+    preconti_items = [
+        PrecontoOut(
+            id=r["id"],
+            shift_closure_id=r["shift_closure_id"],
+            tavolo=r["tavolo"],
+            importo=r["importo"],
+        )
+        for r in preconti_rows
     ]
 
     return ShiftClosureOut(
@@ -534,6 +622,7 @@ async def upsert_shift_closure(
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         checklist=checklist_items,
+        preconti=preconti_items,
     )
 
 

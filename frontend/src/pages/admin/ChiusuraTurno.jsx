@@ -53,6 +53,9 @@ export default function ChiusuraTurno() {
 
   const [note, setNote] = useState("");
 
+  // Pre-conti (tavoli aperti non battuti)
+  const [preconti, setPreconti] = useState([]);
+
   // Checklist
   const [checklistConfig, setChecklistConfig] = useState([]);
   const [checklistState, setChecklistState] = useState({});
@@ -63,9 +66,13 @@ export default function ChiusuraTurno() {
     toNumber(theforkpay) + toNumber(otherEpay) + toNumber(bonifici)
   , [contanti, posBpm, posSella, theforkpay, otherEpay, bonifici]);
 
+  const totalePreconti = useMemo(() =>
+    preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
+  , [preconti]);
+
   const diff = useMemo(() =>
-    totaleIncassi - toNumber(preconto)
-  , [totaleIncassi, preconto]);
+    (totaleIncassi + totalePreconti) - toNumber(preconto)
+  , [totaleIncassi, totalePreconti, preconto]);
 
   const diffStatus = Math.abs(diff) < 0.5 ? "ok" : diff > 0 ? "over" : "short";
 
@@ -75,7 +82,7 @@ export default function ChiusuraTurno() {
     setContanti(""); setPosBpm(""); setPosSella("");
     setTheforkpay(""); setOtherEpay(""); setBonifici(""); setMance("");
     setNote(""); setExistingId(null);
-    setChecklistState({});
+    setChecklistState({}); setPreconti([]);
   };
 
   // ── Fetch checklist config ──
@@ -124,6 +131,13 @@ export default function ChiusuraTurno() {
       setMance(data.mance?.toString() ?? "");
       setNote(data.note ?? "");
       setExistingId(data.id);
+
+      // Populate preconti
+      if (data.preconti && data.preconti.length > 0) {
+        setPreconti(data.preconti.map(p => ({ tavolo: p.tavolo, importo: p.importo?.toString() ?? "" })));
+      } else {
+        setPreconti([]);
+      }
 
       // Populate checklist state
       const cs = {};
@@ -178,6 +192,10 @@ export default function ChiusuraTurno() {
           mance: toNumber(mance),
           note: note.trim() || null,
           checklist,
+          preconti: preconti.filter(p => p.tavolo.trim()).map(p => ({
+            tavolo: p.tavolo.trim(),
+            importo: toNumber(p.importo),
+          })),
         }),
       });
       if (!res.ok) {
@@ -257,7 +275,7 @@ export default function ChiusuraTurno() {
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">Dati servizio</h2>
               <div className="grid grid-cols-3 gap-4">
-                <NumberField label="Preconto (RT)" value={preconto} onChange={setPreconto} icon="🧾" />
+                <NumberField label={turno === "pranzo" ? "Chiusura Parziale" : "Chiusura"} value={preconto} onChange={setPreconto} icon="🧾" />
                 <NumberField label="Totale fatture" value={fatture} onChange={setFatture} icon="📄" />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">🪑 Coperti</label>
@@ -283,15 +301,79 @@ export default function ChiusuraTurno() {
               </div>
             </div>
 
+            {/* PRE-CONTI (tavoli aperti) */}
+            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
+                  🍽️ Pre-conti
+                  <span className="text-neutral-400 font-normal normal-case ml-2 text-xs">tavoli aperti non battuti</span>
+                </h2>
+                <button type="button"
+                  onClick={() => setPreconti(prev => [...prev, { tavolo: "", importo: "" }])}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">
+                  + Aggiungi tavolo
+                </button>
+              </div>
+              {preconti.length === 0 ? (
+                <div className="text-sm text-neutral-400 italic text-center py-3">
+                  Nessun pre-conto — tutti i tavoli sono stati battuti
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {preconti.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <input type="text" value={p.tavolo}
+                          onChange={e => {
+                            const updated = [...preconti];
+                            updated[idx] = { ...updated[idx], tavolo: e.target.value };
+                            setPreconti(updated);
+                          }}
+                          placeholder="Tavolo (es. T4, Sala2...)"
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                      </div>
+                      <div className="w-32">
+                        <input type="text" inputMode="decimal" value={p.importo}
+                          onChange={e => {
+                            const updated = [...preconti];
+                            updated[idx] = { ...updated[idx], importo: e.target.value };
+                            setPreconti(updated);
+                          }}
+                          placeholder="0,00"
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 text-right" />
+                      </div>
+                      <button type="button"
+                        onClick={() => setPreconti(prev => prev.filter((_, i) => i !== idx))}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition text-lg">
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {preconti.length > 0 && (
+                    <div className="flex justify-end pt-2 border-t border-neutral-100 mt-2">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase mr-3">Totale pre-conti:</span>
+                      <span className="text-sm font-bold text-neutral-800">€ {fmt(totalePreconti)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* RIEPILOGO */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Totale incassi</div>
+                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Incassi</div>
                   <div className="text-xl font-bold text-neutral-800">€ {fmt(totaleIncassi)}</div>
                 </div>
+                {totalePreconti > 0 && (
+                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                    <div className="text-xs font-semibold text-orange-500 uppercase mb-1">Pre-conti</div>
+                    <div className="text-xl font-bold text-orange-800">€ {fmt(totalePreconti)}</div>
+                  </div>
+                )}
                 <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Preconto</div>
+                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">{turno === "pranzo" ? "Ch. Parziale" : "Chiusura"}</div>
                   <div className="text-xl font-bold text-neutral-800">€ {fmt(toNumber(preconto))}</div>
                 </div>
                 <div className={`rounded-xl p-4 border ${
@@ -308,6 +390,14 @@ export default function ChiusuraTurno() {
                   </div>
                 </div>
               </div>
+              {diffStatus !== "ok" && (
+                <div className={`mt-4 p-3 rounded-xl text-sm font-medium ${
+                  diffStatus === "over" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-red-50 text-red-800 border border-red-200"
+                }`}>
+                  ⚠️ Incassi + Pre-conti non quadrano con la {turno === "pranzo" ? "chiusura parziale" : "chiusura"}.
+                  Differenza di <strong>{diff >= 0 ? "+" : ""}{fmt(diff)} €</strong> — verifica i dati o segnala il motivo nelle note.
+                </div>
+              )}
             </div>
 
             {/* CHECKLIST */}
