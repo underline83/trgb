@@ -1,72 +1,113 @@
-# 💰 Modulo Corrispettivi — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-08
-**Stato:** operativo
-**Router:** `app/routers/admin_finance.py` — prefix `/admin/finance`
-**DB:** `app/data/foodcost.db` (tabella `daily_closures` in foodcost.db)
+# Modulo Gestione Vendite — TRGB Gestionale
+**Ultimo aggiornamento:** 2026-03-14
+**Stato:** operativo — v2.0 con Chiusure Turno
+**Sezione top-level:** `/vendite`
+**Backend:** `admin_finance.py` (prefix `/admin/finance`) + `chiusure_turno.py` (prefix `/chiusure-turno`)
+**DB:** `app/data/admin_finance.sqlite3`
 
 ---
 
 # 1. Obiettivo del modulo
 
-Il modulo Corrispettivi gestisce:
+Il modulo Gestione Vendite (ex Corrispettivi) gestisce:
 
-- import giornaliero dei corrispettivi da file Excel
-- gestione delle chiusure giornaliere (apertura/chiusura cassa)
-- statistiche mensili, annuali e confronto annuale
-- dashboard con grafici (breakdown pagamenti, trend mensile, top giorni)
+- **Chiusure turno** (pranzo/cena) — form fine servizio per lo staff
+- **Logica cena cumulativa** — valori giornalieri con sottrazione automatica pranzo
+- **Pre-conti** — tracking tavoli non battuti (tavolo + importo)
+- **Spese** — lista dinamica (scontrino/fattura/personale/altro)
+- **Fondo cassa** — inizio e fine servizio
+- **Import corrispettivi** da file Excel
+- **Chiusure giornaliere** (legacy) — apertura/chiusura cassa
+- **Statistiche** mensili, annuali e confronto annuale
+- **Dashboard** con grafici e KPI
+- **Riepilogo** mensile multi-anno
 
 ---
 
-# 2. Flusso operativo
+# 2. Chiusure Turno (2026-03-14)
 
-1. L'utente importa il file Excel corrispettivi (`POST /admin/finance/import-corrispettivi-file`)
-2. Il sistema parsifica il file e popola `daily_closures`
-3. L'utente verifica/corregge le chiusure giornaliere dalla pagina Gestione
-4. La Dashboard mostra statistiche aggregate con grafici
+### Flusso operativo
+1. Lo staff seleziona data e turno (pranzo/cena)
+2. Inserisce i dati di chiusura: contanti, POS BPM, POS Sella, TheForkPay, altri e-payments, bonifici, mance
+3. Inserisce il preconto (rinominato "Chiusura Parziale" a pranzo, "Chiusura" a cena)
+4. Inserisce le fatture emesse e i coperti
+5. Aggiunge pre-conti: righe dinamiche tavolo + importo per ogni tavolo non battuto
+6. Aggiunge spese: righe dinamiche tipo (scontrino/fattura/personale/altro) + descrizione + importo
+7. Inserisce fondo cassa inizio e fine servizio
+8. Il sistema calcola automaticamente totale incassi, totale spese, quadratura
+
+### Logica cena cumulativa
+A cena, lo staff inserisce i **totali giornalieri** (la chiusura RT, i POS, ecc. sono gia' cumulativi per natura). Il sistema:
+- Carica i dati pranzo (se esistono)
+- Sottrae pranzo da ogni valore per ottenere i parziali cena
+- Mostra hint "pranzo X → parz. cena Y" sotto ogni campo
+- Se pranzo non esiste, i valori sono trattati come solo-cena con avviso
+
+### Quadratura
+- Pranzo: `incassi + preconti = chiusura_parziale`
+- Cena: `incassi_cena + preconti_cena + preconti_pranzo = parziale_cena`
 
 ---
 
 # 3. Endpoint Backend
 
-⚠️ **Nessun endpoint è protetto da `get_current_user` (task #3 Roadmap — APERTO)**
+## Chiusure Turno (`chiusure_turno.py`)
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
-| `POST` | `/admin/finance/import-corrispettivi-file` | Import Excel corrispettivi |
-| `GET` | `/admin/finance/daily-closures/{date_str}` | Lettura chiusura giornaliera |
-| `POST` | `/admin/finance/daily-closures` | Creazione/aggiornamento chiusura |
-| `POST` | `/admin/finance/daily-closures/{date_str}/set-closed` | Chiude una giornata |
-| `GET` | `/admin/finance/stats/monthly` | Statistiche mensili |
-| `GET` | `/admin/finance/stats/annual` | Statistiche annuali |
-| `GET` | `/admin/finance/stats/annual-compare` | Confronto anno corrente vs precedente |
-| `GET` | `/admin/finance/stats/top-days` | Top giorni per incasso |
+| POST | `/chiusure-turno` | Crea/aggiorna chiusura turno (con pre-conti e spese) |
+| GET | `/chiusure-turno/{date}/{turno}` | Lettura chiusura con pre-conti e spese |
+| GET | `/chiusure-turno` | Lista chiusure con filtri (date_from, date_to, turno) |
+
+Ruoli autorizzati per scrittura: admin, sommelier, sala.
+Lista chiusure: solo admin.
+
+## Corrispettivi legacy (`admin_finance.py`)
+
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| POST | `/admin/finance/import` | Import Excel corrispettivi |
+| GET | `/admin/finance/chiusure/{year}/{month}` | Chiusure mensili |
+| GET/POST/PUT | `/admin/finance/chiusura/{date}` | Chiusura giornaliera CRUD |
+| GET | `/admin/finance/stats/{year}/{month}` | Statistiche mensili |
+| GET | `/admin/finance/stats/{year}` | Statistiche annuali |
+
+Tutti gli endpoint protetti con JWT.
 
 ---
 
-# 4. Struttura dati — chiusura giornaliera
+# 4. Database
 
-Ogni record `daily_closures` contiene:
+DB: `app/data/admin_finance.sqlite3`
 
-- data (YYYY-MM-DD)
-- totale incasso
-- breakdown pagamenti: contanti, pos_bpm, pos_sella, bonifico, altro
-- flag `is_closed` (giornata chiusa = non più modificabile)
-- note operative
+### Tabelle chiusure turno
+- `shift_closures` — dati chiusura con fondo_cassa_inizio/fine, created_by
+- `shift_preconti` — pre-conti: tavolo + importo per chiusura
+- `shift_spese` — spese: tipo + descrizione + importo per chiusura
+- `shift_checklist_config` — configurazione checklist (predisposta, non ancora popolata)
+- `shift_checklist_responses` — risposte checklist (predisposta)
+
+### Tabelle legacy
+- `daily_closures` — chiusure giornaliere da import Excel
 
 ---
 
 # 5. Frontend
 
-Pagine React in `src/pages/admin/`:
-
 | File | Route | Funzione |
 |------|-------|----------|
-| `CorrispettiviMenu.jsx` | `/admin/corrispettivi` | Menu modulo |
-| `CorrispettiviImport.jsx` | `/admin/corrispettivi/import` | Upload e import Excel |
-| `CorrispettiviGestione.jsx` | `/admin/corrispettivi/gestione` | Vista calendario, chiusure, editing |
-| `CorrispettiviDashboard.jsx` | `/admin/corrispettivi/dashboard` | Grafici: mensile, pie pagamenti, top giorni |
+| `ChiusuraTurno.jsx` | `/vendite/fine-turno` | Form chiusura fine servizio |
+| `ChiusureTurnoLista.jsx` | `/vendite/chiusure` | Lista chiusure (admin) |
+| `CorrispettiviMenu.jsx` | `/vendite` | Hub Gestione Vendite |
+| `CorrispettiviRiepilogo.jsx` | `/vendite/riepilogo` | Riepilogo mensile multi-anno |
+| `CorrispettiviDashboard.jsx` | `/vendite/dashboard` | Dashboard mensile |
+| `CorrispettiviAnnual.jsx` | `/vendite/annual` | Confronto annuale |
+| `CorrispettiviImport.jsx` | `/vendite/import` | Import Excel |
+| `VenditeNav.jsx` | — | Barra navigazione con visibilita' per ruolo |
 
-⚠️ **Route mancante (task #6 Roadmap):** il pulsante "Confronto Annuale" esiste ma `/admin/corrispettivi/annual` non è definita in `App.jsx`. L'endpoint backend `/admin/finance/stats/annual-compare` esiste già.
+### Navigazione per ruolo
+- **Fine Turno**: visibile a tutti (staff inserisce la chiusura)
+- **Chiusure, Riepilogo, Dashboard, Annuale, Import**: solo admin
 
 ---
 
@@ -78,12 +119,15 @@ Pagine React in `src/pages/admin/`:
 | `services/admin_finance_stats.py` | Calcolo statistiche mensili, annuali, top-days |
 | `services/admin_finance_import.py` | Parsing e import da Excel |
 | `services/corrispettivi_import.py` | Helper parsing Excel |
-| `services/admin_finance_closure_utils.py` | Utility calcolo chiusure |
 
 ---
 
 # 7. Roadmap modulo
 
-- Aggiungere `Depends(get_current_user)` a tutti gli endpoint (task #3)
-- Creare route `/admin/corrispettivi/annual` in `App.jsx` (task #6)
-- Creare pagina frontend per il confronto annuale
+- [ ] Checklist fine turno configurabile (seed dati default pranzo/cena)
+- [ ] Integrazione cross-check chiusura turno vs daily_closures (import Excel)
+- [ ] Export PDF riepilogo giornaliero/settimanale
+- [ ] Coperti e scontrino medio nella dashboard
+- [ ] Integrazione vendite vini (cross-query tra DB)
+- [ ] Analisi pranzo vs cena
+- [ ] P&L semplificato (vendite - acquisti)

@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-13 (sessione 5b — Banca v1.0 + Conversioni unità + Smart Create UX)
+> Ultima sessione: 2026-03-14 (sessione 6 — Chiusure Turno + Cambio PIN + Aggiornamento docs)
 
 ---
 
@@ -11,164 +11,73 @@ Sei l'assistente AI che lavora sul gestionale interno dell'**Osteria Tre Gobbi (
 Il progetto si chiama **TRGB Gestionale** — un'app web FastAPI + React in produzione su VPS Aruba.
 L'utente si chiama **Marco** (mac: `underline83`, win: `mcarm`).
 
-La cartella di lavoro è selezionata come workspace Cowork. Puoi leggere e scrivere direttamente tutti i file del progetto.
+La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scrivere direttamente tutti i file del progetto.
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-13, sessione 5b)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-14, sessione 6)
 
-### Modulo Banca v1.0 + Conversioni unità ingredienti + Smart Create UX
+### Chiusure Turno — modulo completo + Cambio PIN + Documentazione
 
-#### Modulo Banca v1.0 (NUOVO)
-1. **Migration 014** — 4 tabelle: `banca_movimenti` (con dedup_hash UNIQUE), `banca_categorie_map` (mapping cat banca → custom), `banca_fatture_link` (cross-ref movimenti↔fatture), `banca_import_log`
-2. **`banca_router.py`** v1.0 — 11 endpoint:
-   - `POST /banca/import` — upload CSV Banco BPM, parsing italiano (date dd/mm/yyyy, importi con virgola), dedup via hash MD5(data+importo+descrizione), split categoria/sottocategoria
-   - `GET /banca/movimenti` — lista con filtri (data_da/a, categoria, tipo entrata/uscita, search) + paginazione + JOIN categorie custom
-   - `GET /banca/dashboard` — KPI (entrate, uscite, saldo, num_movimenti) + breakdown per categoria entrate/uscite + ultimi 10
-   - `GET /banca/categorie` — lista categorie banca con mapping custom
-   - `POST /banca/categorie/map` — upsert mapping custom (nome, colore, icona, tipo)
-   - `DELETE /banca/categorie/map/{id}` — elimina mapping
-   - `GET /banca/cross-ref` — movimenti uscita con fatture collegate + suggerimenti auto (±5% importo, ±10 giorni)
-   - `POST /banca/cross-ref/link` — collega movimento↔fattura
-   - `DELETE /banca/cross-ref/link/{id}` — scollega
-   - `GET /banca/import-log` — storico import
-   - `GET /banca/andamento` — serie temporale entrate/uscite per giorno/settimana/mese
-3. **BancaNav.jsx** — tab navigation emerald (Dashboard, Movimenti, Categorie, Fatture, Import)
-4. **BancaMenu.jsx** — menu 5 card con VersionBadge
-5. **BancaDashboard.jsx** — 4 KPI cards + grafico barre CSS giornaliero + breakdown per categoria (progress bars) + ultimi movimenti + filtri periodo con preset (mese/mese prec/anno/tutto)
-6. **BancaMovimenti.jsx** — tabella con paginazione, filtri data/categoria/tipo/search, display categoria custom con colore
-7. **BancaImport.jsx** — upload CSV + feedback risultato (nuovi/duplicati/periodo) + storico importazioni
-8. **BancaCategorie.jsx** — lista categorie banca con inline editing per mapping custom (nome, tipo, palette 10 colori)
-9. **BancaCrossRef.jsx** — lista uscite con status collegamento, suggerimenti fatture espandibili, link/unlink
+#### Modulo Chiusure Turno (NUOVO)
+1. **`chiusure_turno.py`** — backend con 5 tabelle: `shift_closures`, `shift_checklist_config`, `shift_checklist_responses`, `shift_preconti`, `shift_spese`
+2. **`ChiusuraTurno.jsx`** v2.0 — form fine servizio con:
+   - Logica cena cumulativa (totali giornalieri - pranzo = parziale cena)
+   - Preconto rinominato "Chiusura Parziale" (pranzo) / "Chiusura" (cena)
+   - Pre-conti dinamici (tavoli non battuti: tavolo + importo)
+   - Spese dinamiche (tipo: scontrino/fattura/personale/altro + descrizione + importo)
+   - Fondo cassa inizio/fine servizio
+   - Hint "pranzo X → parz. cena Y" sotto ogni campo in modalita' cena
+   - Quadratura: `(incassi + preconti) - chiusura_parziale`
+3. **`ChiusureTurnoLista.jsx`** — admin lista chiusure con filtri, totali periodo, dettaglio espandibile
+4. **`VenditeNav.jsx`** v2.0 — tab "Fine Turno" visibile a tutti, altri tab admin-only
+5. **Route** `/vendite/fine-turno` e `/vendite/chiusure` in App.jsx
 
-#### Conversioni unità per ingrediente
-10. **Migration 013** — tabella `ingredient_unit_conversions` (ingredient_id, from_unit, to_unit, factor, note, UNIQUE)
-11. **`convert_qty` potenziato** — accetta `ingredient_id` e `cur` opzionali; cerca custom conversions (diretta, inversa, chain via `_get_custom_conversion`), fallback a `_standard_convert`
-12. **`_save_price_from_riga`** auto-normalizza prezzi fattura usando `convert_qty` con ingredient_id
-13. **Endpoint CRUD** in ingredients router v1.4: `GET/POST/{id}/conversions`, `DELETE /conversions/{id}`
-14. **UI conversioni** in RicetteIngredientiPrezzi.jsx v2.0 — sezione espandibile con form (from_unit, factor, to_unit, note) + lista esistenti con delete
+#### Cambio PIN
+6. **`CambioPIN.jsx`** — self-service cambio PIN (tutti) + reset admin a 0000
+7. **Icona chiave nel Header** — accesso rapido a `/cambio-pin`
+8. **Route** `/cambio-pin` in App.jsx
 
-#### Smart Create UX
-15. **Default tutti deselezionati** — `loadSmartSuggestions` ora imposta `setSmartSelected({})` invece di pre-selezionare
-16. **Pulsanti "Seleziona tutti" / "Deseleziona tutti"** — visibili quando ci sono suggerimenti, "Seleziona tutti" seleziona solo quelli senza match esistente
-
-#### Integrazione
-17. **main.py** — registrato `banca_router`
-18. **App.jsx** v3.7 — 6 route `/banca/*`
-19. **Home.jsx** v3.1 — card Banca in homepage
-20. **versions.jsx** — Banca v1.0 beta
-21. **modules.json** — modulo banca (admin only)
+#### Documentazione aggiornata (tutti i file in docs/)
+9. readme.md, architettura.md, database.md, changelog.md, roadmap.md
+10. modulo_corrispettivi.md, modulo_fatture_xml.md, modulo_vini.md, modulo_foodcost.md
+11. sessione.md (questo file)
 
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-11, sessione 4)
+## Cosa abbiamo fatto nella sessione precedente (2026-03-14a, sessione 5c)
 
-### Gestione Vendite v2.0 — Promozione a modulo top-level
-
-1. **Promosso "Gestione Vendite"** (ex Corrispettivi) da sotto-sezione Admin a modulo di primo livello nella Home
-2. **Route migrate** da `/admin/corrispettivi/*` a `/vendite/*` (5 route + 1 nuova)
-3. **VenditeNav.jsx** — barra navigazione persistente (5 tab: Riepilogo, Chiusure, Dashboard, Annuale, Import)
-4. **CorrispettiviRiepilogo.jsx** — riepilogo chiusure mese per mese multi-anno
-5. **Bugfix**: Dashboard 401 (apiFetch), query params URL, ImportResult conteggi
+### Cantina & Vini v3.7
+1. Filtri locazione gerarchici (cascading) — 3 gruppi con 6 select
+2. Dashboard KPI valore acquisto/carta + liste espandibili
+3. Modifica massiva ordinabile con dropdown locazioni configurate
 
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 3)
+## Cosa abbiamo fatto nella sessione precedente (2026-03-13, sessione 5b)
 
-### Gestione Acquisti v2.0 + ViniNav
-
-1. Promosso "Gestione Acquisti" da sotto-sezione Admin a modulo top-level
-2. Route migrate da `/admin/fatture/*` a `/acquisti/*` (8 route)
-3. Pagina Elenco Fornitori, Elenco Fatture, Dettaglio Fattura
-4. Fix ricerca elenco fatture + Fix drill-down dashboard
-5. FattureNav, ViniNav (applicata a 11 pagine)
-6. versions.jsx: Vini v3.6, Fatture v2.0, Sistema v4.0
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 2)
-
-### Modulo Ricette & Food Cost v2 — REBUILD COMPLETO
-
-Rifacimento totale del modulo ricette e food cost, partendo da zero. Il vecchio codice e' stato eliminato (ricette.py, ricette_db.py) e sostituito con un sistema completamente nuovo.
-
-#### Bug fix vendite vini
-1. **DELETE movimento non riconcilia locazioni** — `delete_movimento()` ora azzera TUTTE le colonne quantita' (QTA_TOTALE, QTA_FRIGO, QTA_LOC1/2/3) e ripercorre tutti i movimenti inclusa la locazione
-2. **Ricerca vendite mostra vini a giacenza zero** — aggiunto parametro `solo_disponibili` a `search_vini_autocomplete()`, usato nel frontend ViniVendite
-
-#### Login PIN + ruolo "sala"
-1. **Login tile-based** — rimosso form username/password, sostituito con selezione utente via tile colorate + PIN pad numerico con dot indicators e shake animation su PIN errato
-2. **3 utenti reali** — Marco (admin, PIN 5261), Iryna (sala, PIN 0000), Paolo (sala, PIN 0000)
-3. **Ruolo "sala"** — nuovo ruolo equivalente a sommelier, propagato su 13+ file (router, frontend, modules.json)
-4. **Endpoint `/auth/tiles`** — ritorna lista utenti per la UI di login (pubblico, senza token)
-
-#### Backend Food Cost v2
-1. **Migrazione 007** — drop tabelle vecchie, crea nuove: `recipe_categories` (8 categorie default), `recipes` v2 (con is_base, selling_price, prep_time, category_id), `recipe_items` v2 (con sub_recipe_id), `ingredient_supplier_map`
-2. **`foodcost_recipes_router.py`** (~500 righe) — CRUD ricette completo con calcolo food cost ricorsivo, conversione unita', sub-ricette
-3. **`foodcost_matching_router.py`** (~400 righe) — matching fatture XML a ingredienti con fuzzy search, auto-match, gestione mappings
-4. **`foodcost_ingredients_router.py`** esteso — PUT ingredient, GET suppliers, CRUD prezzi
-5. **`foodcost_db.py`** semplificato — solo tabelle base, il resto via migrazioni
-6. **Eliminati file orfani**: `app/routers/ricette.py`, `app/models/ricette_db.py`
-
-#### Frontend Food Cost v2
-1. **`RicetteArchivio.jsx`** — tabella ricette con food cost %, badge colorati, filtri, azioni
-2. **`RicetteNuova.jsx`** — form v2: categorie DB, checkbox "ricetta base", sub-ricette, riordino righe
-3. **`RicetteDettaglio.jsx`** (NUOVO) — visualizzazione con card riepilogo + tabella costi per riga
-4. **`RicetteModifica.jsx`** (NUOVO) — form precaricato con PUT
-5. **`RicetteMatching.jsx`** (NUOVO) — matching fatture a 2 tab + auto-match
-6. **`RicetteMenu.jsx`** — aggiunta tile matching fatture
-7. **`App.jsx`** — nuove route: `/ricette/:id`, `/ricette/modifica/:id`, `/ricette/matching`
-
-#### Design doc + Roadmap
-- **`docs/design_ricette_foodcost_v2.md`** — documento di design completo
-- **Task #25** in roadmap — sistema permessi centralizzato (TODO futuro)
-
-### Deploy pendente
-Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazione 007 che richiede full deploy).
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-10, sessione 1)
-
-1. **Riorganizzazione menu Cantina** + fix PDF + Impostazioni Carta
-2. **Header v2.0** Tailwind + pulizia logout duplicati
-3. **Strumenti Cantina** — ponte Excel-Cantina + Genera Carta (6 endpoint backend)
-4. **Reforming completo modulo vini** — menu, submenu, route, UX
-5. **Analisi modulo Ricette/FoodCost** — ricognizione stato (40% funzionante, architettura da rifare)
+### Modulo Banca v1.0 + Conversioni unita' + Smart Create UX
+1. Modulo Banca completo (migration 014, banca_router.py, 7 pagine frontend)
+2. Conversioni unita' personalizzate per ingrediente (migration 013)
+3. Smart Create UX: select/deselect all, default tutti deselezionati
 
 ---
 
 ## Stato attuale del codice — cose critiche da sapere
 
-### Modulo Ricette & Food Cost v2 (NUOVO)
-- **Backend completo**: 3 router (recipes, matching, ingredients) + migrazione 007
-- **Frontend completo**: 7 pagine (menu, archivio, nuova, dettaglio, modifica, matching, ingredienti + prezzi)
-- **Calcolo food cost**: ricorsivo con sub-ricette, cycle detection, conversione unita'
-- **Matching fatture**: collegamento righe FE XML a ingredienti, fuzzy + auto-match + smart create + esclusioni fornitori/descrizioni
-- **DB**: foodcost.db con migrazioni 001-012, tabelle recipes/recipe_items/recipe_categories/ingredient_supplier_map/matching_description_exclusions/matching_ignored_righe
-- **Route attive**:
-  - `/ricette` → RicetteMenu
-  - `/ricette/nuova` → RicetteNuova
-  - `/ricette/archivio` → RicetteArchivio
-  - `/ricette/:id` → RicetteDettaglio
-  - `/ricette/modifica/:id` → RicetteModifica
-  - `/ricette/ingredienti` → RicetteIngredienti
-  - `/ricette/ingredienti/:id/prezzi` → RicetteIngredientiPrezzi
-  - `/ricette/matching` → RicetteMatching (4 tab: Da associare, Smart Create, Mappings, Fornitori)
-  - `/ricette/dashboard` → RicetteDashboard
-  - `/ricette/settings` → RicetteSettings (ex RicetteImport)
+### Modulo Chiusure Turno (NUOVO)
+- **Backend**: `chiusure_turno.py` con endpoint POST/GET per chiusure + pre-conti + spese
+- **Frontend**: `ChiusuraTurno.jsx` (form), `ChiusureTurnoLista.jsx` (lista admin)
+- **DB**: `admin_finance.sqlite3` con tabelle shift_closures, shift_preconti, shift_spese
+- **Logica cena**: staff inserisce totali giornalieri, sistema sottrae pranzo per parziali
 
-### Modulo Banca v1.0 (NUOVO)
-- **Backend**: `banca_router.py` con 11 endpoint, prefix `/banca`
-- **Frontend**: 7 pagine in `frontend/src/pages/banca/`
-- **DB**: foodcost.db con migrazioni 013-014, tabelle `banca_movimenti`, `banca_categorie_map`, `banca_fatture_link`, `banca_import_log`, `ingredient_unit_conversions`
-- **Route attive**:
-  - `/banca` → BancaMenu
-  - `/banca/dashboard` → BancaDashboard
-  - `/banca/movimenti` → BancaMovimenti
-  - `/banca/import` → BancaImport
-  - `/banca/categorie` → BancaCategorie
-  - `/banca/crossref` → BancaCrossRef
+### Cambio PIN
+- **Frontend**: `CambioPIN.jsx` a `/cambio-pin`
+- **Backend**: usa endpoint esistente `PUT /auth/users/{username}/password`
+- **Header**: icona chiave per accesso rapido
+
+### NON ANCORA TESTATO IN PRODUZIONE
+Chiusure Turno e Cambio PIN sono committati ma non ancora deployati e testati.
 
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
@@ -176,41 +85,23 @@ Marco deve fare `./push.sh "" -f` dal Mac per pushare 5 commit (inclusa migrazio
 ### `.env` non esiste sul VPS
 Il file `.env` con `SECRET_KEY` e' stato creato in locale (gitignored). Sul VPS va creato manualmente.
 
-### Modulo Vini — struttura attuale dopo reforming
-**Menu principale** (`ViniMenu.jsx`): 5 voci — Carta dei Vini, Vendite, Cantina, Dashboard, Impostazioni
-**Submenu Cantina** (`MagazzinoSubMenu.jsx`): Cantina, Nuovo vino, Genera Carta PDF, (admin) Strumenti
-**Strumenti** (`CantinaTools.jsx` v2.0): Registro Movimenti + Modifica Massiva + Sync + Import/Export + Genera Carta + Impostazioni Ordinamento
-
-### Sistema movimenti e locazioni
-- Locazione obbligatoria per VENDITA e SCARICO
-- Backend valida giacenza insufficiente (HTTP 400)
-- Vendite taggate `[BOTTIGLIA]` o `[CALICI]` nel campo note
-- DELETE movimento riconcilia tutte le colonne quantita' (fix sessione 2)
-
 ---
 
 ## Mappa versioni moduli
 
-Fonte di verita': `frontend/src/config/versions.js`
+Fonte di verita': `frontend/src/config/versions.jsx`
 
-| Modulo | Versione | Stato | Note |
-|--------|----------|-------|------|
-| Cantina & Vini | v3.6 | stabile | Carta, vendite, magazzino, dashboard, strumenti, ViniNav |
-| Gestione Acquisti | v2.0 | stabile | Fatture XML, fornitori, dashboard, categorie (top-level) |
-| Ricette & Food Cost | v3.0 | beta | Ricette, sub-ricette, matching fatture, smart create, esclusioni, conversioni unità |
-| Gestione Vendite | v2.0 | stabile | Corrispettivi, chiusure cassa, dashboard, confronto annuale (top-level) |
-| **Banca** | **v1.0** | **beta** | **Movimenti bancari, categorie custom, cross-ref fatture, dashboard** |
-| Dipendenti | v1.0 | stabile | Anagrafica, ruoli |
-| Login & Ruoli | v2.0 | stabile | Login PIN tile-based, 4 ruoli |
-| Sistema | v4.2 | stabile | Versione globale gestionale |
-
-Le versioni sono mostrate visualmente nella UI:
-- **Home** — badge versione su ogni tile modulo + footer sistema
-- **ViniMenu** — badge v3.6 nell'header
-- **RicetteMenu** — badge v3.0 nell'header
-- **VenditeMenu** — badge v2.0 nell'header
-- **BancaMenu** — badge v1.0 beta nell'header
-- **AdminMenu** — badge v4.2 nell'header
+| Modulo | Versione | Stato |
+|--------|----------|-------|
+| Cantina & Vini | v3.7 | stabile |
+| Gestione Acquisti | v2.0 | stabile |
+| Ricette & Food Cost | v3.0 | beta |
+| Gestione Vendite | v2.0 | stabile |
+| Banca | v1.0 | beta |
+| Finanza | v1.0 | beta |
+| Dipendenti | v1.0 | stabile |
+| Login & Ruoli | v2.0 | stabile |
+| Sistema | v4.3 | stabile |
 
 ---
 
@@ -220,23 +111,23 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 | # | Task | Stato |
 |---|------|-------|
-| 2 | Aggiornare `.env.production` a HTTPS | Aperto |
+| 26 | Checklist fine turno configurabile | Da fare |
+| 20 | Carta Vini pagina web pubblica | Da fare |
 | 25 | Sistema permessi centralizzato | TODO |
-| - | RicetteImport (import/export JSON) | Placeholder |
-| - | Aggiornare RicetteIngredientiPrezzi per nuovi endpoint v2 | Da fare |
+| 28 | Riconciliazione banca migliorata | Da fare |
+| 17 | Flag DISCONTINUATO UI per vini | Da fare |
 
 ---
 
 ## Prossima sessione — TODO
 
-1. **Deploy completo** — `./push.sh "Banca v1.0 + conversioni unità + smart create UX" -f` (migrazioni 013+014, nuovo modulo banca, 7 pagine frontend)
-2. **Test Banca in produzione** — import CSV, dashboard, categorie, cross-ref fatture
-3. **Test conversioni unità** — verificare normalizzazione prezzi e chain conversions
-4. **Promemoria import banca** — Marco vuole che l'app ricordi di caricare il CSV periodicamente (da implementare)
-5. **Gestione Vendite Fase 2** — foglio 2 Excel (breakdown pranzo/cena, coperti, preconto), nuove colonne DB, scontrino medio
-6. **Aggiornare RicetteIngredientiPrezzi.jsx** — allineare ai nuovi endpoint v2 (usa ancora `/ingredienti/${id}/prezzi` vecchio)
-7. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
-8. **Riordinare la roadmap** — pulizia task completati
+1. **Deploy completo** — `./push.sh "Chiusure turno + cambio PIN + docs" -f`
+2. **Test Chiusure Turno** — verificare form pranzo/cena, logica cumulativa, pre-conti, spese
+3. **Test Cambio PIN** — verificare self-service e reset admin
+4. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
+5. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
+6. **Riconciliazione banca** — migliorare cross-ref, eliminare scadenza mista BPM
+7. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
@@ -244,145 +135,70 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ```
 main.py                                — entry point, include tutti i router
-app/services/auth_service.py           — auth PIN sha256_crypt + ruolo "sala"
-app/core/security.py                   — JWT + sha256_crypt
-app/core/config.py                     — SECRET_KEY (da .env)
-app/data/users.json                    — store utenti (marco/iryna/paolo)
+app/services/auth_service.py           — auth PIN sha256_crypt
+app/data/users.json                    — store utenti (marco/iryna/paolo/ospite)
 
-# --- MODULO VINI ---
-app/routers/vini_magazzino_router.py   — magazzino vini, prefix /vini/magazzino
+# --- CHIUSURE TURNO ---
+app/routers/chiusure_turno.py          — backend, prefix /chiusure-turno
+frontend/src/pages/admin/ChiusuraTurno.jsx  — form fine servizio
+frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin
+
+# --- VINI ---
+app/routers/vini_magazzino_router.py   — magazzino vini
 app/routers/vini_cantina_tools_router.py — strumenti cantina
-app/routers/vini_settings_router.py    — impostazioni carta
-app/models/vini_magazzino_db.py        — DB cantina: CRUD, movimenti, bulk, autocomplete
-app/services/carta_vini_service.py     — builder HTML/PDF carta vini
+app/models/vini_magazzino_db.py        — DB cantina
 
-# --- MODULO RICETTE & FOOD COST v2 ---
-app/routers/foodcost_recipes_router.py    — CRUD ricette + calcolo food cost ricorsivo
-app/routers/foodcost_matching_router.py   — matching fatture XML → ingredienti + smart create + esclusioni
-app/routers/foodcost_ingredients_router.py — CRUD ingredienti + prezzi + suppliers
-app/models/foodcost_db.py                 — DB foodcost (tabelle base)
-app/migrations/007_foodcost_v2.py         — migrazione v2 (drop+ricrea tabelle ricette)
-app/migrations/012_matching_description_exclusions.py — tabelle ignora descrizioni matching
-app/migrations/013_ingredient_unit_conversions.py — conversioni unità per ingrediente
-app/migrations/014_banca_movimenti.py     — tabelle modulo banca (movimenti, categorie, cross-ref, log)
-docs/design_ricette_foodcost_v2.md        — design document completo
+# --- RICETTE & FOOD COST ---
+app/routers/foodcost_recipes_router.py    — ricette + calcolo food cost
+app/routers/foodcost_matching_router.py   — matching fatture → ingredienti
+app/routers/foodcost_ingredients_router.py — ingredienti + conversioni
 
-# --- MODULO BANCA ---
-app/routers/banca_router.py              — import CSV, movimenti, dashboard, categorie, cross-ref, andamento
+# --- BANCA ---
+app/routers/banca_router.py              — movimenti, dashboard, categorie, cross-ref
 
-# --- MODULO GESTIONE VENDITE (ex Corrispettivi) ---
-app/routers/admin_finance.py              — backend corrispettivi, prefix /admin/finance
-frontend/src/pages/admin/VenditeNav.jsx   — barra navigazione persistente (4 tab)
-frontend/src/pages/admin/CorrispettiviMenu.jsx      — hub "Gestione Vendite" (/vendite)
-frontend/src/pages/admin/CorrispettiviGestione.jsx   — chiusura cassa (/vendite/chiusure)
-frontend/src/pages/admin/CorrispettiviDashboard.jsx  — dashboard mensile (/vendite/dashboard)
-frontend/src/pages/admin/CorrispettiviAnnual.jsx     — confronto annuale (/vendite/annual)
-frontend/src/pages/admin/CorrispettiviImport.jsx     — import Excel (/vendite/import)
-docs/design_gestione_vendite.md            — design document evolutivo (5 fasi)
+# --- VENDITE ---
+app/routers/admin_finance.py              — corrispettivi legacy
+frontend/src/pages/admin/VenditeNav.jsx   — navigazione
 
 # --- FRONTEND ---
-frontend/src/App.jsx                   — TUTTE le route React
+frontend/src/App.jsx                   — tutte le route (50+)
 frontend/src/config/api.js             — API_BASE + apiFetch()
-frontend/src/config/versions.js        — MODULE_VERSIONS + VersionBadge (UNICA fonte versioni)
-frontend/src/components/Header.jsx     — header globale
-frontend/src/components/LoginForm.jsx  — login tile PIN
-frontend/src/pages/ricette/            — 10 pagine modulo ricette/foodcost v3 (+ Dashboard, Settings)
-frontend/src/pages/banca/              — 7 pagine modulo banca v1.0 (Nav, Menu, Dashboard, Movimenti, Import, Categorie, CrossRef)
-frontend/src/pages/vini/               — pagine modulo vini
-
-# --- DOCS ---
-docs/changelog.md                      — changelog formato Keep a Changelog
-docs/roadmap.md                        — task aperti
-docs/design_ricette_foodcost_v2.md     — design ricette/foodcost v2
-docs/design_gestione_vendite.md        — design vendite (5 fasi evolutive)
-docs/Modulo_FoodCost.md                — documentazione modulo food cost
+frontend/src/config/versions.jsx       — versioni moduli
+frontend/src/components/Header.jsx     — header + cambio PIN
+frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 ```
 
 ---
 
 ## DB — mappa rapida
 
-| Database | Moduli | Note |
-|----------|--------|------|
-| `app/data/vini.sqlite3` | Carta Vini (legacy Excel) | NON TOCCARE — paracadute; schema v2.1 |
-| `app/data/vini_magazzino.sqlite3` | Cantina (DB moderno) | vini_magazzino + movimenti + note; colonna ORIGINE |
-| `app/data/vini_settings.sqlite3` | Settings carta | tipologie, nazioni, regioni, filtri |
-| `app/data/foodcost.db` | FoodCost + FE XML + Ricette v3 + Banca | ingredienti, recipes, recipe_items, recipe_categories, ingredient_supplier_map, ingredient_unit_conversions, fe_fatture, fe_righe, fe_fornitore_categoria, matching_description_exclusions, matching_ignored_righe, banca_movimenti, banca_categorie_map, banca_fatture_link, banca_import_log; migraz. 001-014 |
-| `app/data/admin_finance.sqlite3` | Gestione Vendite (corrispettivi) | daily_closures; import Excel multi-anno |
-| `app/data/dipendenti.sqlite3` | Dipendenti | creato a runtime |
+| Database | Moduli |
+|----------|--------|
+| `vini.sqlite3` | Carta Vini (legacy Excel) |
+| `vini_magazzino.sqlite3` | Cantina moderna |
+| `vini_settings.sqlite3` | Settings carta |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza (migraz. 001-017) |
+| `admin_finance.sqlite3` | Vendite + Chiusure turno |
+| `dipendenti.sqlite3` | Dipendenti (runtime) |
 
 ---
-
-## Workflow operativo di Marco
-
-**Macchine:**
-- **Mac** — macchina principale di sviluppo, utente `underline83`, cartella `~/trgb`
-- **Windows** — PC secondario, utente `mcarm`, cartella `C:\Users\mcarm\progetti\trgb`
-- **VPS** — Aruba Ubuntu 22.04, IP `80.211.131.156`, utente SSH `marco`, cartella `/home/marco/trgb/trgb`
-
-**Flusso sempre:**
-1. Modifiche su Mac con Cowork/Claude
-2. `git commit` + `git push` dal Mac → il VPS si aggiorna automaticamente via post-receive hook
-3. Su Windows: `git pull` in VS Code
-
-**La fonte di verita' e' sempre il Mac. Non modificare direttamente sul VPS o Windows.**
 
 ## Deploy — PROCEDURA OBBLIGATORIA
 
 > **IMPORTANTE PER CLAUDE:** Dopo ogni commit, ricorda SEMPRE a Marco di fare il deploy
-> con `push.sh`. Non dare mai comandi manuali (`git push`, `git pull`, `ssh`...).
-> Lo script `push.sh` nella root del progetto fa TUTTO automaticamente:
-> commit + push + deploy sul VPS.
-
-### Uso di push.sh (UNICO metodo di deploy)
+> con `push.sh`. Lo script nella root del progetto fa TUTTO automaticamente.
 
 ```bash
-# Deploy rapido (git pull + restart backend/frontend):
-./push.sh "messaggio commit"
-
-# Deploy completo (git pull + pip install + npm install + restart):
-./push.sh "messaggio commit" -f
-
-# Se non ci sono modifiche da committare ma serve solo pushare:
-./push.sh ""
-
-# Se serve npm run build sul frontend, usare -f:
-./push.sh "fix: descrizione" -f
+./push.sh "messaggio commit"       # deploy rapido
+./push.sh "messaggio commit" -f    # deploy completo (pip + npm)
 ```
 
-### Cosa fa push.sh:
-1. Se ci sono modifiche locali → `git add -A && git commit`
-2. `git push` al remote VPS
-3. SSH al VPS → `git pull` + restart servizi
-4. Con `-f`: anche `pip install` + `npm install`
-
-### Quando usare -f (full deploy):
-- Nuove dipendenze Python (`requirements.txt`)
-- Nuove dipendenze npm (`package.json`)
-- Dopo modifiche al frontend che richiedono rebuild
-
-### NOTA: Claude NON può eseguire push.sh
-Lo script richiede accesso SSH al VPS che non è disponibile dalla sandbox Cowork.
-Marco deve lanciarlo dal terminale del Mac:
-```bash
-cd ~/trgb/trgb && ./push.sh "messaggio" -f
-```
-
-### Su Windows (aggiornare remote se non fatto):
-```bash
-git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
-git pull origin main
-```
+### NOTA: Claude NON puo' eseguire push.sh
+Lo script richiede accesso SSH al VPS. Marco deve lanciarlo dal terminale del Mac.
 
 ---
 
 ## Aggiorna questo file a fine sessione
 
-Sostituisci la sezione **"Cosa abbiamo fatto"** con i task completati oggi.
+Sostituisci la sezione "Cosa abbiamo fatto" con i task completati oggi.
 Aggiorna la tabella dei task se ne hai chiusi.
-Aggiorna la data in cima.
-
-**IMPORTANTE:** Quando aggiungi/modifichi funzionalita' significative a un modulo, aggiorna anche la versione:
-1. Cambia il numero in `frontend/src/config/versions.js` (unica fonte di verita')
-2. Aggiorna la tabella "Mappa versioni moduli" qui sopra
-3. Menziona il bump di versione nel changelog
