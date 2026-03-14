@@ -71,6 +71,9 @@ export default function ChiusuraTurno() {
   // Pre-conti (tavoli aperti non battuti)
   const [preconti, setPreconti] = useState([]);
 
+  // Spese (scontrini, fatture, spese personale)
+  const [spese, setSpese] = useState([]);
+
   // Checklist
   const [checklistConfig, setChecklistConfig] = useState([]);
   const [checklistState, setChecklistState] = useState({});
@@ -107,6 +110,10 @@ export default function ChiusuraTurno() {
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
   , [preconti]);
 
+  const totaleSpese = useMemo(() =>
+    spese.reduce((sum, s) => sum + toNumber(s.importo), 0)
+  , [spese]);
+
   // Parziale cena del preconto (chiusura)
   const precontoParziale = useMemo(() =>
     parzialeCena(preconto, "preconto")
@@ -131,7 +138,7 @@ export default function ChiusuraTurno() {
     setContanti(""); setPosBpm(""); setPosSella("");
     setTheforkpay(""); setOtherEpay(""); setBonifici(""); setMance("");
     setNote(""); setExistingId(null);
-    setChecklistState({}); setPreconti([]);
+    setChecklistState({}); setPreconti([]); setSpese([]);
   };
 
   // ── Fetch pranzo data (per cena) ──
@@ -209,6 +216,13 @@ export default function ChiusuraTurno() {
         setPreconti([]);
       }
 
+      // Populate spese
+      if (data.spese && data.spese.length > 0) {
+        setSpese(data.spese.map(s => ({ tipo: s.tipo, descrizione: s.descrizione, importo: s.importo?.toString() ?? "" })));
+      } else {
+        setSpese([]);
+      }
+
       // Populate checklist state
       const cs = {};
       const relevantConfig = checklistConfig.filter(c => c.turno === turno || c.turno === "entrambi");
@@ -268,6 +282,11 @@ export default function ChiusuraTurno() {
           preconti: preconti.filter(p => p.tavolo.trim()).map(p => ({
             tavolo: p.tavolo.trim(),
             importo: toNumber(p.importo),
+          })),
+          spese: spese.filter(s => s.descrizione.trim()).map(s => ({
+            tipo: s.tipo,
+            descrizione: s.descrizione.trim(),
+            importo: toNumber(s.importo),
           })),
         }),
       });
@@ -509,6 +528,76 @@ export default function ChiusuraTurno() {
                     <div className="flex justify-end pt-2 border-t border-neutral-100 mt-2">
                       <span className="text-xs font-semibold text-neutral-500 uppercase mr-3">Totale pre-conti:</span>
                       <span className="text-sm font-bold text-neutral-800">€ {fmt(totalePreconti)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* SPESE */}
+            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
+                  🧾 Spese
+                  <span className="text-neutral-400 font-normal normal-case ml-2 text-xs">scontrini, fatture, spese personale</span>
+                </h2>
+                <button type="button"
+                  onClick={() => setSpese(prev => [...prev, { tipo: "scontrino", descrizione: "", importo: "" }])}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition">
+                  + Aggiungi spesa
+                </button>
+              </div>
+              {spese.length === 0 ? (
+                <div className="text-sm text-neutral-400 italic text-center py-3">
+                  Nessuna spesa registrata
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {spese.map((s, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <select value={s.tipo}
+                        onChange={e => {
+                          const updated = [...spese];
+                          updated[idx] = { ...updated[idx], tipo: e.target.value };
+                          setSpese(updated);
+                        }}
+                        className="w-28 border border-neutral-300 rounded-xl px-2 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+                        <option value="scontrino">Scontrino</option>
+                        <option value="fattura">Fattura</option>
+                        <option value="personale">Personale</option>
+                        <option value="altro">Altro</option>
+                      </select>
+                      <div className="flex-1">
+                        <input type="text" value={s.descrizione}
+                          onChange={e => {
+                            const updated = [...spese];
+                            updated[idx] = { ...updated[idx], descrizione: e.target.value };
+                            setSpese(updated);
+                          }}
+                          placeholder="Descrizione..."
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                      </div>
+                      <div className="w-28">
+                        <input type="text" inputMode="decimal" value={s.importo}
+                          onChange={e => {
+                            const updated = [...spese];
+                            updated[idx] = { ...updated[idx], importo: e.target.value };
+                            setSpese(updated);
+                          }}
+                          placeholder="0,00"
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 text-right" />
+                      </div>
+                      <button type="button"
+                        onClick={() => setSpese(prev => prev.filter((_, i) => i !== idx))}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition text-lg">
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {spese.length > 0 && (
+                    <div className="flex justify-end pt-2 border-t border-neutral-100 mt-2">
+                      <span className="text-xs font-semibold text-neutral-500 uppercase mr-3">Totale spese:</span>
+                      <span className="text-sm font-bold text-red-700">€ {fmt(totaleSpese)}</span>
                     </div>
                   )}
                 </div>

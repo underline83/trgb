@@ -1,19 +1,25 @@
-// @version: v1.0-vendite-nav
+// @version: v2.0-vendite-nav-roles
 // Tab navigation persistente per la sezione Gestione Vendite
+// I tab admin-only sono nascosti per ruoli sala/sommelier
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋" },
-  { key: "fine-turno", label: "Fine Turno", path: "/vendite/fine-turno", icon: "🔔" },
-  { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅" },
-  { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊" },
-  { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈" },
-  { key: "import", label: "Import", path: "/vendite/import", icon: "📤" },
+  { key: "fine-turno", label: "Fine Turno", path: "/vendite/fine-turno", icon: "🔔", roles: null },
+  { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", roles: ["admin"] },
+  { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", roles: ["admin"] },
+  { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", roles: ["admin"] },
+  { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", roles: ["admin"] },
+  { key: "import", label: "Import", path: "/vendite/import", icon: "📤", roles: ["admin"] },
 ];
 
 export default function VenditeNav({ current }) {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+
+  const visibleTabs = TABS.filter(tab =>
+    tab.roles === null || tab.roles.includes(role)
+  );
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">
@@ -28,7 +34,7 @@ export default function VenditeNav({ current }) {
               Vendite
             </button>
             <div className="flex gap-0.5">
-              {TABS.map((tab) => {
+              {visibleTabs.map((tab) => {
                 const active = current === tab.key;
                 return (
                   <button

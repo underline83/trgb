@@ -104,6 +104,20 @@ def ensure_shift_closures_tables(conn: sqlite3.Connection) -> None:
         """
     )
 
+    # Table: shift_spese (spese del turno: scontrini, fatture, spese personale)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shift_spese (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shift_closure_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL CHECK (tipo IN ('scontrino', 'fattura', 'personale', 'altro')),
+            descrizione TEXT NOT NULL,
+            importo REAL DEFAULT 0,
+            FOREIGN KEY (shift_closure_id) REFERENCES shift_closures(id)
+        )
+        """
+    )
+
     conn.commit()
 
 
@@ -145,6 +159,17 @@ class PrecontoOut(PrecontoBase):
     shift_closure_id: int
 
 
+class SpesaBase(BaseModel):
+    tipo: str = Field(..., pattern="^(scontrino|fattura|personale|altro)$")
+    descrizione: str
+    importo: float = 0
+
+
+class SpesaOut(SpesaBase):
+    id: int
+    shift_closure_id: int
+
+
 class ChecklistResponseBase(BaseModel):
     checklist_item_id: int
     checked: int = 0
@@ -177,6 +202,7 @@ class ShiftClosureBase(BaseModel):
 class ShiftClosureIn(ShiftClosureBase):
     checklist: Optional[List[ChecklistResponseBase]] = None
     preconti: Optional[List[PrecontoBase]] = None
+    spese: Optional[List[SpesaBase]] = None
 
 
 class ShiftClosureOut(ShiftClosureBase):
@@ -187,6 +213,7 @@ class ShiftClosureOut(ShiftClosureBase):
     updated_at: Optional[str] = None
     checklist: List[ChecklistResponseOut] = []
     preconti: List[PrecontoOut] = []
+    spese: List[SpesaOut] = []
 
 
 # ---------------------------------------------------------
@@ -305,6 +332,18 @@ async def get_shift_closure(
         )
         preconti_rows = cur.fetchall()
 
+        # Get spese
+        cur.execute(
+            """
+            SELECT id, shift_closure_id, tipo, descrizione, importo
+            FROM shift_spese
+            WHERE shift_closure_id = ?
+            ORDER BY id ASC
+            """,
+            (shift_closure_id,),
+        )
+        spese_rows = cur.fetchall()
+
     finally:
         conn.close()
 
@@ -327,6 +366,17 @@ async def get_shift_closure(
             importo=r["importo"],
         )
         for r in preconti_rows
+    ]
+
+    spese_items = [
+        SpesaOut(
+            id=r["id"],
+            shift_closure_id=r["shift_closure_id"],
+            tipo=r["tipo"],
+            descrizione=r["descrizione"],
+            importo=r["importo"],
+        )
+        for r in spese_rows
     ]
 
     return ShiftClosureOut(
@@ -352,6 +402,7 @@ async def get_shift_closure(
         updated_at=row["updated_at"],
         checklist=checklist_items,
         preconti=preconti_items,
+        spese=spese_items,
     )
 
 
@@ -541,6 +592,22 @@ async def upsert_shift_closure(
                         (shift_closure_id, p.tavolo.strip(), p.importo),
                     )
 
+        # Handle spese
+        cur.execute(
+            "DELETE FROM shift_spese WHERE shift_closure_id = ?",
+            (shift_closure_id,),
+        )
+        if payload.spese:
+            for s in payload.spese:
+                if s.descrizione.strip():
+                    cur.execute(
+                        """
+                        INSERT INTO shift_spese (shift_closure_id, tipo, descrizione, importo)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (shift_closure_id, s.tipo, s.descrizione.strip(), s.importo),
+                    )
+
         conn.commit()
 
         # Reload the record
@@ -603,6 +670,18 @@ async def upsert_shift_closure(
         )
         preconti_rows = cur.fetchall()
 
+        # Reload spese
+        cur.execute(
+            """
+            SELECT id, shift_closure_id, tipo, descrizione, importo
+            FROM shift_spese
+            WHERE shift_closure_id = ?
+            ORDER BY id ASC
+            """,
+            (shift_closure_id,),
+        )
+        spese_rows = cur.fetchall()
+
     finally:
         conn.close()
 
@@ -625,6 +704,17 @@ async def upsert_shift_closure(
             importo=r["importo"],
         )
         for r in preconti_rows
+    ]
+
+    spese_items = [
+        SpesaOut(
+            id=r["id"],
+            shift_closure_id=r["shift_closure_id"],
+            tipo=r["tipo"],
+            descrizione=r["descrizione"],
+            importo=r["importo"],
+        )
+        for r in spese_rows
     ]
 
     return ShiftClosureOut(
@@ -650,6 +740,7 @@ async def upsert_shift_closure(
         updated_at=row["updated_at"],
         checklist=checklist_items,
         preconti=preconti_items,
+        spese=spese_items,
     )
 
 
@@ -730,44 +821,28 @@ async def list_shift_closures(
 
     results = []
     for row in rows:
-        # Get checklist responses for this shift closure
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cur = conn.cursor()
+        conn2 = sqlite3.connect(DB_PATH)
+        conn2.row_factory = sqlite3.Row
+        c2 = conn2.cursor()
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                shift_closure_id,
-                checklist_item_id,
-                checked,
-                note
-            FROM shift_checklist_responses
-            WHERE shift_closure_id = ?
-            ORDER BY checklist_item_id ASC
-            """,
-            (row["id"],),
-        )
-        checklist_rows = cur.fetchall()
-        conn.close()
+        c2.execute("SELECT id, shift_closure_id, checklist_item_id, checked, note FROM shift_checklist_responses WHERE shift_closure_id = ? ORDER BY checklist_item_id", (row["id"],))
+        checklist_items = [ChecklistResponseOut(id=r["id"], shift_closure_id=r["shift_closure_id"], checklist_item_id=r["checklist_item_id"], checked=r["checked"], note=r["note"]) for r in c2.fetchall()]
 
-        checklist_items = [
-            ChecklistResponseOut(
-                id=r["id"],
-                shift_closure_id=r["shift_closure_id"],
-                checklist_item_id=r["checklist_item_id"],
-                checked=r["checked"],
-                note=r["note"],
-            )
-            for r in checklist_rows
-        ]
+        c2.execute("SELECT id, shift_closure_id, tavolo, importo FROM shift_preconti WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
+        preconti_items = [PrecontoOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tavolo=r["tavolo"], importo=r["importo"]) for r in c2.fetchall()]
+
+        c2.execute("SELECT id, shift_closure_id, tipo, descrizione, importo FROM shift_spese WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
+        spese_items = [SpesaOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tipo=r["tipo"], descrizione=r["descrizione"], importo=r["importo"]) for r in c2.fetchall()]
+
+        conn2.close()
 
         results.append(
             ShiftClosureOut(
                 id=row["id"],
                 date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
                 turno=row["turno"],
+                fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
+                fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
                 contanti=row["contanti"],
                 pos_bpm=row["pos_bpm"],
                 pos_sella=row["pos_sella"],
@@ -784,6 +859,8 @@ async def list_shift_closures(
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 checklist=checklist_items,
+                preconti=preconti_items,
+                spese=spese_items,
             )
         )
 

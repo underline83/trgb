@@ -42,6 +42,7 @@ import RicetteSettings from "./pages/ricette/RicetteSettings";
 
 // --- CHIUSURA TURNO ---
 import ChiusuraTurno from "./pages/admin/ChiusuraTurno";
+import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -139,7 +140,8 @@ export default function App() {
         {/* --- GESTIONE VENDITE --- */}
         <Route path="/vendite" element={<CorrispettiviMenu />} />
         <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
-        <Route path="/vendite/chiusure" element={<CorrispettiviGestione />} />
+        <Route path="/vendite/chiusure" element={<ChiusureTurnoLista />} />
+        <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/vendite/annual" element={<CorrispettiviAnnual />} />
         <Route path="/vendite/fine-turno" element={<ChiusuraTurno />} />
