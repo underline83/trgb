@@ -36,6 +36,12 @@ export const STATO_VENDITA = {
     color: "bg-violet-100 text-violet-800 border-violet-200",
     dot:   "bg-violet-500",
   },
+  C: {
+    label: "Controllare",
+    short: "C",
+    color: "bg-neutral-100 text-neutral-600 border-neutral-300",
+    dot:   "bg-neutral-400",
+  },
 };
 
 // ─────────────────────────────────────────────────────────────

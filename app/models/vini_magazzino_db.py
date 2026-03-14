@@ -159,6 +159,22 @@ def init_magazzino_database() -> None:
             "DEFAULT NULL;"
         )
 
+    # Bulk fix: assegna STATO_VENDITA a vini che non ce l'hanno
+    # - Con giacenza > 0 → 'V' (vendere)
+    # - Con giacenza 0  → 'C' (controllare / fuori catalogo)
+    cur.execute("""
+        UPDATE vini_magazzino
+        SET STATO_VENDITA = 'V', UPDATED_AT = datetime('now')
+        WHERE (STATO_VENDITA IS NULL OR STATO_VENDITA = '')
+          AND QTA_TOTALE > 0;
+    """)
+    cur.execute("""
+        UPDATE vini_magazzino
+        SET STATO_VENDITA = 'C', UPDATED_AT = datetime('now')
+        WHERE (STATO_VENDITA IS NULL OR STATO_VENDITA = '')
+          AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0);
+    """)
+
     # -----------------------------------------------------
     # TABELLA 'vini_magazzino_movimenti'
     # -----------------------------------------------------
@@ -1083,18 +1099,23 @@ def get_dashboard_stats() -> Dict[str, Any]:
         """
     ).fetchone()
 
-    # Alert: vini in carta con giacenza = 0 (senza limite)
+    # Alert: vini con stato vendita attivo (V/F/S/T) e giacenza = 0 in carta
     alert_carta = cur.execute(
         """
         SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE,
                STATO_RIORDINO, STATO_CONSERVAZIONE, STATO_VENDITA
         FROM vini_magazzino
-        WHERE CARTA = 'SI' AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
+        WHERE CARTA = 'SI'
+          AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
+          AND STATO_VENDITA IN ('V', 'F', 'S', 'T')
         ORDER BY
             CASE WHEN STATO_RIORDINO = 'X' THEN 1 ELSE 0 END,
-            CASE WHEN STATO_CONSERVAZIONE = '1' THEN 0
-                 WHEN STATO_CONSERVAZIONE = '2' THEN 1
-                 ELSE 2 END,
+            CASE STATO_VENDITA
+                WHEN 'S' THEN 0  -- aggressivo prima
+                WHEN 'F' THEN 1  -- spingere
+                WHEN 'V' THEN 2  -- vendere
+                WHEN 'T' THEN 3  -- cautela
+                ELSE 4 END,
             TIPOLOGIA, DESCRIZIONE;
         """
     ).fetchall()

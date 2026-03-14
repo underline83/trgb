@@ -75,7 +75,7 @@ class VinoMagazzinoBase(BaseModel):
 
     STATO_VENDITA: Optional[str] = Field(
         None,
-        description="Comportamento commerciale: N=Non vendere, T=Cautela, V=Vendere, F=Spingere, S=Aggressivo",
+        description="Comportamento commerciale: N=Non vendere, T=Cautela, V=Vendere, F=Spingere, S=Aggressivo, C=Controllare",
     )
     STATO_RIORDINO: Optional[str] = Field(
         None,
