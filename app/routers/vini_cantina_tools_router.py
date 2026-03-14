@@ -881,6 +881,12 @@ def _load_all_vini_inventario(
     prezzo_max: Optional[float] = None,
     text: Optional[str] = None,
     locazione: Optional[str] = None,
+    frigo_nome: Optional[str] = None,
+    frigo_spazio: Optional[str] = None,
+    loc1_nome: Optional[str] = None,
+    loc1_spazio: Optional[str] = None,
+    loc2_nome: Optional[str] = None,
+    loc2_spazio: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Carica vini dal DB cantina per report inventario con filtri componibili.
@@ -944,7 +950,7 @@ def _load_all_vini_inventario(
         like = f"%{text}%"
         params.extend([like, like, like])
     if locazione:
-        # formato: "frigo:Frigo 1 - Fila 3" oppure "loc1:Cantina - Scaffale 2"
+        # formato legacy: "frigo:Frigo 1 - Fila 3" oppure "loc1:Cantina - Scaffale 2"
         if ":" in locazione:
             loc_type, loc_val = locazione.split(":", 1)
             col_map = {"frigo": "FRIGORIFERO", "loc1": "LOCAZIONE_1", "loc2": "LOCAZIONE_2"}
@@ -952,6 +958,21 @@ def _load_all_vini_inventario(
             if col_name:
                 conditions.append(f"{col_name} = ?")
                 params.append(loc_val)
+
+    # Filtri locazione gerarchici (nome + spazio opzionale)
+    _hier_filters = [
+        ("FRIGORIFERO", frigo_nome, frigo_spazio),
+        ("LOCAZIONE_1", loc1_nome, loc1_spazio),
+        ("LOCAZIONE_2", loc2_nome, loc2_spazio),
+    ]
+    for col, nome, spazio in _hier_filters:
+        if nome:
+            if spazio:
+                conditions.append(f"{col} = ?")
+                params.append(f"{nome} - {spazio}")
+            else:
+                conditions.append(f"{col} LIKE ?")
+                params.append(f"{nome} - %")
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -1447,6 +1468,20 @@ def _build_filtri_subtitle(kwargs: Dict[str, Any]) -> str:
         parts.append(f"Prezzo <= {pmax:.2f}")
     if kwargs.get("solo_giacenza"):
         parts.append("Solo con giacenza")
+    # Locazione legacy
+    if kwargs.get("locazione"):
+        parts.append(f"Locazione: {kwargs['locazione']}")
+    # Locazioni gerarchiche
+    for label, nome_key, spazio_key in [
+        ("Frigo", "frigo_nome", "frigo_spazio"),
+        ("Loc 1", "loc1_nome", "loc1_spazio"),
+        ("Loc 2", "loc2_nome", "loc2_spazio"),
+    ]:
+        nome = kwargs.get(nome_key)
+        spazio = kwargs.get(spazio_key)
+        if nome:
+            val = f"{nome} - {spazio}" if spazio else nome
+            parts.append(f"{label}: {val}")
     return " | ".join(parts) if parts else "Nessun filtro"
 
 
@@ -1470,6 +1505,12 @@ def inventario_filtrato_pdf(
     solo_giacenza: bool = Query(False),
     text: Optional[str] = Query(None),
     locazione: Optional[str] = Query(None),
+    frigo_nome: Optional[str] = Query(None),
+    frigo_spazio: Optional[str] = Query(None),
+    loc1_nome: Optional[str] = Query(None),
+    loc1_spazio: Optional[str] = Query(None),
+    loc2_nome: Optional[str] = Query(None),
+    loc2_spazio: Optional[str] = Query(None),
 ):
     """
     Genera PDF inventario con filtri combinabili via query string.
@@ -1493,6 +1534,12 @@ def inventario_filtrato_pdf(
         prezzo_max=prezzo_max,
         text=text,
         locazione=locazione,
+        frigo_nome=frigo_nome,
+        frigo_spazio=frigo_spazio,
+        loc1_nome=loc1_nome,
+        loc1_spazio=loc1_spazio,
+        loc2_nome=loc2_nome,
+        loc2_spazio=loc2_spazio,
     )
 
     vini = _load_all_vini_inventario(**filter_kwargs)
