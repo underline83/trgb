@@ -333,7 +333,7 @@ export default function MagazzinoVini() {
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
   const [giacenzaVal1, setGiacenzaVal1] = useState("");
   const [giacenzaVal2, setGiacenzaVal2] = useState("");
-  const [onlyPositiveStock, setOnlyPositiveStock] = useState(false);
+  const [onlyPositiveStock, setOnlyPositiveStock] = useState(true);
 
   const [prezzoMode, setPrezzoMode] = useState("any"); // any | gt | lt | between
   const [prezzoVal1, setPrezzoVal1] = useState("");
