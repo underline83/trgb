@@ -1796,23 +1796,31 @@ async def applica_normalizzazione_locazioni(
     cur = conn.cursor()
     totale = 0
 
+    svuotati = 0
     for old_val, new_val in mapping.items():
-        if not new_val or not new_val.strip():
-            continue
+        if new_val is None:
+            continue  # None = non toccare
+        # Stringa vuota = svuota la locazione
+        actual_val = new_val.strip() if new_val else None
         result = cur.execute(
             f"UPDATE vini_magazzino SET {col} = ? WHERE {col} = ?",
-            (new_val.strip(), old_val),
+            (actual_val, old_val),
         )
         totale += result.rowcount
+        if not actual_val:
+            svuotati += result.rowcount
 
     conn.commit()
     conn.close()
 
+    parts = [f"Aggiornati {totale} record"]
+    if svuotati:
+        parts.append(f"di cui {svuotati} svuotati")
     return {
         "campo": campo,
         "modificati": totale,
-        "mapping_applicati": len([v for v in mapping.values() if v and v.strip()]),
-        "msg": f"Normalizzati {totale} record nel campo {LOCATION_FIELDS[campo]['label']}.",
+        "svuotati": svuotati,
+        "msg": f"{' '.join(parts)} nel campo {LOCATION_FIELDS[campo]['label']}.",
     }
 
 

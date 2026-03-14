@@ -258,13 +258,19 @@ export default function ViniImpostazioni() {
       setLocMapping(initialMapping);
     } catch (e) { setError(e?.message || "Errore estrazione valori."); } finally { setLocLoading(false); }
   };
+  const SVUOTA = "__SVUOTA__";
   const handleApplicaMapping = async () => {
     const toApply = {};
     for (const [k, v] of Object.entries(locMapping)) {
-      if (v && v.trim()) toApply[k] = v.trim();
+      if (v === SVUOTA) toApply[k] = "";  // svuota → stringa vuota
+      else if (v && v.trim()) toApply[k] = v.trim();
     }
     if (Object.keys(toApply).length === 0) { setLocMsg("Nessuna sostituzione da applicare."); return; }
-    if (!window.confirm(`Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`)) return;
+    const svuotaCount = Object.values(toApply).filter(v => v === "").length;
+    const msg = svuotaCount > 0
+      ? `Applicare ${Object.keys(toApply).length} sostituzioni (di cui ${svuotaCount} svuotamenti) nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`
+      : `Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`;
+    if (!window.confirm(msg)) return;
     setLocSaving(true); setError(""); setLocMsg("");
     try {
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-normalizza`, {
@@ -290,10 +296,18 @@ export default function ViniImpostazioni() {
     } catch { setLocViniDetail([]); } finally { setLocViniLoading(false); }
   };
   const handleUpdateSingleVino = async (vinoId, nuovoValore) => {
+    // Se si sta svuotando, controlla giacenza
+    const realValue = nuovoValore === SVUOTA ? "" : nuovoValore;
+    if (!realValue || realValue === "") {
+      const vino = locViniDetail.find(v => v.id === vinoId);
+      if (vino && vino.quantita > 0) {
+        if (!window.confirm(`Attenzione: "${vino.descrizione}" ha giacenza ${vino.quantita} in questa locazione. Vuoi davvero svuotare la locazione?`)) return;
+      }
+    }
     try {
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vino-update`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campo: locCampo, vino_id: vinoId, nuovo_valore: nuovoValore }),
+        body: JSON.stringify({ campo: locCampo, vino_id: vinoId, nuovo_valore: realValue }),
       });
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
       // Ricarica dettaglio e valori
@@ -499,7 +513,7 @@ export default function ViniImpostazioni() {
   ];
   const currentLocItems = locConfig?.[locCampo] || [];
   const currentOpzioni = locValori?.opzioni_valide || (locCampo === "frigorifero" ? locConfig?.opzioni_frigo : []) || [];
-  const pendingMappings = locValori ? locValori.valori.filter(v => !v.ok && locMapping[v.valore]?.trim()).length : 0;
+  const pendingMappings = locValori ? locValori.valori.filter(v => locMapping[v.valore] === SVUOTA || (locMapping[v.valore]?.trim())).length : 0;
 
   const renderLocazioni = () => (
     <div className="space-y-6">
@@ -669,28 +683,35 @@ export default function ViniImpostazioni() {
                           </td>
                           <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">{v.conteggio}</td>
                           <td className="px-3 py-2">
-                            {v.ok ? (
-                              <span className="text-xs text-green-700 italic">Già corretto</span>
-                            ) : currentOpzioni.length > 0 ? (
+                            {currentOpzioni.length > 0 ? (
                               <select
                                 value={locMapping[v.valore] || ""}
                                 onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
-                                <option value="">— Non modificare —</option>
+                                className={`w-full border rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500 ${v.ok && !locMapping[v.valore] ? "border-green-300" : "border-neutral-300"}`}>
+                                <option value="">{v.ok ? "✓ Corretto — non modificare" : "— Non modificare —"}</option>
+                                <option value={SVUOTA} className="text-red-600">✕ Svuota locazione</option>
                                 {currentOpzioni.map(opt => (
                                   <option key={opt} value={opt}>{opt}</option>
                                 ))}
                               </select>
                             ) : (
-                              <input type="text" value={locMapping[v.valore] || ""}
-                                onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                                placeholder="Valore normalizzato…"
-                                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
+                              <div className="flex gap-1">
+                                <input type="text" value={locMapping[v.valore] === SVUOTA ? "" : (locMapping[v.valore] || "")}
+                                  onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                                  placeholder={v.ok ? "Corretto — cambia se necessario" : "Valore normalizzato…"}
+                                  className="flex-1 border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
+                                <button onClick={() => setLocMapping(m => ({ ...m, [v.valore]: SVUOTA }))}
+                                  title="Svuota locazione"
+                                  className={`px-2 py-1 rounded-lg text-xs border transition ${locMapping[v.valore] === SVUOTA ? "bg-red-100 border-red-300 text-red-700" : "border-neutral-300 text-neutral-500 hover:bg-red-50"}`}>
+                                  ✕
+                                </button>
+                              </div>
                             )}
                           </td>
                           <td className="px-2 py-2 text-center">
-                            {v.ok ? <span className="text-green-600 text-base">✓</span>
+                            {locMapping[v.valore] === SVUOTA ? <span className="text-red-500 text-base">✕</span>
                               : locMapping[v.valore]?.trim() ? <span className="text-amber-600 text-base">→</span>
+                              : v.ok ? <span className="text-green-600 text-base">✓</span>
                               : <span className="text-neutral-300 text-base">–</span>}
                           </td>
                         </tr>
@@ -724,22 +745,27 @@ export default function ViniImpostazioni() {
                                             <select
                                               value={locViniEdits[vino.id] ?? vino.locazione ?? ""}
                                               onChange={e => setLocViniEdits(ed => ({ ...ed, [vino.id]: e.target.value }))}
-                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs bg-white w-44">
-                                              <option value="">— Nessuno —</option>
+                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs bg-white w-48">
+                                              <option value={SVUOTA} className="text-red-600">✕ Svuota locazione</option>
                                               {currentOpzioni.map(opt => (
                                                 <option key={opt} value={opt}>{opt}</option>
                                               ))}
                                             </select>
                                           ) : (
                                             <input type="text"
-                                              value={locViniEdits[vino.id] ?? vino.locazione ?? ""}
+                                              value={(locViniEdits[vino.id] ?? vino.locazione) === SVUOTA ? "" : (locViniEdits[vino.id] ?? vino.locazione ?? "")}
                                               onChange={e => setLocViniEdits(ed => ({ ...ed, [vino.id]: e.target.value }))}
-                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-44" />
+                                              placeholder="Vuoto = rimuovi"
+                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-48" />
                                           )}
                                           {locViniEdits[vino.id] !== undefined && locViniEdits[vino.id] !== vino.locazione && (
                                             <button onClick={() => handleUpdateSingleVino(vino.id, locViniEdits[vino.id])}
-                                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition whitespace-nowrap">
-                                              Salva
+                                              className={`px-2 py-1 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                                                locViniEdits[vino.id] === SVUOTA
+                                                  ? "bg-red-600 text-white hover:bg-red-700"
+                                                  : "bg-blue-600 text-white hover:bg-blue-700"
+                                              }`}>
+                                              {locViniEdits[vino.id] === SVUOTA ? "Svuota" : "Salva"}
                                             </button>
                                           )}
                                         </div>
