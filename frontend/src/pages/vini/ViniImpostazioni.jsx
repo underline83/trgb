@@ -566,6 +566,7 @@ export default function ViniImpostazioni() {
     { key: "frigorifero", label: "Frigorifero", icon: "🧊" },
     { key: "locazione_1", label: "Locazione 1", icon: "📦" },
     { key: "locazione_2", label: "Locazione 2", icon: "📦" },
+    { key: "locazione_3", label: "Matrice", icon: "🔲" },
   ];
   const currentLocItems = locConfig?.[locCampo] || [];
   const currentOpzioni = locValori?.opzioni_valide || (locCampo === "frigorifero" ? locConfig?.opzioni_frigo : []) || [];
