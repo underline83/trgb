@@ -253,6 +253,29 @@ def init_magazzino_database() -> None:
     if "colonne" not in loc_cols:
         cur.execute("ALTER TABLE locazioni_config ADD COLUMN colonne INTEGER;")
 
+    # -----------------------------------------------------
+    # TABELLA 'matrice_celle'
+    # Ogni cella della matrice contiene esattamente 1 bottiglia.
+    # Il vincolo UNIQUE garantisce che ogni cella sia assegnata a un solo vino.
+    # -----------------------------------------------------
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS matrice_celle (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            vino_id     INTEGER NOT NULL,
+            riga        INTEGER NOT NULL,
+            colonna     INTEGER NOT NULL,
+            created_at  TEXT NOT NULL,
+            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id),
+            UNIQUE(riga, colonna)
+        );
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_mc_vino "
+        "ON matrice_celle (vino_id);"
+    )
+
     conn.commit()
     conn.close()
 
@@ -1366,3 +1389,169 @@ def find_potential_duplicates(
     rows = cur.execute(sql, params).fetchall()
     conn.close()
     return list(rows)
+
+
+# ---------------------------------------------------------
+# MATRICE CELLE
+# ---------------------------------------------------------
+def matrice_get_stato() -> Dict[str, Any]:
+    """
+    Ritorna lo stato completo della matrice:
+    - config: righe e colonne dalla locazioni_config (tipo=matrice)
+    - celle: lista di {riga, colonna, vino_id, descrizione}
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    # Carica config matrice
+    config_row = cur.execute(
+        "SELECT righe, colonne, nome FROM locazioni_config WHERE tipo = 'matrice' LIMIT 1"
+    ).fetchone()
+
+    if not config_row:
+        conn.close()
+        return {"righe": 0, "colonne": 0, "nome": "Matrice", "celle": []}
+
+    righe = config_row["righe"] or 0
+    colonne = config_row["colonne"] or 0
+    nome = config_row["nome"] or "Matrice"
+
+    # Carica celle occupate con info vino
+    rows = cur.execute(
+        """
+        SELECT mc.riga, mc.colonna, mc.vino_id,
+               v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA
+        FROM matrice_celle mc
+        JOIN vini_magazzino v ON v.id = mc.vino_id
+        ORDER BY mc.riga, mc.colonna;
+        """
+    ).fetchall()
+    conn.close()
+
+    celle = [dict(r) for r in rows]
+    return {"righe": righe, "colonne": colonne, "nome": nome, "celle": celle}
+
+
+def matrice_get_celle_vino(vino_id: int) -> List[Dict[str, Any]]:
+    """Ritorna le celle assegnate a un vino specifico."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT id, riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
+        (vino_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def matrice_assegna_cella(vino_id: int, riga: int, colonna: int) -> Dict[str, Any]:
+    """
+    Assegna una cella a un vino. Fallisce se la cella è già occupata (UNIQUE constraint).
+    Aggiorna automaticamente QTA_LOC3 e QTA_TOTALE.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    now = _now_iso()
+
+    try:
+        cur.execute(
+            "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+            (vino_id, riga, colonna, now),
+        )
+    except sqlite3.IntegrityError:
+        # Cella già occupata — scopri da chi
+        existing = cur.execute(
+            """SELECT mc.vino_id, v.DESCRIZIONE
+               FROM matrice_celle mc JOIN vini_magazzino v ON v.id = mc.vino_id
+               WHERE mc.riga = ? AND mc.colonna = ?""",
+            (riga, colonna),
+        ).fetchone()
+        conn.close()
+        desc = existing["DESCRIZIONE"] if existing else "?"
+        raise ValueError(f"Cella ({riga},{colonna}) già occupata da: {desc}")
+
+    # Ricalcola QTA_LOC3 per questo vino
+    _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+    conn.commit()
+    conn.close()
+
+    return {"ok": True, "riga": riga, "colonna": colonna}
+
+
+def matrice_rimuovi_cella(vino_id: int, riga: int, colonna: int) -> Dict[str, Any]:
+    """
+    Rimuove una cella assegnata a un vino.
+    Aggiorna automaticamente QTA_LOC3 e QTA_TOTALE.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "DELETE FROM matrice_celle WHERE vino_id = ? AND riga = ? AND colonna = ?",
+        (vino_id, riga, colonna),
+    )
+
+    _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+    conn.commit()
+    conn.close()
+
+    return {"ok": True}
+
+
+def matrice_set_celle_vino(vino_id: int, celle: List[Dict[str, int]]) -> Dict[str, Any]:
+    """
+    Imposta le celle per un vino (sostituisce tutte le assegnazioni precedenti).
+    celle = [{"riga": 1, "colonna": 5}, {"riga": 1, "colonna": 6}, ...]
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    now = _now_iso()
+
+    # Rimuovi celle esistenti per questo vino
+    cur.execute("DELETE FROM matrice_celle WHERE vino_id = ?", (vino_id,))
+
+    # Inserisci nuove celle
+    conflitti = []
+    for c in celle:
+        try:
+            cur.execute(
+                "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+                (vino_id, c["riga"], c["colonna"], now),
+            )
+        except sqlite3.IntegrityError:
+            conflitti.append(f"({c['riga']},{c['colonna']})")
+
+    _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+    conn.commit()
+    conn.close()
+
+    result: Dict[str, Any] = {"ok": True, "celle_assegnate": len(celle) - len(conflitti)}
+    if conflitti:
+        result["conflitti"] = conflitti
+    return result
+
+
+def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor, vino_id: int) -> None:
+    """Ricalcola QTA_LOC3 dal conteggio celle matrice e aggiorna QTA_TOTALE."""
+    count_row = cur.execute(
+        "SELECT COUNT(*) AS n FROM matrice_celle WHERE vino_id = ?",
+        (vino_id,),
+    ).fetchone()
+    qta_loc3 = count_row["n"] if count_row else 0
+
+    # Aggiorna LOCAZIONE_3 con un riassunto e QTA_LOC3
+    if qta_loc3 > 0:
+        # Costruisci lista celle per il campo di testo
+        celle_rows = cur.execute(
+            "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
+            (vino_id,),
+        ).fetchall()
+        loc3_text = ", ".join(f"({r['riga']},{r['colonna']})" for r in celle_rows)
+    else:
+        loc3_text = None
+
+    cur.execute(
+        "UPDATE vini_magazzino SET LOCAZIONE_3 = ?, QTA_LOC3 = ?, UPDATED_AT = ? WHERE id = ?",
+        (loc3_text, qta_loc3, _now_iso(), vino_id),
+    )
+    _recalc_qta_totale(conn, vino_id)

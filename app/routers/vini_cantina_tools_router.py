@@ -2049,3 +2049,88 @@ async def update_vino_locazione(
     conn.close()
 
     return {"ok": True, "msg": f"Locazione aggiornata per vino #{vino_id}."}
+
+
+# -----------------------------------------------
+# MATRICE — gestione celle
+# -----------------------------------------------
+
+@router.get("/matrice/stato", summary="Stato completo della matrice")
+async def get_matrice_stato(current_user=Depends(get_current_user)):
+    """Ritorna la griglia con tutte le celle occupate e la config dimensioni."""
+    return mag_db.matrice_get_stato()
+
+
+@router.get("/matrice/celle/{vino_id}", summary="Celle matrice per un vino")
+async def get_matrice_celle_vino(
+    vino_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Ritorna le celle assegnate a un vino specifico."""
+    return {"vino_id": vino_id, "celle": mag_db.matrice_get_celle_vino(vino_id)}
+
+
+@router.post("/matrice/assegna", summary="Assegna cella a un vino")
+async def matrice_assegna(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """Body: { vino_id, riga, colonna }"""
+    body = await request.json()
+    vino_id = body.get("vino_id")
+    riga = body.get("riga")
+    colonna = body.get("colonna")
+
+    if not vino_id or riga is None or colonna is None:
+        raise HTTPException(400, "vino_id, riga e colonna sono obbligatori.")
+
+    try:
+        result = mag_db.matrice_assegna_cella(vino_id, riga, colonna)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+    # Ritorna anche il vino aggiornato per sincronizzare il frontend
+    updated = mag_db.get_vino_by_id(vino_id)
+    result["vino"] = dict(updated) if updated else None
+    return result
+
+
+@router.post("/matrice/rimuovi", summary="Rimuovi cella da un vino")
+async def matrice_rimuovi(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """Body: { vino_id, riga, colonna }"""
+    body = await request.json()
+    vino_id = body.get("vino_id")
+    riga = body.get("riga")
+    colonna = body.get("colonna")
+
+    if not vino_id or riga is None or colonna is None:
+        raise HTTPException(400, "vino_id, riga e colonna sono obbligatori.")
+
+    result = mag_db.matrice_rimuovi_cella(vino_id, riga, colonna)
+
+    updated = mag_db.get_vino_by_id(vino_id)
+    result["vino"] = dict(updated) if updated else None
+    return result
+
+
+@router.post("/matrice/set-celle", summary="Imposta tutte le celle per un vino")
+async def matrice_set_celle(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """Body: { vino_id, celle: [{riga, colonna}, ...] }"""
+    body = await request.json()
+    vino_id = body.get("vino_id")
+    celle = body.get("celle", [])
+
+    if not vino_id:
+        raise HTTPException(400, "vino_id è obbligatorio.")
+
+    result = mag_db.matrice_set_celle_vino(vino_id, celle)
+
+    updated = mag_db.get_vino_by_id(vino_id)
+    result["vino"] = dict(updated) if updated else None
+    return result

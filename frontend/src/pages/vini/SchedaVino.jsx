@@ -10,6 +10,7 @@ import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
 import LocationPicker from "./LocationPicker";
+import MatricePicker from "./MatricePicker";
 
 const TIPO_LABELS = {
   CARICO:    { label: "Carico",    cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -201,7 +202,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   };
   const hasGiacenzeChanges = () => {
     if (!giacenzeEdit || !vino) return false;
-    const fields = ["FRIGORIFERO","QTA_FRIGO","LOCAZIONE_1","QTA_LOC1","LOCAZIONE_2","QTA_LOC2","LOCAZIONE_3","QTA_LOC3"];
+    const fields = ["FRIGORIFERO","QTA_FRIGO","LOCAZIONE_1","QTA_LOC1","LOCAZIONE_2","QTA_LOC2"];
     return fields.some(k => {
       const orig = vino[k] ?? (k.startsWith("QTA") ? 0 : "");
       const cur = giacenzeData[k] ?? (k.startsWith("QTA") ? 0 : "");
@@ -285,7 +286,6 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       FRIGORIFERO: vino.FRIGORIFERO ?? "", QTA_FRIGO: vino.QTA_FRIGO ?? 0,
       LOCAZIONE_1: vino.LOCAZIONE_1 ?? "", QTA_LOC1: vino.QTA_LOC1 ?? 0,
       LOCAZIONE_2: vino.LOCAZIONE_2 ?? "", QTA_LOC2: vino.QTA_LOC2 ?? 0,
-      LOCAZIONE_3: vino.LOCAZIONE_3 ?? "", QTA_LOC3: vino.QTA_LOC3 ?? 0,
     });
     setGiacenzeEdit(true);
   };
@@ -293,6 +293,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const saveGiacenze = async () => {
     setGiacenzeSaving(true);
     try {
+      // NB: LOCAZIONE_3 e QTA_LOC3 sono gestiti dalla matrice (MatricePicker)
       const payload = {
         FRIGORIFERO: giacenzeData.FRIGORIFERO || null,
         QTA_FRIGO:   parseInt(giacenzeData.QTA_FRIGO,  10) || 0,
@@ -300,8 +301,6 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
         QTA_LOC1:    parseInt(giacenzeData.QTA_LOC1, 10) || 0,
         LOCAZIONE_2: giacenzeData.LOCAZIONE_2 || null,
         QTA_LOC2:    parseInt(giacenzeData.QTA_LOC2, 10) || 0,
-        LOCAZIONE_3: giacenzeData.LOCAZIONE_3 || null,
-        QTA_LOC3:    parseInt(giacenzeData.QTA_LOC3, 10) || 0,
       };
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
         method: "PATCH",
@@ -566,13 +565,16 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   { loc: vino.FRIGORIFERO, qta: vino.QTA_FRIGO ?? 0, label: "Frigorifero" },
                   { loc: vino.LOCAZIONE_1, qta: vino.QTA_LOC1 ?? 0, label: "Locazione 1" },
                   { loc: vino.LOCAZIONE_2, qta: vino.QTA_LOC2 ?? 0, label: "Locazione 2" },
-                  { loc: vino.LOCAZIONE_3, qta: vino.QTA_LOC3 ?? 0, label: "Locazione 3" },
                 ].map(({ loc, qta, label }) => (
                   <div key={label} className="py-2 flex justify-between text-sm">
                     <span className="text-neutral-600">{label}: <span className="text-neutral-800 font-medium">{loc || "—"}</span></span>
                     <span className="font-semibold">{qta} bt</span>
                   </div>
                 ))}
+                {/* Matrice (Locazione 3) — read-only */}
+                <div className="py-2">
+                  <MatricePicker vinoId={vino.id} disabled={true} />
+                </div>
                 <div className="py-2 flex justify-between text-sm font-bold border-t border-neutral-300 mt-1 pt-3">
                   <span>Totale</span><span>{tot} bt</span>
                 </div>
@@ -606,16 +608,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   </div>
                   <Input label="Qtà bt" name="QTA_LOC2" value={giacenzeData.QTA_LOC2} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
-                {/* Locazione 3 */}
-                <div className="grid grid-cols-3 gap-3 items-end">
-                  <div className="col-span-2">
-                    <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 3</label>
-                    <LocationPicker options={opzioniLoc3} value={giacenzeData.LOCAZIONE_3 ?? ""}
-                      onChange={val => setGiacenzeData(p => ({...p, LOCAZIONE_3: val}))} placeholder="Cerca locazione 3…" />
-                  </div>
-                  <Input label="Qtà bt" name="QTA_LOC3" value={giacenzeData.QTA_LOC3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                {/* Matrice (Locazione 3) — gestita direttamente dal MatricePicker */}
+                <div className="border-t border-neutral-200 pt-3">
+                  <MatricePicker vinoId={vinoId} onVinoUpdated={notifyUpdate} />
                 </div>
-                <p className="text-xs text-neutral-500 mt-1">Aggiorna le giacenze direttamente. Usa i <strong>Movimenti</strong> qui sotto per l&apos;operatività quotidiana.</p>
+                <p className="text-xs text-neutral-500 mt-1">Frigo e Locazioni: modifica e salva. Matrice: le celle si salvano immediatamente al click.</p>
               </div>
             )}
           </div>

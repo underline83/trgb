@@ -673,17 +673,12 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {/* Locazione 3 */}
+              {/* Matrice (Locazione 3) — info */}
               <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 3</div>
-                <LocationPicker options={opzioniLoc3} value={form.LOCAZIONE_3}
-                  onChange={val => setForm(p => ({...p, LOCAZIONE_3: val}))} placeholder="Cerca locazione 3…" />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input type="number" value={form.QTA_LOC3} onChange={handleChange("QTA_LOC3")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Matrice</div>
+                <p className="text-xs text-neutral-500">
+                  Le celle matrice si assegnano dopo aver creato il vino, dalla scheda dettaglio.
+                </p>
               </div>
             </div>
           </section>
