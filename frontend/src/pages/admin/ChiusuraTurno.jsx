@@ -1,6 +1,7 @@
 // src/pages/admin/ChiusuraTurno.jsx
-// @version: v1.0-chiusura-turno
-// Form semplificato fine turno pranzo/cena — per responsabili sala/sommelier
+// @version: v2.0-cena-cumulativa
+// Form fine turno pranzo/cena — per responsabili sala/sommelier
+// A cena i valori sono giornalieri (cumulativi pranzo+cena), i parziali vengono calcolati automaticamente
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -17,6 +18,12 @@ function toNumber(v) {
 function fmt(n) {
   return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// Campi che a cena sono cumulativi (totali giornalieri)
+const CAMPI_CUMULATIVI = [
+  "preconto", "contanti", "pos_bpm", "pos_sella",
+  "theforkpay", "other_e_payments", "bonifici", "mance", "fatture",
+];
 
 // ─────────────────────────────────────────────────────────────
 export default function ChiusuraTurno() {
@@ -36,6 +43,10 @@ export default function ChiusuraTurno() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [existingId, setExistingId] = useState(null);
+
+  // Dati pranzo (per calcolo parziali cena)
+  const [pranzoData, setPranzoData] = useState(null);
+  const [pranzoLoading, setPranzoLoading] = useState(false);
 
   // Fondo cassa
   const [fondoCassaInizio, setFondoCassaInizio] = useState("");
@@ -64,19 +75,52 @@ export default function ChiusuraTurno() {
   const [checklistConfig, setChecklistConfig] = useState([]);
   const [checklistState, setChecklistState] = useState({});
 
-  // Totale calcolato
-  const totaleIncassi = useMemo(() =>
-    toNumber(contanti) + toNumber(posBpm) + toNumber(posSella) +
-    toNumber(theforkpay) + toNumber(otherEpay) + toNumber(bonifici)
-  , [contanti, posBpm, posSella, theforkpay, otherEpay, bonifici]);
+  const isCena = turno === "cena";
+
+  // ── Helper: valore pranzo per un campo ──
+  const pranzoVal = useCallback((field) => {
+    if (!pranzoData || !isCena) return 0;
+    return pranzoData[field] || 0;
+  }, [pranzoData, isCena]);
+
+  // ── Helper: parziale cena = valore inserito - pranzo ──
+  const parzialeCena = useCallback((inputVal, field) => {
+    if (!isCena) return toNumber(inputVal);
+    return toNumber(inputVal) - pranzoVal(field);
+  }, [isCena, pranzoVal]);
+
+  // Mapping nome campo → state value
+  const fieldValues = useMemo(() => ({
+    preconto, contanti, pos_bpm: posBpm, pos_sella: posSella,
+    theforkpay, other_e_payments: otherEpay, bonifici, mance, fatture,
+  }), [preconto, contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, fatture]);
+
+  // Totale incassi (parziali cena se turno=cena)
+  const totaleIncassi = useMemo(() => {
+    const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici"];
+    return campiIncassi.reduce((sum, f) =>
+      sum + parzialeCena(fieldValues[f], f)
+    , 0);
+  }, [fieldValues, parzialeCena]);
 
   const totalePreconti = useMemo(() =>
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
   , [preconti]);
 
+  // Parziale cena del preconto (chiusura)
+  const precontoParziale = useMemo(() =>
+    parzialeCena(preconto, "preconto")
+  , [preconto, parzialeCena]);
+
+  // Totale pre-conti pranzo (tavoli aperti dal pranzo già incassati a cena)
+  const pranzoPrecontiTotale = useMemo(() => {
+    if (!pranzoData || !pranzoData.preconti) return 0;
+    return pranzoData.preconti.reduce((sum, p) => sum + (p.importo || 0), 0);
+  }, [pranzoData]);
+
   const diff = useMemo(() =>
-    (totaleIncassi + totalePreconti) - toNumber(preconto)
-  , [totaleIncassi, totalePreconti, preconto]);
+    (totaleIncassi + totalePreconti + pranzoPrecontiTotale) - precontoParziale
+  , [totaleIncassi, totalePreconti, pranzoPrecontiTotale, precontoParziale]);
 
   const diffStatus = Math.abs(diff) < 0.5 ? "ok" : diff > 0 ? "over" : "short";
 
@@ -89,6 +133,26 @@ export default function ChiusuraTurno() {
     setNote(""); setExistingId(null);
     setChecklistState({}); setPreconti([]);
   };
+
+  // ── Fetch pranzo data (per cena) ──
+  const fetchPranzoData = useCallback(async () => {
+    if (!isCena) { setPranzoData(null); return; }
+    setPranzoLoading(true);
+    try {
+      const res = await fetch(`${API}/admin/finance/shift-closures/${date}/pranzo`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setPranzoData(await res.json());
+      } else {
+        setPranzoData(null);
+      }
+    } catch {
+      setPranzoData(null);
+    } finally {
+      setPranzoLoading(false);
+    }
+  }, [date, isCena, token]);
 
   // ── Fetch checklist config ──
   const fetchChecklistConfig = useCallback(async () => {
@@ -113,7 +177,6 @@ export default function ChiusuraTurno() {
       });
       if (res.status === 404) {
         resetForm();
-        // Init checklist state from config
         const initState = {};
         checklistConfig
           .filter(c => c.turno === turno || c.turno === "entrambi")
@@ -165,6 +228,7 @@ export default function ChiusuraTurno() {
 
   useEffect(() => { fetchChecklistConfig(); }, [fetchChecklistConfig]);
   useEffect(() => { if (checklistConfig.length >= 0) fetchClosure(); }, [fetchClosure]);
+  useEffect(() => { fetchPranzoData(); }, [fetchPranzoData]);
 
   // ── Save ──
   const handleSave = async () => {
@@ -227,6 +291,15 @@ export default function ChiusuraTurno() {
     c => (c.turno === turno || c.turno === "entrambi") && c.attivo !== 0
   );
 
+  // Helper: hint text per campo cumulativo a cena
+  const cenaHint = (field, inputVal) => {
+    if (!isCena || !pranzoData) return null;
+    const pv = pranzoVal(field);
+    const parz = toNumber(inputVal) - pv;
+    if (pv === 0) return null;
+    return { pranzo: pv, parziale: parz };
+  };
+
   // ── RENDER ──
   return (
     <div className="min-h-screen bg-neutral-100">
@@ -276,6 +349,32 @@ export default function ChiusuraTurno() {
           )}
         </div>
 
+        {/* BANNER CENA CUMULATIVA */}
+        {isCena && !loading && (
+          <div className={`rounded-2xl p-4 border text-sm ${
+            pranzoData
+              ? "bg-indigo-50 border-indigo-200 text-indigo-800"
+              : "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            {pranzoData ? (
+              <>
+                <span className="font-semibold">🌙 Modalità cena:</span> inserisci i <strong>totali giornalieri</strong> (chiusura RT, POS, contanti...).
+                I parziali della sola cena verranno calcolati sottraendo i valori del pranzo.
+                <div className="mt-2 text-xs opacity-80">
+                  Pranzo del {date}: chiusura parz. € {fmt(pranzoData.preconto || 0)}, incassi € {fmt(pranzoData.totale_incassi || 0)}
+                </div>
+              </>
+            ) : pranzoLoading ? (
+              <span className="animate-pulse">Caricamento dati pranzo...</span>
+            ) : (
+              <>
+                <span className="font-semibold">⚠️ Pranzo non trovato:</span> nessuna chiusura pranzo per il {date}.
+                I valori inseriti verranno considerati come totali della sola cena.
+              </>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="bg-white rounded-2xl p-8 text-center text-neutral-400 animate-pulse">Caricamento...</div>
         ) : (
@@ -291,10 +390,19 @@ export default function ChiusuraTurno() {
 
             {/* DATI PRINCIPALI */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
-              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">Dati servizio</h2>
+              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
+                Dati servizio
+                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori giornalieri</span>}
+              </h2>
               <div className="grid grid-cols-3 gap-4">
-                <NumberField label={turno === "pranzo" ? "Chiusura Parziale" : "Chiusura"} value={preconto} onChange={setPreconto} icon="🧾" />
-                <NumberField label="Totale fatture" value={fatture} onChange={setFatture} icon="📄" />
+                <NumberField
+                  label={isCena ? "Chiusura (giorno)" : "Chiusura Parziale"}
+                  value={preconto} onChange={setPreconto} icon="🧾"
+                  hint={cenaHint("preconto", preconto)} />
+                <NumberField
+                  label={isCena && pranzoData ? "Fatture (giorno)" : "Totale fatture"}
+                  value={fatture} onChange={setFatture} icon="📄"
+                  hint={cenaHint("fatture", fatture)} />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">🪑 Coperti</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
@@ -305,17 +413,27 @@ export default function ChiusuraTurno() {
 
             {/* PAGAMENTI */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
-              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">Incassi</h2>
+              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
+                Incassi
+                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori giornalieri — i parziali cena sono calcolati</span>}
+              </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵" />
-                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳" />
-                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳" />
-                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴" />
-                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱" />
-                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦" />
+                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵"
+                  hint={cenaHint("contanti", contanti)} />
+                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳"
+                  hint={cenaHint("pos_bpm", posBpm)} />
+                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳"
+                  hint={cenaHint("pos_sella", posSella)} />
+                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴"
+                  hint={cenaHint("theforkpay", theforkpay)} />
+                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱"
+                  hint={cenaHint("other_e_payments", otherEpay)} />
+                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦"
+                  hint={cenaHint("bonifici", bonifici)} />
               </div>
               <div className="mt-4 pt-4 border-t border-neutral-200">
-                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝" />
+                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝"
+                  hint={cenaHint("mance", mance)} />
               </div>
             </div>
 
@@ -332,6 +450,26 @@ export default function ChiusuraTurno() {
                   + Aggiungi tavolo
                 </button>
               </div>
+
+              {/* Pre-conti dal pranzo (se cena e pranzo aveva tavoli aperti) */}
+              {isCena && pranzoData && pranzoData.preconti && pranzoData.preconti.length > 0 && (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <div className="text-xs font-semibold text-amber-700 uppercase mb-2">
+                    Tavoli aperti dal pranzo (da incassare a cena)
+                  </div>
+                  {pranzoData.preconti.map((p, i) => (
+                    <div key={i} className="flex justify-between text-sm text-amber-800 py-0.5">
+                      <span>{p.tavolo}</span>
+                      <span className="font-medium">€ {fmt(p.importo)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-bold text-amber-900 pt-1 mt-1 border-t border-amber-200">
+                    <span>Totale pre-conti pranzo</span>
+                    <span>€ {fmt(pranzoPrecontiTotale)}</span>
+                  </div>
+                </div>
+              )}
+
               {preconti.length === 0 ? (
                 <div className="text-sm text-neutral-400 italic text-center py-3">
                   Nessun pre-conto — tutti i tavoli sono stati battuti
@@ -379,40 +517,95 @@ export default function ChiusuraTurno() {
 
             {/* RIEPILOGO */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Incassi</div>
-                  <div className="text-xl font-bold text-neutral-800">€ {fmt(totaleIncassi)}</div>
-                </div>
-                {totalePreconti > 0 && (
-                  <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                    <div className="text-xs font-semibold text-orange-500 uppercase mb-1">Pre-conti</div>
-                    <div className="text-xl font-bold text-orange-800">€ {fmt(totalePreconti)}</div>
+              {isCena && pranzoData ? (
+                <>
+                  {/* Riepilogo cena: mostra breakdown giorno → pranzo → cena */}
+                  <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">Riepilogo cena</h2>
+                  <div className="grid grid-cols-3 gap-3 text-center mb-4">
+                    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200">
+                      <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Chiusura giorno</div>
+                      <div className="text-lg font-bold text-neutral-800">€ {fmt(toNumber(preconto))}</div>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
+                      <div className="text-[10px] font-semibold text-amber-500 uppercase mb-1">Pranzo</div>
+                      <div className="text-lg font-bold text-amber-800">€ {fmt(pranzoVal("preconto"))}</div>
+                    </div>
+                    <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
+                      <div className="text-[10px] font-semibold text-indigo-500 uppercase mb-1">Parziale cena</div>
+                      <div className="text-lg font-bold text-indigo-800">€ {fmt(precontoParziale)}</div>
+                    </div>
                   </div>
-                )}
-                <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-                  <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">{turno === "pranzo" ? "Ch. Parziale" : "Chiusura"}</div>
-                  <div className="text-xl font-bold text-neutral-800">€ {fmt(toNumber(preconto))}</div>
-                </div>
-                <div className={`rounded-xl p-4 border ${
-                  diffStatus === "ok" ? "bg-emerald-50 border-emerald-200" :
-                  diffStatus === "over" ? "bg-amber-50 border-amber-200" :
-                  "bg-red-50 border-red-200"
-                }`}>
-                  <div className="text-xs font-semibold uppercase mb-1 opacity-70">Differenza</div>
-                  <div className={`text-xl font-bold ${
-                    diffStatus === "ok" ? "text-emerald-700" :
-                    diffStatus === "over" ? "text-amber-700" : "text-red-700"
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                    <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
+                      <div className="text-[10px] font-semibold text-indigo-500 uppercase mb-1">Incassi cena</div>
+                      <div className="text-lg font-bold text-indigo-800">€ {fmt(totaleIncassi)}</div>
+                    </div>
+                    {(totalePreconti > 0 || pranzoPrecontiTotale > 0) && (
+                      <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+                        <div className="text-[10px] font-semibold text-orange-500 uppercase mb-1">Pre-conti</div>
+                        <div className="text-lg font-bold text-orange-800">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</div>
+                        {pranzoPrecontiTotale > 0 && totalePreconti > 0 && (
+                          <div className="text-[9px] text-orange-500 mt-0.5">pranzo {fmt(pranzoPrecontiTotale)} + cena {fmt(totalePreconti)}</div>
+                        )}
+                      </div>
+                    )}
+                    <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
+                      <div className="text-[10px] font-semibold text-indigo-500 uppercase mb-1">Parz. chiusura</div>
+                      <div className="text-lg font-bold text-indigo-800">€ {fmt(precontoParziale)}</div>
+                    </div>
+                    <div className={`rounded-xl p-3 border ${
+                      diffStatus === "ok" ? "bg-emerald-50 border-emerald-200" :
+                      diffStatus === "over" ? "bg-amber-50 border-amber-200" :
+                      "bg-red-50 border-red-200"
+                    }`}>
+                      <div className="text-[10px] font-semibold uppercase mb-1 opacity-70">Differenza</div>
+                      <div className={`text-lg font-bold ${
+                        diffStatus === "ok" ? "text-emerald-700" :
+                        diffStatus === "over" ? "text-amber-700" : "text-red-700"
+                      }`}>
+                        {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Riepilogo pranzo: come prima */
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
+                    <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Incassi</div>
+                    <div className="text-xl font-bold text-neutral-800">€ {fmt(totaleIncassi)}</div>
+                  </div>
+                  {totalePreconti > 0 && (
+                    <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                      <div className="text-xs font-semibold text-orange-500 uppercase mb-1">Pre-conti</div>
+                      <div className="text-xl font-bold text-orange-800">€ {fmt(totalePreconti)}</div>
+                    </div>
+                  )}
+                  <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
+                    <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Ch. Parziale</div>
+                    <div className="text-xl font-bold text-neutral-800">€ {fmt(toNumber(preconto))}</div>
+                  </div>
+                  <div className={`rounded-xl p-4 border ${
+                    diffStatus === "ok" ? "bg-emerald-50 border-emerald-200" :
+                    diffStatus === "over" ? "bg-amber-50 border-amber-200" :
+                    "bg-red-50 border-red-200"
                   }`}>
-                    {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                    <div className="text-xs font-semibold uppercase mb-1 opacity-70">Differenza</div>
+                    <div className={`text-xl font-bold ${
+                      diffStatus === "ok" ? "text-emerald-700" :
+                      diffStatus === "over" ? "text-amber-700" : "text-red-700"
+                    }`}>
+                      {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               {diffStatus !== "ok" && (
                 <div className={`mt-4 p-3 rounded-xl text-sm font-medium ${
                   diffStatus === "over" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-red-50 text-red-800 border border-red-200"
                 }`}>
-                  ⚠️ Incassi + Pre-conti non quadrano con la {turno === "pranzo" ? "chiusura parziale" : "chiusura"}.
+                  ⚠️ {isCena && pranzoData ? "Incassi cena + pre-conti non quadrano con il parziale cena" : "Incassi + pre-conti non quadrano con la chiusura parziale"}.
                   Differenza di <strong>{diff >= 0 ? "+" : ""}{fmt(diff)} €</strong> — verifica i dati o segnala il motivo nelle note.
                 </div>
               )}
@@ -491,9 +684,9 @@ export default function ChiusuraTurno() {
 
 
 // ─────────────────────────────────────────────────────────────
-// NumberField — input numerico con label e icona
+// NumberField — input numerico con label, icona e hint parziale cena
 // ─────────────────────────────────────────────────────────────
-function NumberField({ label, value, onChange, icon }) {
+function NumberField({ label, value, onChange, icon, hint }) {
   return (
     <div>
       <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">
@@ -507,6 +700,11 @@ function NumberField({ label, value, onChange, icon }) {
         placeholder="0,00"
         className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
       />
+      {hint && (
+        <div className="mt-1 text-[10px] text-indigo-500 leading-tight">
+          pranzo € {fmt(hint.pranzo)} → <span className={`font-semibold ${hint.parziale < 0 ? "text-red-500" : ""}`}>parz. cena € {fmt(hint.parziale)}</span>
+        </div>
+      )}
     </div>
   );
 }
