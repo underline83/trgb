@@ -206,6 +206,24 @@ def init_magazzino_database() -> None:
         "ON vini_magazzino_note (vino_id);"
     )
 
+    # -----------------------------------------------------
+    # TABELLA 'locazioni_config'
+    # Configurazione locazioni fisiche (frigoriferi, scaffali, etc.)
+    # -----------------------------------------------------
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS locazioni_config (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            campo       TEXT NOT NULL,
+            nome        TEXT NOT NULL,
+            spazi       TEXT NOT NULL DEFAULT '[]',
+            ordine      INTEGER NOT NULL DEFAULT 0,
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+        """
+    )
+
     conn.commit()
     conn.close()
 

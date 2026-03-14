@@ -1562,6 +1562,8 @@ def inventario_filtri_options(
 # GESTIONE LOCAZIONI FISICHE (generico per tutti i campi)
 # =============================================================
 
+import json as _json
+
 # Mappa campo frontend → colonna DB
 LOCATION_FIELDS = {
     "frigorifero": {
@@ -1581,67 +1583,156 @@ LOCATION_FIELDS = {
     },
 }
 
-# Configurazione struttura frigoriferi (per suggerimenti e dropdown)
-FRIGO_CONFIG = {
-    "frigoriferi": [
-        {"id": 1, "nome": "Frigo 1", "file": list(range(1, 10))},   # Fila 1-9
-        {"id": 2, "nome": "Frigo 2", "file": list(range(1, 14))},   # Fila 1-13
-    ]
-}
+
+def _load_locazioni_config(campo: str) -> list[dict]:
+    """Carica la configurazione locazioni per un campo dal DB."""
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT id, nome, spazi, ordine FROM locazioni_config "
+        "WHERE campo = ? ORDER BY ordine, id",
+        (campo,),
+    ).fetchall()
+    conn.close()
+    result = []
+    for row in rows:
+        spazi = _json.loads(row["spazi"]) if row["spazi"] else []
+        result.append({"id": row["id"], "nome": row["nome"], "spazi": spazi, "ordine": row["ordine"]})
+    return result
 
 
-def _build_frigo_options() -> list[str]:
-    """Ritorna la lista completa delle opzioni frigo come stringhe."""
+def _build_options_from_config(campo: str) -> list[str]:
+    """Costruisce la lista di opzioni valide per un campo leggendo la config dal DB."""
+    items = _load_locazioni_config(campo)
     opts = []
-    for frigo in FRIGO_CONFIG["frigoriferi"]:
-        for fila in frigo["file"]:
-            opts.append(f"Frigo {frigo['id']} - Fila {fila}")
+    for item in items:
+        for spazio in item["spazi"]:
+            opts.append(f"{item['nome']} - {spazio}")
     return opts
 
 
-def _suggest_frigo_value(val: str) -> str | None:
-    """Prova a suggerire il valore normalizzato per un campo FRIGORIFERO."""
+def _suggest_value(val: str, valid_options: set, campo_items: list[dict]) -> str | None:
+    """Prova a suggerire il valore normalizzato per un valore di locazione."""
     if not val or not val.strip():
         return None
     val = val.strip()
 
-    # Già nel formato corretto?
-    m = re.match(r"^Frigo\s+(\d+)\s*-\s*Fila\s+(\d+)$", val, re.IGNORECASE)
-    if m:
-        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+    if val in valid_options:
+        return val
 
-    # Formato Frigo-X-Y o frigo X-Y
+    # Pattern comuni per frigoriferi
+    m = re.match(r"^[Ff]rigo[\s-]*(\d+)\s*[-\s]+[Ff]?i?l?a?\s*(\d+)$", val)
+    if m:
+        candidate = f"Frigo {m.group(1)} - Fila {m.group(2)}"
+        if candidate in valid_options:
+            return candidate
+
     m = re.match(r"^[Ff]rigo[\s-]*(\d+)[\s-]+(\d+)$", val)
     if m:
-        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+        candidate = f"Frigo {m.group(1)} - Fila {m.group(2)}"
+        if candidate in valid_options:
+            return candidate
 
-    # Formato numerico semplice: "1-3" (frigo 1, fila 3)
+    # Formato numerico: "1-3"
     m = re.match(r"^(\d+)[\s-]+(\d+)$", val)
     if m:
-        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+        for item in campo_items:
+            candidate = f"{item['nome']} - Fila {m.group(2)}"
+            if candidate in valid_options:
+                return candidate
 
     return None
 
 
+# -----------------------------------------------
+# CRUD configurazione locazioni
+# -----------------------------------------------
+
 @router.get("/locazioni-config", summary="Config locazioni fisiche")
 async def get_locazioni_config(current_user=Depends(get_current_user)):
-    """Ritorna la struttura delle locazioni fisiche e i campi disponibili."""
-    return {
-        "fields": {k: v["label"] for k, v in LOCATION_FIELDS.items()},
-        "frigoriferi": FRIGO_CONFIG["frigoriferi"],
-        "opzioni_frigo": _build_frigo_options(),
-    }
+    """Ritorna la struttura delle locazioni fisiche per tutti i campi."""
+    result = {"fields": {k: v["label"] for k, v in LOCATION_FIELDS.items()}}
+    for campo_key in LOCATION_FIELDS:
+        result[campo_key] = _load_locazioni_config(campo_key)
+    result["opzioni_frigo"] = _build_options_from_config("frigorifero")
+    return result
 
+
+@router.post("/locazioni-config/{campo}", summary="Salva configurazione locazione")
+async def save_locazione_config(
+    campo: str,
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """
+    Salva/aggiorna la configurazione di un singolo elemento locazione.
+    Body: { "nome": "Frigo 1", "spazi": ["Fila 1", "Fila 2", ...], "ordine": 0 }
+    Se presente "id", aggiorna. Altrimenti crea nuovo.
+    """
+    _require_admin(current_user)
+
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido. Usa: {', '.join(LOCATION_FIELDS.keys())}")
+
+    body = await request.json()
+    nome = body.get("nome", "").strip()
+    spazi = body.get("spazi", [])
+    ordine = body.get("ordine", 0)
+    item_id = body.get("id")
+
+    if not nome:
+        raise HTTPException(400, "Il nome è obbligatorio.")
+
+    now = datetime.now().isoformat(timespec="seconds")
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+
+    if item_id:
+        cur.execute(
+            "UPDATE locazioni_config SET nome = ?, spazi = ?, ordine = ?, updated_at = ? WHERE id = ? AND campo = ?",
+            (nome, _json.dumps(spazi), ordine, now, item_id, campo),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO locazioni_config (campo, nome, spazi, ordine, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (campo, nome, _json.dumps(spazi), ordine, now, now),
+        )
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "msg": f"Locazione '{nome}' salvata per {LOCATION_FIELDS[campo]['label']}."}
+
+
+@router.delete("/locazioni-config/{campo}/{item_id}", summary="Elimina configurazione locazione")
+async def delete_locazione_config(
+    campo: str,
+    item_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Elimina un elemento dalla configurazione locazioni."""
+    _require_admin(current_user)
+
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido.")
+
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM locazioni_config WHERE id = ? AND campo = ?", (item_id, campo))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "msg": "Locazione eliminata."}
+
+
+# -----------------------------------------------
+# Estrazione valori e normalizzazione
+# -----------------------------------------------
 
 @router.get("/locazioni-valori/{campo}", summary="Valori distinti per campo locazione")
 async def get_locazioni_valori(
     campo: str,
     current_user=Depends(get_current_user),
 ):
-    """
-    Estrae tutti i valori distinti dal campo locazione specificato,
-    con conteggio occorrenze e suggerimento AI di normalizzazione.
-    """
+    """Estrae valori distinti con conteggio e suggerimento normalizzazione."""
     if campo not in LOCATION_FIELDS:
         raise HTTPException(400, f"Campo non valido. Usa: {', '.join(LOCATION_FIELDS.keys())}")
 
@@ -1655,18 +1746,18 @@ async def get_locazioni_valori(
     ).fetchall()
     conn.close()
 
-    # Per il campo frigorifero, suggerisci normalizzazione
-    valid_frigo = set(_build_frigo_options()) if campo == "frigorifero" else set()
+    valid_options = set(_build_options_from_config(campo))
+    campo_items = _load_locazioni_config(campo)
+
     valori = []
     for row in rows:
         val = row[0]
         cnt = row[1]
         entry = {"valore": val, "conteggio": cnt, "suggerimento": None, "ok": False}
-        if campo == "frigorifero":
-            if val in valid_frigo:
-                entry["ok"] = True
-            else:
-                entry["suggerimento"] = _suggest_frigo_value(val)
+        if val in valid_options:
+            entry["ok"] = True
+        elif valid_options:
+            entry["suggerimento"] = _suggest_value(val, valid_options, campo_items)
         valori.append(entry)
 
     return {
@@ -1675,6 +1766,7 @@ async def get_locazioni_valori(
         "totale_distinti": len(valori),
         "totale_record": sum(v["conteggio"] for v in valori),
         "valori": valori,
+        "opzioni_valide": sorted(valid_options),
     }
 
 
@@ -1684,9 +1776,8 @@ async def applica_normalizzazione_locazioni(
     current_user=Depends(get_current_user),
 ):
     """
-    Applica un mapping di normalizzazione su un campo locazione.
+    Applica mapping di normalizzazione.
     Body: { "campo": "frigorifero", "mapping": {"Frigo-1-3": "Frigo 1 - Fila 3", ...} }
-    I valori con mapping vuoto o null vengono ignorati.
     """
     _require_admin(current_user)
 

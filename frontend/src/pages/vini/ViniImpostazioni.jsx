@@ -81,6 +81,11 @@ export default function ViniImpostazioni() {
   const [locMapping, setLocMapping] = useState({});   // {vecchio_valore: nuovo_valore}
   const [locSaving, setLocSaving] = useState(false);
   const [locMsg, setLocMsg] = useState("");
+  const [locEditMode, setLocEditMode] = useState(false);  // config vs normalizza
+  const [locEditItem, setLocEditItem] = useState(null);    // item in editing
+  const [locEditNome, setLocEditNome] = useState("");
+  const [locEditSpaziText, setLocEditSpaziText] = useState(""); // "Fila 1, Fila 2, ..."
+  const [locConfigSaving, setLocConfigSaving] = useState(false);
 
   // --- Impostazioni ordinamento ---
   const [tipologie, setTipologie] = useState([]);
@@ -197,6 +202,43 @@ export default function ViniImpostazioni() {
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`); setCleanupResult(await resp.json());
     } catch (e) { setError(e?.message || "Errore pulizia duplicati."); } finally { setCleanupLoading(false); }
   };
+  // --- Locazioni config CRUD ---
+  const handleSaveLocItem = async () => {
+    const spazi = locEditSpaziText.split(",").map(s => s.trim()).filter(Boolean);
+    if (!locEditNome.trim()) { setError("Il nome è obbligatorio."); return; }
+    if (spazi.length === 0) { setError("Inserisci almeno uno spazio (es. Fila 1, Fila 2)."); return; }
+    setLocConfigSaving(true); setError("");
+    try {
+      const body = { nome: locEditNome.trim(), spazi, ordine: 0 };
+      if (locEditItem?.id) body.id = locEditItem.id;
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config/${locCampo}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      setLocEditItem(null); setLocEditNome(""); setLocEditSpaziText("");
+      fetchLocConfig(); // ricarica
+    } catch (e) { setError(e?.message || "Errore salvataggio configurazione."); } finally { setLocConfigSaving(false); }
+  };
+  const handleDeleteLocItem = async (itemId) => {
+    if (!window.confirm("Eliminare questa locazione dalla configurazione?")) return;
+    setError("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config/${locCampo}/${itemId}`, { method: "DELETE" });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      fetchLocConfig();
+    } catch (e) { setError(e?.message || "Errore eliminazione."); }
+  };
+  const startEditLocItem = (item) => {
+    setLocEditItem(item);
+    setLocEditNome(item.nome);
+    setLocEditSpaziText(item.spazi.join(", "));
+  };
+  const startNewLocItem = () => {
+    setLocEditItem({});
+    setLocEditNome("");
+    setLocEditSpaziText(locCampo === "frigorifero" ? "Fila 1, Fila 2, Fila 3" : "");
+  };
+
   const handleEstraiValori = async (campo) => {
     setLocLoading(true); setError(""); setLocValori(null); setLocMapping({}); setLocMsg("");
     try {
@@ -427,35 +469,22 @@ export default function ViniImpostazioni() {
     { key: "locazione_1", label: "Locazione 1", icon: "📦" },
     { key: "locazione_2", label: "Locazione 2", icon: "📦" },
   ];
+  const currentLocItems = locConfig?.[locCampo] || [];
+  const currentOpzioni = locValori?.opzioni_valide || (locCampo === "frigorifero" ? locConfig?.opzioni_frigo : []) || [];
   const pendingMappings = locValori ? locValori.valori.filter(v => !v.ok && locMapping[v.valore]?.trim()).length : 0;
 
   const renderLocazioni = () => (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-amber-900 font-playfair">Locazioni Fisiche</h2>
       <p className="text-sm text-neutral-600">
-        Seleziona un campo locazione, estrai i valori presenti nel database e normalizzali.
+        Configura le locazioni per ogni campo, poi normalizza i valori esistenti nel database.
       </p>
-
-      {/* MAPPA FRIGO (sempre visibile come riferimento) */}
-      {locConfig?.frigoriferi && (
-        <div className="border border-neutral-200 rounded-xl p-4 bg-blue-50/50">
-          <h3 className="font-semibold text-neutral-800 mb-2 text-sm">Frigoriferi configurati</h3>
-          <div className="flex flex-wrap gap-3">
-            {locConfig.frigoriferi.map(frigo => (
-              <div key={frigo.id} className="text-xs">
-                <span className="font-semibold text-neutral-700">{frigo.nome}:</span>{" "}
-                <span className="text-neutral-600">Fila 1–{frigo.file[frigo.file.length - 1]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* TAB SELEZIONE CAMPO */}
       <div className="flex gap-1 border-b border-neutral-200">
         {LOC_TABS.map(tab => (
           <button key={tab.key}
-            onClick={() => { setLocCampo(tab.key); setLocValori(null); setLocMapping({}); setLocMsg(""); }}
+            onClick={() => { setLocCampo(tab.key); setLocValori(null); setLocMapping({}); setLocMsg(""); setLocEditItem(null); }}
             className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
               locCampo === tab.key
                 ? "border-amber-700 text-amber-900 bg-amber-50/50"
@@ -466,104 +495,199 @@ export default function ViniImpostazioni() {
         ))}
       </div>
 
-      {/* ESTRAI VALORI */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => handleEstraiValori(locCampo)} disabled={locLoading}
-          className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${locLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
-          {locLoading ? "Caricamento…" : `Estrai valori ${locConfig?.fields?.[locCampo] || locCampo}`}
-        </button>
-        {locValori && (
-          <span className="text-xs text-neutral-500">
-            {locValori.totale_distinti} valori distinti, {locValori.totale_record} record totali
-          </span>
-        )}
-      </div>
-
-      {/* MESSAGGIO SUCCESSO */}
+      {/* MESSAGGIO */}
       {locMsg && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">{locMsg}</div>}
 
-      {/* TABELLA VALORI CON MAPPING */}
-      {locValori && locValori.valori.length > 0 && (
-        <div className="border border-neutral-200 rounded-xl overflow-hidden">
-          <div className="max-h-[500px] overflow-y-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead className="sticky top-0 bg-neutral-100">
-                <tr className="text-neutral-700 text-xs">
-                  <th className="border-b border-neutral-200 px-3 py-2 text-left">Valore attuale nel DB</th>
-                  <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">N.</th>
-                  <th className="border-b border-neutral-200 px-3 py-2 text-left">Sostituisci con</th>
-                  <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">Stato</th>
-                </tr>
-              </thead>
-              <tbody>
-                {locValori.valori.map((v, i) => (
-                  <tr key={i} className={`border-b border-neutral-100 ${v.ok ? "bg-green-50/50" : ""}`}>
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {v.valore}
-                    </td>
-                    <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">
-                      {v.conteggio}
-                    </td>
-                    <td className="px-3 py-2">
-                      {v.ok ? (
-                        <span className="text-xs text-green-700 italic">Già corretto</span>
-                      ) : locCampo === "frigorifero" && locConfig?.opzioni_frigo ? (
-                        <select
-                          value={locMapping[v.valore] || ""}
-                          onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
-                          <option value="">— Non modificare —</option>
-                          {locConfig.opzioni_frigo.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={locMapping[v.valore] || ""}
-                          onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                          placeholder="Valore normalizzato…"
-                          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500"
-                        />
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      {v.ok ? (
-                        <span className="text-green-600 text-base">✓</span>
-                      ) : locMapping[v.valore]?.trim() ? (
-                        <span className="text-amber-600 text-base">→</span>
-                      ) : (
-                        <span className="text-neutral-300 text-base">–</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* SUB-TAB: Configura / Normalizza */}
+      <div className="flex gap-2">
+        <button onClick={() => setLocEditMode(false)}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition ${!locEditMode ? "bg-amber-100 text-amber-900 shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"}`}>
+          Configura locazioni
+        </button>
+        <button onClick={() => setLocEditMode(true)}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition ${locEditMode ? "bg-amber-100 text-amber-900 shadow-sm" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"}`}>
+          Normalizza valori
+        </button>
+      </div>
 
-          {/* APPLICA */}
-          <div className="bg-neutral-50 border-t border-neutral-200 px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-neutral-600">
-              {pendingMappings > 0
-                ? `${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"} da applicare`
-                : "Nessuna sostituzione impostata"}
-            </span>
-            <button onClick={handleApplicaMapping} disabled={locSaving || pendingMappings === 0}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                locSaving || pendingMappings === 0
-                  ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
-              }`}>
-              {locSaving ? "Salvataggio…" : `Applica ${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"}`}
+      {/* ============ CONFIGURA ============ */}
+      {!locEditMode && (
+        <div className="space-y-4">
+          {/* LOCAZIONI CONFIGURATE */}
+          {currentLocItems.length > 0 ? (
+            <div className="space-y-2">
+              {currentLocItems.map(item => (
+                <div key={item.id} className="border border-neutral-200 rounded-xl p-4 bg-neutral-50 flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="font-semibold text-neutral-800 text-sm">{item.nome}</div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {item.spazi.map(spazio => (
+                        <span key={spazio} className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-200 rounded-lg text-neutral-700">
+                          {spazio}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1">{item.spazi.length} spazi configurati</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => startEditLocItem(item)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-neutral-300 bg-white hover:bg-neutral-100 transition">
+                      Modifica
+                    </button>
+                    <button onClick={() => handleDeleteLocItem(item.id)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition">
+                      Elimina
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-neutral-50 border border-dashed border-neutral-300 rounded-xl p-6 text-center text-sm text-neutral-500">
+              Nessuna locazione configurata per {locConfig?.fields?.[locCampo] || locCampo}.
+            </div>
+          )}
+
+          {/* FORM AGGIUNGI/MODIFICA */}
+          {locEditItem !== null ? (
+            <div className="border border-amber-200 rounded-xl p-4 bg-amber-50/50">
+              <h4 className="font-semibold text-neutral-800 text-sm mb-3">
+                {locEditItem?.id ? `Modifica "${locEditItem.nome}"` : "Aggiungi nuova locazione"}
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-neutral-600 mb-1 block">Nome</label>
+                  <input type="text" value={locEditNome} onChange={e => setLocEditNome(e.target.value)}
+                    placeholder="Es. Frigo 1, Scaffale A, Cantina..."
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-neutral-600 mb-1 block">
+                    Spazi (separati da virgola)
+                  </label>
+                  <input type="text" value={locEditSpaziText} onChange={e => setLocEditSpaziText(e.target.value)}
+                    placeholder="Es. Fila 1, Fila 2, Fila 3, Fila 4..."
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Ogni spazio diventa un'opzione: "{locEditNome || "Nome"} - {locEditSpaziText.split(",")[0]?.trim() || "Fila 1"}"
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveLocItem} disabled={locConfigSaving}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold shadow transition ${locConfigSaving ? "bg-neutral-300 text-neutral-500" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
+                    {locConfigSaving ? "Salvataggio…" : locEditItem?.id ? "Salva modifiche" : "Aggiungi"}
+                  </button>
+                  <button onClick={() => { setLocEditItem(null); setLocEditNome(""); setLocEditSpaziText(""); }}
+                    className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button onClick={startNewLocItem}
+              className="px-4 py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-amber-300 text-amber-700 hover:bg-amber-50 transition w-full">
+              + Aggiungi locazione
             </button>
-          </div>
+          )}
         </div>
       )}
 
-      {locValori && locValori.valori.length === 0 && (
-        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm text-neutral-500 text-center">
-          Nessun valore trovato nel campo {locConfig?.fields?.[locCampo] || locCampo}.
+      {/* ============ NORMALIZZA ============ */}
+      {locEditMode && (
+        <div className="space-y-4">
+          {/* ESTRAI VALORI */}
+          <div className="flex items-center gap-3">
+            <button onClick={() => handleEstraiValori(locCampo)} disabled={locLoading}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${locLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
+              {locLoading ? "Caricamento…" : `Estrai valori`}
+            </button>
+            {locValori && (
+              <span className="text-xs text-neutral-500">
+                {locValori.totale_distinti} valori distinti, {locValori.totale_record} record totali
+              </span>
+            )}
+          </div>
+
+          {currentOpzioni.length === 0 && !locLoading && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
+              Nessuna locazione configurata. Vai alla tab "Configura locazioni" per definire gli spazi validi prima di normalizzare.
+            </div>
+          )}
+
+          {/* TABELLA VALORI CON MAPPING */}
+          {locValori && locValori.valori.length > 0 && (
+            <div className="border border-neutral-200 rounded-xl overflow-hidden">
+              <div className="max-h-[500px] overflow-y-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead className="sticky top-0 bg-neutral-100">
+                    <tr className="text-neutral-700 text-xs">
+                      <th className="border-b border-neutral-200 px-3 py-2 text-left">Valore nel DB</th>
+                      <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">N.</th>
+                      <th className="border-b border-neutral-200 px-3 py-2 text-left">Sostituisci con</th>
+                      <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">Stato</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {locValori.valori.map((v, i) => (
+                      <tr key={i} className={`border-b border-neutral-100 ${v.ok ? "bg-green-50/50" : ""}`}>
+                        <td className="px-3 py-2 font-mono text-xs">{v.valore}</td>
+                        <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">{v.conteggio}</td>
+                        <td className="px-3 py-2">
+                          {v.ok ? (
+                            <span className="text-xs text-green-700 italic">Già corretto</span>
+                          ) : currentOpzioni.length > 0 ? (
+                            <select
+                              value={locMapping[v.valore] || ""}
+                              onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                              className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
+                              <option value="">— Non modificare —</option>
+                              {currentOpzioni.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input type="text" value={locMapping[v.valore] || ""}
+                              onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                              placeholder="Valore normalizzato…"
+                              className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {v.ok ? <span className="text-green-600 text-base">✓</span>
+                            : locMapping[v.valore]?.trim() ? <span className="text-amber-600 text-base">→</span>
+                            : <span className="text-neutral-300 text-base">–</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* APPLICA */}
+              <div className="bg-neutral-50 border-t border-neutral-200 px-4 py-3 flex items-center justify-between">
+                <span className="text-xs text-neutral-600">
+                  {pendingMappings > 0
+                    ? `${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"} da applicare`
+                    : "Nessuna sostituzione impostata"}
+                </span>
+                <button onClick={handleApplicaMapping} disabled={locSaving || pendingMappings === 0}
+                  className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                    locSaving || pendingMappings === 0
+                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}>
+                  {locSaving ? "Salvataggio…" : `Applica ${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"}`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {locValori && locValori.valori.length === 0 && (
+            <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm text-neutral-500 text-center">
+              Nessun valore trovato nel campo {locConfig?.fields?.[locCampo] || locCampo}.
+            </div>
+          )}
         </div>
       )}
     </div>
