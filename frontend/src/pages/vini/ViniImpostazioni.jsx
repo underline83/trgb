@@ -85,6 +85,9 @@ export default function ViniImpostazioni() {
   const [locEditItem, setLocEditItem] = useState(null);    // item in editing
   const [locEditNome, setLocEditNome] = useState("");
   const [locEditSpaziText, setLocEditSpaziText] = useState(""); // "Fila 1, Fila 2, ..."
+  const [locEditTipo, setLocEditTipo] = useState("standard"); // "standard" | "matrice"
+  const [locEditRighe, setLocEditRighe] = useState("");
+  const [locEditColonne, setLocEditColonne] = useState("");
   const [locConfigSaving, setLocConfigSaving] = useState(false);
   const [locExpandedVal, setLocExpandedVal] = useState(null);
   const [locViniDetail, setLocViniDetail] = useState([]);
@@ -209,18 +212,32 @@ export default function ViniImpostazioni() {
   };
   // --- Locazioni config CRUD ---
   const handleSaveLocItem = async () => {
-    const spazi = locEditSpaziText.split(",").map(s => s.trim()).filter(Boolean);
     if (!locEditNome.trim()) { setError("Il nome è obbligatorio."); return; }
-    if (spazi.length === 0) { setError("Inserisci almeno uno spazio (es. Fila 1, Fila 2)."); return; }
+    if (locEditTipo === "matrice") {
+      const r = parseInt(locEditRighe, 10);
+      const c = parseInt(locEditColonne, 10);
+      if (!r || !c || r < 1 || c < 1) { setError("Per una matrice, inserisci righe e colonne valide (>= 1)."); return; }
+    } else {
+      const spazi = locEditSpaziText.split(",").map(s => s.trim()).filter(Boolean);
+      if (spazi.length === 0 && locEditSpaziText.trim() !== "") { setError("Formato spazi non valido."); return; }
+    }
     setLocConfigSaving(true); setError("");
     try {
-      const body = { nome: locEditNome.trim(), spazi, ordine: 0 };
+      const body = { nome: locEditNome.trim(), tipo: locEditTipo, ordine: 0 };
+      if (locEditTipo === "matrice") {
+        body.righe = parseInt(locEditRighe, 10);
+        body.colonne = parseInt(locEditColonne, 10);
+        body.spazi = [];
+      } else {
+        body.spazi = locEditSpaziText.split(",").map(s => s.trim()).filter(Boolean);
+      }
       if (locEditItem?.id) body.id = locEditItem.id;
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config/${locCampo}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
       setLocEditItem(null); setLocEditNome(""); setLocEditSpaziText("");
+      setLocEditTipo("standard"); setLocEditRighe(""); setLocEditColonne("");
       fetchLocConfig(); // ricarica
     } catch (e) { setError(e?.message || "Errore salvataggio configurazione."); } finally { setLocConfigSaving(false); }
   };
@@ -236,11 +253,17 @@ export default function ViniImpostazioni() {
   const startEditLocItem = (item) => {
     setLocEditItem(item);
     setLocEditNome(item.nome);
-    setLocEditSpaziText(item.spazi.join(", "));
+    setLocEditTipo(item.tipo || "standard");
+    setLocEditRighe(item.righe ?? "");
+    setLocEditColonne(item.colonne ?? "");
+    setLocEditSpaziText(item.tipo === "matrice" ? "" : item.spazi.join(", "));
   };
   const startNewLocItem = () => {
     setLocEditItem({});
     setLocEditNome("");
+    setLocEditTipo("standard");
+    setLocEditRighe("");
+    setLocEditColonne("");
     setLocEditSpaziText(locCampo === "frigorifero" ? "Fila 1, Fila 2, Fila 3" : "");
   };
 
@@ -594,15 +617,34 @@ export default function ViniImpostazioni() {
               {currentLocItems.map(item => (
                 <div key={item.id} className="border border-neutral-200 rounded-xl p-4 bg-neutral-50 flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="font-semibold text-neutral-800 text-sm">{item.nome}</div>
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {item.spazi.map(spazio => (
-                        <span key={spazio} className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-200 rounded-lg text-neutral-700">
-                          {spazio}
+                    <div className="font-semibold text-neutral-800 text-sm">
+                      {item.nome}
+                      {item.tipo === "matrice" && (
+                        <span className="ml-2 px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 rounded-full uppercase">
+                          Matrice {item.righe}×{item.colonne}
                         </span>
-                      ))}
+                      )}
                     </div>
-                    <p className="text-xs text-neutral-500 mt-1">{item.spazi.length} spazi configurati</p>
+                    {item.tipo === "matrice" ? (
+                      <div className="mt-2">
+                        <p className="text-xs text-neutral-500">
+                          {item.righe * item.colonne} celle — da ({1},{1}) a ({item.righe},{item.colonne})
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {item.spazi.map(spazio => (
+                            <span key={spazio} className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-200 rounded-lg text-neutral-700">
+                              {spazio}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-neutral-500 mt-1">
+                          {item.spazi.length === 0 ? "Spazio unico (nessun sotto-spazio)" : `${item.spazi.length} spazi configurati`}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => startEditLocItem(item)}
@@ -630,29 +672,73 @@ export default function ViniImpostazioni() {
                 {locEditItem?.id ? `Modifica "${locEditItem.nome}"` : "Aggiungi nuova locazione"}
               </h4>
               <div className="space-y-3">
+                {/* TIPO LOCAZIONE */}
+                <div>
+                  <label className="text-xs font-medium text-neutral-600 mb-1 block">Tipo</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setLocEditTipo("standard")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                        locEditTipo === "standard" ? "bg-amber-100 border-amber-300 text-amber-800" : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                      }`}>Standard</button>
+                    <button type="button" onClick={() => setLocEditTipo("matrice")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                        locEditTipo === "matrice" ? "bg-blue-100 border-blue-300 text-blue-800" : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                      }`}>Matrice (griglia)</button>
+                  </div>
+                </div>
+                {/* NOME */}
                 <div>
                   <label className="text-xs font-medium text-neutral-600 mb-1 block">Nome</label>
                   <input type="text" value={locEditNome} onChange={e => setLocEditNome(e.target.value)}
-                    placeholder="Es. Frigo 1, Scaffale A, Cantina..."
+                    placeholder={locEditTipo === "matrice" ? "Es. Matrice" : "Es. Frigo 1, Scaffale A, Cantina..."}
                     className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-neutral-600 mb-1 block">
-                    Spazi (separati da virgola)
-                  </label>
-                  <input type="text" value={locEditSpaziText} onChange={e => setLocEditSpaziText(e.target.value)}
-                    placeholder="Es. Fila 1, Fila 2, Fila 3, Fila 4..."
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Ogni spazio diventa un'opzione: "{locEditNome || "Nome"} - {locEditSpaziText.split(",")[0]?.trim() || "Fila 1"}"
-                  </p>
-                </div>
+                {/* SPAZI (standard) O RIGHE/COLONNE (matrice) */}
+                {locEditTipo === "matrice" ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-neutral-600 mb-1 block">Righe</label>
+                      <input type="number" min="1" value={locEditRighe} onChange={e => setLocEditRighe(e.target.value)}
+                        placeholder="Es. 10"
+                        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-neutral-600 mb-1 block">Colonne</label>
+                      <input type="number" min="1" value={locEditColonne} onChange={e => setLocEditColonne(e.target.value)}
+                        placeholder="Es. 8"
+                        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-xs text-neutral-500">
+                        {locEditRighe && locEditColonne
+                          ? `Genera ${parseInt(locEditRighe)||0} × ${parseInt(locEditColonne)||0} = ${(parseInt(locEditRighe)||0) * (parseInt(locEditColonne)||0)} celle. Es. "${locEditNome || "Matrice"} - (1,1)", "${locEditNome || "Matrice"} - (${locEditRighe},${locEditColonne})"`
+                          : `Ogni cella sarà "${locEditNome || "Matrice"} - (riga,colonna)"`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-neutral-600 mb-1 block">
+                      Spazi (separati da virgola) — lascia vuoto per locazione senza sotto-spazi
+                    </label>
+                    <input type="text" value={locEditSpaziText} onChange={e => setLocEditSpaziText(e.target.value)}
+                      placeholder="Es. Fila 1, Fila 2, Fila 3, Fila 4..."
+                      className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-500 focus:border-amber-500" />
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {locEditSpaziText.trim()
+                        ? `Ogni spazio diventa un'opzione: "${locEditNome || "Nome"} - ${locEditSpaziText.split(",")[0]?.trim() || "Fila 1"}"`
+                        : `Senza spazi, il valore sarà solo "${locEditNome || "Nome"}"`
+                      }
+                    </p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button onClick={handleSaveLocItem} disabled={locConfigSaving}
                     className={`px-4 py-2 rounded-xl text-sm font-semibold shadow transition ${locConfigSaving ? "bg-neutral-300 text-neutral-500" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
                     {locConfigSaving ? "Salvataggio…" : locEditItem?.id ? "Salva modifiche" : "Aggiungi"}
                   </button>
-                  <button onClick={() => { setLocEditItem(null); setLocEditNome(""); setLocEditSpaziText(""); }}
+                  <button onClick={() => { setLocEditItem(null); setLocEditNome(""); setLocEditSpaziText(""); setLocEditTipo("standard"); setLocEditRighe(""); setLocEditColonne(""); }}
                     className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
                     Annulla
                   </button>

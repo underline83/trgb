@@ -104,6 +104,7 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
+  const [opzioniLoc3, setOpzioniLoc3] = useState([]);
 
   // ── fetch vino ──────────────────────────────────────
   const fetchVino = async () => {
@@ -145,6 +146,7 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
         setOpzioniFrigo(data.opzioni_frigo || []);
         setOpzioniLoc1(data.opzioni_locazione_1 || []);
         setOpzioniLoc2(data.opzioni_locazione_2 || []);
+        setOpzioniLoc3(data.opzioni_locazione_3 || []);
       }
     } catch {}
   };
@@ -201,6 +203,10 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
       const payload = { ...editData };
       ["GRADO_ALCOLICO","PREZZO_CARTA","EURO_LISTINO","SCONTO"].forEach(k => {
         payload[k] = payload[k] === "" || payload[k] === null ? null : parseFloat(payload[k]);
+      });
+      // Converti stringhe vuote in null per i campi con CHECK constraint
+      ["STATO_VENDITA","STATO_RIORDINO","STATO_CONSERVAZIONE","DISCONTINUATO"].forEach(k => {
+        if (payload[k] === "") payload[k] = null;
       });
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
         method: "PATCH",
@@ -560,9 +566,20 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
                   </div>
                   <Input label="Qtà bt" name="QTA_LOC2" value={giacenzeData.QTA_LOC2} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
-                {/* Locazione 3 — testo libero */}
+                {/* Locazione 3 — dropdown */}
                 <div className="grid grid-cols-3 gap-3 items-end">
-                  <div className="col-span-2"><Input label="Locazione 3" name="LOCAZIONE_3" value={giacenzeData.LOCAZIONE_3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} /></div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 3</label>
+                    <select name="LOCAZIONE_3" value={giacenzeData.LOCAZIONE_3 ?? ""}
+                      onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_3: e.target.value}))}
+                      className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                      <option value="">— Nessuna —</option>
+                      {opzioniLoc3.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      {giacenzeData.LOCAZIONE_3 && !opzioniLoc3.includes(giacenzeData.LOCAZIONE_3) && (
+                        <option value={giacenzeData.LOCAZIONE_3}>{giacenzeData.LOCAZIONE_3} (non configurato)</option>
+                      )}
+                    </select>
+                  </div>
                   <Input label="Qtà bt" name="QTA_LOC3" value={giacenzeData.QTA_LOC3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
                 <p className="text-xs text-neutral-500 mt-1">Aggiorna le giacenze direttamente. Usa i <strong>Movimenti</strong> qui sotto per l&apos;operatività quotidiana.</p>

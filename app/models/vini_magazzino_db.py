@@ -234,11 +234,24 @@ def init_magazzino_database() -> None:
             nome        TEXT NOT NULL,
             spazi       TEXT NOT NULL DEFAULT '[]',
             ordine      INTEGER NOT NULL DEFAULT 0,
+            tipo        TEXT NOT NULL DEFAULT 'standard',
+            righe       INTEGER,
+            colonne     INTEGER,
             created_at  TEXT NOT NULL,
             updated_at  TEXT NOT NULL
         );
         """
     )
+
+    # Migrazione: aggiungi colonne tipo/righe/colonne se mancanti
+    cur.execute("PRAGMA table_info(locazioni_config);")
+    loc_cols = [row[1] for row in cur.fetchall()]
+    if "tipo" not in loc_cols:
+        cur.execute("ALTER TABLE locazioni_config ADD COLUMN tipo TEXT NOT NULL DEFAULT 'standard';")
+    if "righe" not in loc_cols:
+        cur.execute("ALTER TABLE locazioni_config ADD COLUMN righe INTEGER;")
+    if "colonne" not in loc_cols:
+        cur.execute("ALTER TABLE locazioni_config ADD COLUMN colonne INTEGER;")
 
     conn.commit()
     conn.close()

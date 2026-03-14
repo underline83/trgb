@@ -45,6 +45,7 @@ export default function MagazzinoViniNuovo() {
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
+  const [opzioniLoc3, setOpzioniLoc3] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -157,6 +158,7 @@ export default function MagazzinoViniNuovo() {
           setOpzioniFrigo(data.opzioni_frigo || []);
           setOpzioniLoc1(data.opzioni_locazione_1 || []);
           setOpzioniLoc2(data.opzioni_locazione_2 || []);
+          setOpzioniLoc3(data.opzioni_locazione_3 || []);
         }
       })
       .catch(() => {});
@@ -679,7 +681,21 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {locCard("Locazione 3", "LOCAZIONE_3", "QTA_LOC3", form, handleChange)}
+              {/* Locazione 3 — dropdown */}
+              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 3</div>
+                <select value={form.LOCAZIONE_3} onChange={handleChange("LOCAZIONE_3")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— Nessuna —</option>
+                  {opzioniLoc3.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-600">Quantità</span>
+                  <input type="number" value={form.QTA_LOC3} onChange={handleChange("QTA_LOC3")}
+                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
+                  <span className="text-xs text-neutral-500">bt</span>
+                </div>
+              </div>
             </div>
           </section>
 

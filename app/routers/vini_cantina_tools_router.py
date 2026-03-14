@@ -887,6 +887,8 @@ def _load_all_vini_inventario(
     loc1_spazio: Optional[str] = None,
     loc2_nome: Optional[str] = None,
     loc2_spazio: Optional[str] = None,
+    loc3_nome: Optional[str] = None,
+    loc3_spazio: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Carica vini dal DB cantina per report inventario con filtri componibili.
@@ -964,6 +966,7 @@ def _load_all_vini_inventario(
         ("FRIGORIFERO", frigo_nome, frigo_spazio),
         ("LOCAZIONE_1", loc1_nome, loc1_spazio),
         ("LOCAZIONE_2", loc2_nome, loc2_spazio),
+        ("LOCAZIONE_3", loc3_nome, loc3_spazio),
     ]
     for col, nome, spazio in _hier_filters:
         if nome:
@@ -1477,6 +1480,7 @@ def _build_filtri_subtitle(kwargs: Dict[str, Any]) -> str:
         ("Frigo", "frigo_nome", "frigo_spazio"),
         ("Loc 1", "loc1_nome", "loc1_spazio"),
         ("Loc 2", "loc2_nome", "loc2_spazio"),
+        ("Loc 3", "loc3_nome", "loc3_spazio"),
     ]:
         nome = kwargs.get(nome_key)
         spazio = kwargs.get(spazio_key)
@@ -1512,6 +1516,8 @@ def inventario_filtrato_pdf(
     loc1_spazio: Optional[str] = Query(None),
     loc2_nome: Optional[str] = Query(None),
     loc2_spazio: Optional[str] = Query(None),
+    loc3_nome: Optional[str] = Query(None),
+    loc3_spazio: Optional[str] = Query(None),
 ):
     """
     Genera PDF inventario con filtri combinabili via query string.
@@ -1541,6 +1547,8 @@ def inventario_filtrato_pdf(
         loc1_spazio=loc1_spazio,
         loc2_nome=loc2_nome,
         loc2_spazio=loc2_spazio,
+        loc3_nome=loc3_nome,
+        loc3_spazio=loc3_spazio,
     )
 
     vini = _load_all_vini_inventario(**filter_kwargs)
@@ -1641,6 +1649,11 @@ LOCATION_FIELDS = {
         "qta_column": "QTA_LOC2",
         "label": "Locazione 2",
     },
+    "locazione_3": {
+        "column": "LOCAZIONE_3",
+        "qta_column": "QTA_LOC3",
+        "label": "Locazione 3",
+    },
 }
 
 
@@ -1649,25 +1662,38 @@ def _load_locazioni_config(campo: str) -> list[dict]:
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
-        "SELECT id, nome, spazi, ordine FROM locazioni_config "
+        "SELECT id, nome, spazi, ordine, tipo, righe, colonne FROM locazioni_config "
         "WHERE campo = ? ORDER BY ordine, id",
         (campo,),
     ).fetchall()
     conn.close()
     result = []
     for row in rows:
+        tipo = row["tipo"] if row["tipo"] else "standard"
+        righe = row["righe"] if row["righe"] else None
+        colonne = row["colonne"] if row["colonne"] else None
         spazi = _json.loads(row["spazi"]) if row["spazi"] else []
-        result.append({"id": row["id"], "nome": row["nome"], "spazi": spazi, "ordine": row["ordine"]})
+        result.append({
+            "id": row["id"], "nome": row["nome"], "spazi": spazi,
+            "ordine": row["ordine"], "tipo": tipo,
+            "righe": righe, "colonne": colonne,
+        })
     return result
 
 
 def _build_options_from_config(campo: str) -> list[str]:
     """Costruisce la lista di opzioni valide per un campo leggendo la config dal DB.
-    Se una locazione non ha sotto-spazi (spazi vuoto), il valore è solo il nome."""
+    Se una locazione non ha sotto-spazi (spazi vuoto), il valore è solo il nome.
+    Se tipo='matrice', genera le coordinate (R,C) automaticamente da righe×colonne."""
     items = _load_locazioni_config(campo)
     opts = []
     for item in items:
-        if item["spazi"]:
+        if item.get("tipo") == "matrice" and item.get("righe") and item.get("colonne"):
+            # Genera coordinate matrice: (1,1), (1,2), ..., (righe,colonne)
+            for r in range(1, item["righe"] + 1):
+                for c in range(1, item["colonne"] + 1):
+                    opts.append(f"{item['nome']} - ({r},{c})")
+        elif item["spazi"]:
             for spazio in item["spazi"]:
                 opts.append(f"{item['nome']} - {spazio}")
         else:
@@ -1722,6 +1748,7 @@ async def get_locazioni_config(current_user=Depends(get_current_user)):
     result["opzioni_frigo"] = _build_options_from_config("frigorifero")
     result["opzioni_locazione_1"] = _build_options_from_config("locazione_1")
     result["opzioni_locazione_2"] = _build_options_from_config("locazione_2")
+    result["opzioni_locazione_3"] = _build_options_from_config("locazione_3")
     return result
 
 
@@ -1746,9 +1773,18 @@ async def save_locazione_config(
     spazi = body.get("spazi", [])
     ordine = body.get("ordine", 0)
     item_id = body.get("id")
+    tipo = body.get("tipo", "standard")  # "standard" o "matrice"
+    righe = body.get("righe")            # solo per tipo=matrice
+    colonne = body.get("colonne")        # solo per tipo=matrice
 
     if not nome:
         raise HTTPException(400, "Il nome è obbligatorio.")
+
+    if tipo == "matrice":
+        if not righe or not colonne or righe < 1 or colonne < 1:
+            raise HTTPException(400, "Per una matrice, righe e colonne devono essere >= 1.")
+        # Per le matrici, gli spazi vengono generati automaticamente — non serve salvarli
+        spazi = []
 
     now = datetime.now().isoformat(timespec="seconds")
     conn = mag_db.get_magazzino_connection()
@@ -1756,13 +1792,15 @@ async def save_locazione_config(
 
     if item_id:
         cur.execute(
-            "UPDATE locazioni_config SET nome = ?, spazi = ?, ordine = ?, updated_at = ? WHERE id = ? AND campo = ?",
-            (nome, _json.dumps(spazi), ordine, now, item_id, campo),
+            "UPDATE locazioni_config SET nome = ?, spazi = ?, ordine = ?, tipo = ?, righe = ?, colonne = ?, updated_at = ? "
+            "WHERE id = ? AND campo = ?",
+            (nome, _json.dumps(spazi), ordine, tipo, righe, colonne, now, item_id, campo),
         )
     else:
         cur.execute(
-            "INSERT INTO locazioni_config (campo, nome, spazi, ordine, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (campo, nome, _json.dumps(spazi), ordine, now, now),
+            "INSERT INTO locazioni_config (campo, nome, spazi, ordine, tipo, righe, colonne, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (campo, nome, _json.dumps(spazi), ordine, tipo, righe, colonne, now, now),
         )
 
     conn.commit()
