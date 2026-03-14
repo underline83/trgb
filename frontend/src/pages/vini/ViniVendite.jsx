@@ -1,5 +1,5 @@
 // src/pages/vini/ViniVendite.jsx
-// @version: v2.0-vendite-bottiglia-calici
+// @version: v2.1-aperte-calici-kpi
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -252,19 +252,20 @@ export default function ViniVendite() {
 
         {/* ── KPI RAPIDI ──────────────────────────────────── */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <KpiTile
-              label="Vendute oggi"
-              value={stats.vendite_recenti?.filter(v => {
-                const d = v.data_mov?.slice(0, 10);
-                return d === new Date().toISOString().slice(0, 10);
-              }).reduce((s, v) => s + (v.qta || 0), 0) ?? 0}
-              unit="bt"
-              color="violet"
-            />
-            <KpiTile label="Vendute 7gg" value={stats.vendute_7gg} unit="bt" color="violet" />
-            <KpiTile label="Vendute 30gg" value={stats.vendute_30gg} unit="bt" color="violet" />
-            <KpiTile label="Bottiglie in cantina" value={stats.total_bottiglie} unit="bt" color="amber" />
+          <div className="space-y-4">
+            {/* Vendite bottiglie */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiTile label="Vendute oggi" value={stats.vendute_oggi ?? 0} unit="bt" color="violet" />
+              <KpiTile label="Vendute 7gg" value={stats.vendute_7gg} unit="bt" color="violet" />
+              <KpiTile label="Vendute 30gg" value={stats.vendute_30gg} unit="bt" color="violet" />
+              <KpiTile label="Bottiglie in cantina" value={stats.total_bottiglie} unit="bt" color="amber" />
+            </div>
+            {/* Aperte per calici */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <KpiTile label="Aperte oggi" value={stats.aperte_oggi ?? 0} unit="bt" color="rose" />
+              <KpiTile label="Aperte 7gg" value={stats.aperte_7gg ?? 0} unit="bt" color="rose" />
+              <KpiTile label="Aperte 30gg" value={stats.aperte_30gg ?? 0} unit="bt" color="rose" />
+            </div>
           </div>
         )}
 
