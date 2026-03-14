@@ -276,6 +276,23 @@ def init_magazzino_database() -> None:
         "ON matrice_celle (vino_id);"
     )
 
+    # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga) per tutti i vini con celle matrice
+    vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
+    if vino_ids_rows:
+        for row in vino_ids_rows:
+            vid = row[0]
+            celle_rows = cur.execute(
+                "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY colonna, riga",
+                (vid,),
+            ).fetchall()
+            qta = len(celle_rows)
+            loc3_text = ", ".join(f"({r[1]},{r[0]})" for r in celle_rows) if celle_rows else None
+            cur.execute(
+                "UPDATE vini_magazzino SET LOCAZIONE_3 = ?, QTA_LOC3 = ? WHERE id = ?",
+                (loc3_text, qta, vid),
+            )
+        print(f"✅ Matrice: ricalcolate coordinate (col,riga) per {len(vino_ids_rows)} vini")
+
     conn.commit()
     conn.close()
 
