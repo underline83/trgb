@@ -292,7 +292,6 @@ export default function MagazzinoVini() {
   const [error, setError] = useState("");
   const [showStampaFiltrata, setShowStampaFiltrata] = useState(false);
 
-  const [selectedVino, setSelectedVino] = useState(null);
   const [openSchedaId, setOpenSchedaId] = useState(null);
   const schedaRef = useRef(null);
 
@@ -340,9 +339,6 @@ export default function MagazzinoVini() {
       const data = await resp.json();
       setVini(Array.isArray(data) ? data : []);
 
-      if (Array.isArray(data) && data.length > 0 && !selectedVino) {
-        setSelectedVino(data[0]);
-      }
     } catch (err) {
       setError(err.message || "Errore di caricamento.");
     } finally {
@@ -514,8 +510,9 @@ export default function MagazzinoVini() {
           const full = `${lf.nome} - ${lf.spazio}`;
           out = out.filter((v) => v[lf.col] === full);
         } else {
+          // Match esatto (locazione senza sotto-spazi) O con prefisso
           const prefix = `${lf.nome} - `;
-          out = out.filter((v) => v[lf.col] && String(v[lf.col]).startsWith(prefix));
+          out = out.filter((v) => v[lf.col] && (v[lf.col] === lf.nome || String(v[lf.col]).startsWith(prefix)));
         }
       }
     }
@@ -541,7 +538,6 @@ export default function MagazzinoVini() {
   ]);
 
   const handleRowClick = (vino) => {
-    setSelectedVino(vino);
     setOpenSchedaId(vino.id);
     // Scroll to scheda after render
     setTimeout(() => {
@@ -949,313 +945,131 @@ export default function MagazzinoVini() {
           )}
         </div>
 
-        {/* LAYOUT LISTA + DETTAGLIO */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* LISTA */}
-          <div className="lg:col-span-2">
-            <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
-              <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
-                  Lista vini in cantina
-                </h2>
-                <span className="text-xs text-neutral-500">
-                  {viniFiltrati.length} risultati su {vini.length} totali
-                </span>
-              </div>
-
-              <div className="max-h-[480px] overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-neutral-100 sticky top-0 z-10">
-                    <tr className="text-xs text-neutral-600 uppercase tracking-wide">
-                      <th className="px-3 py-2 text-left">ID</th>
-                      <th className="px-3 py-2 text-left">Tipologia</th>
-                      <th className="px-3 py-2 text-left">Vino</th>
-                      <th className="px-3 py-2 text-left">Annata</th>
-                      <th className="px-3 py-2 text-left">Produttore</th>
-                      <th className="px-3 py-2 text-left">Origine</th>
-                      <th className="px-3 py-2 text-center">Qta Tot.</th>
-                      <th className="px-3 py-2 text-center">Carta</th>
-                      <th className="px-3 py-2 text-center">Stato</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {viniFiltrati.map((vino) => {
-                      const isSelected =
-                        selectedVino && selectedVino.id === vino.id;
-                      const tot =
-                        vino.QTA_TOTALE ??
-                        (vino.QTA_FRIGO ?? 0) +
-                          (vino.QTA_LOC1 ?? 0) +
-                          (vino.QTA_LOC2 ?? 0) +
-                          (vino.QTA_LOC3 ?? 0);
-
-                      return (
-                        <tr
-                          key={vino.id}
-                          className={
-                            "cursor-pointer border-b border-neutral-200 hover:bg-amber-50 transition " +
-                            (isSelected ? "bg-amber-50/80" : "bg-white")
-                          }
-                          onClick={() => handleRowClick(vino)}
-                        >
-                          <td className="px-3 py-2 align-top whitespace-nowrap">
-                            <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
-                              #{vino.id}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-neutral-700">
-                            {vino.TIPOLOGIA}
-                          </td>
-                          <td className="px-3 py-2 align-top">
-                            <div className="font-semibold text-neutral-900">
-                              {vino.DESCRIZIONE}
-                            </div>
-                            {vino.DENOMINAZIONE && (
-                              <div className="text-xs text-neutral-600">
-                                {vino.DENOMINAZIONE}
-                              </div>
-                            )}
-                            {vino.CODICE && (
-                              <div className="text-[11px] text-neutral-500 mt-0.5">
-                                Cod: <span className="font-mono">{vino.CODICE}</span>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 align-top text-sm text-neutral-800 whitespace-nowrap">
-                            {vino.ANNATA || "-"}
-                          </td>
-                          <td className="px-3 py-2 align-top text-sm text-neutral-800">
-                            {vino.PRODUTTORE || "-"}
-                          </td>
-                          <td className="px-3 py-2 align-top text-xs text-neutral-700">
-                            {vino.NAZIONE}
-                            {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
-                          </td>
-                          <td className="px-3 py-2 align-top text-center text-sm font-semibold text-neutral-900">
-                            {tot}
-                          </td>
-                          <td className="px-3 py-2 align-top text-center">
-                            <span
-                              className={
-                                "inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold " +
-                                (vino.CARTA === "SI"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-neutral-50 text-neutral-500 border border-neutral-200")
-                              }
-                            >
-                              {vino.CARTA === "SI" ? "In carta" : "No"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 align-top text-center">
-                            {vino.STATO_VENDITA ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                {vino.STATO_VENDITA}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-neutral-400">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-
-                    {viniFiltrati.length === 0 && !loading && (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="px-4 py-6 text-center text-sm text-neutral-500"
-                        >
-                          Nessun vino trovato con i filtri attuali.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {loading && (
-                <div className="px-4 py-3 text-sm text-neutral-600 bg-neutral-50 border-t border-neutral-200">
-                  Caricamento dati magazzino…
-                </div>
-              )}
-            </div>
+        {/* LISTA VINI */}
+        <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
+          <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
+              Lista vini in cantina
+            </h2>
+            <span className="text-xs text-neutral-500">
+              {viniFiltrati.length} risultati su {vini.length} totali
+            </span>
           </div>
 
-          {/* DETTAGLIO */}
-          <div>
-            <div className="border border-neutral-200 rounded-2xl bg-neutral-50 shadow-sm h-full flex flex-col">
-              <div className="px-4 py-3 border-b border-neutral-200 bg-neutral-100">
-                <h2 className="text-sm font-semibold text-neutral-800 tracking-wide uppercase">
-                  Dettaglio vino
-                </h2>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Giacenze, movimenti e note nella scheda completa.
-                </p>
-              </div>
+          <div className="max-h-[520px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-100 sticky top-0 z-10">
+                <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+                  <th className="px-3 py-2 text-left">ID</th>
+                  <th className="px-3 py-2 text-left">Tipologia</th>
+                  <th className="px-3 py-2 text-left">Vino</th>
+                  <th className="px-3 py-2 text-left">Annata</th>
+                  <th className="px-3 py-2 text-left">Produttore</th>
+                  <th className="px-3 py-2 text-left">Origine</th>
+                  <th className="px-3 py-2 text-center">Qta Tot.</th>
+                  <th className="px-3 py-2 text-center">Carta</th>
+                  <th className="px-3 py-2 text-center">Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {viniFiltrati.map((vino) => {
+                  const isSelected = openSchedaId === vino.id;
+                  const tot =
+                    vino.QTA_TOTALE ??
+                    (vino.QTA_FRIGO ?? 0) +
+                      (vino.QTA_LOC1 ?? 0) +
+                      (vino.QTA_LOC2 ?? 0) +
+                      (vino.QTA_LOC3 ?? 0);
 
-              <div className="p-4 text-sm text-neutral-800 flex-1 overflow-auto">
-                {!selectedVino && (
-                  <p className="text-neutral-500">
-                    Seleziona un vino dall&apos;elenco per vedere il dettaglio.
-                  </p>
-                )}
-
-                {selectedVino && (
-                  <div className="space-y-3">
-                    {openSchedaId === selectedVino.id && (
-                      <div className="text-xs text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                        Scheda completa aperta sotto
-                      </div>
-                    )}
-
-                    <div>
-                      <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight mb-1">
-                        #{selectedVino.id}
-                      </span>
-                      <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">
-                        Vino
-                      </div>
-                      <div className="mt-0.5 font-semibold text-neutral-900">
-                        {selectedVino.DESCRIZIONE}
-                      </div>
-                      {selectedVino.DENOMINAZIONE && (
-                        <div className="text-xs text-neutral-600">
-                          {selectedVino.DENOMINAZIONE}
-                        </div>
-                      )}
-                      <div className="mt-1 text-xs text-neutral-600">
-                        {selectedVino.NAZIONE}
-                        {selectedVino.REGIONE ? ` / ${selectedVino.REGIONE}` : ""}
-                        {selectedVino.ANNATA ? ` — ${selectedVino.ANNATA}` : ""}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Produttore
-                        </div>
-                        <div className="text-sm">{selectedVino.PRODUTTORE || "—"}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Distributore
-                        </div>
-                        <div className="text-sm">{selectedVino.DISTRIBUTORE || "—"}</div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-1">
-                        Giacenze per locazione
-                      </div>
-                      <div className="border border-neutral-200 rounded-xl bg-white divide-y divide-neutral-100">
-                        <div className="px-3 py-2 flex justify-between text-xs">
-                          <span>Frigorifero: {selectedVino.FRIGORIFERO || "—"}</span>
-                          <span className="font-semibold">{selectedVino.QTA_FRIGO ?? 0} bt</span>
-                        </div>
-                        <div className="px-3 py-2 flex justify-between text-xs">
-                          <span>Locazione 1: {selectedVino.LOCAZIONE_1 || "—"}</span>
-                          <span className="font-semibold">{selectedVino.QTA_LOC1 ?? 0} bt</span>
-                        </div>
-                        <div className="px-3 py-2 flex justify-between text-xs">
-                          <span>Locazione 2: {selectedVino.LOCAZIONE_2 || "—"}</span>
-                          <span className="font-semibold">{selectedVino.QTA_LOC2 ?? 0} bt</span>
-                        </div>
-                        <div className="px-3 py-2 flex justify-between text-xs">
-                          <span>Locazione 3: {selectedVino.LOCAZIONE_3 || "—"}</span>
-                          <span className="font-semibold">{selectedVino.QTA_LOC3 ?? 0} bt</span>
-                        </div>
-                        <div className="px-3 py-2 flex justify-between text-xs bg-neutral-50 rounded-b-xl">
-                          <span className="font-semibold">Totale magazzino</span>
-                          <span className="font-bold text-neutral-900">
-                            {(selectedVino.QTA_TOTALE ??
-                              (selectedVino.QTA_FRIGO ?? 0) +
-                                (selectedVino.QTA_LOC1 ?? 0) +
-                                (selectedVino.QTA_LOC2 ?? 0) +
-                                (selectedVino.QTA_LOC3 ?? 0)) || 0}{" "}
-                            bt
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Prezzo carta
-                        </div>
-                        <div className="text-sm">
-                          {selectedVino.PREZZO_CARTA != null && selectedVino.PREZZO_CARTA !== ""
-                            ? `${Number(selectedVino.PREZZO_CARTA).toFixed(2)} €`
-                            : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Listino
-                        </div>
-                        <div className="text-sm">
-                          {selectedVino.EURO_LISTINO != null && selectedVino.EURO_LISTINO !== ""
-                            ? `${Number(selectedVino.EURO_LISTINO).toFixed(2)} €`
-                            : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Sconto
-                        </div>
-                        <div className="text-sm">
-                          {selectedVino.SCONTO != null
-                            ? `${Number(selectedVino.SCONTO).toFixed(2)} %`
-                            : "—"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <span
-                        className={
-                          "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
-                          (selectedVino.CARTA === "SI"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-neutral-50 text-neutral-500 border-neutral-200")
-                        }
-                      >
-                        CARTA: {selectedVino.CARTA || "NO"}
-                      </span>
-                      <span
-                        className={
-                          "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border " +
-                          (selectedVino.IPRATICO === "SI"
-                            ? "bg-sky-50 text-sky-700 border-sky-200"
-                            : "bg-neutral-50 text-neutral-500 border-neutral-200")
-                        }
-                      >
-                        iPratico: {selectedVino.IPRATICO || "NO"}
-                      </span>
-                      {selectedVino.STATO_VENDITA && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">
-                          Stato vendita: {selectedVino.STATO_VENDITA}
+                  return (
+                    <tr
+                      key={vino.id}
+                      className={
+                        "cursor-pointer border-b border-neutral-200 hover:bg-amber-50 transition " +
+                        (isSelected ? "bg-amber-100/70 border-l-4 border-l-amber-500" : "bg-white")
+                      }
+                      onClick={() => handleRowClick(vino)}
+                    >
+                      <td className="px-3 py-2 align-top whitespace-nowrap">
+                        <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
+                          #{vino.id}
                         </span>
-                      )}
-                    </div>
-
-                    {selectedVino.NOTE && (
-                      <div>
-                        <div className="text-[11px] font-semibold text-neutral-600 uppercase mb-0.5">
-                          Note interne
+                      </td>
+                      <td className="px-3 py-2 align-top whitespace-nowrap text-xs text-neutral-700">
+                        {vino.TIPOLOGIA}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-semibold text-neutral-900">
+                          {vino.DESCRIZIONE}
                         </div>
-                        <p className="text-sm text-neutral-800 whitespace-pre-wrap">
-                          {selectedVino.NOTE}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                        {vino.DENOMINAZIONE && (
+                          <div className="text-xs text-neutral-600">
+                            {vino.DENOMINAZIONE}
+                          </div>
+                        )}
+                        {vino.CODICE && (
+                          <div className="text-[11px] text-neutral-500 mt-0.5">
+                            Cod: <span className="font-mono">{vino.CODICE}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top text-sm text-neutral-800 whitespace-nowrap">
+                        {vino.ANNATA || "-"}
+                      </td>
+                      <td className="px-3 py-2 align-top text-sm text-neutral-800">
+                        {vino.PRODUTTORE || "-"}
+                      </td>
+                      <td className="px-3 py-2 align-top text-xs text-neutral-700">
+                        {vino.NAZIONE}
+                        {vino.REGIONE ? ` / ${vino.REGIONE}` : ""}
+                      </td>
+                      <td className="px-3 py-2 align-top text-center text-sm font-semibold text-neutral-900">
+                        {tot}
+                      </td>
+                      <td className="px-3 py-2 align-top text-center">
+                        <span
+                          className={
+                            "inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold " +
+                            (vino.CARTA === "SI"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-neutral-50 text-neutral-500 border border-neutral-200")
+                          }
+                        >
+                          {vino.CARTA === "SI" ? "In carta" : "No"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 align-top text-center">
+                        {vino.STATO_VENDITA ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            {vino.STATO_VENDITA}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-neutral-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {viniFiltrati.length === 0 && !loading && (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="px-4 py-6 text-center text-sm text-neutral-500"
+                    >
+                      Nessun vino trovato con i filtri attuali.
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
+
+          {loading && (
+            <div className="px-4 py-3 text-sm text-neutral-600 bg-neutral-50 border-t border-neutral-200">
+              Caricamento dati magazzino…
+            </div>
+          )}
         </div>
 
         {/* ── SCHEDA COMPLETA INLINE ────────────────── */}
@@ -1268,7 +1082,6 @@ export default function MagazzinoVini() {
               onVinoUpdated={(updatedVino) => {
                 // Aggiorna la lista con i dati modificati
                 setVini(prev => prev.map(v => v.id === updatedVino.id ? { ...v, ...updatedVino } : v));
-                setSelectedVino(prev => prev && prev.id === updatedVino.id ? { ...prev, ...updatedVino } : prev);
               }}
             />
           </div>

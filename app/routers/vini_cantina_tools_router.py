@@ -971,8 +971,9 @@ def _load_all_vini_inventario(
                 conditions.append(f"{col} = ?")
                 params.append(f"{nome} - {spazio}")
             else:
-                conditions.append(f"{col} LIKE ?")
-                params.append(f"{nome} - %")
+                # Locazione senza sotto-spazi: match esatto O con prefisso
+                conditions.append(f"({col} = ? OR {col} LIKE ?)")
+                params.extend([nome, f"{nome} - %"])
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -1661,12 +1662,17 @@ def _load_locazioni_config(campo: str) -> list[dict]:
 
 
 def _build_options_from_config(campo: str) -> list[str]:
-    """Costruisce la lista di opzioni valide per un campo leggendo la config dal DB."""
+    """Costruisce la lista di opzioni valide per un campo leggendo la config dal DB.
+    Se una locazione non ha sotto-spazi (spazi vuoto), il valore è solo il nome."""
     items = _load_locazioni_config(campo)
     opts = []
     for item in items:
-        for spazio in item["spazi"]:
-            opts.append(f"{item['nome']} - {spazio}")
+        if item["spazi"]:
+            for spazio in item["spazi"]:
+                opts.append(f"{item['nome']} - {spazio}")
+        else:
+            # Locazione con spazio unico — nessun sotto-spazio
+            opts.append(item["nome"])
     return opts
 
 
