@@ -43,6 +43,8 @@ export default function MagazzinoViniNuovo() {
   const [regioni, setRegioni] = useState([]);
   const [produttori, setProduttori] = useState([]);
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
+  const [opzioniLoc1, setOpzioniLoc1] = useState([]);
+  const [opzioniLoc2, setOpzioniLoc2] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -147,10 +149,16 @@ export default function MagazzinoViniNuovo() {
 
     fetchOptions();
 
-    // Opzioni frigo
+    // Opzioni locazioni
     apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.opzioni_frigo) setOpzioniFrigo(data.opzioni_frigo); })
+      .then(data => {
+        if (data) {
+          setOpzioniFrigo(data.opzioni_frigo || []);
+          setOpzioniLoc1(data.opzioni_locazione_1 || []);
+          setOpzioniLoc2(data.opzioni_locazione_2 || []);
+        }
+      })
       .catch(() => {});
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -641,8 +649,36 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {locCard("Locazione 1", "LOCAZIONE_1", "QTA_LOC1", form, handleChange)}
-              {locCard("Locazione 2", "LOCAZIONE_2", "QTA_LOC2", form, handleChange)}
+              {/* Locazione 1 — dropdown */}
+              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 1</div>
+                <select value={form.LOCAZIONE_1} onChange={handleChange("LOCAZIONE_1")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— Nessuna —</option>
+                  {opzioniLoc1.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-600">Quantità</span>
+                  <input type="number" value={form.QTA_LOC1} onChange={handleChange("QTA_LOC1")}
+                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
+                  <span className="text-xs text-neutral-500">bt</span>
+                </div>
+              </div>
+              {/* Locazione 2 — dropdown */}
+              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
+                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 2</div>
+                <select value={form.LOCAZIONE_2} onChange={handleChange("LOCAZIONE_2")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— Nessuna —</option>
+                  {opzioniLoc2.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-600">Quantità</span>
+                  <input type="number" value={form.QTA_LOC2} onChange={handleChange("QTA_LOC2")}
+                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
+                  <span className="text-xs text-neutral-500">bt</span>
+                </div>
+              </div>
               {locCard("Locazione 3", "LOCAZIONE_3", "QTA_LOC3", form, handleChange)}
             </div>
           </section>

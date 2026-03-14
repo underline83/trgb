@@ -1070,12 +1070,20 @@ def get_dashboard_stats() -> Dict[str, Any]:
             COUNT(CASE WHEN CARTA = 'SI' THEN 1 END)                      AS vini_in_carta,
             COUNT(CASE WHEN QTA_TOTALE > 0 THEN 1 END)                    AS vini_con_giacenza,
             COUNT(CASE WHEN (EURO_LISTINO IS NULL OR EURO_LISTINO = '')
-                       THEN 1 END)                                         AS vini_senza_listino
+                       THEN 1 END)                                         AS vini_senza_listino,
+            COALESCE(SUM(
+                CASE WHEN QTA_TOTALE > 0 AND EURO_LISTINO IS NOT NULL AND EURO_LISTINO != ''
+                     THEN QTA_TOTALE * EURO_LISTINO ELSE 0 END
+            ), 0)                                                          AS valore_acquisto,
+            COALESCE(SUM(
+                CASE WHEN QTA_TOTALE > 0 AND PREZZO_CARTA IS NOT NULL AND PREZZO_CARTA != ''
+                     THEN QTA_TOTALE * PREZZO_CARTA ELSE 0 END
+            ), 0)                                                          AS valore_carta
         FROM vini_magazzino;
         """
     ).fetchone()
 
-    # Alert: vini in carta con giacenza = 0
+    # Alert: vini in carta con giacenza = 0 (senza limite)
     alert_carta = cur.execute(
         """
         SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE,
@@ -1087,8 +1095,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
             CASE WHEN STATO_CONSERVAZIONE = '1' THEN 0
                  WHEN STATO_CONSERVAZIONE = '2' THEN 1
                  ELSE 2 END,
-            TIPOLOGIA, DESCRIZIONE
-        LIMIT 50;
+            TIPOLOGIA, DESCRIZIONE;
         """
     ).fetchall()
 
@@ -1151,6 +1158,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
     ).fetchall()
 
     # Vini fermi: QTA_TOTALE > 0 e nessun movimento negli ultimi 30 giorni
+    # Include anche vini che non hanno MAI avuto movimenti (LEFT JOIN + IS NULL)
     vini_fermi = cur.execute(
         """
         SELECT
@@ -1162,8 +1170,9 @@ def get_dashboard_stats() -> Dict[str, Any]:
         GROUP BY v.id
         HAVING ultimo_movimento IS NULL
             OR datetime(ultimo_movimento) < datetime('now', '-30 days')
-        ORDER BY v.QTA_TOTALE DESC, v.TIPOLOGIA, v.DESCRIZIONE
-        LIMIT 10;
+        ORDER BY
+            CASE WHEN ultimo_movimento IS NULL THEN 0 ELSE 1 END,
+            v.QTA_TOTALE DESC, v.TIPOLOGIA, v.DESCRIZIONE;
         """
     ).fetchall()
 
@@ -1221,7 +1230,11 @@ def get_dashboard_stats() -> Dict[str, Any]:
         "vini_in_carta":     kpi["vini_in_carta"],
         "vini_con_giacenza": kpi["vini_con_giacenza"],
         "vini_senza_listino": kpi["vini_senza_listino"],
+        "valore_acquisto":   round(kpi["valore_acquisto"], 2),
+        "valore_carta":      round(kpi["valore_carta"], 2),
         "alert_carta_senza_giacenza": [dict(r) for r in alert_carta],
+        "total_alert_carta":          len(alert_carta),
+        "total_vini_fermi":           len(vini_fermi),
         "vini_senza_listino_list":    [dict(r) for r in senza_listino],
         "vendute_7gg":                kpi_vendite["vendute_7gg"],
         "vendute_30gg":               kpi_vendite["vendute_30gg"],

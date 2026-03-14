@@ -15,16 +15,31 @@ const uniq = (arr) =>
 // ── Pannello filtri stampa inventario ─────────────────────
 function StampaFiltrata({ onClose }) {
   const [options, setOptions] = useState(null);
+  const [locOpts, setLocOpts] = useState([]);
   const [f, setF] = useState({
     tipologia: "", nazione: "", regione: "", produttore: "",
     annata: "", formato: "", carta: "", stato_vendita: "",
     stato_riordino: "", discontinuato: "", solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
+    locazione: "",
   });
 
   useEffect(() => {
     apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`)
       .then(r => r.json()).then(setOptions).catch(() => {});
+    apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const all = [
+            ...(data.opzioni_frigo || []).map(v => ({ label: `Frigo: ${v}`, value: `frigo:${v}` })),
+            ...(data.opzioni_locazione_1 || []).map(v => ({ label: `Loc 1: ${v}`, value: `loc1:${v}` })),
+            ...(data.opzioni_locazione_2 || []).map(v => ({ label: `Loc 2: ${v}`, value: `loc2:${v}` })),
+          ];
+          setLocOpts(all);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const set = (k) => (e) => setF(prev => ({
@@ -50,6 +65,7 @@ function StampaFiltrata({ onClose }) {
     annata: "", formato: "", carta: "", stato_vendita: "",
     stato_riordino: "", discontinuato: "", solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
+    locazione: "",
   });
 
   const sel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-300";
@@ -151,6 +167,17 @@ function StampaFiltrata({ onClose }) {
             </div>
           </div>
 
+          {/* Locazione */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="md:col-span-2">
+              <label className={lbl}>Locazione</label>
+              <select value={f.locazione} onChange={set("locazione")} className={sel}>
+                <option value="">Tutte le locazioni</option>
+                {locOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+
           {/* Range quantita e prezzo */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
@@ -230,6 +257,10 @@ export default function MagazzinoVini() {
 
   const [onlyMissingListino, setOnlyMissingListino] = useState(false);
 
+  // ── Filtro locazioni ──
+  const [locazioneSel, setLocazioneSel] = useState("");
+  const [locazioniOptions, setLocazioniOptions] = useState([]);
+
   // ------------------------------------------------
   // FETCH DATI MAGAZZINO
   // ------------------------------------------------
@@ -257,6 +288,20 @@ export default function MagazzinoVini() {
 
   useEffect(() => {
     fetchVini();
+    // Fetch opzioni locazioni configurate
+    apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          const allOpts = [
+            ...(data.opzioni_frigo || []).map(v => ({ label: `Frigo: ${v}`, value: `frigo:${v}` })),
+            ...(data.opzioni_locazione_1 || []).map(v => ({ label: `Loc 1: ${v}`, value: `loc1:${v}` })),
+            ...(data.opzioni_locazione_2 || []).map(v => ({ label: `Loc 2: ${v}`, value: `loc2:${v}` })),
+          ];
+          setLocazioniOptions(allOpts);
+        }
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -394,6 +439,17 @@ export default function MagazzinoVini() {
       out = out.filter((v) => v.EURO_LISTINO == null || v.EURO_LISTINO === "");
     }
 
+    // 7) Filtro locazione
+    if (locazioneSel) {
+      const [tipo, val] = [locazioneSel.split(":")[0], locazioneSel.substring(locazioneSel.indexOf(":") + 1)];
+      out = out.filter((v) => {
+        if (tipo === "frigo") return v.FRIGORIFERO === val;
+        if (tipo === "loc1") return v.LOCAZIONE_1 === val;
+        if (tipo === "loc2") return v.LOCAZIONE_2 === val;
+        return true;
+      });
+    }
+
     return out;
   }, [
     vini,
@@ -411,6 +467,7 @@ export default function MagazzinoVini() {
     prezzoVal1,
     prezzoVal2,
     onlyMissingListino,
+    locazioneSel,
   ]);
 
   const handleRowClick = (vino) => setSelectedVino(vino);
@@ -514,7 +571,7 @@ export default function MagazzinoVini() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                 Tipologia
@@ -582,6 +639,24 @@ export default function MagazzinoVini() {
                 {produttoriOptions.map((p) => (
                   <option key={p} value={p}>
                     {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                Locazione
+              </label>
+              <select
+                value={locazioneSel}
+                onChange={(e) => setLocazioneSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+              >
+                <option value="">Tutte</option>
+                {locazioniOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -684,6 +759,7 @@ export default function MagazzinoVini() {
                 onClick={() => {
                   setSearchId(""); setSearchText("");
                   setTipologiaSel(""); setNazioneSel(""); setRegioneSel(""); setProduttoreSel("");
+                  setLocazioneSel("");
                   setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
                   setOnlyPositiveStock(false);
                   setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");

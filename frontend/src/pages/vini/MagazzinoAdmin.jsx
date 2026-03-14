@@ -10,8 +10,8 @@ import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
 
-// ── Colonne della tabellona ─────────────────────────────
-const COLUMNS = [
+// ── Colonne base della tabellona (locazioni dinamiche aggiunte nel componente) ──
+const BASE_COLUMNS = [
   { key: "id",              label: "ID",        type: "readonly", w: "w-14" },
   { key: "DESCRIZIONE",     label: "Descrizione", type: "text",  w: "w-56" },
   { key: "PRODUTTORE",      label: "Produttore",  type: "text",  w: "w-40" },
@@ -22,10 +22,13 @@ const COLUMNS = [
   { key: "NAZIONE",         label: "Naz.",        type: "text",  w: "w-20" },
   { key: "EURO_LISTINO",    label: "€ List.",     type: "number", w: "w-20" },
   { key: "PREZZO_CARTA",    label: "€ Carta",     type: "number", w: "w-20" },
-  { key: "QTA_FRIGO",       label: "Frigo",       type: "number", w: "w-16" },
-  { key: "QTA_LOC1",        label: "Loc1",        type: "number", w: "w-16" },
-  { key: "QTA_LOC2",        label: "Loc2",        type: "number", w: "w-16" },
-  { key: "QTA_LOC3",        label: "Loc3",        type: "number", w: "w-16" },
+  { key: "FRIGORIFERO",     label: "Frigo",       type: "loc_select", locKey: "frigo", w: "w-32" },
+  { key: "QTA_FRIGO",       label: "Q.Fr",        type: "number", w: "w-14" },
+  { key: "LOCAZIONE_1",     label: "Loc 1",       type: "loc_select", locKey: "loc1", w: "w-32" },
+  { key: "QTA_LOC1",        label: "Q.L1",        type: "number", w: "w-14" },
+  { key: "LOCAZIONE_2",     label: "Loc 2",       type: "loc_select", locKey: "loc2", w: "w-32" },
+  { key: "QTA_LOC2",        label: "Q.L2",        type: "number", w: "w-14" },
+  { key: "QTA_LOC3",        label: "Q.L3",        type: "number", w: "w-14" },
   { key: "QTA_TOTALE",      label: "Tot",         type: "readonly", w: "w-14" },
   { key: "CARTA",           label: "Carta",       type: "select", options: ["","SI","NO"], w: "w-16" },
   { key: "IPRATICO",        label: "iPrat",       type: "select", options: ["","SI","NO"], w: "w-16" },
@@ -44,6 +47,30 @@ export default function MagazzinoAdmin() {
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // ── Opzioni locazioni ──
+  const [locOptions, setLocOptions] = useState({ frigo: [], loc1: [], loc2: [] });
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setLocOptions({
+          frigo: data.opzioni_frigo || [],
+          loc1: data.opzioni_locazione_1 || [],
+          loc2: data.opzioni_locazione_2 || [],
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // Build COLUMNS with dynamic loc options
+  const COLUMNS = useMemo(() => BASE_COLUMNS.map(col => {
+    if (col.type === "loc_select" && col.locKey) {
+      return { ...col, type: "select", options: ["", ...(locOptions[col.locKey] || [])] };
+    }
+    return col;
+  }), [locOptions]);
+
   // ── Edits: { [vinoId]: { campo: nuovoValore, ... } }
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
@@ -55,6 +82,19 @@ export default function MagazzinoAdmin() {
   const [fNazione, setFNazione] = useState("");
   const [fSoloGiacenza, setFSoloGiacenza] = useState(false);
   const [fSoloCarta, setFSoloCarta] = useState(false);
+
+  // ── Ordinamento ──
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
 
   // ── Protezione ruolo ──
   if (role !== "admin") {
@@ -91,7 +131,7 @@ export default function MagazzinoAdmin() {
   const tipologie = useMemo(() => [...new Set(vini.map(v => v.TIPOLOGIA).filter(Boolean))].sort(), [vini]);
   const nazioni = useMemo(() => [...new Set(vini.map(v => v.NAZIONE).filter(Boolean))].sort(), [vini]);
 
-  // ── Filtraggio ──
+  // ── Filtraggio + ordinamento ──
   const filtered = useMemo(() => {
     let list = vini;
     if (fText) {
@@ -107,8 +147,29 @@ export default function MagazzinoAdmin() {
     if (fNazione) list = list.filter(v => v.NAZIONE === fNazione);
     if (fSoloGiacenza) list = list.filter(v => (v.QTA_TOTALE || 0) > 0);
     if (fSoloCarta) list = list.filter(v => v.CARTA === "SI");
+
+    // Ordinamento
+    if (sortKey) {
+      const col = COLUMNS.find(c => c.key === sortKey);
+      const isNum = col && (col.type === "number" || col.type === "readonly");
+      list = [...list].sort((a, b) => {
+        let va = a[sortKey] ?? "";
+        let vb = b[sortKey] ?? "";
+        if (isNum || sortKey === "id") {
+          va = Number(va) || 0;
+          vb = Number(vb) || 0;
+          return sortDir === "asc" ? va - vb : vb - va;
+        }
+        va = String(va).toLowerCase();
+        vb = String(vb).toLowerCase();
+        if (va < vb) return sortDir === "asc" ? -1 : 1;
+        if (va > vb) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
     return list;
-  }, [vini, fText, fTipologia, fNazione, fSoloGiacenza, fSoloCarta]);
+  }, [vini, fText, fTipologia, fNazione, fSoloGiacenza, fSoloCarta, sortKey, sortDir]);
 
   // ── Gestione edit cella ──
   const getCellValue = (vino, key) => {
@@ -278,8 +339,14 @@ export default function MagazzinoAdmin() {
               <tr>
                 {COLUMNS.map(col => (
                   <th key={col.key}
-                    className={`px-2 py-2 text-left font-semibold text-neutral-600 uppercase tracking-wide border-b border-neutral-200 whitespace-nowrap ${col.w}`}>
+                    onClick={() => handleSort(col.key)}
+                    className={`px-2 py-2 text-left font-semibold text-neutral-600 uppercase tracking-wide border-b border-neutral-200 whitespace-nowrap ${col.w} cursor-pointer select-none hover:bg-neutral-200/60 transition`}>
                     {col.label}
+                    {sortKey === col.key ? (
+                      <span className="ml-1 text-amber-700">{sortDir === "asc" ? "▲" : "▼"}</span>
+                    ) : (
+                      <span className="ml-1 text-neutral-300">⇅</span>
+                    )}
                   </th>
                 ))}
                 <th className="px-2 py-2 text-center font-semibold text-neutral-600 uppercase tracking-wide border-b border-neutral-200 w-12">
@@ -364,12 +431,15 @@ function CellEditor({ col, value, originalValue, onChange }) {
   }
 
   if (col.type === "select") {
+    const curVal = value ?? "";
+    const hasVal = curVal && !col.options.includes(curVal);
     return (
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value)}
+      <select value={curVal} onChange={(e) => onChange(e.target.value)}
         className={base + " cursor-pointer"}>
         {col.options.map(opt => (
           <option key={opt} value={opt}>{opt || "—"}</option>
         ))}
+        {hasVal && <option value={curVal}>{curVal} (non config.)</option>}
       </select>
     );
   }

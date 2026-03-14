@@ -880,6 +880,7 @@ def _load_all_vini_inventario(
     prezzo_min: Optional[float] = None,
     prezzo_max: Optional[float] = None,
     text: Optional[str] = None,
+    locazione: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Carica vini dal DB cantina per report inventario con filtri componibili.
@@ -942,6 +943,15 @@ def _load_all_vini_inventario(
         )
         like = f"%{text}%"
         params.extend([like, like, like])
+    if locazione:
+        # formato: "frigo:Frigo 1 - Fila 3" oppure "loc1:Cantina - Scaffale 2"
+        if ":" in locazione:
+            loc_type, loc_val = locazione.split(":", 1)
+            col_map = {"frigo": "FRIGORIFERO", "loc1": "LOCAZIONE_1", "loc2": "LOCAZIONE_2"}
+            col_name = col_map.get(loc_type)
+            if col_name:
+                conditions.append(f"{col_name} = ?")
+                params.append(loc_val)
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -1459,6 +1469,7 @@ def inventario_filtrato_pdf(
     prezzo_max: Optional[float] = Query(None),
     solo_giacenza: bool = Query(False),
     text: Optional[str] = Query(None),
+    locazione: Optional[str] = Query(None),
 ):
     """
     Genera PDF inventario con filtri combinabili via query string.
@@ -1481,6 +1492,7 @@ def inventario_filtrato_pdf(
         prezzo_min=prezzo_min,
         prezzo_max=prezzo_max,
         text=text,
+        locazione=locazione,
     )
 
     vini = _load_all_vini_inventario(**filter_kwargs)
@@ -1655,6 +1667,8 @@ async def get_locazioni_config(current_user=Depends(get_current_user)):
     for campo_key in LOCATION_FIELDS:
         result[campo_key] = _load_locazioni_config(campo_key)
     result["opzioni_frigo"] = _build_options_from_config("frigorifero")
+    result["opzioni_locazione_1"] = _build_options_from_config("locazione_1")
+    result["opzioni_locazione_2"] = _build_options_from_config("locazione_2")
     return result
 
 

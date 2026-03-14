@@ -95,8 +95,10 @@ export default function MagazzinoViniDettaglio() {
   const [notaText, setNotaText]   = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
 
-  // ── opzioni frigo ──────────────────────────────────
+  // ── opzioni locazioni ──────────────────────────────
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
+  const [opzioniLoc1, setOpzioniLoc1] = useState([]);
+  const [opzioniLoc2, setOpzioniLoc2] = useState([]);
 
   // ── fetch vino ──────────────────────────────────────
   const fetchVino = async () => {
@@ -128,12 +130,14 @@ export default function MagazzinoViniDettaglio() {
     } finally { setNoteLoading(false); }
   };
 
-  const fetchOpzioniFrigo = async () => {
+  const fetchOpzioniLocazioni = async () => {
     try {
       const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`);
       if (r.ok) {
         const data = await r.json();
         setOpzioniFrigo(data.opzioni_frigo || []);
+        setOpzioniLoc1(data.opzioni_locazione_1 || []);
+        setOpzioniLoc2(data.opzioni_locazione_2 || []);
       }
     } catch {}
   };
@@ -143,7 +147,7 @@ export default function MagazzinoViniDettaglio() {
     fetchVino();
     fetchMovimenti();
     fetchNote();
-    fetchOpzioniFrigo();
+    fetchOpzioniLocazioni();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -526,17 +530,43 @@ export default function MagazzinoViniDettaglio() {
                     </div>
                     <Input label="Qtà bt" name="QTA_FRIGO" value={giacenzeData.QTA_FRIGO} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                   </div>
-                  {/* Locazioni 1-3 — testo libero (per ora) */}
-                  {[
-                    { locField: "LOCAZIONE_1", qtaField: "QTA_LOC1", label: "Locazione 1" },
-                    { locField: "LOCAZIONE_2", qtaField: "QTA_LOC2", label: "Locazione 2" },
-                    { locField: "LOCAZIONE_3", qtaField: "QTA_LOC3", label: "Locazione 3" },
-                  ].map(({ locField, qtaField, label }) => (
-                    <div key={label} className="grid grid-cols-3 gap-3 items-end">
-                      <div className="col-span-2"><Input label={label} name={locField} value={giacenzeData[locField]} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} /></div>
-                      <Input label="Qtà bt" name={qtaField} value={giacenzeData[qtaField]} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                  {/* Locazione 1 — dropdown */}
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 1</label>
+                      <select name="LOCAZIONE_1" value={giacenzeData.LOCAZIONE_1 ?? ""}
+                        onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_1: e.target.value}))}
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                        <option value="">— Nessuna —</option>
+                        {opzioniLoc1.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {giacenzeData.LOCAZIONE_1 && !opzioniLoc1.includes(giacenzeData.LOCAZIONE_1) && (
+                          <option value={giacenzeData.LOCAZIONE_1}>{giacenzeData.LOCAZIONE_1} (non configurato)</option>
+                        )}
+                      </select>
                     </div>
-                  ))}
+                    <Input label="Qtà bt" name="QTA_LOC1" value={giacenzeData.QTA_LOC1} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                  </div>
+                  {/* Locazione 2 — dropdown */}
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 2</label>
+                      <select name="LOCAZIONE_2" value={giacenzeData.LOCAZIONE_2 ?? ""}
+                        onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_2: e.target.value}))}
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                        <option value="">— Nessuna —</option>
+                        {opzioniLoc2.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        {giacenzeData.LOCAZIONE_2 && !opzioniLoc2.includes(giacenzeData.LOCAZIONE_2) && (
+                          <option value={giacenzeData.LOCAZIONE_2}>{giacenzeData.LOCAZIONE_2} (non configurato)</option>
+                        )}
+                      </select>
+                    </div>
+                    <Input label="Qtà bt" name="QTA_LOC2" value={giacenzeData.QTA_LOC2} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                  </div>
+                  {/* Locazione 3 — testo libero */}
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div className="col-span-2"><Input label="Locazione 3" name="LOCAZIONE_3" value={giacenzeData.LOCAZIONE_3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} /></div>
+                    <Input label="Qtà bt" name="QTA_LOC3" value={giacenzeData.QTA_LOC3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                  </div>
                   <p className="text-xs text-neutral-500 mt-1">⚠️ Aggiorna le giacenze direttamente. Usa i <strong>Movimenti</strong> qui sotto per l&apos;operatività quotidiana.</p>
                 </div>
               )}

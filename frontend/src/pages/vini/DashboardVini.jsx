@@ -50,6 +50,10 @@ export default function DashboardVini() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [drilldown, setDrilldown] = useState(null);
   const [togglingId, setTogglingId] = useState(null); // id vino in corso di toggle
+  const [alertExpanded, setAlertExpanded] = useState(false);
+  const [fermiExpanded, setFermiExpanded] = useState(false);
+  const ALERT_INITIAL_SHOW = 20;
+  const FERMI_INITIAL_SHOW = 15;
 
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
@@ -129,14 +133,14 @@ export default function DashboardVini() {
         },
         {
           label:   "Vini fermi (30gg)",
-          value:   stats.vini_fermi?.length ?? 0,
+          value:   stats.total_vini_fermi ?? stats.vini_fermi?.length ?? 0,
           icon:    "💤",
-          color:   (stats.vini_fermi?.length ?? 0) > 0
+          color:   (stats.total_vini_fermi ?? stats.vini_fermi?.length ?? 0) > 0
                      ? "bg-slate-50 border-slate-300 text-slate-800"
                      : "bg-neutral-50 border-neutral-200 text-neutral-700",
-          sub:     (stats.vini_fermi?.length ?? 0) > 0 ? "in cantina, senza movimenti" : "tutto si muove",
+          sub:     (stats.total_vini_fermi ?? stats.vini_fermi?.length ?? 0) > 0 ? "in cantina, senza movimenti" : "tutto si muove",
           drilldownKey: "vini_fermi",
-          clickable: (stats.vini_fermi?.length ?? 0) > 0,
+          clickable: (stats.total_vini_fermi ?? stats.vini_fermi?.length ?? 0) > 0,
         },
       ]
     : [];
@@ -157,6 +161,22 @@ export default function DashboardVini() {
           icon:    "📈",
           color:   "bg-violet-50 border-violet-200 text-violet-900",
           sub:     "bottiglie",
+        },
+        {
+          label:   "Valore acquisto",
+          value:   `${((stats.valore_acquisto ?? 0) / 1000).toFixed(1)}k`,
+          icon:    "💰",
+          color:   "bg-teal-50 border-teal-200 text-teal-900",
+          sub:     `${(stats.valore_acquisto ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 0, maximumFractionDigits: 0})} € (listino)`,
+          raw:     true,
+        },
+        {
+          label:   "Valore carta",
+          value:   `${((stats.valore_carta ?? 0) / 1000).toFixed(1)}k`,
+          icon:    "📋",
+          color:   "bg-teal-50 border-teal-200 text-teal-900",
+          sub:     `${(stats.valore_carta ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 0, maximumFractionDigits: 0})} € (prezzi carta)`,
+          raw:     true,
         },
       ]
     : [];
@@ -284,11 +304,15 @@ export default function DashboardVini() {
             );
           };
 
+          const totalAlert = stats.total_alert_carta ?? stats.alert_carta_senza_giacenza.length;
+          const urgentiShow = alertExpanded ? urgenti : urgenti.slice(0, ALERT_INITIAL_SHOW);
+          const hasMoreUrgenti = urgenti.length > ALERT_INITIAL_SHOW;
+
           return (
             <div className="bg-white rounded-3xl border border-red-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 bg-red-50 border-b border-red-200 flex items-center gap-3">
                 <span className="text-xl">🚨</span>
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold text-red-800">
                     {urgenti.length > 0
                       ? `${urgenti.length} ${urgenti.length === 1 ? "vino" : "vini"} in carta senza giacenza`
@@ -298,17 +322,38 @@ export default function DashboardVini() {
                         + {nonRicomprare.length} non da ricomprare
                       </span>
                     )}
+                    <span className="ml-2 text-xs font-normal text-neutral-400">
+                      (totale: {totalAlert})
+                    </span>
                   </div>
                   <div className="text-xs text-red-600 mt-0.5">
                     Da riordinare — oppure segna come <strong>Non ricomprare</strong> per escluderlo.
                   </div>
                 </div>
               </div>
-              <div className="divide-y divide-neutral-100 max-h-80 overflow-auto">
-                {urgenti.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+              <div className="divide-y divide-neutral-100">
+                {urgentiShow.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                {hasMoreUrgenti && !alertExpanded && (
+                  <button
+                    type="button"
+                    onClick={() => setAlertExpanded(true)}
+                    className="w-full px-6 py-3 text-center text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition"
+                  >
+                    Mostra tutti ({urgenti.length - ALERT_INITIAL_SHOW} altri vini) ▼
+                  </button>
+                )}
+                {alertExpanded && hasMoreUrgenti && (
+                  <button
+                    type="button"
+                    onClick={() => setAlertExpanded(false)}
+                    className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition"
+                  >
+                    Mostra meno ▲
+                  </button>
+                )}
                 {nonRicomprare.length > 0 && urgenti.length > 0 && (
                   <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
-                    Non da ricomprare
+                    Non da ricomprare ({nonRicomprare.length})
                   </div>
                 )}
                 {nonRicomprare.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
@@ -362,12 +407,14 @@ export default function DashboardVini() {
             ))}
           </div>
 
-          {/* riga vendite */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* riga vendite + valori */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {kpiVendite.map((tile) => (
               <div key={tile.label} className={`rounded-2xl border p-5 shadow-sm ${tile.color}`}>
                 <div className="text-2xl mb-2">{tile.icon}</div>
-                <div className="text-3xl font-bold tracking-tight">{tile.value?.toLocaleString("it-IT")}</div>
+                <div className="text-3xl font-bold tracking-tight">
+                  {tile.raw ? tile.value : tile.value?.toLocaleString("it-IT")}
+                </div>
                 <div className="text-xs font-semibold mt-1 opacity-80">{tile.label}</div>
                 <div className="text-xs mt-0.5 opacity-60">{tile.sub}</div>
               </div>
@@ -446,42 +493,72 @@ export default function DashboardVini() {
         )}
 
         {/* ── DRILLDOWN: VINI FERMI ────────────────────────── */}
-        {drilldown === "vini_fermi" && stats?.vini_fermi?.length > 0 && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-slate-800">
-                  {stats.vini_fermi.length} vini in cantina senza movimenti da 30+ giorni
+        {drilldown === "vini_fermi" && stats?.vini_fermi?.length > 0 && (() => {
+          const fermiShow = fermiExpanded ? stats.vini_fermi : stats.vini_fermi.slice(0, FERMI_INITIAL_SHOW);
+          const hasMoreFermi = stats.vini_fermi.length > FERMI_INITIAL_SHOW;
+          const senzaMovimenti = stats.vini_fermi.filter(v => !v.ultimo_movimento).length;
+          return (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-800">
+                    {stats.vini_fermi.length} vini in cantina senza movimenti da 30+ giorni
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {senzaMovimenti > 0 && <span className="text-red-600 font-semibold">{senzaMovimenti} mai movimentati</span>}
+                    {senzaMovimenti > 0 && " — "}
+                    Da valutare: promuovere, riposizionare o correggere la giacenza.
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  Da valutare: promuovere, riposizionare o correggere la giacenza.
-                </div>
+                <button type="button" onClick={() => setDrilldown(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
               </div>
-              <button type="button" onClick={() => setDrilldown(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
-            </div>
-            <div className="divide-y divide-neutral-100 max-h-72 overflow-auto">
-              {stats.vini_fermi.map((v) => (
-                <div key={v.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
-                  onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight shrink-0">#{v.id}</span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-sm text-neutral-900 truncate">{v.DESCRIZIONE}</div>
-                      <div className="text-xs text-neutral-500">{v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}</div>
+              <div className="divide-y divide-neutral-100">
+                {fermiShow.map((v) => (
+                  <div key={v.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
+                    onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight shrink-0">#{v.id}</span>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-sm text-neutral-900 truncate">{v.DESCRIZIONE}</div>
+                        <div className="text-xs text-neutral-500">{v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 ml-4">
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-neutral-800">{v.QTA_TOTALE} bt</div>
+                        <div className="text-[11px] text-neutral-400">
+                          {v.ultimo_movimento
+                            ? `ult. mov. ${v.ultimo_movimento.slice(0,10)}`
+                            : <span className="text-red-500 font-semibold">mai movimentato</span>
+                          }
+                        </div>
+                      </div>
+                      <span className="text-amber-600 text-xs font-semibold">→</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0 ml-4">
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-neutral-800">{v.QTA_TOTALE} bt</div>
-                      <div className="text-[11px] text-neutral-400">{v.ultimo_movimento ? `ult. mov. ${v.ultimo_movimento.slice(0,10)}` : "nessun movimento"}</div>
-                    </div>
-                    <span className="text-amber-600 text-xs font-semibold">→</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+                {hasMoreFermi && !fermiExpanded && (
+                  <button
+                    type="button"
+                    onClick={() => setFermiExpanded(true)}
+                    className="w-full px-6 py-3 text-center text-sm font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 transition"
+                  >
+                    Mostra tutti ({stats.vini_fermi.length - FERMI_INITIAL_SHOW} altri) ▼
+                  </button>
+                )}
+                {fermiExpanded && hasMoreFermi && (
+                  <button
+                    type="button"
+                    onClick={() => setFermiExpanded(false)}
+                    className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition"
+                  >
+                    Mostra meno ▲
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── RIGA CENTRALE: VENDITE + OPERATIVI ───────────── */}
         {stats && (
