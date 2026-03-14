@@ -40,7 +40,7 @@ from typing import Any, Dict, List, Optional
 from itertools import groupby
 
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, status
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1559,10 +1559,29 @@ def inventario_filtri_options(
 
 
 # =============================================================
-# CONFIGURAZIONE LOCAZIONI FISICHE
+# GESTIONE LOCAZIONI FISICHE (generico per tutti i campi)
 # =============================================================
 
-# Struttura locazioni frigorifero
+# Mappa campo frontend → colonna DB
+LOCATION_FIELDS = {
+    "frigorifero": {
+        "column": "FRIGORIFERO",
+        "qta_column": "QTA_FRIGO",
+        "label": "Frigorifero",
+    },
+    "locazione_1": {
+        "column": "LOCAZIONE_1",
+        "qta_column": "QTA_LOC1",
+        "label": "Locazione 1",
+    },
+    "locazione_2": {
+        "column": "LOCAZIONE_2",
+        "qta_column": "QTA_LOC2",
+        "label": "Locazione 2",
+    },
+}
+
+# Configurazione struttura frigoriferi (per suggerimenti e dropdown)
 FRIGO_CONFIG = {
     "frigoriferi": [
         {"id": 1, "nome": "Frigo 1", "file": list(range(1, 10))},   # Fila 1-9
@@ -1580,33 +1599,10 @@ def _build_frigo_options() -> list[str]:
     return opts
 
 
-@router.get("/locazioni-config", summary="Config locazioni fisiche")
-async def get_locazioni_config(current_user=Depends(get_current_user)):
-    """Ritorna la struttura delle locazioni fisiche (frigoriferi, file, etc.)."""
-    return {
-        **FRIGO_CONFIG,
-        "opzioni_frigo": _build_frigo_options(),
-    }
-
-
-# --- Normalizzazione locazioni esistenti ---
-
-_FRIGO_NORMALIZE_MAP = {
-    # Varianti comuni → formato standard
-    # Frigo-1-3 → Frigo 1 - Fila 3
-    # frigo 1-3 → Frigo 1 - Fila 3
-    # FRIGO-2-7 → Frigo 2 - Fila 7
-}
-
-
-def _normalize_frigo_value(val: str) -> str | None:
-    """
-    Prova a normalizzare un valore FRIGORIFERO nel formato standard
-    "Frigo X - Fila Y". Ritorna None se non riesce a parsare.
-    """
+def _suggest_frigo_value(val: str) -> str | None:
+    """Prova a suggerire il valore normalizzato per un campo FRIGORIFERO."""
     if not val or not val.strip():
         return None
-
     val = val.strip()
 
     # Già nel formato corretto?
@@ -1624,56 +1620,106 @@ def _normalize_frigo_value(val: str) -> str | None:
     if m:
         return f"Frigo {m.group(1)} - Fila {m.group(2)}"
 
-    return None  # non riconosciuto
+    return None
 
 
-@router.post("/normalizza-locazioni", summary="Normalizza valori locazione frigo")
-async def normalizza_locazioni(
-    dry_run: bool = Query(True, description="Se True, mostra solo preview senza modificare"),
+@router.get("/locazioni-config", summary="Config locazioni fisiche")
+async def get_locazioni_config(current_user=Depends(get_current_user)):
+    """Ritorna la struttura delle locazioni fisiche e i campi disponibili."""
+    return {
+        "fields": {k: v["label"] for k, v in LOCATION_FIELDS.items()},
+        "frigoriferi": FRIGO_CONFIG["frigoriferi"],
+        "opzioni_frigo": _build_frigo_options(),
+    }
+
+
+@router.get("/locazioni-valori/{campo}", summary="Valori distinti per campo locazione")
+async def get_locazioni_valori(
+    campo: str,
     current_user=Depends(get_current_user),
 ):
-    """Normalizza i valori nel campo FRIGORIFERO al formato standard 'Frigo X - Fila Y'."""
-    _require_admin(current_user)
+    """
+    Estrae tutti i valori distinti dal campo locazione specificato,
+    con conteggio occorrenze e suggerimento AI di normalizzazione.
+    """
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido. Usa: {', '.join(LOCATION_FIELDS.keys())}")
 
-    conn = mag_db._get_conn()
+    col = LOCATION_FIELDS[campo]["column"]
+    conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
-        "SELECT ID, FRIGORIFERO FROM vini_magazzino "
-        "WHERE FRIGORIFERO IS NOT NULL AND FRIGORIFERO != ''"
+        f"SELECT {col}, COUNT(*) as cnt FROM vini_magazzino "
+        f"WHERE {col} IS NOT NULL AND {col} != '' "
+        f"GROUP BY {col} ORDER BY cnt DESC"
     ).fetchall()
-
-    valid_options = set(_build_frigo_options())
-    changes = []
-    unknown = []
-
-    for row in rows:
-        old_val = row[1]
-        if old_val in valid_options:
-            continue  # già ok
-
-        new_val = _normalize_frigo_value(old_val)
-        if new_val and new_val in valid_options:
-            changes.append({"id": row[0], "old": old_val, "new": new_val})
-        else:
-            unknown.append({"id": row[0], "value": old_val, "suggested": new_val})
-
-    if not dry_run:
-        for ch in changes:
-            cur.execute(
-                "UPDATE vini_magazzino SET FRIGORIFERO = ? WHERE ID = ?",
-                (ch["new"], ch["id"]),
-            )
-        conn.commit()
-
     conn.close()
+
+    # Per il campo frigorifero, suggerisci normalizzazione
+    valid_frigo = set(_build_frigo_options()) if campo == "frigorifero" else set()
+    valori = []
+    for row in rows:
+        val = row[0]
+        cnt = row[1]
+        entry = {"valore": val, "conteggio": cnt, "suggerimento": None, "ok": False}
+        if campo == "frigorifero":
+            if val in valid_frigo:
+                entry["ok"] = True
+            else:
+                entry["suggerimento"] = _suggest_frigo_value(val)
+        valori.append(entry)
+
     return {
-        "dry_run": dry_run,
-        "totale_con_frigo": len(rows),
-        "gia_ok": len(rows) - len(changes) - len(unknown),
-        "da_normalizzare": len(changes),
-        "non_riconosciuti": len(unknown),
-        "changes": changes,
-        "unknown": unknown,
-        "msg": f"{'Preview:' if dry_run else 'Normalizzati:'} {len(changes)} valori"
-              + (f", {len(unknown)} non riconosciuti" if unknown else ""),
+        "campo": campo,
+        "label": LOCATION_FIELDS[campo]["label"],
+        "totale_distinti": len(valori),
+        "totale_record": sum(v["conteggio"] for v in valori),
+        "valori": valori,
+    }
+
+
+@router.post("/locazioni-normalizza", summary="Applica mapping normalizzazione locazioni")
+async def applica_normalizzazione_locazioni(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """
+    Applica un mapping di normalizzazione su un campo locazione.
+    Body: { "campo": "frigorifero", "mapping": {"Frigo-1-3": "Frigo 1 - Fila 3", ...} }
+    I valori con mapping vuoto o null vengono ignorati.
+    """
+    _require_admin(current_user)
+
+    body = await request.json()
+    campo = body.get("campo")
+    mapping = body.get("mapping", {})
+
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido. Usa: {', '.join(LOCATION_FIELDS.keys())}")
+
+    if not mapping:
+        return {"modificati": 0, "msg": "Nessun mapping da applicare."}
+
+    col = LOCATION_FIELDS[campo]["column"]
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    totale = 0
+
+    for old_val, new_val in mapping.items():
+        if not new_val or not new_val.strip():
+            continue
+        result = cur.execute(
+            f"UPDATE vini_magazzino SET {col} = ? WHERE {col} = ?",
+            (new_val.strip(), old_val),
+        )
+        totale += result.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "campo": campo,
+        "modificati": totale,
+        "mapping_applicati": len([v for v in mapping.values() if v and v.strip()]),
+        "msg": f"Normalizzati {totale} record nel campo {LOCATION_FIELDS[campo]['label']}.",
     }

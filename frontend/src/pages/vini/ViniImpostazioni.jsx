@@ -75,8 +75,12 @@ export default function ViniImpostazioni() {
 
   // --- Locazioni ---
   const [locConfig, setLocConfig] = useState(null);
-  const [normResult, setNormResult] = useState(null);
-  const [normLoading, setNormLoading] = useState(false);
+  const [locCampo, setLocCampo] = useState("frigorifero");
+  const [locValori, setLocValori] = useState(null);
+  const [locLoading, setLocLoading] = useState(false);
+  const [locMapping, setLocMapping] = useState({});   // {vecchio_valore: nuovo_valore}
+  const [locSaving, setLocSaving] = useState(false);
+  const [locMsg, setLocMsg] = useState("");
 
   // --- Impostazioni ordinamento ---
   const [tipologie, setTipologie] = useState([]);
@@ -193,11 +197,40 @@ export default function ViniImpostazioni() {
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`); setCleanupResult(await resp.json());
     } catch (e) { setError(e?.message || "Errore pulizia duplicati."); } finally { setCleanupLoading(false); }
   };
-  const handleNormalizzaLocazioni = async (dryRun) => {
-    setNormLoading(true); setError(""); setNormResult(null);
-    try { const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/normalizza-locazioni?dry_run=${dryRun}`, { method: "POST" });
-      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`); setNormResult(await resp.json());
-    } catch (e) { setError(e?.message || "Errore normalizzazione."); } finally { setNormLoading(false); }
+  const handleEstraiValori = async (campo) => {
+    setLocLoading(true); setError(""); setLocValori(null); setLocMapping({}); setLocMsg("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-valori/${campo}`);
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      const data = await resp.json();
+      setLocValori(data);
+      // Pre-popola il mapping con i suggerimenti AI dove disponibili
+      const initialMapping = {};
+      for (const v of data.valori) {
+        if (!v.ok && v.suggerimento) initialMapping[v.valore] = v.suggerimento;
+      }
+      setLocMapping(initialMapping);
+    } catch (e) { setError(e?.message || "Errore estrazione valori."); } finally { setLocLoading(false); }
+  };
+  const handleApplicaMapping = async () => {
+    const toApply = {};
+    for (const [k, v] of Object.entries(locMapping)) {
+      if (v && v.trim()) toApply[k] = v.trim();
+    }
+    if (Object.keys(toApply).length === 0) { setLocMsg("Nessuna sostituzione da applicare."); return; }
+    if (!window.confirm(`Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`)) return;
+    setLocSaving(true); setError(""); setLocMsg("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-normalizza`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campo: locCampo, mapping: toApply }),
+      });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      const data = await resp.json();
+      setLocMsg(data.msg);
+      // Ricarica i valori aggiornati
+      handleEstraiValori(locCampo);
+    } catch (e) { setError(e?.message || "Errore applicazione mapping."); } finally { setLocSaving(false); }
   };
 
   // -------------------------------------------------------
@@ -389,96 +422,150 @@ export default function ViniImpostazioni() {
     </div>
   );
 
+  const LOC_TABS = [
+    { key: "frigorifero", label: "Frigorifero", icon: "🧊" },
+    { key: "locazione_1", label: "Locazione 1", icon: "📦" },
+    { key: "locazione_2", label: "Locazione 2", icon: "📦" },
+  ];
+  const pendingMappings = locValori ? locValori.valori.filter(v => !v.ok && locMapping[v.valore]?.trim()).length : 0;
+
   const renderLocazioni = () => (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-amber-900 font-playfair">Locazioni Fisiche</h2>
-      <p className="text-sm text-neutral-600">Configurazione delle locazioni fisiche della cantina (frigoriferi, scaffali, etc.).</p>
+      <p className="text-sm text-neutral-600">
+        Seleziona un campo locazione, estrai i valori presenti nel database e normalizzali.
+      </p>
 
-      {/* MAPPA FRIGO */}
+      {/* MAPPA FRIGO (sempre visibile come riferimento) */}
       {locConfig?.frigoriferi && (
-        <div className="border border-neutral-200 rounded-xl p-5">
-          <h3 className="font-semibold text-neutral-800 mb-3">Frigoriferi configurati</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border border-neutral-200 rounded-xl p-4 bg-blue-50/50">
+          <h3 className="font-semibold text-neutral-800 mb-2 text-sm">Frigoriferi configurati</h3>
+          <div className="flex flex-wrap gap-3">
             {locConfig.frigoriferi.map(frigo => (
-              <div key={frigo.id} className="border border-neutral-200 rounded-xl p-4 bg-neutral-50">
-                <div className="font-semibold text-neutral-800 mb-2">{frigo.nome}</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {frigo.file.map(fila => (
-                    <span key={fila} className="px-2.5 py-1 text-xs font-medium bg-white border border-neutral-200 rounded-lg text-neutral-700">
-                      Fila {fila}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-neutral-500 mt-2">{frigo.file.length} file disponibili</p>
+              <div key={frigo.id} className="text-xs">
+                <span className="font-semibold text-neutral-700">{frigo.nome}:</span>{" "}
+                <span className="text-neutral-600">Fila 1–{frigo.file[frigo.file.length - 1]}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* NORMALIZZAZIONE */}
-      <div className="border border-neutral-200 rounded-xl p-5">
-        <h3 className="font-semibold text-neutral-800 mb-2">Correggi valori locazione</h3>
-        <p className="text-sm text-neutral-600 mb-3">
-          Analizza i valori nel campo Frigorifero e converte quelli in formato non standard (es. "Frigo-1-3" → "Frigo 1 - Fila 3").
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={() => handleNormalizzaLocazioni(true)} disabled={normLoading}
-            className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${normLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
-            {normLoading ? "Analisi…" : "Analizza valori"}
+      {/* TAB SELEZIONE CAMPO */}
+      <div className="flex gap-1 border-b border-neutral-200">
+        {LOC_TABS.map(tab => (
+          <button key={tab.key}
+            onClick={() => { setLocCampo(tab.key); setLocValori(null); setLocMapping({}); setLocMsg(""); }}
+            className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${
+              locCampo === tab.key
+                ? "border-amber-700 text-amber-900 bg-amber-50/50"
+                : "border-transparent text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50"
+            }`}>
+            <span className="mr-1.5">{tab.icon}</span>{tab.label}
           </button>
-          {normResult && normResult.da_normalizzare > 0 && normResult.dry_run && (
-            <button onClick={() => { if (window.confirm(`Normalizzare ${normResult.da_normalizzare} valori?`)) handleNormalizzaLocazioni(false); }}
-              disabled={normLoading}
-              className="px-5 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow transition">
-              Correggi {normResult.da_normalizzare} valori
-            </button>
-          )}
-        </div>
-        {normResult && (
-          <div className={`mt-3 rounded-xl p-4 text-sm border ${normResult.da_normalizzare === 0 && normResult.non_riconosciuti === 0 ? "bg-green-50 border-green-200" : normResult.dry_run ? "bg-yellow-50 border-yellow-200" : "bg-green-50 border-green-200"}`}>
-            <p className={`font-semibold mb-1 ${normResult.da_normalizzare === 0 && normResult.non_riconosciuti === 0 ? "text-green-800" : normResult.dry_run ? "text-yellow-800" : "text-green-800"}`}>{normResult.msg}</p>
-            <p className="text-neutral-600 text-xs mb-2">
-              Totale: {normResult.totale_con_frigo} — OK: {normResult.gia_ok} — Da correggere: {normResult.da_normalizzare} — Non riconosciuti: {normResult.non_riconosciuti}
-            </p>
-            {normResult.changes?.length > 0 && (
-              <div className="max-h-48 overflow-y-auto mb-2">
-                <table className="w-full text-xs border-collapse">
-                  <thead><tr className="bg-neutral-100 text-neutral-700">
-                    <th className="border border-neutral-200 px-2 py-1">ID</th>
-                    <th className="border border-neutral-200 px-2 py-1 text-left">Vecchio</th>
-                    <th className="border border-neutral-200 px-2 py-1 text-left">Nuovo</th>
-                  </tr></thead>
-                  <tbody>{normResult.changes.map((ch, i) => (
-                    <tr key={i} className="hover:bg-yellow-50">
-                      <td className="border border-neutral-200 px-2 py-1 text-center">{ch.id}</td>
-                      <td className="border border-neutral-200 px-2 py-1 text-red-600 line-through">{ch.old}</td>
-                      <td className="border border-neutral-200 px-2 py-1 text-green-700 font-medium">{ch.new}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-            {normResult.unknown?.length > 0 && (
-              <div className="max-h-48 overflow-y-auto">
-                <p className="text-xs font-semibold text-red-700 mb-1">Non riconosciuti (da correggere manualmente dal dettaglio vino):</p>
-                <table className="w-full text-xs border-collapse">
-                  <thead><tr className="bg-red-50 text-red-700">
-                    <th className="border border-red-200 px-2 py-1">ID</th>
-                    <th className="border border-red-200 px-2 py-1 text-left">Valore</th>
-                  </tr></thead>
-                  <tbody>{normResult.unknown.map((u, i) => (
-                    <tr key={i}>
-                      <td className="border border-red-200 px-2 py-1 text-center">{u.id}</td>
-                      <td className="border border-red-200 px-2 py-1">{u.value}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        ))}
+      </div>
+
+      {/* ESTRAI VALORI */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => handleEstraiValori(locCampo)} disabled={locLoading}
+          className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${locLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
+          {locLoading ? "Caricamento…" : `Estrai valori ${locConfig?.fields?.[locCampo] || locCampo}`}
+        </button>
+        {locValori && (
+          <span className="text-xs text-neutral-500">
+            {locValori.totale_distinti} valori distinti, {locValori.totale_record} record totali
+          </span>
         )}
       </div>
+
+      {/* MESSAGGIO SUCCESSO */}
+      {locMsg && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">{locMsg}</div>}
+
+      {/* TABELLA VALORI CON MAPPING */}
+      {locValori && locValori.valori.length > 0 && (
+        <div className="border border-neutral-200 rounded-xl overflow-hidden">
+          <div className="max-h-[500px] overflow-y-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead className="sticky top-0 bg-neutral-100">
+                <tr className="text-neutral-700 text-xs">
+                  <th className="border-b border-neutral-200 px-3 py-2 text-left">Valore attuale nel DB</th>
+                  <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">N.</th>
+                  <th className="border-b border-neutral-200 px-3 py-2 text-left">Sostituisci con</th>
+                  <th className="border-b border-neutral-200 px-2 py-2 text-center w-16">Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {locValori.valori.map((v, i) => (
+                  <tr key={i} className={`border-b border-neutral-100 ${v.ok ? "bg-green-50/50" : ""}`}>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {v.valore}
+                    </td>
+                    <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">
+                      {v.conteggio}
+                    </td>
+                    <td className="px-3 py-2">
+                      {v.ok ? (
+                        <span className="text-xs text-green-700 italic">Già corretto</span>
+                      ) : locCampo === "frigorifero" && locConfig?.opzioni_frigo ? (
+                        <select
+                          value={locMapping[v.valore] || ""}
+                          onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
+                          <option value="">— Non modificare —</option>
+                          {locConfig.opzioni_frigo.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={locMapping[v.valore] || ""}
+                          onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                          placeholder="Valore normalizzato…"
+                          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500"
+                        />
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      {v.ok ? (
+                        <span className="text-green-600 text-base">✓</span>
+                      ) : locMapping[v.valore]?.trim() ? (
+                        <span className="text-amber-600 text-base">→</span>
+                      ) : (
+                        <span className="text-neutral-300 text-base">–</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* APPLICA */}
+          <div className="bg-neutral-50 border-t border-neutral-200 px-4 py-3 flex items-center justify-between">
+            <span className="text-xs text-neutral-600">
+              {pendingMappings > 0
+                ? `${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"} da applicare`
+                : "Nessuna sostituzione impostata"}
+            </span>
+            <button onClick={handleApplicaMapping} disabled={locSaving || pendingMappings === 0}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
+                locSaving || pendingMappings === 0
+                  ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}>
+              {locSaving ? "Salvataggio…" : `Applica ${pendingMappings} sostituzion${pendingMappings === 1 ? "e" : "i"}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {locValori && locValori.valori.length === 0 && (
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm text-neutral-500 text-center">
+          Nessun valore trovato nel campo {locConfig?.fields?.[locCampo] || locCampo}.
+        </div>
+      )}
     </div>
   );
 
