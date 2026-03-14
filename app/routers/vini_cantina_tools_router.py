@@ -2134,3 +2134,18 @@ async def matrice_set_celle(
     updated = mag_db.get_vino_by_id(vino_id)
     result["vino"] = dict(updated) if updated else None
     return result
+
+
+@router.get("/matrice/recalc-preview", summary="Anteprima migrazione coordinate matrice")
+async def matrice_recalc_preview(current_user=Depends(get_current_user)):
+    """Mostra prima/dopo per tutti i vini con celle matrice, senza modificare nulla."""
+    _require_admin(current_user)
+    return mag_db.matrice_recalc_preview()
+
+
+@router.post("/matrice/recalc-all", summary="Ricalcola LOCAZIONE_3 per tutti i vini con celle matrice")
+async def matrice_recalc_all(current_user=Depends(get_current_user)):
+    """Migrazione: ricalcola il campo LOCAZIONE_3 con il formato (col,riga) per tutti i vini."""
+    _require_admin(current_user)
+    count = mag_db.matrice_recalc_all()
+    return {"ok": True, "vini_aggiornati": count}

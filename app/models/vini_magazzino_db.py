@@ -1531,6 +1531,48 @@ def matrice_set_celle_vino(vino_id: int, celle: List[Dict[str, int]]) -> Dict[st
     return result
 
 
+def matrice_recalc_preview() -> list:
+    """Mostra anteprima prima/dopo per tutti i vini con celle matrice."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    vino_ids = [r["vino_id"] for r in cur.execute(
+        "SELECT DISTINCT vino_id FROM matrice_celle"
+    ).fetchall()]
+    results = []
+    for vid in vino_ids:
+        vino = cur.execute(
+            "SELECT id, DESCRIZIONE, LOCAZIONE_3 FROM vini_magazzino WHERE id = ?", (vid,)
+        ).fetchone()
+        celle_rows = cur.execute(
+            "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
+            (vid,),
+        ).fetchall()
+        new_text = ", ".join(f"({r['colonna']},{r['riga']})" for r in celle_rows)
+        results.append({
+            "id": vid,
+            "descrizione": vino["DESCRIZIONE"] if vino else "?",
+            "prima": vino["LOCAZIONE_3"] if vino else None,
+            "dopo": new_text if celle_rows else None,
+        })
+    conn.close()
+    return results
+
+
+def matrice_recalc_all() -> int:
+    """Ricalcola LOCAZIONE_3 (formato col,riga) per TUTTI i vini con celle matrice.
+    Utile dopo migrazione formato coordinate. Ritorna il numero di vini aggiornati."""
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    vino_ids = [r["vino_id"] for r in cur.execute(
+        "SELECT DISTINCT vino_id FROM matrice_celle"
+    ).fetchall()]
+    for vid in vino_ids:
+        _recalc_qta_loc3_from_matrice(conn, cur, vid)
+    conn.commit()
+    conn.close()
+    return len(vino_ids)
+
+
 def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor, vino_id: int) -> None:
     """Ricalcola QTA_LOC3 dal conteggio celle matrice e aggiorna QTA_TOTALE."""
     count_row = cur.execute(
