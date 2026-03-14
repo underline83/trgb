@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v2.0-reforming-cantina
+// @version: v3.0-cascading-loc-filters
 // Pagina Cantina — Lista Vini + Dettaglio base (read-only) con filtri avanzati
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";

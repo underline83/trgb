@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoAdmin.jsx
-// @version: v1.0-admin-bulk
+// @version: v2.0-sortable-loc-select
 // Pagina admin — tabellona editabile per modifiche massive, solo ruolo admin
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";

@@ -1,6 +1,6 @@
 # 🍾 Modulo Magazzino Vini — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-09
-**Stato:** operativo — gestione completa con movimenti, dashboard analytics, scheda dettaglio
+**Ultimo aggiornamento:** 2026-03-14
+**Stato:** operativo — gestione completa con movimenti, dashboard analytics, scheda dettaglio, filtri locazione gerarchici
 
 ---
 
@@ -57,12 +57,20 @@
 - regione
 - produttore
 
+### Filtri locazione gerarchici (v3.0):
+3 gruppi indipendenti, ciascuno con 2 livelli cascading:
+- **Frigorifero** → nome contenitore → spazio (fila)
+- **Locazione 1** → nome contenitore → spazio
+- **Locazione 2** → nome contenitore → spazio
+
+Il selettore spazio si attiva solo dopo aver scelto il nome. Se si seleziona solo il nome, filtra tutti i vini in quel contenitore. I valori provengono dalla tabella `locazioni_config` via endpoint `/locazioni-config`.
+
 ### Logica filtri dipendenti:
 Le liste dinamiche si riducono automaticamente in base alle selezioni correnti (clientside con `useMemo`).
 
 ---
 
-# 4. Scheda dettaglio vino (MagazzinoViniDettaglio.jsx v3.0)
+# 4. Scheda dettaglio vino (MagazzinoViniDettaglio.jsx v4.1)
 
 Pagina unificata con tre sezioni:
 
@@ -117,7 +125,7 @@ Presente in: lista MagazzinoVini, pannello rapido, header scheda dettaglio, dash
 
 ---
 
-# 6. Dashboard Vini (DashboardVini.jsx v2.1)
+# 6. Dashboard Vini (DashboardVini.jsx v3.0)
 
 ### KPI Riga Stock (4 tile)
 
@@ -126,14 +134,17 @@ Presente in: lista MagazzinoVini, pannello rapido, header scheda dettaglio, dash
 | 🍾 Bottiglie in cantina | `total_bottiglie` su `n` referenze | — |
 | 📋 Vini in carta | `vini_in_carta` con % su catalogo | — |
 | ⚠️ Senza prezzo listino | `vini_senza_listino` | ✅ tabella inline con link a scheda |
-| 💤 Vini fermi (30gg) | vini con giacenza > 0 e nessun movimento in 30gg | ✅ lista inline con ultimo movimento |
+| 💤 Vini fermi (30gg) | vini con giacenza > 0 e nessun movimento in 30gg (include mai movimentati) | ✅ lista espandibile con ultimo movimento |
 
-### KPI Riga Vendite (2 tile)
+### KPI Riga Vendite (4 tile)
 - 🛒 Bottiglie vendute ultimi 7gg
 - 📈 Bottiglie vendute ultimi 30gg
+- 💰 Valore acquisto totale (QTA × listino)
+- 💎 Valore carta totale (QTA × prezzo carta)
 
 ### Alert automatico
-- 🚨 **Vini in carta con giacenza zero** — lista espandibile, clickable verso la scheda vino
+- 🚨 **Vini in carta con giacenza zero** — lista espandibile (mostra primi 20, poi "Mostra tutti (X altri vini)"), clickable verso la scheda vino
+- 💤 **Vini fermi** — lista espandibile (mostra primi 15, poi espandi), "mai movimentato" evidenziato in rosso
 
 ### Sezione centrale (2 colonne)
 - **Vendite recenti**: ultimi 8 movimenti VENDITA (viola)
@@ -213,13 +224,40 @@ Presente in: lista MagazzinoVini, pannello rapido, header scheda dettaglio, dash
 
 ---
 
-# 10. Roadmap modulo Magazzino
+# 10. Modifica massiva (MagazzinoAdmin.jsx v2.0)
+
+Tabellona editabile per admin con tutte le colonne principali:
+- Click sugli header per ordinamento ASC/DESC (▲/▼/⇅)
+- Colonne FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2 usano dropdown con valori configurati (tipo `loc_select`)
+- Valori non configurati mostrati con suffisso "(non config.)"
+- Salvataggio riga singola o batch
+
+---
+
+# 11. Stampa inventario filtrato
+
+Pannello modale con filtri componibili per generare PDF inventario:
+- Ricerca libera, tipologia, nazione, regione, produttore, annata, formato
+- Stato vendita, stato riordino, discontinuato, in carta
+- Range quantità e prezzo
+- **Filtri locazione gerarchici** (v3.0): 3 gruppi cascading (Frigo/Loc1/Loc2 → nome → spazio)
+- Solo con giacenza positiva
+- Genera PDF via endpoint `/inventario/filtrato/pdf` con tutti i filtri come query params
+
+---
+
+# 12. Roadmap modulo Magazzino
 
 - [x] Pagina Movimenti Cantina con storico e delete (admin/sommelier) — 2026-03-09
 - [x] Edit vino da UI (anagrafica + prezzi + flag) — 2026-03-09
 - [x] Note operative per vino (add + delete) — 2026-03-09
 - [x] Giacenze per locazione editabili da UI — 2026-03-09
 - [x] Dashboard Vini operativa con KPI, alert, analytics — 2026-03-09
+- [x] Dropdown locazioni configurate ovunque (dettaglio, nuovo, admin) — 2026-03-14
+- [x] Modifica massiva con colonne ordinabili — 2026-03-14
+- [x] Dashboard KPI valore acquisto/carta — 2026-03-14
+- [x] Dashboard liste espandibili (alert, vini fermi) — 2026-03-14
+- [x] Filtri locazione gerarchici cascading — 2026-03-14
 - [ ] Filtri lato server per dataset molto grandi
 - [ ] Sincronizzazione storico prezzi
 - [ ] Import Excel con diff interattivo

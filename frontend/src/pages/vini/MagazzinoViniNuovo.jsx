@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/vini/MagazzinoViniNuovo.jsx
-// @version: v1.1-magazzino-nuovo-noidexcel-formato-lista
+// @version: v1.2-loc-dropdowns
 // Pagina Magazzino Vini — Inserimento nuovo vino (NO ID EXCEL) + Formato a lista + check duplicati (C)
 
 import React, { useState, useEffect, useMemo } from "react";

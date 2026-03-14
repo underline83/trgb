@@ -1,6 +1,6 @@
 # 🚀 TRGB Gestionale
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
-**Versione:** 2026.03.10
+**Versione:** 2026.03.14
 
 ---
 
@@ -12,7 +12,7 @@ TRGB Gestionale è un'applicazione web interna composta da:
 - **Frontend** React 18 + Vite + TailwindCSS
 - **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
 
-Moduli attivi: Carta Vini, Magazzino Vini, Gestione Acquisti, Corrispettivi, Ricette & FoodCost, Dipendenti & Turni.
+Moduli attivi: Carta Vini, Magazzino Vini, Gestione Acquisti, Gestione Vendite, Ricette & FoodCost, Banca, Dipendenti & Turni.
 
 ---
 

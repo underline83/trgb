@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v2.1-drilldown
+// @version: v3.0-expandable-kpi-values
 // Dashboard Vini — KPI, alert, ultimi movimenti, distribuzione tipologie
 
 import React, { useState, useEffect, useCallback } from "react";

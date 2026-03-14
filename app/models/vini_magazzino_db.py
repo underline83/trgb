@@ -1,4 +1,4 @@
-# @version: v1.2-magazzino
+# @version: v1.3-dashboard-kpi-values
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)

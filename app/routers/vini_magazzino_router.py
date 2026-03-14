@@ -1,4 +1,4 @@
-# @version: v1.3-dashboard
+# @version: v1.4-dashboard-kpi-values
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Vini Magazzino

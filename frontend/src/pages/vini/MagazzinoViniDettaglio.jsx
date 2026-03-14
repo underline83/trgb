@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoViniDettaglio.jsx
-// @version: v4.0-reforming-cantina
+// @version: v4.1-loc-dropdowns
 // Scheda vino completa: anagrafica + giacenze + movimenti + note
 
 import React, { useEffect, useState, useMemo } from "react";
