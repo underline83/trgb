@@ -1082,6 +1082,8 @@ def get_dashboard_stats() -> Dict[str, Any]:
         """
         SELECT
             COUNT(*)                                                      AS total_vini,
+            COUNT(CASE WHEN STATO_VENDITA IN ('V','F','S','T')
+                       THEN 1 END)                                        AS referenze_attive,
             COALESCE(SUM(QTA_TOTALE), 0)                                  AS total_bottiglie,
             COUNT(CASE WHEN CARTA = 'SI' THEN 1 END)                      AS vini_in_carta,
             COUNT(CASE WHEN QTA_TOTALE > 0 THEN 1 END)                    AS vini_con_giacenza,
@@ -1264,6 +1266,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
 
     return {
         "total_vini":        kpi["total_vini"],
+        "referenze_attive":  kpi["referenze_attive"],
         "total_bottiglie":   kpi["total_bottiglie"],
         "vini_in_carta":     kpi["vini_in_carta"],
         "vini_con_giacenza": kpi["vini_con_giacenza"],

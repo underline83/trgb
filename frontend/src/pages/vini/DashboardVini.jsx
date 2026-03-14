@@ -110,7 +110,7 @@ export default function DashboardVini() {
         {
           label: "Bottiglie in cantina", value: stats.total_bottiglie,
           icon: "🍾", color: "bg-amber-50 border-amber-200 text-amber-900",
-          sub: `su ${stats.total_vini} referenze`,
+          sub: `su ${stats.referenze_attive ?? stats.total_vini} referenze attive`,
         },
         {
           label: "Vini in carta", value: stats.vini_in_carta,
