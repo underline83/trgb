@@ -32,6 +32,7 @@ Tutti gli endpoint richiedono autenticazione; sync/import solo admin.
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from pathlib import Path
 from datetime import datetime
@@ -1597,8 +1598,6 @@ _FRIGO_NORMALIZE_MAP = {
     # FRIGO-2-7 → Frigo 2 - Fila 7
 }
 
-
-import re
 
 def _normalize_frigo_value(val: str) -> str | None:
     """
