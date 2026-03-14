@@ -33,6 +33,7 @@ from app.routers import foodcost_matching_router
 
 # AMMINISTRAZIONE (corrispettivi & analisi) — modulo unico
 from app.routers.admin_finance import router as admin_finance_router
+from app.routers.chiusure_turno import router as chiusure_turno_router
 
 # FATTURAZIONE ELETTRONICA (XML)
 from app.routers import fe_import
@@ -159,6 +160,7 @@ app.include_router(
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
 app.include_router(admin_finance_router)
+app.include_router(chiusure_turno_router)
 
 # FATTURAZIONE ELETTRONICA (XML)
 app.include_router(fe_import.router)

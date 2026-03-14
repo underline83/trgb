@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 const TABS = [
   { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋" },
+  { key: "fine-turno", label: "Fine Turno", path: "/vendite/fine-turno", icon: "🔔" },
   { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅" },
   { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊" },
   { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈" },
