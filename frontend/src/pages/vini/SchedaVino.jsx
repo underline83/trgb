@@ -3,7 +3,7 @@
 // Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
@@ -65,7 +65,7 @@ function SectionHeader({ title, children }) {
  *   - onVinoUpdated: function(vino) (opzionale) — notifica il parent quando il vino viene aggiornato
  *   - inline: boolean (opzionale) — se true, non mostra header con titolone (usato dentro MagazzinoVini)
  */
-export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = false }) {
+const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = false }, ref) {
   const role = localStorage.getItem("role");
   const canDelete = role === "admin" || role === "sommelier" || role === "sala";
 
@@ -84,6 +84,19 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
   const [giacenzeEdit, setGiacenzeEdit]     = useState(false);
   const [giacenzeData, setGiacenzeData]     = useState({});
   const [giacenzeSaving, setGiacenzeSaving] = useState(false);
+
+  // ── refs per dirty-check (accessibili dal useEffect) ──
+  const editModeRef = useRef(false);
+  const editDataRef = useRef({});
+  const giacenzeEditRef = useRef(false);
+  const giacenzeDataRef = useRef({});
+  const vinoRef = useRef(null);
+  // Sync refs
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+  useEffect(() => { editDataRef.current = editData; }, [editData]);
+  useEffect(() => { giacenzeEditRef.current = giacenzeEdit; }, [giacenzeEdit]);
+  useEffect(() => { giacenzeDataRef.current = giacenzeData; }, [giacenzeData]);
+  useEffect(() => { vinoRef.current = vino; }, [vino]);
 
   // ── movimenti ────────────────────────────────────────
   const [movimenti, setMovimenti]     = useState([]);
@@ -174,6 +187,50 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
   const notifyUpdate = (updatedVino) => {
     setVino(updatedVino);
     if (onVinoUpdated) onVinoUpdated(updatedVino);
+  };
+
+  // ── dirty check helpers ─────────────────────────────
+  const hasEditChanges = () => {
+    if (!editMode || !vino) return false;
+    return Object.keys(editData).some(k => {
+      const orig = vino[k] ?? "";
+      const cur = editData[k] ?? "";
+      return String(orig) !== String(cur);
+    });
+  };
+  const hasGiacenzeChanges = () => {
+    if (!giacenzeEdit || !vino) return false;
+    const fields = ["FRIGORIFERO","QTA_FRIGO","LOCAZIONE_1","QTA_LOC1","LOCAZIONE_2","QTA_LOC2","LOCAZIONE_3","QTA_LOC3"];
+    return fields.some(k => {
+      const orig = vino[k] ?? (k.startsWith("QTA") ? 0 : "");
+      const cur = giacenzeData[k] ?? (k.startsWith("QTA") ? 0 : "");
+      return String(orig) !== String(cur);
+    });
+  };
+  const hasPendingChanges = () => hasEditChanges() || hasGiacenzeChanges();
+
+  // Esponi hasPendingChanges al parent via ref
+  useImperativeHandle(ref, () => ({ hasPendingChanges }));
+
+  // Chiusura scheda con check dirty
+  const handleClose = () => {
+    if (hasPendingChanges()) {
+      if (!window.confirm("Hai modifiche non salvate. Vuoi davvero chiudere la scheda?")) return;
+    }
+    if (onClose) onClose();
+  };
+
+  const cancelEdit = () => {
+    if (hasEditChanges()) {
+      if (!window.confirm("Hai modifiche non salvate nell'anagrafica. Vuoi davvero annullare?")) return;
+    }
+    setEditMode(false); setSaveMsg("");
+  };
+  const cancelGiacenze = () => {
+    if (hasGiacenzeChanges()) {
+      if (!window.confirm("Hai modifiche non salvate nelle giacenze. Vuoi davvero annullare?")) return;
+    }
+    setGiacenzeEdit(false);
   };
 
   // ── anagrafica save ──────────────────────────────────
@@ -350,7 +407,7 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
               </div>
             )}
             {onClose && (
-              <button type="button" onClick={onClose}
+              <button type="button" onClick={handleClose}
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
                 ✕ Chiudi
               </button>
@@ -371,7 +428,7 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
             {!editMode
               ? <button type="button" onClick={startEdit} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition">✏️ Modifica</button>
               : <>
-                  <button type="button" onClick={() => setEditMode(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
+                  <button type="button" onClick={cancelEdit} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
                   <button type="button" onClick={saveEdit} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition disabled:opacity-50">{saving ? "Salvo…" : "💾 Salva"}</button>
                 </>
             }
@@ -496,7 +553,7 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
             {!giacenzeEdit
               ? <button type="button" onClick={startGiacenze} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition">✏️ Modifica</button>
               : <>
-                  <button type="button" onClick={() => setGiacenzeEdit(false)} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
+                  <button type="button" onClick={cancelGiacenze} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
                   <button type="button" onClick={saveGiacenze} disabled={giacenzeSaving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition disabled:opacity-50">{giacenzeSaving ? "Salvo…" : "💾 Salva"}</button>
                 </>
             }
@@ -700,4 +757,6 @@ export default function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = fa
       </>)}
     </div>
   );
-}
+});
+
+export default SchedaVino;

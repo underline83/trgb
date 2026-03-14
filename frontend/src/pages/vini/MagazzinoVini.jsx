@@ -318,7 +318,8 @@ export default function MagazzinoVini() {
   const [showStampaFiltrata, setShowStampaFiltrata] = useState(false);
 
   const [openSchedaId, setOpenSchedaId] = useState(null);
-  const schedaRef = useRef(null);
+  const schedaRef = useRef(null);      // ref per scroll al div wrapper
+  const schedaCompRef = useRef(null);  // ref per accedere a hasPendingChanges()
 
   // ------- FILTRI --------
   const [searchId, setSearchId] = useState("");
@@ -567,6 +568,10 @@ export default function MagazzinoVini() {
   ]);
 
   const handleRowClick = (vino) => {
+    // Se c'è una scheda aperta con modifiche non salvate, chiedi conferma
+    if (openSchedaId && openSchedaId !== vino.id && schedaCompRef.current?.hasPendingChanges?.()) {
+      if (!window.confirm("Hai modifiche non salvate nella scheda corrente. Vuoi passare a un altro vino?")) return;
+    }
     setOpenSchedaId(vino.id);
     // Scroll to scheda after render
     setTimeout(() => {
@@ -1083,6 +1088,7 @@ export default function MagazzinoVini() {
         {openSchedaId && (
           <div ref={schedaRef} className="mt-6">
             <SchedaVino
+              ref={schedaCompRef}
               vinoId={openSchedaId}
               inline={true}
               onClose={() => { setOpenSchedaId(null); }}
