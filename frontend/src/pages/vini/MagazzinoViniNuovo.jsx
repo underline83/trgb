@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
+import LocationPicker from "./LocationPicker";
 
 // ✅ Lista formati (completa/estendibile: se hai già la lista ufficiale, incollala qui)
 const FORMATI = [
@@ -636,14 +637,11 @@ export default function MagazzinoViniNuovo() {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Frigorifero — dropdown */}
+              {/* Frigorifero */}
               <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
                 <div className="text-[11px] font-semibold text-neutral-600 uppercase">Frigorifero</div>
-                <select value={form.FRIGORIFERO} onChange={handleChange("FRIGORIFERO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— Nessuno —</option>
-                  {opzioniFrigo.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+                <LocationPicker options={opzioniFrigo} value={form.FRIGORIFERO}
+                  onChange={val => setForm(p => ({...p, FRIGORIFERO: val}))} placeholder="Cerca frigorifero…" />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-600">Quantità</span>
                   <input type="number" value={form.QTA_FRIGO} onChange={handleChange("QTA_FRIGO")}
@@ -651,14 +649,11 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {/* Locazione 1 — dropdown */}
+              {/* Locazione 1 */}
               <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
                 <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 1</div>
-                <select value={form.LOCAZIONE_1} onChange={handleChange("LOCAZIONE_1")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— Nessuna —</option>
-                  {opzioniLoc1.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+                <LocationPicker options={opzioniLoc1} value={form.LOCAZIONE_1}
+                  onChange={val => setForm(p => ({...p, LOCAZIONE_1: val}))} placeholder="Cerca locazione 1…" />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-600">Quantità</span>
                   <input type="number" value={form.QTA_LOC1} onChange={handleChange("QTA_LOC1")}
@@ -666,14 +661,11 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {/* Locazione 2 — dropdown */}
+              {/* Locazione 2 */}
               <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
                 <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 2</div>
-                <select value={form.LOCAZIONE_2} onChange={handleChange("LOCAZIONE_2")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— Nessuna —</option>
-                  {opzioniLoc2.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+                <LocationPicker options={opzioniLoc2} value={form.LOCAZIONE_2}
+                  onChange={val => setForm(p => ({...p, LOCAZIONE_2: val}))} placeholder="Cerca locazione 2…" />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-600">Quantità</span>
                   <input type="number" value={form.QTA_LOC2} onChange={handleChange("QTA_LOC2")}
@@ -681,14 +673,11 @@ export default function MagazzinoViniNuovo() {
                   <span className="text-xs text-neutral-500">bt</span>
                 </div>
               </div>
-              {/* Locazione 3 — dropdown */}
+              {/* Locazione 3 */}
               <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
                 <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 3</div>
-                <select value={form.LOCAZIONE_3} onChange={handleChange("LOCAZIONE_3")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— Nessuna —</option>
-                  {opzioniLoc3.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
+                <LocationPicker options={opzioniLoc3} value={form.LOCAZIONE_3}
+                  onChange={val => setForm(p => ({...p, LOCAZIONE_3: val}))} placeholder="Cerca locazione 3…" />
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-neutral-600">Quantità</span>
                   <input type="number" value={form.QTA_LOC3} onChange={handleChange("QTA_LOC3")}

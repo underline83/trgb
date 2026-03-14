@@ -9,6 +9,7 @@ import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
+import LocationPicker from "./LocationPicker";
 
 const TIPO_LABELS = {
   CARICO:    { label: "Carico",    cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -578,64 +579,39 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             ) : (
               <div className="space-y-3">
-                {/* Frigorifero — dropdown */}
+                {/* Frigorifero */}
                 <div className="grid grid-cols-3 gap-3 items-end">
                   <div className="col-span-2">
                     <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Frigorifero</label>
-                    <select name="FRIGORIFERO" value={giacenzeData.FRIGORIFERO ?? ""}
-                      onChange={e => setGiacenzeData(p => ({...p, FRIGORIFERO: e.target.value}))}
-                      className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                      <option value="">— Nessuno —</option>
-                      {opzioniFrigo.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
+                    <LocationPicker options={opzioniFrigo} value={giacenzeData.FRIGORIFERO ?? ""}
+                      onChange={val => setGiacenzeData(p => ({...p, FRIGORIFERO: val}))} placeholder="Cerca frigorifero…" />
                   </div>
                   <Input label="Qtà bt" name="QTA_FRIGO" value={giacenzeData.QTA_FRIGO} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
-                {/* Locazione 1 — dropdown */}
+                {/* Locazione 1 */}
                 <div className="grid grid-cols-3 gap-3 items-end">
                   <div className="col-span-2">
                     <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 1</label>
-                    <select name="LOCAZIONE_1" value={giacenzeData.LOCAZIONE_1 ?? ""}
-                      onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_1: e.target.value}))}
-                      className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                      <option value="">— Nessuna —</option>
-                      {opzioniLoc1.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      {giacenzeData.LOCAZIONE_1 && !opzioniLoc1.includes(giacenzeData.LOCAZIONE_1) && (
-                        <option value={giacenzeData.LOCAZIONE_1}>{giacenzeData.LOCAZIONE_1} (non configurato)</option>
-                      )}
-                    </select>
+                    <LocationPicker options={opzioniLoc1} value={giacenzeData.LOCAZIONE_1 ?? ""}
+                      onChange={val => setGiacenzeData(p => ({...p, LOCAZIONE_1: val}))} placeholder="Cerca locazione 1…" />
                   </div>
                   <Input label="Qtà bt" name="QTA_LOC1" value={giacenzeData.QTA_LOC1} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
-                {/* Locazione 2 — dropdown */}
+                {/* Locazione 2 */}
                 <div className="grid grid-cols-3 gap-3 items-end">
                   <div className="col-span-2">
                     <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 2</label>
-                    <select name="LOCAZIONE_2" value={giacenzeData.LOCAZIONE_2 ?? ""}
-                      onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_2: e.target.value}))}
-                      className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                      <option value="">— Nessuna —</option>
-                      {opzioniLoc2.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      {giacenzeData.LOCAZIONE_2 && !opzioniLoc2.includes(giacenzeData.LOCAZIONE_2) && (
-                        <option value={giacenzeData.LOCAZIONE_2}>{giacenzeData.LOCAZIONE_2} (non configurato)</option>
-                      )}
-                    </select>
+                    <LocationPicker options={opzioniLoc2} value={giacenzeData.LOCAZIONE_2 ?? ""}
+                      onChange={val => setGiacenzeData(p => ({...p, LOCAZIONE_2: val}))} placeholder="Cerca locazione 2…" />
                   </div>
                   <Input label="Qtà bt" name="QTA_LOC2" value={giacenzeData.QTA_LOC2} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
-                {/* Locazione 3 — dropdown */}
+                {/* Locazione 3 */}
                 <div className="grid grid-cols-3 gap-3 items-end">
                   <div className="col-span-2">
                     <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Locazione 3</label>
-                    <select name="LOCAZIONE_3" value={giacenzeData.LOCAZIONE_3 ?? ""}
-                      onChange={e => setGiacenzeData(p => ({...p, LOCAZIONE_3: e.target.value}))}
-                      className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                      <option value="">— Nessuna —</option>
-                      {opzioniLoc3.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      {giacenzeData.LOCAZIONE_3 && !opzioniLoc3.includes(giacenzeData.LOCAZIONE_3) && (
-                        <option value={giacenzeData.LOCAZIONE_3}>{giacenzeData.LOCAZIONE_3} (non configurato)</option>
-                      )}
-                    </select>
+                    <LocationPicker options={opzioniLoc3} value={giacenzeData.LOCAZIONE_3 ?? ""}
+                      onChange={val => setGiacenzeData(p => ({...p, LOCAZIONE_3: val}))} placeholder="Cerca locazione 3…" />
                   </div>
                   <Input label="Qtà bt" name="QTA_LOC3" value={giacenzeData.QTA_LOC3} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
                 </div>
