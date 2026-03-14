@@ -74,7 +74,7 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
 
     if (isOccupied && !isMine) {
       // Cella occupata da un altro vino
-      setError(`Cella (${riga},${colonna}) occupata da: ${isOccupied.DESCRIZIONE || "altro vino"}`);
+      setError(`Cella (${colonna},${riga}) occupata da: ${isOccupied.DESCRIZIONE || "altro vino"}`);
       setTimeout(() => setError(""), 4000);
       return;
     }
@@ -135,7 +135,7 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
           {myCelle.map(c => (
             <span key={`${c.riga},${c.colonna}`}
               className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 rounded-lg">
-              ({c.riga},{c.colonna})
+              ({c.colonna},{c.riga})
               {!disabled && (
                 <button type="button" onClick={() => handleCellClick(c.riga, c.colonna)}
                   className="text-amber-500 hover:text-red-600 font-bold ml-0.5" title="Rimuovi">×</button>
@@ -194,9 +194,9 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
                     <div key={key} className={cls}
                       onClick={() => !isOther && handleCellClick(r + 1, c + 1)}
                       title={
-                        isMine ? `Tuo: (${r+1},${c+1}) — click per rimuovere` :
+                        isMine ? `Tuo: (${c+1},${r+1}) — click per rimuovere` :
                         isOther ? `Occupata: ${occ.DESCRIZIONE || "?"}` :
-                        `Libera: (${r+1},${c+1}) — click per assegnare`
+                        `Libera: (${c+1},${r+1}) — click per assegnare`
                       }>
                       {isMine ? "●" : isOther ? "■" : ""}
                     </div>

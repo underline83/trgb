@@ -1468,7 +1468,7 @@ def matrice_assegna_cella(vino_id: int, riga: int, colonna: int) -> Dict[str, An
         ).fetchone()
         conn.close()
         desc = existing["DESCRIZIONE"] if existing else "?"
-        raise ValueError(f"Cella ({riga},{colonna}) già occupata da: {desc}")
+        raise ValueError(f"Cella ({colonna},{riga}) già occupata da: {desc}")
 
     # Ricalcola QTA_LOC3 per questo vino
     _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
@@ -1519,7 +1519,7 @@ def matrice_set_celle_vino(vino_id: int, celle: List[Dict[str, int]]) -> Dict[st
                 (vino_id, c["riga"], c["colonna"], now),
             )
         except sqlite3.IntegrityError:
-            conflitti.append(f"({c['riga']},{c['colonna']})")
+            conflitti.append(f"({c['colonna']},{c['riga']})")
 
     _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
     conn.commit()
@@ -1546,7 +1546,7 @@ def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor,
             "SELECT riga, colonna FROM matrice_celle WHERE vino_id = ? ORDER BY riga, colonna",
             (vino_id,),
         ).fetchall()
-        loc3_text = ", ".join(f"({r['riga']},{r['colonna']})" for r in celle_rows)
+        loc3_text = ", ".join(f"({r['colonna']},{r['riga']})" for r in celle_rows)
     else:
         loc3_text = None
 

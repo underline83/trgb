@@ -1689,10 +1689,10 @@ def _build_options_from_config(campo: str) -> list[str]:
     opts = []
     for item in items:
         if item.get("tipo") == "matrice" and item.get("righe") and item.get("colonne"):
-            # Genera coordinate matrice: (1,1), (1,2), ..., (righe,colonne)
+            # Genera coordinate matrice: (col,riga) — colonna prima, riga dopo
             for r in range(1, item["righe"] + 1):
                 for c in range(1, item["colonne"] + 1):
-                    opts.append(f"{item['nome']} - ({r},{c})")
+                    opts.append(f"{item['nome']} - ({c},{r})")
         elif item["spazi"]:
             for spazio in item["spazi"]:
                 opts.append(f"{item['nome']} - {spazio}")

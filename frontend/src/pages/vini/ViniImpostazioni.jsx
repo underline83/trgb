@@ -712,8 +712,8 @@ export default function ViniImpostazioni() {
                     <div className="col-span-2">
                       <p className="text-xs text-neutral-500">
                         {locEditRighe && locEditColonne
-                          ? `Genera ${parseInt(locEditRighe)||0} × ${parseInt(locEditColonne)||0} = ${(parseInt(locEditRighe)||0) * (parseInt(locEditColonne)||0)} celle. Es. "${locEditNome || "Matrice"} - (1,1)", "${locEditNome || "Matrice"} - (${locEditRighe},${locEditColonne})"`
-                          : `Ogni cella sarà "${locEditNome || "Matrice"} - (riga,colonna)"`
+                          ? `Genera ${parseInt(locEditRighe)||0} × ${parseInt(locEditColonne)||0} = ${(parseInt(locEditRighe)||0) * (parseInt(locEditColonne)||0)} celle. Es. "${locEditNome || "Matrice"} - (1,1)", "${locEditNome || "Matrice"} - (${locEditColonne},${locEditRighe})"`
+                          : `Ogni cella sarà "${locEditNome || "Matrice"} - (colonna,riga)"`
                         }
                       </p>
                     </div>
