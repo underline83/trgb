@@ -86,6 +86,10 @@ export default function ViniImpostazioni() {
   const [locEditNome, setLocEditNome] = useState("");
   const [locEditSpaziText, setLocEditSpaziText] = useState(""); // "Fila 1, Fila 2, ..."
   const [locConfigSaving, setLocConfigSaving] = useState(false);
+  const [locExpandedVal, setLocExpandedVal] = useState(null); // valore espanso per vedere vini
+  const [locViniDetail, setLocViniDetail] = useState([]);      // vini per il valore espanso
+  const [locViniLoading, setLocViniLoading] = useState(false);
+  const [locViniEdits, setLocViniEdits] = useState({});        // {vinoId: nuovoValore}
 
   // --- Impostazioni ordinamento ---
   const [tipologie, setTipologie] = useState([]);
@@ -273,6 +277,30 @@ export default function ViniImpostazioni() {
       // Ricarica i valori aggiornati
       handleEstraiValori(locCampo);
     } catch (e) { setError(e?.message || "Errore applicazione mapping."); } finally { setLocSaving(false); }
+  };
+
+  const handleToggleViniDetail = async (valore) => {
+    if (locExpandedVal === valore) { setLocExpandedVal(null); setLocViniDetail([]); setLocViniEdits({}); return; }
+    setLocExpandedVal(valore); setLocViniLoading(true); setLocViniEdits({});
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vini/${locCampo}?valore=${encodeURIComponent(valore)}`);
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      setLocViniDetail(data.vini);
+    } catch { setLocViniDetail([]); } finally { setLocViniLoading(false); }
+  };
+  const handleUpdateSingleVino = async (vinoId, nuovoValore) => {
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vino-update`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campo: locCampo, vino_id: vinoId, nuovo_valore: nuovoValore }),
+      });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      // Ricarica dettaglio e valori
+      handleToggleViniDetail(locExpandedVal);
+      handleEstraiValori(locCampo);
+      setLocMsg("Locazione aggiornata.");
+    } catch (e) { setError(e?.message || "Errore aggiornamento."); }
   };
 
   // -------------------------------------------------------
@@ -630,35 +658,100 @@ export default function ViniImpostazioni() {
                   </thead>
                   <tbody>
                     {locValori.valori.map((v, i) => (
-                      <tr key={i} className={`border-b border-neutral-100 ${v.ok ? "bg-green-50/50" : ""}`}>
-                        <td className="px-3 py-2 font-mono text-xs">{v.valore}</td>
-                        <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">{v.conteggio}</td>
-                        <td className="px-3 py-2">
-                          {v.ok ? (
-                            <span className="text-xs text-green-700 italic">Già corretto</span>
-                          ) : currentOpzioni.length > 0 ? (
-                            <select
-                              value={locMapping[v.valore] || ""}
-                              onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                              className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
-                              <option value="">— Non modificare —</option>
-                              {currentOpzioni.map(opt => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input type="text" value={locMapping[v.valore] || ""}
-                              onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
-                              placeholder="Valore normalizzato…"
-                              className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          {v.ok ? <span className="text-green-600 text-base">✓</span>
-                            : locMapping[v.valore]?.trim() ? <span className="text-amber-600 text-base">→</span>
-                            : <span className="text-neutral-300 text-base">–</span>}
-                        </td>
-                      </tr>
+                      <React.Fragment key={i}>
+                        <tr className={`border-b border-neutral-100 ${v.ok ? "bg-green-50/50" : ""} ${locExpandedVal === v.valore ? "bg-amber-50/50" : ""}`}>
+                          <td className="px-3 py-2">
+                            <button onClick={() => handleToggleViniDetail(v.valore)}
+                              className="font-mono text-xs text-left hover:text-amber-700 hover:underline transition flex items-center gap-1.5 w-full">
+                              <span className={`text-[10px] transition-transform ${locExpandedVal === v.valore ? "rotate-90" : ""}`}>▶</span>
+                              {v.valore}
+                            </button>
+                          </td>
+                          <td className="px-2 py-2 text-center text-xs text-neutral-500 font-medium">{v.conteggio}</td>
+                          <td className="px-3 py-2">
+                            {v.ok ? (
+                              <span className="text-xs text-green-700 italic">Già corretto</span>
+                            ) : currentOpzioni.length > 0 ? (
+                              <select
+                                value={locMapping[v.valore] || ""}
+                                onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:ring-amber-500 focus:border-amber-500">
+                                <option value="">— Non modificare —</option>
+                                {currentOpzioni.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="text" value={locMapping[v.valore] || ""}
+                                onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
+                                placeholder="Valore normalizzato…"
+                                className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            {v.ok ? <span className="text-green-600 text-base">✓</span>
+                              : locMapping[v.valore]?.trim() ? <span className="text-amber-600 text-base">→</span>
+                              : <span className="text-neutral-300 text-base">–</span>}
+                          </td>
+                        </tr>
+                        {/* RIGA ESPANSA: dettaglio vini */}
+                        {locExpandedVal === v.valore && (
+                          <tr>
+                            <td colSpan={4} className="p-0">
+                              <div className="bg-neutral-50 border-t border-b border-amber-200 px-4 py-3">
+                                {locViniLoading ? (
+                                  <p className="text-xs text-neutral-500">Caricamento vini…</p>
+                                ) : locViniDetail.length === 0 ? (
+                                  <p className="text-xs text-neutral-500">Nessun vino trovato.</p>
+                                ) : (
+                                  <div className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-neutral-700 mb-2">
+                                      {locViniDetail.length} vin{locViniDetail.length === 1 ? "o" : "i"} con "{v.valore}":
+                                    </p>
+                                    {locViniDetail.map(vino => (
+                                      <div key={vino.id} className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg px-3 py-2 text-xs">
+                                        <div className="flex-1 min-w-0">
+                                          <span className="font-medium text-neutral-800 truncate block">
+                                            {vino.descrizione}
+                                          </span>
+                                          <span className="text-neutral-500">
+                                            {vino.produttore}{vino.annata ? ` · ${vino.annata}` : ""}{vino.formato ? ` · ${vino.formato}` : ""}
+                                            {vino.quantita != null ? ` · Qta: ${vino.quantita}` : ""}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                          {currentOpzioni.length > 0 ? (
+                                            <select
+                                              value={locViniEdits[vino.id] ?? vino.locazione ?? ""}
+                                              onChange={e => setLocViniEdits(ed => ({ ...ed, [vino.id]: e.target.value }))}
+                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs bg-white w-44">
+                                              <option value="">— Nessuno —</option>
+                                              {currentOpzioni.map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            <input type="text"
+                                              value={locViniEdits[vino.id] ?? vino.locazione ?? ""}
+                                              onChange={e => setLocViniEdits(ed => ({ ...ed, [vino.id]: e.target.value }))}
+                                              className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-44" />
+                                          )}
+                                          {locViniEdits[vino.id] !== undefined && locViniEdits[vino.id] !== vino.locazione && (
+                                            <button onClick={() => handleUpdateSingleVino(vino.id, locViniEdits[vino.id])}
+                                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition whitespace-nowrap">
+                                              Salva
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

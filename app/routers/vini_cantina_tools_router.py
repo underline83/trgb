@@ -1814,3 +1814,76 @@ async def applica_normalizzazione_locazioni(
         "mapping_applicati": len([v for v in mapping.values() if v and v.strip()]),
         "msg": f"Normalizzati {totale} record nel campo {LOCATION_FIELDS[campo]['label']}.",
     }
+
+
+@router.get("/locazioni-vini/{campo}", summary="Vini per valore locazione")
+async def get_vini_per_locazione(
+    campo: str,
+    valore: str = Query(..., description="Valore locazione da cercare"),
+    current_user=Depends(get_current_user),
+):
+    """Ritorna i vini che hanno un certo valore nel campo locazione specificato."""
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido.")
+
+    col = LOCATION_FIELDS[campo]["column"]
+    qta_col = LOCATION_FIELDS[campo]["qta_column"]
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        f"SELECT id, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO, {col}, {qta_col} "
+        f"FROM vini_magazzino WHERE {col} = ? ORDER BY DESCRIZIONE",
+        (valore,),
+    ).fetchall()
+    conn.close()
+
+    return {
+        "campo": campo,
+        "valore": valore,
+        "vini": [
+            {
+                "id": r["id"],
+                "descrizione": r["DESCRIZIONE"],
+                "produttore": r["PRODUTTORE"],
+                "annata": r["ANNATA"],
+                "formato": r["FORMATO"],
+                "locazione": r[col],
+                "quantita": r[qta_col],
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.post("/locazioni-vino-update", summary="Aggiorna locazione singolo vino")
+async def update_vino_locazione(
+    request: Request,
+    current_user=Depends(get_current_user),
+):
+    """
+    Aggiorna il valore di locazione per un singolo vino.
+    Body: { "campo": "frigorifero", "vino_id": 123, "nuovo_valore": "Frigo 1 - Fila 3" }
+    """
+    _require_admin(current_user)
+
+    body = await request.json()
+    campo = body.get("campo")
+    vino_id = body.get("vino_id")
+    nuovo_valore = body.get("nuovo_valore", "").strip()
+
+    if campo not in LOCATION_FIELDS:
+        raise HTTPException(400, f"Campo non valido.")
+    if not vino_id:
+        raise HTTPException(400, "vino_id obbligatorio.")
+
+    col = LOCATION_FIELDS[campo]["column"]
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    cur.execute(
+        f"UPDATE vini_magazzino SET {col} = ? WHERE id = ?",
+        (nuovo_valore if nuovo_valore else None, vino_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"ok": True, "msg": f"Locazione aggiornata per vino #{vino_id}."}
