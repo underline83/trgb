@@ -76,6 +76,8 @@ export default function ViniImpostazioni() {
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [resetResult, setResetResult] = useState(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [normResult, setNormResult] = useState(null);
+  const [normLoading, setNormLoading] = useState(false);
   const [error, setError] = useState("");
   const [forzaGiacenze, setForzaGiacenze] = useState(false);
   const [showCartaPreview, setShowCartaPreview] = useState(false);
@@ -223,6 +225,16 @@ export default function ViniImpostazioni() {
       setCleanupResult(await resp.json());
     } catch (e) { setError(e?.message || "Errore pulizia duplicati."); }
     finally { setCleanupLoading(false); }
+  };
+
+  const handleNormalizzaLocazioni = async (dryRun) => {
+    setNormLoading(true); setError(""); setNormResult(null);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/normalizza-locazioni?dry_run=${dryRun}`, { method: "POST" });
+      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
+      setNormResult(await resp.json());
+    } catch (e) { setError(e?.message || "Errore normalizzazione."); }
+    finally { setNormLoading(false); }
   };
 
   const handleResetDatabase = async () => {
@@ -617,6 +629,98 @@ export default function ViniImpostazioni() {
                           <td className="border border-neutral-200 px-2 py-1 text-center">{d.annata}</td>
                           <td className="border border-neutral-200 px-2 py-1 text-center font-semibold text-red-600">x{d.copie}</td>
                           <td className="border border-neutral-200 px-2 py-1 text-center">{d.keep_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
+
+        {/* ============================================= */}
+        {/* SEZIONE 6: NORMALIZZAZIONE LOCAZIONI */}
+        {/* ============================================= */}
+        <Section title="Normalizza Locazioni Frigo" icon="📍">
+          <p className="text-sm text-neutral-600 mb-4">
+            Converte i valori nel campo Frigorifero al formato standard (es. "Frigo-1-3" → "Frigo 1 - Fila 3").
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => handleNormalizzaLocazioni(true)} disabled={normLoading}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
+                normLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                  : "bg-amber-700 text-white hover:bg-amber-800"
+              }`}>
+              {normLoading ? "Analisi…" : "Analizza locazioni"}
+            </button>
+            {normResult && normResult.da_normalizzare > 0 && normResult.dry_run && (
+              <button onClick={() => {
+                  if (window.confirm(`Normalizzare ${normResult.da_normalizzare} valori locazione?`)) {
+                    handleNormalizzaLocazioni(false);
+                  }
+                }}
+                disabled={normLoading}
+                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow transition">
+                Normalizza {normResult.da_normalizzare} valori
+              </button>
+            )}
+          </div>
+
+          {normResult && (
+            <div className={`mt-4 rounded-xl p-4 text-sm border ${
+              normResult.da_normalizzare === 0 && normResult.non_riconosciuti === 0
+                ? "bg-green-50 border-green-200"
+                : normResult.dry_run ? "bg-yellow-50 border-yellow-200" : "bg-green-50 border-green-200"
+            }`}>
+              <p className={`font-semibold mb-2 ${
+                normResult.da_normalizzare === 0 && normResult.non_riconosciuti === 0 ? "text-green-800"
+                  : normResult.dry_run ? "text-yellow-800" : "text-green-800"
+              }`}>{normResult.msg}</p>
+              <p className="text-neutral-600 mb-2">
+                Totale con frigo: <strong>{normResult.totale_con_frigo}</strong> —
+                Già OK: <strong>{normResult.gia_ok}</strong> —
+                Da normalizzare: <strong>{normResult.da_normalizzare}</strong> —
+                Non riconosciuti: <strong>{normResult.non_riconosciuti}</strong>
+              </p>
+              {normResult.changes?.length > 0 && (
+                <div className="max-h-48 overflow-y-auto mb-2">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-neutral-100 text-neutral-700">
+                        <th className="border border-neutral-200 px-2 py-1">ID</th>
+                        <th className="border border-neutral-200 px-2 py-1 text-left">Vecchio</th>
+                        <th className="border border-neutral-200 px-2 py-1 text-left">Nuovo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {normResult.changes.map((ch, i) => (
+                        <tr key={i} className="hover:bg-yellow-50">
+                          <td className="border border-neutral-200 px-2 py-1 text-center">{ch.id}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-red-600 line-through">{ch.old}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-green-700 font-medium">{ch.new}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {normResult.unknown?.length > 0 && (
+                <div className="max-h-48 overflow-y-auto">
+                  <p className="text-xs font-semibold text-red-700 mb-1">Valori non riconosciuti (da correggere manualmente):</p>
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-red-50 text-red-700">
+                        <th className="border border-red-200 px-2 py-1">ID</th>
+                        <th className="border border-red-200 px-2 py-1 text-left">Valore</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {normResult.unknown.map((u, i) => (
+                        <tr key={i}>
+                          <td className="border border-red-200 px-2 py-1 text-center">{u.id}</td>
+                          <td className="border border-red-200 px-2 py-1">{u.value}</td>
                         </tr>
                       ))}
                     </tbody>

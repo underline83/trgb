@@ -95,6 +95,9 @@ export default function MagazzinoViniDettaglio() {
   const [notaText, setNotaText]   = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
 
+  // ── opzioni frigo ──────────────────────────────────
+  const [opzioniFrigo, setOpzioniFrigo] = useState([]);
+
   // ── fetch vino ──────────────────────────────────────
   const fetchVino = async () => {
     setLoading(true); setError("");
@@ -125,11 +128,22 @@ export default function MagazzinoViniDettaglio() {
     } finally { setNoteLoading(false); }
   };
 
+  const fetchOpzioniFrigo = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`);
+      if (r.ok) {
+        const data = await r.json();
+        setOpzioniFrigo(data.opzioni_frigo || []);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (!id || id === "undefined") { navigate("/vini/magazzino"); return; }
     fetchVino();
     fetchMovimenti();
     fetchNote();
+    fetchOpzioniFrigo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -499,8 +513,21 @@ export default function MagazzinoViniDettaglio() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* Frigorifero — dropdown */}
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Frigorifero</label>
+                      <select name="FRIGORIFERO" value={giacenzeData.FRIGORIFERO ?? ""}
+                        onChange={e => setGiacenzeData(p => ({...p, FRIGORIFERO: e.target.value}))}
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                        <option value="">— Nessuno —</option>
+                        {opzioniFrigo.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    </div>
+                    <Input label="Qtà bt" name="QTA_FRIGO" value={giacenzeData.QTA_FRIGO} onChange={e => setGiacenzeData(p => ({...p, [e.target.name]: e.target.value}))} type="number" />
+                  </div>
+                  {/* Locazioni 1-3 — testo libero (per ora) */}
                   {[
-                    { locField: "FRIGORIFERO", qtaField: "QTA_FRIGO", label: "Frigorifero" },
                     { locField: "LOCAZIONE_1", qtaField: "QTA_LOC1", label: "Locazione 1" },
                     { locField: "LOCAZIONE_2", qtaField: "QTA_LOC2", label: "Locazione 2" },
                     { locField: "LOCAZIONE_3", qtaField: "QTA_LOC3", label: "Locazione 3" },

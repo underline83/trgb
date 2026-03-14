@@ -1555,3 +1555,126 @@ def inventario_filtri_options(
     }
     conn.close()
     return result
+
+
+# =============================================================
+# CONFIGURAZIONE LOCAZIONI FISICHE
+# =============================================================
+
+# Struttura locazioni frigorifero
+FRIGO_CONFIG = {
+    "frigoriferi": [
+        {"id": 1, "nome": "Frigo 1", "file": list(range(1, 10))},   # Fila 1-9
+        {"id": 2, "nome": "Frigo 2", "file": list(range(1, 14))},   # Fila 1-13
+    ]
+}
+
+
+def _build_frigo_options() -> list[str]:
+    """Ritorna la lista completa delle opzioni frigo come stringhe."""
+    opts = []
+    for frigo in FRIGO_CONFIG["frigoriferi"]:
+        for fila in frigo["file"]:
+            opts.append(f"Frigo {frigo['id']} - Fila {fila}")
+    return opts
+
+
+@router.get("/locazioni-config", summary="Config locazioni fisiche")
+async def get_locazioni_config(current_user=Depends(get_current_user)):
+    """Ritorna la struttura delle locazioni fisiche (frigoriferi, file, etc.)."""
+    return {
+        **FRIGO_CONFIG,
+        "opzioni_frigo": _build_frigo_options(),
+    }
+
+
+# --- Normalizzazione locazioni esistenti ---
+
+_FRIGO_NORMALIZE_MAP = {
+    # Varianti comuni → formato standard
+    # Frigo-1-3 → Frigo 1 - Fila 3
+    # frigo 1-3 → Frigo 1 - Fila 3
+    # FRIGO-2-7 → Frigo 2 - Fila 7
+}
+
+
+import re
+
+def _normalize_frigo_value(val: str) -> str | None:
+    """
+    Prova a normalizzare un valore FRIGORIFERO nel formato standard
+    "Frigo X - Fila Y". Ritorna None se non riesce a parsare.
+    """
+    if not val or not val.strip():
+        return None
+
+    val = val.strip()
+
+    # Già nel formato corretto?
+    m = re.match(r"^Frigo\s+(\d+)\s*-\s*Fila\s+(\d+)$", val, re.IGNORECASE)
+    if m:
+        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+
+    # Formato Frigo-X-Y o frigo X-Y
+    m = re.match(r"^[Ff]rigo[\s-]*(\d+)[\s-]+(\d+)$", val)
+    if m:
+        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+
+    # Formato numerico semplice: "1-3" (frigo 1, fila 3)
+    m = re.match(r"^(\d+)[\s-]+(\d+)$", val)
+    if m:
+        return f"Frigo {m.group(1)} - Fila {m.group(2)}"
+
+    return None  # non riconosciuto
+
+
+@router.post("/normalizza-locazioni", summary="Normalizza valori locazione frigo")
+async def normalizza_locazioni(
+    dry_run: bool = Query(True, description="Se True, mostra solo preview senza modificare"),
+    current_user=Depends(get_current_user),
+):
+    """Normalizza i valori nel campo FRIGORIFERO al formato standard 'Frigo X - Fila Y'."""
+    _require_admin(current_user)
+
+    conn = mag_db._get_conn()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT ID, FRIGORIFERO FROM vini_magazzino "
+        "WHERE FRIGORIFERO IS NOT NULL AND FRIGORIFERO != ''"
+    ).fetchall()
+
+    valid_options = set(_build_frigo_options())
+    changes = []
+    unknown = []
+
+    for row in rows:
+        old_val = row[1]
+        if old_val in valid_options:
+            continue  # già ok
+
+        new_val = _normalize_frigo_value(old_val)
+        if new_val and new_val in valid_options:
+            changes.append({"id": row[0], "old": old_val, "new": new_val})
+        else:
+            unknown.append({"id": row[0], "value": old_val, "suggested": new_val})
+
+    if not dry_run:
+        for ch in changes:
+            cur.execute(
+                "UPDATE vini_magazzino SET FRIGORIFERO = ? WHERE ID = ?",
+                (ch["new"], ch["id"]),
+            )
+        conn.commit()
+
+    conn.close()
+    return {
+        "dry_run": dry_run,
+        "totale_con_frigo": len(rows),
+        "gia_ok": len(rows) - len(changes) - len(unknown),
+        "da_normalizzare": len(changes),
+        "non_riconosciuti": len(unknown),
+        "changes": changes,
+        "unknown": unknown,
+        "msg": f"{'Preview:' if dry_run else 'Normalizzati:'} {len(changes)} valori"
+              + (f", {len(unknown)} non riconosciuti" if unknown else ""),
+    }
