@@ -13,7 +13,7 @@ import {
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE
 // ---------------------------------------------------------------
-function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder }) {
+function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder, uppercase = true }) {
   const [newVal, setNewVal] = useState("");
   const move = (idx, dir) => {
     const arr = [...items];
@@ -23,7 +23,7 @@ function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder
     onReorder(arr);
   };
   const handleAdd = () => {
-    const v = newVal.trim().toUpperCase();
+    const v = uppercase ? newVal.trim().toUpperCase() : newVal.trim();
     if (!v || !onAdd) return;
     onAdd(v);
     setNewVal("");
@@ -581,7 +581,7 @@ export default function ViniImpostazioni() {
             {nazioni.length > 0 ? <OrderList items={nazioni} onReorder={setNazioni}
               onAdd={v => { if (!nazioni.includes(v)) setNazioni(n => [...n, v]); }}
               onRemove={idx => setNazioni(n => n.filter((_, i) => i !== idx))}
-              addPlaceholder="Nuova nazione…" /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
+              addPlaceholder="Nuova nazione…" uppercase={false} /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
           </div>
 
           {/* REGIONI */}
@@ -605,7 +605,7 @@ export default function ViniImpostazioni() {
                     setRegioni(prev => [...prev, { codice: code, nome: v }]);
                   }}
                   onRemove={idx => setRegioni(prev => prev.filter((_, i) => i !== idx))}
-                  addPlaceholder="Nuova regione…" />
+                  addPlaceholder="Nuova regione…" uppercase={false} />
                 {regioni.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessuna regione per {selectedNazione}. Usa il campo sopra per aggiungerne.</p>}
               </>
             ) : <p className="text-sm text-neutral-400">Seleziona una nazione.</p>}
