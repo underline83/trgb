@@ -378,6 +378,8 @@ def duplicate_vino_endpoint(
         new_id = db.duplicate_vino(vino_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore duplicazione: {e}")
     row = db.get_vino_by_id(new_id)
     return dict(row) if row else {"id": new_id}
 
