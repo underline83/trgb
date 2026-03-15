@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
 import LocationPicker from "./LocationPicker";
+import { STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS } from "../../config/viniConstants";
 
 // ✅ Lista formati (completa/estendibile: se hai già la lista ufficiale, incollala qui)
 const FORMATI = [
@@ -80,6 +81,8 @@ export default function MagazzinoViniNuovo() {
     IPRATICO: "NO",
 
     STATO_VENDITA: "",
+    STATO_RIORDINO: "",
+    STATO_CONSERVAZIONE: "",
     NOTE_STATO: "",
 
     FRIGORIFERO: "",
@@ -225,6 +228,8 @@ export default function MagazzinoViniNuovo() {
       IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
 
       STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
+      STATO_RIORDINO: nullIfEmpty(form.STATO_RIORDINO),
+      STATO_CONSERVAZIONE: nullIfEmpty(form.STATO_CONSERVAZIONE),
       NOTE_STATO: nullIfEmpty(form.NOTE_STATO),
 
       FRIGORIFERO: nullIfEmpty(form.FRIGORIFERO),
@@ -689,11 +694,34 @@ export default function MagazzinoViniNuovo() {
               Prezzi, stato vendita e note
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {numField("Prezzo carta (€)", "PREZZO_CARTA", form, handleChange)}
               {numField("Listino acquisto (€)", "EURO_LISTINO", form, handleChange)}
               {numField("Sconto (%)", "SCONTO", form, handleChange)}
-              {textField("Stato vendita", "STATO_VENDITA", form, handleChange)}
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato vendita</label>
+                <select value={form.STATO_VENDITA} onChange={handleChange("STATO_VENDITA")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  {STATO_VENDITA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato riordino</label>
+                <select value={form.STATO_RIORDINO} onChange={handleChange("STATO_RIORDINO")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  {STATO_RIORDINO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato conservazione</label>
+                <select value={form.STATO_CONSERVAZIONE} onChange={handleChange("STATO_CONSERVAZIONE")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  {STATO_CONSERVAZIONE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
