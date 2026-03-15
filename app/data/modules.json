@@ -49,6 +49,13 @@
     "roles": ["admin", "viewer"]
   },
   {
+    "key": "statistiche",
+    "label": "Statistiche",
+    "description": "Analisi vendite iPratico, categorie, prodotti, trend",
+    "icon": "📈",
+    "roles": ["admin", "viewer"]
+  },
+  {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Dipendenti, utenti, impostazioni",

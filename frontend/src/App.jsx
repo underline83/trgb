@@ -1,4 +1,4 @@
-// @version: v3.7-banca-module
+// @version: v3.8-statistiche-module
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -83,6 +83,12 @@ import FinanzaMovimenti from "./pages/finanza/FinanzaMovimenti";
 import FinanzaImport from "./pages/finanza/FinanzaImport";
 import FinanzaCategorie from "./pages/finanza/FinanzaCategorie";
 import FinanzaScadenzario from "./pages/finanza/FinanzaScadenzario";
+
+// --- STATISTICHE ---
+import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
+import StatisticheDashboard from "./pages/statistiche/StatisticheDashboard";
+import StatisticheProdotti from "./pages/statistiche/StatisticheProdotti";
+import StatisticheImport from "./pages/statistiche/StatisticheImport";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -175,6 +181,12 @@ export default function App() {
         <Route path="/finanza/import" element={<FinanzaImport />} />
         <Route path="/finanza/categorie" element={<FinanzaCategorie />} />
         <Route path="/finanza/scadenzario" element={<FinanzaScadenzario />} />
+
+        {/* --- STATISTICHE --- */}
+        <Route path="/statistiche" element={<StatisticheMenu />} />
+        <Route path="/statistiche/dashboard" element={<StatisticheDashboard />} />
+        <Route path="/statistiche/prodotti" element={<StatisticheProdotti />} />
+        <Route path="/statistiche/import" element={<StatisticheImport />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />

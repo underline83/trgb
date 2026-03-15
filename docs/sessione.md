@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-15 (sessione 8 — Unificazione loader carta + DOCX tabelle + fix movimenti)
+> Ultima sessione: 2026-03-15 (sessione 9 — Modulo Statistiche v1.0)
 
 ---
 
@@ -15,24 +15,40 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-15b, sessione 8)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-15c, sessione 9)
 
-### Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti
+### Modulo Statistiche v1.0 — import iPratico + analytics vendite
 
-#### Unificazione loader
-1. **Eliminata `_load_vini_cantina_ordinati()`** (~70 righe duplicate) da `vini_cantina_tools_router.py`
-2. Tutti gli endpoint carta (HTML/PDF/DOCX) sia da `/vini/carta` che da `/cantina-tools/carta-cantina` ora usano `load_vini_ordinati()` dal repository — una sola fonte dati
+#### Backend
+1. **Migration 018** (`018_ipratico_vendite.py`) — 3 tabelle in `foodcost.db`: `ipratico_imports`, `ipratico_categorie`, `ipratico_prodotti`
+2. **Parser iPratico** (`app/services/ipratico_parser.py`) — parsa export .xls (HTML) con `pd.read_html()`, gestisce encoding variabile
+3. **Router Statistiche** (`app/routers/statistiche_router.py` v1.0) — 7 endpoint: import-ipratico, mesi, categorie, prodotti, top-prodotti, trend, elimina mese
+4. **Wired up** in `main.py` con `include_router(statistiche_router.router)`
 
-#### DOCX con tabelle allineate
-3. **`carta_vini_service.py`** v1.1 — nuova funzione `build_carta_docx()` condivisa: genera DOCX con tabelle senza bordi a 3 colonne (descrizione 67% | annata 15% | prezzo 18%) invece di tab stops che sfondavano con descrizioni lunghe (fino a 104 char)
-4. **`vini_router.py`** — endpoint `/carta/docx` ridotto a 5 righe (chiama builder condiviso)
-5. **`vini_cantina_tools_router.py`** v3.1 — endpoint `/carta-cantina/docx` ridotto a 5 righe
+#### Frontend
+5. **StatisticheMenu.jsx** — menu principale con tile colorate
+6. **StatisticheNav.jsx** — tab navigation (Dashboard, Prodotti, Import)
+7. **StatisticheDashboard.jsx** — KPI fatturato/pezzi, categorie con barra %, top 15, trend mensile bar chart CSS
+8. **StatisticheProdotti.jsx** — tabella con filtri anno/mese/categoria/ricerca + paginazione
+9. **StatisticheImport.jsx** — upload .xls con selettore anno/mese, storico import, delete mese
 
-#### Fix cancellazione movimenti
-6. **`vini_magazzino_db.py`** `delete_movimento()` — BUG: cancellare VENDITA/SCARICO azzerava la giacenza. Il replay da zero perdeva lo stock iniziale importato da Excel (senza CARICO). Fix: **inversione del delta** per CARICO/SCARICO/VENDITA, replay conservativo solo per RETTIFICA.
+#### Configurazione
+10. Route in `App.jsx` v3.8: `/statistiche`, `/statistiche/dashboard`, `/statistiche/prodotti`, `/statistiche/import`
+11. `modules.json` — modulo `statistiche` (admin, viewer)
+12. `versions.jsx` — `statistiche: v1.0 beta`
+13. `Home.jsx` — tile Statistiche in Home
 
 #### Documentazione
-7. Aggiornati: changelog.md, modulo_vini.md, architettura.md, sessione.md
+14. Aggiornati: changelog.md, sessione.md, architettura.md
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-15b, sessione 8)
+
+### Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti
+1. Eliminata `_load_vini_cantina_ordinati()`, loader unificato
+2. DOCX con tabelle senza bordi a 3 colonne
+3. Fix `delete_movimento()` con inversione del delta
 
 ---
 
@@ -107,6 +123,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Gestione Acquisti | v2.0 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v2.0 | stabile |
+| Statistiche | v1.0 | beta |
 | Banca | v1.0 | beta |
 | Finanza | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
@@ -165,6 +182,11 @@ app/routers/foodcost_recipes_router.py    — ricette + calcolo food cost
 app/routers/foodcost_matching_router.py   — matching fatture → ingredienti
 app/routers/foodcost_ingredients_router.py — ingredienti + conversioni
 
+# --- STATISTICHE ---
+app/routers/statistiche_router.py        — import iPratico + analytics (v1.0)
+app/services/ipratico_parser.py          — parser export .xls (HTML)
+frontend/src/pages/statistiche/          — Menu, Nav, Dashboard, Prodotti, Import
+
 # --- BANCA ---
 app/routers/banca_router.py              — movimenti, dashboard, categorie, cross-ref
 
@@ -189,7 +211,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza (migraz. 001-017) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche (migraz. 001-018) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 

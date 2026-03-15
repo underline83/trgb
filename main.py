@@ -49,6 +49,9 @@ from app.routers import banca_router
 from app.routers import finanza_router
 from app.routers import finanza_scadenzario_router
 
+# STATISTICHE — import iPratico e analytics vendite
+from app.routers import statistiche_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -176,6 +179,9 @@ app.include_router(banca_router.router)
 # FINANZA
 app.include_router(finanza_router.router)
 app.include_router(finanza_scadenzario_router.router)
+
+# STATISTICHE
+app.include_router(statistiche_router.router)
 
 # AUTH E MENU
 app.include_router(auth_router.router, prefix="/auth", tags=["auth"])

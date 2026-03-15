@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-03-15c — Modulo Statistiche v1.0
+
+### Added
+- **Modulo Statistiche** — nuovo modulo per import e analisi dati vendite da iPratico
+- **`app/migrations/018_ipratico_vendite.py`** — 3 tabelle: `ipratico_imports`, `ipratico_categorie`, `ipratico_prodotti` con indici su (anno, mese)
+- **`app/services/ipratico_parser.py`** — parser export iPratico (.xls HTML) con `pd.read_html()`, gestisce encoding variabile
+- **`app/routers/statistiche_router.py`** v1.0 — 7 endpoint sotto `/statistiche`: import-ipratico, mesi, categorie, prodotti, top-prodotti, trend, elimina mese
+- **Frontend Statistiche** — 5 componenti React:
+  - `StatisticheMenu.jsx` — menu principale modulo
+  - `StatisticheNav.jsx` — tab navigation
+  - `StatisticheDashboard.jsx` — KPI, categorie per fatturato, top 15 prodotti, trend mensile (bar chart CSS)
+  - `StatisticheProdotti.jsx` — dettaglio prodotti con filtri, ricerca e paginazione
+  - `StatisticheImport.jsx` — upload .xls con selettore anno/mese, storico import, eliminazione mese
+- **Route** `/statistiche`, `/statistiche/dashboard`, `/statistiche/prodotti`, `/statistiche/import` in `App.jsx`
+- **Home tile** Statistiche con badge versione
+- **`modules.json`** — aggiunto modulo `statistiche` (ruoli: admin, viewer)
+- **`versions.jsx`** — aggiunto `statistiche: v1.0 beta`
+
+---
+
 ## 2026-03-15b — Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti
 
 ### Fixed

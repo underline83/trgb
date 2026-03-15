@@ -50,6 +50,12 @@ const MODULE_VERSIONS = {
     status: "stabile",
     color: "green",
   },
+  statistiche: {
+    version: "1.0",
+    label: "Statistiche",
+    status: "beta",
+    color: "blue",
+  },
   sistema: {
     version: "4.3",
     label: "Sistema",

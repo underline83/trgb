@@ -39,12 +39,14 @@ app/
 │   ├── banca_router.py             — Banca (/banca/...)
 │   ├── finanza_router.py           — Finanza (/finanza/...)
 │   ├── finanza_scadenzario_router.py — Scadenzario
+│   ├── statistiche_router.py       — Statistiche iPratico (/statistiche/...)
 │   ├── dipendenti.py               — Dipendenti & turni (/dipendenti/...)
 │   └── settings_router.py          — Impostazioni generali
 │
 ├── services/           ← Logica applicativa
 │   ├── auth_service.py             — Auth PIN sha256_crypt, users.json
 │   ├── carta_vini_service.py       — Builder HTML/PDF/DOCX Carta Vini
+│   ├── ipratico_parser.py          — Parser export iPratico (.xls HTML)
 │   ├── admin_finance_db.py         — Query DB corrispettivi
 │   ├── admin_finance_stats.py      — Statistiche corrispettivi
 │   ├── admin_finance_import.py     — Import Excel corrispettivi
@@ -112,6 +114,7 @@ frontend/
 │       ├── vini/           — Carta, Magazzino, Movimenti, Dashboard, Impostazioni
 │       ├── ricette/        — Archivio, Nuova, Dettaglio, Ingredienti, Matching, Dashboard, Settings
 │       ├── banca/          — Nav, Menu, Dashboard, Movimenti, Import, Categorie, CrossRef
+│       ├── statistiche/    — Nav, Menu, Dashboard, Prodotti, Import iPratico
 │       └── admin/          — Corrispettivi, ChiusuraTurno, Fatture, Dipendenti, Impostazioni
 ├── .env.development        — VITE_API_BASE_URL=http://127.0.0.1:8000
 ├── .env.production         — VITE_API_BASE_URL=https://trgb.tregobbi.it
@@ -127,7 +130,7 @@ frontend/
 | ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina | Magazzino moderno con movimenti, note, locazioni |
 | `vini_settings.sqlite3` | Settings Carta | tipologia_order, nazioni_order, regioni_order, filtri_carta |
-| `foodcost.db` | FoodCost, FE XML, Banca, Finanza | Gestito da migration_runner (001–017) |
+| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, Statistiche | Gestito da migration_runner (001–018) |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | daily_closures, shift_closures, shift_preconti, shift_spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | Creato a runtime da `init_dipendenti_db()` |
 
@@ -210,6 +213,11 @@ Ruoli: `admin`, `chef`, `sommelier`, `sala`, `viewer`
 /finanza/categorie          — Categorie
 /finanza/scadenzario        — Scadenzario pagamenti
 
+/statistiche                — Menu Statistiche
+/statistiche/dashboard      — Dashboard (categorie, top prodotti, trend)
+/statistiche/prodotti       — Dettaglio prodotti (filtri, ricerca)
+/statistiche/import         — Import iPratico (.xls)
+
 /admin/dipendenti           — Menu Dipendenti
 /admin/dipendenti/anagrafica — Anagrafica
 /admin/dipendenti/turni     — Turni
@@ -261,6 +269,7 @@ Modulo Gestione Acquisti ....... v2.0   — stabile
 Modulo Ricette & Food Cost .... v3.0   — beta
 Modulo Gestione Vendite ........ v2.0   — stabile
 Modulo Banca ................... v1.0   — beta
+Modulo Statistiche ............. v1.0   — beta
 Modulo Finanza ................. v1.0   — beta
 Modulo Dipendenti .............. v1.0   — stabile
 Login & Ruoli .................. v2.0   — stabile
@@ -269,7 +278,7 @@ Sistema ........................ v4.3   — stabile
 DB vini.sqlite3 ................ ELIMINATO v3.0
 DB vini_magazzino.sqlite3 ...... v3.7
 DB vini_settings.sqlite3 ....... v1.4
-DB foodcost.db ................. v3.0  (migrazioni 001–017)
+DB foodcost.db ................. v3.1  (migrazioni 001–018)
 DB admin_finance.sqlite3 ....... v2.0  (shift_closures, shift_preconti, shift_spese)
 DB dipendenti.sqlite3 .......... v1.0  (creato a runtime)
 ```

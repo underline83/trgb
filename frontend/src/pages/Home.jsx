@@ -12,6 +12,7 @@ const MENU_CONFIG = {
   ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-blue-50 border-blue-200 text-blue-900",          vKey: "ricette" },
   banca:    { title: "Banca",                subtitle: "Movimenti bancari, categorie, pagamenti fornitori", icon: "\uD83C\uDFE6", go: "/banca",     color: "bg-emerald-50 border-emerald-200 text-emerald-900", vKey: "banca" },
   finanza:  { title: "Finanza",             subtitle: "Gestione finanziaria, vista analitica e di cassa", icon: "\uD83D\uDCB0", go: "/finanza",   color: "bg-violet-50 border-violet-200 text-violet-900",    vKey: "finanza" },
+  statistiche: { title: "Statistiche",       subtitle: "Analisi vendite iPratico, categorie, prodotti, trend", icon: "\uD83D\uDCC8", go: "/statistiche", color: "bg-rose-50 border-rose-200 text-rose-900",    vKey: "statistiche" },
   admin:    { title: "Amministrazione",       subtitle: "Dipendenti, utenti, impostazioni",                icon: "\uD83E\uDDFE", go: "/admin",     color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
 };
 
