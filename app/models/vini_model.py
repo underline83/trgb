@@ -160,7 +160,7 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     # Pulizia stringhe chiave
     for col in (
-        "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE", "CARTA", "IPRATICO",
+        "TIPOLOGIA", "NAZIONE", "REGIONE", "CARTA", "IPRATICO",
         "DENOMINAZIONE", "FORMATO", "FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2",
         "DESCRIZIONE", "ANNATA", "PRODUTTORE", "DISTRIBUTORE",
     ):
@@ -202,18 +202,17 @@ def insert_vini_rows(conn: sqlite3.Connection, df: pd.DataFrame):
             cur.execute(
                 """
                 INSERT INTO vini (
-                    TIPOLOGIA, NAZIONE, CODICE, REGIONE,
+                    TIPOLOGIA, NAZIONE, REGIONE,
                     CARTA, IPRATICO, DENOMINAZIONE, FORMATO,
                     N_FRIGO, FRIGORIFERO, N_LOC1, LOCAZIONE_1,
                     N_LOC2, LOCAZIONE_2, QTA,
                     DESCRIZIONE, ANNATA, PRODUTTORE,
                     PREZZO, DISTRIBUTORE, EURO_LISTINO, SCONTO
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     row.get("TIPOLOGIA"),
                     row.get("NAZIONE"),
-                    row.get("CODICE"),
                     row.get("REGIONE"),
                     row.get("CARTA"),
                     row.get("IPRATICO"),

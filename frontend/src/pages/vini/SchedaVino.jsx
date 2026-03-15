@@ -141,7 +141,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
 
   // ── valori tabellati per edit ──────────────────────
   const [tabellaOpts, setTabellaOpts] = useState({
-    tipologie: [], nazioni: [], regioni: [], codici: [], formati: [],
+    tipologie: [], nazioni: [], regioni: [], formati: [],
   });
   // regioni complete con nazione per cascading
   const [allRegioniTab, setAllRegioniTab] = useState([]); // [{codice, nome, nazione}]
@@ -201,7 +201,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
         setTabellaOpts({
           tipologie: d.tipologie || [], nazioni: d.nazioni || [],
           regioni: regioniAll.map(r => r.nome), // default: tutte
-          codici: d.codici || [], formati: d.formati || [],
+          formati: d.formati || [],
         });
       }
     } catch {}
@@ -313,7 +313,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const startEdit = () => {
     setEditData({
       TIPOLOGIA: vino.TIPOLOGIA ?? "", NAZIONE: vino.NAZIONE ?? "",
-      CODICE: vino.CODICE ?? "", REGIONE: vino.REGIONE ?? "",
+      REGIONE: vino.REGIONE ?? "",
       DESCRIZIONE: vino.DESCRIZIONE ?? "", DENOMINAZIONE: vino.DENOMINAZIONE ?? "",
       ANNATA: vino.ANNATA ?? "", VITIGNI: vino.VITIGNI ?? "",
       GRADO_ALCOLICO: vino.GRADO_ALCOLICO ?? "", FORMATO: vino.FORMATO ?? "",
@@ -523,7 +523,6 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   <Field label="Formato" value={vino.FORMATO} />
                   <Field label="Produttore" value={vino.PRODUTTORE} />
                   <Field label="Distributore" value={vino.DISTRIBUTORE} />
-                  <Field label="Codice" value={vino.CODICE} />
                   <Field label="Vitigni" value={vino.VITIGNI} />
                   <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${vino.GRADO_ALCOLICO}%` : null} />
                 </div>
@@ -589,7 +588,6 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   <SelectTabellato label="Tipologia *" name="TIPOLOGIA" value={editData.TIPOLOGIA} valori={tabellaOpts.tipologie} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <SelectTabellato label="Nazione *" name="NAZIONE" value={editData.NAZIONE} valori={tabellaOpts.nazioni} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <SelectTabellato label="Regione" name="REGIONE" value={editData.REGIONE} valori={tabellaOpts.regioni} placeholder="— nessuna —" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <SelectTabellato label="Codice" name="CODICE" value={editData.CODICE} valori={tabellaOpts.codici} placeholder="— nessuno —" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Input label="Annata" name="ANNATA" value={editData.ANNATA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />

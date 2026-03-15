@@ -36,7 +36,6 @@ export default function MagazzinoViniNuovo() {
   const [allRegioni, setAllRegioni] = useState([]); // [{codice, nome, nazione}]
   const [regioni, setRegioni] = useState([]); // filtrate per nazione selezionata
   const [produttori, setProduttori] = useState([]);
-  const [codici, setCodici] = useState([]);
   const [formati, setFormati] = useState([]);
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
@@ -56,7 +55,6 @@ export default function MagazzinoViniNuovo() {
     TIPOLOGIA: "",
     NAZIONE: "ITALIA",
     REGIONE: "",
-    CODICE: "",
     DESCRIZIONE: "",
     DENOMINAZIONE: "",
     ANNATA: "",
@@ -139,7 +137,6 @@ export default function MagazzinoViniNuovo() {
           setTipologie(tab.tipologie || []);
           setNazioni(tab.nazioni || []);
           setAllRegioni(tab.regioni || []); // [{codice, nome, nazione}]
-          setCodici(tab.codici || []);
           setFormati(tab.formati || []);
         }
 
@@ -228,8 +225,6 @@ export default function MagazzinoViniNuovo() {
       TIPOLOGIA: form.TIPOLOGIA.trim(),
       NAZIONE: form.NAZIONE.trim() || "ITALIA",
       REGIONE: nullIfEmpty(form.REGIONE),
-      CODICE: nullIfEmpty(form.CODICE),
-
       DESCRIZIONE: form.DESCRIZIONE.trim(),
       DENOMINAZIONE: nullIfEmpty(form.DENOMINAZIONE),
       ANNATA: nullIfEmpty(form.ANNATA),
@@ -562,16 +557,6 @@ export default function MagazzinoViniNuovo() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Codice interno
-                </label>
-                <select value={form.CODICE} onChange={handleChange("CODICE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— nessuno —</option>
-                  {codici.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">

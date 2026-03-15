@@ -56,7 +56,7 @@ def _load_ordinamenti() -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]
 
     tip_map = {r["nome"]: r["ordine"] for r in cur.execute("SELECT nome, ordine FROM tipologia_order;")}
     naz_map = {r["nazione"]: r["ordine"] for r in cur.execute("SELECT nazione, ordine FROM nazioni_order;")}
-    reg_map = {r["codice"]: r["ordine"] for r in cur.execute("SELECT codice, ordine FROM regioni_order;")}
+    reg_map = {r["nome"]: r["ordine"] for r in cur.execute("SELECT nome, ordine FROM regioni_order;")}
 
     conn.close()
     return tip_map, naz_map, reg_map
@@ -124,7 +124,6 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             id,
             TIPOLOGIA,
             NAZIONE,
-            CODICE,
             REGIONE,
             PRODUTTORE,
             DESCRIZIONE,
@@ -168,7 +167,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
         return (
             tip_map.get(r["TIPOLOGIA"], 9999),
             naz_map.get(r["NAZIONE"], 9999),
-            reg_map.get(r["CODICE"], 9999),
+            reg_map.get(r["REGIONE"], 9999),
             (r["PRODUTTORE"] or "").upper(),
             (r["DESCRIZIONE"] or "").upper(),
             r["ANNATA"],
@@ -185,7 +184,6 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             "id": r["id"],
             "TIPOLOGIA": r["TIPOLOGIA"],
             "NAZIONE": r["NAZIONE"],
-            "CODICE": r["CODICE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
             "DESCRIZIONE": r["DESCRIZIONE"],
@@ -213,7 +211,7 @@ def search_vini(
     Ricerca / lista vini per il GESTIONALE.
 
     Filtri:
-      - q: testo libero su PRODUTTORE / DESCRIZIONE / REGIONE / CODICE
+      - q: testo libero su PRODUTTORE / DESCRIZIONE / REGIONE
       - tipologia: valore esatto di TIPOLOGIA
       - solo_in_carta: se True, filtra CARTA = 'SI'
       - solo_disponibili: se True, filtra QTA > 0
@@ -230,7 +228,6 @@ def search_vini(
             id,
             TIPOLOGIA,
             NAZIONE,
-            CODICE,
             REGIONE,
             PRODUTTORE,
             DESCRIZIONE,
@@ -253,10 +250,9 @@ def search_vini(
                     UPPER(PRODUTTORE) LIKE UPPER(?)
                     OR UPPER(DESCRIZIONE) LIKE UPPER(?)
                     OR UPPER(REGIONE) LIKE UPPER(?)
-                    OR UPPER(CODICE) LIKE UPPER(?)
                 )
             """
-            params.extend([like, like, like, like])
+            params.extend([like, like, like])
 
     # filtro tipologia
     if tipologia:
@@ -292,7 +288,6 @@ def search_vini(
             "id": r["id"],
             "TIPOLOGIA": r["TIPOLOGIA"],
             "NAZIONE": r["NAZIONE"],
-            "CODICE": r["CODICE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
             "DESCRIZIONE": r["DESCRIZIONE"],
@@ -321,7 +316,6 @@ def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
             id,
             TIPOLOGIA,
             NAZIONE,
-            CODICE,
             REGIONE,
             CARTA,
             DESCRIZIONE,
@@ -348,7 +342,6 @@ def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
         "id": row["id"],
         "TIPOLOGIA": row["TIPOLOGIA"],
         "NAZIONE": row["NAZIONE"],
-        "CODICE": row["CODICE"],
         "REGIONE": row["REGIONE"],
         "CARTA": row["CARTA"],
         "DESCRIZIONE": row["DESCRIZIONE"],

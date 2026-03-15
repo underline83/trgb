@@ -162,24 +162,6 @@ def ensure_settings_defaults() -> None:
         )
 
     # ---------------------------
-    # Codici — nessun default, si popolano dal DB magazzino
-    # ---------------------------
-    row = cur.execute("SELECT COUNT(*) AS n FROM codici_order;").fetchone()
-    if row["n"] == 0:
-        # Prova a importare i codici esistenti dal magazzino
-        try:
-            from app.models.vini_magazzino_db import get_magazzino_connection
-            mag = get_magazzino_connection()
-            codici = mag.execute(
-                "SELECT DISTINCT CODICE FROM vini_magazzino WHERE CODICE IS NOT NULL AND CODICE != '' ORDER BY CODICE"
-            ).fetchall()
-            mag.close()
-            for idx, r in enumerate(codici, start=1):
-                cur.execute("INSERT OR IGNORE INTO codici_order (codice, ordine) VALUES (?, ?);", (r[0], idx))
-        except Exception:
-            pass
-
-    # ---------------------------
     # Filtri carta (v2.3 aggiornato)
     # ---------------------------
     row = cur.execute("SELECT COUNT(*) AS n FROM filtri_carta;").fetchone()

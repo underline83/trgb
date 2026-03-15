@@ -463,7 +463,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
 
     # Valori di default per campi anagrafici/gestionali
     for key in [
-        "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE",
+        "TIPOLOGIA", "NAZIONE", "REGIONE",
         "DESCRIZIONE", "DENOMINAZIONE", "ANNATA", "VITIGNI", "GRADO_ALCOLICO",
         "FORMATO", "PRODUTTORE", "DISTRIBUTORE",
         "PREZZO_CARTA", "EURO_LISTINO", "SCONTO", "NOTE_PREZZO",
@@ -481,7 +481,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         """
         INSERT INTO vini_magazzino (
             id_excel,
-            TIPOLOGIA, NAZIONE, CODICE, REGIONE,
+            TIPOLOGIA, NAZIONE, REGIONE,
             DESCRIZIONE, DENOMINAZIONE, ANNATA, VITIGNI, GRADO_ALCOLICO,
             FORMATO, PRODUTTORE, DISTRIBUTORE,
             PREZZO_CARTA, EURO_LISTINO, SCONTO, NOTE_PREZZO,
@@ -495,7 +495,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         )
         VALUES (
             :id_excel,
-            :TIPOLOGIA, :NAZIONE, :CODICE, :REGIONE,
+            :TIPOLOGIA, :NAZIONE, :REGIONE,
             :DESCRIZIONE, :DENOMINAZIONE, :ANNATA, :VITIGNI, :GRADO_ALCOLICO,
             :FORMATO, :PRODUTTORE, :DISTRIBUTORE,
             :PREZZO_CARTA, :EURO_LISTINO, :SCONTO, :NOTE_PREZZO,
@@ -510,7 +510,6 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         ON CONFLICT(id_excel) DO UPDATE SET
             TIPOLOGIA      = excluded.TIPOLOGIA,
             NAZIONE        = excluded.NAZIONE,
-            CODICE         = excluded.CODICE,
             REGIONE        = excluded.REGIONE,
             DESCRIZIONE    = excluded.DESCRIZIONE,
             DENOMINAZIONE  = excluded.DENOMINAZIONE,

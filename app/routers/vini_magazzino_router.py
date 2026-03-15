@@ -43,7 +43,6 @@ class VinoMagazzinoBase(BaseModel):
     TIPOLOGIA: str = Field(..., description="Tipologia (lista controllata)")
     NAZIONE: str = Field(..., description="Nazione (lista controllata)")
 
-    CODICE: Optional[str] = None
     REGIONE: Optional[str] = None
 
     DESCRIZIONE: str = Field(..., description="Descrizione vino")
@@ -114,7 +113,6 @@ class VinoMagazzinoUpdate(BaseModel):
     TIPOLOGIA: Optional[str] = None
     NAZIONE: Optional[str] = None
 
-    CODICE: Optional[str] = None
     REGIONE: Optional[str] = None
 
     DESCRIZIONE: Optional[str] = None

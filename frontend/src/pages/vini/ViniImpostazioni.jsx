@@ -129,7 +129,6 @@ export default function ViniImpostazioni() {
   const [nazioni, setNazioni] = useState([]);
   const [selectedNazione, setSelectedNazione] = useState("");
   const [regioni, setRegioni] = useState([]);
-  const [codici, setCodici] = useState([]);
   const [formatiList, setFormatiList] = useState([]);
   const [filtri, setFiltri] = useState({ min_qta_stampa: 1, mostra_negativi: false, mostra_senza_prezzo: false });
   const [settingsMsg, setSettingsMsg] = useState("");
@@ -152,9 +151,6 @@ export default function ViniImpostazioni() {
   const fetchFiltri = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/filtri`); if (r.ok) setFiltri(await r.json()); } catch {}
   }, []);
-  const fetchCodici = useCallback(async () => {
-    try { const r = await apiFetch(`${API_BASE}/settings/vini/codici`); if (r.ok) setCodici((await r.json()).map(d => d.codice)); } catch {}
-  }, []);
   const fetchFormati = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/formati`); if (r.ok) setFormatiList((await r.json()).map(d => d.formato)); } catch {}
   }, []);
@@ -167,8 +163,8 @@ export default function ViniImpostazioni() {
   }, [activeSection]);
 
   useEffect(() => {
-    if (showOrdinamento) { fetchTipologie(); fetchNazioni(); fetchFiltri(); fetchCodici(); fetchFormati(); }
-  }, [showOrdinamento, fetchTipologie, fetchNazioni, fetchFiltri, fetchCodici, fetchFormati]);
+    if (showOrdinamento) { fetchTipologie(); fetchNazioni(); fetchFiltri(); fetchFormati(); }
+  }, [showOrdinamento, fetchTipologie, fetchNazioni, fetchFiltri, fetchFormati]);
 
   useEffect(() => {
     if (selectedNazione) fetchRegioni(selectedNazione);
@@ -207,12 +203,6 @@ export default function ViniImpostazioni() {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/filtri`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(filtri) });
       if (r.ok) flash("Filtri salvati"); else throw new Error();
     } catch { flash("Errore salvataggio filtri"); } setSettingsLoading(false);
-  };
-  const saveCodici = async () => {
-    setSettingsLoading(true);
-    try { const r = await apiFetch(`${API_BASE}/settings/vini/codici`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(codici) });
-      if (r.ok) flash("Ordine codici salvato"); else throw new Error();
-    } catch { flash("Errore salvataggio codici"); } setSettingsLoading(false);
   };
   const saveFormati = async () => {
     setSettingsLoading(true);
@@ -606,23 +596,19 @@ export default function ViniImpostazioni() {
               <option value="">— Seleziona nazione —</option>
               {nazioni.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
-            {selectedNazione && regioni.length > 0 ? <OrderList items={regioni} labelKey="nome" onReorder={setRegioni} />
-              : selectedNazione ? <p className="text-sm text-neutral-400">Caricamento…</p>
-              : <p className="text-sm text-neutral-400">Seleziona una nazione.</p>}
-          </div>
-
-          {/* CODICI */}
-          <div className="border border-neutral-200 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-neutral-800">Codici Interni</h3>
-              <button onClick={saveCodici} disabled={settingsLoading}
-                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
-            </div>
-            <OrderList items={codici} onReorder={setCodici}
-              onAdd={v => { if (!codici.includes(v)) setCodici(c => [...c, v]); }}
-              onRemove={idx => setCodici(c => c.filter((_, i) => i !== idx))}
-              addPlaceholder="Nuovo codice…" />
-            {codici.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessun codice configurato. Usa il campo sopra per aggiungerne.</p>}
+            {selectedNazione ? (
+              <>
+                <OrderList items={regioni} labelKey="nome" onReorder={setRegioni}
+                  onAdd={v => {
+                    if (regioni.some(r => r.nome === v)) return;
+                    const code = `${selectedNazione.slice(0,2)}${String(regioni.length + 1).padStart(2, "0")}`;
+                    setRegioni(prev => [...prev, { codice: code, nome: v }]);
+                  }}
+                  onRemove={idx => setRegioni(prev => prev.filter((_, i) => i !== idx))}
+                  addPlaceholder="Nuova regione…" />
+                {regioni.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessuna regione per {selectedNazione}. Usa il campo sopra per aggiungerne.</p>}
+              </>
+            ) : <p className="text-sm text-neutral-400">Seleziona una nazione.</p>}
           </div>
 
           {/* FORMATI */}

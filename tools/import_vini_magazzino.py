@@ -70,7 +70,6 @@ def import_from_vini(mode: str = "update"):
 
             "TIPOLOGIA":      r["TIPOLOGIA"] or "ERRORE",
             "NAZIONE":        r["NAZIONE"] or "ITALIA",
-            "CODICE":         r["CODICE"],
             "REGIONE":        r["REGIONE"],
 
             "DESCRIZIONE":    descrizione,

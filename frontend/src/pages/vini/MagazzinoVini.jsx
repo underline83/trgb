@@ -464,7 +464,6 @@ export default function MagazzinoVini() {
           v.PRODUTTORE,
           v.REGIONE,
           v.NAZIONE,
-          v.CODICE,
         ];
         return campi.some((c) => c && String(c).toLowerCase().includes(needle));
       });
@@ -693,7 +692,7 @@ export default function MagazzinoVini() {
                 type="text"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Descrizione, denominazione, produttore, regione, nazione, codice…"
+                placeholder="Descrizione, denominazione, produttore, regione, nazione…"
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
             </div>
@@ -1067,11 +1066,6 @@ export default function MagazzinoVini() {
                         {vino.DENOMINAZIONE && (
                           <div className="text-xs text-neutral-600">
                             {vino.DENOMINAZIONE}
-                          </div>
-                        )}
-                        {vino.CODICE && (
-                          <div className="text-[11px] text-neutral-500 mt-0.5">
-                            Cod: <span className="font-mono">{vino.CODICE}</span>
                           </div>
                         )}
                       </td>

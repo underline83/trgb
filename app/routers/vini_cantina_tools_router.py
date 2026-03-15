@@ -130,7 +130,7 @@ def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
         """
         SELECT
             id, id_excel,
-            TIPOLOGIA, NAZIONE, CODICE, REGIONE,
+            TIPOLOGIA, NAZIONE, REGIONE,
             PRODUTTORE, DESCRIZIONE, DENOMINAZIONE,
             ANNATA, FORMATO,
             PREZZO_CARTA, EURO_LISTINO,
@@ -168,7 +168,7 @@ def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
         return (
             tip_map.get(r["TIPOLOGIA"], 9999),
             naz_map.get(r["NAZIONE"], 9999),
-            reg_map.get(r["CODICE"], 9999),
+            reg_map.get(r.get("REGIONE"), 9999),
             (r["PRODUTTORE"] or "").upper(),
             (r["DESCRIZIONE"] or "").upper(),
             r["ANNATA"] or "",
@@ -284,7 +284,6 @@ def sync_from_excel(
                 "id_excel": r["id"],
                 "TIPOLOGIA": r["TIPOLOGIA"],
                 "NAZIONE": r["NAZIONE"],
-                "CODICE": r["CODICE"],
                 "REGIONE": r["REGIONE"],
                 "DESCRIZIONE": r["DESCRIZIONE"],
                 "DENOMINAZIONE": r["DENOMINAZIONE"],
@@ -437,7 +436,6 @@ async def import_excel_to_cantina(
             data = {
                 "TIPOLOGIA": row.get("TIPOLOGIA"),
                 "NAZIONE": row.get("NAZIONE"),
-                "CODICE": row.get("CODICE"),
                 "REGIONE": row.get("REGIONE"),
                 "DESCRIZIONE": row.get("DESCRIZIONE"),
                 "DENOMINAZIONE": row.get("DENOMINAZIONE"),
@@ -622,7 +620,7 @@ def export_cantina_excel(
 
     # Header
     headers = [
-        "ID", "TIPOLOGIA", "NAZIONE", "CODICE", "REGIONE",
+        "ID", "TIPOLOGIA", "NAZIONE", "REGIONE",
         "CARTA", "DESCRIZIONE", "ANNATA", "PRODUTTORE",
         "DENOMINAZIONE", "FORMATO",
         "PREZZO", "LISTINO", "SCONTO",
@@ -652,7 +650,6 @@ def export_cantina_excel(
             r["id"],
             r["TIPOLOGIA"],
             r["NAZIONE"],
-            r["CODICE"],
             r["REGIONE"],
             r["CARTA"],
             r["DESCRIZIONE"],
@@ -986,7 +983,7 @@ def _load_all_vini_inventario(
 
     rows = cur.execute(f"""
         SELECT
-            id, TIPOLOGIA, NAZIONE, REGIONE, CODICE,
+            id, TIPOLOGIA, NAZIONE, REGIONE,
             id,
             DESCRIZIONE, DENOMINAZIONE, PRODUTTORE,
             ANNATA, FORMATO,
@@ -1012,7 +1009,7 @@ def _load_all_vini_inventario(
         return (
             tip_map.get(r["TIPOLOGIA"], 9999),
             naz_map.get(r["NAZIONE"], 9999),
-            reg_map.get(r.get("CODICE"), 9999),
+            reg_map.get(r.get("REGIONE"), 9999),
             (r["PRODUTTORE"] or "").upper(),
             (r["DESCRIZIONE"] or "").upper(),
             r["ANNATA"] or "",
@@ -1643,7 +1640,6 @@ def inventario_filtri_options(
         "produttori": distinct("PRODUTTORE"),
         "annate": distinct("ANNATA"),
         "formati": distinct("FORMATO"),
-        "codici": distinct("CODICE"),
         "stati_vendita": distinct("STATO_VENDITA"),
         "stati_riordino": distinct("STATO_RIORDINO"),
         "stati_conservazione": distinct("STATO_CONSERVAZIONE"),
