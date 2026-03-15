@@ -32,7 +32,7 @@
     "label": "Gestione Vendite",
     "description": "Corrispettivi, chiusure cassa, dashboard vendite, confronto annuale",
     "icon": "💵",
-    "roles": ["admin", "viewer"]
+    "roles": ["admin", "sala", "viewer"]
   },
   {
     "key": "banca",
