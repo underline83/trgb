@@ -173,12 +173,26 @@ def ensure_settings_defaults() -> None:
         ("PR",  18, "Primat",              27.0),
         ("MZ",  19, "Melchizedec",         30.0),
     ]
+    # Migrazione formati: se la tabella ha righe ma mancano descrizione/litri
+    # (vecchio schema con solo 5 formati), svuota e reinserisce i 19 nuovi.
     row = cur.execute("SELECT COUNT(*) AS n FROM formati_order;").fetchone()
     if row["n"] == 0:
         cur.executemany(
             "INSERT INTO formati_order (formato, ordine, descrizione, litri) VALUES (?, ?, ?, ?);",
             default_formati,
         )
+    else:
+        # Controlla se i formati esistenti hanno descrizione popolata
+        filled = cur.execute(
+            "SELECT COUNT(*) AS n FROM formati_order WHERE descrizione IS NOT NULL AND descrizione != '';"
+        ).fetchone()
+        if filled["n"] == 0:
+            # Vecchi formati senza descrizione → sostituisci con i 19 nuovi
+            cur.execute("DELETE FROM formati_order;")
+            cur.executemany(
+                "INSERT INTO formati_order (formato, ordine, descrizione, litri) VALUES (?, ?, ?, ?);",
+                default_formati,
+            )
 
     # ---------------------------
     # Filtri carta (v2.3 aggiornato)
