@@ -17,42 +17,67 @@ from __future__ import annotations
 from app.models.settings_db import get_settings_conn, init_settings_db
 
 
+def _normalize_key(s: str) -> str:
+    """Chiave di confronto: upper, senza spazi attorno a trattini, spazi compressi."""
+    import re
+    s = s.upper().strip()
+    s = re.sub(r'\s*-\s*', '-', s)   # "TRENTINO - ALTO ADIGE" → "TRENTINO-ALTO ADIGE"
+    s = re.sub(r'\s+', ' ', s)        # spazi multipli → singolo
+    return s
+
+
+# Varianti / typo noti nel DB → nome corretto
+_REGIONE_ALIASES = {
+    "FRIULIA-VENEZIA GIULIA": "Friuli-Venezia Giulia",
+    "FRIULIA VENEZIA GIULIA": "Friuli-Venezia Giulia",
+    "VALLE D'AOSTRA": "Valle d'Aosta",
+    "VALLE D AOSTA": "Valle d'Aosta",
+    "VALLE D'AOSTA": "Valle d'Aosta",
+    "LINGUADOCA - ROSSIGLIONE": "Linguadoca-Rossiglione",
+    "LINGUADOCA  - ROSSIGLIONE": "Linguadoca-Rossiglione",
+    "MOSEL - SAAR- RUWER": "Mosel-Saar-Ruwer",
+    "MOSEL - SAAR - RUWER": "Mosel-Saar-Ruwer",
+    "HESSISCHE - BERGSTRASSE": "Hessische-Bergstrasse",
+    "SAALE - UNSTRUT": "Saale-Unstrut",
+    "SAVOIA - BUGEY": "Savoia-Bugey",
+}
+
+
 def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) -> None:
     """
-    Migra nazioni e regioni da MAIUSCOLO a Title Case.
+    Migra nazioni e regioni da MAIUSCOLO / varianti a Title Case.
     Aggiorna anche i vini nel magazzino perché NAZIONE e REGIONE sono stringhe
     salvate direttamente (non FK).
     """
     # --- Nazioni ---
-    # Costruisci mappa UPPER→Title per le nazioni
-    naz_map = {}  # "ITALIA" → "Italia"
+    naz_map = {}  # normalized_key → Title Case
     for naz, _ord in default_nations:
-        naz_map[naz.upper()] = naz
+        naz_map[_normalize_key(naz)] = naz
 
     existing_naz = cur.execute("SELECT nazione FROM nazioni_order;").fetchall()
     for row in existing_naz:
         old = row["nazione"]
-        new = naz_map.get(old.upper())
+        new = naz_map.get(_normalize_key(old))
         if new and new != old:
             cur.execute("UPDATE nazioni_order SET nazione = ? WHERE nazione = ?;", (new, old))
 
-    # --- Regioni ---
-    # Costruisci mappa UPPER→Title per nazione nelle regioni
+    # --- Regioni (settings DB) ---
     for naz, _ord in default_nations:
-        naz_upper = naz.upper()
-        if naz_upper != naz:
-            cur.execute("UPDATE regioni_order SET nazione = ? WHERE UPPER(nazione) = ?;",
-                        (naz, naz_upper))
+        cur.execute("UPDATE regioni_order SET nazione = ? WHERE nazione != ? AND UPPER(nazione) = UPPER(?);",
+                    (naz, naz, naz))
 
-    # Costruisci mappa UPPER(nome)→Title Case per i nomi regione
-    reg_map = {}  # "LOMBARDIA" → "Lombardia"
+    # Costruisci mappa completa: normalized_key → Title Case
+    reg_map = {}
     for _code, _naz, nome, _ord in default_regions:
-        reg_map[nome.upper()] = nome
+        reg_map[_normalize_key(nome)] = nome
+    # Aggiungi alias noti
+    for alias_key, correct in _REGIONE_ALIASES.items():
+        reg_map[_normalize_key(alias_key)] = correct
 
     existing_reg = cur.execute("SELECT codice, nome FROM regioni_order;").fetchall()
     for row in existing_reg:
         old_nome = row["nome"]
-        new_nome = reg_map.get(old_nome.upper())
+        new_nome = reg_map.get(_normalize_key(old_nome))
         if new_nome and new_nome != old_nome:
             cur.execute("UPDATE regioni_order SET nome = ? WHERE codice = ?;",
                         (new_nome, row["codice"]))
@@ -62,14 +87,23 @@ def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) ->
         from app.models.vini_magazzino_db import get_magazzino_connection
         mag = get_magazzino_connection()
         mc = mag.cursor()
-        # Normalizza NAZIONE
-        for naz_upper, naz_title in naz_map.items():
-            mc.execute("UPDATE vini_magazzino SET NAZIONE = ? WHERE UPPER(NAZIONE) = ? AND NAZIONE != ?;",
-                       (naz_title, naz_upper, naz_title))
-        # Normalizza REGIONE
-        for reg_upper, reg_title in reg_map.items():
-            mc.execute("UPDATE vini_magazzino SET REGIONE = ? WHERE UPPER(REGIONE) = ? AND REGIONE != ?;",
-                       (reg_title, reg_upper, reg_title))
+
+        # Normalizza NAZIONE — prendi tutti i valori distinti e mappa
+        distinct_naz = mc.execute("SELECT DISTINCT NAZIONE FROM vini_magazzino WHERE NAZIONE IS NOT NULL;").fetchall()
+        for row in distinct_naz:
+            old = row["NAZIONE"]
+            new = naz_map.get(_normalize_key(old))
+            if new and new != old:
+                mc.execute("UPDATE vini_magazzino SET NAZIONE = ? WHERE NAZIONE = ?;", (new, old))
+
+        # Normalizza REGIONE — prendi tutti i valori distinti e mappa
+        distinct_reg = mc.execute("SELECT DISTINCT REGIONE FROM vini_magazzino WHERE REGIONE IS NOT NULL;").fetchall()
+        for row in distinct_reg:
+            old = row["REGIONE"]
+            new = reg_map.get(_normalize_key(old))
+            if new and new != old:
+                mc.execute("UPDATE vini_magazzino SET REGIONE = ? WHERE REGIONE = ?;", (new, old))
+
         mag.commit()
         mag.close()
     except Exception:
