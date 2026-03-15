@@ -110,6 +110,60 @@ def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) ->
         pass  # Se il DB magazzino non esiste ancora, ignora
 
 
+# Mappa vecchie tipologie composte → tipologia generica
+_TIPOLOGIA_MAP = {
+    "BOLLICINE FRANCIA":    "BOLLICINE",
+    "BOLLICINE ITALIA":     "BOLLICINE",
+    "BOLLICINE STRANIERE":  "BOLLICINE",
+    "BIANCHI ITALIA":       "BIANCHI",
+    "BIANCHI FRANCIA":      "BIANCHI",
+    "BIANCHI STRANIERI":    "BIANCHI",
+    "ROSSI ITALIA":         "ROSSI",
+    "ROSSI FRANCIA":        "ROSSI",
+    "ROSSI STRANIERI":      "ROSSI",
+}
+
+
+def _migrate_tipologie_semplificate(cur) -> None:
+    """
+    Semplifica le tipologie composte (BOLLICINE FRANCIA, BIANCHI ITALIA, ecc.)
+    in tipologie generiche (BOLLICINE, BIANCHI, ROSSI).
+    Aggiorna sia tipologia_order che i vini nel magazzino.
+    """
+    # --- Settings DB: ricostruisci tipologia_order ---
+    existing = [r["nome"] for r in cur.execute("SELECT nome FROM tipologia_order ORDER BY ordine;").fetchall()]
+    has_old = any(t in _TIPOLOGIA_MAP for t in existing)
+    if has_old:
+        new_tips = [
+            ("GRANDI FORMATI", 1),
+            ("BOLLICINE", 2),
+            ("BIANCHI", 3),
+            ("ROSATI", 4),
+            ("ROSSI", 5),
+            ("PASSITI E VINI DA MEDITAZIONE", 6),
+            ("VINI ANALCOLICI", 7),
+            ("ERRORE", 8),
+        ]
+        cur.execute("DELETE FROM tipologia_order;")
+        cur.executemany(
+            "INSERT INTO tipologia_order (nome, ordine) VALUES (?, ?);",
+            new_tips,
+        )
+
+    # --- Magazzino vini: rinomina TIPOLOGIA ---
+    try:
+        from app.models.vini_magazzino_db import get_magazzino_connection
+        mag = get_magazzino_connection()
+        mc = mag.cursor()
+        for old_tipo, new_tipo in _TIPOLOGIA_MAP.items():
+            mc.execute("UPDATE vini_magazzino SET TIPOLOGIA = ? WHERE TIPOLOGIA = ?;",
+                       (new_tipo, old_tipo))
+        mag.commit()
+        mag.close()
+    except Exception:
+        pass
+
+
 def ensure_settings_defaults() -> None:
     """
     Assicura che:
@@ -130,19 +184,13 @@ def ensure_settings_defaults() -> None:
     # ---------------------------
     default_tips = [
         ("GRANDI FORMATI", 1),
-        ("BOLLICINE FRANCIA", 2),
-        ("BOLLICINE STRANIERE", 3),
-        ("BOLLICINE ITALIA", 4),
-        ("BIANCHI ITALIA", 5),
-        ("BIANCHI FRANCIA", 6),
-        ("BIANCHI STRANIERI", 7),
-        ("ROSATI", 8),
-        ("ROSSI ITALIA", 9),
-        ("ROSSI FRANCIA", 10),
-        ("ROSSI STRANIERI", 11),
-        ("PASSITI E VINI DA MEDITAZIONE", 12),
-        ("VINI ANALCOLICI", 13),
-        ("ERRORE", 14),
+        ("BOLLICINE", 2),
+        ("BIANCHI", 3),
+        ("ROSATI", 4),
+        ("ROSSI", 5),
+        ("PASSITI E VINI DA MEDITAZIONE", 6),
+        ("VINI ANALCOLICI", 7),
+        ("ERRORE", 8),
     ]
 
     row = cur.execute("SELECT COUNT(*) AS n FROM tipologia_order;").fetchone()
@@ -151,6 +199,9 @@ def ensure_settings_defaults() -> None:
             "INSERT INTO tipologia_order (nome, ordine) VALUES (?, ?);",
             default_tips,
         )
+    else:
+        # Migrazione: semplifica tipologie composte → generiche
+        _migrate_tipologie_semplificate(cur)
 
     # ---------------------------
     # Nazioni

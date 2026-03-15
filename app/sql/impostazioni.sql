@@ -18,19 +18,13 @@ CREATE TABLE IF NOT EXISTS vini_tipologie (
 DELETE FROM vini_tipologie;
 
 INSERT INTO vini_tipologie (nome, ordine, stampabile, attiva) VALUES
-    ('GRANDI FORMATI',               1, 1, 1),
-    ('BOLLICINE FRANCIA',            2, 1, 1),
-    ('BOLLICINE STRANIERE',          3, 1, 1),
-    ('BOLLICINE ITALIA',             4, 1, 1),
-    ('BIANCHI ITALIA',               5, 1, 1),
-    ('BIANCHI FRANCIA',              6, 1, 1),
-    ('BIANCHI STRANIERI',            7, 1, 1),
-    ('ROSATI',                       8, 1, 1),
-    ('ROSSI ITALIA',                 9, 1, 1),
-    ('ROSSI FRANCIA',               10, 1, 1),
-    ('ROSSI STRANIERI',             11, 1, 1),
-    ('PASSITI E VINI DA MEDITAZIONE', 12, 1, 1),
-    ('VINI ANALCOLICI',             13, 1, 1),
+    ('GRANDI FORMATI',                1, 1, 1),
+    ('BOLLICINE',                     2, 1, 1),
+    ('BIANCHI',                       3, 1, 1),
+    ('ROSATI',                        4, 1, 1),
+    ('ROSSI',                         5, 1, 1),
+    ('PASSITI E VINI DA MEDITAZIONE', 6, 1, 1),
+    ('VINI ANALCOLICI',               7, 1, 1),
     ('ERRORE',                      999, 0, 1);  -- sempre ultimo, non stampato
 
 CREATE INDEX IF NOT EXISTS idx_vini_tipologie_ordine

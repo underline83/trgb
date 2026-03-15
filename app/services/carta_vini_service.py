@@ -58,6 +58,7 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
         return "<p><em>Nessun vino da mostrare.</em></p>"
 
     def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
     def k_reg(r): return resolve_regione(r)
     def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
 
@@ -67,38 +68,42 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
         g1 = list(g1)
         html += f"<h2 class='tipologia'>{tip}</h2>"
 
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            html += f"<h3 class='regione'>{reg}</h3>"
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            html += f"<h3 class='nazione'>{naz}</h3>"
 
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                html += "<div class='producer-block'>"
-                html += "<div class='spacer'></div>"
-                html += f"<h4 class='produttore'>{prod}</h4>"
-                html += "<table class='vini'><tbody>"
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                html += f"<h4 class='regione'>{reg}</h4>"
 
-                for r in g3:
-                    desc = r["DESCRIZIONE"] or ""
-                    annata = r["ANNATA"] or ""
-                    prezzo = r["PREZZO"]
-                    if prezzo not in (None, ""):
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                        except Exception:
-                            prezzo = str(prezzo)
-                    else:
-                        prezzo = ""
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    html += "<div class='producer-block'>"
+                    html += "<div class='spacer'></div>"
+                    html += f"<h5 class='produttore'>{prod}</h5>"
+                    html += "<table class='vini'><tbody>"
 
-                    html += (
-                        "<tr>"
-                        f"<td class='vino'>{desc}</td>"
-                        f"<td class='annata'>{annata}</td>"
-                        f"<td class='prezzo'>{prezzo}</td>"
-                        "</tr>"
-                    )
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, ""):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
+                        else:
+                            prezzo = ""
 
-                html += "</tbody></table></div>"
+                        html += (
+                            "<tr>"
+                            f"<td class='vino'>{desc}</td>"
+                            f"<td class='annata'>{annata}</td>"
+                            f"<td class='prezzo'>{prezzo}</td>"
+                            "</tr>"
+                        )
+
+                    html += "</tbody></table></div>"
 
     return html
 
@@ -113,6 +118,7 @@ def build_carta_body_html_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
         return "<p><em>Nessun vino.</em></p>"
 
     def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
     def k_reg(r): return resolve_regione(r)
     def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
 
@@ -122,35 +128,39 @@ def build_carta_body_html_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
         g1 = list(g1)
         html += f"<h2 class='tipologia'>{tip}</h2>"
 
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            html += f"<h3 class='regione'>{reg}</h3>"
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            html += f"<h3 class='nazione'>{naz}</h3>"
 
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                html += "<div class='spacer'></div>"
-                html += f"<h4 class='produttore'>{prod}</h4>"
-                html += "<table class='vini'><tbody>"
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                html += f"<h4 class='regione'>{reg}</h4>"
 
-                for r in g3:
-                    desc = r["DESCRIZIONE"] or ""
-                    annata = r["ANNATA"] or ""
-                    prezzo = r["PREZZO"]
-                    if prezzo not in (None, ""):
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                        except Exception:
-                            prezzo = str(prezzo)
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    html += "<div class='spacer'></div>"
+                    html += f"<h5 class='produttore'>{prod}</h5>"
+                    html += "<table class='vini'><tbody>"
 
-                    html += (
-                        "<tr>"
-                        f"<td class='vino'>{desc}</td>"
-                        f"<td class='annata'>{annata}</td>"
-                        f"<td class='prezzo'>{prezzo}</td>"
-                        "</tr>"
-                    )
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, ""):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
 
-                html += "</tbody></table>"
+                        html += (
+                            "<tr>"
+                            f"<td class='vino'>{desc}</td>"
+                            f"<td class='annata'>{annata}</td>"
+                            f"<td class='prezzo'>{prezzo}</td>"
+                            "</tr>"
+                        )
+
+                    html += "</tbody></table>"
 
     return html
 
@@ -164,6 +174,7 @@ def build_carta_toc_html(rows: Iterable[Dict[str, Any]]) -> str:
         return ""
 
     def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
     def k_reg(r): return resolve_regione(r)
 
     html = [
@@ -175,12 +186,16 @@ def build_carta_toc_html(rows: Iterable[Dict[str, Any]]) -> str:
         g1 = list(g1)
         html.append(f"<div class='toc-tipologia'>{tip}</div>")
 
-        seen = set()
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            if reg not in seen:
-                seen.add(reg)
-                html.append(f"<div class='toc-regione'>· {reg}</div>")
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            html.append(f"<div class='toc-nazione'>· {naz}</div>")
+
+            seen = set()
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                if reg not in seen:
+                    seen.add(reg)
+                    html.append(f"<div class='toc-regione'>&nbsp;&nbsp;— {reg}</div>")
 
         html.append("<div class='toc-spacer'></div>")
 

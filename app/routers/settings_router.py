@@ -43,7 +43,7 @@ def get_tipologie():
 @router.post("/tipologie")
 def save_tipologie(order_list: list[str]):
     """
-    order_list = ["GRANDI FORMATI", "BOLLICINE FRANCIA", ...]
+    order_list = ["GRANDI FORMATI", "BOLLICINE", "BIANCHI", ...]
     """
     ensure_db()
 
