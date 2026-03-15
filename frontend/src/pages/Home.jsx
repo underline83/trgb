@@ -1,8 +1,9 @@
-// @version: v3.1-banca-module
+// @version: v3.2-sala-dashboard
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
+import DashboardSala from "./DashboardSala";
 
 const MENU_CONFIG = {
   vini:     { title: "Gestione Vini",         subtitle: "Carta, cantina, vendite, dashboard",              icon: "\uD83C\uDF77", go: "/vini",      color: "bg-amber-50 border-amber-200 text-amber-900",       vKey: "vini" },
@@ -16,7 +17,13 @@ const MENU_CONFIG = {
 
 export default function Home() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const role = localStorage.getItem("role");
+
+  // Utenti sala vedono dashboard semplificata a tile (bypass con ?full=1)
+  if (role === "sala" && !searchParams.get("full")) {
+    return <DashboardSala />;
+  }
 
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
