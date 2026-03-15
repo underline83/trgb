@@ -81,6 +81,26 @@ def init_settings_db():
     """)
 
     # ---------------------------
+    # Codici interni
+    # ---------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS codici_order (
+            codice TEXT PRIMARY KEY,
+            ordine INTEGER NOT NULL
+        );
+    """)
+
+    # ---------------------------
+    # Formati bottiglia
+    # ---------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS formati_order (
+            formato TEXT PRIMARY KEY,
+            ordine  INTEGER NOT NULL
+        );
+    """)
+
+    # ---------------------------
     # Filtri carta
     # @v2.3: aggiunto campo mostra_senza_prezzo
     # ---------------------------

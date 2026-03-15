@@ -13,7 +13,8 @@ import {
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE
 // ---------------------------------------------------------------
-function OrderList({ items, labelKey, onReorder }) {
+function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder }) {
+  const [newVal, setNewVal] = useState("");
   const move = (idx, dir) => {
     const arr = [...items];
     const newIdx = idx + dir;
@@ -21,21 +22,40 @@ function OrderList({ items, labelKey, onReorder }) {
     [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
     onReorder(arr);
   };
+  const handleAdd = () => {
+    const v = newVal.trim().toUpperCase();
+    if (!v || !onAdd) return;
+    onAdd(v);
+    setNewVal("");
+  };
   return (
     <div className="space-y-1">
-      {items.map((item, idx) => (
-        <div key={typeof item === "string" ? item : item[labelKey] || idx}
-          className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm">
-          <span className="text-neutral-400 font-mono text-xs w-5 text-right">{idx + 1}</span>
-          <span className="flex-1 font-medium text-neutral-800">
-            {typeof item === "string" ? item : item[labelKey]}
-          </span>
-          <button onClick={() => move(idx, -1)} disabled={idx === 0}
-            className="px-1.5 py-0.5 text-xs rounded hover:bg-neutral-200 disabled:opacity-30 transition">▲</button>
-          <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1}
-            className="px-1.5 py-0.5 text-xs rounded hover:bg-neutral-200 disabled:opacity-30 transition">▼</button>
+      {items.map((item, idx) => {
+        const label = typeof item === "string" ? item : item[labelKey];
+        return (
+          <div key={label || idx}
+            className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm">
+            <span className="text-neutral-400 font-mono text-xs w-5 text-right">{idx + 1}</span>
+            <span className="flex-1 font-medium text-neutral-800">{label}</span>
+            <button onClick={() => move(idx, -1)} disabled={idx === 0}
+              className="px-1.5 py-0.5 text-xs rounded hover:bg-neutral-200 disabled:opacity-30 transition">▲</button>
+            <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1}
+              className="px-1.5 py-0.5 text-xs rounded hover:bg-neutral-200 disabled:opacity-30 transition">▼</button>
+            {onRemove && <button onClick={() => { if (window.confirm(`Rimuovere "${label}"?`)) onRemove(idx); }}
+              className="px-1.5 py-0.5 text-xs rounded text-red-500 hover:bg-red-50 transition">✕</button>}
+          </div>
+        );
+      })}
+      {onAdd && (
+        <div className="flex items-center gap-2 mt-2">
+          <input type="text" value={newVal} onChange={e => setNewVal(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleAdd()}
+            placeholder={addPlaceholder || "Nuovo valore…"}
+            className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-amber-500 focus:border-amber-500" />
+          <button onClick={handleAdd} disabled={!newVal.trim()}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition disabled:opacity-40">+ Aggiungi</button>
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -109,6 +129,8 @@ export default function ViniImpostazioni() {
   const [nazioni, setNazioni] = useState([]);
   const [selectedNazione, setSelectedNazione] = useState("");
   const [regioni, setRegioni] = useState([]);
+  const [codici, setCodici] = useState([]);
+  const [formatiList, setFormatiList] = useState([]);
   const [filtri, setFiltri] = useState({ min_qta_stampa: 1, mostra_negativi: false, mostra_senza_prezzo: false });
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -130,6 +152,12 @@ export default function ViniImpostazioni() {
   const fetchFiltri = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/filtri`); if (r.ok) setFiltri(await r.json()); } catch {}
   }, []);
+  const fetchCodici = useCallback(async () => {
+    try { const r = await apiFetch(`${API_BASE}/settings/vini/codici`); if (r.ok) setCodici((await r.json()).map(d => d.codice)); } catch {}
+  }, []);
+  const fetchFormati = useCallback(async () => {
+    try { const r = await apiFetch(`${API_BASE}/settings/vini/formati`); if (r.ok) setFormatiList((await r.json()).map(d => d.formato)); } catch {}
+  }, []);
   const fetchLocConfig = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`); if (r.ok) setLocConfig(await r.json()); } catch {}
   }, []);
@@ -139,8 +167,8 @@ export default function ViniImpostazioni() {
   }, [activeSection]);
 
   useEffect(() => {
-    if (showOrdinamento) { fetchTipologie(); fetchNazioni(); fetchFiltri(); }
-  }, [showOrdinamento, fetchTipologie, fetchNazioni, fetchFiltri]);
+    if (showOrdinamento) { fetchTipologie(); fetchNazioni(); fetchFiltri(); fetchCodici(); fetchFormati(); }
+  }, [showOrdinamento, fetchTipologie, fetchNazioni, fetchFiltri, fetchCodici, fetchFormati]);
 
   useEffect(() => {
     if (selectedNazione) fetchRegioni(selectedNazione);
@@ -179,6 +207,18 @@ export default function ViniImpostazioni() {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/filtri`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(filtri) });
       if (r.ok) flash("Filtri salvati"); else throw new Error();
     } catch { flash("Errore salvataggio filtri"); } setSettingsLoading(false);
+  };
+  const saveCodici = async () => {
+    setSettingsLoading(true);
+    try { const r = await apiFetch(`${API_BASE}/settings/vini/codici`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(codici) });
+      if (r.ok) flash("Ordine codici salvato"); else throw new Error();
+    } catch { flash("Errore salvataggio codici"); } setSettingsLoading(false);
+  };
+  const saveFormati = async () => {
+    setSettingsLoading(true);
+    try { const r = await apiFetch(`${API_BASE}/settings/vini/formati`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formatiList) });
+      if (r.ok) flash("Ordine formati salvato"); else throw new Error();
+    } catch { flash("Errore salvataggio formati"); } setSettingsLoading(false);
   };
 
   // -------------------------------------------------------
@@ -535,7 +575,10 @@ export default function ViniImpostazioni() {
               <button onClick={saveTipologie} disabled={settingsLoading}
                 className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
             </div>
-            {tipologie.length > 0 ? <OrderList items={tipologie} onReorder={setTipologie} /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
+            {tipologie.length > 0 ? <OrderList items={tipologie} onReorder={setTipologie}
+              onAdd={v => { if (!tipologie.includes(v)) setTipologie(t => [...t, v]); }}
+              onRemove={idx => setTipologie(t => t.filter((_, i) => i !== idx))}
+              addPlaceholder="Nuova tipologia…" /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
           </div>
 
           {/* NAZIONI */}
@@ -545,7 +588,10 @@ export default function ViniImpostazioni() {
               <button onClick={saveNazioni} disabled={settingsLoading}
                 className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
             </div>
-            {nazioni.length > 0 ? <OrderList items={nazioni} onReorder={setNazioni} /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
+            {nazioni.length > 0 ? <OrderList items={nazioni} onReorder={setNazioni}
+              onAdd={v => { if (!nazioni.includes(v)) setNazioni(n => [...n, v]); }}
+              onRemove={idx => setNazioni(n => n.filter((_, i) => i !== idx))}
+              addPlaceholder="Nuova nazione…" /> : <p className="text-sm text-neutral-400">Caricamento…</p>}
           </div>
 
           {/* REGIONI */}
@@ -563,6 +609,34 @@ export default function ViniImpostazioni() {
             {selectedNazione && regioni.length > 0 ? <OrderList items={regioni} labelKey="nome" onReorder={setRegioni} />
               : selectedNazione ? <p className="text-sm text-neutral-400">Caricamento…</p>
               : <p className="text-sm text-neutral-400">Seleziona una nazione.</p>}
+          </div>
+
+          {/* CODICI */}
+          <div className="border border-neutral-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-neutral-800">Codici Interni</h3>
+              <button onClick={saveCodici} disabled={settingsLoading}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
+            </div>
+            <OrderList items={codici} onReorder={setCodici}
+              onAdd={v => { if (!codici.includes(v)) setCodici(c => [...c, v]); }}
+              onRemove={idx => setCodici(c => c.filter((_, i) => i !== idx))}
+              addPlaceholder="Nuovo codice…" />
+            {codici.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessun codice configurato. Usa il campo sopra per aggiungerne.</p>}
+          </div>
+
+          {/* FORMATI */}
+          <div className="border border-neutral-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-neutral-800">Formati Bottiglia</h3>
+              <button onClick={saveFormati} disabled={settingsLoading}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
+            </div>
+            <OrderList items={formatiList} onReorder={setFormatiList}
+              onAdd={v => { if (!formatiList.includes(v)) setFormatiList(f => [...f, v]); }}
+              onRemove={idx => setFormatiList(f => f.filter((_, i) => i !== idx))}
+              addPlaceholder="Nuovo formato (es. BT, MG)…" />
+            {formatiList.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessun formato configurato. Usa il campo sopra per aggiungerne.</p>}
           </div>
 
           {/* FILTRI */}

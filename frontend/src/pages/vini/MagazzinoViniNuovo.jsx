@@ -9,15 +9,6 @@ import ViniNav from "./ViniNav";
 import LocationPicker from "./LocationPicker";
 import { STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS } from "../../config/viniConstants";
 
-// ✅ Lista formati (completa/estendibile: se hai già la lista ufficiale, incollala qui)
-const FORMATI = [
-  { code: "BT", label: "Bottiglia 0,75L" },
-  { code: "MG", label: "Magnum 1,5L" },
-  { code: "DM", label: "Doppio Magnum 3L" },
-  { code: "JM", label: "Jeroboam 4,5L" },
-  { code: "IMP", label: "Imperiale 6L" },
-];
-
 const uniq = (arr) =>
   Array.from(
     new Set(
@@ -42,7 +33,8 @@ export default function MagazzinoViniNuovo() {
 
   const [tipologie, setTipologie] = useState([]);
   const [nazioni, setNazioni] = useState([]);
-  const [regioni, setRegioni] = useState([]);
+  const [allRegioni, setAllRegioni] = useState([]); // [{codice, nome, nazione}]
+  const [regioni, setRegioni] = useState([]); // filtrate per nazione selezionata
   const [produttori, setProduttori] = useState([]);
   const [codici, setCodici] = useState([]);
   const [formati, setFormati] = useState([]);
@@ -136,18 +128,26 @@ export default function MagazzinoViniNuovo() {
       setOptionsError("");
 
       try {
-        const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`);
+        // Carica valori tabellati (fonte unica) per dropdown strict
+        const [tabResp, optResp] = await Promise.all([
+          apiFetch(`${API_BASE}/settings/vini/valori-tabellati`),
+          apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`),
+        ]);
 
-        if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
+        if (tabResp.ok) {
+          const tab = await tabResp.json();
+          setTipologie(tab.tipologie || []);
+          setNazioni(tab.nazioni || []);
+          setAllRegioni(tab.regioni || []); // [{codice, nome, nazione}]
+          setCodici(tab.codici || []);
+          setFormati(tab.formati || []);
+        }
 
-        const data = await resp.json();
-
-        setTipologie(data.tipologie || []);
-        setNazioni(data.nazioni || []);
-        setRegioni(data.regioni || []);
-        setProduttori(data.produttori || []);
-        setCodici(data.codici || []);
-        setFormati(data.formati || []);
+        // Produttori restano da filtri-options (non tabellati)
+        if (optResp.ok) {
+          const opt = await optResp.json();
+          setProduttori(opt.produttori || []);
+        }
       } catch (err) {
         console.error(err);
         setOptionsError(err.message || "Errore nel caricamento suggerimenti.");
@@ -173,6 +173,23 @@ export default function MagazzinoViniNuovo() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cascading: filtra regioni in base a NAZIONE selezionata
+  useEffect(() => {
+    if (!form.NAZIONE) {
+      setRegioni([]);
+      return;
+    }
+    const filtered = allRegioni
+      .filter(r => r.nazione === form.NAZIONE)
+      .map(r => r.nome);
+    setRegioni(filtered);
+    // Se la regione selezionata non è fra quelle della nuova nazione, resettala
+    if (form.REGIONE && !filtered.includes(form.REGIONE)) {
+      setForm(prev => ({ ...prev, REGIONE: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.NAZIONE, allRegioni]);
 
   // ------------------------------------------------
   // Duplicate check (C): cerca candidati e chiede conferma

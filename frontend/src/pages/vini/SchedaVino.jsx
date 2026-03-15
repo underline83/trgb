@@ -143,6 +143,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const [tabellaOpts, setTabellaOpts] = useState({
     tipologie: [], nazioni: [], regioni: [], codici: [], formati: [],
   });
+  // regioni complete con nazione per cascading
+  const [allRegioniTab, setAllRegioniTab] = useState([]); // [{codice, nome, nazione}]
 
   // ── fetch vino ──────────────────────────────────────
   const fetchVino = async () => {
@@ -191,12 +193,15 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
 
   const fetchTabellaOpts = async () => {
     try {
-      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`);
+      const r = await apiFetch(`${API_BASE}/settings/vini/valori-tabellati`);
       if (r.ok) {
         const d = await r.json();
+        const regioniAll = d.regioni || []; // [{codice, nome, nazione}]
+        setAllRegioniTab(regioniAll);
         setTabellaOpts({
           tipologie: d.tipologie || [], nazioni: d.nazioni || [],
-          regioni: d.regioni || [], codici: d.codici || [], formati: d.formati || [],
+          regioni: regioniAll.map(r => r.nome), // default: tutte
+          codici: d.codici || [], formati: d.formati || [],
         });
       }
     } catch {}
@@ -214,6 +219,23 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     fetchTabellaOpts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vinoId]);
+
+  // Cascading: filtra regioni in base a NAZIONE selezionata in edit mode
+  useEffect(() => {
+    if (!editMode || allRegioniTab.length === 0) return;
+    const naz = editData.NAZIONE;
+    if (!naz) {
+      setTabellaOpts(prev => ({ ...prev, regioni: allRegioniTab.map(r => r.nome) }));
+      return;
+    }
+    const filtered = allRegioniTab.filter(r => r.nazione === naz).map(r => r.nome);
+    setTabellaOpts(prev => ({ ...prev, regioni: filtered }));
+    // Se la regione corrente non è fra quelle della nazione, resettala
+    if (editData.REGIONE && !filtered.includes(editData.REGIONE)) {
+      setEditData(prev => ({ ...prev, REGIONE: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editData.NAZIONE, editMode, allRegioniTab]);
 
   const tot = useMemo(() => {
     if (!vino) return 0;

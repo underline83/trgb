@@ -155,6 +155,75 @@ def save_regioni(nazione: str, order_list: List[Dict[str, Any]]):
 
 
 # ------------------------------------------------------------
+# CODICI
+# ------------------------------------------------------------
+@router.get("/codici")
+def get_codici() -> List[Dict[str, Any]]:
+    _ensure()
+    conn = get_settings_conn()
+    rows = conn.execute("SELECT codice, ordine FROM codici_order ORDER BY ordine ASC;").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/codici")
+def save_codici(order_list: List[str]):
+    _ensure()
+    conn = get_settings_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM codici_order;")
+    for idx, codice in enumerate(order_list, start=1):
+        cur.execute("INSERT INTO codici_order (codice, ordine) VALUES (?, ?);", (codice, idx))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "count": len(order_list)}
+
+
+# ------------------------------------------------------------
+# FORMATI
+# ------------------------------------------------------------
+@router.get("/formati")
+def get_formati() -> List[Dict[str, Any]]:
+    _ensure()
+    conn = get_settings_conn()
+    rows = conn.execute("SELECT formato, ordine FROM formati_order ORDER BY ordine ASC;").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/formati")
+def save_formati(order_list: List[str]):
+    _ensure()
+    conn = get_settings_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM formati_order;")
+    for idx, formato in enumerate(order_list, start=1):
+        cur.execute("INSERT INTO formati_order (formato, ordine) VALUES (?, ?);", (formato, idx))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "count": len(order_list)}
+
+
+# ------------------------------------------------------------
+# VALORI TABELLATI (endpoint unificato per dropdown)
+# ------------------------------------------------------------
+@router.get("/valori-tabellati")
+def get_valori_tabellati() -> Dict[str, Any]:
+    """Restituisce tutti i valori configurati per popolare i dropdown."""
+    _ensure()
+    conn = get_settings_conn()
+    cur = conn.cursor()
+    tipologie = [r["nome"] for r in cur.execute("SELECT nome FROM tipologia_order ORDER BY ordine;").fetchall()]
+    nazioni = [r["nazione"] for r in cur.execute("SELECT nazione FROM nazioni_order ORDER BY ordine;").fetchall()]
+    regioni = [{"codice": r["codice"], "nome": r["nome"], "nazione": r["nazione"]}
+               for r in cur.execute("SELECT codice, nome, nazione FROM regioni_order ORDER BY ordine;").fetchall()]
+    codici = [r["codice"] for r in cur.execute("SELECT codice FROM codici_order ORDER BY ordine;").fetchall()]
+    formati = [r["formato"] for r in cur.execute("SELECT formato FROM formati_order ORDER BY ordine;").fetchall()]
+    conn.close()
+    return {"tipologie": tipologie, "nazioni": nazioni, "regioni": regioni, "codici": codici, "formati": formati}
+
+
+# ------------------------------------------------------------
 # FILTRI CARTA
 # ------------------------------------------------------------
 @router.get("/filtri")
@@ -256,6 +325,8 @@ def reset_impostazioni():
     cur.execute("DELETE FROM tipologia_order;")
     cur.execute("DELETE FROM nazioni_order;")
     cur.execute("DELETE FROM regioni_order;")
+    cur.execute("DELETE FROM codici_order;")
+    cur.execute("DELETE FROM formati_order;")
     cur.execute("DELETE FROM filtri_carta;")
 
     conn.commit()
