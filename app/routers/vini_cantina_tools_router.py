@@ -1,32 +1,29 @@
-# @version: v2.0-cascading-loc-filters
+# @version: v3.0-only-magazzino
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Cantina Tools
 File: app/routers/vini_cantina_tools_router.py
 
-Strumenti per ponte Excel ↔ Cantina:
+v3.0: eliminato sync-from-excel (vecchio DB vini.sqlite3 non più usato)
 
-1. POST /vini/cantina-tools/sync-from-excel
-   → Legge vini.sqlite3 (dopo import Excel tradizionale) e sincronizza
-     nel DB cantina con upsert. Anagrafica/prezzi aggiornati,
-     giacenze e movimenti intatti per vini già esistenti.
+Strumenti:
 
-2. POST /vini/cantina-tools/import-excel
+1. POST /vini/cantina-tools/import-excel
    → Import diretto di un file Excel nel DB cantina (senza passare
      per vini.sqlite3). Usa la stessa logica di normalizzazione.
 
-3. GET /vini/cantina-tools/export-excel
+2. GET /vini/cantina-tools/export-excel
    → Scarica un .xlsx dal DB cantina, formato compatibile con l'Excel
      storico di lavoro.
 
-4. GET /vini/cantina-tools/carta-cantina
+3. GET /vini/cantina-tools/carta-cantina
    → Genera la carta vini HTML leggendo dal DB cantina
-5. GET /vini/cantina-tools/carta-cantina/pdf
+4. GET /vini/cantina-tools/carta-cantina/pdf
    → Genera il PDF della carta leggendo dal DB cantina
-6. GET /vini/cantina-tools/carta-cantina/docx
+5. GET /vini/cantina-tools/carta-cantina/docx
    → Genera il DOCX della carta leggendo dal DB cantina
 
-Tutti gli endpoint richiedono autenticazione; sync/import solo admin.
+Tutti gli endpoint richiedono autenticazione; import solo admin.
 """
 
 from __future__ import annotations
@@ -50,7 +47,6 @@ from docx.shared import Inches
 
 from app.services.auth_service import get_current_user, decode_access_token
 from app.models import vini_magazzino_db as mag_db
-from app.models.vini_db import get_connection as get_carta_connection
 from app.models.vini_model import normalize_dataframe
 from app.services.carta_vini_service import (
     build_carta_body_html,
@@ -230,158 +226,7 @@ def reset_database(
 
 
 # =============================================================
-# 1. SYNC DA EXCEL (vini.sqlite3 → cantina)
-# =============================================================
-@router.post("/sync-from-excel", summary="Sincronizza DB Excel → Cantina")
-def sync_from_excel(
-    forza_giacenze: bool = Query(
-        False,
-        description="Se true, sovrascrive anche le giacenze dei vini già esistenti con i valori dell'Excel",
-    ),
-    current_user: Any = Depends(get_current_user),
-):
-    """
-    Legge tutti i vini dal DB vini.sqlite3 (popolato dall'import Excel classico)
-    e li sincronizza nel DB cantina con upsert:
-    - Vini nuovi: inseriti con ORIGINE='EXCEL', giacenze dall'Excel
-    - Vini esistenti: aggiornata solo anagrafica/prezzi
-    - Se forza_giacenze=true: sovrascrive ANCHE le giacenze dei vini esistenti
-
-    I vini presenti solo in cantina (ORIGINE='MANUALE') non vengono toccati.
-    """
-    _require_admin(current_user)
-
-    # Leggi tutti i vini dall'Excel in una sola connessione
-    conn_excel = get_carta_connection()
-    cur = conn_excel.cursor()
-    rows = cur.execute("SELECT * FROM vini;").fetchall()
-    conn_excel.close()
-
-    # Carica mappa id_excel → id_cantina in una sola query
-    conn_mag = mag_db.get_magazzino_connection()
-    cur_mag = conn_mag.cursor()
-    existing_map = {}          # id_excel → id_cantina
-    natural_key_map = {}       # (desc_upper, prod_upper, annata, formato) → (id_cantina, id_excel)
-    for row in cur_mag.execute(
-        "SELECT id, id_excel, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO FROM vini_magazzino;"
-    ):
-        if row["id_excel"] is not None:
-            existing_map[row["id_excel"]] = row["id"]
-        # Fallback: chiave naturale per recuperare match quando id_excel cambia
-        nk = (
-            (row["DESCRIZIONE"] or "").strip().upper(),
-            (row["PRODUTTORE"] or "").strip().upper(),
-            (row["ANNATA"] or "").strip(),
-            (row["FORMATO"] or "").strip(),
-        )
-        natural_key_map[nk] = (row["id"], row["id_excel"])
-    conn_mag.close()
-
-    inseriti = 0
-    aggiornati = 0
-    ricollegati = 0           # vini matchati per chiave naturale (id_excel aggiornato)
-    giacenze_forzate = 0
-    errori = []
-
-    for r in rows:
-        try:
-            data = {
-                "id_excel": r["id"],
-                "TIPOLOGIA": r["TIPOLOGIA"],
-                "NAZIONE": r["NAZIONE"],
-                "REGIONE": r["REGIONE"],
-                "DESCRIZIONE": r["DESCRIZIONE"],
-                "DENOMINAZIONE": r["DENOMINAZIONE"],
-                "ANNATA": r["ANNATA"],
-                "FORMATO": r["FORMATO"],
-                "PRODUTTORE": r["PRODUTTORE"],
-                "DISTRIBUTORE": r["DISTRIBUTORE"],
-                "PREZZO_CARTA": r["PREZZO"],
-                "EURO_LISTINO": r["EURO_LISTINO"],
-                "SCONTO": r["SCONTO"],
-                "CARTA": r["CARTA"],
-                "IPRATICO": r["IPRATICO"],
-                "FRIGORIFERO": r["FRIGORIFERO"],
-                "LOCAZIONE_1": r["LOCAZIONE_1"],
-                "LOCAZIONE_2": r["LOCAZIONE_2"],
-                "ORIGINE": "EXCEL",
-            }
-
-            existing_id = existing_map.get(r["id"])
-
-            # FALLBACK: se id_excel non matcha, cerca per chiave naturale
-            # e aggiorna il collegamento id_excel nel DB cantina
-            if not existing_id:
-                nk = (
-                    (r["DESCRIZIONE"] or "").strip().upper(),
-                    (r["PRODUTTORE"] or "").strip().upper(),
-                    (r["ANNATA"] or "").strip(),
-                    (r["FORMATO"] or "").strip(),
-                )
-                match = natural_key_map.get(nk)
-                if match:
-                    cantina_id, old_id_excel = match
-                    existing_id = cantina_id
-                    # Aggiorna id_excel nel DB cantina per mantenere il collegamento
-                    mag_db.update_vino(cantina_id, {"id_excel": r["id"]})
-                    ricollegati += 1
-
-            # Giacenze dall'Excel
-            qta_frigo = r["N_FRIGO"] or 0
-            qta_loc1 = r["N_LOC1"] or 0
-            qta_loc2 = r["N_LOC2"] or 0
-            qta_totale = r["QTA"] or 0
-
-            if not existing_id:
-                # Vino nuovo: importa sempre le giacenze
-                data["QTA_FRIGO"] = qta_frigo
-                data["QTA_LOC1"] = qta_loc1
-                data["QTA_LOC2"] = qta_loc2
-                data["QTA_TOTALE"] = qta_totale
-                inseriti += 1
-            else:
-                aggiornati += 1
-
-            mag_db.upsert_vino_from_carta(data)
-
-            # Forza giacenze sui vini già esistenti (dopo l'upsert)
-            if existing_id and forza_giacenze:
-                mag_db.update_vino(existing_id, {
-                    "QTA_FRIGO": qta_frigo,
-                    "QTA_LOC1": qta_loc1,
-                    "QTA_LOC2": qta_loc2,
-                    "QTA_TOTALE": qta_totale,
-                })
-                giacenze_forzate += 1
-
-        except Exception as e:
-            desc = r["DESCRIZIONE"] or ""
-            prod = r["PRODUTTORE"] or ""
-            errori.append(f"{desc} ({prod}): {e}")
-
-    msg = f"Sincronizzazione completata: {inseriti} nuovi, {aggiornati} aggiornati"
-    if ricollegati:
-        msg += f", {ricollegati} ricollegati per chiave naturale"
-    if forza_giacenze:
-        msg += f", {giacenze_forzate} giacenze sovrascritte da Excel"
-    if errori:
-        msg += f", {len(errori)} errori"
-
-    return {
-        "status": "ok",
-        "totale_excel": len(rows),
-        "inseriti": inseriti,
-        "aggiornati": aggiornati,
-        "ricollegati": ricollegati,
-        "giacenze_forzate": giacenze_forzate,
-        "forza_giacenze": forza_giacenze,
-        "errori": errori,
-        "msg": msg,
-    }
-
-
-# =============================================================
-# 2. IMPORT DIRETTO EXCEL → CANTINA
+# 1. IMPORT DIRETTO EXCEL → CANTINA
 # =============================================================
 @router.post("/import-excel", summary="Import diretto Excel → Cantina")
 async def import_excel_to_cantina(
@@ -816,8 +661,9 @@ def carta_cantina_docx(
         f"(da Cantina — {datetime.now().strftime('%d/%m/%Y')})"
     )
 
-    # Raggruppamento
+    # Raggruppamento (con livello nazione)
     def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
     def k_reg(r): return resolve_regione(r)
     def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
 
@@ -825,32 +671,41 @@ def carta_cantina_docx(
         g1 = list(g1)
         doc.add_heading(tip, level=1)
 
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            doc.add_heading(reg, level=2)
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            doc.add_heading(naz, level=2)
 
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                doc.add_heading(prod, level=3)
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                p_reg = doc.add_paragraph()
+                run_reg = p_reg.add_run(reg)
+                run_reg.italic = True
+                run_reg.bold = True
 
-                for r in g3:
-                    desc = r["DESCRIZIONE"] or ""
-                    annata = r["ANNATA"] or ""
-                    prezzo = r["PREZZO"]
-                    if prezzo not in (None, ""):
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                        except Exception:
-                            prezzo = str(prezzo)
-                    else:
-                        prezzo = ""
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    p = doc.add_paragraph()
+                    rr = p.add_run(prod)
+                    rr.bold = True
 
-                    line = f"{desc}"
-                    if annata:
-                        line += f" — {annata}"
-                    if prezzo:
-                        line += f" — {prezzo}"
-                    doc.add_paragraph(line)
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, ""):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
+                        else:
+                            prezzo = ""
+
+                        line = f"{desc}"
+                        if annata:
+                            line += f" — {annata}"
+                        if prezzo:
+                            line += f" — {prezzo}"
+                        doc.add_paragraph(line)
 
     out_path = STATIC_DIR / "carta_vini_cantina.docx"
     doc.save(str(out_path))

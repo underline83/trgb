@@ -39,7 +39,7 @@ Funzioni principali:
 from __future__ import annotations
 from typing import List, Dict, Any, Tuple, Optional
 
-from app.models.vini_db import get_connection, init_database
+from app.models.vini_magazzino_db import get_magazzino_connection
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults, _TIPOLOGIA_MAP
 
@@ -104,21 +104,22 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     Restituisce i vini destinati alla CARTA, filtrati e ordinati
     secondo le impostazioni di tipologia / nazione / regione.
 
+    Legge dal DB magazzino (vini_magazzino.sqlite3).
+
     Usata da:
       - /vini/carta (HTML)
       - /vini/carta/pdf
       - /vini/carta/pdf-staff
       - /vini/carta/docx
     """
-    init_database()
-    conn_vini = get_connection()
-    cur_v = conn_vini.cursor()
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
 
     # Filtri settings
     min_qta_stampa, mostra_negativi, mostra_senza_prezzo = _load_filtri()
 
-    # Query base
-    rows = cur_v.execute(
+    # Query dal magazzino
+    rows = cur.execute(
         """
         SELECT
             id,
@@ -128,24 +129,24 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             PRODUTTORE,
             DESCRIZIONE,
             ANNATA,
-            PREZZO,
-            QTA
-        FROM vini
+            PREZZO_CARTA,
+            QTA_TOTALE
+        FROM vini_magazzino
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
             AND CARTA = 'SI'
         """
     ).fetchall()
-    conn_vini.close()
+    conn.close()
 
     # ---------------------------------------------------------
     # FILTRI DI SELEZIONE
     # ---------------------------------------------------------
     filtered = []
     for r in rows:
-        qta = r["QTA"] or 0
-        prezzo = r["PREZZO"]
+        qta = r["QTA_TOTALE"] or 0
+        prezzo = r["PREZZO_CARTA"]
 
         # filtro quantità
         if not (qta >= min_qta_stampa or (mostra_negativi and qta < 0)):
@@ -156,14 +157,13 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             if prezzo is None or prezzo == 0:
                 continue
 
-        filtered.append(r)
+        filtered.append(dict(r))
 
     # ---------------------------------------------------------
     # NORMALIZZAZIONE TIPOLOGIE (vecchie → nuove)
     # ---------------------------------------------------------
-    def norm_tipo(t):
-        """BOLLICINE FRANCIA → BOLLICINE, ecc."""
-        return _TIPOLOGIA_MAP.get(t, t) if t else t
+    for r in filtered:
+        r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
 
     # ---------------------------------------------------------
     # ORDINAMENTO
@@ -172,31 +172,31 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
 
     def sort_key(r):
         return (
-            tip_map.get(norm_tipo(r["TIPOLOGIA"]), 9999),
+            tip_map.get(r["TIPOLOGIA"], 9999),
             naz_map.get(r["NAZIONE"], 9999),
             reg_map.get(r["REGIONE"], 9999),
             (r["PRODUTTORE"] or "").upper(),
             (r["DESCRIZIONE"] or "").upper(),
-            r["ANNATA"],
+            r["ANNATA"] or "",
         )
 
     ordered = sorted(filtered, key=sort_key)
 
     # ---------------------------------------------------------
-    # CONVERSIONE
+    # CONVERSIONE (nomi campo uniformi per carta_vini_service)
     # ---------------------------------------------------------
     out: List[Dict[str, Any]] = []
     for r in ordered:
         out.append({
             "id": r["id"],
-            "TIPOLOGIA": norm_tipo(r["TIPOLOGIA"]),
+            "TIPOLOGIA": r["TIPOLOGIA"],
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
             "DESCRIZIONE": r["DESCRIZIONE"],
             "ANNATA": r["ANNATA"],
-            "PREZZO": r["PREZZO"],
-            "QTA": r["QTA"],
+            "PREZZO": r["PREZZO_CARTA"],
+            "QTA": r["QTA_TOTALE"],
         })
 
     return out
@@ -216,18 +216,9 @@ def search_vini(
 ) -> List[Dict[str, Any]]:
     """
     Ricerca / lista vini per il GESTIONALE.
-
-    Filtri:
-      - q: testo libero su PRODUTTORE / DESCRIZIONE / REGIONE
-      - tipologia: valore esatto di TIPOLOGIA
-      - solo_in_carta: se True, filtra CARTA = 'SI'
-      - solo_disponibili: se True, filtra QTA > 0
-
-    Paginazione:
-      - limit, offset
+    Legge dal DB magazzino.
     """
-    init_database()
-    conn = get_connection()
+    conn = get_magazzino_connection()
     cur = conn.cursor()
 
     sql = """
@@ -239,10 +230,10 @@ def search_vini(
             PRODUTTORE,
             DESCRIZIONE,
             ANNATA,
-            PREZZO,
-            QTA,
+            PREZZO_CARTA,
+            QTA_TOTALE,
             CARTA
-        FROM vini
+        FROM vini_magazzino
         WHERE 1 = 1
     """
     params: list[Any] = []
@@ -272,7 +263,7 @@ def search_vini(
 
     # solo vini con stock positivo
     if solo_disponibili:
-        sql += " AND QTA > 0"
+        sql += " AND QTA_TOTALE > 0"
 
     # ordine "gestionale": per tipologia/regione/produttore/descrizione
     sql += """
@@ -293,14 +284,14 @@ def search_vini(
     for r in rows:
         out.append({
             "id": r["id"],
-            "TIPOLOGIA": r["TIPOLOGIA"],
+            "TIPOLOGIA": _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"]),
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
             "DESCRIZIONE": r["DESCRIZIONE"],
             "ANNATA": r["ANNATA"],
-            "PREZZO": r["PREZZO"],
-            "QTA": r["QTA"],
+            "PREZZO": r["PREZZO_CARTA"],
+            "QTA": r["QTA_TOTALE"],
             "CARTA": r["CARTA"],
         })
 
@@ -309,12 +300,9 @@ def search_vini(
 
 def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
     """
-    Ritorna il dettaglio di un singolo vino.
-    (Per ora solo dati anagrafici + stock. I movimenti sono gestiti
-     via helper in app.models.vini_db e relativi endpoint nel router.)
+    Ritorna il dettaglio di un singolo vino dal DB magazzino.
     """
-    init_database()
-    conn = get_connection()
+    conn = get_magazzino_connection()
     cur = conn.cursor()
 
     row = cur.execute(
@@ -328,13 +316,10 @@ def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
             DESCRIZIONE,
             ANNATA,
             PRODUTTORE,
-            PREZZO,
+            PREZZO_CARTA,
             FORMATO,
-            N_FRIGO,
-            N_LOC1,
-            N_LOC2,
-            QTA
-        FROM vini
+            QTA_TOTALE
+        FROM vini_magazzino
         WHERE id = ?
         """,
         (vino_id,),
@@ -347,17 +332,14 @@ def get_vino_dettaglio(vino_id: int) -> Optional[Dict[str, Any]]:
 
     return {
         "id": row["id"],
-        "TIPOLOGIA": row["TIPOLOGIA"],
+        "TIPOLOGIA": _TIPOLOGIA_MAP.get(row["TIPOLOGIA"], row["TIPOLOGIA"]),
         "NAZIONE": row["NAZIONE"],
         "REGIONE": row["REGIONE"],
         "CARTA": row["CARTA"],
         "DESCRIZIONE": row["DESCRIZIONE"],
         "ANNATA": row["ANNATA"],
         "PRODUTTORE": row["PRODUTTORE"],
-        "PREZZO": row["PREZZO"],
+        "PREZZO": row["PREZZO_CARTA"],
         "FORMATO": row["FORMATO"],
-        "N_FRIGO": row["N_FRIGO"],
-        "N_LOC1": row["N_LOC1"],
-        "N_LOC2": row["N_LOC2"],
-        "QTA": row["QTA"],
+        "QTA": row["QTA_TOTALE"],
     }

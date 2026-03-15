@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 export default function ViniDatabase() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -24,8 +24,8 @@ export default function ViniDatabase() {
     formData.append("file", selectedFile);
 
     try {
-      const response = await fetch(
-        `${API_BASE}/vini/upload?format=html`,
+      const response = await apiFetch(
+        `${API_BASE}/vini/cantina-tools/import-excel`,
         { method: "POST", body: formData }
       );
 
@@ -33,7 +33,10 @@ export default function ViniDatabase() {
         throw new Error(`Errore server: ${response.status}`);
       }
 
-      const html = await response.text();
+      const data = await response.json();
+      const html = `<p><strong>${data.msg}</strong></p>`
+        + `<p>Righe Excel: ${data.righe_excel} — Nuovi: ${data.inseriti} — Aggiornati: ${data.aggiornati}</p>`
+        + (data.errori?.length ? `<p style="color:red">Errori: ${data.errori.length}</p>` : "");
       setUploadResult(html);
 
     } catch (err) {

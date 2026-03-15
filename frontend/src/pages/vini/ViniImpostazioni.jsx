@@ -214,12 +214,7 @@ export default function ViniImpostazioni() {
   // -------------------------------------------------------
   // HANDLERS OPERAZIONI
   // -------------------------------------------------------
-  const handleSync = async () => {
-    setSyncLoading(true); setError(""); setSyncResult(null);
-    try { const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/sync-from-excel?forza_giacenze=${forzaGiacenze}`, { method: "POST" });
-      if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`); setSyncResult(await resp.json());
-    } catch (e) { setError(e?.message || "Errore sincronizzazione."); } finally { setSyncLoading(false); }
-  };
+  // handleSync rimosso in v3.0 (vecchio sync eliminato)
   const handleImportExcel = async (file) => {
     if (!file) return; setImportLoading(true); setError(""); setImportResult(null);
     try { const form = new FormData(); form.append("file", file);
@@ -462,29 +457,7 @@ export default function ViniImpostazioni() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-amber-900 font-playfair">Import / Export</h2>
 
-      {/* SYNC */}
-      <div className="border border-neutral-200 rounded-xl p-5">
-        <h3 className="font-semibold text-neutral-800 mb-2">Sincronizza Excel → Cantina</h3>
-        <p className="text-sm text-neutral-600 mb-3">Prende i dati dal DB carta (vini.sqlite3) e li sincronizza nella cantina.</p>
-        <div className="flex items-center gap-3 mb-3">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" checked={forzaGiacenze} onChange={e => setForzaGiacenze(e.target.checked)}
-              className="w-4 h-4 rounded border-neutral-300 text-amber-700 focus:ring-amber-500" />
-            <span className="text-sm font-medium text-neutral-700">Forza aggiornamento giacenze</span>
-          </label>
-          {forzaGiacenze && <span className="text-xs text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded">Sovrascrive quantità</span>}
-        </div>
-        <button onClick={handleSync} disabled={syncLoading}
-          className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${syncLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : forzaGiacenze ? "bg-red-700 text-white hover:bg-red-800" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
-          {syncLoading ? "Sincronizzazione…" : "Avvia sincronizzazione"}
-        </button>
-        {syncResult && (
-          <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
-            <p className="font-semibold text-green-800">{syncResult.msg}</p>
-            <p className="text-green-700">Totale: <strong>{syncResult.totale_excel}</strong> — Nuovi: <strong>{syncResult.inseriti}</strong> — Aggiornati: <strong>{syncResult.aggiornati}</strong></p>
-          </div>
-        )}
-      </div>
+      {/* Sezione sync rimossa in v3.0 — vecchio DB eliminato */}
 
       {/* IMPORT / EXPORT / RESET */}
       <div className="border border-neutral-200 rounded-xl p-5">

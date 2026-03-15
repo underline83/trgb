@@ -1,28 +1,24 @@
-# @version: v2.07-stable-html-alias
+# @version: v3.0-only-magazzino
 # -*- coding: utf-8 -*-
 """
-Router Vini — HTML + PDF + DOCX + Movimenti + Import Excel
+Router Vini — HTML + PDF + DOCX + Movimenti
 
-Linea 2.x = motore carta avanzato (impaginazione + indice)
+v3.0: eliminato vecchio DB vini.sqlite3
+      - rimosso endpoint /vini/upload (import Excel vecchio)
+      - movimenti ora su DB magazzino (vini_magazzino.sqlite3)
+      - tutte le funzioni leggono solo da vini_magazzino
 
 Changelog v2.07:
  - FIX: aggiunto alias endpoint /vini/carta/html → stessa preview di /vini/carta
-        (compatibilità frontend: risolve 404 su /vini/carta/html)
 
 Changelog v2.06:
  - CLEAN: rimosso uso di tabella 'vini_raw'
- - CLEAN: /vini/upload ora scrive solo su 'vini' (vini.sqlite3)
- - REFINE: import pulito, niente import interni ridondanti
 
 Changelog v2.05:
  - ADD: endpoint /vini/{vino_id}/movimenti (GET/POST)
-        con log utente (JWT) nelle note movimento
 
 Changelog v2.04:
  - ADD: endpoint /vini/carta/pdf-staff (PDF staff)
-        (per ora stesso contenuto del PDF standard, con label STAFF)
- - KEEP: /vini/carta/pdf invariato per il cliente
- - KEEP: HTML preview identica alla linea 1.3x
 """
 
 from __future__ import annotations
@@ -30,13 +26,9 @@ from __future__ import annotations
 from itertools import groupby
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-import os
-import tempfile
-
-import pandas as pd
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from weasyprint import HTML, CSS
@@ -47,28 +39,20 @@ from app.services.carta_vini_service import (
     build_carta_body_html,
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
-    slugify,
+    resolve_regione,
 )
 from app.services.auth_service import get_current_user
-
-from app.models.vini_db import (
-    get_connection,
-    init_database,
+from app.models.vini_magazzino_db import (
     get_vino_by_id,
     list_movimenti_vino,
     registra_movimento,
-)
-from app.models.vini_model import (
-    clear_vini_table,
-    normalize_dataframe,
-    insert_vini_rows,
 )
 from app.repositories.vini_repository import load_vini_ordinati
 
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
 
-print(">>>>> LOADING VINI_ROUTER v2.07   PATH:", __file__)
+print(">>>>> LOADING VINI_ROUTER v3.0   PATH:", __file__)
 
 # PATH DI BASE
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -76,94 +60,6 @@ STATIC_DIR = BASE_DIR / "static"
 CSS_HTML = STATIC_DIR / "css" / "carta_html.css"
 CSS_PDF = STATIC_DIR / "css" / "carta_pdf.css"
 LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
-
-
-
-def resolve_regione(r):
-    """Regola base: Regione → Nazione → Varie."""
-    if r["REGIONE"]:
-        return r["REGIONE"]
-    if r["NAZIONE"]:
-        return r["NAZIONE"]
-    return "Varie"
-
-
-# ------------------------------------------------------------
-# UPLOAD EXCEL → DB 'vini'
-# ------------------------------------------------------------
-@router.post("/upload")
-async def upload_vini(
-    file: UploadFile = File(...),
-    format: str = Query("json", enum=["json", "html"]),
-):
-    """
-    Importa il foglio 'VINI' da un Excel, normalizza con vini_model
-    e popola la tabella 'vini' nel DB ufficiale (vini.sqlite3).
-
-    Nessun DB RAW: Excel → normalize_dataframe → insert_vini_rows.
-    """
-    # 1) Salvo il file temporaneamente
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
-    try:
-        # 2) Leggo il foglio "VINI"
-        try:
-            xls = pd.ExcelFile(tmp_path)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Errore apertura Excel: {e}")
-
-        if "VINI" not in xls.sheet_names:
-            raise HTTPException(
-                status_code=400,
-                detail="Foglio 'VINI' non trovato nel file Excel.",
-            )
-
-        raw = pd.read_excel(xls, sheet_name="VINI")
-
-        # 3) Pulizia righe completamente vuote (ma NON tocchiamo i nomi colonne)
-        raw = raw.fillna("")
-        raw = raw[raw.apply(lambda r: any(str(x).strip() for x in r), axis=1)]
-        tot = len(raw)
-
-        # 4) Normalizzazione verso lo schema 'vini'
-        df = normalize_dataframe(raw)
-
-        # 5) Scrittura nel DB ufficiale
-        conn = get_connection()
-        init_database()
-        clear_vini_table(conn)
-        inserite, errori, count = insert_vini_rows(conn, df)
-        conn.close()
-
-    finally:
-        # 6) Provo a cancellare il file temporaneo
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-
-    # 7) Risposta HTML (report import) o JSON
-    if format == "html":
-        max_val = max(count.values()) if count else 1
-        html = "<html><body><h2>Risultato Import</h2>"
-        html += f"<p>Totali Excel: {tot} — Inserite in DB: {inserite}</p>"
-        html += "<table border='1' cellpadding='6'>"
-        for t, c in sorted(count.items(), key=lambda x: (-x[1], x[0])):
-            width = int((c / max_val) * 100)
-            html += (
-                f"<tr><td>{t}</td><td>{c}</td>"
-                f"<td><div style='background:#90c490;height:14px;width:{width}%'></div></td></tr>"
-            )
-        html += "</table></body></html>"
-        return HTMLResponse(html)
-
-    return {
-        "righe_totali_excel": tot,
-        "righe_inserite_db": inserite,
-        "errori": errori[:100],
-    }
 
 
 # ------------------------------------------------------------
@@ -306,6 +202,7 @@ def genera_carta_vini_docx():
     doc.add_heading("CARTA DEI VINI — OSTERIA TRE GOBBI", level=1)
 
     def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
     def k_reg(r): return resolve_regione(r)
     def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
 
@@ -313,33 +210,40 @@ def genera_carta_vini_docx():
         g1 = list(g1)
         doc.add_heading(tip, level=2)
 
-        for reg, g2 in groupby(g1, k_reg):
-            g2 = list(g2)
-            doc.add_heading(reg, level=3)
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            doc.add_heading(naz, level=3)
 
-            for prod, g3 in groupby(g2, k_prod):
-                g3 = list(g3)
-                p = doc.add_paragraph()
-                rr = p.add_run(prod)
-                rr.bold = True
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                p_reg = doc.add_paragraph()
+                run_reg = p_reg.add_run(reg)
+                run_reg.italic = True
+                run_reg.bold = True
 
-                for riga in g3:
-                    desc = riga["DESCRIZIONE"] or ""
-                    annata = riga["ANNATA"] or ""
-                    prezzo = riga["PREZZO"]
-                    if prezzo:
-                        try:
-                            prezzo = f"€ {float(prezzo):.2f}"
-                        except Exception:
-                            pass
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    p = doc.add_paragraph()
+                    rr = p.add_run(prod)
+                    rr.bold = True
 
-                    line = "    " + desc
-                    if annata:
-                        line += f" — {annata}"
-                    if prezzo:
-                        line += f" — {prezzo}"
+                    for riga in g3:
+                        desc = riga["DESCRIZIONE"] or ""
+                        annata = riga["ANNATA"] or ""
+                        prezzo = riga["PREZZO"]
+                        if prezzo:
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}"
+                            except Exception:
+                                pass
 
-                    doc.add_paragraph(line)
+                        line = "    " + desc
+                        if annata:
+                            line += f" — {annata}"
+                        if prezzo:
+                            line += f" — {prezzo}"
+
+                        doc.add_paragraph(line)
 
     out = STATIC_DIR / "carta_vini.docx"
     doc.save(str(out))
@@ -348,11 +252,12 @@ def genera_carta_vini_docx():
 
 
 # ============================================================
-# MOVIMENTI CANTINA
+# MOVIMENTI CANTINA (ora su DB magazzino)
 # ============================================================
 class MovimentoCreate(BaseModel):
     tipo: str = Field(..., description="CARICO / SCARICO / VENDITA / RETTIFICA")
     qta: int = Field(..., gt=0, description="Quantità positiva")
+    locazione: Optional[str] = Field(None, description="Locazione: frigo, loc1, loc2, loc3")
     note: str | None = Field(None, description="Nota operativa (evento, servizio, ecc.)")
     origine: str | None = Field("GESTIONALE", description="Origine movimento")
     data_mov: str | None = Field(
@@ -393,8 +298,7 @@ def crea_movimento_vino(
     - VENDITA   → QTA diminuisce
     - RETTIFICA → qta = nuovo valore assoluto
 
-    Logga SEMPRE l'utente che esegue il movimento, prefisso nella nota:
-        [username] testo nota
+    Opera sul DB magazzino (vini_magazzino.sqlite3).
     """
     vino = get_vino_by_id(vino_id)
     if not vino:
@@ -413,18 +317,14 @@ def crea_movimento_vino(
     else:
         utente = "unknown"
 
-    # Nota completa con utente
-    if payload.note:
-        nota_completa = f"[{utente}] {payload.note}"
-    else:
-        nota_completa = f"[{utente}]"
-
     try:
         registra_movimento(
             vino_id=vino_id,
             tipo=tipo,
             qta=payload.qta,
-            note=nota_completa,
+            utente=utente,
+            locazione=payload.locazione,
+            note=payload.note,
             origine=payload.origine or "GESTIONALE",
             data_mov=payload.data_mov,
         )

@@ -70,7 +70,13 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
 
         for naz, g1b in groupby(g1, k_naz):
             g1b = list(g1b)
-            html += f"<h3 class='nazione'>{naz}</h3>"
+            html += (
+                f"<div class='nazione'>"
+                f"<span class='naz-line'></span>"
+                f"<span class='naz-label'>{naz}</span>"
+                f"<span class='naz-line'></span>"
+                f"</div>"
+            )
 
             for reg, g2 in groupby(g1b, k_reg):
                 g2 = list(g2)
@@ -130,7 +136,13 @@ def build_carta_body_html_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
 
         for naz, g1b in groupby(g1, k_naz):
             g1b = list(g1b)
-            html += f"<h3 class='nazione'>{naz}</h3>"
+            html += (
+                f"<div class='nazione'>"
+                f"<span class='naz-line'></span>"
+                f"<span class='naz-label'>{naz}</span>"
+                f"<span class='naz-line'></span>"
+                f"</div>"
+            )
 
             for reg, g2 in groupby(g1b, k_reg):
                 g2 = list(g2)

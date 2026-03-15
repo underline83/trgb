@@ -109,30 +109,7 @@ def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) ->
     except Exception:
         pass  # Se il DB magazzino non esiste ancora, ignora
 
-    # --- DB vini (carta Excel): normalizza NAZIONE e REGIONE ---
-    try:
-        from app.models.vini_db import get_connection as get_vini_connection
-        vc = get_vini_connection()
-        vcc = vc.cursor()
-
-        distinct_naz = vcc.execute("SELECT DISTINCT NAZIONE FROM vini WHERE NAZIONE IS NOT NULL;").fetchall()
-        for row in distinct_naz:
-            old = row["NAZIONE"]
-            new = naz_map.get(_normalize_key(old))
-            if new and new != old:
-                vcc.execute("UPDATE vini SET NAZIONE = ? WHERE NAZIONE = ?;", (new, old))
-
-        distinct_reg = vcc.execute("SELECT DISTINCT REGIONE FROM vini WHERE REGIONE IS NOT NULL;").fetchall()
-        for row in distinct_reg:
-            old = row["REGIONE"]
-            new = reg_map.get(_normalize_key(old))
-            if new and new != old:
-                vcc.execute("UPDATE vini SET REGIONE = ? WHERE REGIONE = ?;", (new, old))
-
-        vc.commit()
-        vc.close()
-    except Exception:
-        pass
+    # DB vini (carta Excel) rimosso in v3.0 — solo magazzino
 
 
 # Mappa vecchie tipologie composte → tipologia generica
@@ -188,18 +165,7 @@ def _migrate_tipologie_semplificate(cur) -> None:
     except Exception:
         pass
 
-    # --- DB vini (carta Excel): rinomina TIPOLOGIA ---
-    try:
-        from app.models.vini_db import get_connection as get_vini_connection
-        vc = get_vini_connection()
-        vcc = vc.cursor()
-        for old_tipo, new_tipo in _TIPOLOGIA_MAP.items():
-            vcc.execute("UPDATE vini SET TIPOLOGIA = ? WHERE TIPOLOGIA = ?;",
-                        (new_tipo, old_tipo))
-        vc.commit()
-        vc.close()
-    except Exception:
-        pass
+    # DB vini (carta Excel) rimosso in v3.0 — solo magazzino
 
 
 def ensure_settings_defaults() -> None:

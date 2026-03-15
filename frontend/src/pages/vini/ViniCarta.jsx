@@ -32,7 +32,7 @@ export default function ViniCarta() {
       const form = new FormData();
       form.append("file", file);
 
-      const resp = await apiFetch(`${API_BASE}/vini/upload?format=html`, {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-excel`, {
         method: "POST",
         body: form,
       });
@@ -42,7 +42,10 @@ export default function ViniCarta() {
         throw new Error(txt || `Errore server: ${resp.status}`);
       }
 
-      const html = await resp.text();
+      const data = await resp.json();
+      const html = `<p><strong>${data.msg}</strong></p>`
+        + `<p>Righe Excel: ${data.righe_excel} — Nuovi: ${data.inseriti} — Aggiornati: ${data.aggiornati}</p>`
+        + (data.errori?.length ? `<p style="color:red">Errori: ${data.errori.length}</p>` : "");
       setImportResultHtml(html);
 
       // forza refresh anteprima
