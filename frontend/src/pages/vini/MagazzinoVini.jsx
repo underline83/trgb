@@ -7,6 +7,9 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
 import SchedaVino from "./SchedaVino";
+import {
+  STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
+} from "../../config/viniConstants";
 
 const uniq = (arr) =>
   Array.from(new Set(arr.filter((x) => x && String(x).trim() !== ""))).sort(
@@ -20,7 +23,7 @@ function StampaFiltrata({ onClose }) {
   const [f, setF] = useState({
     tipologia: "", nazione: "", regione: "", produttore: "",
     annata: "", formato: "", carta: "", stato_vendita: "",
-    stato_riordino: "", discontinuato: "", solo_giacenza: false,
+    stato_riordino: "", stato_conservazione: "", discontinuato: "", solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
     loc1_nome: "", loc1_spazio: "",
@@ -67,7 +70,7 @@ function StampaFiltrata({ onClose }) {
   const pulisci = () => setF({
     tipologia: "", nazione: "", regione: "", produttore: "",
     annata: "", formato: "", carta: "", stato_vendita: "",
-    stato_riordino: "", discontinuato: "", solo_giacenza: false,
+    stato_riordino: "", stato_conservazione: "", discontinuato: "", solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
     loc1_nome: "", loc1_spazio: "",
@@ -154,14 +157,21 @@ function StampaFiltrata({ onClose }) {
               <label className={lbl}>Stato vendita</label>
               <select value={f.stato_vendita} onChange={set("stato_vendita")} className={sel}>
                 <option value="">Tutti</option>
-                {options?.stati_vendita?.map(v => <option key={v} value={v}>{v}</option>)}
+                {STATO_VENDITA_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
               <label className={lbl}>Stato riordino</label>
               <select value={f.stato_riordino} onChange={set("stato_riordino")} className={sel}>
                 <option value="">Tutti</option>
-                {options?.stati_riordino?.map(v => <option key={v} value={v}>{v}</option>)}
+                {STATO_RIORDINO_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Stato conservazione</label>
+              <select value={f.stato_conservazione} onChange={set("stato_conservazione")} className={sel}>
+                <option value="">Tutti</option>
+                {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             <div>
@@ -340,6 +350,11 @@ export default function MagazzinoVini() {
   const [prezzoVal2, setPrezzoVal2] = useState("");
 
   const [onlyMissingListino, setOnlyMissingListino] = useState(false);
+
+  // ── Filtri stati ──
+  const [statoVenditaSel, setStatoVenditaSel] = useState("");
+  const [statoRiordinoSel, setStatoRiordinoSel] = useState("");
+  const [statoConservazioneSel, setStatoConservazioneSel] = useState("");
 
   // ── Filtro locazioni gerarchico ──
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
@@ -527,7 +542,12 @@ export default function MagazzinoVini() {
       out = out.filter((v) => v.EURO_LISTINO == null || v.EURO_LISTINO === "");
     }
 
-    // 7) Filtro locazioni gerarchico
+    // 7) Filtri stati
+    if (statoVenditaSel) out = out.filter((v) => v.STATO_VENDITA === statoVenditaSel);
+    if (statoRiordinoSel) out = out.filter((v) => v.STATO_RIORDINO === statoRiordinoSel);
+    if (statoConservazioneSel) out = out.filter((v) => v.STATO_CONSERVAZIONE === statoConservazioneSel);
+
+    // 8) Filtro locazioni gerarchico
     const locFilters = [
       { col: "FRIGORIFERO", nome: frigoNome, spazio: frigoSpazio },
       { col: "LOCAZIONE_1", nome: loc1Nome, spazio: loc1Spazio },
@@ -564,6 +584,7 @@ export default function MagazzinoVini() {
     prezzoVal1,
     prezzoVal2,
     onlyMissingListino,
+    statoVenditaSel, statoRiordinoSel, statoConservazioneSel,
     frigoNome, frigoSpazio, loc1Nome, loc1Spazio, loc2Nome, loc2Spazio, loc3Nome, loc3Spazio,
   ]);
 
@@ -831,6 +852,34 @@ export default function MagazzinoVini() {
             </div>
           </div>
 
+          {/* FILTRI STATI */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato vendita</label>
+              <select value={statoVenditaSel} onChange={(e) => setStatoVenditaSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                <option value="">Tutti</option>
+                {STATO_VENDITA_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato riordino</label>
+              <select value={statoRiordinoSel} onChange={(e) => setStatoRiordinoSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                <option value="">Tutti</option>
+                {STATO_RIORDINO_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato conservazione</label>
+              <select value={statoConservazioneSel} onChange={(e) => setStatoConservazioneSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                <option value="">Tutti</option>
+                {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -932,6 +981,7 @@ export default function MagazzinoVini() {
                   setOnlyPositiveStock(false);
                   setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
                   setOnlyMissingListino(false);
+                  setStatoVenditaSel(""); setStatoRiordinoSel(""); setStatoConservazioneSel("");
                 }}
                 className="px-5 py-2 rounded-xl text-sm font-semibold shadow transition border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
               >

@@ -874,6 +874,7 @@ def _load_all_vini_inventario(
     carta: Optional[str] = None,
     stato_vendita: Optional[str] = None,
     stato_riordino: Optional[str] = None,
+    stato_conservazione: Optional[str] = None,
     discontinuato: Optional[str] = None,
     qta_min: Optional[int] = None,
     qta_max: Optional[int] = None,
@@ -930,6 +931,9 @@ def _load_all_vini_inventario(
     if stato_riordino:
         conditions.append("STATO_RIORDINO = ?")
         params.append(stato_riordino)
+    if stato_conservazione:
+        conditions.append("STATO_CONSERVAZIONE = ?")
+        params.append(stato_conservazione)
     if discontinuato:
         conditions.append("DISCONTINUATO = ?")
         params.append(discontinuato)
@@ -991,7 +995,7 @@ def _load_all_vini_inventario(
             LOCAZIONE_2, QTA_LOC2,
             LOCAZIONE_3, QTA_LOC3,
             QTA_TOTALE,
-            CARTA, STATO_VENDITA, STATO_RIORDINO,
+            CARTA, STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
             DISCONTINUATO
         FROM vini_magazzino
         {where}
@@ -1133,6 +1137,9 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
             <th>Annata</th>
             <th>Formato</th>
             <th class="num">Prezzo</th>
+            <th>S.Vend</th>
+            <th>S.Riord</th>
+            <th>S.Cons</th>
             {loc_cols}
             <th class="num">Totale</th>
         </tr></thead>
@@ -1169,12 +1176,15 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
             <td>{v.get('ANNATA') or ''}</td>
             <td>{v.get('FORMATO') or ''}</td>
             <td class="num">{prezzo_str}</td>
+            <td>{v.get('STATO_VENDITA') or ''}</td>
+            <td>{v.get('STATO_RIORDINO') or ''}</td>
+            <td>{v.get('STATO_CONSERVAZIONE') or ''}</td>
             {loc_tds}
             <td class="num">{_fmt_qta(qta)}</td>
         </tr>
         """
 
-    colspan = 12 + (8 if show_locations else 0)
+    colspan = 12 + 3 + (8 if show_locations else 0)  # +3 per stati
     html += f"""
         <tr class="totale-row">
             <td colspan="{colspan - 1}">TOTALE: {len(vini)} vini</td>
@@ -1502,6 +1512,7 @@ def inventario_filtrato_pdf(
     carta: Optional[str] = Query(None),
     stato_vendita: Optional[str] = Query(None),
     stato_riordino: Optional[str] = Query(None),
+    stato_conservazione: Optional[str] = Query(None),
     discontinuato: Optional[str] = Query(None),
     qta_min: Optional[int] = Query(None),
     qta_max: Optional[int] = Query(None),
@@ -1534,6 +1545,7 @@ def inventario_filtrato_pdf(
         carta=carta,
         stato_vendita=stato_vendita,
         stato_riordino=stato_riordino,
+        stato_conservazione=stato_conservazione,
         discontinuato=discontinuato,
         qta_min=qta_min,
         qta_max=qta_max,
@@ -1621,6 +1633,7 @@ def inventario_filtri_options(
         "formati": distinct("FORMATO"),
         "stati_vendita": distinct("STATO_VENDITA"),
         "stati_riordino": distinct("STATO_RIORDINO"),
+        "stati_conservazione": distinct("STATO_CONSERVAZIONE"),
     }
     conn.close()
     return result

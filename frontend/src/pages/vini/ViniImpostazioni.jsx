@@ -6,6 +6,9 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
+import {
+  STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
+} from "../../config/viniConstants";
 
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE
@@ -45,6 +48,7 @@ const MENU = [
   { key: "carta",       label: "Carta dei Vini",      icon: "📜" },
   { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋" },
   { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍" },
+  { key: "stati",       label: "Stati",               icon: "🏷️" },
   { key: "manutenzione",label: "Manutenzione",        icon: "🔧" },
 ];
 
@@ -1167,11 +1171,39 @@ export default function ViniImpostazioni() {
     </div>
   );
 
+  const renderStatiBlock = (title, statiObj) => (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-neutral-800">{title}</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {Object.entries(statiObj).map(([code, cfg]) => (
+          <div key={code} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${cfg.color}`}>
+            <span className={`w-3 h-3 rounded-full shrink-0 ${cfg.dot}`}></span>
+            <span className="font-bold text-sm w-6">{cfg.short}</span>
+            <span className="text-sm">{cfg.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderStati = () => (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-amber-900 font-playfair">Legenda Stati</h2>
+      <p className="text-sm text-neutral-600">
+        Codici utilizzati per classificare i vini. Modificabili dalla scheda di ogni vino.
+      </p>
+      {renderStatiBlock("Stato Vendita", STATO_VENDITA)}
+      {renderStatiBlock("Stato Riordino", STATO_RIORDINO)}
+      {renderStatiBlock("Stato Conservazione", STATO_CONSERVAZIONE)}
+    </div>
+  );
+
   const sectionRenderers = {
     import: renderImportExport,
     carta: renderCarta,
     ordinamento: renderOrdinamento,
     locazioni: renderLocazioni,
+    stati: renderStati,
     manutenzione: renderManutenzione,
   };
 
