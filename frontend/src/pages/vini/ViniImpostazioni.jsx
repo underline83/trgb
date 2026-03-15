@@ -152,7 +152,7 @@ export default function ViniImpostazioni() {
     try { const r = await apiFetch(`${API_BASE}/settings/vini/filtri`); if (r.ok) setFiltri(await r.json()); } catch {}
   }, []);
   const fetchFormati = useCallback(async () => {
-    try { const r = await apiFetch(`${API_BASE}/settings/vini/formati`); if (r.ok) setFormatiList((await r.json()).map(d => d.formato)); } catch {}
+    try { const r = await apiFetch(`${API_BASE}/settings/vini/formati`); if (r.ok) setFormatiList(await r.json()); } catch {}
   }, []);
   const fetchLocConfig = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`); if (r.ok) setLocConfig(await r.json()); } catch {}
@@ -618,10 +618,22 @@ export default function ViniImpostazioni() {
               <button onClick={saveFormati} disabled={settingsLoading}
                 className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
             </div>
-            <OrderList items={formatiList} onReorder={setFormatiList}
-              onAdd={v => { if (!formatiList.includes(v)) setFormatiList(f => [...f, v]); }}
+            <OrderList
+              items={formatiList.map(f => typeof f === "string" ? f : `${f.formato} — ${f.descrizione || ""}${f.litri ? ` (${f.litri}L)` : ""}`)}
+              onReorder={(reordered) => {
+                // Ricostruisci gli oggetti dall'ordine dei label
+                const idxMap = reordered.map(label => {
+                  const code = label.split(" — ")[0].trim();
+                  return formatiList.findIndex(f => (typeof f === "string" ? f : f.formato) === code);
+                });
+                setFormatiList(idxMap.map(i => formatiList[i]));
+              }}
+              onAdd={v => {
+                if (formatiList.some(f => (typeof f === "string" ? f : f.formato) === v)) return;
+                setFormatiList(f => [...f, { formato: v, descrizione: "", litri: 0, ordine: f.length + 1 }]);
+              }}
               onRemove={idx => setFormatiList(f => f.filter((_, i) => i !== idx))}
-              addPlaceholder="Nuovo formato (es. BT, MG)…" />
+              addPlaceholder="Nuovo codice formato (es. BT, MG)…" />
             {formatiList.length === 0 && <p className="text-sm text-neutral-400 mt-1">Nessun formato configurato. Usa il campo sopra per aggiungerne.</p>}
           </div>
 

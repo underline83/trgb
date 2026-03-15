@@ -95,10 +95,21 @@ def init_settings_db():
     # ---------------------------
     cur.execute("""
         CREATE TABLE IF NOT EXISTS formati_order (
-            formato TEXT PRIMARY KEY,
-            ordine  INTEGER NOT NULL
+            formato     TEXT PRIMARY KEY,
+            ordine      INTEGER NOT NULL,
+            descrizione TEXT DEFAULT '',
+            litri       REAL DEFAULT 0
         );
     """)
+    # Migrazione: aggiungi colonne se mancanti (upgrade da vecchio schema)
+    try:
+        cur.execute("ALTER TABLE formati_order ADD COLUMN descrizione TEXT DEFAULT '';")
+    except Exception:
+        pass
+    try:
+        cur.execute("ALTER TABLE formati_order ADD COLUMN litri REAL DEFAULT 0;")
+    except Exception:
+        pass
 
     # ---------------------------
     # Filtri carta

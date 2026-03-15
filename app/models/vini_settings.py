@@ -152,12 +152,31 @@ def ensure_settings_defaults() -> None:
     # Formati
     # ---------------------------
     default_formati = [
-        ("BT", 1), ("MG", 2), ("DM", 3), ("JM", 4), ("IMP", 5),
+        # (formato, ordine, descrizione, litri)
+        ("MN",  1,  "Mini",                0.1),
+        ("QP",  2,  "Quarto",              0.1875),
+        ("ME",  3,  "Mezza",               0.375),
+        ("DM",  4,  "Demie",               0.5),
+        ("CL",  5,  "Clavelin",            0.62),
+        ("BT",  6,  "Bottiglia",           0.75),
+        ("BN",  7,  "Bagnum",              1.0),
+        ("MG",  8,  "Magnum",              1.5),
+        ("MJ",  9,  "Marie Jeanne",        2.5),
+        ("JB",  10, "Jéroboam",            3.0),
+        ("RH",  11, "Réhoboam",            4.5),
+        ("JBX", 12, "Jéroboam Bordeaux",   5.0),
+        ("MS",  13, "Mathusalem",          6.0),
+        ("SM",  14, "Salmanazar",          9.0),
+        ("BZ",  15, "Balthazar",           12.0),
+        ("NB",  16, "Nabuchodonosor",      15.0),
+        ("ML",  17, "Melchior",            18.0),
+        ("PR",  18, "Primat",              27.0),
+        ("MZ",  19, "Melchizedec",         30.0),
     ]
     row = cur.execute("SELECT COUNT(*) AS n FROM formati_order;").fetchone()
     if row["n"] == 0:
         cur.executemany(
-            "INSERT INTO formati_order (formato, ordine) VALUES (?, ?);",
+            "INSERT INTO formati_order (formato, ordine, descrizione, litri) VALUES (?, ?, ?, ?);",
             default_formati,
         )
 

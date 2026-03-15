@@ -51,16 +51,25 @@ function Select({ label, name, value, onChange, options }) {
   );
 }
 
-function SelectTabellato({ label, name, value, onChange, valori, placeholder = "— seleziona —" }) {
+function SelectTabellato({ label, name, value, onChange, valori, placeholder = "— seleziona —", valueKey, labelFn }) {
+  // Supporta sia array di stringhe che array di oggetti
+  const getVal = (item) => typeof item === "string" ? item : (valueKey ? item[valueKey] : item.formato || item.nome || String(item));
+  const getLabel = (item) => {
+    if (labelFn) return labelFn(item);
+    if (typeof item === "string") return item;
+    if (item.descrizione) return `${getVal(item)} — ${item.descrizione}${item.litri ? ` (${item.litri}L)` : ""}`;
+    return getVal(item);
+  };
   // Assicura che il valore corrente sia nelle opzioni (anche se non torna dal DB)
-  const opts = valori.includes(value) || !value ? valori : [value, ...valori];
+  const vals = valori.map(getVal);
+  const opts = vals.includes(value) || !value ? valori : [value, ...valori];
   return (
     <div>
       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
       <select name={name} value={value ?? ""} onChange={onChange}
         className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <option value="">{placeholder}</option>
-        {opts.map(v => <option key={v} value={v}>{v}</option>)}
+        {opts.map(v => <option key={getVal(v)} value={getVal(v)}>{getLabel(v)}</option>)}
       </select>
     </div>
   );
@@ -201,7 +210,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
         setTabellaOpts({
           tipologie: d.tipologie || [], nazioni: d.nazioni || [],
           regioni: regioniAll.map(r => r.nome), // default: tutte
-          formati: d.formati || [],
+          formati: d.formati || [], // [{formato, descrizione, litri}]
         });
       }
     } catch {}
@@ -591,7 +600,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Input label="Annata" name="ANNATA" value={editData.ANNATA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <SelectTabellato label="Formato" name="FORMATO" value={editData.FORMATO} valori={tabellaOpts.formati} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Formato" name="FORMATO" value={editData.FORMATO} valori={tabellaOpts.formati} valueKey="formato" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Vitigni" name="VITIGNI" value={editData.VITIGNI} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Grado alcolico" name="GRADO_ALCOLICO" value={editData.GRADO_ALCOLICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.1" />
                 </div>

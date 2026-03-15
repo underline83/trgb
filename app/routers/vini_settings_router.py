@@ -161,19 +161,29 @@ def save_regioni(nazione: str, order_list: List[Dict[str, Any]]):
 def get_formati() -> List[Dict[str, Any]]:
     _ensure()
     conn = get_settings_conn()
-    rows = conn.execute("SELECT formato, ordine FROM formati_order ORDER BY ordine ASC;").fetchall()
+    rows = conn.execute("SELECT formato, ordine, descrizione, litri FROM formati_order ORDER BY ordine ASC;").fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
 @router.post("/formati")
-def save_formati(order_list: List[str]):
+def save_formati(order_list: List[Dict[str, Any]]):
+    """
+    Accetta una lista di oggetti: [{formato, descrizione?, litri?}, ...]
+    oppure una lista di stringhe semplici per backward compat.
+    """
     _ensure()
     conn = get_settings_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM formati_order;")
-    for idx, formato in enumerate(order_list, start=1):
-        cur.execute("INSERT INTO formati_order (formato, ordine) VALUES (?, ?);", (formato, idx))
+    for idx, item in enumerate(order_list, start=1):
+        if isinstance(item, str):
+            cur.execute("INSERT INTO formati_order (formato, ordine) VALUES (?, ?);", (item, idx))
+        else:
+            cur.execute(
+                "INSERT INTO formati_order (formato, ordine, descrizione, litri) VALUES (?, ?, ?, ?);",
+                (item["formato"], idx, item.get("descrizione", ""), item.get("litri", 0)),
+            )
     conn.commit()
     conn.close()
     return {"status": "ok", "count": len(order_list)}
@@ -192,7 +202,8 @@ def get_valori_tabellati() -> Dict[str, Any]:
     nazioni = [r["nazione"] for r in cur.execute("SELECT nazione FROM nazioni_order ORDER BY ordine;").fetchall()]
     regioni = [{"codice": r["codice"], "nome": r["nome"], "nazione": r["nazione"]}
                for r in cur.execute("SELECT codice, nome, nazione FROM regioni_order ORDER BY ordine;").fetchall()]
-    formati = [r["formato"] for r in cur.execute("SELECT formato FROM formati_order ORDER BY ordine;").fetchall()]
+    formati = [{"formato": r["formato"], "descrizione": r["descrizione"], "litri": r["litri"]}
+               for r in cur.execute("SELECT formato, descrizione, litri FROM formati_order ORDER BY ordine;").fetchall()]
     conn.close()
     return {"tipologie": tipologie, "nazioni": nazioni, "regioni": regioni, "formati": formati}
 
