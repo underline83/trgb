@@ -4,6 +4,7 @@
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
@@ -68,8 +69,10 @@ function SectionHeader({ title, children }) {
  *   - inline: boolean (opzionale) — se true, non mostra header con titolone (usato dentro MagazzinoVini)
  */
 const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = false }, ref) {
+  const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const canDelete = role === "admin" || role === "sommelier" || role === "sala";
+  const [duplicating, setDuplicating] = useState(false);
 
   // ── stato base ───────────────────────────────────────
   const [vino, setVino]       = useState(null);
@@ -220,6 +223,21 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       if (!window.confirm("Hai modifiche non salvate. Vuoi davvero chiudere la scheda?")) return;
     }
     if (onClose) onClose();
+  };
+
+  const handleDuplica = async () => {
+    if (!window.confirm("Vuoi duplicare questo vino? Verrà creata una copia con giacenze a zero.")) return;
+    setDuplicating(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/duplica`, { method: "POST" });
+      if (!resp.ok) throw new Error("Errore durante la duplicazione");
+      const data = await resp.json();
+      navigate(`/vini/magazzino/${data.id}`);
+    } catch (err) {
+      alert(err.message || "Errore durante la duplicazione");
+    } finally {
+      setDuplicating(false);
+    }
   };
 
   const cancelEdit = () => {
@@ -406,6 +424,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 <div className="text-2xl font-bold text-amber-900">{tot} bt</div>
               </div>
             )}
+            <button type="button" onClick={handleDuplica} disabled={duplicating}
+              className="px-4 py-2 rounded-xl text-sm font-medium border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 shadow-sm transition disabled:opacity-50">
+              {duplicating ? "Duplico…" : "Duplica"}
+            </button>
             {onClose && (
               <button type="button" onClick={handleClose}
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">

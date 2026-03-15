@@ -369,6 +369,19 @@ def bulk_update(
     return {"status": "ok", "updated": count}
 
 
+@router.post("/{vino_id}/duplica", summary="Duplica un vino esistente (copia anagrafica, azzera giacenze)")
+def duplicate_vino_endpoint(
+    vino_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    try:
+        new_id = db.duplicate_vino(vino_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    row = db.get_vino_by_id(new_id)
+    return dict(row) if row else {"id": new_id}
+
+
 @router.delete("/delete-vino/{vino_id}", summary="Elimina un vino e tutti i dati collegati (solo admin)")
 def delete_vino_endpoint(
     vino_id: int,

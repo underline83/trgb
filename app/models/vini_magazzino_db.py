@@ -382,6 +382,58 @@ def create_vino(data: Dict[str, Any]) -> int:
     return vino_id
 
 
+def duplicate_vino(vino_id: int) -> int:
+    """
+    Duplica un vino esistente: copia tutti i campi anagrafici/prezzo/stato,
+    azzera giacenze e locazioni, assegna nuovo id (ultimo+1).
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    row = cur.execute("SELECT * FROM vini_magazzino WHERE id = ?;", (vino_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise ValueError(f"Vino {vino_id} non trovato")
+
+    # Campi da NON copiare
+    skip = {
+        "id", "id_excel", "CREATED_AT", "UPDATED_AT", "ORIGINE",
+        "FRIGORIFERO", "QTA_FRIGO",
+        "LOCAZIONE_1", "QTA_LOC1",
+        "LOCAZIONE_2", "QTA_LOC2",
+        "LOCAZIONE_3", "QTA_LOC3",
+        "QTA_TOTALE",
+    }
+
+    col_names = [desc[0] for desc in cur.description]
+    data = {}
+    for col in col_names:
+        if col in skip:
+            continue
+        data[col] = row[col]
+
+    now = _now_iso()
+    data["CREATED_AT"] = now
+    data["UPDATED_AT"] = now
+    data["ORIGINE"] = "DUPLICATO"
+    data["QTA_FRIGO"] = 0
+    data["QTA_LOC1"] = 0
+    data["QTA_LOC2"] = 0
+    data["QTA_LOC3"] = 0
+    data["QTA_TOTALE"] = 0
+
+    columns = ", ".join(data.keys())
+    placeholders = ", ".join(["?"] * len(data))
+    cur.execute(
+        f"INSERT INTO vini_magazzino ({columns}) VALUES ({placeholders});",
+        list(data.values()),
+    )
+    new_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return new_id
+
+
 def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
     """
     UPSERT di un vino di magazzino partendo dai dati della carta (DB vini).
