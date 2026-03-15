@@ -415,7 +415,7 @@ def duplicate_vino(vino_id: int) -> int:
         now = _now_iso()
         data["CREATED_AT"] = now
         data["UPDATED_AT"] = now
-        data["ORIGINE"] = "DUPLICATO"
+        data["ORIGINE"] = "MANUALE"
         data["QTA_FRIGO"] = 0
         data["QTA_LOC1"] = 0
         data["QTA_LOC2"] = 0
