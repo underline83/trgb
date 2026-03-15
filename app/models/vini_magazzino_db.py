@@ -293,6 +293,24 @@ def init_magazzino_database() -> None:
             )
         print(f"✅ Matrice: ricalcolate coordinate (col,riga) per {len(vino_ids_rows)} vini")
 
+    # Pulizia: se una locazione ha un testo ma quantità = 0, svuota il testo
+    loc_pairs = [
+        ("FRIGORIFERO", "QTA_FRIGO"),
+        ("LOCAZIONE_1", "QTA_LOC1"),
+        ("LOCAZIONE_2", "QTA_LOC2"),
+        ("LOCAZIONE_3", "QTA_LOC3"),
+    ]
+    cleaned = 0
+    for loc_col, qta_col in loc_pairs:
+        res = cur.execute(
+            f"UPDATE vini_magazzino SET {loc_col} = NULL "
+            f"WHERE {loc_col} IS NOT NULL AND {loc_col} != '' "
+            f"AND COALESCE({qta_col}, 0) = 0"
+        )
+        cleaned += res.rowcount
+    if cleaned:
+        print(f"✅ Pulizia: svuotate {cleaned} locazioni con quantità 0")
+
     conn.commit()
     conn.close()
 
