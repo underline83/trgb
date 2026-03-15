@@ -1353,8 +1353,14 @@ def inventario_locazioni_pdf(
     sections_html = ""
     grand_total = 0
 
-    # Ordina per nome locazione alfabetico (ignorando il prefisso FRIGO:/LOC1:/etc)
-    for loc_key in sorted(locazioni.keys(), key=lambda k: k.split(":", 1)[1].lower() if ":" in k else k.lower()):
+    # Ordina per nome locazione alfabetico; nomi che iniziano con ( o cifra vanno in fondo
+    def _loc_sort_key(k):
+        name = k.split(":", 1)[1].lower() if ":" in k else k.lower()
+        if name and not name[0].isalpha():
+            return (1, name)  # non-alfa in fondo
+        return (0, name)
+
+    for loc_key in sorted(locazioni.keys(), key=_loc_sort_key):
         loc_vini = locazioni[loc_key]
         loc_label = loc_key.split(":", 1)[1] if ":" in loc_key else loc_key
         tot_loc = sum(v["_qta_loc"] for v in loc_vini)
