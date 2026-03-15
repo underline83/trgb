@@ -41,7 +41,7 @@ from typing import List, Dict, Any, Tuple, Optional
 
 from app.models.vini_db import get_connection, init_database
 from app.models.settings_db import get_settings_conn, init_settings_db
-from app.models.vini_settings import ensure_settings_defaults
+from app.models.vini_settings import ensure_settings_defaults, _TIPOLOGIA_MAP
 
 
 # ---------------------------------------------------------
@@ -159,13 +159,20 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
         filtered.append(r)
 
     # ---------------------------------------------------------
+    # NORMALIZZAZIONE TIPOLOGIE (vecchie → nuove)
+    # ---------------------------------------------------------
+    def norm_tipo(t):
+        """BOLLICINE FRANCIA → BOLLICINE, ecc."""
+        return _TIPOLOGIA_MAP.get(t, t) if t else t
+
+    # ---------------------------------------------------------
     # ORDINAMENTO
     # ---------------------------------------------------------
     tip_map, naz_map, reg_map = _load_ordinamenti()
 
     def sort_key(r):
         return (
-            tip_map.get(r["TIPOLOGIA"], 9999),
+            tip_map.get(norm_tipo(r["TIPOLOGIA"]), 9999),
             naz_map.get(r["NAZIONE"], 9999),
             reg_map.get(r["REGIONE"], 9999),
             (r["PRODUTTORE"] or "").upper(),
@@ -182,7 +189,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     for r in ordered:
         out.append({
             "id": r["id"],
-            "TIPOLOGIA": r["TIPOLOGIA"],
+            "TIPOLOGIA": norm_tipo(r["TIPOLOGIA"]),
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],

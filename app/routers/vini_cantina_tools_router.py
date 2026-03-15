@@ -59,6 +59,7 @@ from app.services.carta_vini_service import (
     resolve_regione,
 )
 from app.repositories.vini_repository import _load_ordinamenti, _load_filtri
+from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
 router = APIRouter(
@@ -160,6 +161,10 @@ def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
                 continue
 
         filtered.append(dict(r))
+
+    # Normalizza tipologie vecchie → nuove
+    for r in filtered:
+        r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
 
     # Ordinamento
     tip_map, naz_map, reg_map = _load_ordinamenti()
@@ -1001,6 +1006,10 @@ def _load_all_vini_inventario(
     conn.close()
 
     vini = [dict(r) for r in rows]
+
+    # Normalizza tipologie vecchie → nuove
+    for r in vini:
+        r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
 
     # Ordinamento carta vini: usa le tabelle di impostazioni
     tip_map, naz_map, reg_map = _load_ordinamenti()
