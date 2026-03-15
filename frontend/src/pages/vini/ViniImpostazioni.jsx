@@ -93,6 +93,10 @@ export default function ViniImpostazioni() {
   const [locViniDetail, setLocViniDetail] = useState([]);
   const [locViniLoading, setLocViniLoading] = useState(false);
   const [locViniEdits, setLocViniEdits] = useState({});
+  // --- Migrazione matrice ---
+  const [matriceOldValues, setMatriceOldValues] = useState(null);
+  const [matriceLoading, setMatriceLoading] = useState(false);
+  const [matriceImportResult, setMatriceImportResult] = useState(null);
   const [locGiacenzaWarning, setLocGiacenzaWarning] = useState(null); // {vini, toApply} per conferma
 
   // --- Impostazioni ordinamento ---
@@ -265,6 +269,31 @@ export default function ViniImpostazioni() {
     setLocEditRighe("");
     setLocEditColonne("");
     setLocEditSpaziText(locCampo === "frigorifero" ? "Fila 1, Fila 2, Fila 3" : "");
+  };
+
+  // --- Migrazione matrice ---
+  const handleMatriceScan = async () => {
+    setMatriceLoading(true); setMatriceOldValues(null); setMatriceImportResult(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/matrice/old-values`);
+      if (r.ok) setMatriceOldValues(await r.json());
+      else setError("Errore caricamento valori matrice");
+    } catch { setError("Errore caricamento valori matrice"); }
+    setMatriceLoading(false);
+  };
+  const handleMatriceImport = async () => {
+    if (!window.confirm("Importare tutti i valori matrice trovati nel nuovo sistema? I vecchi campi verranno puliti.")) return;
+    setMatriceLoading(true); setMatriceImportResult(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/matrice/import-old`, { method: "POST" });
+      if (r.ok) {
+        const data = await r.json();
+        setMatriceImportResult(data);
+        setMatriceOldValues(null);
+        fetchLocConfig();
+      } else setError("Errore importazione matrice");
+    } catch { setError("Errore importazione matrice"); }
+    setMatriceLoading(false);
   };
 
   const handleEstraiValori = async (campo) => {
@@ -629,7 +658,7 @@ export default function ViniImpostazioni() {
                     {item.tipo === "matrice" ? (
                       <div className="mt-2">
                         <p className="text-xs text-neutral-500">
-                          {item.righe * item.colonne} celle — da ({1},{1}) a ({item.righe},{item.colonne})
+                          {item.righe * item.colonne} celle — da (1,1) a ({item.colonne},{item.righe})
                         </p>
                       </div>
                     ) : (
@@ -663,6 +692,91 @@ export default function ViniImpostazioni() {
           ) : (
             <div className="bg-neutral-50 border border-dashed border-neutral-300 rounded-xl p-6 text-center text-sm text-neutral-500">
               Nessuna locazione configurata per {locConfig?.fields?.[locCampo] || locCampo}.
+            </div>
+          )}
+
+          {/* PANNELLO MIGRAZIONE MATRICE */}
+          {locCampo === "locazione_3" && (
+            <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-900 text-sm">Migrazione dati matrice</h4>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Cerca valori matrice (es. "Matrice (6,7)") in tutte le locazioni e li importa nel nuovo sistema a griglia.
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={handleMatriceScan} disabled={matriceLoading}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-300 bg-white text-blue-800 hover:bg-blue-100 transition disabled:opacity-50">
+                    {matriceLoading ? "Caricamento..." : "Cerca valori vecchi"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Risultati scan */}
+              {matriceOldValues && (
+                <div className="space-y-2">
+                  {matriceOldValues.length === 0 ? (
+                    <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      Nessun valore matrice trovato nei vecchi campi. Tutto a posto!
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-xs font-medium text-blue-800">
+                        Trovati {matriceOldValues.length} vini con valori matrice da migrare:
+                      </div>
+                      <div className="max-h-60 overflow-y-auto space-y-1">
+                        {matriceOldValues.map(v => (
+                          <div key={v.id} className="text-xs bg-white border border-blue-100 rounded-lg px-3 py-2">
+                            <span className="font-medium text-neutral-800">#{v.id}</span>
+                            <span className="text-neutral-600 ml-2">{v.descrizione}</span>
+                            {v.ha_celle_matrice && (
+                              <span className="ml-2 text-amber-600 font-medium">(ha già celle nel nuovo sistema — skip)</span>
+                            )}
+                            <div className="mt-1 text-neutral-500">
+                              {Object.entries(v.campi_con_matrice).map(([campo, info]) => (
+                                <div key={campo}>
+                                  <span className="font-medium">{campo}:</span> {info.valore}
+                                  {info.coordinate.length > 0 && (
+                                    <span className="ml-1 text-blue-600">→ celle: {info.coordinate.join(", ")}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={handleMatriceImport} disabled={matriceLoading}
+                        className="px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50">
+                        {matriceLoading ? "Importazione..." : `Importa ${matriceOldValues.filter(v => !v.ha_celle_matrice).length} vini nel nuovo sistema`}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Risultato import */}
+              {matriceImportResult && (
+                <div className="text-xs bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
+                  <div className="font-medium text-green-800">
+                    Migrazione completata: {matriceImportResult.importati} vini importati, {matriceImportResult.skipped} già presenti.
+                  </div>
+                  {matriceImportResult.dettagli?.length > 0 && (
+                    <div className="text-green-700 mt-1">
+                      {matriceImportResult.dettagli.map(d => (
+                        <div key={d.vino_id}>
+                          #{d.vino_id} {d.descrizione} — {d.celle_importate} celle da {d.campi_originali.join(", ")}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {matriceImportResult.errori?.length > 0 && (
+                    <div className="text-red-600 mt-1">
+                      Errori: {matriceImportResult.errori.map(e => `#${e.vino_id}: ${e.errori_celle?.join(", ") || e.motivo}`).join("; ")}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
