@@ -1744,10 +1744,15 @@ async def get_locazioni_config(current_user=Depends(get_current_user)):
     """Ritorna la struttura delle locazioni fisiche per tutti i campi."""
     result = {"fields": {k: v["label"] for k, v in LOCATION_FIELDS.items()}}
     for campo_key in LOCATION_FIELDS:
-        result[campo_key] = _load_locazioni_config(campo_key)
+        # Locazione 2 condivide la stessa configurazione di Locazione 1
+        if campo_key == "locazione_2":
+            result[campo_key] = _load_locazioni_config("locazione_1")
+        else:
+            result[campo_key] = _load_locazioni_config(campo_key)
     result["opzioni_frigo"] = _build_options_from_config("frigorifero")
-    result["opzioni_locazione_1"] = _build_options_from_config("locazione_1")
-    result["opzioni_locazione_2"] = _build_options_from_config("locazione_2")
+    opzioni_loc = _build_options_from_config("locazione_1")
+    result["opzioni_locazione_1"] = opzioni_loc
+    result["opzioni_locazione_2"] = opzioni_loc  # stesse opzioni di loc1
     result["opzioni_locazione_3"] = _build_options_from_config("locazione_3")
     return result
 

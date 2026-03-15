@@ -93,6 +93,7 @@ export default function ViniImpostazioni() {
   const [locViniDetail, setLocViniDetail] = useState([]);
   const [locViniLoading, setLocViniLoading] = useState(false);
   const [locViniEdits, setLocViniEdits] = useState({});
+  const [locNormCampo, setLocNormCampo] = useState("locazione_1"); // sotto-campo per normalizzazione loc1/loc2
   // --- Migrazione matrice ---
   const [matriceOldValues, setMatriceOldValues] = useState(null);
   const [matriceLoading, setMatriceLoading] = useState(false);
@@ -327,12 +328,12 @@ export default function ViniImpostazioni() {
     try {
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-normalizza`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campo: locCampo, mapping: toApply }),
+        body: JSON.stringify({ campo: effectiveCampo, mapping: toApply }),
       });
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
       const data = await resp.json();
       setLocMsg(data.msg);
-      handleEstraiValori(locCampo);
+      handleEstraiValori(effectiveCampo);
     } catch (e) { setError(e?.message || "Errore applicazione mapping."); } finally { setLocSaving(false); }
   };
 
@@ -348,7 +349,7 @@ export default function ViniImpostazioni() {
       try {
         const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-check-giacenze`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ campo: locCampo, valori: valoriDaSvuotare }),
+          body: JSON.stringify({ campo: effectiveCampo, valori: valoriDaSvuotare }),
         });
         if (resp.ok) {
           const data = await resp.json();
@@ -364,8 +365,8 @@ export default function ViniImpostazioni() {
     // Nessun problema di giacenza: conferma semplice
     const svuotaCount = valoriDaSvuotare.length;
     const msg = svuotaCount > 0
-      ? `Applicare ${Object.keys(toApply).length} sostituzioni (di cui ${svuotaCount} svuotamenti) nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`
-      : `Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[locCampo] || locCampo}?`;
+      ? `Applicare ${Object.keys(toApply).length} sostituzioni (di cui ${svuotaCount} svuotamenti) nel campo ${locConfig?.fields?.[effectiveCampo] || effectiveCampo}?`
+      : `Applicare ${Object.keys(toApply).length} sostituzioni nel campo ${locConfig?.fields?.[effectiveCampo] || effectiveCampo}?`;
     if (!window.confirm(msg)) return;
     _executeMapping(toApply);
   };
@@ -374,7 +375,7 @@ export default function ViniImpostazioni() {
     if (locExpandedVal === valore) { setLocExpandedVal(null); setLocViniDetail([]); setLocViniEdits({}); return; }
     setLocExpandedVal(valore); setLocViniLoading(true); setLocViniEdits({});
     try {
-      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vini/${locCampo}?valore=${encodeURIComponent(valore)}`);
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vini/${effectiveCampo}?valore=${encodeURIComponent(valore)}`);
       if (!resp.ok) throw new Error();
       const data = await resp.json();
       setLocViniDetail(data.vini);
@@ -392,12 +393,12 @@ export default function ViniImpostazioni() {
     try {
       const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-vino-update`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campo: locCampo, vino_id: vinoId, nuovo_valore: realValue }),
+        body: JSON.stringify({ campo: effectiveCampo, vino_id: vinoId, nuovo_valore: realValue }),
       });
       if (!resp.ok) throw new Error((await resp.text().catch(() => "")) || `Errore: ${resp.status}`);
       // Ricarica dettaglio e valori
       handleToggleViniDetail(locExpandedVal);
-      handleEstraiValori(locCampo);
+      handleEstraiValori(effectiveCampo);
       setLocMsg("Locazione aggiornata.");
     } catch (e) { setError(e?.message || "Errore aggiornamento."); }
   };
@@ -593,11 +594,12 @@ export default function ViniImpostazioni() {
 
   const LOC_TABS = [
     { key: "frigorifero", label: "Frigorifero", icon: "🧊" },
-    { key: "locazione_1", label: "Locazione 1", icon: "📦" },
-    { key: "locazione_2", label: "Locazione 2", icon: "📦" },
+    { key: "locazione_1", label: "Locazione 1 & 2", icon: "📦" },
     { key: "locazione_3", label: "Matrice", icon: "🔲" },
   ];
   const currentLocItems = locConfig?.[locCampo] || [];
+  // Campo effettivo per normalizzazione: se siamo su locazione_1 (tab unificata), usa locNormCampo
+  const effectiveCampo = locCampo === "locazione_1" ? locNormCampo : locCampo;
   const currentOpzioni = locValori?.opzioni_valide || (locCampo === "frigorifero" ? locConfig?.opzioni_frigo : []) || [];
   const pendingMappings = locValori ? locValori.valori.filter(v => locMapping[v.valore] === SVUOTA || (locMapping[v.valore]?.trim())).length : 0;
 
@@ -878,9 +880,28 @@ export default function ViniImpostazioni() {
       {/* ============ NORMALIZZA ============ */}
       {locEditMode && (
         <div className="space-y-4">
+          {/* Sotto-selettore loc1/loc2 quando siamo sulla tab unificata */}
+          {locCampo === "locazione_1" && (
+            <div className="flex gap-2">
+              {[
+                { key: "locazione_1", label: "Locazione 1" },
+                { key: "locazione_2", label: "Locazione 2" },
+              ].map(sub => (
+                <button key={sub.key}
+                  onClick={() => { setLocNormCampo(sub.key); setLocValori(null); setLocMapping({}); setLocMsg(""); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                    locNormCampo === sub.key
+                      ? "bg-amber-200 text-amber-900 shadow-sm"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  }`}>
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
           {/* ESTRAI VALORI */}
           <div className="flex items-center gap-3">
-            <button onClick={() => handleEstraiValori(locCampo)} disabled={locLoading}
+            <button onClick={() => handleEstraiValori(locCampo === "locazione_1" ? locNormCampo : locCampo)} disabled={locLoading}
               className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${locLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
               {locLoading ? "Caricamento…" : `Estrai valori`}
             </button>
@@ -1088,7 +1109,7 @@ export default function ViniImpostazioni() {
 
           {locValori && locValori.valori.length === 0 && (
             <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm text-neutral-500 text-center">
-              Nessun valore trovato nel campo {locConfig?.fields?.[locCampo] || locCampo}.
+              Nessun valore trovato nel campo {locConfig?.fields?.[effectiveCampo] || effectiveCampo}.
             </div>
           )}
         </div>
