@@ -1,6 +1,6 @@
 # TRGB Gestionale
 Sistema gestionale interno dell'Osteria Tre Gobbi (Bergamo)
-**Versione:** 2026.03.14 — Sistema v4.3
+**Versione:** 2026.03.15 — Sistema v4.3
 
 ---
 
@@ -123,7 +123,7 @@ Dominio frontend: `https://app.tregobbi.it` → `127.0.0.1:5173`
 # 8. Moduli
 
 ### Cantina & Vini (v3.7)
-Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI, vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX. Strumenti cantina: sync Excel, import/export, modifica massiva.
+Magazzino vini con locazioni gerarchiche, movimenti, dashboard KPI, vendite bottiglia/calici. Carta Vini con generazione HTML/PDF/DOCX (legge solo da magazzino, vecchio DB eliminato v3.0). Strumenti cantina: import/export Excel, modifica massiva.
 Docs: `docs/modulo_vini.md`, `docs/modulo_magazzino_vini.md`
 
 ### Gestione Acquisti (v2.0)
@@ -163,11 +163,11 @@ Docs: `docs/modulo_dipendenti.md`
 
 # 10. Database
 
-6 file SQLite in `app/data/`:
+5 file SQLite attivi in `app/data/` (+ 1 eliminato):
 
 | File | Moduli |
 |------|--------|
-| `vini.sqlite3` | Carta Vini (legacy Excel) |
+| ~~`vini.sqlite3`~~ | **ELIMINATO v3.0** — carta ora da vini_magazzino.sqlite3 |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini moderno) |
 | `vini_settings.sqlite3` | Ordinamenti e filtri carta |
 | `foodcost.db` | FoodCost, Fatture XML, Ricette, Banca, Finanza (migrazioni 001–017) |

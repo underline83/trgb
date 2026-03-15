@@ -1,6 +1,6 @@
 # 🍾 Modulo Magazzino Vini — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-14
-**Stato:** operativo — gestione completa con movimenti, dashboard analytics, scheda dettaglio, filtri locazione gerarchici
+**Ultimo aggiornamento:** 2026-03-15
+**Stato:** operativo — DB UNICO vini dal v3.0 (vecchio vini.sqlite3 eliminato). Gestione completa con movimenti, dashboard analytics, scheda dettaglio, filtri locazione gerarchici
 
 ---
 
@@ -258,6 +258,7 @@ Pannello modale con filtri componibili per generare PDF inventario:
 - [x] Dashboard KPI valore acquisto/carta — 2026-03-14
 - [x] Dashboard liste espandibili (alert, vini fermi) — 2026-03-14
 - [x] Filtri locazione gerarchici cascading — 2026-03-14
+- [x] Consolidamento DB: eliminato vini.sqlite3, tutto su magazzino — 2026-03-15
 - [ ] Filtri lato server per dataset molto grandi
 - [ ] Sincronizzazione storico prezzi
 - [ ] Import Excel con diff interattivo

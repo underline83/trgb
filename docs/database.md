@@ -1,11 +1,11 @@
 # Database — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-14
+**Ultimo aggiornamento:** 2026-03-15
 
 Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono in `app/data/`.
 
 | File | Moduli | Schema |
 |------|--------|--------|
-| `vini.sqlite3` | Carta Vini | v2.1 — creato da `vini_db.py` |
+| ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | **ELIMINATO v3.0** — tutto su vini_magazzino.sqlite3 |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini) | v3.7 — creato da `vini_magazzino_db.py` |
 | `vini_settings.sqlite3` | Settings Carta Vini | v1.4 — creato da `vini_settings.py` |
 | `foodcost.db` | FoodCost, FE XML, Banca, Finanza | v3.0 — gestito da `migration_runner.py` (001–017) |
@@ -14,8 +14,8 @@ Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono
 
 ---
 
-# 1. `vini.sqlite3`
-_Gestisce la Carta dei Vini. E' un DB operazionale: sovrascritto ad ogni import Excel._
+# 1. `vini.sqlite3` — ELIMINATO (v3.0, 2026-03-15)
+_Era il DB della Carta Vini, sovrascritto ad ogni import Excel. Eliminato: la carta ora legge direttamente da `vini_magazzino.sqlite3`._
 
 ## Tabella `vini`
 Tabella unica con tutte le informazioni per generazione carta, ricerca, ordinamento, scorte.
@@ -42,7 +42,7 @@ Tabella unica con tutte le informazioni per generazione carta, ricerca, ordiname
 ---
 
 # 2. `vini_magazzino.sqlite3`
-_Magazzino vini moderno. Sostituisce progressivamente il DB legacy._
+_Magazzino vini — unico DB vini dal v3.0. Vecchio `vini.sqlite3` eliminato._
 
 ## Tabella `vini_magazzino`
 | Colonna | Tipo | Note |

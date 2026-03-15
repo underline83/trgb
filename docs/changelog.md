@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-03-15 — Eliminazione vecchio DB vini.sqlite3 + fix carta v3.1
+
+### Removed
+- **`vini.sqlite3`** — vecchio DB Carta Vini (generato da import Excel) eliminato; tutto ora su `vini_magazzino.sqlite3`
+- **Endpoint `POST /vini/upload`** — import Excel vecchio rimosso da `vini_router.py`
+- **Endpoint `POST /vini/cantina-tools/sync-from-excel`** — sincronizzazione vecchio DB → cantina rimossa
+- **Tasto "Importa file Excel"** da pagina Carta Vini (`ViniCarta.jsx`)
+- **UI sincronizzazione** da `CantinaTools.jsx` e `ViniImpostazioni.jsx`
+- **Codice migrazione vecchio DB** da `vini_settings.py`
+- **`mockup_nazione.html`** — file mockup temporaneo
+
+### Changed
+- **`vini_router.py`** v3.0 — movimenti ora su `vini_magazzino_db` (era `vini_db`), rimossi import da `vini_db`/`vini_model`
+- **`vini_cantina_tools_router.py`** v3.0 — rimosso sync-from-excel, mantenuto import-excel (diretto → magazzino)
+- **`ViniCarta.jsx`** v3.3 — rimosso import Excel, griglia 4 colonne, sottotitolo aggiornato
+- **`ViniDatabase.jsx`** — upload ora punta a `/cantina-tools/import-excel` con `apiFetch`
+- **`carta_html.css`** v3.1 — allineato a PDF: stili nazione con filetti decorativi, Google Fonts import, spaziature coerenti
+- **`carta_pdf.css`** v3.1 — `page-break-after: avoid` su `.tipologia`, `.nazione`, `.regione`, `.produttore` per evitare intestazioni orfane in fondo pagina
+
+### Notes
+- `vini_db.py` e `vini_model.py` restano nel codice (deprecated) — `normalize_dataframe` ancora usata da import-excel
+- `core/database.py` mantenuto per dipendenza pre-esistente da `fe_import.py`
+
+---
+
 ## 2026-03-14c — Cambio PIN self-service + reset admin
 
 ### Added

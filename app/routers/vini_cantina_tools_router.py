@@ -1,4 +1,4 @@
-# @version: v3.0-only-magazzino
+# @version: v3.1-unified-loader
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Cantina Tools
@@ -42,8 +42,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from weasyprint import HTML, CSS
-from docx import Document
-from docx.shared import Inches
 
 from app.services.auth_service import get_current_user, decode_access_token
 from app.models import vini_magazzino_db as mag_db
@@ -52,9 +50,10 @@ from app.services.carta_vini_service import (
     build_carta_body_html,
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
+    build_carta_docx,
     resolve_regione,
 )
-from app.repositories.vini_repository import _load_ordinamenti, _load_filtri
+from app.repositories.vini_repository import load_vini_ordinati, _load_ordinamenti
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
@@ -111,79 +110,6 @@ def _get_username(current_user: Any) -> str:
     return "unknown"
 
 
-# ---------------------------------------------------------
-# HELPER: carica vini ordinati dal DB cantina
-# ---------------------------------------------------------
-def _load_vini_cantina_ordinati() -> List[Dict[str, Any]]:
-    """
-    Equivalente di load_vini_ordinati() del repository,
-    ma legge dal DB cantina (vini_magazzino.sqlite3).
-    Applica stessi filtri e ordinamento delle impostazioni.
-    """
-    conn = mag_db.get_magazzino_connection()
-    cur = conn.cursor()
-
-    rows = cur.execute(
-        """
-        SELECT
-            id, id_excel,
-            TIPOLOGIA, NAZIONE, REGIONE,
-            PRODUTTORE, DESCRIZIONE, DENOMINAZIONE,
-            ANNATA, FORMATO,
-            PREZZO_CARTA, EURO_LISTINO,
-            QTA_TOTALE, CARTA
-        FROM vini_magazzino
-        WHERE
-            TIPOLOGIA IS NOT NULL
-            AND TIPOLOGIA <> 'ERRORE'
-            AND CARTA = 'SI'
-        """
-    ).fetchall()
-    conn.close()
-
-    # Filtri
-    min_qta_stampa, mostra_negativi, mostra_senza_prezzo = _load_filtri()
-
-    filtered = []
-    for r in rows:
-        qta = r["QTA_TOTALE"] or 0
-        prezzo = r["PREZZO_CARTA"]
-
-        if not (qta >= min_qta_stampa or (mostra_negativi and qta < 0)):
-            continue
-
-        if not mostra_senza_prezzo:
-            if prezzo is None or prezzo == 0:
-                continue
-
-        filtered.append(dict(r))
-
-    # Normalizza tipologie vecchie → nuove
-    for r in filtered:
-        r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
-
-    # Ordinamento
-    tip_map, naz_map, reg_map = _load_ordinamenti()
-
-    def sort_key(r):
-        return (
-            tip_map.get(r["TIPOLOGIA"], 9999),
-            naz_map.get(r["NAZIONE"], 9999),
-            reg_map.get(r.get("REGIONE"), 9999),
-            (r["PRODUTTORE"] or "").upper(),
-            (r["DESCRIZIONE"] or "").upper(),
-            r["ANNATA"] or "",
-        )
-
-    ordered = sorted(filtered, key=sort_key)
-
-    # Adatta i nomi campo per compatibilità con carta_vini_service
-    # (il service si aspetta "PREZZO", non "PREZZO_CARTA")
-    for r in ordered:
-        r["PREZZO"] = r.get("PREZZO_CARTA")
-        r["QTA"] = r.get("QTA_TOTALE", 0)
-
-    return ordered
 
 
 # =============================================================
@@ -557,10 +483,10 @@ def export_cantina_excel(
 @router.get("/carta-cantina", summary="Carta vini HTML da DB cantina")
 def carta_cantina_html():
     """
-    Genera la carta dei vini leggendo dal DB cantina.
-    Stessa logica di /vini/carta ma con fonte dati diversa.
+    Genera la carta dei vini leggendo dal DB magazzino.
+    Usa load_vini_ordinati() condiviso con /vini/carta.
     """
-    rows = _load_vini_cantina_ordinati()
+    rows = load_vini_ordinati()
     body_html = build_carta_body_html_htmlsafe(rows)
 
     css_content = ""
@@ -594,7 +520,7 @@ def carta_cantina_pdf(
     """
     Genera il PDF della carta vini dal DB cantina.
     """
-    rows = _load_vini_cantina_ordinati()
+    rows = load_vini_ordinati()
     data_oggi = datetime.now().strftime("%d/%m/%Y")
 
     # Front page — identico al vecchio sistema (stesse classi CSS)
@@ -646,66 +572,11 @@ def carta_cantina_docx(
     current_user: Any = Depends(_get_user_from_query_token),
 ):
     """
-    Genera il DOCX della carta vini dal DB cantina.
+    Genera il DOCX della carta vini dal DB magazzino.
+    Usa build_carta_docx() condiviso con /vini/carta/docx.
     """
-    rows = _load_vini_cantina_ordinati()
-
-    doc = Document()
-
-    # Logo
-    if LOGO_PATH.exists():
-        doc.add_picture(str(LOGO_PATH), width=Inches(1.8))
-
-    doc.add_heading("OSTERIA TRE GOBBI — CARTA DEI VINI", level=0)
-    doc.add_paragraph(
-        f"(da Cantina — {datetime.now().strftime('%d/%m/%Y')})"
-    )
-
-    # Raggruppamento (con livello nazione)
-    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
-    def k_naz(r): return r.get("NAZIONE") or "Varie"
-    def k_reg(r): return resolve_regione(r)
-    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
-
-    for tip, g1 in groupby(rows, k_tip):
-        g1 = list(g1)
-        doc.add_heading(tip, level=1)
-
-        for naz, g1b in groupby(g1, k_naz):
-            g1b = list(g1b)
-            doc.add_heading(naz, level=2)
-
-            for reg, g2 in groupby(g1b, k_reg):
-                g2 = list(g2)
-                p_reg = doc.add_paragraph()
-                run_reg = p_reg.add_run(reg)
-                run_reg.italic = True
-                run_reg.bold = True
-
-                for prod, g3 in groupby(g2, k_prod):
-                    g3 = list(g3)
-                    p = doc.add_paragraph()
-                    rr = p.add_run(prod)
-                    rr.bold = True
-
-                    for r in g3:
-                        desc = r["DESCRIZIONE"] or ""
-                        annata = r["ANNATA"] or ""
-                        prezzo = r["PREZZO"]
-                        if prezzo not in (None, ""):
-                            try:
-                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
-                            except Exception:
-                                prezzo = str(prezzo)
-                        else:
-                            prezzo = ""
-
-                        line = f"{desc}"
-                        if annata:
-                            line += f" — {annata}"
-                        if prezzo:
-                            line += f" — {prezzo}"
-                        doc.add_paragraph(line)
+    rows = load_vini_ordinati()
+    doc = build_carta_docx(rows, logo_path=LOGO_PATH)
 
     out_path = STATIC_DIR / "carta_vini_cantina.docx"
     doc.save(str(out_path))

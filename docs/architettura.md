@@ -1,5 +1,5 @@
 # TRGB Gestionale — Architettura Tecnica
-**Ultimo aggiornamento:** 2026-03-14
+**Ultimo aggiornamento:** 2026-03-15
 
 ---
 
@@ -9,7 +9,7 @@ TRGB Gestionale e' il sistema interno dell'Osteria Tre Gobbi (Bergamo). E' compo
 
 - **Backend:** FastAPI (Python 3.12), autenticazione JWT con PIN, SQLite multipli
 - **Frontend:** React 18 + Vite + TailwindCSS
-- **Database:** SQLite (un file per dominio funzionale, 6 database)
+- **Database:** SQLite (un file per dominio funzionale, 5 database attivi)
 - **Deploy:** VPS Aruba Ubuntu 22.04, systemd, Nginx reverse proxy, HTTPS Certbot
 - **Deploy automatico:** `push.sh` → git push → post-receive hook VPS
 
@@ -51,7 +51,7 @@ app/
 │   └── corrispettivi_import.py     — Parsing Excel corrispettivi
 │
 ├── models/             ← Schema DB e dataclass
-│   ├── vini_db.py / vini_model.py  — Schema + import vini
+│   ├── vini_db.py / vini_model.py  — DEPRECATED (vecchio DB eliminato v3.0)
 │   ├── vini_magazzino_db.py        — CRUD magazzino vini
 │   ├── vini_settings.py            — Settings vini
 │   ├── foodcost_db.py              — Schema + CRUD foodcost
@@ -75,8 +75,8 @@ app/
 │   └── foodcost_repository.py
 │
 ├── data/               ← Database SQLite
-│   ├── vini.sqlite3            — Carta Vini (legacy Excel)
-│   ├── vini_magazzino.sqlite3  — Cantina (DB moderno)
+│   ├── vini.sqlite3            — ELIMINATO v3.0 (era Carta Vini legacy)
+│   ├── vini_magazzino.sqlite3  — Cantina (DB moderno, unico DB vini)
 │   ├── vini_settings.sqlite3   — Ordinamenti e filtri carta
 │   ├── foodcost.db             — FoodCost, Ricette, FE XML, Banca, Finanza
 │   ├── admin_finance.sqlite3   — Vendite + Chiusure turno

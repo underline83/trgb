@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-14 (sessione 6 — Chiusure Turno + Cambio PIN + Aggiornamento docs)
+> Ultima sessione: 2026-03-15 (sessione 7 — Eliminazione vecchio DB + fix carta PDF/HTML)
 
 ---
 
@@ -15,33 +15,31 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-14, sessione 6)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-15, sessione 7)
 
-### Chiusure Turno — modulo completo + Cambio PIN + Documentazione
+### Eliminazione vecchio DB vini.sqlite3 + fix carta PDF/HTML
 
-#### Modulo Chiusure Turno (NUOVO)
-1. **`chiusure_turno.py`** — backend con 5 tabelle: `shift_closures`, `shift_checklist_config`, `shift_checklist_responses`, `shift_preconti`, `shift_spese`
-2. **`ChiusuraTurno.jsx`** v2.0 — form fine servizio con:
-   - Logica cena cumulativa (totali giornalieri - pranzo = parziale cena)
-   - Preconto rinominato "Chiusura Parziale" (pranzo) / "Chiusura" (cena)
-   - Pre-conti dinamici (tavoli non battuti: tavolo + importo)
-   - Spese dinamiche (tipo: scontrino/fattura/personale/altro + descrizione + importo)
-   - Fondo cassa inizio/fine servizio
-   - Hint "pranzo X → parz. cena Y" sotto ogni campo in modalita' cena
-   - Quadratura: `(incassi + preconti) - chiusura_parziale`
-3. **`ChiusureTurnoLista.jsx`** — admin lista chiusure con filtri, totali periodo, dettaglio espandibile
-4. **`VenditeNav.jsx`** v2.0 — tab "Fine Turno" visibile a tutti, altri tab admin-only
-5. **Route** `/vendite/fine-turno` e `/vendite/chiusure` in App.jsx
+#### Eliminazione vecchio DB (v3.0)
+1. **`vini_router.py`** v3.0 — rimosso endpoint `/vini/upload`, movimenti ora su `vini_magazzino_db`
+2. **`vini_cantina_tools_router.py`** v3.0 — rimosso endpoint `sync-from-excel`
+3. **`vini_settings.py`** — rimosso codice migrazione vecchio DB
+4. **Frontend** — 4 file aggiornati: ViniCarta, ViniDatabase, CantinaTools, ViniImpostazioni
+5. **`mockup_nazione.html`** eliminato
 
-#### Cambio PIN
-6. **`CambioPIN.jsx`** — self-service cambio PIN (tutti) + reset admin a 0000
-7. **Icona chiave nel Header** — accesso rapido a `/cambio-pin`
-8. **Route** `/cambio-pin` in App.jsx
+#### Fix carta (v3.1)
+6. **`ViniCarta.jsx`** v3.3 — rimosso tasto "Importa file Excel" (non serve, carta legge da magazzino)
+7. **`carta_html.css`** v3.1 — allineato a PDF: filetti nazione, spaziature, Google Fonts
+8. **`carta_pdf.css`** v3.1 — `page-break-after: avoid` su tipologia, nazione, regione, produttore
+9. **Documentazione** — aggiornati tutti i file docs/ per riflettere eliminazione vecchio DB
 
-#### Documentazione aggiornata (tutti i file in docs/)
-9. readme.md, architettura.md, database.md, changelog.md, roadmap.md
-10. modulo_corrispettivi.md, modulo_fatture_xml.md, modulo_vini.md, modulo_foodcost.md
-11. sessione.md (questo file)
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-14, sessione 6)
+
+### Chiusure Turno — modulo completo + Cambio PIN
+1. Modulo Chiusure Turno completo (backend + frontend + DB)
+2. Cambio PIN self-service + reset admin
+3. Documentazione aggiornata
 
 ---
 
@@ -144,9 +142,11 @@ frontend/src/pages/admin/ChiusuraTurno.jsx  — form fine servizio
 frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin
 
 # --- VINI ---
-app/routers/vini_magazzino_router.py   — magazzino vini
-app/routers/vini_cantina_tools_router.py — strumenti cantina
-app/models/vini_magazzino_db.py        — DB cantina
+app/routers/vini_router.py               — carta vini + movimenti (v3.0, solo magazzino)
+app/routers/vini_magazzino_router.py     — magazzino vini CRUD
+app/routers/vini_cantina_tools_router.py — strumenti cantina (v3.0, senza sync)
+app/models/vini_magazzino_db.py          — DB unico vini
+app/repositories/vini_repository.py      — load_vini_ordinati() da magazzino
 
 # --- RICETTE & FOOD COST ---
 app/routers/foodcost_recipes_router.py    — ricette + calcolo food cost
@@ -174,7 +174,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 
 | Database | Moduli |
 |----------|--------|
-| `vini.sqlite3` | Carta Vini (legacy Excel) |
+| ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
 | `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza (migraz. 001-017) |

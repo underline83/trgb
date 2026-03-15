@@ -23,7 +23,6 @@ Changelog v2.04:
 
 from __future__ import annotations
 
-from itertools import groupby
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -32,13 +31,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from weasyprint import HTML, CSS
-from docx import Document
-from docx.shared import Inches
 
 from app.services.carta_vini_service import (
     build_carta_body_html,
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
+    build_carta_docx,
     resolve_regione,
 )
 from app.services.auth_service import get_current_user
@@ -189,61 +187,12 @@ def genera_carta_vini_pdf_staff():
 
 
 # ------------------------------------------------------------
-# DOCX SEMPLICE
+# DOCX (usa builder condiviso)
 # ------------------------------------------------------------
 @router.get("/carta/docx")
 def genera_carta_vini_docx():
     rows = list(load_vini_ordinati())
-    doc = Document()
-
-    if LOGO_PATH.exists():
-        doc.add_picture(str(LOGO_PATH), width=Inches(1.8))
-
-    doc.add_heading("CARTA DEI VINI — OSTERIA TRE GOBBI", level=1)
-
-    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
-    def k_naz(r): return r.get("NAZIONE") or "Varie"
-    def k_reg(r): return resolve_regione(r)
-    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
-
-    for tip, g1 in groupby(rows, k_tip):
-        g1 = list(g1)
-        doc.add_heading(tip, level=2)
-
-        for naz, g1b in groupby(g1, k_naz):
-            g1b = list(g1b)
-            doc.add_heading(naz, level=3)
-
-            for reg, g2 in groupby(g1b, k_reg):
-                g2 = list(g2)
-                p_reg = doc.add_paragraph()
-                run_reg = p_reg.add_run(reg)
-                run_reg.italic = True
-                run_reg.bold = True
-
-                for prod, g3 in groupby(g2, k_prod):
-                    g3 = list(g3)
-                    p = doc.add_paragraph()
-                    rr = p.add_run(prod)
-                    rr.bold = True
-
-                    for riga in g3:
-                        desc = riga["DESCRIZIONE"] or ""
-                        annata = riga["ANNATA"] or ""
-                        prezzo = riga["PREZZO"]
-                        if prezzo:
-                            try:
-                                prezzo = f"€ {float(prezzo):.2f}"
-                            except Exception:
-                                pass
-
-                        line = "    " + desc
-                        if annata:
-                            line += f" — {annata}"
-                        if prezzo:
-                            line += f" — {prezzo}"
-
-                        doc.add_paragraph(line)
+    doc = build_carta_docx(rows, logo_path=LOGO_PATH)
 
     out = STATIC_DIR / "carta_vini.docx"
     doc.save(str(out))

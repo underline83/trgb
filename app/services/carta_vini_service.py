@@ -1,4 +1,4 @@
-# @version: v1.0-carta-vini-service
+# @version: v1.1-carta-vini-service
 # -*- coding: utf-8 -*-
 """
 TRGB — Service Carta Vini
@@ -213,3 +213,121 @@ def build_carta_toc_html(rows: Iterable[Dict[str, Any]]) -> str:
 
     html.append("</div>")
     return "".join(html)
+
+
+# ------------------------------------------------------------
+# BUILDER — DOCX (condiviso tra /carta/docx e /cantina/docx)
+# ------------------------------------------------------------
+def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Document":
+    """
+    Genera un oggetto Document python-docx con la carta vini completa.
+    Usa tab stops per allineare descrizione / annata / prezzo in 3 colonne.
+    """
+    from docx import Document
+    from docx.shared import Inches, Pt, Cm, RGBColor
+    from docx.enum.text import WD_TAB_ALIGNMENT
+
+    rows = list(rows)
+    doc = Document()
+
+    # -- Stile base: margini pagina ridotti per più spazio
+    for section in doc.sections:
+        section.left_margin = Cm(2)
+        section.right_margin = Cm(2)
+
+    # -- Logo
+    if logo_path and logo_path.exists():
+        doc.add_picture(str(logo_path), width=Inches(1.8))
+
+    # -- Titolo
+    from datetime import datetime
+    data_oggi = datetime.now().strftime("%d/%m/%Y")
+    h = doc.add_heading("CARTA DEI VINI", level=0)
+    doc.add_paragraph(f"Osteria Tre Gobbi — Aggiornata al {data_oggi}")
+
+    if not rows:
+        doc.add_paragraph("Nessun vino da mostrare.")
+        return doc
+
+    # -- Grouping keys
+    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
+    def k_reg(r): return resolve_regione(r)
+    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
+
+    # -- Tab stops per le colonne vino
+    # Annata a 12 cm (center), Prezzo a 16.5 cm (right)
+    TAB_ANNATA = Cm(12)
+    TAB_PREZZO = Cm(16.5)
+
+    for tip, g1 in groupby(rows, k_tip):
+        g1 = list(g1)
+        doc.add_heading(tip, level=1)
+
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            # Nazione come heading livello 2
+            p_naz = doc.add_heading(naz, level=2)
+
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                # Regione: corsivo + grassetto
+                p_reg = doc.add_paragraph()
+                run_reg = p_reg.add_run(reg)
+                run_reg.italic = True
+                run_reg.bold = True
+                run_reg.font.size = Pt(11)
+
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    # Produttore: grassetto
+                    p_prod = doc.add_paragraph()
+                    p_prod.paragraph_format.space_before = Pt(6)
+                    p_prod.paragraph_format.space_after = Pt(2)
+                    rr = p_prod.add_run(prod)
+                    rr.bold = True
+                    rr.font.size = Pt(10)
+
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, "", 0):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
+                        else:
+                            prezzo = ""
+
+                        # Riga vino con tab stops
+                        p = doc.add_paragraph()
+                        p.paragraph_format.space_before = Pt(0)
+                        p.paragraph_format.space_after = Pt(1)
+                        p.paragraph_format.left_indent = Cm(0.5)
+
+                        # Tab stops
+                        p.paragraph_format.tab_stops.add_tab_stop(
+                            TAB_ANNATA, WD_TAB_ALIGNMENT.CENTER
+                        )
+                        p.paragraph_format.tab_stops.add_tab_stop(
+                            TAB_PREZZO, WD_TAB_ALIGNMENT.RIGHT
+                        )
+
+                        # Descrizione
+                        run_desc = p.add_run(desc)
+                        run_desc.font.size = Pt(9)
+
+                        # Annata (tab + valore)
+                        if annata:
+                            run_ann = p.add_run(f"\t{annata}")
+                            run_ann.font.size = Pt(9)
+                            run_ann.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+                        # Prezzo (tab + valore)
+                        if prezzo:
+                            run_pr = p.add_run(f"\t{prezzo}")
+                            run_pr.font.size = Pt(9)
+                            run_pr.bold = True
+
+    return doc
