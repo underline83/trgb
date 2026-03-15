@@ -2149,3 +2149,35 @@ async def matrice_recalc_all(current_user=Depends(get_current_user)):
     _require_admin(current_user)
     count = mag_db.matrice_recalc_all()
     return {"ok": True, "vini_aggiornati": count}
+
+
+@router.get("/matrice/old-values", summary="Mostra tutti i valori LOCAZIONE_3 testuali")
+async def matrice_old_values(current_user=Depends(get_current_user)):
+    """Debug: mostra tutti i vini con LOCAZIONE_3 non vuota e se hanno celle in matrice_celle."""
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        "SELECT id, DESCRIZIONE, LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino "
+        "WHERE LOCAZIONE_3 IS NOT NULL AND LOCAZIONE_3 != '' "
+        "ORDER BY id"
+    ).fetchall()
+    existing = set(r[0] for r in cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall())
+    conn.close()
+    return [
+        {
+            "id": r["id"],
+            "descrizione": r["DESCRIZIONE"],
+            "locazione_3": r["LOCAZIONE_3"],
+            "qta_loc3": r["QTA_LOC3"],
+            "ha_celle_matrice": r["id"] in existing,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/matrice/import-old", summary="Importa vecchi valori LOCAZIONE_3 in matrice_celle")
+async def matrice_import_old(current_user=Depends(get_current_user)):
+    """Migrazione: parsa coordinate da LOCAZIONE_3 e le importa in matrice_celle."""
+    _require_admin(current_user)
+    result = mag_db.matrice_import_from_locazione3()
+    return result

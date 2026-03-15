@@ -1548,6 +1548,75 @@ def matrice_set_celle_vino(vino_id: int, celle: List[Dict[str, int]]) -> Dict[st
     return result
 
 
+def matrice_import_from_locazione3() -> dict:
+    """
+    Migrazione: legge i valori testuali di LOCAZIONE_3 che contengono coordinate
+    tipo "(6,7)" o "Matrice - (6,7)" e li importa nella tabella matrice_celle.
+    Salta i vini che hanno già celle nella tabella matrice_celle.
+    Ritorna {importati: N, errori: [...], skipped: N}
+    """
+    import re
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    now = _now_iso()
+
+    # Trova tutti i vini con LOCAZIONE_3 non vuota
+    rows = cur.execute(
+        "SELECT id, DESCRIZIONE, LOCAZIONE_3 FROM vini_magazzino "
+        "WHERE LOCAZIONE_3 IS NOT NULL AND LOCAZIONE_3 != ''"
+    ).fetchall()
+
+    # Vini che hanno già celle nella tabella matrice_celle
+    existing_vino_ids = set(r[0] for r in cur.execute(
+        "SELECT DISTINCT vino_id FROM matrice_celle"
+    ).fetchall())
+
+    importati = 0
+    skipped = 0
+    errori = []
+
+    for row in rows:
+        vino_id = row["id"]
+        loc3 = row["LOCAZIONE_3"]
+        desc = row["DESCRIZIONE"] or "?"
+
+        if vino_id in existing_vino_ids:
+            skipped += 1
+            continue
+
+        # Parsa tutte le coordinate dal testo: cerca pattern (N,N)
+        # Il formato potrebbe essere: "(6,7)", "Matrice - (6,7)", "(1,5), (1,6), (1,7)"
+        # oppure nel vecchio formato (riga,colonna) o nuovo (colonna,riga)
+        coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', loc3)
+        if not coords:
+            errori.append({"vino_id": vino_id, "descrizione": desc, "locazione_3": loc3, "motivo": "Nessuna coordinata trovata"})
+            continue
+
+        celle_importate = 0
+        for n1, n2 in coords:
+            # I vecchi valori erano nel formato (colonna, riga) come da display
+            # ma internamente salviamo come (riga, colonna) nel DB
+            # Assumiamo il vecchio formato fosse (colonna, riga) — col prima
+            col_val = int(n1)
+            rig_val = int(n2)
+            try:
+                cur.execute(
+                    "INSERT INTO matrice_celle (vino_id, riga, colonna, created_at) VALUES (?, ?, ?, ?)",
+                    (vino_id, rig_val, col_val, now),
+                )
+                celle_importate += 1
+            except Exception as e:
+                errori.append({"vino_id": vino_id, "descrizione": desc, "cella": f"({col_val},{rig_val})", "motivo": str(e)})
+
+        if celle_importate > 0:
+            _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
+            importati += 1
+
+    conn.commit()
+    conn.close()
+    return {"importati": importati, "skipped": skipped, "errori": errori}
+
+
 def matrice_recalc_preview() -> list:
     """Mostra anteprima prima/dopo per tutti i vini con celle matrice."""
     conn = get_magazzino_connection()
