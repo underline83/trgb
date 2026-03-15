@@ -84,7 +84,7 @@ def get_nazioni():
 @router.post("/nazioni")
 def save_nazioni(order_list: list[str]):
     """
-    order_list = ["ITALIA", "FRANCIA", "GERMANIA", ...]
+    order_list = ["Italia", "Francia", "Germania", ...]
     """
     ensure_db()
 

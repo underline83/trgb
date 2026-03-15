@@ -17,6 +17,65 @@ from __future__ import annotations
 from app.models.settings_db import get_settings_conn, init_settings_db
 
 
+def _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions) -> None:
+    """
+    Migra nazioni e regioni da MAIUSCOLO a Title Case.
+    Aggiorna anche i vini nel magazzino perché NAZIONE e REGIONE sono stringhe
+    salvate direttamente (non FK).
+    """
+    # --- Nazioni ---
+    # Costruisci mappa UPPER→Title per le nazioni
+    naz_map = {}  # "ITALIA" → "Italia"
+    for naz, _ord in default_nations:
+        naz_map[naz.upper()] = naz
+
+    existing_naz = cur.execute("SELECT nazione FROM nazioni_order;").fetchall()
+    for row in existing_naz:
+        old = row["nazione"]
+        new = naz_map.get(old.upper())
+        if new and new != old:
+            cur.execute("UPDATE nazioni_order SET nazione = ? WHERE nazione = ?;", (new, old))
+
+    # --- Regioni ---
+    # Costruisci mappa UPPER→Title per nazione nelle regioni
+    for naz, _ord in default_nations:
+        naz_upper = naz.upper()
+        if naz_upper != naz:
+            cur.execute("UPDATE regioni_order SET nazione = ? WHERE UPPER(nazione) = ?;",
+                        (naz, naz_upper))
+
+    # Costruisci mappa UPPER(nome)→Title Case per i nomi regione
+    reg_map = {}  # "LOMBARDIA" → "Lombardia"
+    for _code, _naz, nome, _ord in default_regions:
+        reg_map[nome.upper()] = nome
+
+    existing_reg = cur.execute("SELECT codice, nome FROM regioni_order;").fetchall()
+    for row in existing_reg:
+        old_nome = row["nome"]
+        new_nome = reg_map.get(old_nome.upper())
+        if new_nome and new_nome != old_nome:
+            cur.execute("UPDATE regioni_order SET nome = ? WHERE codice = ?;",
+                        (new_nome, row["codice"]))
+
+    # --- Magazzino vini: normalizza NAZIONE e REGIONE ---
+    try:
+        from app.models.vini_magazzino_db import get_magazzino_connection
+        mag = get_magazzino_connection()
+        mc = mag.cursor()
+        # Normalizza NAZIONE
+        for naz_upper, naz_title in naz_map.items():
+            mc.execute("UPDATE vini_magazzino SET NAZIONE = ? WHERE UPPER(NAZIONE) = ? AND NAZIONE != ?;",
+                       (naz_title, naz_upper, naz_title))
+        # Normalizza REGIONE
+        for reg_upper, reg_title in reg_map.items():
+            mc.execute("UPDATE vini_magazzino SET REGIONE = ? WHERE UPPER(REGIONE) = ? AND REGIONE != ?;",
+                       (reg_title, reg_upper, reg_title))
+        mag.commit()
+        mag.close()
+    except Exception:
+        pass  # Se il DB magazzino non esiste ancora, ignora
+
+
 def ensure_settings_defaults() -> None:
     """
     Assicura che:
@@ -63,10 +122,10 @@ def ensure_settings_defaults() -> None:
     # Nazioni
     # ---------------------------
     default_nations = [
-        ("ITALIA", 1),
-        ("FRANCIA", 2),
-        ("GERMANIA", 3),
-        ("AUSTRIA", 4),
+        ("Italia", 1),
+        ("Francia", 2),
+        ("Germania", 3),
+        ("Austria", 4),
     ]
     row = cur.execute("SELECT COUNT(*) AS n FROM nazioni_order;").fetchone()
     if row["n"] == 0:
@@ -80,65 +139,65 @@ def ensure_settings_defaults() -> None:
     # ---------------------------
     default_regions = [
         # ITALIA
-        ("IT01", "ITALIA", "LOMBARDIA", 1),
-        ("IT02", "ITALIA", "PIEMONTE", 2),
-        ("IT03", "ITALIA", "LIGURIA", 3),
-        ("IT04", "ITALIA", "VALLE D'AOSTRA", 4),
-        ("IT05", "ITALIA", "VENETO", 5),
-        ("IT06", "ITALIA", "FRIULI-VENEZIA GIULIA", 6),
-        ("IT07", "ITALIA", "TRENTINO - ALTO ADIGE", 7),
-        ("IT08", "ITALIA", "EMILIA-ROMAGNA", 8),
-        ("IT09", "ITALIA", "TOSCANA", 9),
-        ("IT10", "ITALIA", "UMBRIA", 10),
-        ("IT11", "ITALIA", "MARCHE", 11),
-        ("IT12", "ITALIA", "LAZIO", 12),
-        ("IT13", "ITALIA", "ABRUZZO", 13),
-        ("IT14", "ITALIA", "MOLISE", 14),
-        ("IT15", "ITALIA", "CAMPANIA", 15),
-        ("IT16", "ITALIA", "PUGLIA", 16),
-        ("IT17", "ITALIA", "BASILICATA", 17),
-        ("IT18", "ITALIA", "CALABRIA", 18),
-        ("IT19", "ITALIA", "SICILIA", 19),
-        ("IT20", "ITALIA", "SARDEGNA", 20),
+        ("IT01", "Italia", "Lombardia", 1),
+        ("IT02", "Italia", "Piemonte", 2),
+        ("IT03", "Italia", "Liguria", 3),
+        ("IT04", "Italia", "Valle d'Aosta", 4),
+        ("IT05", "Italia", "Veneto", 5),
+        ("IT06", "Italia", "Friuli-Venezia Giulia", 6),
+        ("IT07", "Italia", "Trentino-Alto Adige", 7),
+        ("IT08", "Italia", "Emilia-Romagna", 8),
+        ("IT09", "Italia", "Toscana", 9),
+        ("IT10", "Italia", "Umbria", 10),
+        ("IT11", "Italia", "Marche", 11),
+        ("IT12", "Italia", "Lazio", 12),
+        ("IT13", "Italia", "Abruzzo", 13),
+        ("IT14", "Italia", "Molise", 14),
+        ("IT15", "Italia", "Campania", 15),
+        ("IT16", "Italia", "Puglia", 16),
+        ("IT17", "Italia", "Basilicata", 17),
+        ("IT18", "Italia", "Calabria", 18),
+        ("IT19", "Italia", "Sicilia", 19),
+        ("IT20", "Italia", "Sardegna", 20),
         # FRANCIA
-        ("FR01", "FRANCIA", "Alsazia", 21),
-        ("FR02", "FRANCIA", "Beaujolais", 22),
-        ("FR03", "FRANCIA", "Bordeaux", 23),
-        ("FR04", "FRANCIA", "Borgogna", 24),
-        ("FR05", "FRANCIA", "Champagne", 25),
-        ("FR06", "FRANCIA", "Corsica", 26),
-        ("FR07", "FRANCIA", "Jura", 27),
-        ("FR08", "FRANCIA", "Linguadoca - Rossiglione", 28),
-        ("FR09", "FRANCIA", "Lorraine", 29),
-        ("FR10", "FRANCIA", "Provenza", 30),
-        ("FR11", "FRANCIA", "Rhone", 31),
-        ("FR12", "FRANCIA", "Savoia - Bugey", 32),
-        ("FR13", "FRANCIA", "Sud-Ovest", 33),
-        ("FR14", "FRANCIA", "Vallée de la Loire", 34),
+        ("FR01", "Francia", "Alsazia", 21),
+        ("FR02", "Francia", "Beaujolais", 22),
+        ("FR03", "Francia", "Bordeaux", 23),
+        ("FR04", "Francia", "Borgogna", 24),
+        ("FR05", "Francia", "Champagne", 25),
+        ("FR06", "Francia", "Corsica", 26),
+        ("FR07", "Francia", "Jura", 27),
+        ("FR08", "Francia", "Linguadoca-Rossiglione", 28),
+        ("FR09", "Francia", "Lorraine", 29),
+        ("FR10", "Francia", "Provenza", 30),
+        ("FR11", "Francia", "Rhone", 31),
+        ("FR12", "Francia", "Savoia-Bugey", 32),
+        ("FR13", "Francia", "Sud-Ovest", 33),
+        ("FR14", "Francia", "Vallée de la Loire", 34),
         # GERMANIA
-        ("DE01", "GERMANIA", "Ahr", 35),
-        ("DE02", "GERMANIA", "Baden", 36),
-        ("DE03", "GERMANIA", "Franken", 37),
-        ("DE04", "GERMANIA", "Hessische - Bergstrasse", 38),
-        ("DE05", "GERMANIA", "Mittelrhein", 39),
-        ("DE06", "GERMANIA", "Mosel - Saar - Ruwer", 40),
-        ("DE07", "GERMANIA", "Nahe", 41),
-        ("DE08", "GERMANIA", "Pfalz", 42),
-        ("DE09", "GERMANIA", "Rheingau", 43),
-        ("DE10", "GERMANIA", "Rheinhessen", 44),
-        ("DE11", "GERMANIA", "Saale - Unstrut", 45),
-        ("DE12", "GERMANIA", "Sachsen", 46),
-        ("DE13", "GERMANIA", "Wurttemberg", 47),
+        ("DE01", "Germania", "Ahr", 35),
+        ("DE02", "Germania", "Baden", 36),
+        ("DE03", "Germania", "Franken", 37),
+        ("DE04", "Germania", "Hessische-Bergstrasse", 38),
+        ("DE05", "Germania", "Mittelrhein", 39),
+        ("DE06", "Germania", "Mosel-Saar-Ruwer", 40),
+        ("DE07", "Germania", "Nahe", 41),
+        ("DE08", "Germania", "Pfalz", 42),
+        ("DE09", "Germania", "Rheingau", 43),
+        ("DE10", "Germania", "Rheinhessen", 44),
+        ("DE11", "Germania", "Saale-Unstrut", 45),
+        ("DE12", "Germania", "Sachsen", 46),
+        ("DE13", "Germania", "Wurttemberg", 47),
         # AUSTRIA
-        ("AU01", "AUSTRIA", "Niederösterreich", 48),
-        ("AU02", "AUSTRIA", "Burgenland", 49),
-        ("AU03", "AUSTRIA", "Steiermark", 50),
-        ("AU04", "AUSTRIA", "Wien", 51),
-        ("AU05", "AUSTRIA", "Kärnten", 52),
-        ("AU06", "AUSTRIA", "Oberösterreich", 53),
-        ("AU07", "AUSTRIA", "Salzburg", 54),
-        ("AU08", "AUSTRIA", "Tirol", 55),
-        ("AU09", "AUSTRIA", "Vorarlberg", 56),
+        ("AU01", "Austria", "Niederösterreich", 48),
+        ("AU02", "Austria", "Burgenland", 49),
+        ("AU03", "Austria", "Steiermark", 50),
+        ("AU04", "Austria", "Wien", 51),
+        ("AU05", "Austria", "Kärnten", 52),
+        ("AU06", "Austria", "Oberösterreich", 53),
+        ("AU07", "Austria", "Salzburg", 54),
+        ("AU08", "Austria", "Tirol", 55),
+        ("AU09", "Austria", "Vorarlberg", 56),
     ]
 
     row = cur.execute("SELECT COUNT(*) AS n FROM regioni_order;").fetchone()
@@ -147,6 +206,9 @@ def ensure_settings_defaults() -> None:
             "INSERT INTO regioni_order (codice, nazione, nome, ordine) VALUES (?, ?, ?, ?);",
             default_regions,
         )
+    else:
+        # Migrazione: normalizza nazioni e regioni da MAIUSCOLO a Title Case
+        _migrate_nazioni_regioni_titlecase(cur, default_nations, default_regions)
 
     # ---------------------------
     # Formati

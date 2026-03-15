@@ -51,10 +51,10 @@ DELETE FROM vini_nazioni;
 
 -- Ordine ufficiale (puoi ampliarlo in futuro)
 INSERT INTO vini_nazioni (nome, codice, ordine) VALUES
-    ('ITALIA',   'IT', 1),
-    ('FRANCIA',  'FR', 2),
-    ('GERMANIA', 'DE', 3),
-    ('AUSTRIA',  'AT', 4);
+    ('Italia',   'IT', 1),
+    ('Francia',  'FR', 2),
+    ('Germania', 'DE', 3),
+    ('Austria',  'AT', 4);
 
 CREATE INDEX IF NOT EXISTS idx_vini_nazioni_ordine
     ON vini_nazioni (ordine, nome);
@@ -73,73 +73,73 @@ CREATE TABLE IF NOT EXISTS vini_regioni (
 
 DELETE FROM vini_regioni;
 
--- ITALIA
+-- Italia
 INSERT INTO vini_regioni (nazione, codice, nome, ordine) VALUES
-    ('ITALIA', 'IT01', 'LOMBARDIA',             1),
-    ('ITALIA', 'IT02', 'PIEMONTE',              2),
-    ('ITALIA', 'IT03', 'LIGURIA',               3),
-    ('ITALIA', 'IT04', 'VALLE D''AOSTRA',       4),
-    ('ITALIA', 'IT05', 'VENETO',                5),
-    ('ITALIA', 'IT06', 'FRIULI-VENEZIA GIULIA', 6),
-    ('ITALIA', 'IT07', 'TRENTINO - ALTO ADIGE', 7),
-    ('ITALIA', 'IT08', 'EMILIA-ROMAGNA',        8),
-    ('ITALIA', 'IT09', 'TOSCANA',               9),
-    ('ITALIA', 'IT10', 'UMBRIA',               10),
-    ('ITALIA', 'IT11', 'MARCHE',               11),
-    ('ITALIA', 'IT12', 'LAZIO',                12),
-    ('ITALIA', 'IT13', 'ABRUZZO',              13),
-    ('ITALIA', 'IT14', 'MOLISE',               14),
-    ('ITALIA', 'IT15', 'CAMPANIA',             15),
-    ('ITALIA', 'IT16', 'PUGLIA',               16),
-    ('ITALIA', 'IT17', 'BASILICATA',           17),
-    ('ITALIA', 'IT18', 'CALABRIA',             18),
-    ('ITALIA', 'IT19', 'SICILIA',              19),
-    ('ITALIA', 'IT20', 'SARDEGNA',             20);
+    ('Italia', 'IT01', 'Lombardia',             1),
+    ('Italia', 'IT02', 'Piemonte',              2),
+    ('Italia', 'IT03', 'Liguria',               3),
+    ('Italia', 'IT04', 'Valle d''Aosta',        4),
+    ('Italia', 'IT05', 'Veneto',                5),
+    ('Italia', 'IT06', 'Friuli-Venezia Giulia', 6),
+    ('Italia', 'IT07', 'Trentino-Alto Adige',   7),
+    ('Italia', 'IT08', 'Emilia-Romagna',        8),
+    ('Italia', 'IT09', 'Toscana',               9),
+    ('Italia', 'IT10', 'Umbria',               10),
+    ('Italia', 'IT11', 'Marche',               11),
+    ('Italia', 'IT12', 'Lazio',                12),
+    ('Italia', 'IT13', 'Abruzzo',              13),
+    ('Italia', 'IT14', 'Molise',               14),
+    ('Italia', 'IT15', 'Campania',             15),
+    ('Italia', 'IT16', 'Puglia',               16),
+    ('Italia', 'IT17', 'Basilicata',           17),
+    ('Italia', 'IT18', 'Calabria',             18),
+    ('Italia', 'IT19', 'Sicilia',              19),
+    ('Italia', 'IT20', 'Sardegna',             20);
 
--- FRANCIA
+-- Francia
 INSERT INTO vini_regioni (nazione, codice, nome, ordine) VALUES
-    ('FRANCIA', 'FR01', 'Alsazia',                     1),
-    ('FRANCIA', 'FR02', 'Beaujolais',                  2),
-    ('FRANCIA', 'FR03', 'Bordeaux',                    3),
-    ('FRANCIA', 'FR04', 'Borgogna',                    4),
-    ('FRANCIA', 'FR05', 'Champagne',                   5),
-    ('FRANCIA', 'FR06', 'Corsica',                     6),
-    ('FRANCIA', 'FR07', 'Jura',                        7),
-    ('FRANCIA', 'FR08', 'Linguadoca  - Rossiglione',   8),
-    ('FRANCIA', 'FR09', 'Lorraine',                    9),
-    ('FRANCIA', 'FR10', 'Provenza',                   10),
-    ('FRANCIA', 'FR11', 'Rhone',                      11),
-    ('FRANCIA', 'FR12', 'Savoia - Bugey',             12),
-    ('FRANCIA', 'FR13', 'Sud-Ovest',                  13),
-    ('FRANCIA', 'FR14', 'Vallée de la Loire',         14);
+    ('Francia', 'FR01', 'Alsazia',                   1),
+    ('Francia', 'FR02', 'Beaujolais',                2),
+    ('Francia', 'FR03', 'Bordeaux',                  3),
+    ('Francia', 'FR04', 'Borgogna',                  4),
+    ('Francia', 'FR05', 'Champagne',                 5),
+    ('Francia', 'FR06', 'Corsica',                   6),
+    ('Francia', 'FR07', 'Jura',                      7),
+    ('Francia', 'FR08', 'Linguadoca-Rossiglione',    8),
+    ('Francia', 'FR09', 'Lorraine',                  9),
+    ('Francia', 'FR10', 'Provenza',                 10),
+    ('Francia', 'FR11', 'Rhone',                    11),
+    ('Francia', 'FR12', 'Savoia-Bugey',             12),
+    ('Francia', 'FR13', 'Sud-Ovest',                13),
+    ('Francia', 'FR14', 'Vallée de la Loire',       14);
 
--- GERMANIA
+-- Germania
 INSERT INTO vini_regioni (nazione, codice, nome, ordine) VALUES
-    ('GERMANIA', 'DE01', 'Ahr',                      1),
-    ('GERMANIA', 'DE02', 'Baden',                    2),
-    ('GERMANIA', 'DE03', 'Franken',                  3),
-    ('GERMANIA', 'DE04', 'Hessische - Bergstrasse',  4),
-    ('GERMANIA', 'DE05', 'Mittelrhein',              5),
-    ('GERMANIA', 'DE06', 'Mosel - Saar- Ruwer',      6),
-    ('GERMANIA', 'DE07', 'Nahe',                     7),
-    ('GERMANIA', 'DE08', 'Pfalz',                    8),
-    ('GERMANIA', 'DE09', 'Rheingau',                 9),
-    ('GERMANIA', 'DE10', 'Rheinhessen',             10),
-    ('GERMANIA', 'DE11', 'Saale - Unstrut',         11),
-    ('GERMANIA', 'DE12', 'Sachsen',                 12),
-    ('GERMANIA', 'DE13', 'Wurttemberg',             13);
+    ('Germania', 'DE01', 'Ahr',                      1),
+    ('Germania', 'DE02', 'Baden',                    2),
+    ('Germania', 'DE03', 'Franken',                  3),
+    ('Germania', 'DE04', 'Hessische-Bergstrasse',    4),
+    ('Germania', 'DE05', 'Mittelrhein',              5),
+    ('Germania', 'DE06', 'Mosel-Saar-Ruwer',        6),
+    ('Germania', 'DE07', 'Nahe',                     7),
+    ('Germania', 'DE08', 'Pfalz',                    8),
+    ('Germania', 'DE09', 'Rheingau',                 9),
+    ('Germania', 'DE10', 'Rheinhessen',             10),
+    ('Germania', 'DE11', 'Saale-Unstrut',           11),
+    ('Germania', 'DE12', 'Sachsen',                 12),
+    ('Germania', 'DE13', 'Wurttemberg',             13);
 
--- AUSTRIA
+-- Austria
 INSERT INTO vini_regioni (nazione, codice, nome, ordine) VALUES
-    ('AUSTRIA', 'AU01', 'Niederösterreich', 1),
-    ('AUSTRIA', 'AU02', 'Burgenland',       2),
-    ('AUSTRIA', 'AU03', 'Steiermark',       3),
-    ('AUSTRIA', 'AU04', 'Wien',             4),
-    ('AUSTRIA', 'AU05', 'Kärnten',          5),
-    ('AUSTRIA', 'AU06', 'Oberösterreich',   6),
-    ('AUSTRIA', 'AU07', 'Salzburg',         7),
-    ('AUSTRIA', 'AU08', 'Tirol',            8),
-    ('AUSTRIA', 'AU09', 'Vorarlberg',       9);
+    ('Austria', 'AU01', 'Niederösterreich', 1),
+    ('Austria', 'AU02', 'Burgenland',       2),
+    ('Austria', 'AU03', 'Steiermark',       3),
+    ('Austria', 'AU04', 'Wien',             4),
+    ('Austria', 'AU05', 'Kärnten',          5),
+    ('Austria', 'AU06', 'Oberösterreich',   6),
+    ('Austria', 'AU07', 'Salzburg',         7),
+    ('Austria', 'AU08', 'Tirol',            8),
+    ('Austria', 'AU09', 'Vorarlberg',       9);
 
 CREATE INDEX IF NOT EXISTS idx_vini_regioni_nazione_ordine
     ON vini_regioni (nazione, ordine, nome);

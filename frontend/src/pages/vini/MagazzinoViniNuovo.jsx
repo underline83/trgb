@@ -53,7 +53,7 @@ export default function MagazzinoViniNuovo() {
 
   const [form, setForm] = useState({
     TIPOLOGIA: "",
-    NAZIONE: "ITALIA",
+    NAZIONE: "Italia",
     REGIONE: "",
     DESCRIZIONE: "",
     DENOMINAZIONE: "",
@@ -223,7 +223,7 @@ export default function MagazzinoViniNuovo() {
   const payloadFinal = useMemo(() => {
     return {
       TIPOLOGIA: form.TIPOLOGIA.trim(),
-      NAZIONE: form.NAZIONE.trim() || "ITALIA",
+      NAZIONE: form.NAZIONE.trim() || "Italia",
       REGIONE: nullIfEmpty(form.REGIONE),
       DESCRIZIONE: form.DESCRIZIONE.trim(),
       DENOMINAZIONE: nullIfEmpty(form.DENOMINAZIONE),

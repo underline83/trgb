@@ -69,7 +69,7 @@ def import_from_vini(mode: str = "update"):
             "id_excel":       r["id"],
 
             "TIPOLOGIA":      r["TIPOLOGIA"] or "ERRORE",
-            "NAZIONE":        r["NAZIONE"] or "ITALIA",
+            "NAZIONE":        r["NAZIONE"] or "Italia",
             "REGIONE":        r["REGIONE"],
 
             "DESCRIZIONE":    descrizione,
