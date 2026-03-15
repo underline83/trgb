@@ -1657,6 +1657,11 @@ LOCATION_FIELDS = {
 }
 
 
+def _config_campo(campo: str) -> str:
+    """Locazione 2 condivide la config di Locazione 1."""
+    return "locazione_1" if campo == "locazione_2" else campo
+
+
 def _load_locazioni_config(campo: str) -> list[dict]:
     """Carica la configurazione locazioni per un campo dal DB."""
     conn = mag_db.get_magazzino_connection()
@@ -1856,8 +1861,8 @@ async def get_locazioni_valori(
     ).fetchall()
     conn.close()
 
-    valid_options = set(_build_options_from_config(campo))
-    campo_items = _load_locazioni_config(campo)
+    valid_options = set(_build_options_from_config(_config_campo(campo)))
+    campo_items = _load_locazioni_config(_config_campo(campo))
 
     valori = []
     for row in rows:
