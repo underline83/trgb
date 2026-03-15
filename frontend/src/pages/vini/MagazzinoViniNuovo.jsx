@@ -44,6 +44,8 @@ export default function MagazzinoViniNuovo() {
   const [nazioni, setNazioni] = useState([]);
   const [regioni, setRegioni] = useState([]);
   const [produttori, setProduttori] = useState([]);
+  const [codici, setCodici] = useState([]);
+  const [formati, setFormati] = useState([]);
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
@@ -126,7 +128,7 @@ export default function MagazzinoViniNuovo() {
   };
 
   // ------------------------------------------------
-  // SUGGERIMENTI: ricavo liste da /vini/magazzino
+  // VALORI TABELLATI: carica da filtri-options
   // ------------------------------------------------
   useEffect(() => {
     const fetchOptions = async () => {
@@ -134,16 +136,18 @@ export default function MagazzinoViniNuovo() {
       setOptionsError("");
 
       try {
-        const resp = await apiFetch(`${API_BASE}/vini/magazzino`);
+        const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`);
 
         if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
         const data = await resp.json();
 
-        setTipologie(uniq(data.map((v) => v.TIPOLOGIA)));
-        setNazioni(uniq(data.map((v) => v.NAZIONE)));
-        setRegioni(uniq(data.map((v) => v.REGIONE)));
-        setProduttori(uniq(data.map((v) => v.PRODUTTORE)));
+        setTipologie(data.tipologie || []);
+        setNazioni(data.nazioni || []);
+        setRegioni(data.regioni || []);
+        setProduttori(data.produttori || []);
+        setCodici(data.codici || []);
+        setFormati(data.formati || []);
       } catch (err) {
         console.error(err);
         setOptionsError(err.message || "Errore nel caricamento suggerimenti.");
@@ -458,54 +462,33 @@ export default function MagazzinoViniNuovo() {
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Tipologia *
                 </label>
-                <input
-                  list="tipologie-list"
-                  value={form.TIPOLOGIA}
-                  onChange={handleChange("TIPOLOGIA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. ROSSI ITALIA"
-                />
-                <datalist id="tipologie-list">
-                  {tipologie.map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-                </datalist>
+                <select value={form.TIPOLOGIA} onChange={handleChange("TIPOLOGIA")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— seleziona —</option>
+                  {tipologie.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Nazione *
                 </label>
-                <input
-                  list="nazioni-list"
-                  value={form.NAZIONE}
-                  onChange={handleChange("NAZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="ITALIA, FRANCIA…"
-                />
-                <datalist id="nazioni-list">
-                  {nazioni.map((n) => (
-                    <option key={n} value={n} />
-                  ))}
-                </datalist>
+                <select value={form.NAZIONE} onChange={handleChange("NAZIONE")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— seleziona —</option>
+                  {nazioni.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Regione
                 </label>
-                <input
-                  list="regioni-list"
-                  value={form.REGIONE}
-                  onChange={handleChange("REGIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. PIEMONTE"
-                />
-                <datalist id="regioni-list">
-                  {regioni.map((r) => (
-                    <option key={r} value={r} />
-                  ))}
-                </datalist>
+                <select value={form.REGIONE} onChange={handleChange("REGIONE")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— nessuna —</option>
+                  {regioni.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
             </div>
 
@@ -527,12 +510,10 @@ export default function MagazzinoViniNuovo() {
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Formato
                 </label>
-                <select
-                  value={form.FORMATO}
-                  onChange={handleChange("FORMATO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                >
-                  {FORMATiOptions(FORMATI)}
+                <select value={form.FORMATO} onChange={handleChange("FORMATO")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— seleziona —</option>
+                  {formati.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
             </div>
@@ -568,13 +549,11 @@ export default function MagazzinoViniNuovo() {
                 <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                   Codice interno
                 </label>
-                <input
-                  type="text"
-                  value={form.CODICE}
-                  onChange={handleChange("CODICE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="Codice gestionale / iPratico"
-                />
+                <select value={form.CODICE} onChange={handleChange("CODICE")}
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="">— nessuno —</option>
+                  {codici.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             </div>
 

@@ -1643,6 +1643,7 @@ def inventario_filtri_options(
         "produttori": distinct("PRODUTTORE"),
         "annate": distinct("ANNATA"),
         "formati": distinct("FORMATO"),
+        "codici": distinct("CODICE"),
         "stati_vendita": distinct("STATO_VENDITA"),
         "stati_riordino": distinct("STATO_RIORDINO"),
         "stati_conservazione": distinct("STATO_CONSERVAZIONE"),

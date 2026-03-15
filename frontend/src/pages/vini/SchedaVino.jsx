@@ -51,6 +51,21 @@ function Select({ label, name, value, onChange, options }) {
   );
 }
 
+function SelectTabellato({ label, name, value, onChange, valori, placeholder = "— seleziona —" }) {
+  // Assicura che il valore corrente sia nelle opzioni (anche se non torna dal DB)
+  const opts = valori.includes(value) || !value ? valori : [value, ...valori];
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
+      <select name={name} value={value ?? ""} onChange={onChange}
+        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+        <option value="">{placeholder}</option>
+        {opts.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function SectionHeader({ title, children }) {
   return (
     <div className="flex items-center justify-between px-5 py-3 bg-neutral-50 border-b border-neutral-200">
@@ -124,6 +139,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const [opzioniLoc2, setOpzioniLoc2] = useState([]);
   const [opzioniLoc3, setOpzioniLoc3] = useState([]);
 
+  // ── valori tabellati per edit ──────────────────────
+  const [tabellaOpts, setTabellaOpts] = useState({
+    tipologie: [], nazioni: [], regioni: [], codici: [], formati: [],
+  });
+
   // ── fetch vino ──────────────────────────────────────
   const fetchVino = async () => {
     setLoading(true); setError("");
@@ -169,6 +189,19 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     } catch {}
   };
 
+  const fetchTabellaOpts = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/filtri-options`);
+      if (r.ok) {
+        const d = await r.json();
+        setTabellaOpts({
+          tipologie: d.tipologie || [], nazioni: d.nazioni || [],
+          regioni: d.regioni || [], codici: d.codici || [], formati: d.formati || [],
+        });
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (!vinoId) return;
     // Reset state when vinoId changes
@@ -178,6 +211,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     fetchMovimenti();
     fetchNote();
     fetchOpzioniLocazioni();
+    fetchTabellaOpts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vinoId]);
 
@@ -530,14 +564,14 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   <Input label="Denominazione" name="DENOMINAZIONE" value={editData.DENOMINAZIONE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Input label="Tipologia *" name="TIPOLOGIA" value={editData.TIPOLOGIA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <Input label="Nazione *" name="NAZIONE" value={editData.NAZIONE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <Input label="Regione" name="REGIONE" value={editData.REGIONE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <Input label="Codice" name="CODICE" value={editData.CODICE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Tipologia *" name="TIPOLOGIA" value={editData.TIPOLOGIA} valori={tabellaOpts.tipologie} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Nazione *" name="NAZIONE" value={editData.NAZIONE} valori={tabellaOpts.nazioni} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Regione" name="REGIONE" value={editData.REGIONE} valori={tabellaOpts.regioni} placeholder="— nessuna —" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Codice" name="CODICE" value={editData.CODICE} valori={tabellaOpts.codici} placeholder="— nessuno —" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Input label="Annata" name="ANNATA" value={editData.ANNATA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                  <Input label="Formato" name="FORMATO" value={editData.FORMATO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <SelectTabellato label="Formato" name="FORMATO" value={editData.FORMATO} valori={tabellaOpts.formati} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Vitigni" name="VITIGNI" value={editData.VITIGNI} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Grado alcolico" name="GRADO_ALCOLICO" value={editData.GRADO_ALCOLICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.1" />
                 </div>
