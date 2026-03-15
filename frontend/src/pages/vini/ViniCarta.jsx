@@ -1,62 +1,19 @@
-// @version: v3.2-carta-vini-anteprima-embedded
-// Pagina Carta Vini — Anteprima embedded + Export + Import Excel (solo Carta)
+// @version: v3.3-carta-vini-anteprima
+// Pagina Carta Vini — Anteprima embedded + Export (HTML/PDF/DOCX)
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { API_BASE, apiFetch } from "../../config/api";
+import { API_BASE } from "../../config/api";
 import ViniNav from "./ViniNav";
 
 export default function ViniCarta() {
   const navigate = useNavigate();
 
-  const [loadingImport, setLoadingImport] = useState(false);
-  const [importError, setImportError] = useState("");
-  const [importResultHtml, setImportResultHtml] = useState("");
   const [showPreview, setShowPreview] = useState(true);
 
   const cartaPublicUrl = `${API_BASE}/vini/carta`;
   const cartaPublicSiteUrl = "https://trgb.tregobbi.it/carta-vini";
 
-
-  // --------------------------------------------------
-  // IMPORT EXCEL (solo carta)
-  // --------------------------------------------------
-  const handleImportExcel = async (file) => {
-    if (!file) return;
-
-    setLoadingImport(true);
-    setImportError("");
-    setImportResultHtml("");
-
-    try {
-      const form = new FormData();
-      form.append("file", file);
-
-      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/import-excel`, {
-        method: "POST",
-        body: form,
-      });
-
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => "");
-        throw new Error(txt || `Errore server: ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      const html = `<p><strong>${data.msg}</strong></p>`
-        + `<p>Righe Excel: ${data.righe_excel} — Nuovi: ${data.inseriti} — Aggiornati: ${data.aggiornati}</p>`
-        + (data.errori?.length ? `<p style="color:red">Errori: ${data.errori.length}</p>` : "");
-      setImportResultHtml(html);
-
-      // forza refresh anteprima
-      setShowPreview(false);
-      setTimeout(() => setShowPreview(true), 50);
-    } catch (e) {
-      setImportError(e?.message || "Errore import Excel.");
-    } finally {
-      setLoadingImport(false);
-    }
-  };
 
   // --------------------------------------------------
   // AZIONI
@@ -94,7 +51,7 @@ export default function ViniCarta() {
               📜 Carta dei Vini
             </h1>
             <p className="text-neutral-600">
-              Anteprima live, esportazioni e import Excel (solo Carta).
+              Anteprima live ed esportazioni (HTML, PDF, Word).
             </p>
           </div>
 
@@ -108,7 +65,7 @@ export default function ViniCarta() {
         </div>
 
         {/* BOTTONI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
           <button
             type="button"
             onClick={refreshPreview}
@@ -141,16 +98,6 @@ export default function ViniCarta() {
             Scarica Word
           </button>
 
-          <label className="px-4 py-3 rounded-2xl text-sm font-semibold border border-blue-200 bg-blue-50 text-blue-900 hover:bg-blue-100 shadow-sm transition cursor-pointer text-center">
-            {loadingImport ? "Importo…" : "Importa file Excel"}
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={(e) => handleImportExcel(e.target.files?.[0])}
-              disabled={loadingImport}
-            />
-          </label>
         </div>
 
         {/* ANTEPRIMA EMBEDDED */}
@@ -174,29 +121,6 @@ export default function ViniCarta() {
           )}
         </div>
 
-        {/* ESITO IMPORT */}
-        {importError && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">
-            {importError}
-          </div>
-        )}
-
-        {importResultHtml && (
-          <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-            <div className="px-4 py-3 bg-neutral-100 border-b border-neutral-200">
-              <div className="text-sm font-semibold text-neutral-800">
-                Esito import (HTML)
-              </div>
-              <div className="text-xs text-neutral-500">
-                Output del server dopo l’import.
-              </div>
-            </div>
-            <div
-              className="p-4 text-sm"
-              dangerouslySetInnerHTML={{ __html: importResultHtml }}
-            />
-          </div>
-        )}
       </div>
       </div>
     </div>

@@ -1,63 +1,105 @@
+/* ============================================================
+   CARTA VINI — CSS HTML (Anteprima browser) — v3.1
+   Allineato a carta_pdf.css per coerenza visiva
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&display=swap');
+
 body {
-    font-family: "Cormorant Garamond", serif;
-    background:#fdf8f0;
-    color:#2b2118;
-    padding:38px;
-    font-size:15px;
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
+    background: #fdf8f0;
+    color: #2b2118;
+    padding: 38px;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-kerning: normal;
 }
 
+/* Titolo */
 .title {
-    text-align:center;
-    letter-spacing:0.12em;
-    font-size:22px;
-    margin-bottom:34px;
+    text-align: center;
+    letter-spacing: 0.12em;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 34px;
 }
 
+/* Tipologia */
 .tipologia {
-    font-size:24px;
-    text-transform:uppercase;
-    margin-top:46px;
-    margin-bottom:20px;
-    text-align:center;
-    font-weight:600;
-    letter-spacing:0.08em;
-    border-bottom:1px solid #b89b6d;
-    padding-bottom:8px;
+    font-size: 22px;
+    text-transform: uppercase;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-top: 46px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #b89b6d;
+    padding-bottom: 8px;
 }
 
+/* Nazione — filetti decorativi ai lati (come PDF) */
+.nazione {
+    text-align: center;
+    margin: 22px 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.naz-line {
+    display: inline-block;
+    flex: 0 0 40px;
+    height: 0;
+    border-top: 1px solid #c5a97a;
+}
+.naz-label {
+    font-size: 17px;
+    font-weight: 600;
+    color: #5a4634;
+    letter-spacing: 2px;
+    padding: 0 10px;
+}
+
+/* Regione */
 .regione {
-    font-size:18px;
-    text-align:center;
-    margin-top:30px;
-    margin-bottom:8px;
-    font-weight:600;
-    color:#3b2814;
+    font-size: 17px;
+    text-align: center;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    font-weight: 700;
+    color: #3b2814;
 }
 
+/* Produttore */
 .produttore {
-    font-size:16px;
-    font-weight:700;
-    color:#3b2814;
-    margin-top:16px;
-    margin-bottom:6px;
-    padding-left:22px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #2b2118;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding-left: 14px;
 }
 
+/* Spazio prima del produttore */
 .spacer {
-    height:6px;
+    height: 6px;
 }
 
+/* Tabelle vini */
 table.vini {
-    width:100%;
-    border-collapse:collapse;
-    margin-bottom:12px;
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
 }
 
 table.vini td {
-    padding:2px 0;
-    font-size:14px;
+    padding: 2px 0;
+    vertical-align: top;
+    font-size: 14px;
 }
 
-td.vino   { width:65%; padding-right:8px; }
-td.annata { width:10%; text-align:right; padding-right:8px; }
-td.prezzo { width:15%; text-align:right; }
+/* Colonne */
+td.vino   { width: 65%; padding-right: 8px; }
+td.annata { width: 10%; text-align: right; padding-right: 8px; }
+td.prezzo { width: 10%; text-align: right; }
