@@ -1045,16 +1045,26 @@ def search_vini_autocomplete(
 
 def delete_movimento(movimento_id: int) -> None:
     """
-    Elimina un movimento e ricalcola QTA_TOTALE + QTA per locazione
-    partendo da zero e rigiocando tutti i movimenti in ordine cronologico.
-    (Scelta conservativa per evitare disallineamenti.)
+    Elimina un movimento e ripristina QTA_TOTALE + QTA per locazione
+    invertendo il delta del movimento cancellato.
+
+    Approccio "delta inverso": invece di azzerare e rigiocare tutti
+    i movimenti (che perderebbe lo stock iniziale importato da Excel
+    senza un corrispondente CARICO), si inverte esattamente l'effetto
+    del singolo movimento eliminato.
+
+    Per RETTIFICA (valore assoluto) il ripristino esatto non è possibile
+    senza conoscere il valore precedente, quindi si usa il replay
+    conservativo dei movimenti rimanenti (accettando il rischio di
+    perdere lo stock iniziale non tracciato).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
-    # Trova movimento e vino_id
+    # Legge i dettagli completi del movimento
     mov = cur.execute(
-        "SELECT vino_id FROM vini_magazzino_movimenti WHERE id = ?;",
+        "SELECT vino_id, tipo, qta, locazione "
+        "FROM vini_magazzino_movimenti WHERE id = ?;",
         (movimento_id,),
     ).fetchone()
 
@@ -1063,59 +1073,86 @@ def delete_movimento(movimento_id: int) -> None:
         return
 
     vino_id = mov["vino_id"]
+    tipo = mov["tipo"]
+    qta = mov["qta"]
+    loc = mov["locazione"]
 
     # Cancella il movimento
     cur.execute(
         "DELETE FROM vini_magazzino_movimenti WHERE id = ?;",
         (movimento_id,),
     )
-    conn.commit()
 
-    # Azzera QTA_TOTALE e tutte le locazioni
-    cur.execute(
-        """UPDATE vini_magazzino
-           SET QTA_TOTALE = 0, QTA_FRIGO = 0, QTA_LOC1 = 0, QTA_LOC2 = 0, QTA_LOC3 = 0
-           WHERE id = ?;""",
-        (vino_id,),
-    )
+    if tipo == "RETTIFICA":
+        # Caso speciale: RETTIFICA aveva settato un valore assoluto.
+        # Non possiamo sapere il valore precedente, quindi facciamo
+        # replay conservativo di tutti i movimenti rimasti.
+        cur.execute(
+            """UPDATE vini_magazzino
+               SET QTA_TOTALE = 0, QTA_FRIGO = 0, QTA_LOC1 = 0,
+                   QTA_LOC2 = 0, QTA_LOC3 = 0
+               WHERE id = ?;""",
+            (vino_id,),
+        )
+        rows = cur.execute(
+            """SELECT tipo, qta, locazione
+               FROM vini_magazzino_movimenti
+               WHERE vino_id = ?
+               ORDER BY datetime(data_mov), id;""",
+            (vino_id,),
+        ).fetchall()
 
-    # Rigioca tutti i movimenti rimasti in ordine cronologico
-    rows = cur.execute(
-        """
-        SELECT tipo, qta, locazione
-        FROM vini_magazzino_movimenti
-        WHERE vino_id = ?
-        ORDER BY datetime(data_mov), id;
-        """,
-        (vino_id,),
-    ).fetchall()
+        qta_tot = 0
+        qta_locs = {"frigo": 0, "loc1": 0, "loc2": 0, "loc3": 0}
+        for r in rows:
+            t, q, l = r["tipo"], r["qta"], r["locazione"]
+            if t == "CARICO":
+                qta_tot += q
+                if l and l in qta_locs:
+                    qta_locs[l] += q
+            elif t in ("SCARICO", "VENDITA"):
+                qta_tot -= q
+                if l and l in qta_locs:
+                    qta_locs[l] -= q
+            elif t == "RETTIFICA":
+                qta_tot = q
 
-    qta_tot = 0
-    qta_loc = {"frigo": 0, "loc1": 0, "loc2": 0, "loc3": 0}
+        cur.execute(
+            """UPDATE vini_magazzino
+               SET QTA_TOTALE = ?, QTA_FRIGO = ?, QTA_LOC1 = ?,
+                   QTA_LOC2 = ?, QTA_LOC3 = ?
+               WHERE id = ?;""",
+            (qta_tot, qta_locs["frigo"], qta_locs["loc1"],
+             qta_locs["loc2"], qta_locs["loc3"], vino_id),
+        )
+    else:
+        # CARICO / SCARICO / VENDITA: inversione del delta
+        if tipo == "CARICO":
+            # Il CARICO aveva aggiunto qta → togliamo
+            delta_tot = -qta
+            delta_loc = -qta
+        else:
+            # SCARICO / VENDITA avevano tolto qta → riaggiungiamo
+            delta_tot = qta
+            delta_loc = qta
 
-    for r in rows:
-        t = r["tipo"]
-        q = r["qta"]
-        loc = r["locazione"]
+        cur.execute(
+            """UPDATE vini_magazzino
+               SET QTA_TOTALE = COALESCE(QTA_TOTALE, 0) + ?
+               WHERE id = ?;""",
+            (delta_tot, vino_id),
+        )
 
-        if t == "CARICO":
-            qta_tot += q
-            if loc and loc in qta_loc:
-                qta_loc[loc] += q
-        elif t in ("SCARICO", "VENDITA"):
-            qta_tot -= q
-            if loc and loc in qta_loc:
-                qta_loc[loc] -= q
-        elif t == "RETTIFICA":
-            qta_tot = q
-            # RETTIFICA è globale, non tocca le singole locazioni
+        # Ripristina anche la locazione se specificata
+        if loc and loc in LOCAZIONE_TO_COLUMN:
+            col = LOCAZIONE_TO_COLUMN[loc]
+            cur.execute(
+                f"""UPDATE vini_magazzino
+                    SET {col} = COALESCE({col}, 0) + ?
+                    WHERE id = ?;""",
+                (delta_loc, vino_id),
+            )
 
-    cur.execute(
-        """UPDATE vini_magazzino
-           SET QTA_TOTALE = ?, QTA_FRIGO = ?, QTA_LOC1 = ?, QTA_LOC2 = ?, QTA_LOC3 = ?
-           WHERE id = ?;""",
-        (qta_tot, qta_loc["frigo"], qta_loc["loc1"], qta_loc["loc2"], qta_loc["loc3"], vino_id),
-    )
     conn.commit()
     conn.close()
 

@@ -221,19 +221,125 @@ def build_carta_toc_html(rows: Iterable[Dict[str, Any]]) -> str:
 def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Document":
     """
     Genera un oggetto Document python-docx con la carta vini completa.
-    Usa tab stops per allineare descrizione / annata / prezzo in 3 colonne.
+    Usa tabelle senza bordi per allineare descrizione / annata / prezzo,
+    come nell'HTML/PDF.
     """
     from docx import Document
-    from docx.shared import Inches, Pt, Cm, RGBColor
-    from docx.enum.text import WD_TAB_ALIGNMENT
+    from docx.shared import Inches, Pt, Cm, RGBColor, Emu
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
 
     rows = list(rows)
     doc = Document()
 
-    # -- Stile base: margini pagina ridotti per più spazio
+    # -- Stile base: margini pagina
     for section in doc.sections:
         section.left_margin = Cm(2)
         section.right_margin = Cm(2)
+
+    # A4 content width = 21cm - 2cm - 2cm = 17cm
+    CONTENT_WIDTH = Cm(17)
+    COL_DESC = Cm(11.5)   # 67.6%
+    COL_ANNATA = Cm(2.5)  # 14.7%
+    COL_PREZZO = Cm(3.0)  # 17.6%
+
+    def _no_borders(cell):
+        """Rimuove bordi da una cella."""
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        borders = tcPr.find(qn("w:tcBorders"))
+        if borders is not None:
+            tcPr.remove(borders)
+        borders = tc.makeelement(qn("w:tcBorders"), {})
+        for edge in ("top", "left", "bottom", "right"):
+            el = tc.makeelement(qn(f"w:{edge}"), {
+                qn("w:val"): "none",
+                qn("w:sz"): "0",
+                qn("w:space"): "0",
+                qn("w:color"): "auto",
+            })
+            borders.append(el)
+        tcPr.append(borders)
+
+    def _set_cell_width(cell, width):
+        """Forza la larghezza di una cella."""
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        tcW = tcPr.find(qn("w:tcW"))
+        if tcW is None:
+            tcW = tc.makeelement(qn("w:tcW"), {})
+            tcPr.append(tcW)
+        tcW.set(qn("w:w"), str(int(width.emu / 635)))  # EMU → twips
+        tcW.set(qn("w:type"), "dxa")
+
+    def _cell_margins(cell, top=0, bottom=0, left=0, right=0):
+        """Setta i margini interni della cella (in twips)."""
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        mar = tc.makeelement(qn("w:tcMar"), {})
+        for name, val in [("top", top), ("bottom", bottom),
+                          ("start", left), ("end", right)]:
+            el = tc.makeelement(qn(f"w:{name}"), {
+                qn("w:w"): str(val),
+                qn("w:type"): "dxa",
+            })
+            mar.append(el)
+        tcPr.append(mar)
+
+    def _add_wine_table(doc, wines):
+        """Aggiunge una tabella senza bordi con righe vino."""
+        from docx.table import Table as DocxTable
+        tbl = doc.add_table(rows=len(wines), cols=3)
+        tbl.autofit = False
+
+        # Larghezza colonne via XML
+        tblW = tbl._tbl.find(qn("w:tblPr"))
+        if tblW is None:
+            tblW = tbl._tbl.makeelement(qn("w:tblPr"), {})
+            tbl._tbl.insert(0, tblW)
+
+        for i, wine in enumerate(wines):
+            desc, annata, prezzo = wine
+            row = tbl.rows[i]
+
+            # Cella descrizione
+            c0 = row.cells[0]
+            _no_borders(c0)
+            _set_cell_width(c0, COL_DESC)
+            _cell_margins(c0, top=10, bottom=10, left=28, right=40)
+            p0 = c0.paragraphs[0]
+            p0.paragraph_format.space_before = Pt(0)
+            p0.paragraph_format.space_after = Pt(0)
+            r0 = p0.add_run(desc)
+            r0.font.size = Pt(9)
+
+            # Cella annata
+            c1 = row.cells[1]
+            _no_borders(c1)
+            _set_cell_width(c1, COL_ANNATA)
+            _cell_margins(c1, top=10, bottom=10, left=0, right=40)
+            p1 = c1.paragraphs[0]
+            p1.paragraph_format.space_before = Pt(0)
+            p1.paragraph_format.space_after = Pt(0)
+            p1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            r1 = p1.add_run(annata)
+            r1.font.size = Pt(9)
+            r1.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+            # Cella prezzo
+            c2 = row.cells[2]
+            _no_borders(c2)
+            _set_cell_width(c2, COL_PREZZO)
+            _cell_margins(c2, top=10, bottom=10, left=0, right=28)
+            p2 = c2.paragraphs[0]
+            p2.paragraph_format.space_before = Pt(0)
+            p2.paragraph_format.space_after = Pt(0)
+            p2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            r2 = p2.add_run(prezzo)
+            r2.font.size = Pt(9)
+            r2.bold = True
+
+        return tbl
 
     # -- Logo
     if logo_path and logo_path.exists():
@@ -242,7 +348,7 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
     # -- Titolo
     from datetime import datetime
     data_oggi = datetime.now().strftime("%d/%m/%Y")
-    h = doc.add_heading("CARTA DEI VINI", level=0)
+    doc.add_heading("CARTA DEI VINI", level=0)
     doc.add_paragraph(f"Osteria Tre Gobbi — Aggiornata al {data_oggi}")
 
     if not rows:
@@ -255,19 +361,13 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
     def k_reg(r): return resolve_regione(r)
     def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
 
-    # -- Tab stops per le colonne vino
-    # Annata a 12 cm (center), Prezzo a 16.5 cm (right)
-    TAB_ANNATA = Cm(12)
-    TAB_PREZZO = Cm(16.5)
-
     for tip, g1 in groupby(rows, k_tip):
         g1 = list(g1)
         doc.add_heading(tip, level=1)
 
         for naz, g1b in groupby(g1, k_naz):
             g1b = list(g1b)
-            # Nazione come heading livello 2
-            p_naz = doc.add_heading(naz, level=2)
+            doc.add_heading(naz, level=2)
 
             for reg, g2 in groupby(g1b, k_reg):
                 g2 = list(g2)
@@ -288,6 +388,8 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
                     rr.bold = True
                     rr.font.size = Pt(10)
 
+                    # Prepara righe vino
+                    wines = []
                     for r in g3:
                         desc = r["DESCRIZIONE"] or ""
                         annata = r["ANNATA"] or ""
@@ -299,35 +401,9 @@ def build_carta_docx(rows: Iterable[Dict[str, Any]], logo_path=None) -> "Documen
                                 prezzo = str(prezzo)
                         else:
                             prezzo = ""
+                        wines.append((desc, annata, prezzo))
 
-                        # Riga vino con tab stops
-                        p = doc.add_paragraph()
-                        p.paragraph_format.space_before = Pt(0)
-                        p.paragraph_format.space_after = Pt(1)
-                        p.paragraph_format.left_indent = Cm(0.5)
-
-                        # Tab stops
-                        p.paragraph_format.tab_stops.add_tab_stop(
-                            TAB_ANNATA, WD_TAB_ALIGNMENT.CENTER
-                        )
-                        p.paragraph_format.tab_stops.add_tab_stop(
-                            TAB_PREZZO, WD_TAB_ALIGNMENT.RIGHT
-                        )
-
-                        # Descrizione
-                        run_desc = p.add_run(desc)
-                        run_desc.font.size = Pt(9)
-
-                        # Annata (tab + valore)
-                        if annata:
-                            run_ann = p.add_run(f"\t{annata}")
-                            run_ann.font.size = Pt(9)
-                            run_ann.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
-
-                        # Prezzo (tab + valore)
-                        if prezzo:
-                            run_pr = p.add_run(f"\t{prezzo}")
-                            run_pr.font.size = Pt(9)
-                            run_pr.bold = True
+                    # Tabella senza bordi
+                    _add_wine_table(doc, wines)
 
     return doc
