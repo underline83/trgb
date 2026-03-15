@@ -47,7 +47,7 @@ Funziona in integrazione con:
 | GET | `/{vino_id}/movimenti` | Lista movimenti vino |
 | POST | `/{vino_id}/movimenti` | Registra movimento |
 
-### Strumenti Cantina (`vini_cantina_tools_router.py` v3.0)
+### Strumenti Cantina (`vini_cantina_tools_router.py` v3.1)
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
@@ -63,7 +63,7 @@ Funziona in integrazione con:
 
 - `app/repositories/vini_repository.py` — ordering, filtri, query `load_vini_ordinati()` da magazzino
 - `app/routers/vini_router.py` — API carta + movimenti
-- `app/services/carta_vini_service.py` — builder HTML/PDF (WeasyPrint, font Cormorant Garamond)
+- `app/services/carta_vini_service.py` — builder HTML/PDF/DOCX (WeasyPrint, python-docx, font Cormorant Garamond)
 - `app/models/vini_settings.py` — settings + `_TIPOLOGIA_MAP` per normalizzazione runtime
 - `static/css/carta_pdf.css` — stile PDF con page-break-after:avoid su intestazioni
 - `static/css/carta_html.css` — stile preview HTML allineato al PDF
@@ -101,6 +101,9 @@ Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLIC
 - [x] Raggruppamento per nazione con filetti decorativi — 2026-03-14
 - [x] Allineamento CSS HTML ↔ PDF — 2026-03-15
 - [x] Fix salti pagina PDF (intestazioni orfane) — 2026-03-15
+- [x] DOCX con tabelle allineate (desc|annata|prezzo) — 2026-03-15
+- [x] Unificazione loader carta (eliminato codice duplicato) — 2026-03-15
+- [x] Fix cancellazione movimenti (delta inverso) — 2026-03-15
 - [ ] PDF con indici cliccabili (TOC con link interni)
 - [ ] Versioning della carta (storico PDF)
 - [ ] Template multipli (eventi, degustazioni)

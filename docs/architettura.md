@@ -44,7 +44,7 @@ app/
 │
 ├── services/           ← Logica applicativa
 │   ├── auth_service.py             — Auth PIN sha256_crypt, users.json
-│   ├── carta_vini_service.py       — Builder HTML/PDF Carta Vini
+│   ├── carta_vini_service.py       — Builder HTML/PDF/DOCX Carta Vini
 │   ├── admin_finance_db.py         — Query DB corrispettivi
 │   ├── admin_finance_stats.py      — Statistiche corrispettivi
 │   ├── admin_finance_import.py     — Import Excel corrispettivi
@@ -124,7 +124,7 @@ frontend/
 
 | File | Moduli | Note |
 |------|--------|------|
-| `vini.sqlite3` | Carta Vini | 1186 record, sovrascritto ad ogni import Excel |
+| ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina | Magazzino moderno con movimenti, note, locazioni |
 | `vini_settings.sqlite3` | Settings Carta | tipologia_order, nazioni_order, regioni_order, filtri_carta |
 | `foodcost.db` | FoodCost, FE XML, Banca, Finanza | Gestito da migration_runner (001–017) |
@@ -252,7 +252,7 @@ IP VPS: `80.211.131.156` (Aruba, Ubuntu 22.04)
 # 9. Versioni e dipendenze
 
 ```
-Master Version ................. 2026.03.14
+Master Version ................. 2026.03.15
 Core Backend ................... v1.8.0
 Core Frontend .................. v1.4.0
 
@@ -266,7 +266,7 @@ Modulo Dipendenti .............. v1.0   — stabile
 Login & Ruoli .................. v2.0   — stabile
 Sistema ........................ v4.3   — stabile
 
-DB vini.sqlite3 ................ v2.1
+DB vini.sqlite3 ................ ELIMINATO v3.0
 DB vini_magazzino.sqlite3 ...... v3.7
 DB vini_settings.sqlite3 ....... v1.4
 DB foodcost.db ................. v3.0  (migrazioni 001–017)

@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-15 (sessione 7 — Eliminazione vecchio DB + fix carta PDF/HTML)
+> Ultima sessione: 2026-03-15 (sessione 8 — Unificazione loader carta + DOCX tabelle + fix movimenti)
 
 ---
 
@@ -15,22 +15,34 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-15, sessione 7)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-15b, sessione 8)
+
+### Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti
+
+#### Unificazione loader
+1. **Eliminata `_load_vini_cantina_ordinati()`** (~70 righe duplicate) da `vini_cantina_tools_router.py`
+2. Tutti gli endpoint carta (HTML/PDF/DOCX) sia da `/vini/carta` che da `/cantina-tools/carta-cantina` ora usano `load_vini_ordinati()` dal repository — una sola fonte dati
+
+#### DOCX con tabelle allineate
+3. **`carta_vini_service.py`** v1.1 — nuova funzione `build_carta_docx()` condivisa: genera DOCX con tabelle senza bordi a 3 colonne (descrizione 67% | annata 15% | prezzo 18%) invece di tab stops che sfondavano con descrizioni lunghe (fino a 104 char)
+4. **`vini_router.py`** — endpoint `/carta/docx` ridotto a 5 righe (chiama builder condiviso)
+5. **`vini_cantina_tools_router.py`** v3.1 — endpoint `/carta-cantina/docx` ridotto a 5 righe
+
+#### Fix cancellazione movimenti
+6. **`vini_magazzino_db.py`** `delete_movimento()` — BUG: cancellare VENDITA/SCARICO azzerava la giacenza. Il replay da zero perdeva lo stock iniziale importato da Excel (senza CARICO). Fix: **inversione del delta** per CARICO/SCARICO/VENDITA, replay conservativo solo per RETTIFICA.
+
+#### Documentazione
+7. Aggiornati: changelog.md, modulo_vini.md, architettura.md, sessione.md
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-15, sessione 7)
 
 ### Eliminazione vecchio DB vini.sqlite3 + fix carta PDF/HTML
-
-#### Eliminazione vecchio DB (v3.0)
-1. **`vini_router.py`** v3.0 — rimosso endpoint `/vini/upload`, movimenti ora su `vini_magazzino_db`
-2. **`vini_cantina_tools_router.py`** v3.0 — rimosso endpoint `sync-from-excel`
-3. **`vini_settings.py`** — rimosso codice migrazione vecchio DB
-4. **Frontend** — 4 file aggiornati: ViniCarta, ViniDatabase, CantinaTools, ViniImpostazioni
-5. **`mockup_nazione.html`** eliminato
-
-#### Fix carta (v3.1)
-6. **`ViniCarta.jsx`** v3.3 — rimosso tasto "Importa file Excel" (non serve, carta legge da magazzino)
-7. **`carta_html.css`** v3.1 — allineato a PDF: filetti nazione, spaziature, Google Fonts
-8. **`carta_pdf.css`** v3.1 — `page-break-after: avoid` su tipologia, nazione, regione, produttore
-9. **Documentazione** — aggiornati tutti i file docs/ per riflettere eliminazione vecchio DB
+1. `vini_router.py` v3.0, `vini_cantina_tools_router.py` v3.0 — rimosso vecchio DB
+2. `ViniCarta.jsx` v3.3 — rimosso tasto import Excel, carta legge da magazzino
+3. `carta_html.css` v3.1 + `carta_pdf.css` v3.1 — allineamento stili, fix page-break
+4. Documentazione aggiornata (7 file)
 
 ---
 
@@ -119,13 +131,12 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Deploy completo** — `./push.sh "Chiusure turno + cambio PIN + docs" -f`
-2. **Test Chiusure Turno** — verificare form pranzo/cena, logica cumulativa, pre-conti, spese
-3. **Test Cambio PIN** — verificare self-service e reset admin
-4. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-5. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
-6. **Riconciliazione banca** — migliorare cross-ref, eliminare scadenza mista BPM
-7. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
+1. **Test cancellazione movimenti** — verificare che delete VENDITA ripristini giacenza correttamente
+2. **Test DOCX carta** — aprire in Word e verificare allineamento colonne
+3. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
+4. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
+5. **Riconciliazione banca** — migliorare cross-ref, eliminare scadenza mista BPM
+6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
@@ -144,9 +155,10 @@ frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin
 # --- VINI ---
 app/routers/vini_router.py               — carta vini + movimenti (v3.0, solo magazzino)
 app/routers/vini_magazzino_router.py     — magazzino vini CRUD
-app/routers/vini_cantina_tools_router.py — strumenti cantina (v3.0, senza sync)
-app/models/vini_magazzino_db.py          — DB unico vini
-app/repositories/vini_repository.py      — load_vini_ordinati() da magazzino
+app/routers/vini_cantina_tools_router.py — strumenti cantina (v3.1, loader unificato)
+app/models/vini_magazzino_db.py          — DB unico vini + fix delete_movimento
+app/services/carta_vini_service.py       — builder HTML/PDF/DOCX carta vini
+app/repositories/vini_repository.py      — load_vini_ordinati() da magazzino (usato da tutti)
 
 # --- RICETTE & FOOD COST ---
 app/routers/foodcost_recipes_router.py    — ricette + calcolo food cost
