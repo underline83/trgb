@@ -2151,33 +2151,44 @@ async def matrice_recalc_all(current_user=Depends(get_current_user)):
     return {"ok": True, "vini_aggiornati": count}
 
 
-@router.get("/matrice/old-values", summary="Mostra tutti i valori LOCAZIONE_3 testuali")
+@router.get("/matrice/old-values", summary="Mostra valori matrice in TUTTE le locazioni")
 async def matrice_old_values(current_user=Depends(get_current_user)):
-    """Debug: mostra tutti i vini con LOCAZIONE_3 non vuota e se hanno celle in matrice_celle."""
+    """Debug: cerca valori contenenti 'matrice' o coordinate (N,N) in tutte le locazioni."""
+    import re
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
     rows = cur.execute(
-        "SELECT id, DESCRIZIONE, LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino "
-        "WHERE LOCAZIONE_3 IS NOT NULL AND LOCAZIONE_3 != '' "
+        "SELECT id, DESCRIZIONE, FRIGORIFERO, QTA_FRIGO, "
+        "LOCAZIONE_1, QTA_LOC1, LOCAZIONE_2, QTA_LOC2, "
+        "LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino "
         "ORDER BY id"
     ).fetchall()
     existing = set(r[0] for r in cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall())
     conn.close()
-    return [
-        {
-            "id": r["id"],
-            "descrizione": r["DESCRIZIONE"],
-            "locazione_3": r["LOCAZIONE_3"],
-            "qta_loc3": r["QTA_LOC3"],
-            "ha_celle_matrice": r["id"] in existing,
-        }
-        for r in rows
-    ]
+
+    results = []
+    loc_fields = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"]
+    for r in rows:
+        trovati = {}
+        for campo in loc_fields:
+            val = r[campo]
+            if val and ("matrice" in val.lower() or re.search(r'\(\d+\s*,\s*\d+\)', val)):
+                coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', val)
+                trovati[campo] = {"valore": val, "coordinate": [f"({a},{b})" for a, b in coords]}
+        if trovati:
+            results.append({
+                "id": r["id"],
+                "descrizione": r["DESCRIZIONE"],
+                "campi_con_matrice": trovati,
+                "ha_celle_matrice": r["id"] in existing,
+            })
+    return results
 
 
-@router.post("/matrice/import-old", summary="Importa vecchi valori LOCAZIONE_3 in matrice_celle")
+@router.post("/matrice/import-old", summary="Importa vecchi valori matrice da tutte le locazioni in matrice_celle")
 async def matrice_import_old(current_user=Depends(get_current_user)):
-    """Migrazione: parsa coordinate da LOCAZIONE_3 e le importa in matrice_celle."""
+    """Migrazione: cerca coordinate matrice in tutte le locazioni, le importa in matrice_celle,
+    e pulisce i vecchi campi."""
     _require_admin(current_user)
-    result = mag_db.matrice_import_from_locazione3()
+    result = mag_db.matrice_import_from_all_locations()
     return result

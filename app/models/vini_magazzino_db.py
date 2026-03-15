@@ -1548,25 +1548,37 @@ def matrice_set_celle_vino(vino_id: int, celle: List[Dict[str, int]]) -> Dict[st
     return result
 
 
-def matrice_import_from_locazione3() -> dict:
+def matrice_import_from_all_locations() -> dict:
     """
-    Migrazione: legge i valori testuali di LOCAZIONE_3 che contengono coordinate
-    tipo "(6,7)" o "Matrice - (6,7)" e li importa nella tabella matrice_celle.
-    Salta i vini che hanno già celle nella tabella matrice_celle.
-    Ritorna {importati: N, errori: [...], skipped: N}
+    Migrazione: cerca valori con coordinate matrice in TUTTE le locazioni
+    (FRIGORIFERO, LOCAZIONE_1, LOCAZIONE_2, LOCAZIONE_3).
+    Per ogni vino trovato:
+    1. Parsa le coordinate (N,N) dal testo
+    2. Le inserisce in matrice_celle
+    3. Pulisce il vecchio campo (imposta a NULL e QTA a 0)
+    4. Ricalcola LOCAZIONE_3 e QTA_LOC3 dalla tabella matrice_celle
+
+    I vecchi valori sono nel formato (colonna,riga) — col prima, riga dopo.
+    Internamente matrice_celle salva (riga, colonna) come colonne separate.
     """
     import re
     conn = get_magazzino_connection()
     cur = conn.cursor()
     now = _now_iso()
 
-    # Trova tutti i vini con LOCAZIONE_3 non vuota
+    LOC_COLUMNS = {
+        "FRIGORIFERO": "QTA_FRIGO",
+        "LOCAZIONE_1": "QTA_LOC1",
+        "LOCAZIONE_2": "QTA_LOC2",
+        "LOCAZIONE_3": "QTA_LOC3",
+    }
+
     rows = cur.execute(
-        "SELECT id, DESCRIZIONE, LOCAZIONE_3 FROM vini_magazzino "
-        "WHERE LOCAZIONE_3 IS NOT NULL AND LOCAZIONE_3 != ''"
+        "SELECT id, DESCRIZIONE, FRIGORIFERO, QTA_FRIGO, "
+        "LOCAZIONE_1, QTA_LOC1, LOCAZIONE_2, QTA_LOC2, "
+        "LOCAZIONE_3, QTA_LOC3 FROM vini_magazzino ORDER BY id"
     ).fetchall()
 
-    # Vini che hanno già celle nella tabella matrice_celle
     existing_vino_ids = set(r[0] for r in cur.execute(
         "SELECT DISTINCT vino_id FROM matrice_celle"
     ).fetchall())
@@ -1574,29 +1586,34 @@ def matrice_import_from_locazione3() -> dict:
     importati = 0
     skipped = 0
     errori = []
+    dettagli = []
 
     for row in rows:
         vino_id = row["id"]
-        loc3 = row["LOCAZIONE_3"]
         desc = row["DESCRIZIONE"] or "?"
+
+        # Cerca coordinate matrice in ogni campo locazione
+        all_coords = []
+        campi_trovati = []
+        for loc_col in LOC_COLUMNS:
+            val = row[loc_col]
+            if val and ("matrice" in val.lower() or re.search(r'\(\d+\s*,\s*\d+\)', val)):
+                coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', val)
+                if coords:
+                    all_coords.extend(coords)
+                    campi_trovati.append(loc_col)
+
+        if not all_coords:
+            continue
 
         if vino_id in existing_vino_ids:
             skipped += 1
             continue
 
-        # Parsa tutte le coordinate dal testo: cerca pattern (N,N)
-        # Il formato potrebbe essere: "(6,7)", "Matrice - (6,7)", "(1,5), (1,6), (1,7)"
-        # oppure nel vecchio formato (riga,colonna) o nuovo (colonna,riga)
-        coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', loc3)
-        if not coords:
-            errori.append({"vino_id": vino_id, "descrizione": desc, "locazione_3": loc3, "motivo": "Nessuna coordinata trovata"})
-            continue
-
         celle_importate = 0
-        for n1, n2 in coords:
-            # I vecchi valori erano nel formato (colonna, riga) come da display
-            # ma internamente salviamo come (riga, colonna) nel DB
-            # Assumiamo il vecchio formato fosse (colonna, riga) — col prima
+        celle_errori = []
+        for n1, n2 in all_coords:
+            # Vecchio formato: (colonna, riga) — n1=colonna, n2=riga
             col_val = int(n1)
             rig_val = int(n2)
             try:
@@ -1606,15 +1623,32 @@ def matrice_import_from_locazione3() -> dict:
                 )
                 celle_importate += 1
             except Exception as e:
-                errori.append({"vino_id": vino_id, "descrizione": desc, "cella": f"({col_val},{rig_val})", "motivo": str(e)})
+                celle_errori.append(f"({col_val},{rig_val}): {e}")
 
         if celle_importate > 0:
+            # Pulisci i vecchi campi che contenevano le coordinate matrice
+            for loc_col in campi_trovati:
+                qta_col = LOC_COLUMNS[loc_col]
+                cur.execute(
+                    f"UPDATE vini_magazzino SET {loc_col} = NULL, {qta_col} = 0, UPDATED_AT = ? WHERE id = ?",
+                    (now, vino_id),
+                )
+
+            # Ricalcola LOCAZIONE_3 dalla tabella matrice_celle
             _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
             importati += 1
+            dettagli.append({
+                "vino_id": vino_id, "descrizione": desc,
+                "campi_originali": campi_trovati,
+                "celle_importate": celle_importate,
+            })
+
+        if celle_errori:
+            errori.append({"vino_id": vino_id, "descrizione": desc, "errori_celle": celle_errori})
 
     conn.commit()
     conn.close()
-    return {"importati": importati, "skipped": skipped, "errori": errori}
+    return {"importati": importati, "skipped": skipped, "errori": errori, "dettagli": dettagli}
 
 
 def matrice_recalc_preview() -> list:
