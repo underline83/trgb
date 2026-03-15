@@ -1615,8 +1615,13 @@ def matrice_import_from_all_locations() -> dict:
         campi_trovati = []
         for loc_col in LOC_COLUMNS:
             val = row[loc_col]
-            if val and ("matrice" in val.lower() or re.search(r'\(\d+\s*,\s*\d+\)', val)):
+            if not val:
+                continue
+            if "matrice" in val.lower() or re.search(r'\(?\d+\s*,\s*\d+\)?', val):
+                # Prima prova con parentesi, poi senza
                 coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', val)
+                if not coords:
+                    coords = re.findall(r'(\d+)\s*,\s*(\d+)', val)
                 if coords:
                     all_coords.extend(coords)
                     campi_trovati.append(loc_col)

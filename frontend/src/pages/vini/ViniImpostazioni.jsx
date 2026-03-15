@@ -731,14 +731,20 @@ export default function ViniImpostazioni() {
                             <span className="font-medium text-neutral-800">#{v.id}</span>
                             <span className="text-neutral-600 ml-2">{v.descrizione}</span>
                             {v.ha_celle_matrice && (
-                              <span className="ml-2 text-amber-600 font-medium">(ha già celle nel nuovo sistema — skip)</span>
+                              <span className="ml-2 text-amber-600 font-medium">
+                                (già {v.celle_in_tabella} celle nel nuovo sistema — skip)
+                              </span>
                             )}
                             <div className="mt-1 text-neutral-500">
                               {Object.entries(v.campi_con_matrice).map(([campo, info]) => (
                                 <div key={campo}>
-                                  <span className="font-medium">{campo}:</span> {info.valore}
+                                  <span className="font-medium">{campo}:</span> "{info.valore}"
+                                  <span className="ml-1 text-neutral-400">(qta: {info.qta ?? "null"})</span>
                                   {info.coordinate.length > 0 && (
-                                    <span className="ml-1 text-blue-600">→ celle: {info.coordinate.join(", ")}</span>
+                                    <span className="ml-1 text-blue-600">→ celle parsate: {info.coordinate.join(", ")}</span>
+                                  )}
+                                  {info.coordinate.length === 0 && (
+                                    <span className="ml-1 text-red-500">→ nessuna coordinata trovata!</span>
                                   )}
                                 </div>
                               ))}

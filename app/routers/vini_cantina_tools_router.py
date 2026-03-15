@@ -2153,7 +2153,7 @@ async def matrice_recalc_all(current_user=Depends(get_current_user)):
 
 @router.get("/matrice/old-values", summary="Mostra valori matrice in TUTTE le locazioni")
 async def matrice_old_values(current_user=Depends(get_current_user)):
-    """Debug: cerca valori contenenti 'matrice' o coordinate (N,N) in tutte le locazioni."""
+    """Debug: cerca valori contenenti 'matrice' o coordinate in tutte le locazioni."""
     import re
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
@@ -2164,23 +2164,45 @@ async def matrice_old_values(current_user=Depends(get_current_user)):
         "ORDER BY id"
     ).fetchall()
     existing = set(r[0] for r in cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall())
+    # Conta celle per vino
+    celle_count = {}
+    for r2 in cur.execute("SELECT vino_id, COUNT(*) as n FROM matrice_celle GROUP BY vino_id").fetchall():
+        celle_count[r2[0]] = r2[1]
     conn.close()
 
     results = []
-    loc_fields = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"]
+    loc_fields = {
+        "FRIGORIFERO": "QTA_FRIGO",
+        "LOCAZIONE_1": "QTA_LOC1",
+        "LOCAZIONE_2": "QTA_LOC2",
+        "LOCAZIONE_3": "QTA_LOC3",
+    }
     for r in rows:
         trovati = {}
-        for campo in loc_fields:
+        for campo, qta_campo in loc_fields.items():
             val = r[campo]
-            if val and ("matrice" in val.lower() or re.search(r'\(\d+\s*,\s*\d+\)', val)):
+            if not val:
+                continue
+            # Cerca "matrice" nel testo O coordinate con parentesi O coordinate senza parentesi (es. "6,7")
+            is_matrice = "matrice" in val.lower() or re.search(r'\(?\d+\s*,\s*\d+\)?', val)
+            if is_matrice:
+                # Prova a estrarre coordinate: prima con parentesi, poi senza
                 coords = re.findall(r'\((\d+)\s*,\s*(\d+)\)', val)
-                trovati[campo] = {"valore": val, "coordinate": [f"({a},{b})" for a, b in coords]}
+                if not coords:
+                    # Senza parentesi: "Matrice 6,7" o "Matrice - 6,7" o solo "6,7"
+                    coords = re.findall(r'(\d+)\s*,\s*(\d+)', val)
+                trovati[campo] = {
+                    "valore": val,
+                    "qta": r[qta_campo],
+                    "coordinate": [f"({a},{b})" for a, b in coords],
+                }
         if trovati:
             results.append({
                 "id": r["id"],
                 "descrizione": r["DESCRIZIONE"],
                 "campi_con_matrice": trovati,
                 "ha_celle_matrice": r["id"] in existing,
+                "celle_in_tabella": celle_count.get(r["id"], 0),
             })
     return results
 
