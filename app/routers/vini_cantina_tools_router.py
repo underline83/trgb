@@ -987,6 +987,7 @@ def _load_all_vini_inventario(
     rows = cur.execute(f"""
         SELECT
             id, TIPOLOGIA, NAZIONE, REGIONE, CODICE,
+            id,
             DESCRIZIONE, DENOMINAZIONE, PRODUTTORE,
             ANNATA, FORMATO,
             PREZZO_CARTA, EURO_LISTINO,
@@ -1129,6 +1130,7 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
     html = f"""
     <table>
         <thead><tr>
+            <th class="num">ID</th>
             <th>Tipologia</th>
             <th>Nazione</th>
             <th>Regione</th>
@@ -1168,6 +1170,7 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
 
         html += f"""
         <tr>
+            <td class="num">{v.get('id') or ''}</td>
             <td>{v.get('TIPOLOGIA') or ''}</td>
             <td>{v.get('NAZIONE') or ''}</td>
             <td>{v.get('REGIONE') or ''}</td>
@@ -1184,7 +1187,7 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
         </tr>
         """
 
-    colspan = 12 + 3 + (8 if show_locations else 0)  # +3 per stati
+    colspan = 13 + 3 + (8 if show_locations else 0)  # 13 = ID + 12 campi base, +3 stati
     html += f"""
         <tr class="totale-row">
             <td colspan="{colspan - 1}">TOTALE: {len(vini)} vini</td>
@@ -1350,7 +1353,8 @@ def inventario_locazioni_pdf(
     sections_html = ""
     grand_total = 0
 
-    for loc_key in sorted(locazioni.keys()):
+    # Ordina per nome locazione alfabetico (ignorando il prefisso FRIGO:/LOC1:/etc)
+    for loc_key in sorted(locazioni.keys(), key=lambda k: k.split(":", 1)[1].lower() if ":" in k else k.lower()):
         loc_vini = locazioni[loc_key]
         loc_label = loc_key.split(":", 1)[1] if ":" in loc_key else loc_key
         tot_loc = sum(v["_qta_loc"] for v in loc_vini)
@@ -1360,6 +1364,7 @@ def inventario_locazioni_pdf(
         sections_html += """
         <table>
             <thead><tr>
+                <th class="num">ID</th>
                 <th>Tipologia</th>
                 <th>Produttore</th>
                 <th>Descrizione</th>
@@ -1377,6 +1382,7 @@ def inventario_locazioni_pdf(
             prezzo_str = f"&euro; {float(prezzo):.2f}" if prezzo else ""
             sections_html += f"""
             <tr>
+                <td class="num">{v.get('id') or ''}</td>
                 <td>{v.get('TIPOLOGIA') or ''}</td>
                 <td>{v.get('PRODUTTORE') or ''}</td>
                 <td>{v.get('DESCRIZIONE') or ''}</td>
@@ -1390,7 +1396,7 @@ def inventario_locazioni_pdf(
 
         sections_html += f"""
             <tr class="totale-row">
-                <td colspan="6">Totale {loc_label}</td>
+                <td colspan="7">Totale {loc_label}</td>
                 <td class="num">{tot_loc}</td>
                 <td></td>
             </tr>
