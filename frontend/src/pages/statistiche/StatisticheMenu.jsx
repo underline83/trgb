@@ -1,5 +1,5 @@
-// @version: v1.0-statistiche-menu
-// Menu principale sezione Statistiche
+// @version: v2.0-statistiche-menu-sottosezioni
+// Menu principale sezione Statistiche — hub con sottosezioni
 import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
@@ -19,7 +19,7 @@ export default function StatisticheMenu() {
               <VersionBadge modulo="statistiche" />
             </div>
             <p className="text-neutral-600 mb-2">
-              Analizza le vendite iPratico: categorie, prodotti, trend mensili.
+              Analisi dati, vendite e andamenti del ristorante.
             </p>
           </div>
           <div className="flex justify-center sm:justify-end">
@@ -32,39 +32,61 @@ export default function StatisticheMenu() {
           </div>
         </div>
 
+        {/* ── SOTTOSEZIONI ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+          {/* CUCINA — iPratico */}
           <Link
-            to="/statistiche/dashboard"
-            className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+            to="/statistiche/cucina"
+            className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform"
           >
-            <div className="text-5xl mb-3">📊</div>
-            <h2 className="text-xl font-semibold font-playfair">Dashboard</h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Panoramica categorie, top prodotti, andamento mensile.
+            <div className="text-5xl mb-3 text-center">🍽️</div>
+            <h2 className="text-xl font-semibold font-playfair text-center">Cucina</h2>
+            <p className="text-neutral-700 text-sm mt-2 text-center">
+              Vendite iPratico: categorie, prodotti, trend mensili, import totalizzazioni.
             </p>
+            <div className="flex justify-center gap-2 mt-4">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Dashboard</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Prodotti</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Import</span>
+            </div>
           </Link>
 
-          <Link
-            to="/statistiche/prodotti"
-            className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-          >
-            <div className="text-5xl mb-3">🍽️</div>
-            <h2 className="text-xl font-semibold font-playfair">Prodotti</h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Dettaglio vendite per prodotto, filtri e ricerca.
+          {/* CANTINA — placeholder futuro */}
+          <div className="bg-neutral-50 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center">
+            <div className="text-5xl mb-3 opacity-40">🍷</div>
+            <h2 className="text-xl font-semibold font-playfair">Cantina</h2>
+            <p className="text-sm mt-2 text-center">
+              Analisi vendite vini, rotazione etichette, margini.
             </p>
-          </Link>
+            <span className="mt-3 px-3 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400 border border-neutral-200 uppercase tracking-wider">
+              Prossimamente
+            </span>
+          </div>
 
-          <Link
-            to="/statistiche/import"
-            className="bg-neutral-50 border border-neutral-300 text-neutral-800 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-          >
-            <div className="text-5xl mb-3">📥</div>
-            <h2 className="text-xl font-semibold font-playfair">Import iPratico</h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Carica gli export mensili iPratico (.xls).
+          {/* CORRISPETTIVI — placeholder futuro */}
+          <div className="bg-neutral-50 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center">
+            <div className="text-5xl mb-3 opacity-40">💰</div>
+            <h2 className="text-xl font-semibold font-playfair">Corrispettivi</h2>
+            <p className="text-sm mt-2 text-center">
+              Andamento incassi, confronto periodi, medie giornaliere.
             </p>
-          </Link>
+            <span className="mt-3 px-3 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400 border border-neutral-200 uppercase tracking-wider">
+              Prossimamente
+            </span>
+          </div>
+
+          {/* PERSONALE — placeholder futuro */}
+          <div className="bg-neutral-50 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center">
+            <div className="text-5xl mb-3 opacity-40">👥</div>
+            <h2 className="text-xl font-semibold font-playfair">Personale</h2>
+            <p className="text-sm mt-2 text-center">
+              Costi del personale, turni, ore lavorate.
+            </p>
+            <span className="mt-3 px-3 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400 border border-neutral-200 uppercase tracking-wider">
+              Prossimamente
+            </span>
+          </div>
         </div>
       </div>
     </div>

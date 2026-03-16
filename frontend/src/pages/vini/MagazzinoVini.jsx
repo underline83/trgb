@@ -480,7 +480,11 @@ export default function MagazzinoVini() {
     }
   };
 
-  const openBulkEdit = () => { setBulkData({}); setBulkResult(null); setBulkEditOpen(true); };
+  const bulkPanelRef = useRef(null);
+  const openBulkEdit = () => {
+    setBulkData({}); setBulkResult(null); setBulkEditOpen(true);
+    setTimeout(() => bulkPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+  };
 
   const bulkFieldSet = (name, value) => {
     setBulkData(prev => {
@@ -854,7 +858,7 @@ export default function MagazzinoVini() {
 
         {/* PANNELLO BULK EDIT */}
         {bulkEditOpen && selectedIds.size > 0 && (
-          <div className="mb-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
+          <div ref={bulkPanelRef} className="mb-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-violet-900">
                 Modifica massiva — {selectedIds.size} vini
@@ -1632,6 +1636,31 @@ export default function MagazzinoVini() {
 
       {showStampaFiltrata && (
         <StampaFiltrata onClose={() => setShowStampaFiltrata(false)} />
+      )}
+
+      {/* BARRA FISSA IN BASSO — selezione multipla */}
+      {bulkMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-violet-700 text-white shadow-2xl border-t-2 border-violet-400">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <span className="text-sm font-semibold">
+              {selectedIds.size} vini selezionat{selectedIds.size === 1 ? "o" : "i"}
+            </span>
+            <div className="flex items-center gap-3">
+              <button onClick={openBulkEdit}
+                className="px-5 py-2 rounded-lg text-sm font-bold bg-white text-violet-800 hover:bg-violet-50 transition shadow">
+                ✏️ Modifica selezionati
+              </button>
+              <button onClick={() => setSelectedIds(new Set())}
+                className="px-4 py-2 rounded-lg text-xs font-medium border border-violet-400 text-violet-100 hover:bg-violet-600 transition">
+                Deseleziona
+              </button>
+              <button onClick={toggleBulkMode}
+                className="px-4 py-2 rounded-lg text-xs font-medium border border-violet-400 text-violet-100 hover:bg-violet-600 transition">
+                ✕ Esci
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
