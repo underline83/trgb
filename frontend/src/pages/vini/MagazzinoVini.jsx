@@ -634,22 +634,41 @@ export default function MagazzinoVini() {
     frigoNome, frigoSpazio, loc1Nome, loc1Spazio, loc2Nome, loc2Spazio, loc3Nome, loc3Spazio,
   ]);
 
+  // Filtro riepilogo — cliccando un badge mostra solo quei vini
+  const [riepilogoFilter, setRiepilogoFilter] = useState(null); // null | "tipologia:ROSSI" | "esaurite"
+
   // Riepilogo per tipologia dei vini filtrati
   const riepilogoTipologie = useMemo(() => {
     const counts = {};
     let totBotQ = 0;
+    let esaurite = 0;
     for (const v of viniFiltrati) {
       const tip = v.TIPOLOGIA || "—";
       const q = (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
-      if (!counts[tip]) counts[tip] = { etichette: 0, bottiglie: 0 };
+      if (!counts[tip]) counts[tip] = { etichette: 0, bottiglie: 0, esaurite: 0 };
       counts[tip].etichette += 1;
       counts[tip].bottiglie += q;
+      if (q <= 0) { counts[tip].esaurite += 1; esaurite += 1; }
       totBotQ += q;
     }
-    // Ordina per numero etichette decrescente
     const sorted = Object.entries(counts).sort((a, b) => b[1].etichette - a[1].etichette);
-    return { sorted, totBotQ };
+    return { sorted, totBotQ, esaurite };
   }, [viniFiltrati]);
+
+  // Lista vini mostrata in tabella (filtrata ulteriormente dal riepilogo)
+  const viniVisibili = useMemo(() => {
+    if (!riepilogoFilter) return viniFiltrati;
+    if (riepilogoFilter === "esaurite") {
+      return viniFiltrati.filter((v) => {
+        const q = (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
+        return q <= 0;
+      });
+    }
+    // "tipologia:NOME"
+    const tip = riepilogoFilter.replace("tipologia:", "");
+    if (tip === "—") return viniFiltrati.filter((v) => !v.TIPOLOGIA);
+    return viniFiltrati.filter((v) => v.TIPOLOGIA === tip);
+  }, [viniFiltrati, riepilogoFilter]);
 
   const handleRowClick = (vino) => {
     // Se c'è una scheda aperta con modifiche non salvate, chiedi conferma
@@ -1101,6 +1120,7 @@ export default function MagazzinoVini() {
                   setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
                   setOnlyMissingListino(false);
                   setStatoVenditaSel(""); setStatoRiordinoSel(""); setStatoConservazioneSel("");
+                  setRiepilogoFilter(null);
                 }}
                 className="px-5 py-2 rounded-xl text-sm font-semibold shadow transition border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100"
               >
@@ -1132,24 +1152,46 @@ export default function MagazzinoVini() {
           <div className="bg-white border border-neutral-200 rounded-2xl px-4 py-3 mb-4 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                Riepilogo
+                Riepilogo {riepilogoFilter && <span className="text-amber-600 ml-1">— filtro attivo (clicca di nuovo per togliere)</span>}
               </span>
               <span className="text-xs text-neutral-500">
                 {viniFiltrati.length} etichette · {riepilogoTipologie.totBotQ} bottiglie
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {riepilogoTipologie.sorted.map(([tip, data]) => (
-                <div
-                  key={tip}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${tipologiaBadgeColor(tip)}`}
+              {riepilogoTipologie.sorted.map(([tip, data]) => {
+                const filterKey = `tipologia:${tip}`;
+                const isActive = riepilogoFilter === filterKey;
+                return (
+                  <button
+                    key={tip}
+                    type="button"
+                    onClick={() => setRiepilogoFilter(isActive ? null : filterKey)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${tipologiaBadgeColor(tip)} ${isActive ? "ring-2 ring-amber-400 shadow-md scale-105" : "hover:shadow-sm hover:scale-[1.02]"}`}
+                  >
+                    <span>{tip}</span>
+                    <span className="opacity-60">·</span>
+                    <span>{data.etichette}</span>
+                    <span className="opacity-40 font-normal">({data.bottiglie} bt)</span>
+                    {data.esaurite > 0 && (
+                      <span className="ml-1 text-[10px] text-red-600 font-bold">⚠ {data.esaurite} esaurit{data.esaurite === 1 ? "o" : "i"}</span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {/* Badge "Da riordinare" globale */}
+              {riepilogoTipologie.esaurite > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRiepilogoFilter(riepilogoFilter === "esaurite" ? null : "esaurite")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer bg-red-50 text-red-700 border-red-200 ${riepilogoFilter === "esaurite" ? "ring-2 ring-red-400 shadow-md scale-105" : "hover:shadow-sm hover:scale-[1.02]"}`}
                 >
-                  <span>{tip}</span>
+                  <span>🔄 Da riordinare</span>
                   <span className="opacity-60">·</span>
-                  <span>{data.etichette}</span>
-                  <span className="opacity-40 font-normal">({data.bottiglie} bt)</span>
-                </div>
-              ))}
+                  <span>{riepilogoTipologie.esaurite}</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1161,7 +1203,7 @@ export default function MagazzinoVini() {
               Lista vini in cantina
             </h2>
             <span className="text-xs text-neutral-500">
-              {viniFiltrati.length} risultati su {vini.length} totali
+              {viniVisibili.length} risultati{riepilogoFilter ? ` (filtro riepilogo)` : ""} su {vini.length} totali
             </span>
           </div>
 
@@ -1181,7 +1223,7 @@ export default function MagazzinoVini() {
                 </tr>
               </thead>
               <tbody>
-                {viniFiltrati.map((vino) => {
+                {viniVisibili.map((vino) => {
                   const isSelected = openSchedaId === vino.id;
                   const tot =
                     vino.QTA_TOTALE ??
@@ -1255,7 +1297,7 @@ export default function MagazzinoVini() {
                   );
                 })}
 
-                {viniFiltrati.length === 0 && !loading && (
+                {viniVisibili.length === 0 && !loading && (
                   <tr>
                     <td
                       colSpan={9}
