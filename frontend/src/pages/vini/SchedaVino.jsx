@@ -326,7 +326,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       DESCRIZIONE: vino.DESCRIZIONE ?? "", DENOMINAZIONE: vino.DENOMINAZIONE ?? "",
       ANNATA: vino.ANNATA ?? "", VITIGNI: vino.VITIGNI ?? "",
       GRADO_ALCOLICO: vino.GRADO_ALCOLICO ?? "", FORMATO: vino.FORMATO ?? "",
-      PRODUTTORE: vino.PRODUTTORE ?? "", DISTRIBUTORE: vino.DISTRIBUTORE ?? "",
+      PRODUTTORE: vino.PRODUTTORE ?? "", DISTRIBUTORE: vino.DISTRIBUTORE ?? "", RAPPRESENTANTE: vino.RAPPRESENTANTE ?? "",
       PREZZO_CARTA: vino.PREZZO_CARTA ?? "", EURO_LISTINO: vino.EURO_LISTINO ?? "",
       SCONTO: vino.SCONTO ?? "", NOTE_PREZZO: vino.NOTE_PREZZO ?? "",
       CARTA: vino.CARTA ?? "NO", IPRATICO: vino.IPRATICO ?? "NO",
@@ -532,6 +532,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   <Field label="Formato" value={vino.FORMATO} />
                   <Field label="Produttore" value={vino.PRODUTTORE} />
                   <Field label="Distributore" value={vino.DISTRIBUTORE} />
+                  <Field label="Rappresentante" value={vino.RAPPRESENTANTE} />
                   <Field label="Vitigni" value={vino.VITIGNI} />
                   <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${vino.GRADO_ALCOLICO}%` : null} />
                 </div>
@@ -604,9 +605,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   <Input label="Vitigni" name="VITIGNI" value={editData.VITIGNI} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Grado alcolico" name="GRADO_ALCOLICO" value={editData.GRADO_ALCOLICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.1" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input label="Produttore" name="PRODUTTORE" value={editData.PRODUTTORE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                   <Input label="Distributore" name="DISTRIBUTORE" value={editData.DISTRIBUTORE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                  <Input label="Rappresentante" name="RAPPRESENTANTE" value={editData.RAPPRESENTANTE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <Input label="Prezzo carta €" name="PREZZO_CARTA" value={editData.PREZZO_CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />

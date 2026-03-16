@@ -339,6 +339,8 @@ export default function MagazzinoVini() {
   const [nazioneSel, setNazioneSel] = useState("");
   const [produttoreSel, setProduttoreSel] = useState("");
   const [regioneSel, setRegioneSel] = useState("");
+  const [distributoreSel, setDistributoreSel] = useState("");
+  const [rappresentanteSel, setRappresentanteSel] = useState("");
 
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
   const [giacenzaVal1, setGiacenzaVal1] = useState("");
@@ -417,8 +419,10 @@ export default function MagazzinoVini() {
     if (tipologiaSel) out = out.filter((v) => v.TIPOLOGIA === tipologiaSel);
     if (regioneSel) out = out.filter((v) => v.REGIONE === regioneSel);
     if (produttoreSel) out = out.filter((v) => v.PRODUTTORE === produttoreSel);
+    if (distributoreSel) out = out.filter((v) => v.DISTRIBUTORE === distributoreSel);
+    if (rappresentanteSel) out = out.filter((v) => v.RAPPRESENTANTE === rappresentanteSel);
     return out;
-  }, [vini, tipologiaSel, nazioneSel, produttoreSel, regioneSel]);
+  }, [vini, tipologiaSel, nazioneSel, produttoreSel, regioneSel, distributoreSel, rappresentanteSel]);
 
   const tipologieOptions = useMemo(
     () => uniq(baseForOptions.map((v) => v.TIPOLOGIA)),
@@ -434,6 +438,14 @@ export default function MagazzinoVini() {
   );
   const produttoriOptions = useMemo(
     () => uniq(baseForOptions.map((v) => v.PRODUTTORE)),
+    [baseForOptions]
+  );
+  const distributoriOptions = useMemo(
+    () => uniq(baseForOptions.map((v) => v.DISTRIBUTORE)),
+    [baseForOptions]
+  );
+  const rappresentantiOptions = useMemo(
+    () => uniq(baseForOptions.map((v) => v.RAPPRESENTANTE)),
     [baseForOptions]
   );
 
@@ -464,6 +476,8 @@ export default function MagazzinoVini() {
           v.PRODUTTORE,
           v.REGIONE,
           v.NAZIONE,
+          v.DISTRIBUTORE,
+          v.RAPPRESENTANTE,
         ];
         return campi.some((c) => c && String(c).toLowerCase().includes(needle));
       });
@@ -474,6 +488,8 @@ export default function MagazzinoVini() {
     if (nazioneSel) out = out.filter((v) => v.NAZIONE === nazioneSel);
     if (regioneSel) out = out.filter((v) => v.REGIONE === regioneSel);
     if (produttoreSel) out = out.filter((v) => v.PRODUTTORE === produttoreSel);
+    if (distributoreSel) out = out.filter((v) => v.DISTRIBUTORE === distributoreSel);
+    if (rappresentanteSel) out = out.filter((v) => v.RAPPRESENTANTE === rappresentanteSel);
 
     // 4) Giacenza
     const parseIntSafe = (val) => {
@@ -575,6 +591,8 @@ export default function MagazzinoVini() {
     nazioneSel,
     regioneSel,
     produttoreSel,
+    distributoreSel,
+    rappresentanteSel,
     giacenzaMode,
     giacenzaVal1,
     giacenzaVal2,
@@ -671,6 +689,10 @@ export default function MagazzinoVini() {
 
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner mb-6 space-y-4">
+
+          {/* ── Ricerca ── */}
+          <div className="bg-white/60 rounded-xl p-3 border border-neutral-200">
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Ricerca</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -697,8 +719,12 @@ export default function MagazzinoVini() {
               />
             </div>
           </div>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* ── Anagrafica / Provenienza ── */}
+          <div className="bg-amber-50/40 rounded-xl p-3 border border-amber-100">
+          <div className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Anagrafica</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                 Tipologia
@@ -770,10 +796,51 @@ export default function MagazzinoVini() {
                 ))}
               </select>
             </div>
-
           </div>
 
-          {/* Filtri locazioni gerarchici */}
+          {/* Distributore / Rappresentante */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                Distributore
+              </label>
+              <select
+                value={distributoreSel}
+                onChange={(e) => setDistributoreSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+              >
+                <option value="">Tutti</option>
+                {distributoriOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                Rappresentante
+              </label>
+              <select
+                value={rappresentanteSel}
+                onChange={(e) => setRappresentanteSel(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+              >
+                <option value="">Tutti</option>
+                {rappresentantiOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          </div>
+
+          {/* ── Locazioni ── */}
+          <div className="bg-emerald-50/30 rounded-xl p-3 border border-emerald-100">
+          <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Locazioni</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {/* Frigorifero */}
             <div>
@@ -850,8 +917,11 @@ export default function MagazzinoVini() {
               </select>
             </div>
           </div>
+          </div>
 
-          {/* FILTRI STATI */}
+          {/* ── Stati ── */}
+          <div className="bg-blue-50/30 rounded-xl p-3 border border-blue-100">
+          <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">Stati</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato vendita</label>
@@ -878,7 +948,11 @@ export default function MagazzinoVini() {
               </select>
             </div>
           </div>
+          </div>
 
+          {/* ── Giacenza / Prezzo / Azioni ── */}
+          <div className="bg-violet-50/30 rounded-xl p-3 border border-violet-100">
+          <div className="text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-2">Giacenza e prezzo</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -974,7 +1048,7 @@ export default function MagazzinoVini() {
                 type="button"
                 onClick={() => {
                   setSearchId(""); setSearchText("");
-                  setTipologiaSel(""); setNazioneSel(""); setRegioneSel(""); setProduttoreSel("");
+                  setTipologiaSel(""); setNazioneSel(""); setRegioneSel(""); setProduttoreSel(""); setDistributoreSel(""); setRappresentanteSel("");
                   setFrigoNome(""); setFrigoSpazio(""); setLoc1Nome(""); setLoc1Spazio(""); setLoc2Nome(""); setLoc2Spazio(""); setLoc3Nome(""); setLoc3Spazio("");
                   setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
                   setOnlyPositiveStock(false);
@@ -999,6 +1073,7 @@ export default function MagazzinoVini() {
                 {loading ? "Ricarico dati…" : "⟳ Ricarica"}
               </button>
             </div>
+          </div>
           </div>
 
           {error && (

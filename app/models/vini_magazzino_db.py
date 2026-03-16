@@ -158,6 +158,11 @@ def init_magazzino_database() -> None:
             "CHECK (ORIGINE IN ('EXCEL','MANUALE') OR ORIGINE IS NULL) "
             "DEFAULT NULL;"
         )
+    if "RAPPRESENTANTE" not in cols:
+        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN RAPPRESENTANTE TEXT DEFAULT '';")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_rappresentante ON vini_magazzino (RAPPRESENTANTE);")
+    # Indice su DISTRIBUTORE (se non esiste)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 
     # Bulk fix: assegna STATO_VENDITA a vini che non ce l'hanno
     # - Con giacenza > 0 → 'V' (vendere)

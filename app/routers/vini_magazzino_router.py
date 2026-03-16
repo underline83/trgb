@@ -53,6 +53,7 @@ class VinoMagazzinoBase(BaseModel):
 
     PRODUTTORE: Optional[str] = None
     DISTRIBUTORE: Optional[str] = None
+    RAPPRESENTANTE: Optional[str] = None
 
     PREZZO_CARTA: Optional[float] = None
     EURO_LISTINO: Optional[float] = None
@@ -123,6 +124,7 @@ class VinoMagazzinoUpdate(BaseModel):
 
     PRODUTTORE: Optional[str] = None
     DISTRIBUTORE: Optional[str] = None
+    RAPPRESENTANTE: Optional[str] = None
 
     PREZZO_CARTA: Optional[float] = None
     EURO_LISTINO: Optional[float] = None
