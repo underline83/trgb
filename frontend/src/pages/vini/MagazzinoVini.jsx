@@ -1477,7 +1477,7 @@ export default function MagazzinoVini() {
                   <select name="REGIONE" value={bulkData.REGIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
                     <option value="">— non modificare —</option>
-                    {(tabellaOpts.regioni || []).map(t => <option key={t} value={t}>{t}</option>)}
+                    {(tabellaOpts.regioni || []).map(t => <option key={typeof t === "object" ? t.nome : t} value={typeof t === "object" ? t.nome : t}>{typeof t === "object" ? t.nome : t}</option>)}
                   </select>
                 </div>
                 <div>
