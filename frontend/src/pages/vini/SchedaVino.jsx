@@ -490,69 +490,75 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
         <div className={`grid grid-cols-1 lg:grid-cols-[260px_1fr]`} style={{ height: inline ? "78vh" : "88vh" }}>
 
           {/* ═══════════ SIDEBAR ═══════════ */}
-          <div className={`${sbc.bg} text-white p-5 flex flex-col overflow-y-auto`}>
-            {/* Titolo e ID */}
-            <div className="mb-4">
-              <h2 className="text-lg font-bold leading-tight mb-1">{vino.DESCRIZIONE}</h2>
-              <p className="text-sm opacity-70">{vino.PRODUTTORE || "—"} {vino.ANNATA ? `· ${vino.ANNATA}` : ""}</p>
-              <span className="inline-flex items-center mt-2 bg-white/20 text-[11px] font-bold px-2 py-0.5 rounded font-mono">#{vino.id}</span>
-            </div>
+          <div className={`${sbc.bg} text-white flex flex-col h-full`}>
 
-            {/* Stats grid */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className={`${sbc.accent} rounded-lg p-3 text-center`}>
-                <div className="text-[9px] uppercase opacity-60 tracking-wider">Bottiglie</div>
-                <div className="text-2xl font-bold">{tot}</div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-3 text-center`}>
-                <div className="text-[9px] uppercase opacity-60 tracking-wider">Prezzo</div>
-                <div className="text-2xl font-bold">{vino.PREZZO_CARTA != null ? `${Number(vino.PREZZO_CARTA).toFixed(0)}` : "—"}<span className="text-sm font-normal opacity-60"> €</span></div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-3 text-center`}>
-                <div className="text-[9px] uppercase opacity-60 tracking-wider">Listino</div>
-                <div className="text-lg font-bold">{vino.EURO_LISTINO != null ? `${Number(vino.EURO_LISTINO).toFixed(0)}` : "—"}<span className="text-xs font-normal opacity-60"> €</span></div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-3 text-center`}>
-                <div className="text-[9px] uppercase opacity-60 tracking-wider">Formato</div>
-                <div className="text-lg font-bold">{vino.FORMATO || "—"}</div>
+            {/* ── Header fisso (nome + pulsanti) ── */}
+            <div className="p-4 pb-3">
+              <h2 className="text-base font-bold leading-tight">{vino.DESCRIZIONE}</h2>
+              <p className="text-xs opacity-70 mt-0.5">{vino.PRODUTTORE || "—"} {vino.ANNATA ? `· ${vino.ANNATA}` : ""}</p>
+              <span className="inline-flex items-center mt-1.5 bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">#{vino.id}</span>
+
+              {/* Pulsanti azione — subito sotto il nome */}
+              <div className="flex gap-1.5 mt-3">
+                <button type="button" onClick={startEdit}
+                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white text-neutral-800 hover:bg-neutral-100 transition text-center leading-tight">
+                  Modifica<br/>anagrafica
+                </button>
+                <button type="button" onClick={startGiacenze}
+                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight">
+                  Modifica<br/>giacenze
+                </button>
+                <button type="button" onClick={handleDuplica} disabled={duplicating}
+                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight disabled:opacity-50">
+                  {duplicating ? "Duplico…" : <>{`Duplica`}<br/>{`vino`}</>}
+                </button>
               </div>
             </div>
 
-            {/* Info list */}
-            <ul className="text-xs space-y-0 mb-4 flex-1">
-              {[
-                ["Tipologia", vino.TIPOLOGIA],
-                ["Nazione", vino.NAZIONE],
-                ["Regione", vino.REGIONE],
-                ["Carta", vino.CARTA || "NO"],
-                ["Vendita", (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? s.label : vino.STATO_VENDITA || "—"; })()],
-                ["Riordino", (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? s.label : vino.STATO_RIORDINO || "—"; })()],
-                ["Conservazione", (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? s.label : vino.STATO_CONSERVAZIONE || "—"; })()],
-              ].map(([label, val]) => (
-                <li key={label} className="flex justify-between py-1.5 border-b border-white/10">
-                  <span className="opacity-60">{label}</span>
-                  <span className="font-medium">{val || "—"}</span>
-                </li>
-              ))}
-            </ul>
+            {/* ── Contenuto scrollabile ── */}
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
+                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Bottiglie</div>
+                  <div className="text-xl font-bold">{tot}</div>
+                </div>
+                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
+                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Prezzo</div>
+                  <div className="text-xl font-bold">{vino.PREZZO_CARTA != null ? `${Number(vino.PREZZO_CARTA).toFixed(0)}` : "—"}<span className="text-xs font-normal opacity-60"> €</span></div>
+                </div>
+                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
+                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Listino</div>
+                  <div className="text-lg font-bold">{vino.EURO_LISTINO != null ? `${Number(vino.EURO_LISTINO).toFixed(0)}` : "—"}<span className="text-[10px] font-normal opacity-60"> €</span></div>
+                </div>
+                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
+                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Formato</div>
+                  <div className="text-lg font-bold">{vino.FORMATO || "—"}</div>
+                </div>
+              </div>
 
-            {/* Actions */}
-            <div className="space-y-2 mt-auto">
-              <button type="button" onClick={startEdit}
-                className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white text-neutral-800 hover:bg-neutral-100 transition text-center">
-                Modifica anagrafica
-              </button>
-              <button type="button" onClick={startGiacenze}
-                className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white/15 hover:bg-white/25 transition text-center">
-                Modifica giacenze
-              </button>
-              <button type="button" onClick={handleDuplica} disabled={duplicating}
-                className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white/15 hover:bg-white/25 transition text-center disabled:opacity-50">
-                {duplicating ? "Duplico…" : "Duplica vino"}
-              </button>
+              {/* Info list */}
+              <ul className="text-[11px] space-y-0 mb-3">
+                {[
+                  ["Tipologia", vino.TIPOLOGIA],
+                  ["Nazione", vino.NAZIONE],
+                  ["Regione", vino.REGIONE],
+                  ["Carta", vino.CARTA || "NO"],
+                  ["Vendita", (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? s.label : vino.STATO_VENDITA || "—"; })()],
+                  ["Riordino", (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? s.label : vino.STATO_RIORDINO || "—"; })()],
+                  ["Conservazione", (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? s.label : vino.STATO_CONSERVAZIONE || "—"; })()],
+                ].map(([label, val]) => (
+                  <li key={label} className="flex justify-between py-1.5 border-b border-white/10">
+                    <span className="opacity-60">{label}</span>
+                    <span className="font-medium">{val || "—"}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Chiudi */}
               {onClose && (
                 <button type="button" onClick={handleClose}
-                  className="w-full px-3 py-2 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 transition text-center mt-2">
+                  className="w-full mt-2 px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center">
                   Chiudi
                 </button>
               )}

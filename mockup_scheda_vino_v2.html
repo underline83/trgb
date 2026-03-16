@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup SchedaVino v2 — Layout Fix</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #f5f5f4; font-family: system-ui, -apple-system, sans-serif; }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+</style>
+</head>
+<body class="p-6">
+
+<h1 class="text-xl font-bold text-neutral-800 mb-2">Mockup SchedaVino v2 — Sidebar compatta + pulsanti in cima</h1>
+<p class="text-sm text-neutral-500 mb-4">Sidebar: header fisso + contenuto scrollabile. Main: scroll indipendente. Pulsanti spostati sotto il nome.</p>
+
+<!-- Selettore tipologia per test colori -->
+<div class="mb-4 flex gap-2 flex-wrap">
+  <span class="text-xs font-semibold text-neutral-500 self-center mr-2">Cambia tipologia:</span>
+  <button onclick="setTipo('BIANCHI')" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-600 text-white">Bianchi</button>
+  <button onclick="setTipo('ROSSI')" class="px-3 py-1 rounded-full text-xs font-bold bg-red-700 text-white">Rossi</button>
+  <button onclick="setTipo('BOLLICINE')" class="px-3 py-1 rounded-full text-xs font-bold bg-yellow-600 text-white">Bollicine</button>
+  <button onclick="setTipo('ROSATI')" class="px-3 py-1 rounded-full text-xs font-bold bg-pink-600 text-white">Rosati</button>
+  <button onclick="setTipo('PASSITI')" class="px-3 py-1 rounded-full text-xs font-bold bg-orange-600 text-white">Passiti</button>
+  <button onclick="setTipo('GRANDI FORMATI')" class="px-3 py-1 rounded-full text-xs font-bold bg-purple-700 text-white">Grandi Formati</button>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- SCHEDA VINO -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="rounded-2xl shadow-lg overflow-hidden border border-neutral-200" style="height: 78vh;">
+  <div id="scheda-grid" class="grid grid-cols-[260px_1fr] h-full">
+
+    <!-- ═══ SIDEBAR ═══ -->
+    <div id="sidebar" class="bg-gradient-to-b from-amber-600 to-amber-800 text-white flex flex-col h-full">
+
+      <!-- Header fisso sidebar (nome + pulsanti) — NON scrolla -->
+      <div class="p-4 pb-3">
+        <h2 class="text-base font-bold leading-tight">Alsace Grand Cru Riesling Brudertal</h2>
+        <p class="text-xs opacity-70 mt-0.5">Domaine Neumeyer · 2020</p>
+        <span class="inline-flex items-center mt-1.5 bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">#900</span>
+
+        <!-- Pulsanti azione — subito sotto il nome -->
+        <div class="flex gap-1.5 mt-3">
+          <button class="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white text-neutral-800 hover:bg-neutral-100 transition text-center leading-tight">
+            Modifica<br>anagrafica
+          </button>
+          <button class="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight">
+            Modifica<br>giacenze
+          </button>
+          <button class="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight">
+            Duplica<br>vino
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenuto scrollabile sidebar -->
+      <div class="flex-1 overflow-y-auto scrollbar-thin px-4 pb-4">
+        <!-- Stats grid -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div class="bg-white/15 rounded-lg p-2.5 text-center">
+            <div class="text-[8px] uppercase opacity-60 tracking-wider">Bottiglie</div>
+            <div class="text-xl font-bold">1</div>
+          </div>
+          <div class="bg-white/15 rounded-lg p-2.5 text-center">
+            <div class="text-[8px] uppercase opacity-60 tracking-wider">Prezzo</div>
+            <div class="text-xl font-bold">65<span class="text-xs font-normal opacity-60"> €</span></div>
+          </div>
+          <div class="bg-white/15 rounded-lg p-2.5 text-center">
+            <div class="text-[8px] uppercase opacity-60 tracking-wider">Listino</div>
+            <div class="text-lg font-bold">25<span class="text-[10px] font-normal opacity-60"> €</span></div>
+          </div>
+          <div class="bg-white/15 rounded-lg p-2.5 text-center">
+            <div class="text-[8px] uppercase opacity-60 tracking-wider">Formato</div>
+            <div class="text-lg font-bold">BT</div>
+          </div>
+        </div>
+
+        <!-- Info list -->
+        <ul class="text-[11px] space-y-0">
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Tipologia</span>
+            <span class="font-medium" id="tipo-label">BIANCHI</span>
+          </li>
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Nazione</span>
+            <span class="font-medium">Francia</span>
+          </li>
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Regione</span>
+            <span class="font-medium">Alsazia</span>
+          </li>
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Carta</span>
+            <span class="font-medium">SI</span>
+          </li>
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Vendita</span>
+            <span class="font-medium">Vendere</span>
+          </li>
+          <li class="flex justify-between py-1.5 border-b border-white/10">
+            <span class="opacity-60">Riordino</span>
+            <span class="font-medium">—</span>
+          </li>
+          <li class="flex justify-between py-1.5">
+            <span class="opacity-60">Conservazione</span>
+            <span class="font-medium">—</span>
+          </li>
+        </ul>
+
+        <!-- Chiudi -->
+        <button class="w-full mt-3 px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center">
+          Chiudi
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <div class="bg-white overflow-y-auto scrollbar-thin h-full">
+
+      <!-- ANAGRAFICA -->
+      <div class="border-b border-neutral-200">
+        <div class="flex items-center justify-between px-5 py-3 bg-neutral-50/80 border-b border-neutral-100">
+          <h3 class="text-sm font-bold text-neutral-800 uppercase tracking-wide">Anagrafica</h3>
+        </div>
+        <div class="p-5">
+          <div class="grid grid-cols-3 gap-4">
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Tipologia</div><div class="text-sm" id="tipo-main">BIANCHI</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Nazione</div><div class="text-sm">Francia</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Regione</div><div class="text-sm">Alsazia</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Denominazione</div><div class="text-sm">—</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Annata</div><div class="text-sm">2020</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Formato</div><div class="text-sm">BT</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Produttore</div><div class="text-sm">Domaine Neumeyer</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Distributore</div><div class="text-sm">Davide Previtali</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Rappresentante</div><div class="text-sm">—</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Vitigni</div><div class="text-sm">—</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Grado alcolico</div><div class="text-sm">—</div></div>
+          </div>
+          <div class="grid grid-cols-3 gap-4 pt-3 mt-3 border-t border-neutral-100">
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Prezzo carta</div><div class="text-sm">65.00 €</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Listino</div><div class="text-sm">24.50 €</div></div>
+            <div><div class="text-[10px] font-semibold text-neutral-500 uppercase">Sconto</div><div class="text-sm">—</div></div>
+          </div>
+          <div class="pt-3 mt-3 border-t border-neutral-100 flex flex-wrap gap-2">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">CARTA: SI</span>
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">iPratico: SI</span>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Vendere</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- GIACENZE -->
+      <div class="border-b border-neutral-200">
+        <div class="flex items-center justify-between px-5 py-3 bg-neutral-50/80 border-b border-neutral-100">
+          <h3 class="text-sm font-bold text-neutral-800 uppercase tracking-wide">Giacenze per locazione</h3>
+        </div>
+        <div class="p-5">
+          <div class="divide-y divide-neutral-100">
+            <div class="py-2 flex justify-between text-sm">
+              <span class="text-neutral-600">Frigorifero: <span class="text-neutral-800 font-medium">—</span></span>
+              <span class="font-semibold">0 bt</span>
+            </div>
+            <div class="py-2 flex justify-between text-sm">
+              <span class="text-neutral-600">Locazione 1: <span class="text-neutral-800 font-medium">—</span></span>
+              <span class="font-semibold">0 bt</span>
+            </div>
+            <div class="py-2 flex justify-between text-sm">
+              <span class="text-neutral-600">Locazione 2: <span class="text-neutral-800 font-medium">—</span></span>
+              <span class="font-semibold">0 bt</span>
+            </div>
+            <div class="py-3 border-t border-neutral-200">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-semibold">MATRICE — 1 BOTTIGLIA</span>
+                <span class="text-xs text-amber-700 font-semibold cursor-pointer hover:underline">Apri griglia</span>
+              </div>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full">(22,5) ×</span>
+            </div>
+            <div class="py-2 flex justify-between text-sm font-bold border-t border-neutral-300 mt-1 pt-3">
+              <span>Totale</span><span>1 bt</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MOVIMENTI -->
+      <div class="border-b border-neutral-200">
+        <div class="flex items-center justify-between px-5 py-3 bg-neutral-50/80 border-b border-neutral-100">
+          <h3 class="text-sm font-bold text-neutral-800 uppercase tracking-wide">Movimenti cantina</h3>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="bg-neutral-50 border border-neutral-200 rounded-xl p-4 space-y-3">
+            <div class="grid grid-cols-4 gap-3">
+              <select class="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                <option>Carico</option><option>Scarico</option><option>Vendita</option><option>Rettifica</option>
+              </select>
+              <select class="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                <option>— Locazione —</option><option>Frigo (0 bt)</option><option>Loc 1 (0 bt)</option>
+              </select>
+              <input type="number" placeholder="Qtà *" class="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+              <button class="bg-amber-700 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-amber-800">Registra</button>
+            </div>
+            <input type="text" placeholder="Note (opzionali)" class="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+          </div>
+          <div class="border border-neutral-200 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-neutral-100">
+                <tr class="text-xs text-neutral-600 uppercase tracking-wide">
+                  <th class="px-3 py-2 text-left">Data</th>
+                  <th class="px-3 py-2 text-center">Tipo</th>
+                  <th class="px-3 py-2 text-center">Qtà</th>
+                  <th class="px-3 py-2 text-left">Loc.</th>
+                  <th class="px-3 py-2 text-left">Note</th>
+                  <th class="px-3 py-2 text-left">Utente</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t border-neutral-100 hover:bg-neutral-50">
+                  <td class="px-3 py-2 text-xs text-neutral-600">2026-03-14 15:30</td>
+                  <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Carico</span></td>
+                  <td class="px-3 py-2 text-center font-semibold">1</td>
+                  <td class="px-3 py-2 text-xs text-neutral-600">loc3</td>
+                  <td class="px-3 py-2 text-xs text-neutral-700">Arrivo ordine</td>
+                  <td class="px-3 py-2 text-xs text-neutral-500">marco</td>
+                </tr>
+                <tr class="border-t border-neutral-100 hover:bg-neutral-50">
+                  <td class="px-3 py-2 text-xs text-neutral-600">2026-03-10 12:00</td>
+                  <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">Rettifica</span></td>
+                  <td class="px-3 py-2 text-center font-semibold">2</td>
+                  <td class="px-3 py-2 text-xs text-neutral-600">—</td>
+                  <td class="px-3 py-2 text-xs text-neutral-700">Inventario</td>
+                  <td class="px-3 py-2 text-xs text-neutral-500">marco</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTE -->
+      <div>
+        <div class="flex items-center justify-between px-5 py-3 bg-neutral-50/80 border-b border-neutral-100">
+          <h3 class="text-sm font-bold text-neutral-800 uppercase tracking-wide">Note operative</h3>
+        </div>
+        <div class="p-5 space-y-3">
+          <div class="flex gap-2">
+            <textarea placeholder="Aggiungi una nota operativa…" rows="2" class="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white resize-none"></textarea>
+            <button class="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 self-end">Aggiungi</button>
+          </div>
+          <p class="text-sm text-neutral-500">Nessuna nota.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const gradients = {
+  'BIANCHI':        ['from-amber-600', 'to-amber-800'],
+  'ROSSI':          ['from-red-700', 'to-red-900'],
+  'BOLLICINE':      ['from-yellow-600', 'to-yellow-800'],
+  'ROSATI':         ['from-pink-600', 'to-pink-800'],
+  'PASSITI':        ['from-orange-600', 'to-orange-800'],
+  'GRANDI FORMATI': ['from-purple-700', 'to-purple-900'],
+};
+
+function setTipo(tipo) {
+  const sidebar = document.getElementById('sidebar');
+  // Remove old gradient classes
+  sidebar.className = sidebar.className.replace(/from-\S+/g, '').replace(/to-\S+/g, '').trim();
+  const [from, to] = gradients[tipo] || gradients['BIANCHI'];
+  sidebar.classList.add('bg-gradient-to-b', from, to);
+  document.getElementById('tipo-label').textContent = tipo;
+  document.getElementById('tipo-main').textContent = tipo;
+}
+</script>
+
+</body>
+</html>
