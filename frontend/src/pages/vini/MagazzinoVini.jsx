@@ -342,20 +342,33 @@ export default function MagazzinoVini() {
   const [distributoreSel, setDistributoreSel] = useState("");
   const [rappresentanteSel, setRappresentanteSel] = useState("");
 
-  // Colori sfondo riga per TIPOLOGIA vino
+  // Colori per TIPOLOGIA vino — riga tabella + badge riepilogo
   // Valori reali: ROSSI, BIANCHI, BOLLICINE, ROSATI, PASSITI E VINI DA MEDITAZIONE, GRANDI FORMATI, VINI ANALCOLICI, ERRORE
+  const TIPOLOGIA_COLORS = {
+    ROSSI:       { row: "bg-red-50/70",    badge: "bg-red-100 text-red-800 border-red-200" },
+    BIANCHI:     { row: "bg-amber-50/50",  badge: "bg-amber-100 text-amber-800 border-amber-200" },
+    BOLLICINE:   { row: "bg-yellow-50/60", badge: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+    ROSATI:      { row: "bg-pink-50/60",   badge: "bg-pink-100 text-pink-800 border-pink-200" },
+    "PASSITI E VINI DA MEDITAZIONE": { row: "bg-orange-50/50", badge: "bg-orange-100 text-orange-800 border-orange-200" },
+    "GRANDI FORMATI": { row: "bg-purple-50/50", badge: "bg-purple-100 text-purple-800 border-purple-200" },
+    "VINI ANALCOLICI": { row: "bg-teal-50/50", badge: "bg-teal-100 text-teal-800 border-teal-200" },
+    ERRORE:      { row: "bg-gray-100/60",  badge: "bg-gray-200 text-gray-700 border-gray-300" },
+  };
   const tipologiaRowColor = (tip) => {
     if (!tip) return "";
     const t = tip.toUpperCase();
-    if (t.includes("ROSSI"))        return "bg-red-50/70";
-    if (t.includes("BIANCHI"))      return "bg-amber-50/50";
-    if (t.includes("BOLLICINE"))    return "bg-yellow-50/60";
-    if (t.includes("ROSATI"))       return "bg-pink-50/60";
-    if (t.includes("PASSITI") || t.includes("MEDITAZIONE")) return "bg-orange-50/50";
-    if (t.includes("GRANDI FORMATI")) return "bg-purple-50/50";
-    if (t.includes("ANALCOLIC"))    return "bg-teal-50/50";
-    if (t.includes("ERRORE"))       return "bg-gray-100/60";
+    for (const [key, val] of Object.entries(TIPOLOGIA_COLORS)) {
+      if (t.includes(key)) return val.row;
+    }
     return "";
+  };
+  const tipologiaBadgeColor = (tip) => {
+    if (!tip) return "bg-neutral-100 text-neutral-600 border-neutral-200";
+    const t = tip.toUpperCase();
+    for (const [key, val] of Object.entries(TIPOLOGIA_COLORS)) {
+      if (t.includes(key)) return val.badge;
+    }
+    return "bg-neutral-100 text-neutral-600 border-neutral-200";
   };
 
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
@@ -620,6 +633,23 @@ export default function MagazzinoVini() {
     statoVenditaSel, statoRiordinoSel, statoConservazioneSel,
     frigoNome, frigoSpazio, loc1Nome, loc1Spazio, loc2Nome, loc2Spazio, loc3Nome, loc3Spazio,
   ]);
+
+  // Riepilogo per tipologia dei vini filtrati
+  const riepilogoTipologie = useMemo(() => {
+    const counts = {};
+    let totBotQ = 0;
+    for (const v of viniFiltrati) {
+      const tip = v.TIPOLOGIA || "—";
+      const q = (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
+      if (!counts[tip]) counts[tip] = { etichette: 0, bottiglie: 0 };
+      counts[tip].etichette += 1;
+      counts[tip].bottiglie += q;
+      totBotQ += q;
+    }
+    // Ordina per numero etichette decrescente
+    const sorted = Object.entries(counts).sort((a, b) => b[1].etichette - a[1].etichette);
+    return { sorted, totBotQ };
+  }, [viniFiltrati]);
 
   const handleRowClick = (vino) => {
     // Se c'è una scheda aperta con modifiche non salvate, chiedi conferma
@@ -1096,6 +1126,33 @@ export default function MagazzinoVini() {
             <p className="mt-1 text-sm text-red-600 font-medium">{error}</p>
           )}
         </div>
+
+        {/* FASCIA RIEPILOGO PER TIPOLOGIA */}
+        {viniFiltrati.length > 0 && (
+          <div className="bg-white border border-neutral-200 rounded-2xl px-4 py-3 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                Riepilogo
+              </span>
+              <span className="text-xs text-neutral-500">
+                {viniFiltrati.length} etichette · {riepilogoTipologie.totBotQ} bottiglie
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {riepilogoTipologie.sorted.map(([tip, data]) => (
+                <div
+                  key={tip}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold ${tipologiaBadgeColor(tip)}`}
+                >
+                  <span>{tip}</span>
+                  <span className="opacity-60">·</span>
+                  <span>{data.etichette}</span>
+                  <span className="opacity-40 font-normal">({data.bottiglie} bt)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* LISTA VINI */}
         <div className="border border-neutral-200 rounded-2xl overflow-hidden shadow-sm bg-neutral-50">
