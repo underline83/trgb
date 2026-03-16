@@ -1,6 +1,6 @@
 # 🍾 Modulo Magazzino Vini — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-15
-**Stato:** operativo — DB UNICO vini dal v3.0 (vecchio vini.sqlite3 eliminato). Gestione completa con movimenti, dashboard analytics, scheda dettaglio, filtri locazione gerarchici
+**Ultimo aggiornamento:** 2026-03-16
+**Stato:** operativo — DB UNICO vini dal v3.0 (vecchio vini.sqlite3 eliminato). Gestione completa con movimenti, dashboard analytics, scheda dettaglio sidebar+main, filtri locazione unificati, stampa selezionati diretta PDF
 
 ---
 
@@ -57,50 +57,63 @@
 - regione
 - produttore
 
-### Filtri locazione gerarchici (v3.0):
-3 gruppi indipendenti, ciascuno con 2 livelli cascading:
-- **Frigorifero** → nome contenitore → spazio (fila)
-- **Locazione 1** → nome contenitore → spazio
-- **Locazione 2** → nome contenitore → spazio
+### Filtri locazione unificati (v4.0):
+Filtro unico con 2 dropdown (sostituisce i 6 select gerarchici della v3.0):
+- **Locazione** — dropdown unico con tutti i nomi locazione da tutte le sezioni (Frigorifero, Locazione 1, Locazione 2, Locazione 3), deduplicati e ordinati
+- **Spazio** — dropdown che mostra gli spazi disponibili per la locazione selezionata (unione da tutte le sezioni, inclusi spazi matrice generati come `(col,riga)`)
 
-Il selettore spazio si attiva solo dopo aver scelto il nome. Se si seleziona solo il nome, filtra tutti i vini in quel contenitore. I valori provengono dalla tabella `locazioni_config` via endpoint `/locazioni-config`.
+Il filtro cerca contemporaneamente in tutte e 4 le colonne DB (`FRIGORIFERO`, `LOCAZIONE_1`, `LOCAZIONE_2`, `LOCAZIONE_3`). Se si seleziona solo il nome, filtra tutti i vini in quel contenitore. Se si seleziona anche lo spazio, match esatto su `"nome - spazio"`. I valori provengono dalla tabella `locazioni_config` via endpoint `/locazioni-config`.
 
 ### Logica filtri dipendenti:
 Le liste dinamiche si riducono automaticamente in base alle selezioni correnti (clientside con `useMemo`).
 
 ---
 
-# 4. Scheda dettaglio vino (MagazzinoViniDettaglio.jsx v4.1)
+# 4. Scheda dettaglio vino (SchedaVino.jsx v5.0 — layout sidebar+main)
 
-Pagina unificata con tre sezioni:
+Layout a griglia `grid-cols-[260px_1fr]` con sidebar colorata per tipologia e area principale scrollabile.
 
-### 4.1 Anagrafica
+### 4.0 Sidebar (260px, gradiente dinamico per TIPOLOGIA)
+Colore di sfondo determinato dalla tipologia del vino tramite mappa `TIPOLOGIA_SIDEBAR`:
+- ROSSI → gradient rosso (red-700 → red-900)
+- BIANCHI → gradient ambra (amber-600 → amber-800)
+- BOLLICINE → gradient giallo (yellow-600 → yellow-800)
+- ROSATI → gradient rosa (pink-600 → pink-800)
+- PASSITI E VINI DA MEDITAZIONE → gradient arancio (orange-600 → orange-800)
+- GRANDI FORMATI → gradient viola (purple-700 → purple-900)
+- VINI ANALCOLICI → gradient teal (teal-600 → teal-800)
+- Fallback (ERRORE) → gradient grigio
+
+Contenuto sidebar:
+- Nome vino + badge #id
+- Griglia 4 stat box: Bottiglie, Prezzo, Listino, Formato
+- Lista info: Tipologia, Annata, Denominazione, Produttore, Regione, Nazione, Stato vendita, Conservazione
+- Pulsanti azione: Modifica anagrafica, Modifica giacenze, Duplica vino, Chiudi
+
+### 4.1 Anagrafica (sezione main)
 - visualizzazione + edit inline (PATCH `/vini/magazzino/{id}`)
 - campi: descrizione, produttore, tipologia, annata, denominazione, regione, nazione, formato, gradi, prezzo listino, prezzo carta, flag CARTA e IPRATICO, note
+- Edit attivato dal pulsante "Modifica anagrafica" nella sidebar
 
-### 4.2 Giacenze per locazione
+### 4.2 Giacenze per locazione (sezione main)
 - view + edit separato per frigo, loc1, loc2, loc3
 - salvataggio automaticamente registra un movimento RETTIFICA nello storico se `QTA_TOTALE` cambia
+- Edit attivato dal pulsante "Modifica giacenze" nella sidebar
 
-### 4.3 Movimenti cantina
+### 4.3 Movimenti cantina (sezione main)
 - storico completo movimenti del singolo vino
 - form aggiunta movimento: tipo (CARICO/SCARICO/VENDITA/RETTIFICA), quantità, note
 - eliminazione movimento (solo admin/sommelier)
 - badge tipo colorato per ogni movimento
 
-### 4.4 Note operative
+### 4.4 Note operative (sezione main)
 - lista note con data e autore
 - aggiunta nota
 - eliminazione nota (con conferma)
 
 ### Badge ID
-Ogni vino è identificato da un badge `#id` in stile:
-```jsx
-<span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
-  #{vino.id}
-</span>
-```
-Presente in: lista MagazzinoVini, pannello rapido, header scheda dettaglio, dashboard (alert e drill-down).
+Ogni vino è identificato da un badge `#id` nella sidebar e nella lista.
+Presente in: lista MagazzinoVini, pannello rapido, sidebar scheda dettaglio, dashboard (alert e drill-down).
 
 ---
 
@@ -234,13 +247,21 @@ Tabellona editabile per admin con tutte le colonne principali:
 
 ---
 
-# 11. Stampa inventario filtrato
+# 11. Stampa inventario
 
+### 11.1 Stampa selezionati (v4.0 — NUOVO)
+Dalla toolbar in MagazzinoVini, il pulsante "Stampa selezionati" genera direttamente un PDF con i vini selezionati (multi-select sempre attivo):
+- Frontend: `handlePrintSelection()` invia POST con `{ ids: selectedIds }` al backend
+- Backend: `POST /vini/cantina-tools/inventario/selezione/pdf` — accetta lista ID via Body, genera PDF con WeasyPrint e lo restituisce come `Response` con `media_type="application/pdf"`
+- Il PDF si apre in un nuovo tab via `URL.createObjectURL(blob)`
+- Autenticazione via Bearer token (non query token)
+
+### 11.2 Stampa con filtri (pannello modale StampaFiltrata)
 Pannello modale con filtri componibili per generare PDF inventario:
 - Ricerca libera, tipologia, nazione, regione, produttore, annata, formato
 - Stato vendita, stato riordino, discontinuato, in carta
 - Range quantità e prezzo
-- **Filtri locazione gerarchici** (v3.0): 3 gruppi cascading (Frigo/Loc1/Loc2 → nome → spazio)
+- **Filtri locazione gerarchici**: 3 gruppi cascading (Frigo/Loc1/Loc2 → nome → spazio) — StampaFiltrata mantiene i propri filtri separati per-locazione (server-side)
 - Solo con giacenza positiva
 - Genera PDF via endpoint `/inventario/filtrato/pdf` con tutti i filtri come query params
 
@@ -259,6 +280,9 @@ Pannello modale con filtri componibili per generare PDF inventario:
 - [x] Dashboard liste espandibili (alert, vini fermi) — 2026-03-14
 - [x] Filtri locazione gerarchici cascading — 2026-03-14
 - [x] Consolidamento DB: eliminato vini.sqlite3, tutto su magazzino — 2026-03-15
+- [x] Filtro locazione unificato (2 dropdown, ricerca cross-colonna) — 2026-03-16
+- [x] Stampa selezionati diretta PDF (POST con IDs, no dialog) — 2026-03-16
+- [x] SchedaVino layout sidebar+main con colori dinamici per TIPOLOGIA — 2026-03-16
 - [ ] Filtri lato server per dataset molto grandi
 - [ ] Sincronizzazione storico prezzi
 - [ ] Import Excel con diff interattivo

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Mockup Filtri Locazioni — Tre Gobbi</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f5f5f4; color: #333; padding: 20px; }
+  h1 { font-size: 22px; margin-bottom: 8px; color: #1e1e1e; }
+  .subtitle { color: #777; font-size: 13px; margin-bottom: 30px; }
+  .option-card {
+    background: #fff; border-radius: 16px; padding: 24px; margin-bottom: 28px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px solid transparent;
+  }
+  .option-card h2 { font-size: 16px; color: #065f46; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .option-card .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 999px;
+    background: #d1fae5; color: #065f46; font-weight: 600;
+  }
+  .option-card p { font-size: 13px; color: #666; margin-bottom: 16px; line-height: 1.5; }
+  .pro-con { display: flex; gap: 24px; margin-bottom: 16px; font-size: 12px; }
+  .pro-con div { flex: 1; }
+  .pro-con .label { font-weight: 600; margin-bottom: 4px; }
+  .pro-con .pro .label { color: #059669; }
+  .pro-con .con .label { color: #dc2626; }
+  .pro-con ul { list-style: none; padding: 0; }
+  .pro-con li { padding: 2px 0; }
+  .pro-con li::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .pro li::before { background: #059669; }
+  .con li::before { background: #dc2626; }
+
+  .mockup-area {
+    background: #fafaf9; border: 1px solid #e5e5e4; border-radius: 12px; padding: 16px;
+  }
+  .mockup-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #a8a29e; margin-bottom: 10px; }
+
+  /* Shared form styles */
+  select, input[type="text"] {
+    border: 1px solid #d4d4d4; border-radius: 8px; padding: 8px 12px; font-size: 13px;
+    background: white; width: 100%; outline: none; appearance: auto;
+  }
+  select:focus, input:focus { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.2); }
+  select:disabled { opacity: 0.4; background: #f5f5f4; }
+  label { font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
+
+  /* OPZIONE A: Filtro unificato */
+  .unified-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* OPZIONE B: Accordion */
+  .accordion-item { border: 1px solid #e5e5e4; border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
+  .accordion-header {
+    padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between;
+    align-items: center; font-size: 13px; font-weight: 600; color: #333;
+    background: white; transition: background 0.15s;
+  }
+  .accordion-header:hover { background: #f0fdf4; }
+  .accordion-header .arrow { transition: transform 0.2s; font-size: 11px; color: #999; }
+  .accordion-header.open .arrow { transform: rotate(90deg); }
+  .accordion-body { display: none; padding: 12px 14px; background: #fafaf9; border-top: 1px solid #e5e5e4; }
+  .accordion-body.open { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .accordion-header .count { font-size: 11px; color: #999; font-weight: 400; }
+
+  /* OPZIONE C: Tabs */
+  .tabs-row { display: flex; gap: 0; margin-bottom: 0; }
+  .tab-btn {
+    padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid #e5e5e4; border-bottom: none; background: #f5f5f4; color: #777;
+    border-radius: 8px 8px 0 0; transition: all 0.15s; margin-right: -1px;
+  }
+  .tab-btn.active { background: white; color: #065f46; border-color: #d4d4d4; position: relative; z-index: 1; }
+  .tab-content {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 14px; background: white; border: 1px solid #d4d4d4; border-radius: 0 8px 8px 8px;
+  }
+
+  .section-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid #e7e5e4;
+  }
+  .section-header span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #065f46; }
+  .divider { height: 1px; background: #e5e5e4; margin: 20px 0; }
+  .current-tag { font-size: 10px; background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>Filtri Locazioni — 3 Proposte</h1>
+<p class="subtitle">Confronta i tre approcci e scegli quello che ti sembra più pratico per il tuo uso quotidiano.</p>
+
+<!-- ========== OPZIONE A ========== -->
+<div class="option-card">
+  <h2>Opzione A — Filtro Unificato <span class="badge">Consigliato</span></h2>
+  <p>Un solo dropdown "Locazione" che cerca in <strong>tutte</strong> le locazioni (frigo + loc1 + loc2 + loc3). Se un vino è nel "Frigo Bar", lo trovi senza dover sapere se è frigo, loc1 o loc2. Sotto appare un secondo filtro opzionale per lo spazio.</p>
+
+  <div class="pro-con">
+    <div class="pro">
+      <div class="label">Vantaggi</div>
+      <ul>
+        <li>Semplicissimo da usare, 2 dropdown</li>
+        <li>Non serve sapere "in quale locazione" cercare</li>
+        <li>Occupa pochissimo spazio</li>
+      </ul>
+    </div>
+    <div class="con">
+      <div class="label">Limiti</div>
+      <ul>
+        <li>Non filtri per una locazione specifica (es. "solo loc2")</li>
+        <li>Se hai locazioni con lo stesso nome non distingui</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup-area">
+    <div class="mockup-label">Mockup interattivo</div>
+    <div class="section-header"><span>Locazioni</span></div>
+    <div class="unified-grid">
+      <div>
+        <label>Locazione</label>
+        <select id="unified-loc" onchange="updateUnifiedSpazi()">
+          <option value="">— Tutte le locazioni —</option>
+          <option>Frigo Bar</option>
+          <option>Frigo Cucina</option>
+          <option>Scaffale A</option>
+          <option>Scaffale B</option>
+          <option>Cantina Principale</option>
+          <option>Cantina Riserva</option>
+        </select>
+      </div>
+      <div>
+        <label>Spazio</label>
+        <select id="unified-spazio" disabled>
+          <option value="">— Seleziona locazione —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OPZIONE B ========== -->
+<div class="option-card">
+  <h2>Opzione B — Accordion per Tipo</h2>
+  <p>4 sezioni comprimibili (Frigo, Loc. 1, Loc. 2, Loc. 3). Di default sono chiuse. Clicchi su quella che ti interessa e si apre con i filtri nome + spazio. Puoi aprirne anche più d'una.</p>
+
+  <div class="pro-con">
+    <div class="pro">
+      <div class="label">Vantaggi</div>
+      <ul>
+        <li>Filtraggio preciso per tipo di locazione</li>
+        <li>Compatto quando chiuso</li>
+        <li>Puoi filtrare più locazioni contemporaneamente</li>
+      </ul>
+    </div>
+    <div class="con">
+      <div class="label">Limiti</div>
+      <ul>
+        <li>Più click per arrivare al filtro</li>
+        <li>Devi sapere in quale "tipo" cercare</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup-area">
+    <div class="mockup-label">Mockup interattivo — clicca per espandere</div>
+    <div class="section-header"><span>Locazioni</span></div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span>🧊 Frigorifero</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="accordion-body">
+        <div><label>Nome</label><select><option value="">— Tutti —</option><option>Frigo Bar</option><option>Frigo Cucina</option></select></div>
+        <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span>📦 Locazione 1</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="accordion-body">
+        <div><label>Nome</label><select><option value="">— Tutti —</option><option>Scaffale A</option><option>Scaffale B</option></select></div>
+        <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span>📦 Locazione 2</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="accordion-body">
+        <div><label>Nome</label><select><option value="">— Tutti —</option><option>Cantina Principale</option></select></div>
+        <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <div class="accordion-header" onclick="toggleAccordion(this)">
+        <span>🗄️ Locazione 3 (Matrice)</span>
+        <span class="arrow">▶</span>
+      </div>
+      <div class="accordion-body">
+        <div><label>Nome</label><select><option value="">— Tutti —</option><option>Cantina Riserva</option></select></div>
+        <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== OPZIONE C ========== -->
+<div class="option-card">
+  <h2>Opzione C — Tabs Orizzontali</h2>
+  <p>4 tab affiancati in una riga. Clicchi sul tipo di locazione e sotto appaiono i filtri nome + spazio. Simile all'accordion ma più "flat" e visibile.</p>
+
+  <div class="pro-con">
+    <div class="pro">
+      <div class="label">Vantaggi</div>
+      <ul>
+        <li>Tutti i tipi visibili a colpo d'occhio</li>
+        <li>Un click per cambiare contesto</li>
+        <li>Layout familiare (stile browser tabs)</li>
+      </ul>
+    </div>
+    <div class="con">
+      <div class="label">Limiti</div>
+      <ul>
+        <li>Filtri solo una locazione alla volta</li>
+        <li>Devi sapere in quale "tipo" cercare</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup-area">
+    <div class="mockup-label">Mockup interattivo — clicca sui tab</div>
+    <div class="section-header"><span>Locazioni</span></div>
+
+    <div class="tabs-row">
+      <div class="tab-btn active" onclick="switchTab(this, 'tab-frigo')">🧊 Frigo</div>
+      <div class="tab-btn" onclick="switchTab(this, 'tab-loc1')">📦 Loc. 1</div>
+      <div class="tab-btn" onclick="switchTab(this, 'tab-loc2')">📦 Loc. 2</div>
+      <div class="tab-btn" onclick="switchTab(this, 'tab-loc3')">🗄️ Loc. 3</div>
+    </div>
+
+    <div class="tab-content" id="tab-frigo">
+      <div><label>Frigorifero</label><select><option value="">— Tutti —</option><option>Frigo Bar</option><option>Frigo Cucina</option></select></div>
+      <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+    </div>
+    <div class="tab-content" id="tab-loc1" style="display:none">
+      <div><label>Locazione 1</label><select><option value="">— Tutti —</option><option>Scaffale A</option><option>Scaffale B</option></select></div>
+      <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+    </div>
+    <div class="tab-content" id="tab-loc2" style="display:none">
+      <div><label>Locazione 2</label><select><option value="">— Tutti —</option><option>Cantina Principale</option></select></div>
+      <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+    </div>
+    <div class="tab-content" id="tab-loc3" style="display:none">
+      <div><label>Locazione 3</label><select><option value="">— Tutti —</option><option>Cantina Riserva</option></select></div>
+      <div><label>Spazio</label><select disabled><option value="">—</option></select></div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<p style="text-align:center; color:#999; font-size:12px;">Interagisci con i mockup — i dropdown e gli accordion funzionano. Scegli la versione che preferisci!</p>
+
+<script>
+// Unified filter
+const spaziMap = {
+  'Frigo Bar': ['Ripiano 1', 'Ripiano 2', 'Ripiano 3', 'Porta'],
+  'Frigo Cucina': ['Alto', 'Basso'],
+  'Scaffale A': ['A1', 'A2', 'A3', 'A4'],
+  'Scaffale B': ['B1', 'B2', 'B3'],
+  'Cantina Principale': ['Fila 1', 'Fila 2', 'Fila 3'],
+  'Cantina Riserva': ['R1', 'R2', 'R3', 'R4', 'R5'],
+};
+function updateUnifiedSpazi() {
+  const loc = document.getElementById('unified-loc').value;
+  const sel = document.getElementById('unified-spazio');
+  sel.innerHTML = '';
+  if (!loc) {
+    sel.innerHTML = '<option value="">— Seleziona locazione —</option>';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">— Tutti gli spazi —</option>';
+  (spaziMap[loc] || []).forEach(s => {
+    sel.innerHTML += `<option>${s}</option>`;
+  });
+}
+
+// Accordion
+function toggleAccordion(header) {
+  header.classList.toggle('open');
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+// Tabs
+function switchTab(btn, tabId) {
+  btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById(tabId).style.display = 'grid';
+}
+</script>
+</body>
+</html>

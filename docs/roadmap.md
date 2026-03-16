@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap & TO-DO
-**Ultimo aggiornamento:** 2026-03-14
+**Ultimo aggiornamento:** 2026-03-16
 
 Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
@@ -58,6 +58,9 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [x] Filtri locazione gerarchici cascading — 2026-03-14
 - [x] Modifica massiva ordinabile + dropdown locazioni configurate — 2026-03-14
 - [x] Dashboard KPI valore acquisto/carta + liste espandibili — 2026-03-14
+- [x] Filtro locazione unificato (2 dropdown, ricerca cross-colonna) — 2026-03-16
+- [x] Stampa selezionati diretta PDF (POST con IDs) — 2026-03-16
+- [x] SchedaVino layout sidebar+main con colori dinamici per TIPOLOGIA — 2026-03-16
 - [ ] Flag `DISCONTINUATO` — colonna DB aggiunta, UI edit + filtro da fare
 - [ ] Filtri lato server per dataset molto grandi
 - [ ] Import Excel con diff interattivo
@@ -139,6 +142,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | **2026.03.10** | Ricette v2 + Acquisti v2 + Vendite v2 | Completato |
 | **2026.03.13** | Banca v1.0 + Smart Create + Conversioni unita' | Completato |
 | **2026.03.14** | Cantina v3.7 + Chiusure Turno + Cambio PIN | Completato |
+| **2026.03.15** | Statistiche v1.0 + unificazione loader carta + fix delete movimenti | Completato |
+| **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |
 | **Prossimo** | Checklist turno, carta vini pubblica, permessi centralizzati | Pianificato |
 
 ---
@@ -147,6 +152,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 | # | Task | Data |
 |---|------|------|
+| 17 | Cantina v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar | 2026-03-16 |
+| — | Statistiche v1.0 + unificazione loader + fix delete movimenti | 2026-03-15 |
 | 27 | Cambio PIN self-service + reset admin | 2026-03-14 |
 | 26 | Chiusure Turno complete (form + lista + cena cumulativa) | 2026-03-14 |
 | 17 | Filtri locazione gerarchici + Dashboard KPI valore | 2026-03-14 |

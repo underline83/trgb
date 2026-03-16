@@ -402,16 +402,36 @@ export default function MagazzinoVini() {
   const [statoRiordinoSel, setStatoRiordinoSel] = useState("");
   const [statoConservazioneSel, setStatoConservazioneSel] = useState("");
 
-  // ── Filtro locazioni gerarchico ──
+  // ── Filtro locazioni unificato ──
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
-  const [frigoNome, setFrigoNome] = useState("");
-  const [frigoSpazio, setFrigoSpazio] = useState("");
-  const [loc1Nome, setLoc1Nome] = useState("");
-  const [loc1Spazio, setLoc1Spazio] = useState("");
-  const [loc2Nome, setLoc2Nome] = useState("");
-  const [loc2Spazio, setLoc2Spazio] = useState("");
-  const [loc3Nome, setLoc3Nome] = useState("");
-  const [loc3Spazio, setLoc3Spazio] = useState("");
+  const [locNome, setLocNome] = useState("");
+  const [locSpazio, setLocSpazio] = useState("");
+
+  // Lista unificata nomi locazioni (deduplicata, ordinata)
+  const allLocNomi = useMemo(() => {
+    const nomi = new Set();
+    for (const items of [locConfig.frigorifero, locConfig.locazione_1, locConfig.locazione_2, locConfig.locazione_3]) {
+      (items || []).forEach(i => { if (i.nome) nomi.add(i.nome); });
+    }
+    return [...nomi].sort((a, b) => a.localeCompare(b, "it"));
+  }, [locConfig]);
+
+  // Spazi disponibili per la locazione selezionata (unione da tutte le sezioni)
+  const locSpaziOptions = useMemo(() => {
+    if (!locNome) return [];
+    const spazi = new Set();
+    for (const items of [locConfig.frigorifero, locConfig.locazione_1, locConfig.locazione_2, locConfig.locazione_3]) {
+      const found = (items || []).find(i => i.nome === locNome);
+      if (found && found.spazi) found.spazi.forEach(s => spazi.add(s));
+      // Per matrici genera coordinate
+      if (found && found.tipo === "matrice" && found.righe && found.colonne) {
+        for (let r = 1; r <= found.righe; r++)
+          for (let c = 1; c <= found.colonne; c++)
+            spazi.add(`(${c},${r})`);
+      }
+    }
+    return [...spazi].sort((a, b) => a.localeCompare(b, "it"));
+  }, [locConfig, locNome]);
 
   // ------------------------------------------------
   // FETCH DATI MAGAZZINO
@@ -590,6 +610,27 @@ export default function MagazzinoVini() {
     }
   };
 
+  // ── STAMPA SELEZIONE PDF ──
+  const handlePrintSelection = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/cantina-tools/inventario/selezione/pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || "Errore generazione PDF");
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      alert(err.message || "Errore durante la stampa");
+    }
+  };
+
   // ------------------------------------------------
   // OPZIONI SELECT DINAMICHE
   // ------------------------------------------------
@@ -742,23 +783,15 @@ export default function MagazzinoVini() {
     if (statoRiordinoSel) out = out.filter((v) => v.STATO_RIORDINO === statoRiordinoSel);
     if (statoConservazioneSel) out = out.filter((v) => v.STATO_CONSERVAZIONE === statoConservazioneSel);
 
-    // 8) Filtro locazioni gerarchico
-    const locFilters = [
-      { col: "FRIGORIFERO", nome: frigoNome, spazio: frigoSpazio },
-      { col: "LOCAZIONE_1", nome: loc1Nome, spazio: loc1Spazio },
-      { col: "LOCAZIONE_2", nome: loc2Nome, spazio: loc2Spazio },
-      { col: "LOCAZIONE_3", nome: loc3Nome, spazio: loc3Spazio },
-    ];
-    for (const lf of locFilters) {
-      if (lf.nome) {
-        if (lf.spazio) {
-          const full = `${lf.nome} - ${lf.spazio}`;
-          out = out.filter((v) => v[lf.col] === full);
-        } else {
-          // Match esatto (locazione senza sotto-spazi) O con prefisso
-          const prefix = `${lf.nome} - `;
-          out = out.filter((v) => v[lf.col] && (v[lf.col] === lf.nome || String(v[lf.col]).startsWith(prefix)));
-        }
+    // 8) Filtro locazione unificato (cerca in tutte le colonne)
+    if (locNome) {
+      const locCols = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"];
+      if (locSpazio) {
+        const full = `${locNome} - ${locSpazio}`;
+        out = out.filter((v) => locCols.some(col => v[col] === full));
+      } else {
+        const prefix = `${locNome} - `;
+        out = out.filter((v) => locCols.some(col => v[col] && (v[col] === locNome || String(v[col]).startsWith(prefix))));
       }
     }
 
@@ -782,7 +815,7 @@ export default function MagazzinoVini() {
     prezzoVal2,
     onlyMissingListino,
     statoVenditaSel, statoRiordinoSel, statoConservazioneSel,
-    frigoNome, frigoSpazio, loc1Nome, loc1Spazio, loc2Nome, loc2Spazio, loc3Nome, loc3Spazio,
+    locNome, locSpazio,
   ]);
 
   // Filtro riepilogo — cliccando un badge mostra solo quei vini
@@ -920,7 +953,7 @@ export default function MagazzinoVini() {
               </button>
             )}
             {canPrint && (
-              <button onClick={() => setShowStampaFiltrata(true)}
+              <button onClick={handlePrintSelection}
                 className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-emerald-700 text-white hover:bg-emerald-800 transition">
                 🖨️ Stampa selezionati
               </button>
@@ -1083,82 +1116,25 @@ export default function MagazzinoVini() {
           </div>
           </div>
 
-          {/* ── Locazioni ── */}
+          {/* ── Locazioni (filtro unificato) ── */}
           <div className="bg-emerald-50/30 rounded-xl p-3 border border-emerald-100">
           <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Locazioni</div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Frigorifero */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Frigorifero</label>
-              <select value={frigoNome} onChange={(e) => { setFrigoNome(e.target.value); setFrigoSpazio(""); }}
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Locazione</label>
+              <select value={locNome} onChange={(e) => { setLocNome(e.target.value); setLocSpazio(""); }}
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                <option value="">Tutti</option>
-                {locConfig.frigorifero.map((item) => <option key={item.nome} value={item.nome}>{item.nome}</option>)}
+                <option value="">Tutte le locazioni</option>
+                {allLocNomi.map((nome) => <option key={nome} value={nome}>{nome}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Spazio frigo</label>
-              <select value={frigoSpazio} onChange={(e) => setFrigoSpazio(e.target.value)}
-                disabled={!frigoNome || !(locConfig.frigorifero.find(i => i.nome === frigoNome)?.spazi || []).length}
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Spazio</label>
+              <select value={locSpazio} onChange={(e) => setLocSpazio(e.target.value)}
+                disabled={!locNome || !locSpaziOptions.length}
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50">
-                <option value="">Tutti</option>
-                {(locConfig.frigorifero.find(i => i.nome === frigoNome)?.spazi || []).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            {/* Locazione 1 */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Locazione 1</label>
-              <select value={loc1Nome} onChange={(e) => { setLoc1Nome(e.target.value); setLoc1Spazio(""); }}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                <option value="">Tutte</option>
-                {locConfig.locazione_1.map((item) => <option key={item.nome} value={item.nome}>{item.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Spazio loc. 1</label>
-              <select value={loc1Spazio} onChange={(e) => setLoc1Spazio(e.target.value)}
-                disabled={!loc1Nome || !(locConfig.locazione_1.find(i => i.nome === loc1Nome)?.spazi || []).length}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50">
-                <option value="">Tutti</option>
-                {(locConfig.locazione_1.find(i => i.nome === loc1Nome)?.spazi || []).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Locazione 2 */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Locazione 2</label>
-              <select value={loc2Nome} onChange={(e) => { setLoc2Nome(e.target.value); setLoc2Spazio(""); }}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                <option value="">Tutte</option>
-                {locConfig.locazione_2.map((item) => <option key={item.nome} value={item.nome}>{item.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Spazio loc. 2</label>
-              <select value={loc2Spazio} onChange={(e) => setLoc2Spazio(e.target.value)}
-                disabled={!loc2Nome || !(locConfig.locazione_2.find(i => i.nome === loc2Nome)?.spazi || []).length}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50">
-                <option value="">Tutti</option>
-                {(locConfig.locazione_2.find(i => i.nome === loc2Nome)?.spazi || []).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            {/* Locazione 3 */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Locazione 3</label>
-              <select value={loc3Nome} onChange={(e) => { setLoc3Nome(e.target.value); setLoc3Spazio(""); }}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                <option value="">Tutte</option>
-                {locConfig.locazione_3.map((item) => <option key={item.nome} value={item.nome}>{item.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Spazio loc. 3</label>
-              <select value={loc3Spazio} onChange={(e) => setLoc3Spazio(e.target.value)}
-                disabled={!loc3Nome || !(locConfig.locazione_3.find(i => i.nome === loc3Nome)?.spazi || []).length}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50">
-                <option value="">Tutti</option>
-                {(locConfig.locazione_3.find(i => i.nome === loc3Nome)?.spazi || []).map((s) => <option key={s} value={s}>{s}</option>)}
+                <option value="">Tutti gli spazi</option>
+                {locSpaziOptions.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>
@@ -1294,7 +1270,7 @@ export default function MagazzinoVini() {
                 onClick={() => {
                   setSearchId(""); setSearchText("");
                   setTipologiaSel(""); setNazioneSel(""); setRegioneSel(""); setProduttoreSel(""); setDistributoreSel(""); setRappresentanteSel("");
-                  setFrigoNome(""); setFrigoSpazio(""); setLoc1Nome(""); setLoc1Spazio(""); setLoc2Nome(""); setLoc2Spazio(""); setLoc3Nome(""); setLoc3Spazio("");
+                  setLocNome(""); setLocSpazio("");
                   setGiacenzaMode("any"); setGiacenzaVal1(""); setGiacenzaVal2("");
                   setOnlyPositiveStock(false);
                   setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
@@ -1717,7 +1693,7 @@ export default function MagazzinoVini() {
                 </button>
               )}
               {canPrint && (
-                <button onClick={() => setShowStampaFiltrata(true)}
+                <button onClick={handlePrintSelection}
                   className="px-5 py-2 rounded-lg text-sm font-bold bg-emerald-400 text-emerald-900 hover:bg-emerald-300 transition shadow">
                   🖨️ Stampa
                 </button>

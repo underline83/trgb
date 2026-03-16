@@ -1,5 +1,5 @@
 # TRGB Gestionale — Architettura Tecnica
-**Ultimo aggiornamento:** 2026-03-15
+**Ultimo aggiornamento:** 2026-03-16
 
 ---
 
@@ -260,11 +260,11 @@ IP VPS: `80.211.131.156` (Aruba, Ubuntu 22.04)
 # 9. Versioni e dipendenze
 
 ```
-Master Version ................. 2026.03.15
+Master Version ................. 2026.03.16
 Core Backend ................... v1.8.0
 Core Frontend .................. v1.4.0
 
-Modulo Cantina & Vini ......... v3.7   — stabile
+Modulo Cantina & Vini ......... v4.0   — stabile
 Modulo Gestione Acquisti ....... v2.0   — stabile
 Modulo Ricette & Food Cost .... v3.0   — beta
 Modulo Gestione Vendite ........ v2.0   — stabile
@@ -276,7 +276,7 @@ Login & Ruoli .................. v2.0   — stabile
 Sistema ........................ v4.3   — stabile
 
 DB vini.sqlite3 ................ ELIMINATO v3.0
-DB vini_magazzino.sqlite3 ...... v3.7
+DB vini_magazzino.sqlite3 ...... v4.0
 DB vini_settings.sqlite3 ....... v1.4
 DB foodcost.db ................. v3.1  (migrazioni 001–018)
 DB admin_finance.sqlite3 ....... v2.0  (shift_closures, shift_preconti, shift_spese)

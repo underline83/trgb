@@ -37,8 +37,8 @@ from typing import Any, Dict, List, Optional
 from itertools import groupby
 
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi import APIRouter, UploadFile, File, Body, Depends, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from weasyprint import HTML, CSS
@@ -1347,6 +1347,73 @@ def inventario_filtrato_pdf(
         str(out_path),
         filename=f"inventario_filtrato_{datetime.now().strftime('%Y%m%d')}.pdf",
         media_type="application/pdf",
+    )
+
+
+# =============================================================
+# 10a-bis. ENDPOINT: PDF inventario per selezione di ID
+# =============================================================
+@router.post("/inventario/selezione/pdf", summary="PDF inventario per selezione di ID")
+def inventario_selezione_pdf(
+    ids: List[int] = Body(..., embed=True),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Genera PDF inventario per una selezione specifica di vini (per ID).
+    Accetta { "ids": [1, 2, 3, ...] } nel body JSON.
+    """
+    if not ids:
+        raise HTTPException(status_code=400, detail="Nessun ID fornito.")
+
+    conn = mag_db.get_magazzino_connection()
+    cur = conn.cursor()
+    placeholders = ",".join("?" for _ in ids)
+    rows = cur.execute(
+        f"SELECT * FROM vini_magazzino WHERE id IN ({placeholders})", ids
+    ).fetchall()
+    conn.close()
+
+    vini = [dict(r) for r in rows]
+    if not vini:
+        raise HTTPException(status_code=404, detail="Nessun vino trovato per gli ID forniti.")
+
+    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
+    tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
+    table_html = _build_inventario_table(vini, show_locations=True)
+
+    full_html = f"""
+    <html><head><meta charset="utf-8">
+    <style>{_inventario_css()}</style>
+    </head><body>
+        <div class="header">
+            <h1>INVENTARIO CANTINA &mdash; SELEZIONE</h1>
+            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
+            <div class="subtitle" style="margin-top:3px;">Selezione di {len(vini)} referenze</div>
+        </div>
+        <div class="summary-row">
+            <div class="summary-box">
+                <div class="label">Referenze</div>
+                <div class="value">{len(vini)}</div>
+            </div>
+            <div class="summary-box">
+                <div class="label">Bottiglie totali</div>
+                <div class="value">{tot_bott}</div>
+            </div>
+        </div>
+        {table_html}
+    </body></html>
+    """
+
+    pdf_bytes = HTML(string=full_html).write_pdf(
+        stylesheets=[CSS(string=_inventario_css())],
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="selezione_{datetime.now().strftime("%Y%m%d")}.pdf"'
+        },
     )
 
 

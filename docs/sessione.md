@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-15 (sessione 9 — Modulo Statistiche v1.0)
+> Ultima sessione: 2026-03-16 (sessione 10 — Cantina & Vini v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar)
 
 ---
 
@@ -15,31 +15,33 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-15c, sessione 9)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-16, sessione 10)
 
-### Modulo Statistiche v1.0 — import iPratico + analytics vendite
+### Cantina & Vini v4.0 — filtro unificato, stampa selezionati, SchedaVino sidebar
 
 #### Backend
-1. **Migration 018** (`018_ipratico_vendite.py`) — 3 tabelle in `foodcost.db`: `ipratico_imports`, `ipratico_categorie`, `ipratico_prodotti`
-2. **Parser iPratico** (`app/services/ipratico_parser.py`) — parsa export .xls (HTML) con `pd.read_html()`, gestisce encoding variabile
-3. **Router Statistiche** (`app/routers/statistiche_router.py` v1.0) — 7 endpoint: import-ipratico, mesi, categorie, prodotti, top-prodotti, trend, elimina mese
-4. **Wired up** in `main.py` con `include_router(statistiche_router.router)`
+1. **Nuovo endpoint** `POST /vini/cantina-tools/inventario/selezione/pdf` — accetta lista ID via Body, genera PDF con WeasyPrint e ritorna Response con bytes (autenticazione Bearer token)
 
 #### Frontend
-5. **StatisticheMenu.jsx** — menu principale con tile colorate
-6. **StatisticheNav.jsx** — tab navigation (Dashboard, Prodotti, Import)
-7. **StatisticheDashboard.jsx** — KPI fatturato/pezzi, categorie con barra %, top 15, trend mensile bar chart CSS
-8. **StatisticheProdotti.jsx** — tabella con filtri anno/mese/categoria/ricerca + paginazione
-9. **StatisticheImport.jsx** — upload .xls con selettore anno/mese, storico import, delete mese
+2. **MagazzinoVini.jsx** v4.0 — **filtro locazioni unificato**: 8 state vars e 6 select cascading sostituiti con 2 dropdown (Locazione + Spazio), logica di filtro cross-colonna su tutte e 4 le colonne DB
+3. **handlePrintSelection()** — entrambi i pulsanti "Stampa selezionati" ora chiamano direttamente il nuovo endpoint POST (fetch+blob+createObjectURL), senza aprire StampaFiltrata
+4. **SchedaVino.jsx** v5.0 — layout completamente riscritto da scroll verticale a **sidebar+main** con CSS grid `grid-cols-[260px_1fr]`:
+   - Sidebar (260px): gradiente dinamico per TIPOLOGIA (ROSSI=rosso, BIANCHI=ambra, BOLLICINE=giallo, ROSATI=rosa, ecc.), nome vino, badge #id, 4 stat box, lista info, pulsanti azione
+   - Main: area scrollabile con sezioni Anagrafica, Giacenze, Movimenti, Note
+5. **Mappa `TIPOLOGIA_SIDEBAR`** — 8 gradients che corrispondono ai colori categoria della tabella MagazzinoVini
 
-#### Configurazione
-10. Route in `App.jsx` v3.8: `/statistiche`, `/statistiche/dashboard`, `/statistiche/prodotti`, `/statistiche/import`
-11. `modules.json` — modulo `statistiche` (admin, viewer)
-12. `versions.jsx` — `statistiche: v1.0 beta`
-13. `Home.jsx` — tile Statistiche in Home
+#### Note
+- StampaFiltrata mantiene i propri filtri per-locazione separati (server-side) — è intenzionale
+- Modifiche non ancora testate nel browser
 
-#### Documentazione
-14. Aggiornati: changelog.md, sessione.md, architettura.md
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-15c, sessione 9)
+
+### Modulo Statistiche v1.0 — import iPratico + analytics vendite
+1. Migration 018, parser iPratico, router Statistiche (7 endpoint)
+2. 5 componenti frontend: Menu, Nav, Dashboard, Prodotti, Import
+3. Route, modules.json, versions.jsx, Home tile
 
 ---
 
@@ -119,7 +121,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 
 | Modulo | Versione | Stato |
 |--------|----------|-------|
-| Cantina & Vini | v3.7 | stabile |
+| Cantina & Vini | v4.0 | stabile |
 | Gestione Acquisti | v2.0 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v2.0 | stabile |
@@ -148,12 +150,13 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Test cancellazione movimenti** — verificare che delete VENDITA ripristini giacenza correttamente
-2. **Test DOCX carta** — aprire in Word e verificare allineamento colonne
-3. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-4. **Carta Vini web pubblica** — pagina internet aggiornata automaticamente
-5. **Riconciliazione banca** — migliorare cross-ref, eliminare scadenza mista BPM
-6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
+1. **Test SchedaVino sidebar+main** — verificare rendering, colori tipologia, responsive, edit mode
+2. **Test filtro locazioni unificato** — verificare che il filtro cross-colonna funzioni correttamente
+3. **Test stampa selezionati** — verificare generazione PDF e apertura in nuovo tab
+4. **Aggiornare versions.jsx** — bumpa Cantina & Vini a v4.0
+5. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
+6. **Sistema design/tema centralizzato** — Marco ha chiesto ma rimandato a dopo il dettaglio vino
+7. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
