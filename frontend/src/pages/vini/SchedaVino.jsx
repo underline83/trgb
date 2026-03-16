@@ -487,10 +487,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       {error && !loading && <div className="bg-white px-8 py-6"><p className="text-sm text-red-600">{error}</p></div>}
 
       {!loading && !error && vino && (
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr]">
+        <div className={`grid grid-cols-1 lg:grid-cols-[260px_1fr]`} style={{ maxHeight: inline ? "75vh" : "88vh" }}>
 
           {/* ═══════════ SIDEBAR ═══════════ */}
-          <div className={`${sbc.bg} text-white p-5 flex flex-col`}>
+          <div className={`${sbc.bg} text-white p-5 flex flex-col overflow-y-auto`}>
             {/* Titolo e ID */}
             <div className="mb-4">
               <h2 className="text-lg font-bold leading-tight mb-1">{vino.DESCRIZIONE}</h2>
@@ -560,7 +560,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
           </div>
 
           {/* ═══════════ MAIN CONTENT ═══════════ */}
-          <div className="bg-white overflow-y-auto" style={{ maxHeight: inline ? "70vh" : "85vh" }}>
+          <div className="bg-white overflow-y-auto">
 
             {/* ── ANAGRAFICA ── */}
             <div className="border-b border-neutral-200">
