@@ -96,6 +96,10 @@ export default function ViniImpostazioni() {
   // --- Manutenzione ---
   const [cleanupResult, setCleanupResult] = useState(null);
   const [cleanupLoading, setCleanupLoading] = useState(false);
+  // --- Backup ---
+  const [backupList, setBackupList] = useState([]);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupMsg, setBackupMsg] = useState(null);
 
   // --- Locazioni ---
   const [locConfig, setLocConfig] = useState(null);
@@ -325,6 +329,43 @@ export default function ViniImpostazioni() {
     } catch { setError("Errore importazione matrice"); }
     setMatriceLoading(false);
   };
+
+  // --- Backup ---
+  const fetchBackups = async () => {
+    setBackupLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/backup/list`);
+      if (r.ok) { const d = await r.json(); setBackupList(d.backups || []); }
+    } catch {} finally { setBackupLoading(false); }
+  };
+  const handleCreateBackup = async () => {
+    setBackupLoading(true); setBackupMsg(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/backup/create`, { method: "POST" });
+      if (r.ok) { const d = await r.json(); setBackupMsg({ ok: true, text: `Backup creato (${d.timestamp})` }); fetchBackups(); }
+      else throw new Error("Errore creazione backup");
+    } catch (e) { setBackupMsg({ ok: false, text: e.message }); } finally { setBackupLoading(false); }
+  };
+  const handleRestoreBackup = async (ts) => {
+    if (!window.confirm(`Ripristinare il backup del ${ts}? Verrà creato un backup di sicurezza dello stato attuale.`)) return;
+    setBackupLoading(true); setBackupMsg(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/backup/restore/${ts}`, { method: "POST" });
+      if (r.ok) { const d = await r.json(); setBackupMsg({ ok: true, text: d.msg }); fetchBackups(); }
+      else throw new Error("Errore ripristino");
+    } catch (e) { setBackupMsg({ ok: false, text: e.message }); } finally { setBackupLoading(false); }
+  };
+  const handleDeleteBackup = async (ts) => {
+    if (!window.confirm(`Eliminare definitivamente il backup del ${ts}?`)) return;
+    setBackupLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/cantina-tools/backup/${ts}`, { method: "DELETE" });
+      if (r.ok) { setBackupMsg({ ok: true, text: "Backup eliminato" }); fetchBackups(); }
+    } catch {} finally { setBackupLoading(false); }
+  };
+
+  // carica backups quando si apre la sezione manutenzione
+  useEffect(() => { if (activeSection === "manutenzione") fetchBackups(); }, [activeSection]);
 
   const handleEstraiValori = async (campo) => {
     setLocLoading(true); setError(""); setLocValori(null); setLocMapping({}); setLocMsg("");
@@ -1170,6 +1211,50 @@ export default function ViniImpostazioni() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-amber-900 font-playfair">Manutenzione</h2>
       <p className="text-sm text-neutral-600">Strumenti di pulizia e manutenzione del database cantina.</p>
+
+      {/* ── BACKUP / RIPRISTINO ── */}
+      <div className="border border-emerald-200 rounded-xl p-5 bg-emerald-50/30">
+        <h3 className="font-semibold text-emerald-900 mb-2">Backup e Ripristino</h3>
+        <p className="text-sm text-neutral-600 mb-3">Crea copie di sicurezza del database e ripristina versioni precedenti.</p>
+        <div className="flex flex-wrap gap-3 mb-4">
+          <button onClick={handleCreateBackup} disabled={backupLoading}
+            className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${backupLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-emerald-700 text-white hover:bg-emerald-800"}`}>
+            {backupLoading ? "In corso…" : "Crea backup adesso"}
+          </button>
+        </div>
+        {backupMsg && (
+          <div className={`mb-4 rounded-lg p-3 text-sm border ${backupMsg.ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+            {backupMsg.text}
+          </div>
+        )}
+        {backupList.length > 0 ? (
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Backup disponibili</h4>
+            {backupList.map(b => (
+              <div key={b.timestamp} className="flex items-center justify-between bg-white border border-neutral-200 rounded-lg px-4 py-2.5">
+                <div>
+                  <span className="text-sm font-medium text-neutral-800">{b.date}</span>
+                  <span className="ml-3 text-xs text-neutral-400">
+                    {b.files.map(f => `${f.base} (${f.size_kb} KB)`).join(" + ")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handleRestoreBackup(b.timestamp)} disabled={backupLoading}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition disabled:opacity-40">
+                    Ripristina
+                  </button>
+                  <button onClick={() => handleDeleteBackup(b.timestamp)} disabled={backupLoading}
+                    className="px-3 py-1 rounded-lg text-xs font-semibold text-red-600 border border-red-200 hover:bg-red-50 transition disabled:opacity-40">
+                    Elimina
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-neutral-400 italic">Nessun backup disponibile.</p>
+        )}
+      </div>
 
       <div className="border border-neutral-200 rounded-xl p-5">
         <h3 className="font-semibold text-neutral-800 mb-2">Pulizia duplicati</h3>

@@ -1981,3 +1981,128 @@ async def matrice_import_old(current_user=Depends(get_current_user)):
     _require_admin(current_user)
     result = mag_db.matrice_import_from_all_locations()
     return result
+
+
+# =============================================================
+# BACKUP / RIPRISTINO DATABASE
+# =============================================================
+import shutil
+import glob as _glob
+
+_BACKUP_DIR = Path(__file__).resolve().parents[2] / "app" / "data" / "backups"
+_DB_FILES = [
+    ("vini_magazzino.sqlite3", "Magazzino vini"),
+    ("vini_settings.sqlite3",  "Impostazioni"),
+]
+
+def _ensure_backup_dir():
+    _BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.post("/backup/create", summary="Crea un backup dei database")
+def backup_create(current_user=Depends(get_current_user)):
+    """Copia i file .sqlite3 in app/data/backups/ con timestamp."""
+    _require_admin(current_user)
+    _ensure_backup_dir()
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    created = []
+    data_dir = Path(__file__).resolve().parents[2] / "app" / "data"
+
+    for db_file, label in _DB_FILES:
+        src = data_dir / db_file
+        if not src.exists():
+            continue
+        dst = _BACKUP_DIR / f"{src.stem}_{ts}{src.suffix}"
+        shutil.copy2(str(src), str(dst))
+        size_kb = round(dst.stat().st_size / 1024, 1)
+        created.append({"file": dst.name, "label": label, "size_kb": size_kb})
+
+    return {"status": "ok", "timestamp": ts, "files": created}
+
+
+@router.get("/backup/list", summary="Lista backup disponibili")
+def backup_list(current_user=Depends(get_current_user)):
+    """Restituisce la lista dei backup raggruppati per timestamp."""
+    _require_admin(current_user)
+    _ensure_backup_dir()
+
+    files = sorted(_BACKUP_DIR.glob("*.sqlite3"), key=lambda p: p.name, reverse=True)
+    backups = {}
+    for f in files:
+        # nome formato: vini_magazzino_20260316_143000.sqlite3
+        parts = f.stem.rsplit("_", 2)
+        if len(parts) >= 3:
+            ts = f"{parts[-2]}_{parts[-1]}"
+            base = "_".join(parts[:-2])
+        else:
+            ts = "unknown"
+            base = f.stem
+
+        if ts not in backups:
+            backups[ts] = {"timestamp": ts, "date": "", "files": []}
+
+        # Formatta data leggibile
+        try:
+            dt = datetime.strptime(ts, "%Y%m%d_%H%M%S")
+            backups[ts]["date"] = dt.strftime("%d/%m/%Y %H:%M:%S")
+        except Exception:
+            backups[ts]["date"] = ts
+
+        size_kb = round(f.stat().st_size / 1024, 1)
+        backups[ts]["files"].append({"file": f.name, "base": base, "size_kb": size_kb})
+
+    return {"backups": list(backups.values())}
+
+
+@router.post("/backup/restore/{timestamp}", summary="Ripristina da un backup")
+def backup_restore(timestamp: str, current_user=Depends(get_current_user)):
+    """Ripristina i file DB da un backup specifico (identificato dal timestamp)."""
+    _require_admin(current_user)
+    _ensure_backup_dir()
+
+    data_dir = Path(__file__).resolve().parents[2] / "app" / "data"
+    backup_files = list(_BACKUP_DIR.glob(f"*_{timestamp}.sqlite3"))
+
+    if not backup_files:
+        raise HTTPException(status_code=404, detail=f"Nessun backup trovato con timestamp {timestamp}")
+
+    # Prima crea un backup di sicurezza dello stato attuale (pre-restore)
+    pre_ts = datetime.now().strftime("%Y%m%d_%H%M%S") + "_prerestore"
+    for db_file, _ in _DB_FILES:
+        src = data_dir / db_file
+        if src.exists():
+            dst = _BACKUP_DIR / f"{src.stem}_{pre_ts}{src.suffix}"
+            shutil.copy2(str(src), str(dst))
+
+    restored = []
+    for bf in backup_files:
+        # Ricostruisci il nome originale: vini_magazzino_20260316_143000.sqlite3 → vini_magazzino.sqlite3
+        parts = bf.stem.rsplit("_", 2)
+        original_name = "_".join(parts[:-2]) + bf.suffix
+        dst = data_dir / original_name
+        shutil.copy2(str(bf), str(dst))
+        restored.append({"file": original_name, "from": bf.name})
+
+    return {
+        "status": "ok",
+        "restored": restored,
+        "pre_restore_backup": pre_ts,
+        "msg": f"Ripristinati {len(restored)} file dal backup del {timestamp}. Backup di sicurezza pre-ripristino creato."
+    }
+
+
+@router.delete("/backup/{timestamp}", summary="Elimina un backup")
+def backup_delete(timestamp: str, current_user=Depends(get_current_user)):
+    """Elimina tutti i file di un backup specifico."""
+    _require_admin(current_user)
+    _ensure_backup_dir()
+
+    files = list(_BACKUP_DIR.glob(f"*_{timestamp}.sqlite3"))
+    if not files:
+        raise HTTPException(status_code=404, detail=f"Nessun backup trovato con timestamp {timestamp}")
+
+    for f in files:
+        f.unlink()
+
+    return {"status": "ok", "deleted": len(files), "timestamp": timestamp}
