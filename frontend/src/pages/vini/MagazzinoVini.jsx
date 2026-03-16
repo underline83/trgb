@@ -342,6 +342,21 @@ export default function MagazzinoVini() {
   const [distributoreSel, setDistributoreSel] = useState("");
   const [rappresentanteSel, setRappresentanteSel] = useState("");
 
+  // Colori sfondo riga per TIPOLOGIA vino
+  const tipologiaRowColor = (tip) => {
+    if (!tip) return "";
+    const t = tip.toUpperCase();
+    if (t.includes("ROSSO"))      return "bg-red-50/60";
+    if (t.includes("BIANCO"))     return "bg-yellow-50/50";
+    if (t.includes("BOLLICIN"))   return "bg-amber-50/40";
+    if (t.includes("ROSATO") || t.includes("ROSÉ")) return "bg-pink-50/50";
+    if (t.includes("PASSITO") || t.includes("DOLCE") || t.includes("DESSERT")) return "bg-orange-50/40";
+    if (t.includes("CHAMPAGNE") || t.includes("SPUMANT")) return "bg-amber-50/40";
+    if (t.includes("BIRRA"))      return "bg-yellow-100/30";
+    if (t.includes("DISTILLAT") || t.includes("SPIRIT")) return "bg-slate-50";
+    return "";
+  };
+
   const [giacenzaMode, setGiacenzaMode] = useState("any"); // any | gt | lt | between
   const [giacenzaVal1, setGiacenzaVal1] = useState("");
   const [giacenzaVal2, setGiacenzaVal2] = useState("");
@@ -694,18 +709,6 @@ export default function MagazzinoVini() {
           <div className="bg-white/60 rounded-xl p-3 border border-neutral-200">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Ricerca</div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                Ricerca per ID
-              </label>
-              <input
-                type="text"
-                value={searchId}
-                onChange={(e) => setSearchId(e.target.value)}
-                placeholder="es. 1234"
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-              />
-            </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
                 Ricerca libera
@@ -715,6 +718,18 @@ export default function MagazzinoVini() {
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 placeholder="Descrizione, denominazione, produttore, regione, nazione…"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
+                Ricerca per ID
+              </label>
+              <input
+                type="text"
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                placeholder="es. 1234"
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
               />
             </div>
@@ -1122,7 +1137,7 @@ export default function MagazzinoVini() {
                       key={vino.id}
                       className={
                         "cursor-pointer border-b border-neutral-200 hover:bg-amber-50 transition " +
-                        (isSelected ? "bg-amber-100/70 border-l-4 border-l-amber-500" : "bg-white")
+                        (isSelected ? "bg-amber-100/70 border-l-4 border-l-amber-500" : (tipologiaRowColor(vino.TIPOLOGIA) || "bg-white"))
                       }
                       onClick={() => handleRowClick(vino)}
                     >
