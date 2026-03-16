@@ -487,7 +487,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       {error && !loading && <div className="bg-white px-8 py-6"><p className="text-sm text-red-600">{error}</p></div>}
 
       {!loading && !error && vino && (
-        <div className={`grid grid-cols-1 lg:grid-cols-[260px_1fr]`} style={{ maxHeight: inline ? "75vh" : "88vh" }}>
+        <div className={`grid grid-cols-1 lg:grid-cols-[260px_1fr]`} style={{ height: inline ? "78vh" : "88vh" }}>
 
           {/* ═══════════ SIDEBAR ═══════════ */}
           <div className={`${sbc.bg} text-white p-5 flex flex-col overflow-y-auto`}>
