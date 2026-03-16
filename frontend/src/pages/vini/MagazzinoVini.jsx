@@ -343,17 +343,18 @@ export default function MagazzinoVini() {
   const [rappresentanteSel, setRappresentanteSel] = useState("");
 
   // Colori sfondo riga per TIPOLOGIA vino
+  // Valori reali: ROSSI, BIANCHI, BOLLICINE, ROSATI, PASSITI E VINI DA MEDITAZIONE, GRANDI FORMATI, VINI ANALCOLICI, ERRORE
   const tipologiaRowColor = (tip) => {
     if (!tip) return "";
     const t = tip.toUpperCase();
-    if (t.includes("ROSSO"))      return "bg-red-50/60";
-    if (t.includes("BIANCO"))     return "bg-yellow-50/50";
-    if (t.includes("BOLLICIN"))   return "bg-amber-50/40";
-    if (t.includes("ROSATO") || t.includes("ROSÉ")) return "bg-pink-50/50";
-    if (t.includes("PASSITO") || t.includes("DOLCE") || t.includes("DESSERT")) return "bg-orange-50/40";
-    if (t.includes("CHAMPAGNE") || t.includes("SPUMANT")) return "bg-amber-50/40";
-    if (t.includes("BIRRA"))      return "bg-yellow-100/30";
-    if (t.includes("DISTILLAT") || t.includes("SPIRIT")) return "bg-slate-50";
+    if (t.includes("ROSSI"))        return "bg-red-50/70";
+    if (t.includes("BIANCHI"))      return "bg-amber-50/50";
+    if (t.includes("BOLLICINE"))    return "bg-yellow-50/60";
+    if (t.includes("ROSATI"))       return "bg-pink-50/60";
+    if (t.includes("PASSITI") || t.includes("MEDITAZIONE")) return "bg-orange-50/50";
+    if (t.includes("GRANDI FORMATI")) return "bg-purple-50/50";
+    if (t.includes("ANALCOLIC"))    return "bg-teal-50/50";
+    if (t.includes("ERRORE"))       return "bg-gray-100/60";
     return "";
   };
 
