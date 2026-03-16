@@ -567,6 +567,29 @@ export default function MagazzinoVini() {
     }
   };
 
+  const [bulkDuplicating, setBulkDuplicating] = useState(false);
+  const handleBulkDuplicate = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Duplicare ${selectedIds.length} vini? Verranno create copie con giacenze a zero.`)) return;
+    setBulkDuplicating(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/bulk-duplicate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.detail || "Errore");
+      alert(result.msg);
+      setSelectedIds([]);
+      fetchVini();
+    } catch (err) {
+      alert(err.message || "Errore durante la duplicazione");
+    } finally {
+      setBulkDuplicating(false);
+    }
+  };
+
   // ------------------------------------------------
   // OPZIONI SELECT DINAMICHE
   // ------------------------------------------------
@@ -888,6 +911,12 @@ export default function MagazzinoVini() {
               <button onClick={openBulkEdit}
                 className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 transition">
                 ✏️ Modifica selezionati
+              </button>
+            )}
+            {canBulkEdit && (
+              <button onClick={handleBulkDuplicate} disabled={bulkDuplicating}
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-blue-700 text-white hover:bg-blue-800 transition disabled:opacity-40">
+                {bulkDuplicating ? "Duplico…" : "📋 Duplica selezionati"}
               </button>
             )}
             {canPrint && (
@@ -1681,10 +1710,16 @@ export default function MagazzinoVini() {
                   ✏️ Modifica selezionati
                 </button>
               )}
+              {canBulkEdit && (
+                <button onClick={handleBulkDuplicate} disabled={bulkDuplicating}
+                  className="px-5 py-2 rounded-lg text-sm font-bold bg-blue-400 text-blue-900 hover:bg-blue-300 transition shadow disabled:opacity-40">
+                  {bulkDuplicating ? "Duplico…" : "📋 Duplica"}
+                </button>
+              )}
               {canPrint && (
                 <button onClick={() => setShowStampaFiltrata(true)}
                   className="px-5 py-2 rounded-lg text-sm font-bold bg-emerald-400 text-emerald-900 hover:bg-emerald-300 transition shadow">
-                  🖨️ Stampa selezionati
+                  🖨️ Stampa
                 </button>
               )}
               <button onClick={() => setSelectedIds([])}

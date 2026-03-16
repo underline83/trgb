@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from typing import Optional, List, Any, Dict, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user
@@ -382,6 +382,47 @@ def duplicate_vino_endpoint(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Errore duplicazione: {e}")
     row = db.get_vino_by_id(new_id)
     return dict(row) if row else {"id": new_id}
+
+
+@router.post("/bulk-duplicate", summary="Duplica più vini in una volta (copia anagrafica, azzera giacenze)")
+def bulk_duplicate_vini(
+    request_body: dict = Body(...),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Duplica più vini. Body: { "ids": [1, 2, 3] }
+    Ogni vino viene duplicato con giacenze a zero.
+    """
+    role = (
+        current_user.get("role") if isinstance(current_user, dict)
+        else getattr(current_user, "role", None)
+    )
+    if role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operazione riservata agli admin.",
+        )
+    ids = request_body.get("ids", [])
+    if not ids:
+        raise HTTPException(status_code=400, detail="Nessun id fornito")
+
+    created = []
+    errors = []
+    for vino_id in ids:
+        try:
+            new_id = db.duplicate_vino(vino_id)
+            created.append({"original_id": vino_id, "new_id": new_id})
+        except Exception as e:
+            errors.append({"id": vino_id, "error": str(e)})
+
+    return {
+        "status": "ok",
+        "duplicati": len(created),
+        "errori": len(errors),
+        "created": created,
+        "errors": errors,
+        "msg": f"Duplicati {len(created)} vini" + (f", {len(errors)} errori" if errors else ""),
+    }
 
 
 @router.delete("/delete-vino/{vino_id}", summary="Elimina un vino e tutti i dati collegati (solo admin)")
