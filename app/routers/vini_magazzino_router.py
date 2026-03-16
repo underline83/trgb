@@ -495,6 +495,7 @@ def update_vino_magazzino(
     return dict(updated) if updated else {"id": vino_id}
 
 
+
 # ---------------------------------------------------------
 # ENDPOINT: MOVIMENTI PER VINO
 # ---------------------------------------------------------

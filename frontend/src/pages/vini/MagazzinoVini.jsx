@@ -331,6 +331,17 @@ export default function MagazzinoVini() {
   const schedaRef = useRef(null);      // ref per scroll al div wrapper
   const schedaCompRef = useRef(null);  // ref per accedere a hasPendingChanges()
 
+  // ── MULTI-SELECT & BULK EDIT (solo admin) ──
+  const role = localStorage.getItem("role");
+  const isAdmin = role === "admin";
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkData, setBulkData] = useState({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
+  const [tabellaOpts, setTabellaOpts] = useState({ tipologie: [], nazioni: [], regioni: [], formati: [] });
+
   // ------- FILTRI --------
   const [searchId, setSearchId] = useState("");
   const [searchText, setSearchText] = useState("");
@@ -438,6 +449,70 @@ export default function MagazzinoVini() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── BULK EDIT: carica tabellati quando si entra in bulkMode ──
+  useEffect(() => {
+    if (!bulkMode) return;
+    apiFetch(`${API_BASE}/settings/vini/valori-tabellati`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setTabellaOpts({ tipologie: d.tipologie || [], nazioni: d.nazioni || [], regioni: d.regioni || [], formati: d.formati || [] }); })
+      .catch(() => {});
+  }, [bulkMode]);
+
+  const toggleBulkMode = () => {
+    if (bulkMode) { setSelectedIds(new Set()); setBulkEditOpen(false); setBulkResult(null); }
+    setBulkMode(!bulkMode);
+  };
+
+  const toggleSelectId = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === viniVisibili.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(viniVisibili.map(v => v.id)));
+    }
+  };
+
+  const openBulkEdit = () => { setBulkData({}); setBulkResult(null); setBulkEditOpen(true); };
+
+  const bulkFieldSet = (name, value) => {
+    setBulkData(prev => {
+      const next = { ...prev };
+      if (value === "" || value === undefined) { delete next[name]; } else { next[name] = value; }
+      return next;
+    });
+  };
+
+  const submitBulkEdit = async () => {
+    if (selectedIds.size === 0 || Object.keys(bulkData).length === 0) return;
+    if (!window.confirm(`Stai per modificare ${selectedIds.size} vini. Confermi?`)) return;
+    setBulkSaving(true);
+    setBulkResult(null);
+    try {
+      // Formato atteso dall'endpoint: { updates: [{id, ...campi}, ...] }
+      const updates = Array.from(selectedIds).map(id => ({ id, ...bulkData }));
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/bulk-update`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.detail || "Errore");
+      setBulkResult(result);
+      fetchVini(); // ricarica dati
+    } catch (err) {
+      setBulkResult({ status: "error", message: err.message });
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   // ------------------------------------------------
   // OPZIONI SELECT DINAMICHE
@@ -747,10 +822,213 @@ export default function MagazzinoVini() {
                 </button>
               </div>
             </div>
+          {isAdmin && (
+              <button onClick={toggleBulkMode}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition ${bulkMode ? "bg-red-600 text-white hover:bg-red-700" : "border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"}`}>
+                {bulkMode ? "✕ Esci da selezione" : "☑ Selezione multipla"}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* SUBMENU */}
+        {/* BARRA SELEZIONE MULTIPLA */}
+        {bulkMode && (
+          <div className="mb-4 flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
+            <span className="text-sm font-semibold text-violet-800">
+              {selectedIds.size} vini selezionat{selectedIds.size === 1 ? "o" : "i"}
+            </span>
+            {selectedIds.size > 0 && (
+              <>
+                <button onClick={openBulkEdit}
+                  className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 transition">
+                  ✏️ Modifica selezionati
+                </button>
+                <button onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
+                  Deseleziona tutto
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* PANNELLO BULK EDIT */}
+        {bulkEditOpen && selectedIds.size > 0 && (
+          <div className="mb-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-violet-900">
+                Modifica massiva — {selectedIds.size} vini
+              </h3>
+              <button onClick={() => setBulkEditOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 text-lg">✕</button>
+            </div>
+            <p className="text-xs text-neutral-500 mb-4">
+              Compila solo i campi che vuoi sovrascrivere. I campi lasciati vuoti non verranno modificati.
+            </p>
+
+            <div className="space-y-4">
+              {/* Anagrafica */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Tipologia</label>
+                  <select name="TIPOLOGIA" value={bulkData.TIPOLOGIA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.tipologie.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Nazione</label>
+                  <select name="NAZIONE" value={bulkData.NAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.nazioni.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Regione</label>
+                  <select name="REGIONE" value={bulkData.REGIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.regioni.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Formato</label>
+                  <select name="FORMATO" value={bulkData.FORMATO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.formati.map(t => <option key={typeof t === "object" ? t.formato : t} value={typeof t === "object" ? t.formato : t}>{typeof t === "object" ? t.formato : t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Produttore / Distributore / Rappresentante */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Produttore</label>
+                  <input type="text" name="PRODUTTORE" value={bulkData.PRODUTTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Distributore</label>
+                  <input type="text" name="DISTRIBUTORE" value={bulkData.DISTRIBUTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Rappresentante</label>
+                  <input type="text" name="RAPPRESENTANTE" value={bulkData.RAPPRESENTANTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+              </div>
+
+              {/* Prezzi */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Prezzo carta €</label>
+                  <input type="number" step="0.01" name="PREZZO_CARTA" value={bulkData.PREZZO_CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Listino €</label>
+                  <input type="number" step="0.01" name="EURO_LISTINO" value={bulkData.EURO_LISTINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Sconto %</label>
+                  <input type="number" step="0.01" name="SCONTO" value={bulkData.SCONTO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+              </div>
+
+              {/* Carta / iPratico / Stati */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">In carta</label>
+                  <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">iPratico</label>
+                  <select name="IPRATICO" value={bulkData.IPRATICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato vendita</label>
+                  <select name="STATO_VENDITA" value={bulkData.STATO_VENDITA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_VENDITA_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato riordino</label>
+                  <select name="STATO_RIORDINO" value={bulkData.STATO_RIORDINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_RIORDINO_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato conservazione</label>
+                  <select name="STATO_CONSERVAZIONE" value={bulkData.STATO_CONSERVAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>
+                <textarea name="NOTE" value={bulkData.NOTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                  rows={2} placeholder="— non modificare —"
+                  className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+              </div>
+            </div>
+
+            {/* Azioni */}
+            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-neutral-200">
+              <button onClick={submitBulkEdit} disabled={bulkSaving || Object.keys(bulkData).length === 0}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-700 text-white hover:bg-amber-800 shadow transition disabled:opacity-40 disabled:cursor-not-allowed">
+                {bulkSaving ? "Salvataggio…" : `💾 Applica a ${selectedIds.size} vini`}
+              </button>
+              <button onClick={() => setBulkEditOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
+                Annulla
+              </button>
+              {Object.keys(bulkData).length > 0 && (
+                <span className="text-xs text-violet-600 font-semibold">
+                  {Object.keys(bulkData).length} camp{Object.keys(bulkData).length === 1 ? "o" : "i"} da modificare
+                </span>
+              )}
+            </div>
+
+            {/* Risultato */}
+            {bulkResult && (
+              <div className={`mt-3 p-3 rounded-lg text-sm ${bulkResult.status === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                {bulkResult.status === "ok"
+                  ? `✅ Aggiornati ${bulkResult.updated} vini${bulkResult.errors?.length ? `. Errori: ${bulkResult.errors.join(", ")}` : ""}`
+                  : `❌ ${bulkResult.message || "Errore"}`}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner mb-6 space-y-4">
@@ -1211,6 +1489,12 @@ export default function MagazzinoVini() {
             <table className="w-full text-sm">
               <thead className="bg-neutral-100 sticky top-0 z-10">
                 <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+                  {bulkMode && (
+                    <th className="px-2 py-2 text-center w-10">
+                      <input type="checkbox" checked={viniVisibili.length > 0 && selectedIds.size === viniVisibili.length}
+                        onChange={toggleSelectAll} className="rounded border-violet-400 text-violet-600 focus:ring-violet-300" />
+                    </th>
+                  )}
                   <th className="px-3 py-2 text-left">ID</th>
                   <th className="px-3 py-2 text-left">Tipologia</th>
                   <th className="px-3 py-2 text-left">Vino</th>
@@ -1232,15 +1516,24 @@ export default function MagazzinoVini() {
                       (vino.QTA_LOC2 ?? 0) +
                       (vino.QTA_LOC3 ?? 0);
 
+                  const isBulkSelected = selectedIds.has(vino.id);
                   return (
                     <tr
                       key={vino.id}
                       className={
                         "cursor-pointer border-b border-neutral-200 hover:bg-amber-50 transition " +
+                        (isBulkSelected ? "bg-violet-50/80 " : "") +
                         (isSelected ? "bg-amber-100/70 border-l-4 border-l-amber-500" : (tipologiaRowColor(vino.TIPOLOGIA) || "bg-white"))
                       }
-                      onClick={() => handleRowClick(vino)}
+                      onClick={() => bulkMode ? toggleSelectId(vino.id) : handleRowClick(vino)}
                     >
+                      {bulkMode && (
+                        <td className="px-2 py-2 align-top text-center" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" checked={isBulkSelected}
+                            onChange={() => toggleSelectId(vino.id)}
+                            className="rounded border-violet-400 text-violet-600 focus:ring-violet-300" />
+                        </td>
+                      )}
                       <td className="px-3 py-2 align-top whitespace-nowrap">
                         <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">
                           #{vino.id}
@@ -1300,7 +1593,7 @@ export default function MagazzinoVini() {
                 {viniVisibili.length === 0 && !loading && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={bulkMode ? 10 : 9}
                       className="px-4 py-6 text-center text-sm text-neutral-500"
                     >
                       Nessun vino trovato con i filtri attuali.
