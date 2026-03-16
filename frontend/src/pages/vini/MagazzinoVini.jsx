@@ -335,7 +335,7 @@ export default function MagazzinoVini() {
   const role = localStorage.getItem("role");
   const isAdmin = role === "admin";
   const [bulkMode, setBulkMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selectedIds, setSelectedIds] = useState([]);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkData, setBulkData] = useState({});
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -460,30 +460,33 @@ export default function MagazzinoVini() {
   }, [bulkMode]);
 
   const toggleBulkMode = () => {
-    if (bulkMode) { setSelectedIds(new Set()); setBulkEditOpen(false); setBulkResult(null); }
+    if (bulkMode) { setSelectedIds([]); setBulkEditOpen(false); setBulkResult(null); }
     setBulkMode(!bulkMode);
   };
 
   const toggleSelectId = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === viniVisibili.length) {
-      setSelectedIds(new Set());
+    if (selectedIds.length === viniVisibili.length) {
+      setSelectedIds([]);
     } else {
-      setSelectedIds(new Set(viniVisibili.map(v => v.id)));
+      setSelectedIds(viniVisibili.map(v => v.id));
     }
   };
 
   const bulkPanelRef = useRef(null);
   const openBulkEdit = () => {
-    setBulkData({}); setBulkResult(null); setBulkEditOpen(true);
-    setTimeout(() => bulkPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    console.log("openBulkEdit called, selectedIds:", selectedIds.length);
+    setBulkData({});
+    setBulkResult(null);
+    setBulkEditOpen(true);
+    setTimeout(() => {
+      if (bulkPanelRef.current) {
+        bulkPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 200);
   };
 
   const bulkFieldSet = (name, value) => {
@@ -495,13 +498,13 @@ export default function MagazzinoVini() {
   };
 
   const submitBulkEdit = async () => {
-    if (selectedIds.size === 0 || Object.keys(bulkData).length === 0) return;
-    if (!window.confirm(`Stai per modificare ${selectedIds.size} vini. Confermi?`)) return;
+    if (selectedIds.length === 0 || Object.keys(bulkData).length === 0) return;
+    if (!window.confirm(`Stai per modificare ${selectedIds.length} vini. Confermi?`)) return;
     setBulkSaving(true);
     setBulkResult(null);
     try {
       // Formato atteso dall'endpoint: { updates: [{id, ...campi}, ...] }
-      const updates = Array.from(selectedIds).map(id => ({ id, ...bulkData }));
+      const updates = selectedIds.map(id => ({ id, ...bulkData }));
       const resp = await apiFetch(`${API_BASE}/vini/magazzino/bulk-update`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -839,15 +842,15 @@ export default function MagazzinoVini() {
         {bulkMode && (
           <div className="mb-4 flex items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
             <span className="text-sm font-semibold text-violet-800">
-              {selectedIds.size} vini selezionat{selectedIds.size === 1 ? "o" : "i"}
+              {selectedIds.length} vini selezionat{selectedIds.length === 1 ? "o" : "i"}
             </span>
-            {selectedIds.size > 0 && (
+            {selectedIds.length > 0 && (
               <>
                 <button onClick={openBulkEdit}
                   className="px-4 py-1.5 rounded-lg text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 transition">
                   ✏️ Modifica selezionati
                 </button>
-                <button onClick={() => setSelectedIds(new Set())}
+                <button onClick={() => setSelectedIds([])}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
                   Deseleziona tutto
                 </button>
@@ -1317,7 +1320,7 @@ export default function MagazzinoVini() {
                 <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                   {bulkMode && (
                     <th className="px-2 py-2 text-center w-10">
-                      <input type="checkbox" checked={viniVisibili.length > 0 && selectedIds.size === viniVisibili.length}
+                      <input type="checkbox" checked={viniVisibili.length > 0 && selectedIds.length === viniVisibili.length}
                         onChange={toggleSelectAll} className="rounded border-violet-400 text-violet-600 focus:ring-violet-300" />
                     </th>
                   )}
@@ -1342,7 +1345,7 @@ export default function MagazzinoVini() {
                       (vino.QTA_LOC2 ?? 0) +
                       (vino.QTA_LOC3 ?? 0);
 
-                  const isBulkSelected = selectedIds.has(vino.id);
+                  const isBulkSelected = selectedIds.includes(vino.id);
                   return (
                     <tr
                       key={vino.id}
@@ -1438,11 +1441,11 @@ export default function MagazzinoVini() {
         </div>
 
         {/* PANNELLO BULK EDIT — dopo la tabella */}
-        {bulkEditOpen && selectedIds.size > 0 && (
+        {bulkEditOpen && selectedIds.length > 0 && (
           <div ref={bulkPanelRef} className="mt-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-violet-900">
-                Modifica massiva — {selectedIds.size} vini
+                Modifica massiva — {selectedIds.length} vini
               </h3>
               <button onClick={() => setBulkEditOpen(false)}
                 className="text-neutral-400 hover:text-neutral-600 text-lg">✕</button>
@@ -1458,7 +1461,7 @@ export default function MagazzinoVini() {
                   <select name="TIPOLOGIA" value={bulkData.TIPOLOGIA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
                     <option value="">— non modificare —</option>
-                    {tabellaOpts.tipologie.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(tabellaOpts.tipologie || []).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1466,7 +1469,7 @@ export default function MagazzinoVini() {
                   <select name="NAZIONE" value={bulkData.NAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
                     <option value="">— non modificare —</option>
-                    {tabellaOpts.nazioni.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(tabellaOpts.nazioni || []).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1474,7 +1477,7 @@ export default function MagazzinoVini() {
                   <select name="REGIONE" value={bulkData.REGIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
                     <option value="">— non modificare —</option>
-                    {tabellaOpts.regioni.map(t => <option key={t} value={t}>{t}</option>)}
+                    {(tabellaOpts.regioni || []).map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
@@ -1482,7 +1485,7 @@ export default function MagazzinoVini() {
                   <select name="FORMATO" value={bulkData.FORMATO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
                     <option value="">— non modificare —</option>
-                    {tabellaOpts.formati.map(t => <option key={typeof t === "object" ? t.formato : t} value={typeof t === "object" ? t.formato : t}>{typeof t === "object" ? t.formato : t}</option>)}
+                    {(tabellaOpts.formati || []).map(t => <option key={typeof t === "object" ? t.formato : t} value={typeof t === "object" ? t.formato : t}>{typeof t === "object" ? t.formato : t}</option>)}
                   </select>
                 </div>
               </div>
@@ -1574,7 +1577,7 @@ export default function MagazzinoVini() {
             <div className="flex items-center gap-3 mt-5 pt-4 border-t border-neutral-200">
               <button onClick={submitBulkEdit} disabled={bulkSaving || Object.keys(bulkData).length === 0}
                 className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-700 text-white hover:bg-amber-800 shadow transition disabled:opacity-40 disabled:cursor-not-allowed">
-                {bulkSaving ? "Salvataggio…" : `💾 Applica a ${selectedIds.size} vini`}
+                {bulkSaving ? "Salvataggio…" : `💾 Applica a ${selectedIds.length} vini`}
               </button>
               <button onClick={() => setBulkEditOpen(false)}
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
@@ -1621,18 +1624,18 @@ export default function MagazzinoVini() {
       )}
 
       {/* BARRA FISSA IN BASSO — selezione multipla */}
-      {bulkMode && selectedIds.size > 0 && (
+      {bulkMode && selectedIds.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-violet-700 text-white shadow-2xl border-t-2 border-violet-400">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <span className="text-sm font-semibold">
-              {selectedIds.size} vini selezionat{selectedIds.size === 1 ? "o" : "i"}
+              {selectedIds.length} vini selezionat{selectedIds.length === 1 ? "o" : "i"}
             </span>
             <div className="flex items-center gap-3">
               <button onClick={openBulkEdit}
                 className="px-5 py-2 rounded-lg text-sm font-bold bg-white text-violet-800 hover:bg-violet-50 transition shadow">
                 ✏️ Modifica selezionati
               </button>
-              <button onClick={() => setSelectedIds(new Set())}
+              <button onClick={() => setSelectedIds([])}
                 className="px-4 py-2 rounded-lg text-xs font-medium border border-violet-400 text-violet-100 hover:bg-violet-600 transition">
                 Deseleziona
               </button>
