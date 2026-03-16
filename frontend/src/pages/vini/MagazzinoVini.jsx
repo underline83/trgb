@@ -856,184 +856,6 @@ export default function MagazzinoVini() {
           </div>
         )}
 
-        {/* PANNELLO BULK EDIT */}
-        {bulkEditOpen && selectedIds.size > 0 && (
-          <div ref={bulkPanelRef} className="mb-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-violet-900">
-                Modifica massiva — {selectedIds.size} vini
-              </h3>
-              <button onClick={() => setBulkEditOpen(false)}
-                className="text-neutral-400 hover:text-neutral-600 text-lg">✕</button>
-            </div>
-            <p className="text-xs text-neutral-500 mb-4">
-              Compila solo i campi che vuoi sovrascrivere. I campi lasciati vuoti non verranno modificati.
-            </p>
-
-            <div className="space-y-4">
-              {/* Anagrafica */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Tipologia</label>
-                  <select name="TIPOLOGIA" value={bulkData.TIPOLOGIA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {tabellaOpts.tipologie.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Nazione</label>
-                  <select name="NAZIONE" value={bulkData.NAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {tabellaOpts.nazioni.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Regione</label>
-                  <select name="REGIONE" value={bulkData.REGIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {tabellaOpts.regioni.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Formato</label>
-                  <select name="FORMATO" value={bulkData.FORMATO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {tabellaOpts.formati.map(t => <option key={typeof t === "object" ? t.formato : t} value={typeof t === "object" ? t.formato : t}>{typeof t === "object" ? t.formato : t}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Produttore / Distributore / Rappresentante */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Produttore</label>
-                  <input type="text" name="PRODUTTORE" value={bulkData.PRODUTTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="— non modificare —"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Distributore</label>
-                  <input type="text" name="DISTRIBUTORE" value={bulkData.DISTRIBUTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="— non modificare —"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Rappresentante</label>
-                  <input type="text" name="RAPPRESENTANTE" value={bulkData.RAPPRESENTANTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="— non modificare —"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-              </div>
-
-              {/* Prezzi */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Prezzo carta €</label>
-                  <input type="number" step="0.01" name="PREZZO_CARTA" value={bulkData.PREZZO_CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="—"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Listino €</label>
-                  <input type="number" step="0.01" name="EURO_LISTINO" value={bulkData.EURO_LISTINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="—"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Sconto %</label>
-                  <input type="number" step="0.01" name="SCONTO" value={bulkData.SCONTO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    placeholder="—"
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                </div>
-              </div>
-
-              {/* Carta / iPratico / Stati */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">In carta</label>
-                  <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    <option value="SI">SI</option>
-                    <option value="NO">NO</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">iPratico</label>
-                  <select name="IPRATICO" value={bulkData.IPRATICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    <option value="SI">SI</option>
-                    <option value="NO">NO</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato vendita</label>
-                  <select name="STATO_VENDITA" value={bulkData.STATO_VENDITA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {STATO_VENDITA_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato riordino</label>
-                  <select name="STATO_RIORDINO" value={bulkData.STATO_RIORDINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {STATO_RIORDINO_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato conservazione</label>
-                  <select name="STATO_CONSERVAZIONE" value={bulkData.STATO_CONSERVAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
-                    <option value="">— non modificare —</option>
-                    {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Note */}
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>
-                <textarea name="NOTE" value={bulkData.NOTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
-                  rows={2} placeholder="— non modificare —"
-                  className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
-              </div>
-            </div>
-
-            {/* Azioni */}
-            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-neutral-200">
-              <button onClick={submitBulkEdit} disabled={bulkSaving || Object.keys(bulkData).length === 0}
-                className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-700 text-white hover:bg-amber-800 shadow transition disabled:opacity-40 disabled:cursor-not-allowed">
-                {bulkSaving ? "Salvataggio…" : `💾 Applica a ${selectedIds.size} vini`}
-              </button>
-              <button onClick={() => setBulkEditOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
-                Annulla
-              </button>
-              {Object.keys(bulkData).length > 0 && (
-                <span className="text-xs text-violet-600 font-semibold">
-                  {Object.keys(bulkData).length} camp{Object.keys(bulkData).length === 1 ? "o" : "i"} da modificare
-                </span>
-              )}
-            </div>
-
-            {/* Risultato */}
-            {bulkResult && (
-              <div className={`mt-3 p-3 rounded-lg text-sm ${bulkResult.status === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
-                {bulkResult.status === "ok"
-                  ? `✅ Aggiornati ${bulkResult.updated} vini${bulkResult.errors?.length ? `. Errori: ${bulkResult.errors.join(", ")}` : ""}`
-                  : `❌ ${bulkResult.message || "Errore"}`}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* FILTRI */}
         <div className="bg-neutral-50 border border-neutral-300 rounded-2xl p-4 lg:p-5 shadow-inner mb-6 space-y-4">
 
@@ -1614,6 +1436,166 @@ export default function MagazzinoVini() {
             </div>
           )}
         </div>
+
+        {/* PANNELLO BULK EDIT — dopo la tabella */}
+        {bulkEditOpen && selectedIds.size > 0 && (
+          <div ref={bulkPanelRef} className="mt-4 bg-white border-2 border-violet-300 rounded-2xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-violet-900">
+                Modifica massiva — {selectedIds.size} vini
+              </h3>
+              <button onClick={() => setBulkEditOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 text-lg">✕</button>
+            </div>
+            <p className="text-xs text-neutral-500 mb-4">
+              Compila solo i campi che vuoi sovrascrivere. I campi lasciati vuoti non verranno modificati.
+            </p>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Tipologia</label>
+                  <select name="TIPOLOGIA" value={bulkData.TIPOLOGIA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.tipologie.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Nazione</label>
+                  <select name="NAZIONE" value={bulkData.NAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.nazioni.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Regione</label>
+                  <select name="REGIONE" value={bulkData.REGIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.regioni.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Formato</label>
+                  <select name="FORMATO" value={bulkData.FORMATO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {tabellaOpts.formati.map(t => <option key={typeof t === "object" ? t.formato : t} value={typeof t === "object" ? t.formato : t}>{typeof t === "object" ? t.formato : t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Produttore</label>
+                  <input type="text" name="PRODUTTORE" value={bulkData.PRODUTTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Distributore</label>
+                  <input type="text" name="DISTRIBUTORE" value={bulkData.DISTRIBUTORE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Rappresentante</label>
+                  <input type="text" name="RAPPRESENTANTE" value={bulkData.RAPPRESENTANTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="— non modificare —" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Prezzo carta €</label>
+                  <input type="number" step="0.01" name="PREZZO_CARTA" value={bulkData.PREZZO_CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Listino €</label>
+                  <input type="number" step="0.01" name="EURO_LISTINO" value={bulkData.EURO_LISTINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Sconto %</label>
+                  <input type="number" step="0.01" name="SCONTO" value={bulkData.SCONTO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    placeholder="—" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">In carta</label>
+                  <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option><option value="SI">SI</option><option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">iPratico</label>
+                  <select name="IPRATICO" value={bulkData.IPRATICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option><option value="SI">SI</option><option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato vendita</label>
+                  <select name="STATO_VENDITA" value={bulkData.STATO_VENDITA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_VENDITA_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato riordino</label>
+                  <select name="STATO_RIORDINO" value={bulkData.STATO_RIORDINO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_RIORDINO_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato conservazione</label>
+                  <select name="STATO_CONSERVAZIONE" value={bulkData.STATO_CONSERVAZIONE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+                    <option value="">— non modificare —</option>
+                    {STATO_CONSERVAZIONE_OPTIONS.filter(o => o.value).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>
+                <textarea name="NOTE" value={bulkData.NOTE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)}
+                  rows={2} placeholder="— non modificare —" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-5 pt-4 border-t border-neutral-200">
+              <button onClick={submitBulkEdit} disabled={bulkSaving || Object.keys(bulkData).length === 0}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-amber-700 text-white hover:bg-amber-800 shadow transition disabled:opacity-40 disabled:cursor-not-allowed">
+                {bulkSaving ? "Salvataggio…" : `💾 Applica a ${selectedIds.size} vini`}
+              </button>
+              <button onClick={() => setBulkEditOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50 transition">
+                Annulla
+              </button>
+              {Object.keys(bulkData).length > 0 && (
+                <span className="text-xs text-violet-600 font-semibold">
+                  {Object.keys(bulkData).length} camp{Object.keys(bulkData).length === 1 ? "o" : "i"} da modificare
+                </span>
+              )}
+            </div>
+
+            {bulkResult && (
+              <div className={`mt-3 p-3 rounded-lg text-sm ${bulkResult.status === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                {bulkResult.status === "ok"
+                  ? `✅ Aggiornati ${bulkResult.updated} vini${bulkResult.errors?.length ? `. Errori: ${bulkResult.errors.join(", ")}` : ""}`
+                  : `❌ ${bulkResult.message || "Errore"}`}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── SCHEDA COMPLETA INLINE ────────────────── */}
         {openSchedaId && (
