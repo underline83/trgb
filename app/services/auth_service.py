@@ -73,9 +73,10 @@ def authenticate_user(username: str, password: str):
             detail="Credenziali non valide",
         )
 
+    from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
     access_token = security.create_access_token(
         {"sub": username, "role": user["role"]},
-        timedelta(minutes=60),
+        timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     )
 
     return {

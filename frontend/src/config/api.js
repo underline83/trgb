@@ -33,3 +33,40 @@ export async function apiFetch(url, options = {}) {
 
   return response;
 }
+
+// ─── Auto-refresh token ───────────────────────────────────
+// Rinnova il token ogni 30 minuti finché la pagina è aperta.
+// Così anche se l'utente si allontana per un po', il token resta valido.
+
+const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minuti
+
+async function refreshToken() {
+  const token = localStorage.getItem("token");
+  if (!token) return; // non loggato, skip
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem("token", data.access_token);
+      if (data.role) localStorage.setItem("role", data.role);
+    }
+    // Se 401 non facciamo nulla — scatterà al prossimo apiFetch
+  } catch {
+    // Errore di rete, riproverà al prossimo intervallo
+  }
+}
+
+// Avvia il timer di refresh
+setInterval(refreshToken, REFRESH_INTERVAL_MS);
+
+// Refresh anche quando la pagina torna in primo piano (dopo tab switch / resume laptop)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    refreshToken();
+  }
+});

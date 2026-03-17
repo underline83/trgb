@@ -438,7 +438,6 @@ export default function ChiusuraTurno() {
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
                 Dati servizio
-                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori giornalieri</span>}
               </h2>
               <div className="grid grid-cols-3 gap-4">
                 <NumberField
@@ -446,10 +445,10 @@ export default function ChiusuraTurno() {
                   value={preconto} onChange={setPreconto} icon="🧾"
                   hint={cenaHint("preconto", preconto)} />
                 <NumberField
-                  label="Totale fatture"
+                  label={isCena ? "Fatture Cena" : "Totale fatture"}
                   value={fatture} onChange={setFatture} icon="📄" />
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">🪑 Coperti</label>
+                  <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">{isCena ? "🪑 Coperti Cena" : "🪑 Coperti"}</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
                     className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
                 </div>
