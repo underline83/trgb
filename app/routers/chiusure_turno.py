@@ -1092,3 +1092,62 @@ async def delete_checklist_config(
 
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------
+# PRE-CONTI ADMIN — storico per controllo
+# ---------------------------------------------------------
+
+@router.get("/preconti", summary="Lista storica pre-conti (admin)")
+async def list_preconti(
+    date_from: Optional[str] = Query(None, description="Data inizio YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="Data fine YYYY-MM-DD"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Restituisce tutti i pre-conti con data, turno, tavolo, importo e chi ha inserito la chiusura.
+    Solo admin.
+    """
+    check_admin_role(current_user)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        query = """
+            SELECT
+                sc.date, sc.turno, sc.created_by,
+                sp.tavolo, sp.importo
+            FROM shift_preconti sp
+            JOIN shift_closures sc ON sp.shift_closure_id = sc.id
+            WHERE 1=1
+        """
+        params = []
+        if date_from:
+            query += " AND sc.date >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND sc.date <= ?"
+            params.append(date_to)
+        query += " ORDER BY sc.date DESC, sc.turno, sp.tavolo"
+
+        rows = conn.execute(query, params).fetchall()
+
+        result = []
+        totale = 0.0
+        for r in rows:
+            importo = r["importo"] or 0
+            totale += importo
+            result.append({
+                "date": r["date"],
+                "turno": r["turno"],
+                "tavolo": r["tavolo"],
+                "importo": importo,
+                "created_by": r["created_by"],
+            })
+
+        return {"preconti": result, "totale": round(totale, 2), "count": len(result)}
+
+    finally:
+        conn.close()
