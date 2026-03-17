@@ -426,6 +426,356 @@ async def stats_daily(
         conn.close()
 
 
+# ---------------------------------------------------------
+# CHECKLIST CONFIG ENDPOINTS (ADMIN ONLY)
+# ---------------------------------------------------------
+
+
+def check_admin_role(current_user: dict) -> None:
+    """Verifies that the current user is an admin."""
+    user_role = current_user.get("role")
+
+    if user_role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can manage checklist configuration.",
+        )
+
+
+@router.get("/config/all", response_model=List[ChecklistItemOut])
+async def get_checklist_config(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List all checklist configuration items (active and inactive).
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                id,
+                turno,
+                label,
+                ordine,
+                attivo,
+                created_at
+            FROM shift_checklist_config
+            ORDER BY turno ASC, ordine ASC
+            """
+        )
+        rows = cur.fetchall()
+
+    finally:
+        conn.close()
+
+    return [
+        ChecklistItemOut(
+            id=row["id"],
+            turno=row["turno"],
+            label=row["label"],
+            ordine=row["ordine"],
+            attivo=row["attivo"],
+            created_at=row["created_at"],
+        )
+        for row in rows
+    ]
+
+
+@router.post("/config", response_model=ChecklistItemOut)
+async def create_checklist_config(
+    payload: ChecklistItemBase,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Add a new checklist configuration item.
+    Admin only.
+    """
+    check_admin_role(current_user)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO shift_checklist_config (
+                turno,
+                label,
+                ordine,
+                attivo
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (payload.turno, payload.label, payload.ordine, payload.attivo),
+        )
+        conn.commit()
+
+        item_id = cur.lastrowid
+
+        cur.execute(
+            """
+            SELECT
+                id,
+                turno,
+                label,
+                ordine,
+                attivo,
+                created_at
+            FROM shift_checklist_config
+            WHERE id = ?
+            """,
+            (item_id,),
+        )
+        row = cur.fetchone()
+
+    finally:
+        conn.close()
+
+    return ChecklistItemOut(
+        id=row["id"],
+        turno=row["turno"],
+        label=row["label"],
+        ordine=row["ordine"],
+        attivo=row["attivo"],
+        created_at=row["created_at"],
+    )
+
+
+@router.patch("/config/{id}", response_model=ChecklistItemOut)
+async def update_checklist_config(
+    id: int,
+    payload: ChecklistItemBase,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update a checklist configuration item.
+    Admin only.
+    """
+    check_admin_role(current_user)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE shift_checklist_config
+            SET
+                turno = ?,
+                label = ?,
+                ordine = ?,
+                attivo = ?
+            WHERE id = ?
+            """,
+            (payload.turno, payload.label, payload.ordine, payload.attivo, id),
+        )
+
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Checklist config item not found.",
+            )
+
+        conn.commit()
+
+        cur.execute(
+            """
+            SELECT
+                id,
+                turno,
+                label,
+                ordine,
+                attivo,
+                created_at
+            FROM shift_checklist_config
+            WHERE id = ?
+            """,
+            (id,),
+        )
+        row = cur.fetchone()
+
+    finally:
+        conn.close()
+
+    return ChecklistItemOut(
+        id=row["id"],
+        turno=row["turno"],
+        label=row["label"],
+        ordine=row["ordine"],
+        attivo=row["attivo"],
+        created_at=row["created_at"],
+    )
+
+
+@router.delete("/config/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_checklist_config(
+    id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Soft delete a checklist configuration item (set attivo=0).
+    Admin only.
+    """
+    check_admin_role(current_user)
+
+    conn = sqlite3.connect(DB_PATH)
+    ensure_shift_closures_tables(conn)
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE shift_checklist_config
+            SET attivo = 0
+            WHERE id = ?
+            """,
+            (id,),
+        )
+
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Checklist config item not found.",
+            )
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+@router.get("/", response_model=List[ShiftClosureOut])
+async def list_shift_closures(
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    turno: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List shift closures with optional filters.
+    Query parameters:
+    - from_date: YYYY-MM-DD (inclusive)
+    - to_date: YYYY-MM-DD (inclusive)
+    - turno: 'pranzo' or 'cena'
+    """
+    if turno and turno not in ("pranzo", "cena"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid turno. Must be 'pranzo' or 'cena'.",
+        )
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        cur = conn.cursor()
+
+        # Build query
+        query = """
+            SELECT
+                id,
+                date,
+                turno,
+                fondo_cassa_inizio,
+                fondo_cassa_fine,
+                contanti,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
+                bonifici,
+                mance,
+                preconto,
+                fatture,
+                coperti,
+                totale_incassi,
+                note,
+                created_by,
+                created_at,
+                updated_at
+            FROM shift_closures
+            WHERE 1=1
+        """
+        params = []
+
+        if from_date:
+            query += " AND date >= ?"
+            params.append(from_date)
+
+        if to_date:
+            query += " AND date <= ?"
+            params.append(to_date)
+
+        if turno:
+            query += " AND turno = ?"
+            params.append(turno)
+
+        query += " ORDER BY date DESC, turno DESC"
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+    finally:
+        conn.close()
+
+    results = []
+    for row in rows:
+        conn2 = sqlite3.connect(DB_PATH)
+        conn2.row_factory = sqlite3.Row
+        c2 = conn2.cursor()
+
+        c2.execute("SELECT id, shift_closure_id, checklist_item_id, checked, note FROM shift_checklist_responses WHERE shift_closure_id = ? ORDER BY checklist_item_id", (row["id"],))
+        checklist_items = [ChecklistResponseOut(id=r["id"], shift_closure_id=r["shift_closure_id"], checklist_item_id=r["checklist_item_id"], checked=r["checked"], note=r["note"]) for r in c2.fetchall()]
+
+        c2.execute("SELECT id, shift_closure_id, tavolo, importo FROM shift_preconti WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
+        preconti_items = [PrecontoOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tavolo=r["tavolo"], importo=r["importo"]) for r in c2.fetchall()]
+
+        c2.execute("SELECT id, shift_closure_id, tipo, descrizione, importo FROM shift_spese WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
+        spese_items = [SpesaOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tipo=r["tipo"], descrizione=r["descrizione"], importo=r["importo"]) for r in c2.fetchall()]
+
+        conn2.close()
+
+        results.append(
+            ShiftClosureOut(
+                id=row["id"],
+                date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
+                turno=row["turno"],
+                fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
+                fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
+                contanti=row["contanti"],
+                pos_bpm=row["pos_bpm"],
+                pos_sella=row["pos_sella"],
+                theforkpay=row["theforkpay"],
+                other_e_payments=row["other_e_payments"],
+                bonifici=row["bonifici"],
+                mance=row["mance"],
+                preconto=row["preconto"],
+                fatture=row["fatture"],
+                coperti=row["coperti"],
+                totale_incassi=row["totale_incassi"],
+                note=row["note"],
+                created_by=row["created_by"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                checklist=checklist_items,
+                preconti=preconti_items,
+                spese=spese_items,
+            )
+        )
+
+    return results
+
+
 @router.get("/{date}/{turno}", response_model=ShiftClosureOut)
 async def get_shift_closure(
     date: str,
@@ -926,353 +1276,3 @@ async def upsert_shift_closure(
         preconti=preconti_items,
         spese=spese_items,
     )
-
-
-@router.get("/", response_model=List[ShiftClosureOut])
-async def list_shift_closures(
-    from_date: Optional[str] = Query(None),
-    to_date: Optional[str] = Query(None),
-    turno: Optional[str] = Query(None),
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    List shift closures with optional filters.
-    Query parameters:
-    - from_date: YYYY-MM-DD (inclusive)
-    - to_date: YYYY-MM-DD (inclusive)
-    - turno: 'pranzo' or 'cena'
-    """
-    if turno and turno not in ("pranzo", "cena"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid turno. Must be 'pranzo' or 'cena'.",
-        )
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    ensure_shift_closures_tables(conn)
-
-    try:
-        cur = conn.cursor()
-
-        # Build query
-        query = """
-            SELECT
-                id,
-                date,
-                turno,
-                fondo_cassa_inizio,
-                fondo_cassa_fine,
-                contanti,
-                pos_bpm,
-                pos_sella,
-                theforkpay,
-                other_e_payments,
-                bonifici,
-                mance,
-                preconto,
-                fatture,
-                coperti,
-                totale_incassi,
-                note,
-                created_by,
-                created_at,
-                updated_at
-            FROM shift_closures
-            WHERE 1=1
-        """
-        params = []
-
-        if from_date:
-            query += " AND date >= ?"
-            params.append(from_date)
-
-        if to_date:
-            query += " AND date <= ?"
-            params.append(to_date)
-
-        if turno:
-            query += " AND turno = ?"
-            params.append(turno)
-
-        query += " ORDER BY date DESC, turno DESC"
-
-        cur.execute(query, params)
-        rows = cur.fetchall()
-
-    finally:
-        conn.close()
-
-    results = []
-    for row in rows:
-        conn2 = sqlite3.connect(DB_PATH)
-        conn2.row_factory = sqlite3.Row
-        c2 = conn2.cursor()
-
-        c2.execute("SELECT id, shift_closure_id, checklist_item_id, checked, note FROM shift_checklist_responses WHERE shift_closure_id = ? ORDER BY checklist_item_id", (row["id"],))
-        checklist_items = [ChecklistResponseOut(id=r["id"], shift_closure_id=r["shift_closure_id"], checklist_item_id=r["checklist_item_id"], checked=r["checked"], note=r["note"]) for r in c2.fetchall()]
-
-        c2.execute("SELECT id, shift_closure_id, tavolo, importo FROM shift_preconti WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
-        preconti_items = [PrecontoOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tavolo=r["tavolo"], importo=r["importo"]) for r in c2.fetchall()]
-
-        c2.execute("SELECT id, shift_closure_id, tipo, descrizione, importo FROM shift_spese WHERE shift_closure_id = ? ORDER BY id", (row["id"],))
-        spese_items = [SpesaOut(id=r["id"], shift_closure_id=r["shift_closure_id"], tipo=r["tipo"], descrizione=r["descrizione"], importo=r["importo"]) for r in c2.fetchall()]
-
-        conn2.close()
-
-        results.append(
-            ShiftClosureOut(
-                id=row["id"],
-                date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
-                turno=row["turno"],
-                fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
-                fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
-                contanti=row["contanti"],
-                pos_bpm=row["pos_bpm"],
-                pos_sella=row["pos_sella"],
-                theforkpay=row["theforkpay"],
-                other_e_payments=row["other_e_payments"],
-                bonifici=row["bonifici"],
-                mance=row["mance"],
-                preconto=row["preconto"],
-                fatture=row["fatture"],
-                coperti=row["coperti"],
-                totale_incassi=row["totale_incassi"],
-                note=row["note"],
-                created_by=row["created_by"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-                checklist=checklist_items,
-                preconti=preconti_items,
-                spese=spese_items,
-            )
-        )
-
-    return results
-
-
-# ---------------------------------------------------------
-# CHECKLIST CONFIG ENDPOINTS (ADMIN ONLY)
-# ---------------------------------------------------------
-
-
-def check_admin_role(current_user: dict) -> None:
-    """Verifies that the current user is an admin."""
-    user_role = current_user.get("role")
-
-    if user_role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can manage checklist configuration.",
-        )
-
-
-@router.get("/config/all", response_model=List[ChecklistItemOut])
-async def get_checklist_config(
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    List all checklist configuration items (active and inactive).
-    """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    ensure_shift_closures_tables(conn)
-
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT
-                id,
-                turno,
-                label,
-                ordine,
-                attivo,
-                created_at
-            FROM shift_checklist_config
-            ORDER BY turno ASC, ordine ASC
-            """
-        )
-        rows = cur.fetchall()
-
-    finally:
-        conn.close()
-
-    return [
-        ChecklistItemOut(
-            id=row["id"],
-            turno=row["turno"],
-            label=row["label"],
-            ordine=row["ordine"],
-            attivo=row["attivo"],
-            created_at=row["created_at"],
-        )
-        for row in rows
-    ]
-
-
-@router.post("/config", response_model=ChecklistItemOut)
-async def create_checklist_config(
-    payload: ChecklistItemBase,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Add a new checklist configuration item.
-    Admin only.
-    """
-    check_admin_role(current_user)
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    ensure_shift_closures_tables(conn)
-
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO shift_checklist_config (
-                turno,
-                label,
-                ordine,
-                attivo
-            )
-            VALUES (?, ?, ?, ?)
-            """,
-            (payload.turno, payload.label, payload.ordine, payload.attivo),
-        )
-        conn.commit()
-
-        item_id = cur.lastrowid
-
-        cur.execute(
-            """
-            SELECT
-                id,
-                turno,
-                label,
-                ordine,
-                attivo,
-                created_at
-            FROM shift_checklist_config
-            WHERE id = ?
-            """,
-            (item_id,),
-        )
-        row = cur.fetchone()
-
-    finally:
-        conn.close()
-
-    return ChecklistItemOut(
-        id=row["id"],
-        turno=row["turno"],
-        label=row["label"],
-        ordine=row["ordine"],
-        attivo=row["attivo"],
-        created_at=row["created_at"],
-    )
-
-
-@router.patch("/config/{id}", response_model=ChecklistItemOut)
-async def update_checklist_config(
-    id: int,
-    payload: ChecklistItemBase,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Update a checklist configuration item.
-    Admin only.
-    """
-    check_admin_role(current_user)
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    ensure_shift_closures_tables(conn)
-
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            UPDATE shift_checklist_config
-            SET
-                turno = ?,
-                label = ?,
-                ordine = ?,
-                attivo = ?
-            WHERE id = ?
-            """,
-            (payload.turno, payload.label, payload.ordine, payload.attivo, id),
-        )
-
-        if cur.rowcount == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Checklist config item not found.",
-            )
-
-        conn.commit()
-
-        cur.execute(
-            """
-            SELECT
-                id,
-                turno,
-                label,
-                ordine,
-                attivo,
-                created_at
-            FROM shift_checklist_config
-            WHERE id = ?
-            """,
-            (id,),
-        )
-        row = cur.fetchone()
-
-    finally:
-        conn.close()
-
-    return ChecklistItemOut(
-        id=row["id"],
-        turno=row["turno"],
-        label=row["label"],
-        ordine=row["ordine"],
-        attivo=row["attivo"],
-        created_at=row["created_at"],
-    )
-
-
-@router.delete("/config/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_checklist_config(
-    id: int,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    Soft delete a checklist configuration item (set attivo=0).
-    Admin only.
-    """
-    check_admin_role(current_user)
-
-    conn = sqlite3.connect(DB_PATH)
-    ensure_shift_closures_tables(conn)
-
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            UPDATE shift_checklist_config
-            SET attivo = 0
-            WHERE id = ?
-            """,
-            (id,),
-        )
-
-        if cur.rowcount == 0:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Checklist config item not found.",
-            )
-
-        conn.commit()
-
-    finally:
-        conn.close()
