@@ -98,14 +98,19 @@ export default function ChiusuraTurno() {
     theforkpay, other_e_payments: otherEpay, bonifici, mance, fatture,
   }), [preconto, contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, fatture]);
 
-  // Totale incassi — i campi incassi (contanti, POS, etc.) sono sempre
-  // valori della SOLA cena (o pranzo), mai cumulativi. No sottrazione pranzo.
-  const totaleIncassi = useMemo(() => {
-    const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici"];
-    return campiIncassi.reduce((sum, f) =>
-      sum + toNumber(fieldValues[f])
+  // ── TOTALE ENTRATE ──
+  // A cena i campi incassi (contanti, POS, mance) sono GIORNALIERI → parziale cena = val - pranzo
+  // Fatture, fondi cassa, preconti, spese sono SEMPRE del singolo turno
+  // Formula:
+  //   ENTRATE = contanti + pos_bpm + pos_sella + thefork + epay + bonifici + mance + fondo_in - fondo_fi
+  //   (a cena, ciascun campo incassi viene "scontato" del pranzo tramite parzialeCena)
+  const totaleEntrate = useMemo(() => {
+    const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici", "mance"];
+    const sommaIncassi = campiIncassi.reduce((sum, f) =>
+      sum + parzialeCena(fieldValues[f], f)
     , 0);
-  }, [fieldValues]);
+    return sommaIncassi + toNumber(fondoCassaInizio) - toNumber(fondoCassaFine);
+  }, [fieldValues, parzialeCena, fondoCassaInizio, fondoCassaFine]);
 
   const totalePreconti = useMemo(() =>
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
@@ -115,17 +120,21 @@ export default function ChiusuraTurno() {
     spese.reduce((sum, s) => sum + toNumber(s.importo), 0)
   , [spese]);
 
-  // Parziale cena del preconto (chiusura RT)
-  const precontoParziale = useMemo(() =>
+  // Chiusura RT parziale (a cena = C_CHIUSURA - P_CHIUSURA, a pranzo = valore diretto)
+  const chiusuraRTParziale = useMemo(() =>
     parzialeCena(preconto, "preconto")
   , [preconto, parzialeCena]);
 
-  // Quadratura: i pre-conti sono contanti non battuti al RT,
-  // quindi vanno SOTTRATTI dagli incassi per far quadrare con la chiusura RT.
-  // Formula: diff = incassi - preconti - chiusura_parziale (deve essere ~0)
+  // ── QUADRATURA ──
+  // TOTALE ENTRATE deve essere uguale a CHIUSURA_RT + PRECONTI + SPESE + FATTURE
+  // diff = ENTRATE - (chiusura + preconti + spese + fatture)  → deve essere ~0
+  const totaleUscite = useMemo(() =>
+    chiusuraRTParziale + totalePreconti + totaleSpese + toNumber(fatture)
+  , [chiusuraRTParziale, totalePreconti, totaleSpese, fatture]);
+
   const diff = useMemo(() =>
-    totaleIncassi - totalePreconti - precontoParziale
-  , [totaleIncassi, totalePreconti, precontoParziale]);
+    totaleEntrate - totaleUscite
+  , [totaleEntrate, totaleUscite]);
 
   const diffStatus = Math.abs(diff) < 0.5 ? "ok" : diff > 0 ? "over" : "short";
 
@@ -417,9 +426,8 @@ export default function ChiusuraTurno() {
                   value={preconto} onChange={setPreconto} icon="🧾"
                   hint={cenaHint("preconto", preconto)} />
                 <NumberField
-                  label={isCena && pranzoData ? "Fatture (giorno)" : "Totale fatture"}
-                  value={fatture} onChange={setFatture} icon="📄"
-                  hint={cenaHint("fatture", fatture)} />
+                  label="Totale fatture"
+                  value={fatture} onChange={setFatture} icon="📄" />
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">🪑 Coperti</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
@@ -432,18 +440,25 @@ export default function ChiusuraTurno() {
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
                 Incassi
-                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori della sola cena</span>}
+                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori giornalieri — i parziali cena sono calcolati</span>}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵" />
-                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳" />
-                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳" />
-                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴" />
-                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱" />
-                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦" />
+                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵"
+                  hint={cenaHint("contanti", contanti)} />
+                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳"
+                  hint={cenaHint("pos_bpm", posBpm)} />
+                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳"
+                  hint={cenaHint("pos_sella", posSella)} />
+                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴"
+                  hint={cenaHint("theforkpay", theforkpay)} />
+                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱"
+                  hint={cenaHint("other_e_payments", otherEpay)} />
+                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦"
+                  hint={cenaHint("bonifici", bonifici)} />
               </div>
               <div className="mt-4 pt-4 border-t border-neutral-200">
-                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝" />
+                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝"
+                  hint={cenaHint("mance", mance)} />
               </div>
             </div>
 
@@ -576,72 +591,119 @@ export default function ChiusuraTurno() {
               )}
             </div>
 
-            {/* RIEPILOGO */}
-            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
-              {/* Riga breakdown cena: giorno → pranzo → parziale */}
+            {/* ═══════════ RIEPILOGO CALCOLATO (grigio, non modificabile) ═══════════ */}
+            <div className="bg-neutral-100 rounded-2xl shadow-inner p-5 border-2 border-dashed border-neutral-300">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-neutral-400 text-lg">🔒</span>
+                <h2 className="text-sm font-semibold text-neutral-500 uppercase tracking-wide">
+                  Riepilogo calcolato
+                </h2>
+                <span className="text-[10px] text-neutral-400 font-normal normal-case">
+                  — valori calcolati automaticamente dai dati inseriti sopra
+                </span>
+              </div>
+
+              {/* ── Breakdown cena: chiusura RT giorno → pranzo → parziale cena ── */}
               {isCena && pranzoData && (
-                <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                  <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200">
-                    <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Chiusura giorno</div>
-                    <div className="text-lg font-bold text-neutral-800">€ {fmt(toNumber(preconto))}</div>
-                  </div>
-                  <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
-                    <div className="text-[10px] font-semibold text-amber-500 uppercase mb-1">Pranzo</div>
-                    <div className="text-lg font-bold text-amber-800">€ {fmt(pranzoVal("preconto"))}</div>
-                  </div>
-                  <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
-                    <div className="text-[10px] font-semibold text-indigo-500 uppercase mb-1">Parziale cena</div>
-                    <div className="text-lg font-bold text-indigo-800">€ {fmt(precontoParziale)}</div>
+                <div className="mb-4">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-2">Chiusura RT — scomposizione</div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white/60 rounded-lg p-2.5 border border-neutral-200">
+                      <div className="text-[10px] text-neutral-400 mb-0.5">RT giorno</div>
+                      <div className="text-base font-bold text-neutral-600">€ {fmt(toNumber(preconto))}</div>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-2.5 border border-neutral-200">
+                      <div className="text-[10px] text-amber-500 mb-0.5">− Pranzo</div>
+                      <div className="text-base font-bold text-amber-700">€ {fmt(pranzoVal("preconto"))}</div>
+                    </div>
+                    <div className="bg-white/60 rounded-lg p-2.5 border border-neutral-200">
+                      <div className="text-[10px] text-indigo-500 mb-0.5">= RT cena</div>
+                      <div className="text-base font-bold text-indigo-700">€ {fmt(chiusuraRTParziale)}</div>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Quadratura: incassi - preconti = chiusura RT */}
-              <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
+              {/* ── Quadratura ── */}
+              <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-2">
                 Quadratura{isCena && pranzoData ? " cena" : ""}
-                <span className="text-neutral-400 font-normal normal-case ml-2 text-xs">
-                  incassi − pre-conti = chiusura RT
+                <span className="normal-case font-normal ml-1">
+                  entrate = chiusura RT + pre-conti + spese + fatture
                 </span>
-              </h2>
-              <div className={`grid gap-3 text-center ${totalePreconti > 0 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-3"}`}>
-                <div className={`rounded-xl p-3 border ${isCena && pranzoData ? "bg-indigo-50 border-indigo-200" : "bg-neutral-50 border-neutral-200"}`}>
-                  <div className={`text-[10px] font-semibold uppercase mb-1 ${isCena && pranzoData ? "text-indigo-500" : "text-neutral-400"}`}>Incassi</div>
-                  <div className={`text-lg font-bold ${isCena && pranzoData ? "text-indigo-800" : "text-neutral-800"}`}>€ {fmt(totaleIncassi)}</div>
-                </div>
-                {totalePreconti > 0 && (
-                  <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
-                    <div className="text-[10px] font-semibold text-orange-500 uppercase mb-1">Pre-conti (−)</div>
-                    <div className="text-lg font-bold text-orange-800">€ {fmt(totalePreconti)}</div>
-                    <div className="text-[9px] text-orange-500 mt-0.5">contanti non battuti</div>
+              </div>
+
+              {/* Riga ENTRATE vs USCITE */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {/* ENTRATE */}
+                <div className="bg-white/60 rounded-xl p-3 border border-neutral-200 text-center">
+                  <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale Entrate</div>
+                  <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleEntrate)}</div>
+                  <div className="text-[9px] text-neutral-400 mt-1">
+                    {isCena && pranzoData ? "incassi (parziali cena)" : "incassi"} + fondo in − fondo fi
                   </div>
-                )}
-                <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200">
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Chiusura RT</div>
-                  <div className="text-lg font-bold text-neutral-800">€ {fmt(isCena && pranzoData ? precontoParziale : toNumber(preconto))}</div>
                 </div>
-                <div className={`rounded-xl p-3 border ${
-                  diffStatus === "ok" ? "bg-emerald-50 border-emerald-200" :
-                  diffStatus === "over" ? "bg-amber-50 border-amber-200" :
-                  "bg-red-50 border-red-200"
-                }`}>
-                  <div className="text-[10px] font-semibold uppercase mb-1 opacity-70">Differenza</div>
-                  <div className={`text-lg font-bold ${
-                    diffStatus === "ok" ? "text-emerald-700" :
-                    diffStatus === "over" ? "text-amber-700" : "text-red-700"
-                  }`}>
-                    {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                {/* USCITE / GIUSTIFICATO */}
+                <div className="bg-white/60 rounded-xl p-3 border border-neutral-200 text-center">
+                  <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale giustificato</div>
+                  <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleUscite)}</div>
+                  <div className="text-[9px] text-neutral-400 mt-1">
+                    RT{chiusuraRTParziale !== toNumber(preconto) ? " cena" : ""}
+                    {toNumber(fatture) > 0 ? " + fatture" : ""}
+                    {totalePreconti > 0 ? " + pre-conti" : ""}
+                    {totaleSpese > 0 ? " + spese" : ""}
                   </div>
                 </div>
               </div>
 
-              {diffStatus !== "ok" && (
-                <div className={`mt-4 p-3 rounded-xl text-sm font-medium ${
-                  diffStatus === "over" ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-red-50 text-red-800 border border-red-200"
-                }`}>
-                  ⚠️ Incassi − pre-conti non quadrano con la chiusura RT.
-                  Differenza di <strong>{diff >= 0 ? "+" : ""}{fmt(diff)} €</strong> — verifica che i pre-conti siano inclusi nei contanti.
+              {/* Dettaglio voci giustificato */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-neutral-200 text-xs">
+                  <span className="text-neutral-400">🧾 RT{isCena && pranzoData ? " cena" : ""}:</span>
+                  <span className="font-semibold text-neutral-600">€ {fmt(chiusuraRTParziale)}</span>
                 </div>
-              )}
+                {toNumber(fatture) > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-blue-200 text-xs">
+                    <span className="text-blue-400">📄 Fatture:</span>
+                    <span className="font-semibold text-blue-600">€ {fmt(toNumber(fatture))}</span>
+                  </div>
+                )}
+                {totalePreconti > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
+                    <span className="text-orange-400">🍽️ Pre-conti:</span>
+                    <span className="font-semibold text-orange-600">€ {fmt(totalePreconti)}</span>
+                  </div>
+                )}
+                {totaleSpese > 0 && (
+                  <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-purple-200 text-xs">
+                    <span className="text-purple-400">💸 Spese:</span>
+                    <span className="font-semibold text-purple-600">€ {fmt(totaleSpese)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* RISULTATO QUADRATURA */}
+              <div className={`rounded-xl p-4 border-2 text-center ${
+                diffStatus === "ok"
+                  ? "bg-emerald-50 border-emerald-300"
+                  : diffStatus === "over"
+                    ? "bg-amber-50 border-amber-300"
+                    : "bg-red-50 border-red-300"
+              }`}>
+                <div className="text-[10px] font-semibold uppercase mb-1 opacity-70">
+                  {diffStatus === "ok" ? "✅ Quadratura OK" : "⚠️ Differenza da verificare"}
+                </div>
+                <div className={`text-2xl font-bold ${
+                  diffStatus === "ok" ? "text-emerald-700" :
+                  diffStatus === "over" ? "text-amber-700" : "text-red-700"
+                }`}>
+                  {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                </div>
+                {diffStatus !== "ok" && (
+                  <div className="text-xs mt-2 opacity-70">
+                    Le entrate non corrispondono a chiusura RT + pre-conti + spese + fatture
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* CHECKLIST */}
