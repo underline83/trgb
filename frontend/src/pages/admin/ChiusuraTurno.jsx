@@ -355,7 +355,7 @@ export default function ChiusuraTurno() {
         {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
           <h1 className="text-2xl font-bold text-amber-900 font-playfair">
-            🔔 Fine turno
+            🔔 Chiusura Turno
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
             Compila i dati di chiusura del servizio

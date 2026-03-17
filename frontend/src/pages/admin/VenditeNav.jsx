@@ -5,7 +5,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "fine-turno", label: "Fine Turno", path: "/vendite/fine-turno", icon: "🔔", roles: null },
+  { key: "fine-turno", label: "Chiusura Turno", path: "/vendite/fine-turno", icon: "🔔", roles: null },
   { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", roles: ["admin"] },
   { key: "preconti", label: "Pre-conti", path: "/vendite/preconti", icon: "🍽️", roles: ["admin"] },
   { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", roles: ["admin"] },
