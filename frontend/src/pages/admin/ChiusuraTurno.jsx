@@ -98,39 +98,59 @@ export default function ChiusuraTurno() {
     theforkpay, other_e_payments: otherEpay, bonifici, mance, fatture,
   }), [preconto, contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, fatture]);
 
-  // ── TOTALE ENTRATE ──
-  // A cena i campi incassi (contanti, POS, mance) sono GIORNALIERI → parziale cena = val - pranzo
-  // Fatture, fondi cassa, preconti, spese sono SEMPRE del singolo turno
-  // Formula:
-  //   ENTRATE = contanti + pos_bpm + pos_sella + thefork + epay + bonifici + mance + fatture + fondo_in - fondo_fi
-  //   (a cena, ciascun campo incassi viene "scontato" del pranzo tramite parzialeCena)
+  // ── TOTALE ENTRATE (valori GIORNALIERI, come dal cartaceo) ──
+  // POS + Contanti + TheFork + Altro + Mance + Fondo_in - Fondo_fi
+  // I valori inseriti a cena sono già giornalieri → si usano così come sono, NO parzialeCena
   const totaleEntrate = useMemo(() => {
     const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici", "mance"];
     const sommaIncassi = campiIncassi.reduce((sum, f) =>
-      sum + parzialeCena(fieldValues[f], f)
+      sum + toNumber(fieldValues[f])
     , 0);
-    return sommaIncassi + toNumber(fatture) + toNumber(fondoCassaInizio) - toNumber(fondoCassaFine);
-  }, [fieldValues, parzialeCena, fatture, fondoCassaInizio, fondoCassaFine]);
+    return sommaIncassi + toNumber(fondoCassaInizio) - toNumber(fondoCassaFine);
+  }, [fieldValues, fondoCassaInizio, fondoCassaFine]);
 
+  // Pre-conti del turno corrente
   const totalePreconti = useMemo(() =>
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
   , [preconti]);
 
+  // Spese del turno corrente
   const totaleSpese = useMemo(() =>
     spese.reduce((sum, s) => sum + toNumber(s.importo), 0)
   , [spese]);
 
-  // Chiusura RT parziale (a cena = C_CHIUSURA - P_CHIUSURA, a pranzo = valore diretto)
+  // Chiusura RT parziale cena (per breakdown visivo)
   const chiusuraRTParziale = useMemo(() =>
     parzialeCena(preconto, "preconto")
   , [preconto, parzialeCena]);
 
-  // ── QUADRATURA ──
-  // TOTALE ENTRATE deve essere uguale a CHIUSURA_RT + PRECONTI + SPESE + FATTURE
-  // diff = ENTRATE - (chiusura + preconti + spese + fatture)  → deve essere ~0
+  // A cena: preconti/fatture/spese del pranzo da sommare al giustificato
+  // (perché le entrate sono giornaliere, il giustificato deve coprire l'intera giornata)
+  const pranzoPrecontiTotale = useMemo(() => {
+    if (!isCena || !pranzoData || !pranzoData.preconti) return 0;
+    return pranzoData.preconti.reduce((sum, p) => sum + (p.importo || 0), 0);
+  }, [isCena, pranzoData]);
+
+  const pranzoFatture = useMemo(() => {
+    if (!isCena || !pranzoData) return 0;
+    return pranzoData.fatture || 0;
+  }, [isCena, pranzoData]);
+
+  const pranzoSpese = useMemo(() => {
+    if (!isCena || !pranzoData || !pranzoData.spese) return 0;
+    return pranzoData.spese.reduce((sum, s) => sum + (s.importo || 0), 0);
+  }, [isCena, pranzoData]);
+
+  // ── QUADRATURA (GIORNALIERA) ──
+  // GIUSTIFICATO = Chiusura RT (giornaliera) + Preconti TOTALI + Spese TOTALI + Fatture TOTALI
+  // A pranzo: solo valori del pranzo
+  // A cena: chiusura giornaliera + (pranzo + cena) per preconti/fatture/spese
   const totaleUscite = useMemo(() =>
-    chiusuraRTParziale + totalePreconti + totaleSpese + toNumber(fatture)
-  , [chiusuraRTParziale, totalePreconti, totaleSpese, fatture]);
+    toNumber(preconto)
+    + (totalePreconti + pranzoPrecontiTotale)
+    + (totaleSpese + pranzoSpese)
+    + (toNumber(fatture) + pranzoFatture)
+  , [preconto, totalePreconti, pranzoPrecontiTotale, totaleSpese, pranzoSpese, fatture, pranzoFatture]);
 
   const diff = useMemo(() =>
     totaleEntrate - totaleUscite
@@ -624,33 +644,34 @@ export default function ChiusuraTurno() {
                 </div>
               )}
 
-              {/* ── Quadratura ── */}
+              {/* ── Quadratura giornaliera ── */}
               <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-2">
-                Quadratura{isCena && pranzoData ? " cena" : ""}
+                Quadratura{isCena && pranzoData ? " giornaliera" : ""}
                 <span className="normal-case font-normal ml-1">
                   entrate = chiusura RT + pre-conti + spese + fatture
                 </span>
               </div>
 
-              {/* Riga ENTRATE vs USCITE */}
+              {/* Riga ENTRATE vs GIUSTIFICATO */}
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {/* ENTRATE */}
                 <div className="bg-white/60 rounded-xl p-3 border border-neutral-200 text-center">
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale Entrate</div>
                   <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleEntrate)}</div>
                   <div className="text-[9px] text-neutral-400 mt-1">
-                    {isCena && pranzoData ? "incassi (parziali cena)" : "incassi"} + fatture + fondo in − fondo fi
+                    incassi{isCena && pranzoData ? " (giornalieri)" : ""} + fondo in − fondo fi
                   </div>
                 </div>
-                {/* USCITE / GIUSTIFICATO */}
+                {/* GIUSTIFICATO */}
                 <div className="bg-white/60 rounded-xl p-3 border border-neutral-200 text-center">
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale giustificato</div>
                   <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleUscite)}</div>
                   <div className="text-[9px] text-neutral-400 mt-1">
-                    RT{chiusuraRTParziale !== toNumber(preconto) ? " cena" : ""}
-                    {toNumber(fatture) > 0 ? " + fatture" : ""}
-                    {totalePreconti > 0 ? " + pre-conti" : ""}
-                    {totaleSpese > 0 ? " + spese" : ""}
+                    chiusura RT
+                    {(toNumber(fatture) + pranzoFatture) > 0 ? " + fatture" : ""}
+                    {(totalePreconti + pranzoPrecontiTotale) > 0 ? " + pre-conti" : ""}
+                    {(totaleSpese + pranzoSpese) > 0 ? " + spese" : ""}
+                    {isCena && pranzoData ? " (giorno)" : ""}
                   </div>
                 </div>
               </div>
@@ -658,25 +679,25 @@ export default function ChiusuraTurno() {
               {/* Dettaglio voci giustificato */}
               <div className="flex flex-wrap gap-2 mb-3">
                 <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-neutral-200 text-xs">
-                  <span className="text-neutral-400">🧾 RT{isCena && pranzoData ? " cena" : ""}:</span>
-                  <span className="font-semibold text-neutral-600">€ {fmt(chiusuraRTParziale)}</span>
+                  <span className="text-neutral-400">🧾 Chiusura RT:</span>
+                  <span className="font-semibold text-neutral-600">€ {fmt(toNumber(preconto))}</span>
                 </div>
-                {toNumber(fatture) > 0 && (
+                {(toNumber(fatture) + pranzoFatture) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-blue-200 text-xs">
                     <span className="text-blue-400">📄 Fatture:</span>
-                    <span className="font-semibold text-blue-600">€ {fmt(toNumber(fatture))}</span>
+                    <span className="font-semibold text-blue-600">€ {fmt(toNumber(fatture) + pranzoFatture)}</span>
                   </div>
                 )}
-                {totalePreconti > 0 && (
+                {(totalePreconti + pranzoPrecontiTotale) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
                     <span className="text-orange-400">🍽️ Pre-conti:</span>
-                    <span className="font-semibold text-orange-600">€ {fmt(totalePreconti)}</span>
+                    <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>
                   </div>
                 )}
-                {totaleSpese > 0 && (
+                {(totaleSpese + pranzoSpese) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-purple-200 text-xs">
                     <span className="text-purple-400">💸 Spese:</span>
-                    <span className="font-semibold text-purple-600">€ {fmt(totaleSpese)}</span>
+                    <span className="font-semibold text-purple-600">€ {fmt(totaleSpese + pranzoSpese)}</span>
                   </div>
                 )}
               </div>

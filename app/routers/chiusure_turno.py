@@ -302,6 +302,130 @@ async def list_preconti(
         conn.close()
 
 
+# ---------------------------------------------------------
+# STATISTICHE COPERTI & INCASSI — aggregato giornaliero
+# ---------------------------------------------------------
+
+@router.get("/stats/daily", summary="Statistiche giornaliere coperti e incassi")
+async def stats_daily(
+    year: Optional[int] = Query(None, description="Anno (es. 2026)"),
+    month: Optional[int] = Query(None, ge=1, le=12, description="Mese 1-12"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Ritorna statistiche giornaliere aggregate da shift_closures.
+    Per ogni giorno: incassato, coperti, media, fatturato pranzo/cena.
+    Fatturato = chiusura RT + fatture + preconti (tutto il revenue del turno).
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        # Fetch all closures for the period
+        query = """
+            SELECT sc.id, sc.date, sc.turno, sc.preconto, sc.fatture, sc.coperti,
+                   sc.contanti, sc.pos_bpm, sc.pos_sella, sc.theforkpay,
+                   sc.other_e_payments, sc.bonifici, sc.mance,
+                   sc.fondo_cassa_inizio, sc.fondo_cassa_fine
+            FROM shift_closures sc
+            WHERE 1=1
+        """
+        params = []
+        if year:
+            query += " AND CAST(substr(sc.date, 1, 4) AS INTEGER) = ?"
+            params.append(year)
+        if month:
+            query += " AND CAST(substr(sc.date, 6, 2) AS INTEGER) = ?"
+            params.append(month)
+        query += " ORDER BY sc.date ASC, sc.turno ASC"
+
+        rows = conn.execute(query, params).fetchall()
+
+        # Fetch preconti totals per closure
+        preconti_query = """
+            SELECT shift_closure_id, SUM(importo) AS tot
+            FROM shift_preconti
+            GROUP BY shift_closure_id
+        """
+        preconti_map = {}
+        for r in conn.execute(preconti_query).fetchall():
+            preconti_map[r["shift_closure_id"]] = r["tot"] or 0
+
+        # Group by date
+        days = {}
+        for r in rows:
+            d = r["date"]
+            if d not in days:
+                days[d] = {"pranzo": None, "cena": None}
+            turno = r["turno"]
+
+            preconti_tot = preconti_map.get(r["id"], 0)
+            # Fatturato turno = chiusura RT + fatture + preconti
+            fatt = (r["preconto"] or 0) + (r["fatture"] or 0) + preconti_tot
+
+            days[d][turno] = {
+                "preconto": r["preconto"] or 0,
+                "fatture": r["fatture"] or 0,
+                "preconti_tot": preconti_tot,
+                "fatturato": fatt,
+                "coperti": r["coperti"] or 0,
+            }
+
+        # Build result
+        result = []
+        for d in sorted(days.keys()):
+            p = days[d]["pranzo"]
+            c = days[d]["cena"]
+
+            # A cena, preconto è giornaliero → fatturato cena = cena.fatturato - pranzo.preconto
+            if p and c:
+                fatt_pranzo = p["fatturato"]
+                # Cena fatturato: (C_CHIUSURA - P_CHIUSURA) + C_FATTURE + C_PRECONTI
+                fatt_cena = (c["preconto"] - p["preconto"]) + c["fatture"] + c["preconti_tot"]
+                incassato = fatt_pranzo + fatt_cena
+                coperti_pranzo = p["coperti"]
+                coperti_cena = c["coperti"]
+            elif p:
+                fatt_pranzo = p["fatturato"]
+                fatt_cena = 0
+                incassato = fatt_pranzo
+                coperti_pranzo = p["coperti"]
+                coperti_cena = 0
+            elif c:
+                fatt_pranzo = 0
+                # Solo cena senza pranzo: il preconto è il totale
+                fatt_cena = c["fatturato"]
+                incassato = fatt_cena
+                coperti_pranzo = 0
+                coperti_cena = c["coperti"]
+            else:
+                continue
+
+            coperti_totale = coperti_pranzo + coperti_cena
+            media = round(incassato / coperti_totale, 2) if coperti_totale > 0 else None
+            media_pranzo = round(fatt_pranzo / coperti_pranzo, 2) if coperti_pranzo > 0 else None
+            media_cena = round(fatt_cena / coperti_cena, 2) if coperti_cena > 0 else None
+
+            result.append({
+                "date": d,
+                "incassato": round(incassato, 2),
+                "coperti": coperti_totale,
+                "media": media,
+                "coperti_pranzo": coperti_pranzo,
+                "coperti_cena": coperti_cena,
+                "fatt_pranzo": round(fatt_pranzo, 2),
+                "fatt_cena": round(fatt_cena, 2),
+                "media_pranzo": media_pranzo,
+                "media_cena": media_cena,
+            })
+
+        return {"days": result, "count": len(result)}
+
+    finally:
+        conn.close()
+
+
 @router.get("/{date}/{turno}", response_model=ShiftClosureOut)
 async def get_shift_closure(
     date: str,

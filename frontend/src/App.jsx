@@ -90,6 +90,7 @@ import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
 import StatisticheDashboard from "./pages/statistiche/StatisticheDashboard";
 import StatisticheProdotti from "./pages/statistiche/StatisticheProdotti";
 import StatisticheImport from "./pages/statistiche/StatisticheImport";
+import StatisticheCoperti from "./pages/statistiche/StatisticheCoperti";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -189,6 +190,7 @@ export default function App() {
         <Route path="/statistiche/dashboard" element={<StatisticheDashboard />} />
         <Route path="/statistiche/prodotti" element={<StatisticheProdotti />} />
         <Route path="/statistiche/import" element={<StatisticheImport />} />
+        <Route path="/statistiche/coperti" element={<StatisticheCoperti />} />
 
         <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
         <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
