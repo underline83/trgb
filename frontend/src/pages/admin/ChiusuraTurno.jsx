@@ -102,15 +102,15 @@ export default function ChiusuraTurno() {
   // A cena i campi incassi (contanti, POS, mance) sono GIORNALIERI → parziale cena = val - pranzo
   // Fatture, fondi cassa, preconti, spese sono SEMPRE del singolo turno
   // Formula:
-  //   ENTRATE = contanti + pos_bpm + pos_sella + thefork + epay + bonifici + mance + fondo_in - fondo_fi
+  //   ENTRATE = contanti + pos_bpm + pos_sella + thefork + epay + bonifici + mance + fatture + fondo_in - fondo_fi
   //   (a cena, ciascun campo incassi viene "scontato" del pranzo tramite parzialeCena)
   const totaleEntrate = useMemo(() => {
     const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici", "mance"];
     const sommaIncassi = campiIncassi.reduce((sum, f) =>
       sum + parzialeCena(fieldValues[f], f)
     , 0);
-    return sommaIncassi + toNumber(fondoCassaInizio) - toNumber(fondoCassaFine);
-  }, [fieldValues, parzialeCena, fondoCassaInizio, fondoCassaFine]);
+    return sommaIncassi + toNumber(fatture) + toNumber(fondoCassaInizio) - toNumber(fondoCassaFine);
+  }, [fieldValues, parzialeCena, fatture, fondoCassaInizio, fondoCassaFine]);
 
   const totalePreconti = useMemo(() =>
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
@@ -639,7 +639,7 @@ export default function ChiusuraTurno() {
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale Entrate</div>
                   <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleEntrate)}</div>
                   <div className="text-[9px] text-neutral-400 mt-1">
-                    {isCena && pranzoData ? "incassi (parziali cena)" : "incassi"} + fondo in − fondo fi
+                    {isCena && pranzoData ? "incassi (parziali cena)" : "incassi"} + fatture + fondo in − fondo fi
                   </div>
                 </div>
                 {/* USCITE / GIUSTIFICATO */}
