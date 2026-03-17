@@ -77,7 +77,7 @@ export default function CorrispettiviImport() {
 
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
-      <VenditeNav current="import" />
+      <VenditeNav current="impostazioni" />
 
       <div className="p-6">
       <div className="max-w-3xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">

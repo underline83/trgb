@@ -11,7 +11,7 @@ const TABS = [
   { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", roles: ["admin"] },
   { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", roles: ["admin"] },
   { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", roles: ["admin"] },
-  { key: "import", label: "Import", path: "/vendite/import", icon: "📤", roles: ["admin"] },
+  { key: "impostazioni", label: "Impostazioni", path: "/vendite/impostazioni", icon: "⚙️", roles: ["admin"] },
 ];
 
 export default function VenditeNav({ current }) {

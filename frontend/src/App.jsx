@@ -157,7 +157,8 @@ export default function App() {
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/vendite/annual" element={<CorrispettiviAnnual />} />
         <Route path="/vendite/fine-turno" element={<ChiusuraTurno />} />
-        <Route path="/vendite/import" element={<CorrispettiviImport />} />
+        <Route path="/vendite/impostazioni" element={<CorrispettiviImport />} />
+        <Route path="/vendite/import" element={<Navigate to="/vendite/impostazioni" replace />} />
 
         {/* --- GESTIONE ACQUISTI --- */}
         <Route path="/acquisti" element={<FattureMenu />} />

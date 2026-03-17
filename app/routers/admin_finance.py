@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import sqlite3
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
@@ -609,6 +609,181 @@ async def set_daily_closure_closed(
 
 
 # ---------------------------------------------------------
+# CONSTANTS
+# ---------------------------------------------------------
+
+WEEKDAY_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+
+
+# ---------------------------------------------------------
+# HELPER INTERNO: aggregazione shift_closures per data
+# ---------------------------------------------------------
+
+def _aggregate_shift_closures_by_date(conn: sqlite3.Connection, ym_prefix: str) -> Dict[str, dict]:
+    """
+    Legge i dati da shift_closures (per-turno) per il mese specificato,
+    aggrega per data, e ritorna un dict keyed by date string con valori
+    compatibili con il dashboard.
+
+    Per ogni data:
+    - Se esiste 'cena': usa i valori giornalieri di cena (contanti, pos_*, etc., preconto)
+    - Se esiste solo 'pranzo': usa i valori di pranzo
+    - Somma fatture (pranzo + cena) per avere il totale giornaliero
+    - Calcola corrispettivi_tot = chiusura_giorno + fatture_totali
+    - Calcola totale_incassi = contanti + pos_bpm + pos_sella + thefork + other_e + bonifici (giornaliero)
+    - Calcola cash_diff = totale_incassi - corrispettivi_tot
+    - Aggrega preconti e spese da entrambi i turni
+
+    Ritorna:
+        dict keyed by date (str YYYY-MM-DD) con ogni valore being a dict con i campi:
+        {
+            'date': str,
+            'weekday': str,
+            'corrispettivi': float,
+            'corrispettivi_tot': float,
+            'fatture': float,
+            'contanti_finali': float,
+            'pos_bpm': float,
+            'pos_sella': float,
+            'theforkpay': float,
+            'other_e_payments': float,
+            'bonifici': float,
+            'mance': float,
+            'totale_incassi': float,
+            'cash_diff': float,
+            'iva_10': float,
+            'iva_22': float,
+            'note': str,
+            'is_closed': bool,
+        }
+    """
+    result = {}
+
+    try:
+        cur = conn.cursor()
+
+        # Leggi shift_closures per il mese
+        cur.execute(
+            """
+            SELECT
+                date,
+                turno,
+                preconto,
+                fatture,
+                contanti,
+                pos_bpm,
+                pos_sella,
+                theforkpay,
+                other_e_payments,
+                bonifici,
+                mance,
+                note
+            FROM shift_closures
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date ASC,
+                     CASE WHEN turno = 'pranzo' THEN 0 ELSE 1 END
+            """,
+            (ym_prefix,),
+        )
+        shift_rows = cur.fetchall()
+
+        if not shift_rows:
+            return result
+
+        # Raggruppa per data
+        by_date: Dict[str, list] = {}
+        for r in shift_rows:
+            date_str = r["date"]
+            by_date.setdefault(date_str, []).append(r)
+
+        # Per ogni data, aggrega i due turni
+        for date_str, turni_rows in by_date.items():
+            # Estrai dati per pranzo e cena (se esistono)
+            pranzo = None
+            cena = None
+
+            for row in turni_rows:
+                if row["turno"] == "pranzo":
+                    pranzo = row
+                elif row["turno"] == "cena":
+                    cena = row
+
+            # Determina il giorno della settimana
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+            weekday_idx = d.weekday()  # 0=lunedì, 6=domenica
+            weekday_it = WEEKDAY_IT[weekday_idx]
+
+            # Scegli la base per i campi giornalieri (contanti, pos_*, etc.)
+            # Se esiste cena, usa cena (dati giornalieri); altrimenti usa pranzo
+            if cena:
+                giornaliero = cena
+                chiusura_giorno = cena["preconto"]
+                contanti = cena["contanti"]
+                pos_bpm = cena["pos_bpm"]
+                pos_sella = cena["pos_sella"]
+                theforkpay = cena["theforkpay"]
+                other_e = cena["other_e_payments"]
+                bonifici = cena["bonifici"]
+                mance = cena["mance"]
+            else:
+                giornaliero = pranzo
+                chiusura_giorno = pranzo["preconto"]
+                contanti = pranzo["contanti"]
+                pos_bpm = pranzo["pos_bpm"]
+                pos_sella = pranzo["pos_sella"]
+                theforkpay = pranzo["theforkpay"]
+                other_e = pranzo["other_e_payments"]
+                bonifici = pranzo["bonifici"]
+                mance = pranzo["mance"]
+
+            # Somma fatture (pranzo + cena)
+            fatture_totali = 0.0
+            if pranzo:
+                fatture_totali += pranzo["fatture"]
+            if cena:
+                fatture_totali += cena["fatture"]
+
+            # Calcoli
+            corrispettivi_tot = chiusura_giorno + fatture_totali
+            totale_incassi = contanti + pos_bpm + pos_sella + theforkpay + other_e + bonifici
+            cash_diff = totale_incassi - corrispettivi_tot
+
+            # Nota: concatena note da entrambi i turni se presenti
+            note_list = []
+            if pranzo and pranzo["note"]:
+                note_list.append(f"Pranzo: {pranzo['note']}")
+            if cena and cena["note"]:
+                note_list.append(f"Cena: {cena['note']}")
+            note_combined = " | ".join(note_list) if note_list else ""
+
+            result[date_str] = {
+                'date': date_str,
+                'weekday': weekday_it,
+                'corrispettivi': chiusura_giorno,  # La chiusura RT
+                'corrispettivi_tot': corrispettivi_tot,
+                'fatture': fatture_totali,
+                'contanti_finali': contanti,
+                'pos_bpm': pos_bpm,
+                'pos_sella': pos_sella,
+                'theforkpay': theforkpay,
+                'other_e_payments': other_e,
+                'bonifici': bonifici,
+                'mance': mance,
+                'totale_incassi': totale_incassi,
+                'cash_diff': cash_diff,
+                'iva_10': 0.0,  # shift_closures non ha IVA separata
+                'iva_22': 0.0,
+                'note': note_combined,
+                'is_closed': False,  # I dati shift_closures indicano giorni aperti
+            }
+    except Exception:
+        # Se shift_closures non esiste o c'è errore, ritorna dict vuoto (fallback a daily_closures)
+        pass
+
+    return result
+
+
+# ---------------------------------------------------------
 # HELPER INTERNO: chiusura "effettiva" (manuale + regola mercoledì)
 # ---------------------------------------------------------
 
@@ -692,6 +867,9 @@ async def get_monthly_stats(
     - breakdown pagamenti
     - alert su differenze di cassa oltre soglia
     - i giorni marcati come CHIUSI (o mercoledì con 0) non rientrano in medie/totali.
+
+    Legge primarily da shift_closures (per-turno aggregata per data),
+    con fallback a daily_closures per date che non hanno shift data.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -700,6 +878,10 @@ async def get_monthly_stats(
     ym_prefix = f"{year:04d}-{month:02d}"
 
     try:
+        # Primo: leggi shift_closures aggregati per data
+        shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix)
+
+        # Secondo: leggi daily_closures per il mese
         cur = conn.cursor()
         cur.execute(
             """
@@ -728,11 +910,43 @@ async def get_monthly_stats(
             """,
             (ym_prefix,),
         )
-        rows = cur.fetchall()
+        daily_rows = cur.fetchall()
     finally:
         conn.close()
 
-    if not rows:
+    # Merge: crea una mappa unificata (shift_closures primary, daily_closures fallback)
+    merged_data: Dict[str, dict] = {}
+
+    # Aggiungi shift_closures (primary)
+    for date_str, shift_dict in shift_data.items():
+        merged_data[date_str] = shift_dict
+
+    # Aggiungi daily_closures solo per date che non hanno shift_closures (fallback)
+    for r in daily_rows:
+        date_str = r["date"]
+        if date_str not in merged_data:
+            merged_data[date_str] = {
+                'date': date_str,
+                'weekday': r["weekday"],
+                'corrispettivi': r["corrispettivi"],
+                'corrispettivi_tot': r["corrispettivi_tot"],
+                'fatture': r["fatture"],
+                'contanti_finali': r["contanti_finali"],
+                'pos_bpm': r["pos_bpm"],
+                'pos_sella': r["pos_sella"],
+                'theforkpay': r["theforkpay"],
+                'other_e_payments': r["other_e_payments"],
+                'bonifici': r["bonifici"],
+                'mance': r["mance"],
+                'totale_incassi': r["totale_incassi"],
+                'cash_diff': r["cash_diff"],
+                'iva_10': r["iva_10"],
+                'iva_22': r["iva_22"],
+                'note': r["note"] or "",
+                'is_closed': bool(r["is_closed"]),
+            }
+
+    if not merged_data:
         # Nessuna chiusura per questo mese
         return MonthlyStats(
             year=year,
@@ -758,6 +972,18 @@ async def get_monthly_stats(
             ),
             alerts=[],
         )
+
+    # Converte merged_data in formato compatibile con la logica esistente
+    # Crea liste di Row-like objects per il filtro _is_effectively_closed
+    class DictRow:
+        def __init__(self, d):
+            self._dict = d
+        def __getitem__(self, key):
+            return self._dict[key]
+        def keys(self):
+            return self._dict.keys()
+
+    rows = [DictRow(d) for d in sorted(merged_data.values(), key=lambda x: x['date'])]
 
     # Filtra giorni "aperti" (non chiusi)
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
@@ -823,11 +1049,25 @@ async def get_monthly_stats(
 # ---------------------------------------------------------
 
 def _compute_annual_stats(year: int) -> AnnualStats:
+    """
+    Legge shift_closures (primary) e daily_closures (fallback) per l'anno,
+    aggrega per mese e ritorna AnnualStats.
+    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     ensure_daily_closures_table(conn)
 
+    year_prefix = f"{year:04d}"
+    merged_data: Dict[str, dict] = {}
+
     try:
+        # Leggi tutti gli 12 mesi dell'anno da shift_closures
+        for month in range(1, 13):
+            ym_prefix = f"{year:04d}-{month:02d}"
+            shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix)
+            merged_data.update(shift_data)
+
+        # Leggi daily_closures per l'anno (fallback)
         cur = conn.cursor()
         cur.execute(
             """
@@ -842,13 +1082,26 @@ def _compute_annual_stats(year: int) -> AnnualStats:
             WHERE substr(date, 1, 4) = ?
             ORDER BY date ASC
             """,
-            (f"{year:04d}",),
+            (year_prefix,),
         )
-        rows = cur.fetchall()
+        daily_rows = cur.fetchall()
+
+        # Aggiungi daily_closures (fallback per date senza shift_closures)
+        for r in daily_rows:
+            date_str = r["date"]
+            if date_str not in merged_data:
+                merged_data[date_str] = {
+                    'date': date_str,
+                    'weekday': r["weekday"],
+                    'corrispettivi_tot': r["corrispettivi_tot"],
+                    'fatture': r["fatture"],
+                    'totale_incassi': r["totale_incassi"],
+                    'is_closed': bool(r["is_closed"]),
+                }
     finally:
         conn.close()
 
-    if not rows:
+    if not merged_data:
         return AnnualStats(
             year=year,
             totale_corrispettivi=0.0,
@@ -856,6 +1109,17 @@ def _compute_annual_stats(year: int) -> AnnualStats:
             totale_fatture=0.0,
             mesi=[],
         )
+
+    # Converte merged_data in formato compatibile
+    class DictRow:
+        def __init__(self, d):
+            self._dict = d
+        def __getitem__(self, key):
+            return self._dict[key]
+        def keys(self):
+            return self._dict.keys()
+
+    rows = [DictRow(d) for d in sorted(merged_data.values(), key=lambda x: x['date'])]
 
     # Considera solo giorni "aperti" per totali e medie
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
@@ -875,7 +1139,7 @@ def _compute_annual_stats(year: int) -> AnnualStats:
     totale_fatt = sum(r["fatture"] for r in open_rows)
 
     # Raggruppa per mese (solo giorni aperti)
-    monthly_map: dict[int, list[sqlite3.Row]] = {}
+    monthly_map: dict[int, list] = {}
     for r in open_rows:
         d = datetime.strptime(r["date"], "%Y-%m-%d").date()
         m = d.month
@@ -977,12 +1241,24 @@ async def get_top_days(
     """
     Restituisce i giorni migliori e peggiori per totale incassi nell'anno.
     I giorni di chiusura (manuali o mercoledì a 0) vengono esclusi.
+
+    Legge da shift_closures (primary) con fallback a daily_closures.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     ensure_daily_closures_table(conn)
 
+    year_prefix = f"{year:04d}"
+    merged_data: Dict[str, dict] = {}
+
     try:
+        # Leggi tutti gli 12 mesi dell'anno da shift_closures
+        for month in range(1, 13):
+            ym_prefix = f"{year:04d}-{month:02d}"
+            shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix)
+            merged_data.update(shift_data)
+
+        # Leggi daily_closures per l'anno (fallback)
         cur = conn.cursor()
         cur.execute(
             """
@@ -996,13 +1272,37 @@ async def get_top_days(
             FROM daily_closures
             WHERE substr(date, 1, 4) = ?
             """,
-            (f"{year:04d}",),
+            (year_prefix,),
         )
-        rows = cur.fetchall()
+        daily_rows = cur.fetchall()
+
+        # Aggiungi daily_closures (fallback per date senza shift_closures)
+        for r in daily_rows:
+            date_str = r["date"]
+            if date_str not in merged_data:
+                merged_data[date_str] = {
+                    'date': date_str,
+                    'weekday': r["weekday"],
+                    'totale_incassi': r["totale_incassi"],
+                    'corrispettivi_tot': r["corrispettivi_tot"],
+                    'cash_diff': r["cash_diff"],
+                    'is_closed': bool(r["is_closed"]),
+                }
     finally:
         conn.close()
 
-    # Filtra i giorni aperti usando la logica unica (anche se qui non abbiamo 'corrispettivi')
+    # Converte merged_data in formato compatibile
+    class DictRow:
+        def __init__(self, d):
+            self._dict = d
+        def __getitem__(self, key):
+            return self._dict[key]
+        def keys(self):
+            return self._dict.keys()
+
+    rows = [DictRow(d) for d in merged_data.values()]
+
+    # Filtra i giorni aperti usando la logica unica
     open_rows = [r for r in rows if not _is_effectively_closed(r)]
 
     # ordina per incassi discendente/ascendente
@@ -1012,7 +1312,7 @@ async def get_top_days(
     best_rows = best_sorted[:limit]
     worst_rows = worst_sorted[:limit]
 
-    def _rows_to_topdays(rs: List[sqlite3.Row]) -> List[TopDay]:
+    def _rows_to_topdays(rs: List) -> List[TopDay]:
         return [
             TopDay(
                 date=datetime.strptime(r["date"], "%Y-%m-%d").date(),
