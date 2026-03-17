@@ -98,13 +98,14 @@ export default function ChiusuraTurno() {
     theforkpay, other_e_payments: otherEpay, bonifici, mance, fatture,
   }), [preconto, contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, fatture]);
 
-  // Totale incassi (parziali cena se turno=cena)
+  // Totale incassi — i campi incassi (contanti, POS, etc.) sono sempre
+  // valori della SOLA cena (o pranzo), mai cumulativi. No sottrazione pranzo.
   const totaleIncassi = useMemo(() => {
     const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici"];
     return campiIncassi.reduce((sum, f) =>
-      sum + parzialeCena(fieldValues[f], f)
+      sum + toNumber(fieldValues[f])
     , 0);
-  }, [fieldValues, parzialeCena]);
+  }, [fieldValues]);
 
   const totalePreconti = useMemo(() =>
     preconti.reduce((sum, p) => sum + toNumber(p.importo), 0)
@@ -431,25 +432,18 @@ export default function ChiusuraTurno() {
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">
                 Incassi
-                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori giornalieri — i parziali cena sono calcolati</span>}
+                {isCena && pranzoData && <span className="text-indigo-500 font-normal normal-case ml-2 text-xs">valori della sola cena</span>}
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵"
-                  hint={cenaHint("contanti", contanti)} />
-                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳"
-                  hint={cenaHint("pos_bpm", posBpm)} />
-                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳"
-                  hint={cenaHint("pos_sella", posSella)} />
-                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴"
-                  hint={cenaHint("theforkpay", theforkpay)} />
-                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱"
-                  hint={cenaHint("other_e_payments", otherEpay)} />
-                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦"
-                  hint={cenaHint("bonifici", bonifici)} />
+                <NumberField label="Contanti" value={contanti} onChange={setContanti} icon="💵" />
+                <NumberField label="POS BPM" value={posBpm} onChange={setPosBpm} icon="💳" />
+                <NumberField label="POS Sella" value={posSella} onChange={setPosSella} icon="💳" />
+                <NumberField label="TheFork Pay" value={theforkpay} onChange={setTheforkpay} icon="🍴" />
+                <NumberField label="Stripe / PayPal" value={otherEpay} onChange={setOtherEpay} icon="📱" />
+                <NumberField label="Bonifici" value={bonifici} onChange={setBonifici} icon="🏦" />
               </div>
               <div className="mt-4 pt-4 border-t border-neutral-200">
-                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝"
-                  hint={cenaHint("mance", mance)} />
+                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝" />
               </div>
             </div>
 
