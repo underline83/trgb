@@ -158,7 +158,10 @@ export default function ChiusureTurnoLista() {
             {closures.map(c => {
               const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
               const totPreconti = (c.preconti || []).reduce((s, p) => s + p.importo, 0);
-              const diff = (c.totale_incassi + totPreconti) - c.preconto;
+              // Quadratura: entrate − giustificato
+              const entrate = (c.totale_incassi || 0) + (c.fondo_cassa_inizio || 0) - (c.fondo_cassa_fine || 0);
+              const giustificato = (c.preconto || 0) + totPreconti + totSpese + (c.fatture || 0);
+              const diff = entrate - giustificato;
               const quadra = Math.abs(diff) < 0.5;
               const isExpanded = expandedId === c.id;
 
@@ -212,8 +215,8 @@ export default function ChiusureTurnoLista() {
                             <div className="text-sm font-bold text-red-700">€ {fmt(totSpese)}</div>
                           </div>
                         )}
-                        <div>
-                          <div className="text-[10px] text-neutral-400 uppercase">Diff</div>
+                        <div title="Entrate − Giustificato (chiusura + preconti + spese + fatture)">
+                          <div className="text-[10px] text-neutral-400 uppercase">Quadr.</div>
                           <div className={`text-sm font-bold ${quadra ? "text-emerald-600" : "text-red-600"}`}>
                             {diff >= 0 ? "+" : ""}{fmt(diff)}
                           </div>
