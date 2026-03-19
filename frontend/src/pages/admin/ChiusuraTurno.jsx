@@ -80,6 +80,65 @@ export default function ChiusuraTurno() {
 
   const isCena = turno === "cena";
 
+  // ── AUTOSAVE DRAFT in localStorage ──
+  const draftKey = `draft_chiusura_${date}_${turno}`;
+
+  // Salva draft ogni volta che i campi cambiano (skip durante loading/fetching)
+  useEffect(() => {
+    if (loading) return;
+    const timer = setTimeout(() => {
+      const hasData = fondoCassaInizio || fondoCassaFine || preconto || fatture || coperti ||
+        contanti || posBpm || posSella || theforkpay || otherEpay || bonifici || mance || note ||
+        preconti.length > 0 || spese.length > 0;
+      if (!hasData) return;
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({
+          fondoCassaInizio, fondoCassaFine, preconto, fatture, coperti,
+          contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance,
+          note, preconti, spese, checklistState, _ts: Date.now(),
+        }));
+      } catch { /* quota exceeded — ignora */ }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [loading, draftKey, fondoCassaInizio, fondoCassaFine, preconto, fatture, coperti,
+    contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, note, preconti, spese, checklistState]);
+
+  // Ripristina draft (solo se il form è vuoto = nessun record salvato sul server)
+  const restoreDraft = useCallback(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      // Ignora draft più vecchi di 24h
+      if (d._ts && Date.now() - d._ts > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(draftKey);
+        return false;
+      }
+      if (d.fondoCassaInizio) setFondoCassaInizio(d.fondoCassaInizio);
+      if (d.fondoCassaFine) setFondoCassaFine(d.fondoCassaFine);
+      if (d.preconto) setPreconto(d.preconto);
+      if (d.fatture) setFatture(d.fatture);
+      if (d.coperti) setCoperti(d.coperti);
+      if (d.contanti) setContanti(d.contanti);
+      if (d.posBpm) setPosBpm(d.posBpm);
+      if (d.posSella) setPosSella(d.posSella);
+      if (d.theforkpay) setTheforkpay(d.theforkpay);
+      if (d.otherEpay) setOtherEpay(d.otherEpay);
+      if (d.bonifici) setBonifici(d.bonifici);
+      if (d.mance) setMance(d.mance);
+      if (d.note) setNote(d.note);
+      if (d.preconti?.length) setPreconti(d.preconti);
+      if (d.spese?.length) setSpese(d.spese);
+      if (d.checklistState) setChecklistState(d.checklistState);
+      return true;
+    } catch { return false; }
+  }, [draftKey]);
+
+  // Cancella draft dopo salvataggio riuscito
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKey); } catch {}
+  }, [draftKey]);
+
   // ── Helper: valore pranzo per un campo ──
   const pranzoVal = useCallback((field) => {
     if (!pranzoData || !isCena) return 0;
@@ -217,6 +276,12 @@ export default function ChiusuraTurno() {
           .forEach(c => { initState[c.id] = { checked: false, note: "" }; });
         setChecklistState(initState);
         setLoading(false);
+        // Ripristina eventuale draft da localStorage
+        const restored = restoreDraft();
+        if (restored) {
+          setMessage({ type: "info", text: "📝 Bozza ripristinata — dati recuperati dalla sessione precedente." });
+          setTimeout(() => setMessage(null), 5000);
+        }
         return;
       }
       if (!res.ok) throw new Error("Errore caricamento");
@@ -265,7 +330,7 @@ export default function ChiusuraTurno() {
     } finally {
       setLoading(false);
     }
-  }, [date, turno, token, checklistConfig]);
+  }, [date, turno, token, checklistConfig, restoreDraft]);
 
   useEffect(() => { fetchChecklistConfig(); }, [fetchChecklistConfig]);
   useEffect(() => { if (checklistConfig.length >= 0) fetchClosure(); }, [fetchClosure]);
@@ -323,6 +388,7 @@ export default function ChiusuraTurno() {
       }
       const data = await res.json();
       setExistingId(data.id);
+      clearDraft();
       setMessage({ type: "ok", text: `Chiusura ${turno} salvata correttamente.` });
       setTimeout(() => setMessage(null), 4000);
     } catch (err) {
@@ -811,6 +877,7 @@ export default function ChiusuraTurno() {
             {message && (
               <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${
                 message.type === "ok" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                message.type === "info" ? "bg-blue-50 text-blue-700 border border-blue-200" :
                 "bg-red-50 text-red-700 border border-red-200"
               }`}>
                 {message.text}
