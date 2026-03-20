@@ -1,4 +1,4 @@
-// @version: v1.1-albero-categorie
+// @version: v1.2-merge-conteggi
 // Pagina impostazioni modulo finanza — gestione albero categorie + link acquisti
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -110,25 +110,63 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
     onRefresh();
   };
 
-  const renameCat = async () => {
+  const [feedback, setFeedback] = useState(null); // { type: "ok"|"merge"|"error", text }
+
+  const renameCat = async (forceMerge = false) => {
     if (!editCat) return;
-    await apiFetch(`${API_BASE}/finanza/albero-categorie/${editCat.id}`, {
+    const url = `${API_BASE}/finanza/albero-categorie/${editCat.id}${forceMerge ? "?merge=true" : ""}`;
+    const resp = await apiFetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome: editCat.nome }),
     });
+    if (resp.status === 409) {
+      const err = await resp.json();
+      if (window.confirm(err.detail)) {
+        return renameCat(true);
+      }
+      return; // annullato
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      setFeedback({ type: "error", text: err.detail || "Errore rinomina" });
+      return;
+    }
+    const data = await resp.json();
     setEditCat(null);
+    setFeedback(data.merged
+      ? { type: "merge", text: `"${editCat.nome.toUpperCase()}" unita con successo — movimenti riallineati.` }
+      : { type: "ok", text: `Categoria rinominata in "${data.nome}".` }
+    );
     onRefresh();
   };
 
-  const renameSub = async () => {
+  const renameSub = async (forceMerge = false) => {
     if (!editSub) return;
-    await apiFetch(`${API_BASE}/finanza/albero-categorie/sotto/${editSub.id}`, {
+    const url = `${API_BASE}/finanza/albero-categorie/sotto/${editSub.id}${forceMerge ? "?merge=true" : ""}`;
+    const resp = await apiFetch(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome: editSub.nome }),
     });
+    if (resp.status === 409) {
+      const err = await resp.json();
+      if (window.confirm(err.detail)) {
+        return renameSub(true);
+      }
+      return;
+    }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      setFeedback({ type: "error", text: err.detail || "Errore rinomina" });
+      return;
+    }
+    const data = await resp.json();
     setEditSub(null);
+    setFeedback(data.merged
+      ? { type: "merge", text: `"${editSub.nome.toUpperCase()}" unita con successo — movimenti riallineati.` }
+      : { type: "ok", text: `Sotto-categoria rinominata in "${data.nome}".` }
+    );
     onRefresh();
   };
 
@@ -157,8 +195,22 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
   return (
     <div>
       <p className="text-sm text-neutral-600 mb-4">
-        Gestisci le categorie e sotto-categorie. Rinominare o spostare propaga automaticamente a tutti i movimenti e regole.
+        Gestisci le categorie e sotto-categorie. Rinominare propaga a tutti i movimenti e regole.
+        Se rinomini con un nome già esistente, le due voci verranno <strong>unite automaticamente</strong>.
       </p>
+
+      {feedback && (
+        <div className={`mb-4 rounded-xl border px-4 py-3 text-sm flex items-center justify-between ${
+          feedback.type === "error"
+            ? "border-red-300 bg-red-50 text-red-800"
+            : feedback.type === "merge"
+            ? "border-amber-300 bg-amber-50 text-amber-800"
+            : "border-emerald-300 bg-emerald-50 text-emerald-800"
+        }`}>
+          <span>{feedback.text}</span>
+          <button onClick={() => setFeedback(null)} className="ml-2 text-xs opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {categorie.map(cat => (
@@ -180,6 +232,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                 <>
                   <span className="text-base font-bold text-violet-900">{cat.nome}</span>
                   <span className="text-[10px] text-neutral-400">({cat.sottocategorie.length} sub)</span>
+                  {cat.n_mov > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded-full">{cat.n_mov} mov.</span>}
                   <button onClick={() => setEditCat({ id: cat.id, nome: cat.nome })}
                     className="text-xs px-2 py-0.5 text-blue-700 hover:bg-blue-50 rounded-lg">✏️</button>
                   <button onClick={() => deleteCat(cat.id, cat.nome)}
@@ -226,6 +279,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                   ) : (
                     <>
                       <span className="text-sm">{sub.nome}</span>
+                      {sub.n_mov > 0 && <span className="text-[10px] px-1.5 py-0.5 bg-neutral-100 text-neutral-500 rounded-full">{sub.n_mov}</span>}
                       <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })}
                         className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
                       <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}

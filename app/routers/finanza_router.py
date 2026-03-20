@@ -822,11 +822,27 @@ def get_albero_categorie(current_user=Depends(get_current_user)):
     result = {"A": [], "F": []}
     for c in cats:
         cd = dict(c)
+        v = c["vista"]
+        col_cat1 = "cat1" if v == "A" else "cat1_fin"
+        col_cat2 = "cat2" if v == "A" else "cat2_fin"
+        # Conteggio movimenti per questa cat1
+        cd["n_mov"] = conn.execute(
+            f"SELECT COUNT(*) c FROM finanza_movimenti WHERE {col_cat1} = ?",
+            (c["nome"],)
+        ).fetchone()["c"]
         subs = conn.execute(
             "SELECT id, nome, ordine FROM finanza_subcat WHERE cat_id = ? ORDER BY ordine, nome",
             (c["id"],)
         ).fetchall()
-        cd["sottocategorie"] = [dict(s) for s in subs]
+        sub_list = []
+        for s in subs:
+            sd = dict(s)
+            sd["n_mov"] = conn.execute(
+                f"SELECT COUNT(*) c FROM finanza_movimenti WHERE {col_cat1} = ? AND {col_cat2} = ?",
+                (c["nome"], s["nome"])
+            ).fetchone()["c"]
+            sub_list.append(sd)
+        cd["sottocategorie"] = sub_list
         result[c["vista"]].append(cd)
     conn.close()
     return result
@@ -876,8 +892,8 @@ def create_fin_subcat(cat_id: int, body: FinSubcatIn, current_user=Depends(get_c
     return {"id": sub_id, "nome": nome, "cat_id": cat_id}
 
 
-@router.put("/albero-categorie/{cat_id}", summary="Rinomina cat1 e propaga su movimenti/regole")
-def rename_fin_cat(cat_id: int, body: FinCatRename, current_user=Depends(get_current_user)):
+@router.put("/albero-categorie/{cat_id}", summary="Rinomina cat1 e propaga su movimenti/regole; merge se esiste già")
+def rename_fin_cat(cat_id: int, body: FinCatRename, merge: bool = Query(False), current_user=Depends(get_current_user)):
     conn = get_db()
     old = conn.execute("SELECT nome, vista FROM finanza_cat WHERE id = ?", (cat_id,)).fetchone()
     if not old:
@@ -887,23 +903,62 @@ def rename_fin_cat(cat_id: int, body: FinCatRename, current_user=Depends(get_cur
     old_nome = old["nome"]
     vista = old["vista"]
 
-    conn.execute("UPDATE finanza_cat SET nome = ? WHERE id = ?", (new_nome, cat_id))
+    if old_nome == new_nome:
+        conn.close()
+        return {"ok": True, "nome": new_nome}
+
+    # Controlla se il nuovo nome esiste già nella stessa vista
+    existing = conn.execute(
+        "SELECT id FROM finanza_cat WHERE nome = ? AND vista = ? AND id != ?",
+        (new_nome, vista, cat_id)
+    ).fetchone()
+
+    merged = False
+    if existing:
+        if not merge:
+            # Chiedi conferma al frontend
+            n_mov = conn.execute(
+                f"SELECT COUNT(*) c FROM finanza_movimenti WHERE {'cat1' if vista == 'A' else 'cat1_fin'} = ?",
+                (old_nome,)
+            ).fetchone()["c"]
+            conn.close()
+            raise HTTPException(
+                409,
+                detail=f'"{old_nome}" verrà unita a "{new_nome}" ({n_mov} movimenti verranno riallineati). Confermi?'
+            )
+        # MERGE: sposta sottocategorie da vecchia a nuova, gestendo duplicati sub
+        target_id = existing["id"]
+        old_subs = conn.execute("SELECT id, nome FROM finanza_subcat WHERE cat_id = ?", (cat_id,)).fetchall()
+        for sub in old_subs:
+            dup_sub = conn.execute(
+                "SELECT id FROM finanza_subcat WHERE cat_id = ? AND nome = ?",
+                (target_id, sub["nome"])
+            ).fetchone()
+            if dup_sub:
+                # Sottocategoria con stesso nome esiste nel target → elimina doppione
+                conn.execute("DELETE FROM finanza_subcat WHERE id = ?", (sub["id"],))
+            else:
+                conn.execute("UPDATE finanza_subcat SET cat_id = ? WHERE id = ?", (target_id, sub["id"]))
+        # Elimina la vecchia categoria
+        conn.execute("DELETE FROM finanza_cat WHERE id = ?", (cat_id,))
+        merged = True
+    else:
+        conn.execute("UPDATE finanza_cat SET nome = ? WHERE id = ?", (new_nome, cat_id))
 
     # Propaga rinomina nei movimenti e regole
-    if old_nome != new_nome:
-        if vista == "A":
-            conn.execute("UPDATE finanza_movimenti SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
-            conn.execute("UPDATE finanza_regole_cat SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
-        else:
-            conn.execute("UPDATE finanza_movimenti SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
-            conn.execute("UPDATE finanza_regole_cat SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
+    if vista == "A":
+        conn.execute("UPDATE finanza_movimenti SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
+        conn.execute("UPDATE finanza_regole_cat SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
+    else:
+        conn.execute("UPDATE finanza_movimenti SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
+        conn.execute("UPDATE finanza_regole_cat SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
     conn.commit()
     conn.close()
-    return {"ok": True, "nome": new_nome}
+    return {"ok": True, "nome": new_nome, "merged": merged}
 
 
-@router.put("/albero-categorie/sotto/{sub_id}", summary="Rinomina cat2 e propaga")
-def rename_fin_subcat(sub_id: int, body: FinCatRename, current_user=Depends(get_current_user)):
+@router.put("/albero-categorie/sotto/{sub_id}", summary="Rinomina cat2 e propaga; merge se esiste già")
+def rename_fin_subcat(sub_id: int, body: FinCatRename, merge: bool = Query(False), current_user=Depends(get_current_user)):
     conn = get_db()
     old = conn.execute(
         "SELECT s.nome, s.cat_id, c.vista, c.nome AS cat_nome "
@@ -916,32 +971,61 @@ def rename_fin_subcat(sub_id: int, body: FinCatRename, current_user=Depends(get_
     new_nome = body.nome.strip().upper()
     old_nome = old["nome"]
     cat_nome = old["cat_nome"]
+    cat_id = old["cat_id"]
     vista = old["vista"]
 
-    conn.execute("UPDATE finanza_subcat SET nome = ? WHERE id = ?", (new_nome, sub_id))
+    if old_nome == new_nome:
+        conn.close()
+        return {"ok": True, "nome": new_nome}
 
-    if old_nome != new_nome:
-        if vista == "A":
-            conn.execute(
-                "UPDATE finanza_movimenti SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
-                (new_nome, cat_nome, old_nome)
+    # Controlla se il nuovo nome esiste già nella stessa cat padre
+    existing = conn.execute(
+        "SELECT id FROM finanza_subcat WHERE cat_id = ? AND nome = ? AND id != ?",
+        (cat_id, new_nome, sub_id)
+    ).fetchone()
+
+    merged = False
+    if existing:
+        if not merge:
+            n_mov = conn.execute(
+                f"SELECT COUNT(*) c FROM finanza_movimenti WHERE "
+                f"{'cat1' if vista == 'A' else 'cat1_fin'} = ? AND "
+                f"{'cat2' if vista == 'A' else 'cat2_fin'} = ?",
+                (cat_nome, old_nome)
+            ).fetchone()["c"]
+            conn.close()
+            raise HTTPException(
+                409,
+                detail=f'"{old_nome}" verrà unita a "{new_nome}" sotto "{cat_nome}" ({n_mov} movimenti verranno riallineati). Confermi?'
             )
-            conn.execute(
-                "UPDATE finanza_regole_cat SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
-                (new_nome, cat_nome, old_nome)
-            )
-        else:
-            conn.execute(
-                "UPDATE finanza_movimenti SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
-                (new_nome, cat_nome, old_nome)
-            )
-            conn.execute(
-                "UPDATE finanza_regole_cat SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
-                (new_nome, cat_nome, old_nome)
-            )
+        # MERGE: elimina il doppione, i movimenti saranno riallineati sotto
+        conn.execute("DELETE FROM finanza_subcat WHERE id = ?", (sub_id,))
+        merged = True
+    else:
+        conn.execute("UPDATE finanza_subcat SET nome = ? WHERE id = ?", (new_nome, sub_id))
+
+    # Propaga rinomina nei movimenti e regole
+    if vista == "A":
+        conn.execute(
+            "UPDATE finanza_movimenti SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
+            (new_nome, cat_nome, old_nome)
+        )
+        conn.execute(
+            "UPDATE finanza_regole_cat SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
+            (new_nome, cat_nome, old_nome)
+        )
+    else:
+        conn.execute(
+            "UPDATE finanza_movimenti SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+            (new_nome, cat_nome, old_nome)
+        )
+        conn.execute(
+            "UPDATE finanza_regole_cat SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+            (new_nome, cat_nome, old_nome)
+        )
     conn.commit()
     conn.close()
-    return {"ok": True, "nome": new_nome}
+    return {"ok": True, "nome": new_nome, "merged": merged}
 
 
 @router.delete("/albero-categorie/{cat_id}", summary="Elimina cat1 e tutte le sue cat2")
