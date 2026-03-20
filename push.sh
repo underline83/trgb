@@ -2,9 +2,9 @@
 # push.sh — Commit, push e deploy sul VPS in un colpo solo
 #
 # Uso:
-#   ./push.sh "messaggio commit"      → deploy rapido (git pull + restart)
-#   ./push.sh "messaggio commit" -f   → deploy completo (pip + npm + restart)
-#   ./push.sh "messaggio commit" -d   → deploy rapido + sync codice su Google Drive
+#   ./push.sh "messaggio commit"      → deploy (via post-receive hook)
+#   ./push.sh "messaggio commit" -f   → deploy + pip install + npm install
+#   ./push.sh "messaggio commit" -d   → deploy + sync codice su Google Drive
 #
 # Remote:
 #   origin → VPS bare repo (deploy)
@@ -49,31 +49,20 @@ if git remote | grep -q github; then
   git push github main 2>/dev/null || echo "⚠️  Push GitHub fallito (non bloccante)"
 fi
 
-# ── Deploy sul server via SSH ────────────────────────────
-echo ""
-
+# ── Deploy extra (solo se -f per pip/npm) ──────────────
+# Il deploy base (git checkout + restart) è gestito dal post-receive hook.
+# Qui facciamo solo pip/npm se richiesto con -f.
 if [[ "$MODE" == "-f" ]]; then
-  echo "🚀 Deploy FULL (git pull + pip + npm + restart)..."
+  echo ""
+  echo "🚀 Deploy FULL (pip + npm)..."
   ssh "$VPS_HOST" "
     set -e
     cd $VPS_DIR
-    git pull
     $VENV/bin/pip install -r requirements.txt -q
     cd $VPS_DIR/frontend && npm install --silent
-    cd $VPS_DIR
     sudo /bin/systemctl restart trgb-backend
     sudo /bin/systemctl restart trgb-frontend
-    echo '✅ Deploy FULL completato'
-  "
-else
-  echo "🚀 Deploy QUICK (git pull + restart)..."
-  ssh "$VPS_HOST" "
-    set -e
-    cd $VPS_DIR
-    git pull
-    sudo /bin/systemctl restart trgb-backend
-    sudo /bin/systemctl restart trgb-frontend
-    echo '✅ Deploy QUICK completato'
+    echo '✅ Deploy FULL completato (pip + npm + restart)'
   "
 fi
 
