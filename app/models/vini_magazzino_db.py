@@ -1414,6 +1414,28 @@ def get_dashboard_stats() -> Dict[str, Any]:
         """
     ).fetchall()
 
+    # Riordini per distributore/rappresentante:
+    # Vini con STATO_RIORDINO in D,O,0 oppure QTA_TOTALE=0 e CARTA='SI'
+    # e ultimo CARICO (se esiste)
+    riordini_per_fornitore = cur.execute(
+        """
+        SELECT
+            v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
+            v.DISTRIBUTORE, v.RAPPRESENTANTE,
+            v.STATO_RIORDINO, v.STATO_VENDITA,
+            v.QTA_TOTALE, v.PREZZO_CARTA, v.EURO_LISTINO,
+            (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
+             WHERE m.vino_id = v.id AND m.tipo = 'CARICO') AS ultimo_carico,
+            (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
+             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita
+        FROM vini_magazzino v
+        WHERE v.STATO_RIORDINO IN ('D', 'O', '0')
+           OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'
+               AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
+        ORDER BY v.DISTRIBUTORE, v.RAPPRESENTANTE, v.DESCRIZIONE;
+        """
+    ).fetchall()
+
     # Distribuzione bottiglie per tipologia
     distribuzione = cur.execute(
         """
@@ -1454,6 +1476,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
         "vini_fermi":                 [dict(r) for r in vini_fermi],
         "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
         "distribuzione_tipologie":    [dict(r) for r in distribuzione],
+        "riordini_per_fornitore":     [dict(r) for r in riordini_per_fornitore],
     }
 
 

@@ -27,6 +27,11 @@ const TIPO_EMOJI = {
 
 const ALERT_COLLAPSED_SHOW = 5;
 
+function fmtNum(val, decimals = 2) {
+  if (val == null) return null;
+  return Number(val).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
 function formatDate(isoStr) {
   if (!isoStr) return "—";
   try {
@@ -160,14 +165,14 @@ export default function DashboardVini() {
     ? [
         {
           label: "Valore acquisto",
-          value: `${((stats.valore_acquisto ?? 0) / 1000).toFixed(1)}k`,
+          value: `${fmtNum((stats.valore_acquisto ?? 0) / 1000, 1)}k`,
           icon: "💰", color: "bg-teal-50 border-teal-200 text-teal-900",
           sub: `${(stats.valore_acquisto ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 0, maximumFractionDigits: 0})} € (listino)`,
           raw: true,
         },
         {
           label: "Valore carta",
-          value: `${((stats.valore_carta ?? 0) / 1000).toFixed(1)}k`,
+          value: `${fmtNum((stats.valore_carta ?? 0) / 1000, 1)}k`,
           icon: "📋", color: "bg-teal-50 border-teal-200 text-teal-900",
           sub: `${(stats.valore_carta ?? 0).toLocaleString("it-IT", {minimumFractionDigits: 0, maximumFractionDigits: 0})} € (prezzi carta)`,
           raw: true,
@@ -345,7 +350,7 @@ export default function DashboardVini() {
                       <td className="px-4 py-2 text-neutral-600">{v.PRODUTTORE || "—"}</td>
                       <td className="px-4 py-2 text-center text-neutral-600">{v.ANNATA || "—"}</td>
                       <td className="px-4 py-2 text-center text-neutral-600">
-                        {v.PREZZO_CARTA != null && v.PREZZO_CARTA !== "" ? `${Number(v.PREZZO_CARTA).toFixed(2)} €` : <span className="text-neutral-400">—</span>}
+                        {v.PREZZO_CARTA != null && v.PREZZO_CARTA !== "" ? `${fmtNum(v.PREZZO_CARTA)} €` : <span className="text-neutral-400">—</span>}
                       </td>
                       <td className="px-4 py-2 text-center font-semibold text-neutral-700">{v.QTA_TOTALE ?? 0} bt</td>
                       <td className="px-4 py-2 text-center text-amber-600 text-xs font-semibold">Apri →</td>
@@ -657,6 +662,127 @@ export default function DashboardVini() {
             </div>
           </div>
         )}
+
+        {/* ── RIORDINI PER DISTRIBUTORE / RAPPRESENTANTE ──── */}
+        {stats?.riordini_per_fornitore?.length > 0 && (() => {
+          // Raggruppa per distributore + rappresentante
+          const grouped = {};
+          stats.riordini_per_fornitore.forEach(v => {
+            const dist = v.DISTRIBUTORE || "—";
+            const rapp = v.RAPPRESENTANTE || "";
+            const key = `${dist}|||${rapp}`;
+            if (!grouped[key]) grouped[key] = { distributore: dist, rappresentante: rapp, vini: [] };
+            grouped[key].vini.push(v);
+          });
+          const groups = Object.values(grouped).sort((a, b) => b.vini.length - a.vini.length);
+
+          // Calcola giorni da una data ISO
+          const giorniDa = (iso) => {
+            if (!iso) return null;
+            const diff = Date.now() - new Date(iso).getTime();
+            return Math.floor(diff / 86400000);
+          };
+
+          const SR_LABELS = { D: "Da ordinare", O: "Finito, ordinare", "0": "Ordinato" };
+          const SR_CLS = {
+            D: "bg-orange-100 text-orange-800 border-orange-200",
+            O: "bg-red-100 text-red-800 border-red-200",
+            "0": "bg-blue-100 text-blue-800 border-blue-200",
+          };
+
+          return (
+            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-200 bg-orange-50">
+                <h2 className="text-sm font-semibold text-orange-900 uppercase tracking-wide">
+                  📦 Riordini per fornitore
+                </h2>
+                <p className="text-xs text-orange-700 mt-0.5">
+                  {stats.riordini_per_fornitore.length} vini da riordinare, raggruppati per distributore/rappresentante.
+                </p>
+              </div>
+
+              <div className="divide-y divide-neutral-200">
+                {groups.map(g => (
+                  <details key={`${g.distributore}-${g.rappresentante}`} className="group">
+                    <summary className="px-6 py-3 cursor-pointer hover:bg-orange-50/50 transition flex items-center justify-between">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-lg">📋</span>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-sm text-neutral-900">{g.distributore}</span>
+                          {g.rappresentante && <span className="text-xs text-neutral-500 ml-2">({g.rappresentante})</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                          {g.vini.length} vini
+                        </span>
+                        <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                      </div>
+                    </summary>
+                    <div className="border-t border-neutral-100 bg-neutral-50/50">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-[10px] text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
+                            <th className="px-4 py-2 text-left">Vino</th>
+                            <th className="px-3 py-2 text-center">Stato</th>
+                            <th className="px-3 py-2 text-center">Giac.</th>
+                            <th className="px-3 py-2 text-center">Listino</th>
+                            <th className="px-3 py-2 text-center">Ult. carico</th>
+                            <th className="px-3 py-2 text-center">Ult. vendita</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {g.vini.map(v => {
+                            const ggCarico = giorniDa(v.ultimo_carico);
+                            const ggVendita = giorniDa(v.ultima_vendita);
+                            return (
+                              <tr key={v.id} className="hover:bg-orange-50/40 cursor-pointer transition"
+                                onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                                <td className="px-4 py-2">
+                                  <div className="font-semibold text-neutral-800">{v.DESCRIZIONE}</div>
+                                  <div className="text-[10px] text-neutral-400">
+                                    {v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {v.STATO_RIORDINO ? (
+                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${SR_CLS[v.STATO_RIORDINO] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
+                                      {SR_LABELS[v.STATO_RIORDINO] || v.STATO_RIORDINO}
+                                    </span>
+                                  ) : (
+                                    <span className="text-red-500 font-semibold text-[10px]">0 bt in carta</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center font-semibold">{v.QTA_TOTALE ?? 0} bt</td>
+                                <td className="px-3 py-2 text-center text-neutral-600">
+                                  {v.EURO_LISTINO ? `${fmtNum(v.EURO_LISTINO)} €` : "—"}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {v.ultimo_carico ? (
+                                    <span className={ggCarico > 90 ? "text-red-600 font-semibold" : ggCarico > 30 ? "text-orange-600" : "text-neutral-600"}>
+                                      {ggCarico}gg fa
+                                    </span>
+                                  ) : <span className="text-neutral-300">mai</span>}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {v.ultima_vendita ? (
+                                    <span className={ggVendita > 90 ? "text-red-600 font-semibold" : ggVendita > 30 ? "text-orange-600" : "text-neutral-600"}>
+                                      {ggVendita}gg fa
+                                    </span>
+                                  ) : <span className="text-neutral-300">mai</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── ACCESSO RAPIDO ───────────────────────────────── */}
         <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-5">

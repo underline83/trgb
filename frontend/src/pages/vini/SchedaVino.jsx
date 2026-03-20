@@ -13,6 +13,12 @@ import {
 import LocationPicker from "./LocationPicker";
 import MatricePicker from "./MatricePicker";
 
+/** Formatta un numero con la virgola come separatore decimale */
+function fmtNum(val, decimals = 2) {
+  if (val == null) return null;
+  return Number(val).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
 const TIPO_LABELS = {
   CARICO:    { label: "Carico",    cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   SCARICO:   { label: "Scarico",   cls: "bg-red-50 text-red-700 border-red-200" },
@@ -545,11 +551,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 </div>
                 <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
                   <div className="text-[8px] uppercase opacity-60 tracking-wider">Prezzo</div>
-                  <div className="text-xl font-bold">{vino.PREZZO_CARTA != null ? `${Number(vino.PREZZO_CARTA).toFixed(0)}` : "—"}<span className="text-xs font-normal opacity-60"> €</span></div>
+                  <div className="text-xl font-bold">{vino.PREZZO_CARTA != null ? fmtNum(vino.PREZZO_CARTA, 0) : "—"}<span className="text-xs font-normal opacity-60"> €</span></div>
                 </div>
                 <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
                   <div className="text-[8px] uppercase opacity-60 tracking-wider">Listino</div>
-                  <div className="text-lg font-bold">{vino.EURO_LISTINO != null ? `${Number(vino.EURO_LISTINO).toFixed(0)}` : "—"}<span className="text-[10px] font-normal opacity-60"> €</span></div>
+                  <div className="text-lg font-bold">{vino.EURO_LISTINO != null ? fmtNum(vino.EURO_LISTINO, 0) : "—"}<span className="text-[10px] font-normal opacity-60"> €</span></div>
                 </div>
                 <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
                   <div className="text-[8px] uppercase opacity-60 tracking-wider">Formato</div>
@@ -611,12 +617,12 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Field label="Distributore" value={vino.DISTRIBUTORE} />
                       <Field label="Rappresentante" value={vino.RAPPRESENTANTE} />
                       <Field label="Vitigni" value={vino.VITIGNI} />
-                      <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${vino.GRADO_ALCOLICO}%` : null} />
+                      <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${fmtNum(vino.GRADO_ALCOLICO, 1)}%` : null} />
                     </div>
                     <div className="grid grid-cols-3 gap-4 pt-3 border-t border-neutral-100">
-                      <Field label="Prezzo carta" value={vino.PREZZO_CARTA != null ? `${Number(vino.PREZZO_CARTA).toFixed(2)} €` : null} />
-                      <Field label="Listino" value={vino.EURO_LISTINO != null ? `${Number(vino.EURO_LISTINO).toFixed(2)} €` : null} />
-                      <Field label="Sconto" value={vino.SCONTO != null ? `${Number(vino.SCONTO).toFixed(2)}%` : null} />
+                      <Field label="Prezzo carta" value={vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA)} €` : null} />
+                      <Field label="Listino" value={vino.EURO_LISTINO != null ? `${fmtNum(vino.EURO_LISTINO)} €` : null} />
+                      <Field label="Sconto" value={vino.SCONTO != null ? `${fmtNum(vino.SCONTO)}%` : null} />
                     </div>
                     <div className="pt-3 border-t border-neutral-100 space-y-2">
                       <div className="flex flex-wrap gap-2">
