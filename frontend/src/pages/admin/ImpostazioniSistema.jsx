@@ -49,6 +49,7 @@ export default function ImpostazioniSistema() {
           {[
             { key: "utenti",  label: "👤 Utenti" },
             { key: "moduli",  label: "🔐 Moduli & Permessi" },
+            { key: "backup",  label: "💾 Backup" },
           ].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition
@@ -61,6 +62,7 @@ export default function ImpostazioniSistema() {
         {/* CONTENUTO */}
         {tab === "utenti" && <TabUtenti currentUsername={currentUsername} />}
         {tab === "moduli" && <TabModuli />}
+        {tab === "backup" && <TabBackup />}
       </div>
     </div>
   );
@@ -455,5 +457,157 @@ function TabModuli() {
         {saved && <span className="text-green-600 text-sm font-medium">✓ Salvato</span>}
       </div>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB BACKUP
+// ---------------------------------------------------------------------------
+function TabBackup() {
+  const [info, setInfo] = useState(null);
+  const [backups, setBackups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadingFile, setDownloadingFile] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+    try {
+      const [infoRes, listRes] = await Promise.all([
+        apiFetch(`${API_BASE}/backup/info`),
+        apiFetch(`${API_BASE}/backup/list`),
+      ]);
+      if (!infoRes.ok || !listRes.ok) throw new Error("Errore nel caricamento");
+      setInfo(await infoRes.json());
+      const listData = await listRes.json();
+      setBackups(listData.backups || []);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  async function handleDownloadNow() {
+    setDownloading(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await apiFetch(`${API_BASE}/backup/download`);
+      if (!res.ok) throw new Error("Errore durante il backup");
+      const blob = await res.blob();
+      const filename = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1]
+        || `trgb-backup-${new Date().toISOString().slice(0,16).replace(/[T:]/g, "-")}.tar.gz`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setSuccess("Backup scaricato!");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (e) { setError(e.message); }
+    finally { setDownloading(false); }
+  }
+
+  async function handleDownloadDaily(filename) {
+    setDownloadingFile(filename);
+    setError("");
+    try {
+      const res = await apiFetch(`${API_BASE}/backup/download/${filename}`);
+      if (!res.ok) throw new Error("Errore nel download");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { setError(e.message); }
+    finally { setDownloadingFile(null); }
+  }
+
+  if (loading) return <p className="text-center text-neutral-400 py-12">Caricamento...</p>;
+  if (error && !info) return <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4">{error}</div>;
+
+  return (
+    <div className="space-y-8">
+
+      {/* STATO DATABASE */}
+      {info && (
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-800 mb-3">Database attivi</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {info.databases.filter(d => d.exists).map((db) => (
+              <div key={db.name} className="flex items-center justify-between bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
+                <span className="text-sm font-medium text-neutral-700">{db.name}</span>
+                <span className="text-xs text-neutral-500">{db.size_mb} MB</span>
+              </div>
+            ))}
+          </div>
+          {info.last_backup && (
+            <p className="text-xs text-neutral-400 mt-3">
+              Ultimo backup automatico: <strong>{info.last_backup.date}</strong> ({info.last_backup.size_mb} MB)
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* DOWNLOAD ISTANTANEO */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-neutral-800 mb-2">Scarica backup adesso</h3>
+        <p className="text-sm text-neutral-600 mb-4">
+          Crea un backup fresco di tutti i database e scaricalo sul tuo computer.
+        </p>
+        <button onClick={handleDownloadNow} disabled={downloading}
+          className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 disabled:opacity-50 shadow transition">
+          {downloading ? "Preparazione backup..." : "💾 Scarica backup completo"}
+        </button>
+        {success && <p className="text-green-600 text-sm font-medium mt-3">{success}</p>}
+        {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
+      </div>
+
+      {/* LISTA BACKUP GIORNALIERI */}
+      {backups.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-800 mb-3">Backup giornalieri sul server</h3>
+          <div className="overflow-x-auto rounded-xl border border-neutral-200">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 border-b border-neutral-200">
+                <tr>
+                  <th className="text-left px-5 py-3 font-semibold text-neutral-600">Data</th>
+                  <th className="text-right px-5 py-3 font-semibold text-neutral-600">Dimensione</th>
+                  <th className="text-right px-5 py-3 font-semibold text-neutral-600"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {backups.slice(0, 10).map((b) => (
+                  <tr key={b.filename} className="border-b border-neutral-100 hover:bg-neutral-50">
+                    <td className="px-5 py-3 text-neutral-800">{b.date}</td>
+                    <td className="px-5 py-3 text-right text-neutral-500">{b.size_mb} MB</td>
+                    <td className="px-5 py-3 text-right">
+                      <button onClick={() => handleDownloadDaily(b.filename)}
+                        disabled={downloadingFile === b.filename}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition disabled:opacity-50">
+                        {downloadingFile === b.filename ? "..." : "Scarica"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {backups.length > 10 && (
+            <p className="text-xs text-neutral-400 mt-2">Mostrati i 10 backup più recenti su {backups.length} totali.</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
