@@ -1,4 +1,4 @@
-// @version: v2.0-vini-nav
+// @version: v2.1-ipratico-nav
 // Tab navigation persistente per la sezione vini
 // Impostazioni visibile solo per admin e sommelier
 import React from "react";
@@ -9,6 +9,7 @@ const TABS = [
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
   { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
   { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
+  { key: "ipratico", label: "iPratico", path: "/vini/ipratico", icon: "🔄", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
 

@@ -58,6 +58,9 @@ from app.routers import backup_router
 # PRICING — calcolo automatico PREZZO_CARTA
 from app.routers import vini_pricing_router
 
+# IPRATICO PRODUCTS — sync prodotti iPratico ↔ vini TRGB
+from app.routers import ipratico_products_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -198,6 +201,7 @@ app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 # BACKUP
 app.include_router(backup_router.router)
 app.include_router(vini_pricing_router.router)
+app.include_router(ipratico_products_router.router)
 
 
 # ----------------------------------------

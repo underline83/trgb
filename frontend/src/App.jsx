@@ -1,4 +1,4 @@
-// @version: v3.9-finanza-impostazioni
+// @version: v4.0-ipratico-sync
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -27,6 +27,9 @@ import RegistroMovimenti from "./pages/vini/RegistroMovimenti";
 
 // --- DASHBOARD VINI ---
 import DashboardVini from "./pages/vini/DashboardVini";
+
+// --- IPRATICO SYNC ---
+import IPraticoSync from "./pages/vini/iPraticoSync";
 
 // --- GESTIONE RICETTE & FOOD COST ---
 import RicetteMenu from "./pages/ricette/RicetteMenu";
@@ -132,6 +135,7 @@ export default function App() {
 
         {/* --- DASHBOARD VINI --- */}
         <Route path="/vini/dashboard" element={<DashboardVini />} />
+        <Route path="/vini/ipratico" element={<IPraticoSync />} />
 
         {/* --- GESTIONE RICETTE & FOOD COST --- */}
         <Route path="/ricette" element={<RicetteMenu />} />
