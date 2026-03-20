@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-16 (sessione 10 — Cantina & Vini v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar)
+> Ultima sessione: 2026-03-20 (sessione 11 — Infrastruttura: backup, sicurezza, multi-PC, Google Drive)
 
 ---
 
@@ -15,7 +15,46 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-16, sessione 10)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-20, sessione 11)
+
+### Infrastruttura: backup, sicurezza, multi-PC, Google Drive
+
+#### Autosave & fix frontend
+1. **ChiusuraTurno.jsx** — completato autosave localStorage: restoreDraft() su 404, clearDraft() dopo save, banner info "Bozza ripristinata"
+2. **ChiusureTurnoLista.jsx** — fix formula quadratura: ora calcola correttamente `entrate - giustificato` con tutti i campi (fondo cassa, preconti, spese, fatture). Label cambiata da "Diff" a "Quadr." con tooltip
+
+#### VPS Recovery & Sicurezza
+3. **Accesso VPS** — risolto blocco SSH (IP bannato da fail2ban), reset password via GRUB recovery, riconfigurazione chiavi SSH
+4. **fail2ban** — configurato: whitelist reti private, bantime 10 minuti
+5. **Backup automatico** — `backup.sh` + cron notturno alle 3:00, 5 database, retention 30 giorni
+
+#### Git & Deploy
+6. **Architettura Git ibrida** — `origin` → VPS bare repo (deploy automatico), `github` → GitHub (backup codice)
+7. **push.sh** riscritto — commit + push VPS + push GitHub in un colpo, con alias SSH `trgb`
+8. **Server working directory** — corretto remote da GitHub a bare repo locale
+9. **setup-backup-and-security.sh** — script one-time per configurare cron + fail2ban
+
+#### Multi-PC
+10. **Windows configurato** — chiave SSH ed25519, alias `trgb` in SSH config, repo clonato con remote origin + github, VS Code funzionante con Git Bash
+
+#### Backup download dall'app
+11. **backup_router.py** (NUOVO) — endpoint API per download backup on-demand, lista backup giornalieri, info stato DB
+12. **ImpostazioniSistema.jsx** — aggiunto tab "Backup" con download istantaneo, lista backup giornalieri scaricabili, stato database
+
+#### Google Drive
+13. **rclone** installato e configurato sul VPS (v1.73.2, OAuth con Google Drive)
+14. **backup.sh aggiornato** — dopo compressione, upload automatico su `TRGB-Backup/` via rclone
+15. **Copia completa app** su Google Drive in `TRGB-Backup/app-code/`
+16. **Script** copiati in `TRGB-Backup/scripts/`
+
+#### Documentazione
+17. **deploy.md** — aggiornato con Google Drive, download dall'app, path Windows corretto
+18. **GUIDA-RAPIDA.md** — aggiunta sezione Drive, sincronizzazione PC, tabella postazioni
+19. **sessione.md** — aggiornamento completo (questo file)
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-16, sessione 10)
 
 ### Cantina & Vini v4.0 — filtro unificato, stampa selezionati, SchedaVino sidebar
 
@@ -25,93 +64,49 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 #### Frontend
 2. **MagazzinoVini.jsx** v4.0 — **filtro locazioni unificato**: 8 state vars e 6 select cascading sostituiti con 2 dropdown (Locazione + Spazio), logica di filtro cross-colonna su tutte e 4 le colonne DB
 3. **handlePrintSelection()** — entrambi i pulsanti "Stampa selezionati" ora chiamano direttamente il nuovo endpoint POST (fetch+blob+createObjectURL), senza aprire StampaFiltrata
-4. **SchedaVino.jsx** v5.0 — layout completamente riscritto da scroll verticale a **sidebar+main** con CSS grid `grid-cols-[260px_1fr]`:
-   - Sidebar (260px): gradiente dinamico per TIPOLOGIA (ROSSI=rosso, BIANCHI=ambra, BOLLICINE=giallo, ROSATI=rosa, ecc.), nome vino, badge #id, 4 stat box, lista info, pulsanti azione
-   - Main: area scrollabile con sezioni Anagrafica, Giacenze, Movimenti, Note
+4. **SchedaVino.jsx** v5.0 — layout completamente riscritto da scroll verticale a **sidebar+main** con CSS grid `grid-cols-[260px_1fr]`
 5. **Mappa `TIPOLOGIA_SIDEBAR`** — 8 gradients che corrispondono ai colori categoria della tabella MagazzinoVini
 
-#### Note
-- StampaFiltrata mantiene i propri filtri per-locazione separati (server-side) — è intenzionale
-- Modifiche non ancora testate nel browser
-
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-15c, sessione 9)
+## Sessioni precedenti (3-9)
 
-### Modulo Statistiche v1.0 — import iPratico + analytics vendite
-1. Migration 018, parser iPratico, router Statistiche (7 endpoint)
-2. 5 componenti frontend: Menu, Nav, Dashboard, Prodotti, Import
-3. Route, modules.json, versions.jsx, Home tile
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-15b, sessione 8)
-
-### Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti
-1. Eliminata `_load_vini_cantina_ordinati()`, loader unificato
-2. DOCX con tabelle senza bordi a 3 colonne
-3. Fix `delete_movimento()` con inversione del delta
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-15, sessione 7)
-
-### Eliminazione vecchio DB vini.sqlite3 + fix carta PDF/HTML
-1. `vini_router.py` v3.0, `vini_cantina_tools_router.py` v3.0 — rimosso vecchio DB
-2. `ViniCarta.jsx` v3.3 — rimosso tasto import Excel, carta legge da magazzino
-3. `carta_html.css` v3.1 + `carta_pdf.css` v3.1 — allineamento stili, fix page-break
-4. Documentazione aggiornata (7 file)
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-14, sessione 6)
-
-### Chiusure Turno — modulo completo + Cambio PIN
-1. Modulo Chiusure Turno completo (backend + frontend + DB)
-2. Cambio PIN self-service + reset admin
-3. Documentazione aggiornata
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-14a, sessione 5c)
-
-### Cantina & Vini v3.7
-1. Filtri locazione gerarchici (cascading) — 3 gruppi con 6 select
-2. Dashboard KPI valore acquisto/carta + liste espandibili
-3. Modifica massiva ordinabile con dropdown locazioni configurate
-
----
-
-## Cosa abbiamo fatto nella sessione precedente (2026-03-13, sessione 5b)
-
-### Modulo Banca v1.0 + Conversioni unita' + Smart Create UX
-1. Modulo Banca completo (migration 014, banca_router.py, 7 pagine frontend)
-2. Conversioni unita' personalizzate per ingrediente (migration 013)
-3. Smart Create UX: select/deselect all, default tutti deselezionati
+| # | Data | Tema |
+|---|------|------|
+| 9 | 2026-03-15c | Modulo Statistiche v1.0 — import iPratico + analytics vendite |
+| 8 | 2026-03-15b | Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti |
+| 7 | 2026-03-15 | Eliminazione vecchio DB vini.sqlite3 + fix carta PDF/HTML |
+| 6 | 2026-03-14 | Chiusure Turno — modulo completo + Cambio PIN |
+| 5c | 2026-03-14a | Cantina & Vini v3.7 — filtri locazione gerarchici |
+| 5b | 2026-03-13 | Modulo Banca v1.0 + Conversioni unita' + Smart Create UX |
 
 ---
 
 ## Stato attuale del codice — cose critiche da sapere
 
-### Modulo Chiusure Turno (NUOVO)
+### Backup & Sicurezza (CONFIGURATO)
+- **Backup notturno** alle 3:00 → `/home/marco/trgb/backups/` + upload Google Drive (`TRGB-Backup/`)
+- **Download dall'app**: Admin → Impostazioni → tab Backup
+- **fail2ban**: whitelist reti private, bantime 10 minuti
+- **Snapshot Aruba**: da configurare settimanalmente dal pannello
+
+### Git & Deploy (CONFIGURATO)
+- **Mac** (`~/trgb`): origin=VPS, github=GitHub, push.sh
+- **Windows** (`C:\Users\mcarm\trgb`): origin=VPS, github=GitHub
+- **VPS**: bare repo + post-receive hook per deploy automatico
+- **Flusso**: `./push.sh "msg"` oppure `git push origin main && git push github main`
+
+### Modulo Chiusure Turno
 - **Backend**: `chiusure_turno.py` con endpoint POST/GET per chiusure + pre-conti + spese
-- **Frontend**: `ChiusuraTurno.jsx` (form), `ChiusureTurnoLista.jsx` (lista admin)
+- **Frontend**: `ChiusuraTurno.jsx` (form con autosave localStorage), `ChiusureTurnoLista.jsx` (lista admin con quadratura corretta)
 - **DB**: `admin_finance.sqlite3` con tabelle shift_closures, shift_preconti, shift_spese
-- **Logica cena**: staff inserisce totali giornalieri, sistema sottrae pranzo per parziali
 
 ### Cambio PIN
 - **Frontend**: `CambioPIN.jsx` a `/cambio-pin`
 - **Backend**: usa endpoint esistente `PUT /auth/users/{username}/password`
-- **Header**: icona chiave per accesso rapido
-
-### NON ANCORA TESTATO IN PRODUZIONE
-Chiusure Turno e Cambio PIN sono committati ma non ancora deployati e testati.
 
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
-
-### `.env` non esiste sul VPS
-Il file `.env` con `SECRET_KEY` e' stato creato in locale (gitignored). Sul VPS va creato manualmente.
 
 ---
 
@@ -130,7 +125,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Finanza | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v4.3 | stabile |
+| Sistema | v4.4 | stabile |
 
 ---
 
@@ -145,18 +140,19 @@ Vai su `docs/roadmap.md` per la lista completa.
 | 25 | Sistema permessi centralizzato | TODO |
 | 28 | Riconciliazione banca migliorata | Da fare |
 | 17 | Flag DISCONTINUATO UI per vini | Da fare |
+| 29 | DNS dinamico rete casa (DDNS) | In standby |
+| 30 | Snapshot Aruba settimanale | Da configurare |
 
 ---
 
 ## Prossima sessione — TODO
 
-1. **Test SchedaVino sidebar+main** — verificare rendering, colori tipologia, responsive, edit mode
-2. **Test filtro locazioni unificato** — verificare che il filtro cross-colonna funzioni correttamente
-3. **Test stampa selezionati** — verificare generazione PDF e apertura in nuovo tab
-4. **Aggiornare versions.jsx** — bumpa Cantina & Vini a v4.0
-5. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-6. **Sistema design/tema centralizzato** — Marco ha chiesto ma rimandato a dopo il dettaglio vino
-7. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
+1. **Configurare snapshot Aruba settimanale** dal pannello
+2. **DNS dinamico casa** (DDNS) — rimandato, opzione "Personalizzare" su TIM Hub+ con endpoint VPS
+3. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
+4. **Test SchedaVino sidebar+main** — verificare rendering, colori tipologia, responsive
+5. **Test filtro locazioni unificato** — verificare filtro cross-colonna
+6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
@@ -167,10 +163,15 @@ main.py                                — entry point, include tutti i router
 app/services/auth_service.py           — auth PIN sha256_crypt
 app/data/users.json                    — store utenti (marco/iryna/paolo/ospite)
 
+# --- BACKUP ---
+app/routers/backup_router.py           — download backup on-demand, lista, info
+backup.sh                              — backup notturno + upload Google Drive
+setup-backup-and-security.sh           — setup cron + fail2ban (one-time)
+
 # --- CHIUSURE TURNO ---
 app/routers/chiusure_turno.py          — backend, prefix /chiusure-turno
-frontend/src/pages/admin/ChiusuraTurno.jsx  — form fine servizio
-frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin
+frontend/src/pages/admin/ChiusuraTurno.jsx  — form fine servizio (con autosave)
+frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin (quadratura corretta)
 
 # --- VINI ---
 app/routers/vini_router.py               — carta vini + movimenti (v3.0, solo magazzino)
@@ -197,6 +198,9 @@ app/routers/banca_router.py              — movimenti, dashboard, categorie, cr
 app/routers/admin_finance.py              — corrispettivi legacy
 frontend/src/pages/admin/VenditeNav.jsx   — navigazione
 
+# --- IMPOSTAZIONI ---
+frontend/src/pages/admin/ImpostazioniSistema.jsx — tab Utenti + Moduli + Backup
+
 # --- FRONTEND ---
 frontend/src/App.jsx                   — tutte le route (50+)
 frontend/src/config/api.js             — API_BASE + apiFetch()
@@ -218,6 +222,12 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 
+### Backup database
+- **Automatico**: ogni notte alle 3:00 → `/home/marco/trgb/backups/` + Google Drive `TRGB-Backup/`
+- **Manuale da app**: Admin → Impostazioni → tab Backup
+- **Manuale da CLI**: `ssh trgb "/home/marco/trgb/trgb/backup.sh"`
+- **Retention**: 30 giorni (locale + Drive)
+
 ---
 
 ## Deploy — PROCEDURA OBBLIGATORIA
@@ -231,7 +241,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 ```
 
 ### NOTA: Claude NON puo' eseguire push.sh
-Lo script richiede accesso SSH al VPS. Marco deve lanciarlo dal terminale del Mac.
+Lo script richiede accesso SSH al VPS. Marco deve lanciarlo dal terminale del Mac o Windows.
 
 ---
 

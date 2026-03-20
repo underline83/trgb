@@ -15,6 +15,10 @@ ssh trgb
 ```bash
 ssh trgb "/home/marco/trgb/trgb/backup.sh"
 ```
+Il backup viene anche caricato automaticamente su Google Drive (cartella `TRGB-Backup`).
+
+## Download backup dall'app
+Admin → Impostazioni → tab **Backup** → "Scarica backup completo"
 
 ## Vedere log servizi
 ```bash
@@ -73,3 +77,25 @@ ssh trgb              # deve entrare senza password
 git remote -v         # origin=VPS, github=GitHub
 ./push.sh             # deve fare deploy
 ```
+
+---
+
+## Sincronizzare tra Mac e Windows
+```bash
+git pull origin main     # SEMPRE prima di iniziare a lavorare sull'altro PC
+```
+
+## Google Drive (backup off-site)
+```bash
+# Verifica backup su Drive
+ssh trgb "rclone ls gdrive:TRGB-Backup/ --max-depth 1"
+
+# Upload manuale
+ssh trgb "rclone copy /home/marco/trgb/backups/NOMEFILE.tar.gz gdrive:TRGB-Backup/"
+```
+
+## Postazioni configurate
+| PC | Cartella | SSH config |
+|----|----------|------------|
+| Mac (underline83) | `~/trgb` | `~/.ssh/config` con alias `trgb` |
+| Windows (mcarm) | `C:\Users\mcarm\trgb` | `C:\Users\mcarm\.ssh\config` con alias `trgb` |

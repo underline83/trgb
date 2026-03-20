@@ -4,6 +4,7 @@
 # Uso:
 #   ./push.sh "messaggio commit"      → deploy rapido (git pull + restart)
 #   ./push.sh "messaggio commit" -f   → deploy completo (pip + npm + restart)
+#   ./push.sh "messaggio commit" -d   → deploy rapido + sync codice su Google Drive
 #
 # Remote:
 #   origin → VPS bare repo (deploy)
@@ -74,4 +75,21 @@ else
     sudo /bin/systemctl restart trgb-frontend
     echo '✅ Deploy QUICK completato'
   "
+fi
+
+# ── Sync su Google Drive (opzionale con -d) ────────────
+if [[ "$MODE" == "-d" ]] || [[ "${3:-}" == "-d" ]]; then
+  echo ""
+  echo "☁️ Sync codice su Google Drive..."
+  ssh "$VPS_HOST" "
+    rclone sync $VPS_DIR gdrive:TRGB-Backup/app-code/ \
+      --exclude '.git/**' \
+      --exclude 'node_modules/**' \
+      --exclude 'venv/**' \
+      --exclude '__pycache__/**' \
+      --exclude '*.pyc' \
+      --config /home/marco/.config/rclone/rclone.conf \
+      2>&1
+  " && echo "  ✅ Codice sincronizzato su Drive" \
+    || echo "  ⚠️ Sync Drive fallito (non bloccante)"
 fi

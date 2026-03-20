@@ -19,7 +19,7 @@ Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 | **Backend porta interna** | `8000` |
 | **Frontend porta interna** | `5173` |
 | **Repo git locale (Mac)** | `~/trgb` |
-| **Repo git locale (Win)** | `C:\Users\mcarm\progetti\trgb` |
+| **Repo git locale (Win)** | `C:\Users\mcarm\trgb` |
 | **Repo git VPS (working dir)** | `/home/marco/trgb/trgb` |
 | **Repo git VPS (bare server)** | `/home/marco/trgb/trgb.git` |
 
@@ -267,6 +267,7 @@ Il percorso nel sudoers deve corrispondere esattamente all'output di `which syst
 
 Lo script `backup.sh` viene eseguito ogni notte alle 3:00 via cron.
 Salva tutti i database SQLite in `/home/marco/trgb/backups/` con retention 30 giorni.
+Dopo la compressione, il backup viene **caricato automaticamente su Google Drive** (cartella `TRGB-Backup`) via rclone.
 
 ```bash
 # Backup manuale
@@ -279,12 +280,36 @@ ls -la /home/marco/trgb/backups/
 cat /home/marco/trgb/backups/backup.log
 ```
 
-## 10.2 Snapshot Aruba (settimanale)
+## 10.2 Download backup dall'app web
+
+Admin → Impostazioni → tab **Backup**:
+- "Scarica backup completo" → crea backup fresco al volo e lo scarica sul PC
+- Lista backup giornalieri → scarica un backup specifico dal server
+
+Endpoint API: `GET /backup/download` (backup istantaneo), `GET /backup/list` (lista), `GET /backup/download/{filename}` (specifico), `GET /backup/info` (stato DB).
+
+## 10.3 Google Drive (backup off-site)
+
+I backup vengono caricati automaticamente su Google Drive nella cartella `TRGB-Backup` via rclone.
+Anche gli script principali (`backup.sh`, `push.sh`, `setup-backup-and-security.sh`) sono copiati in `TRGB-Backup/scripts/`.
+
+```bash
+# Verifica configurazione rclone
+rclone ls gdrive:TRGB-Backup/ --max-depth 1
+
+# Upload manuale di un file
+rclone copy /path/to/file gdrive:TRGB-Backup/
+
+# Config rclone
+cat ~/.config/rclone/rclone.conf
+```
+
+## 10.4 Snapshot Aruba (settimanale)
 
 Dal pannello Aruba Cloud → VPS → Gestisci → Snapshot.
 Salva un'immagine completa del disco. Consigliato: 1 snapshot settimanale.
 
-## 10.3 Fail2ban
+## 10.5 Fail2ban
 
 SSH è protetto da fail2ban. Se il tuo IP viene bannato:
 ```bash
@@ -298,7 +323,7 @@ sudo fail2ban-client status sshd
 
 Reti private sono in whitelist. Bantime: 10 minuti.
 
-## 10.4 Setup iniziale backup e sicurezza
+## 10.6 Setup iniziale backup e sicurezza
 
 ```bash
 sudo bash /home/marco/trgb/trgb/setup-backup-and-security.sh
