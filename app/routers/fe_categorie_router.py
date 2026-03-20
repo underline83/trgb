@@ -212,6 +212,62 @@ def delete_sottocategoria(sub_id: int):
     return {"ok": True}
 
 
+class SpostaSottocategoria(BaseModel):
+    new_categoria_id: int
+
+@router.post("/sotto/{sub_id}/sposta", summary="Sposta sottocategoria sotto un'altra categoria")
+def sposta_sottocategoria(sub_id: int, body: SpostaSottocategoria):
+    """Sposta una sottocategoria sotto un'altra categoria padre.
+    Aggiorna tutti i mapping fornitori e prodotti che la usavano."""
+    conn = _get_conn()
+    cur = conn.cursor()
+
+    # Verifica che la sottocategoria esista
+    sub = cur.execute("SELECT id, nome, categoria_id FROM fe_sottocategorie WHERE id = ?", (sub_id,)).fetchone()
+    if not sub:
+        conn.close()
+        raise HTTPException(404, "Sottocategoria non trovata")
+
+    # Verifica che la nuova categoria esista
+    new_cat = cur.execute("SELECT id FROM fe_categorie WHERE id = ?", (body.new_categoria_id,)).fetchone()
+    if not new_cat:
+        conn.close()
+        raise HTTPException(404, "Categoria destinazione non trovata")
+
+    old_cat_id = sub["categoria_id"]
+
+    # Sposta la sottocategoria
+    cur.execute(
+        "UPDATE fe_sottocategorie SET categoria_id = ? WHERE id = ?",
+        (body.new_categoria_id, sub_id)
+    )
+
+    # Aggiorna mapping fornitori che avevano la vecchia combinazione
+    cur.execute(
+        "UPDATE fe_fornitore_categoria SET categoria_id = ? "
+        "WHERE categoria_id = ? AND sottocategoria_id = ?",
+        (body.new_categoria_id, old_cat_id, sub_id)
+    )
+
+    # Aggiorna mapping prodotti
+    cur.execute(
+        "UPDATE fe_prodotto_categoria_map SET categoria_id = ? "
+        "WHERE categoria_id = ? AND sottocategoria_id = ?",
+        (body.new_categoria_id, old_cat_id, sub_id)
+    )
+
+    # Aggiorna righe fatture
+    cur.execute(
+        "UPDATE fe_righe SET categoria_id = ? "
+        "WHERE categoria_id = ? AND sottocategoria_id = ?",
+        (body.new_categoria_id, old_cat_id, sub_id)
+    )
+
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
 # ─── MAPPING FORNITORE → CATEGORIA ─────────────────────────────
 
 @router.get("/fornitori", summary="Lista fornitori con categoria assegnata")

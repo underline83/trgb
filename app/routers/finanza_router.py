@@ -795,3 +795,219 @@ def get_non_categorizzati(
     """, (limit,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ALBERO CATEGORIE FINANZA (cat1 → cat2, analitiche + finanziarie)
+# ═══════════════════════════════════════════════════════════════════
+
+class FinCatIn(BaseModel):
+    nome: str
+    vista: str  # 'A' o 'F'
+
+class FinSubcatIn(BaseModel):
+    nome: str
+
+class FinCatRename(BaseModel):
+    nome: str
+
+class FinSubcatMove(BaseModel):
+    new_cat_id: int
+
+
+@router.get("/albero-categorie", summary="Albero categorie finanza (A=analitico, F=finanziario)")
+def get_albero_categorie(current_user=Depends(get_current_user)):
+    conn = get_db()
+    cats = conn.execute("SELECT id, nome, vista, ordine FROM finanza_cat ORDER BY vista, ordine, nome").fetchall()
+    result = {"A": [], "F": []}
+    for c in cats:
+        cd = dict(c)
+        subs = conn.execute(
+            "SELECT id, nome, ordine FROM finanza_subcat WHERE cat_id = ? ORDER BY ordine, nome",
+            (c["id"],)
+        ).fetchall()
+        cd["sottocategorie"] = [dict(s) for s in subs]
+        result[c["vista"]].append(cd)
+    conn.close()
+    return result
+
+
+@router.post("/albero-categorie", summary="Crea cat1 finanza")
+def create_fin_cat(body: FinCatIn, current_user=Depends(get_current_user)):
+    if body.vista not in ("A", "F"):
+        raise HTTPException(400, "vista deve essere 'A' o 'F'")
+    conn = get_db()
+    nome = body.nome.strip().upper()
+    try:
+        cur = conn.execute(
+            "INSERT INTO finanza_cat (nome, vista, ordine) VALUES (?, ?, "
+            "(SELECT COALESCE(MAX(ordine),0)+1 FROM finanza_cat WHERE vista = ?))",
+            (nome, body.vista, body.vista)
+        )
+        conn.commit()
+        cat_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(400, detail=f"Categoria '{nome}' esiste già per questa vista")
+    conn.close()
+    return {"id": cat_id, "nome": nome, "vista": body.vista}
+
+
+@router.post("/albero-categorie/{cat_id}/sotto", summary="Crea cat2 sotto una cat1")
+def create_fin_subcat(cat_id: int, body: FinSubcatIn, current_user=Depends(get_current_user)):
+    conn = get_db()
+    parent = conn.execute("SELECT id, nome, vista FROM finanza_cat WHERE id = ?", (cat_id,)).fetchone()
+    if not parent:
+        conn.close()
+        raise HTTPException(404, "Categoria padre non trovata")
+    nome = body.nome.strip().upper()
+    try:
+        cur = conn.execute(
+            "INSERT INTO finanza_subcat (cat_id, nome, ordine) VALUES (?, ?, "
+            "(SELECT COALESCE(MAX(ordine),0)+1 FROM finanza_subcat WHERE cat_id = ?))",
+            (cat_id, nome, cat_id)
+        )
+        conn.commit()
+        sub_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(400, detail=f"Sottocategoria '{nome}' esiste già in questa categoria")
+    conn.close()
+    return {"id": sub_id, "nome": nome, "cat_id": cat_id}
+
+
+@router.put("/albero-categorie/{cat_id}", summary="Rinomina cat1 e propaga su movimenti/regole")
+def rename_fin_cat(cat_id: int, body: FinCatRename, current_user=Depends(get_current_user)):
+    conn = get_db()
+    old = conn.execute("SELECT nome, vista FROM finanza_cat WHERE id = ?", (cat_id,)).fetchone()
+    if not old:
+        conn.close()
+        raise HTTPException(404, "Categoria non trovata")
+    new_nome = body.nome.strip().upper()
+    old_nome = old["nome"]
+    vista = old["vista"]
+
+    conn.execute("UPDATE finanza_cat SET nome = ? WHERE id = ?", (new_nome, cat_id))
+
+    # Propaga rinomina nei movimenti e regole
+    if old_nome != new_nome:
+        if vista == "A":
+            conn.execute("UPDATE finanza_movimenti SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
+            conn.execute("UPDATE finanza_regole_cat SET cat1 = ? WHERE cat1 = ?", (new_nome, old_nome))
+        else:
+            conn.execute("UPDATE finanza_movimenti SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
+            conn.execute("UPDATE finanza_regole_cat SET cat1_fin = ? WHERE cat1_fin = ?", (new_nome, old_nome))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "nome": new_nome}
+
+
+@router.put("/albero-categorie/sotto/{sub_id}", summary="Rinomina cat2 e propaga")
+def rename_fin_subcat(sub_id: int, body: FinCatRename, current_user=Depends(get_current_user)):
+    conn = get_db()
+    old = conn.execute(
+        "SELECT s.nome, s.cat_id, c.vista, c.nome AS cat_nome "
+        "FROM finanza_subcat s JOIN finanza_cat c ON s.cat_id = c.id WHERE s.id = ?",
+        (sub_id,)
+    ).fetchone()
+    if not old:
+        conn.close()
+        raise HTTPException(404, "Sottocategoria non trovata")
+    new_nome = body.nome.strip().upper()
+    old_nome = old["nome"]
+    cat_nome = old["cat_nome"]
+    vista = old["vista"]
+
+    conn.execute("UPDATE finanza_subcat SET nome = ? WHERE id = ?", (new_nome, sub_id))
+
+    if old_nome != new_nome:
+        if vista == "A":
+            conn.execute(
+                "UPDATE finanza_movimenti SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
+                (new_nome, cat_nome, old_nome)
+            )
+            conn.execute(
+                "UPDATE finanza_regole_cat SET cat2 = ? WHERE cat1 = ? AND cat2 = ?",
+                (new_nome, cat_nome, old_nome)
+            )
+        else:
+            conn.execute(
+                "UPDATE finanza_movimenti SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+                (new_nome, cat_nome, old_nome)
+            )
+            conn.execute(
+                "UPDATE finanza_regole_cat SET cat2_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+                (new_nome, cat_nome, old_nome)
+            )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "nome": new_nome}
+
+
+@router.delete("/albero-categorie/{cat_id}", summary="Elimina cat1 e tutte le sue cat2")
+def delete_fin_cat(cat_id: int, current_user=Depends(get_current_user)):
+    conn = get_db()
+    conn.execute("DELETE FROM finanza_subcat WHERE cat_id = ?", (cat_id,))
+    conn.execute("DELETE FROM finanza_cat WHERE id = ?", (cat_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.delete("/albero-categorie/sotto/{sub_id}", summary="Elimina una cat2")
+def delete_fin_subcat(sub_id: int, current_user=Depends(get_current_user)):
+    conn = get_db()
+    conn.execute("DELETE FROM finanza_subcat WHERE id = ?", (sub_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.post("/albero-categorie/sotto/{sub_id}/sposta", summary="Sposta cat2 sotto un'altra cat1")
+def move_fin_subcat(sub_id: int, body: FinSubcatMove, current_user=Depends(get_current_user)):
+    conn = get_db()
+    old = conn.execute(
+        "SELECT s.nome, s.cat_id, c.vista, c.nome AS old_cat_nome "
+        "FROM finanza_subcat s JOIN finanza_cat c ON s.cat_id = c.id WHERE s.id = ?",
+        (sub_id,)
+    ).fetchone()
+    if not old:
+        conn.close()
+        raise HTTPException(404, "Sottocategoria non trovata")
+    new_parent = conn.execute("SELECT id, nome, vista FROM finanza_cat WHERE id = ?", (body.new_cat_id,)).fetchone()
+    if not new_parent:
+        conn.close()
+        raise HTTPException(404, "Nuova categoria padre non trovata")
+    if new_parent["vista"] != old["vista"]:
+        conn.close()
+        raise HTTPException(400, "Non puoi spostare tra viste diverse (A/F)")
+
+    sub_nome = old["nome"]
+    old_cat = old["old_cat_nome"]
+    new_cat = new_parent["nome"]
+    vista = old["vista"]
+
+    conn.execute("UPDATE finanza_subcat SET cat_id = ? WHERE id = ?", (body.new_cat_id, sub_id))
+
+    # Propaga nei movimenti e regole
+    if vista == "A":
+        conn.execute(
+            "UPDATE finanza_movimenti SET cat1 = ? WHERE cat1 = ? AND cat2 = ?",
+            (new_cat, old_cat, sub_nome)
+        )
+        conn.execute(
+            "UPDATE finanza_regole_cat SET cat1 = ? WHERE cat1 = ? AND cat2 = ?",
+            (new_cat, old_cat, sub_nome)
+        )
+    else:
+        conn.execute(
+            "UPDATE finanza_movimenti SET cat1_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+            (new_cat, old_cat, sub_nome)
+        )
+        conn.execute(
+            "UPDATE finanza_regole_cat SET cat1_fin = ? WHERE cat1_fin = ? AND cat2_fin = ?",
+            (new_cat, old_cat, sub_nome)
+        )
+    conn.commit()
+    conn.close()
+    return {"ok": True}

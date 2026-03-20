@@ -7,6 +7,7 @@ const TABS = [
   { key: "movimenti", label: "Movimenti", path: "/finanza/movimenti", icon: "📋" },
   { key: "scadenzario", label: "Scadenzario", path: "/finanza/scadenzario", icon: "📅", roles: ["admin"] },
   { key: "categorie", label: "Categorie", path: "/finanza/categorie", icon: "🏷️", roles: ["admin"] },
+  { key: "impostazioni", label: "Impostazioni", path: "/finanza/impostazioni", icon: "⚙️", roles: ["admin"] },
   { key: "import", label: "Import", path: "/finanza/import", icon: "📥", roles: ["admin"] },
 ];
 

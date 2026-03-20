@@ -1,6 +1,6 @@
-// @version: v1.0-finanza-categorie
-// Gestione regole di auto-categorizzazione: pattern → Cat.1/Cat.2
-import React, { useEffect, useState } from "react";
+// @version: v2.0-finanza-categorie-gerarchiche
+// Gestione regole di auto-categorizzazione: pattern → Cat.1/Cat.2 (gerarchiche)
+import React, { useEffect, useState, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FinanzaNav from "./FinanzaNav";
 
@@ -13,11 +13,56 @@ const EMPTY_REGOLA = {
   descrizione_finanziaria: "", cat_debito: "",
 };
 
+/* ── Componente select gerarchico con "aggiungi nuovo" inline ──── */
+function CatSelect({ label, value, onChange, options, placeholder, onAddNew }) {
+  const [adding, setAdding] = useState(false);
+  const [newVal, setNewVal] = useState("");
+
+  const handleAdd = async () => {
+    const nome = newVal.trim().toUpperCase();
+    if (!nome) return;
+    if (onAddNew) await onAddNew(nome);
+    onChange(nome);
+    setAdding(false);
+    setNewVal("");
+  };
+
+  if (adding) {
+    return (
+      <div className="flex gap-1">
+        <input value={newVal} onChange={e => setNewVal(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+          className="border border-violet-400 rounded-lg px-2 py-1.5 text-sm flex-1 focus:ring-2 focus:ring-violet-300 outline-none"
+          placeholder="Nuovo nome..." autoFocus />
+        <button onClick={handleAdd} className="text-xs px-2 py-1 bg-violet-100 text-violet-800 rounded-lg">OK</button>
+        <button onClick={() => setAdding(false)} className="text-xs px-2 py-1 bg-neutral-200 rounded-lg">✕</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-1">
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm flex-1 focus:ring-2 focus:ring-violet-300 focus:border-violet-400 outline-none">
+        <option value="">{placeholder || "— seleziona —"}</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      {onAddNew && (
+        <button onClick={() => setAdding(true)} title="Aggiungi nuova"
+          className="text-xs px-2 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-100 transition">
+          +
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function FinanzaCategorie() {
   const [regole, setRegole] = useState([]);
   const [nonCat, setNonCat] = useState([]);
   const [fornitori, setFornitori] = useState([]);
   const [valori, setValori] = useState({});
+  const [albero, setAlbero] = useState({ A: [], F: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("noncat"); // "noncat" | "regole" | "nuova"
   const [editRegola, setEditRegola] = useState(null);
@@ -26,24 +71,26 @@ export default function FinanzaCategorie() {
   const [msg, setMsg] = useState("");
   const [autoCatResult, setAutoCatResult] = useState(null);
 
-  useEffect(() => { loadAll(); }, []);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [regR, ncR, fR, vR] = await Promise.all([
+      const [regR, ncR, fR, vR, aR] = await Promise.all([
         apiFetch(`${FC}/regole`),
         apiFetch(`${FC}/movimenti-non-categorizzati?limit=50`),
         apiFetch(`${FC}/fornitori-acquisti`),
         apiFetch(`${FC}/valori-unici`),
+        apiFetch(`${FC}/albero-categorie`),
       ]);
       if (regR.ok) setRegole(await regR.json());
       if (ncR.ok) setNonCat(await ncR.json());
       if (fR.ok) setFornitori(await fR.json());
       if (vR.ok) setValori(await vR.json());
+      if (aR.ok) setAlbero(await aR.json());
     } catch (_) {}
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const handleSave = async () => {
     if (!form.pattern.trim()) { setMsg("Pattern obbligatorio"); return; }
@@ -372,21 +419,43 @@ export default function FinanzaCategorie() {
                     </div>
                     <div>
                       <div className={labelCls}>Cat.1</div>
-                      <input className={inputCls} value={form.cat1}
-                        onChange={(e) => setForm({ ...form, cat1: e.target.value })}
-                        list="cat1-list" placeholder="MATERIE PRIME..." />
-                      <datalist id="cat1-list">
-                        {(valori.cat1 || []).map((c) => <option key={c} value={c} />)}
-                      </datalist>
+                      <CatSelect
+                        value={form.cat1}
+                        onChange={(v) => setForm(f => ({ ...f, cat1: v, cat2: "" }))}
+                        options={(albero.A || []).map(c => c.nome)}
+                        placeholder="— Cat.1 —"
+                        onAddNew={async (nome) => {
+                          await apiFetch(`${FC}/albero-categorie`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ nome, vista: "A" }),
+                          });
+                          loadAll();
+                        }}
+                      />
                     </div>
                     <div>
                       <div className={labelCls}>Cat.2</div>
-                      <input className={inputCls} value={form.cat2}
-                        onChange={(e) => setForm({ ...form, cat2: e.target.value })}
-                        list="cat2-list" placeholder="CARNE, PESCE..." />
-                      <datalist id="cat2-list">
-                        {(valori.cat2 || []).map((c) => <option key={c} value={c} />)}
-                      </datalist>
+                      <CatSelect
+                        value={form.cat2}
+                        onChange={(v) => setForm(f => ({ ...f, cat2: v }))}
+                        options={(() => {
+                          const parent = (albero.A || []).find(c => c.nome === form.cat1);
+                          return parent ? parent.sottocategorie.map(s => s.nome) : [];
+                        })()}
+                        placeholder={form.cat1 ? "— Cat.2 —" : "Scegli prima Cat.1"}
+                        onAddNew={form.cat1 ? async (nome) => {
+                          const parent = (albero.A || []).find(c => c.nome === form.cat1);
+                          if (parent) {
+                            await apiFetch(`${FC}/albero-categorie/${parent.id}/sotto`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ nome }),
+                            });
+                            loadAll();
+                          }
+                        } : null}
+                      />
                     </div>
                   </div>
                 </div>
@@ -417,21 +486,43 @@ export default function FinanzaCategorie() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className={labelCls}>Cat.1 Fin</div>
-                      <input className={inputCls} value={form.cat1_fin}
-                        onChange={(e) => setForm({ ...form, cat1_fin: e.target.value })}
-                        list="cat1fin-list" placeholder="ACQUISTI, TASSE..." />
-                      <datalist id="cat1fin-list">
-                        {(valori.cat1_fin || []).map((c) => <option key={c} value={c} />)}
-                      </datalist>
+                      <CatSelect
+                        value={form.cat1_fin}
+                        onChange={(v) => setForm(f => ({ ...f, cat1_fin: v, cat2_fin: "" }))}
+                        options={(albero.F || []).map(c => c.nome)}
+                        placeholder="— Cat.1 Fin —"
+                        onAddNew={async (nome) => {
+                          await apiFetch(`${FC}/albero-categorie`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ nome, vista: "F" }),
+                          });
+                          loadAll();
+                        }}
+                      />
                     </div>
                     <div>
                       <div className={labelCls}>Cat.2 Fin</div>
-                      <input className={inputCls} value={form.cat2_fin}
-                        onChange={(e) => setForm({ ...form, cat2_fin: e.target.value })}
-                        list="cat2fin-list" placeholder="CARNE, IVA..." />
-                      <datalist id="cat2fin-list">
-                        {(valori.cat2_fin || []).map((c) => <option key={c} value={c} />)}
-                      </datalist>
+                      <CatSelect
+                        value={form.cat2_fin}
+                        onChange={(v) => setForm(f => ({ ...f, cat2_fin: v }))}
+                        options={(() => {
+                          const parent = (albero.F || []).find(c => c.nome === form.cat1_fin);
+                          return parent ? parent.sottocategorie.map(s => s.nome) : [];
+                        })()}
+                        placeholder={form.cat1_fin ? "— Cat.2 Fin —" : "Scegli prima Cat.1 Fin"}
+                        onAddNew={form.cat1_fin ? async (nome) => {
+                          const parent = (albero.F || []).find(c => c.nome === form.cat1_fin);
+                          if (parent) {
+                            await apiFetch(`${FC}/albero-categorie/${parent.id}/sotto`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ nome }),
+                            });
+                            loadAll();
+                          }
+                        } : null}
+                      />
                     </div>
                   </div>
                 </div>

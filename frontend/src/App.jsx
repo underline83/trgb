@@ -83,6 +83,7 @@ import FinanzaDashboard from "./pages/finanza/FinanzaDashboard";
 import FinanzaMovimenti from "./pages/finanza/FinanzaMovimenti";
 import FinanzaImport from "./pages/finanza/FinanzaImport";
 import FinanzaCategorie from "./pages/finanza/FinanzaCategorie";
+import FinanzaImpostazioni from "./pages/finanza/FinanzaImpostazioni";
 import FinanzaScadenzario from "./pages/finanza/FinanzaScadenzario";
 
 // --- STATISTICHE ---
@@ -184,6 +185,7 @@ export default function App() {
         <Route path="/finanza/movimenti" element={<FinanzaMovimenti />} />
         <Route path="/finanza/import" element={<FinanzaImport />} />
         <Route path="/finanza/categorie" element={<FinanzaCategorie />} />
+        <Route path="/finanza/impostazioni" element={<FinanzaImpostazioni />} />
         <Route path="/finanza/scadenzario" element={<FinanzaScadenzario />} />
 
         {/* --- STATISTICHE --- */}

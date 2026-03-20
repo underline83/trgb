@@ -384,6 +384,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
   const [newSubNames, setNewSubNames] = useState({}); // { catId: "name" }
   const [editCat, setEditCat] = useState(null); // { id, nome }
   const [editSub, setEditSub] = useState(null); // { id, nome }
+  const [moving, setMoving] = useState(null); // { subId, subNome, fromCatId }
 
   const addCategoria = async () => {
     if (!newCatName.trim()) return;
@@ -417,6 +418,16 @@ function TabImpostazioni({ categorie, onRefresh }) {
   const deleteSub = async (subId, nome) => {
     if (!window.confirm(`Eliminare la sottocategoria "${nome}"?`)) return;
     await apiFetch(`${CAT_BASE}/sotto/${subId}`, { method: "DELETE" });
+    onRefresh();
+  };
+
+  const moveSub = async (subId, newCatId) => {
+    await apiFetch(`${CAT_BASE}/sotto/${subId}/sposta`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_categoria_id: newCatId }),
+    });
+    setMoving(null);
     onRefresh();
   };
 
@@ -494,11 +505,28 @@ function TabImpostazioni({ categorie, onRefresh }) {
                       <button onClick={() => setEditSub(null)}
                         className="text-[10px] px-1.5 py-0.5 bg-neutral-200 rounded">✕</button>
                     </>
+                  ) : moving?.subId === sub.id ? (
+                    <>
+                      <span className="text-sm font-medium text-amber-700">{sub.nome}</span>
+                      <span className="text-[10px] text-neutral-500">→ sposta in:</span>
+                      <select className="text-xs border rounded px-1.5 py-0.5" defaultValue=""
+                        onChange={e => { if (e.target.value) moveSub(sub.id, Number(e.target.value)); }}>
+                        <option value="">— scegli —</option>
+                        {categorie.filter(c => c.id !== cat.id).map(c => (
+                          <option key={c.id} value={c.id}>{c.nome}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => setMoving(null)}
+                        className="text-[10px] px-1.5 py-0.5 bg-neutral-200 rounded">✕</button>
+                    </>
                   ) : (
                     <>
                       <span className="text-sm">{sub.nome}</span>
                       <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })}
                         className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
+                      <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
+                        className="text-[10px] px-1.5 py-0.5 text-amber-600 hover:bg-amber-50 rounded"
+                        title="Sposta in un'altra categoria">↗️</button>
                       <button onClick={() => deleteSub(sub.id, sub.nome)}
                         className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded">🗑️</button>
                     </>
