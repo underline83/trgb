@@ -335,6 +335,7 @@ def create_vino_magazzino(
 @router.get("/dashboard", summary="Statistiche aggregate per la dashboard")
 def get_dashboard(
     current_user: Any = Depends(get_current_user),
+    includi_giacenza_positiva: bool = False,
 ):
     """
     Restituisce in un'unica chiamata:
@@ -342,8 +343,9 @@ def get_dashboard(
     - Alert: vini in carta con giacenza = 0
     - Ultimi 10 movimenti cross-vino
     - Distribuzione bottiglie per tipologia
+    - Riordini per fornitore (con flag per includere giacenze positive)
     """
-    return db.get_dashboard_stats()
+    return db.get_dashboard_stats(includi_giacenza_positiva=includi_giacenza_positiva)
 
 
 # ---------------------------------------------------------

@@ -1234,7 +1234,7 @@ def delete_nota(nota_id: int) -> None:
 # ---------------------------------------------------------
 # STATISTICHE DASHBOARD
 # ---------------------------------------------------------
-def get_dashboard_stats() -> Dict[str, Any]:
+def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, Any]:
     """
     Restituisce statistiche aggregate per la dashboard operativa.
     Tutto in una sola connessione — query leggere su SQLite.
@@ -1415,10 +1415,23 @@ def get_dashboard_stats() -> Dict[str, Any]:
     ).fetchall()
 
     # Riordini per distributore/rappresentante:
-    # Vini con STATO_RIORDINO in D,O,0 oppure QTA_TOTALE=0 e CARTA='SI'
-    # e ultimo CARICO (se esiste)
-    riordini_per_fornitore = cur.execute(
+    # Base: vini da riordinare (STATO_RIORDINO D/O/0 oppure QTA=0 e in carta)
+    # Con flag: anche tutti i vini con giacenza positiva e fornitore assegnato
+    if includi_giacenza_positiva:
+        riordini_where = """
+            WHERE (v.DISTRIBUTORE IS NOT NULL AND v.DISTRIBUTORE != '')
+               OR (v.RAPPRESENTANTE IS NOT NULL AND v.RAPPRESENTANTE != '')
+               OR v.STATO_RIORDINO IN ('D', 'O', '0')
+               OR (v.QTA_TOTALE > 0 AND v.CARTA = 'SI')
         """
+    else:
+        riordini_where = """
+            WHERE v.STATO_RIORDINO IN ('D', 'O', '0')
+               OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'
+                   AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
+        """
+    riordini_per_fornitore = cur.execute(
+        f"""
         SELECT
             v.id, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.TIPOLOGIA,
             v.DISTRIBUTORE, v.RAPPRESENTANTE,
@@ -1429,9 +1442,7 @@ def get_dashboard_stats() -> Dict[str, Any]:
             (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
              WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita
         FROM vini_magazzino v
-        WHERE v.STATO_RIORDINO IN ('D', 'O', '0')
-           OR (v.QTA_TOTALE = 0 AND v.CARTA = 'SI'
-               AND (v.STATO_RIORDINO IS NULL OR v.STATO_RIORDINO NOT IN ('X', 'A')))
+        {riordini_where}
         ORDER BY v.DISTRIBUTORE, v.RAPPRESENTANTE, v.DESCRIZIONE;
         """
     ).fetchall()

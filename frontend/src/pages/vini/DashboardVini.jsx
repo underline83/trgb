@@ -59,6 +59,7 @@ export default function DashboardVini() {
   const [togglingId, setTogglingId] = useState(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const [riordSort, setRiordSort] = useState({ key: null, dir: "asc" });
+  const [mostraGiacPositiva, setMostraGiacPositiva] = useState(false);
   const toggleRiordSort = (key) => setRiordSort(prev =>
     prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }
   );
@@ -93,11 +94,12 @@ export default function DashboardVini() {
     }
   };
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (giacPositiva) => {
     setLoading(true);
     setError("");
     try {
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino/dashboard`);
+      const qs = giacPositiva ? "?includi_giacenza_positiva=true" : "";
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/dashboard${qs}`);
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
       const data = await resp.json();
       setStats(data);
@@ -110,8 +112,8 @@ export default function DashboardVini() {
   }, []);
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    fetchStats(mostraGiacPositiva);
+  }, [fetchStats, mostraGiacPositiva]);
 
   // ── KPI tiles ────────────────────────────────────────────
   const kpiStock = stats
@@ -697,11 +699,22 @@ export default function DashboardVini() {
           return (
             <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-neutral-200 bg-orange-50">
-                <h2 className="text-sm font-semibold text-orange-900 uppercase tracking-wide">
-                  📦 Riordini per fornitore
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-orange-900 uppercase tracking-wide">
+                    📦 Riordini per fornitore
+                  </h2>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <span className="text-xs text-orange-700">Mostra giacenze positive</span>
+                    <div
+                      onClick={() => setMostraGiacPositiva(p => !p)}
+                      className={`relative w-9 h-5 rounded-full transition-colors ${mostraGiacPositiva ? "bg-orange-500" : "bg-neutral-300"}`}
+                    >
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${mostraGiacPositiva ? "translate-x-4" : ""}`} />
+                    </div>
+                  </label>
+                </div>
                 <p className="text-xs text-orange-700 mt-0.5">
-                  {stats.riordini_per_fornitore.length} vini da riordinare, raggruppati per distributore/rappresentante.
+                  {stats.riordini_per_fornitore.length} vini{mostraGiacPositiva ? "" : " da riordinare"}, raggruppati per distributore/rappresentante.
                 </p>
               </div>
 
