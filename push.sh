@@ -4,10 +4,14 @@
 # Uso:
 #   ./push.sh "messaggio commit"      → deploy rapido (git pull + restart)
 #   ./push.sh "messaggio commit" -f   → deploy completo (pip + npm + restart)
+#
+# Remote:
+#   origin → VPS bare repo (deploy)
+#   github → GitHub (backup)
 
 set -euo pipefail
 
-VPS_HOST="marco@trgb.tregobbi.it"
+VPS_HOST="trgb"
 VPS_DIR="/home/marco/trgb/trgb"
 VENV="/home/marco/trgb/venv-trgb"
 
@@ -33,12 +37,18 @@ else
   echo "ℹ️  Nessuna modifica da committare."
 fi
 
-# ── Push ─────────────────────────────────────────────────
+# ── Push al VPS (deploy) ────────────────────────────────
 echo ""
-echo "📤 Git push..."
-git push
+echo "📤 Push al VPS (origin)..."
+git push origin main
 
-# ── Deploy sul server via SSH diretta ────────────────────
+# ── Push a GitHub (backup) ──────────────────────────────
+if git remote | grep -q github; then
+  echo "📤 Push a GitHub (backup)..."
+  git push github main 2>/dev/null || echo "⚠️  Push GitHub fallito (non bloccante)"
+fi
+
+# ── Deploy sul server via SSH ────────────────────────────
 echo ""
 
 if [[ "$MODE" == "-f" ]]; then

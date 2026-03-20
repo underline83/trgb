@@ -9,10 +9,11 @@ Questo documento descrive tutte le procedure di deploy del gestionale TRGB.
 | Voce | Valore |
 |------|--------|
 | **IP VPS** | `80.211.131.156` |
-| **Provider** | Aruba |
+| **Dominio VPS** | `trgb.tregobbi.it` |
+| **Provider** | Aruba Cloud (account ARU-339384) |
 | **OS** | Ubuntu 22.04 LTS |
 | **Utente SSH** | `marco` (Mac: `underline83`, Windows: `mcarm`) |
-| **Connessione** | `ssh marco@80.211.131.156` |
+| **Connessione** | `ssh trgb` (alias configurato in `~/.ssh/config`) |
 | **Backend URL (prod)** | `https://trgb.tregobbi.it` |
 | **Frontend URL (prod)** | `https://app.tregobbi.it` |
 | **Backend porta interna** | `8000` |
@@ -74,24 +75,41 @@ ssh marco@80.211.131.156
 
 # 4. Workflow git completo (Mac → VPS → Windows)
 
-## 4.1 Flusso automatico (NUOVO — dal 2026-03-08)
+## 4.1 Flusso automatico (aggiornato 2026-03-20)
 
 Il VPS ospita un **bare repository** (`/home/marco/trgb/trgb.git`) con un **post-receive hook** che esegue il deploy automaticamente ad ogni push.
 
+### Architettura Git (3 copie del codice)
+
 ```
-1. Cowork modifica i file in ~/trgb
-2. Dal terminale Mac:
-     git add <file>
-     git commit -m "fix: #N descrizione"
-     git push
-     # → il VPS aggiorna il codice, pip/npm se serve, riavvia i servizi
-3. Su Windows VS Code:
-     git pull
+Mac/Windows (sviluppo)
+  │
+  ├── git push origin  →  VPS bare repo (/home/marco/trgb/trgb.git)
+  │                          └── post-receive hook → deploy automatico
+  │
+  └── git push github  →  GitHub (git@github.com:underline83/trgb.git)
+                             └── backup off-site del codice
 ```
 
-Il remote su Mac e Windows punta al bare repo:
+### Remote configurati su Mac e Windows
 ```
-origin → marco@80.211.131.156:/home/marco/trgb/trgb.git
+origin → marco@trgb.tregobbi.it:/home/marco/trgb/trgb.git   (deploy)
+github → git@github.com:underline83/trgb.git                 (backup)
+```
+
+### Remote configurato sul server (working directory)
+```
+origin → /home/marco/trgb/trgb.git   (bare repo locale)
+```
+
+### Flusso di lavoro quotidiano
+```
+1. Cowork/VS Code modifica i file
+2. Dal terminale:
+     ./push.sh "descrizione modifica"
+     # → commit + push VPS (deploy) + push GitHub (backup)
+3. Sull'altro PC:
+     git pull
 ```
 
 ### Prerequisiti VPS (una tantum)
@@ -100,14 +118,12 @@ Il hook ha bisogno di poter riavviare i servizi senza password. Aggiungere via `
 marco ALL=(ALL) NOPASSWD: /bin/systemctl restart trgb-backend, /bin/systemctl restart trgb-frontend
 ```
 
-### Aggiornare il remote (se ancora vecchio)
-```bash
-# Mac
-git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
-
-# Windows
-git remote set-url origin marco@80.211.131.156:/home/marco/trgb/trgb.git
-git pull origin main
+### SSH config (su Mac e Windows, in ~/.ssh/config)
+```
+Host trgb
+  HostName trgb.tregobbi.it
+  User marco
+  IdentityFile ~/.ssh/id_ed25519
 ```
 
 ---
@@ -242,6 +258,51 @@ sudo grep marco /etc/sudoers
 which systemctl   # verificare il percorso corretto
 ```
 Il percorso nel sudoers deve corrispondere esattamente all'output di `which systemctl`.
+
+---
+
+# 10. Backup e Sicurezza
+
+## 10.1 Backup giornaliero database (automatico)
+
+Lo script `backup.sh` viene eseguito ogni notte alle 3:00 via cron.
+Salva tutti i database SQLite in `/home/marco/trgb/backups/` con retention 30 giorni.
+
+```bash
+# Backup manuale
+/home/marco/trgb/trgb/backup.sh
+
+# Vedere i backup esistenti
+ls -la /home/marco/trgb/backups/
+
+# Log backup
+cat /home/marco/trgb/backups/backup.log
+```
+
+## 10.2 Snapshot Aruba (settimanale)
+
+Dal pannello Aruba Cloud → VPS → Gestisci → Snapshot.
+Salva un'immagine completa del disco. Consigliato: 1 snapshot settimanale.
+
+## 10.3 Fail2ban
+
+SSH è protetto da fail2ban. Se il tuo IP viene bannato:
+```bash
+# Da un IP diverso (es. hotspot telefono):
+ssh trgb
+sudo fail2ban-client set sshd unbanip IL_TUO_IP
+
+# Vedere IP bannati:
+sudo fail2ban-client status sshd
+```
+
+Reti private sono in whitelist. Bantime: 10 minuti.
+
+## 10.4 Setup iniziale backup e sicurezza
+
+```bash
+sudo bash /home/marco/trgb/trgb/setup-backup-and-security.sh
+```
 
 ---
 
