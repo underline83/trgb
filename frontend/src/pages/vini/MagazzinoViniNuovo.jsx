@@ -94,6 +94,26 @@ export default function MagazzinoViniNuovo() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Auto-calcolo PREZZO_CARTA quando EURO_LISTINO cambia
+  const [prezzoAutoCalc, setPrezzoAutoCalc] = useState(false);
+  const autoCalcPrezzo = async (e) => {
+    const val = parseFloat(e.target.value);
+    if (!val || val <= 0) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/calcola`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euro_listino: val }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setForm(p => ({ ...p, PREZZO_CARTA: data.prezzo_carta }));
+        setPrezzoAutoCalc(true);
+        setTimeout(() => setPrezzoAutoCalc(false), 2000);
+      }
+    } catch {}
+  };
+
   const handleCheckboxSiNo = (field) => (e) => {
     const checked = e.target.checked;
     setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
@@ -682,8 +702,8 @@ export default function MagazzinoViniNuovo() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {numField("Prezzo carta (€)", "PREZZO_CARTA", form, handleChange)}
-              {numField("Listino acquisto (€)", "EURO_LISTINO", form, handleChange)}
+              {numField(`Prezzo carta (€)${prezzoAutoCalc ? " ✓ auto" : ""}`, "PREZZO_CARTA", form, handleChange, { step: "0.50" })}
+              {numField("Listino acquisto (€)", "EURO_LISTINO", form, handleChange, { onBlur: autoCalcPrezzo })}
               {numField("Sconto (%)", "SCONTO", form, handleChange)}
             </div>
 
@@ -795,7 +815,7 @@ function locCard(title, locKey, qtaKey, form, handleChange) {
   );
 }
 
-function numField(label, key, form, handleChange) {
+function numField(label, key, form, handleChange, { onBlur, step } = {}) {
   return (
     <div>
       <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
@@ -803,9 +823,10 @@ function numField(label, key, form, handleChange) {
       </label>
       <input
         type="number"
-        step="0.01"
+        step={step || "0.01"}
         value={form[key]}
         onChange={handleChange(key)}
+        onBlur={onBlur}
         className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
       />
     </div>

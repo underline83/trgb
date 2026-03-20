@@ -50,11 +50,11 @@ function Field({ label, value }) {
   );
 }
 
-function Input({ label, name, value, onChange, type = "text", step }) {
+function Input({ label, name, value, onChange, onBlur, type = "text", step }) {
   return (
     <div>
       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
-      <input type={type} step={step} name={name} value={value ?? ""} onChange={onChange}
+      <input type={type} step={step} name={name} value={value ?? ""} onChange={onChange} onBlur={onBlur}
         className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
     </div>
   );
@@ -360,6 +360,26 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     setEditMode(true); setSaveMsg("");
   };
 
+  // Auto-calcolo PREZZO_CARTA quando EURO_LISTINO cambia (onBlur)
+  const [prezzoAutoCalc, setPrezzoAutoCalc] = useState(false);
+  const autoCalcPrezzo = async (euroListino) => {
+    const val = parseFloat(euroListino);
+    if (!val || val <= 0) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/calcola`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euro_listino: val }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setEditData(p => ({ ...p, PREZZO_CARTA: data.prezzo_carta }));
+        setPrezzoAutoCalc(true);
+        setTimeout(() => setPrezzoAutoCalc(false), 2000);
+      }
+    } catch {}
+  };
+
   const saveEdit = async () => {
     setSaving(true); setSaveMsg("");
     try {
@@ -639,8 +659,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Input label="Rappresentante" name="RAPPRESENTANTE" value={editData.RAPPRESENTANTE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                     </div>
                     <div className="grid grid-cols-3 gap-4">
-                      <Input label="Prezzo carta €" name="PREZZO_CARTA" value={editData.PREZZO_CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />
-                      <Input label="Listino €" name="EURO_LISTINO" value={editData.EURO_LISTINO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />
+                      <div className="relative">
+                        <Input label={`Prezzo carta €${prezzoAutoCalc ? " ✓ auto" : ""}`} name="PREZZO_CARTA" value={editData.PREZZO_CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.50" />
+                      </div>
+                      <Input label="Listino €" name="EURO_LISTINO" value={editData.EURO_LISTINO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} onBlur={e => autoCalcPrezzo(e.target.value)} type="number" step="0.01" />
                       <Input label="Sconto %" name="SCONTO" value={editData.SCONTO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">

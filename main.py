@@ -55,6 +55,9 @@ from app.routers import statistiche_router
 # BACKUP — download database
 from app.routers import backup_router
 
+# PRICING — calcolo automatico PREZZO_CARTA
+from app.routers import vini_pricing_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -194,6 +197,7 @@ app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 
 # BACKUP
 app.include_router(backup_router.router)
+app.include_router(vini_pricing_router.router)
 
 
 # ----------------------------------------

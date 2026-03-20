@@ -222,6 +222,30 @@ export default function MagazzinoAdmin() {
     }
   };
 
+  // ── Ricalcola tutti i prezzi ──
+  const [recalcMsg, setRecalcMsg] = useState("");
+  const [recalcing, setRecalcing] = useState(false);
+  const ricalcolaPrezzi = async () => {
+    if (!window.confirm("Ricalcolare automaticamente PREZZO_CARTA per tutti i vini con EURO_LISTINO?\n\nI prezzi verranno aggiornati in base alla tabella markup corrente.\nI prezzi già corretti non verranno toccati.")) return;
+    setRecalcing(true);
+    setRecalcMsg("");
+    try {
+      const res = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      const data = await res.json();
+      setRecalcMsg(`✅ ${data.aggiornati} prezzi aggiornati, ${data.invariati} invariati, ${data.senza_listino} senza listino`);
+      fetchVini();
+      setTimeout(() => setRecalcMsg(""), 8000);
+    } catch (err) {
+      setRecalcMsg(`❌ ${err.message}`);
+    } finally {
+      setRecalcing(false);
+    }
+  };
+
   // ── Annulla modifiche ──
   const discardEdits = () => {
     if (pendingCount > 0 && !window.confirm(`Annullare ${pendingCount} modifiche non salvate?`)) return;
@@ -274,9 +298,9 @@ export default function MagazzinoAdmin() {
 
             {/* Barra salvataggio */}
             <div className="flex items-center gap-3">
-              {saveMsg && (
-                <span className={`text-sm font-semibold ${saveMsg.startsWith("✅") ? "text-emerald-600" : "text-red-600"}`}>
-                  {saveMsg}
+              {(saveMsg || recalcMsg) && (
+                <span className={`text-sm font-semibold ${(saveMsg || recalcMsg).startsWith("✅") ? "text-emerald-600" : "text-red-600"}`}>
+                  {saveMsg || recalcMsg}
                 </span>
               )}
               {pendingCount > 0 && (
@@ -294,6 +318,12 @@ export default function MagazzinoAdmin() {
                 disabled={saving || pendingCount === 0}
                 className="px-6 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
                 {saving ? "Salvataggio..." : "💾 Salva tutto"}
+              </button>
+              <button onClick={ricalcolaPrezzi}
+                disabled={recalcing}
+                className="px-4 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm text-sm"
+                title="Ricalcola PREZZO_CARTA automaticamente per tutti i vini con EURO_LISTINO">
+                {recalcing ? "Ricalcolo..." : "🏷️ Ricalcola prezzi"}
               </button>
             </div>
           </div>

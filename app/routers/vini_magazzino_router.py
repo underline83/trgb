@@ -25,6 +25,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
 from app.services.auth_service import get_current_user
+from app.services.wine_pricing import calcola_prezzo_carta
 from app.models import vini_magazzino_db as db
 
 
@@ -317,6 +318,12 @@ def create_vino_magazzino(
             detail="Deve essere specificata almeno una locazione (FRIGORIFERO o LOCAZIONE_1/2/3).",
         )
 
+    # Auto-calcolo PREZZO_CARTA se EURO_LISTINO presente e PREZZO_CARTA non impostato
+    euro = data.get("EURO_LISTINO")
+    pc = data.get("PREZZO_CARTA")
+    if euro and euro > 0 and not pc:
+        data["PREZZO_CARTA"] = calcola_prezzo_carta(euro)
+
     vino_id = db.create_vino(data)
     row = db.get_vino_by_id(vino_id)
     return dict(row) if row else {"id": vino_id}
@@ -506,6 +513,12 @@ def update_vino_magazzino(
     data = payload.dict(exclude_unset=True)
     if not data:
         return {"status": "no_changes"}
+
+    # Auto-calcolo PREZZO_CARTA se EURO_LISTINO cambia e PREZZO_CARTA non è nel payload
+    if "EURO_LISTINO" in data and "PREZZO_CARTA" not in data:
+        euro = data["EURO_LISTINO"]
+        if euro and euro > 0:
+            data["PREZZO_CARTA"] = calcola_prezzo_carta(euro)
 
     # Legge QTA_TOTALE prima dell'aggiornamento
     qta_prima = int(row["QTA_TOTALE"] or 0)
