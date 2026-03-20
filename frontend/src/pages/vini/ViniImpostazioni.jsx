@@ -67,6 +67,7 @@ const MENU = [
   { key: "import",      label: "Import / Export",     icon: "📥" },
   { key: "carta",       label: "Carta dei Vini",      icon: "📜" },
   { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋" },
+  { key: "markup",      label: "Markup Prezzi",       icon: "💰" },
   { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍" },
   { key: "stati",       label: "Stati",               icon: "🏷️" },
   { key: "manutenzione",label: "Manutenzione",        icon: "🔧" },
@@ -139,6 +140,18 @@ export default function ViniImpostazioni() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [showOrdinamento, setShowOrdinamento] = useState(false);
 
+  // --- Markup Prezzi ---
+  const [markupBP, setMarkupBP] = useState(null);  // [{costo, moltiplicatore}, ...]
+  const [markupLoading, setMarkupLoading] = useState(false);
+  const [markupSaving, setMarkupSaving] = useState(false);
+  const [markupMsg, setMarkupMsg] = useState("");
+  const [markupNewCosto, setMarkupNewCosto] = useState("");
+  const [markupNewMolt, setMarkupNewMolt] = useState("");
+  const [markupPreviewCosto, setMarkupPreviewCosto] = useState("");
+  const [markupPreviewResult, setMarkupPreviewResult] = useState(null);
+  const [markupRecalcResult, setMarkupRecalcResult] = useState(null);
+  const [markupRecalcing, setMarkupRecalcing] = useState(false);
+
   // -------------------------------------------------------
   // FETCH
   // -------------------------------------------------------
@@ -177,6 +190,19 @@ export default function ViniImpostazioni() {
   useEffect(() => {
     if (activeSection === "locazioni" && !locConfig) fetchLocConfig();
   }, [activeSection, locConfig, fetchLocConfig]);
+
+  // Carica markup breakpoints quando la sezione è attiva
+  const fetchMarkupBP = useCallback(async () => {
+    setMarkupLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/breakpoints`);
+      if (r.ok) { const d = await r.json(); setMarkupBP(d.breakpoints || []); }
+    } catch {} finally { setMarkupLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "markup" && !markupBP) fetchMarkupBP();
+  }, [activeSection, markupBP, fetchMarkupBP]);
 
   // -------------------------------------------------------
   // SALVA IMPOSTAZIONI
@@ -1328,10 +1354,246 @@ export default function ViniImpostazioni() {
     </div>
   );
 
+  // -------------------------------------------------------
+  // MARKUP PREZZI — handler
+  // -------------------------------------------------------
+  const markupFlash = (msg) => { setMarkupMsg(msg); setTimeout(() => setMarkupMsg(""), 5000); };
+
+  const saveMarkupBP = async () => {
+    if (!markupBP || markupBP.length < 2) return;
+    setMarkupSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/breakpoints`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(markupBP),
+      });
+      if (r.ok) markupFlash("Tabella salvata");
+      else throw new Error(`Errore ${r.status}`);
+    } catch (e) { markupFlash(`Errore: ${e.message}`); }
+    finally { setMarkupSaving(false); }
+  };
+
+  const resetMarkupBP = async () => {
+    if (!window.confirm("Ripristinare la tabella ai valori predefiniti?")) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/breakpoints/reset`, { method: "POST" });
+      if (r.ok) { fetchMarkupBP(); markupFlash("Tabella ripristinata ai default"); }
+    } catch {}
+  };
+
+  const addMarkupRow = () => {
+    const c = parseFloat(markupNewCosto);
+    const m = parseFloat(markupNewMolt);
+    if (isNaN(c) || isNaN(m) || c < 0 || m <= 0) return;
+    const updated = [...(markupBP || []), { costo: c, moltiplicatore: m }]
+      .sort((a, b) => a.costo - b.costo);
+    setMarkupBP(updated);
+    setMarkupNewCosto(""); setMarkupNewMolt("");
+  };
+
+  const removeMarkupRow = (idx) => {
+    setMarkupBP(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateMarkupRow = (idx, field, value) => {
+    setMarkupBP(prev => {
+      const arr = [...prev];
+      arr[idx] = { ...arr[idx], [field]: parseFloat(value) || 0 };
+      return arr;
+    });
+  };
+
+  const previewMarkupCalc = async () => {
+    const val = parseFloat(markupPreviewCosto);
+    if (!val || val <= 0) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/calcola`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ euro_listino: val }),
+      });
+      if (r.ok) setMarkupPreviewResult(await r.json());
+    } catch {}
+  };
+
+  const ricalcolaTuttiMarkup = async () => {
+    if (!window.confirm("Ricalcolare PREZZO_CARTA per tutti i vini con EURO_LISTINO?")) return;
+    setMarkupRecalcing(true); setMarkupRecalcResult(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+      });
+      if (r.ok) setMarkupRecalcResult(await r.json());
+    } catch (e) { markupFlash(`Errore: ${e.message}`); }
+    finally { setMarkupRecalcing(false); }
+  };
+
+  // -------------------------------------------------------
+  // MARKUP PREZZI — render
+  // -------------------------------------------------------
+  const renderMarkup = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-amber-900 font-playfair">Markup Prezzi</h2>
+          <p className="text-sm text-neutral-600 mt-1">
+            Tabella breakpoint per il calcolo automatico del PREZZO_CARTA dal costo listino.
+            Il moltiplicatore viene interpolato linearmente tra i breakpoint adiacenti,
+            poi il risultato viene arrotondato al multiplo di 0,50 piu vicino.
+          </p>
+        </div>
+      </div>
+
+      {/* Messaggi */}
+      {markupMsg && (
+        <div className={`text-sm font-semibold px-3 py-2 rounded-lg ${markupMsg.startsWith("Errore") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
+          {markupMsg}
+        </div>
+      )}
+
+      {markupLoading ? (
+        <p className="text-neutral-500 text-sm">Caricamento...</p>
+      ) : markupBP ? (
+        <>
+          {/* Tabella breakpoint */}
+          <div className="border border-neutral-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-3 py-2 text-left font-semibold text-neutral-600 w-12">#</th>
+                  <th className="px-3 py-2 text-left font-semibold text-neutral-600">Costo listino</th>
+                  <th className="px-3 py-2 text-left font-semibold text-neutral-600">Moltiplicatore</th>
+                  <th className="px-3 py-2 text-right font-semibold text-neutral-600">Prezzo risultante</th>
+                  <th className="px-3 py-2 w-10"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {markupBP.map((bp, idx) => (
+                  <tr key={idx} className="border-b border-neutral-100 hover:bg-amber-50/30">
+                    <td className="px-3 py-1.5 text-neutral-400 font-mono text-xs">{idx + 1}</td>
+                    <td className="px-3 py-1.5">
+                      <input type="number" step="0.01" value={bp.costo}
+                        onChange={e => updateMarkupRow(idx, "costo", e.target.value)}
+                        className="w-28 border border-neutral-300 rounded px-2 py-1 text-sm focus:ring-amber-400 focus:border-amber-400" />
+                      <span className="text-neutral-400 ml-1 text-xs">EUR</span>
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <input type="number" step="0.001" value={bp.moltiplicatore}
+                        onChange={e => updateMarkupRow(idx, "moltiplicatore", e.target.value)}
+                        className="w-24 border border-neutral-300 rounded px-2 py-1 text-sm focus:ring-amber-400 focus:border-amber-400" />
+                      <span className="text-neutral-400 ml-1 text-xs">x</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-mono text-neutral-700">
+                      {bp.costo > 0 ? `${(Math.round(bp.costo * bp.moltiplicatore * 2) / 2).toFixed(2)} EUR` : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-center">
+                      <button onClick={() => removeMarkupRow(idx)}
+                        className="text-red-400 hover:text-red-600 text-xs font-bold" title="Rimuovi">x</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Aggiungi riga */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-neutral-500 font-medium">Aggiungi:</span>
+            <input type="number" step="0.01" placeholder="Costo" value={markupNewCosto}
+              onChange={e => setMarkupNewCosto(e.target.value)}
+              className="w-24 border border-neutral-300 rounded px-2 py-1.5 text-sm focus:ring-amber-400" />
+            <input type="number" step="0.001" placeholder="Molt." value={markupNewMolt}
+              onChange={e => setMarkupNewMolt(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addMarkupRow()}
+              className="w-24 border border-neutral-300 rounded px-2 py-1.5 text-sm focus:ring-amber-400" />
+            <button onClick={addMarkupRow} disabled={!markupNewCosto || !markupNewMolt}
+              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 disabled:opacity-40">
+              + Aggiungi
+            </button>
+          </div>
+
+          {/* Bottoni salva / reset */}
+          <div className="flex items-center gap-3 pt-2 border-t border-neutral-200">
+            <button onClick={saveMarkupBP} disabled={markupSaving}
+              className="px-5 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 shadow-sm">
+              {markupSaving ? "Salvataggio..." : "Salva tabella"}
+            </button>
+            <button onClick={resetMarkupBP}
+              className="px-4 py-2 text-sm border border-neutral-300 rounded-xl hover:bg-neutral-50 transition">
+              Ripristina default
+            </button>
+          </div>
+
+          {/* Simulatore */}
+          <div className="mt-4 p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
+            <h3 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">Simulatore prezzo</h3>
+            <div className="flex items-center gap-3">
+              <input type="number" step="0.01" placeholder="Costo listino EUR" value={markupPreviewCosto}
+                onChange={e => setMarkupPreviewCosto(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && previewMarkupCalc()}
+                className="w-40 border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:ring-amber-400" />
+              <button onClick={previewMarkupCalc}
+                className="px-4 py-2 bg-neutral-700 text-white rounded-lg text-sm font-medium hover:bg-neutral-800 transition">
+                Calcola
+              </button>
+              {markupPreviewResult && (
+                <span className="text-sm font-medium text-neutral-700">
+                  x{markupPreviewResult.moltiplicatore?.toFixed(3)} = <span className="text-lg font-bold text-amber-800">{markupPreviewResult.prezzo_carta?.toFixed(2)} EUR</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Ricalcola tutti */}
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+            <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">Ricalcolo massivo</h3>
+            <p className="text-xs text-amber-700">
+              Ricalcola PREZZO_CARTA per tutti i vini che hanno EURO_LISTINO impostato.
+              I prezzi vengono aggiornati in base alla tabella markup corrente (salvata).
+            </p>
+            <button onClick={ricalcolaTuttiMarkup} disabled={markupRecalcing}
+              className="px-5 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 shadow-sm">
+              {markupRecalcing ? "Ricalcolo in corso..." : "Ricalcola tutti i prezzi"}
+            </button>
+            {markupRecalcResult && (
+              <div className="text-sm space-y-1 mt-2">
+                <p className="font-semibold text-emerald-700">{markupRecalcResult.aggiornati} prezzi aggiornati</p>
+                <p className="text-neutral-600">{markupRecalcResult.invariati} invariati, {markupRecalcResult.senza_listino} senza listino</p>
+                {markupRecalcResult.dettaglio?.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-amber-700 font-medium text-xs">Mostra dettaglio modifiche</summary>
+                    <div className="mt-2 max-h-60 overflow-y-auto border border-neutral-200 rounded-lg">
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-neutral-50"><th className="px-2 py-1 text-left">ID</th><th className="px-2 py-1 text-left">Vino</th><th className="px-2 py-1 text-right">Listino</th><th className="px-2 py-1 text-right">Vecchio</th><th className="px-2 py-1 text-right">Nuovo</th></tr></thead>
+                        <tbody>
+                          {markupRecalcResult.dettaglio.map(d => (
+                            <tr key={d.id} className="border-t border-neutral-100">
+                              <td className="px-2 py-1 text-neutral-400">{d.id}</td>
+                              <td className="px-2 py-1 truncate max-w-[200px]">{d.DESCRIZIONE}</td>
+                              <td className="px-2 py-1 text-right">{d.EURO_LISTINO?.toFixed(2)}</td>
+                              <td className="px-2 py-1 text-right text-neutral-400">{d.vecchio?.toFixed(2) ?? "—"}</td>
+                              <td className="px-2 py-1 text-right font-semibold text-amber-800">{d.nuovo?.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+
   const sectionRenderers = {
     import: renderImportExport,
     carta: renderCarta,
     ordinamento: renderOrdinamento,
+    markup: renderMarkup,
     locazioni: renderLocazioni,
     stati: renderStati,
     manutenzione: renderManutenzione,
