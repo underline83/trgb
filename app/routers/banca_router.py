@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v1.0-banca
+# @version: v1.1-csv-robust-import
 # -*- coding: utf-8 -*-
 """
 Router modulo Banca — movimenti bancari, categorie, dashboard, cross-ref fatture.
@@ -110,6 +110,22 @@ def _parse_categoria(cat_raw: str):
     return cat_raw, ""
 
 
+def _get_csv_field(row: dict, *names: str) -> str:
+    """Cerca un campo nel dict CSV provando diversi nomi (case-insensitive, strip spazi).
+    Banco BPM cambia leggermente i nomi colonna tra versioni di export."""
+    for name in names:
+        # Prima prova match esatto
+        val = row.get(name)
+        if val is not None:
+            return val.strip() if isinstance(val, str) else val
+    # Fallback: cerca case-insensitive e strip whitespace dalle chiavi
+    names_lower = [n.lower().strip() for n in names]
+    for key, val in row.items():
+        if key.strip().lower() in names_lower:
+            return val.strip() if isinstance(val, str) else val
+    return ""
+
+
 # ═══════════════════════════════════════════════════════
 # 1. IMPORT CSV
 # ═══════════════════════════════════════════════════════
@@ -132,7 +148,11 @@ async def import_csv(file: UploadFile = File(...)):
     except UnicodeDecodeError:
         text = content.decode("latin-1")
 
-    reader = csv.DictReader(io.StringIO(text))
+    # Detecta separatore: se la prima riga ha più ";" che ",", usa ";"
+    first_line = text.split("\n", 1)[0] if text else ""
+    delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     conn = get_db()
     cur = conn.cursor()
@@ -151,19 +171,29 @@ async def import_csv(file: UploadFile = File(...)):
     import_id = cur.lastrowid
 
     for row in reader:
+
         num_rows += 1
 
-        # Parse campi
-        ragione = (row.get("Ragione Sociale") or "").strip()
-        data_c = _parse_date_it(row.get("Data contabile", ""))
-        data_v = _parse_date_it(row.get("Data valuta", ""))
-        banca = (row.get("Banca") or "").strip()
-        rapporto = (row.get("Rapporto") or "").strip()
-        importo = _parse_importo_it(row.get("Importo", "0"))
-        divisa = (row.get("Divisa") or "EUR").strip()
-        descrizione = (row.get("Descrizione") or "").strip()
-        cat_raw = (row.get("Categoria/sottocategoria") or "").strip()
-        hashtag = (row.get("Hashtag") or "").strip()
+        # Parse campi — usa _get_csv_field per matching robusto dei nomi colonna
+        ragione = _get_csv_field(row, "Ragione Sociale", "Ragione sociale", "ragione sociale")
+        data_c = _parse_date_it(_get_csv_field(row, "Data contabile", "Data Contabile", "data contabile"))
+        data_v = _parse_date_it(_get_csv_field(row, "Data valuta", "Data Valuta", "data valuta"))
+        banca = _get_csv_field(row, "Banca", "banca")
+        rapporto = _get_csv_field(row, "Rapporto", "rapporto")
+        causale = _get_csv_field(row, "Causale", "causale")
+        # Se non c'è Rapporto ma c'è Causale (formato MovimentiCC), salva causale in rapporto
+        if not rapporto and causale:
+            rapporto = causale
+        importo = _parse_importo_it(_get_csv_field(row, "Importo", "importo") or "0")
+        divisa = _get_csv_field(row, "Divisa", "divisa") or "EUR"
+        descrizione = _get_csv_field(row, "Descrizione", "descrizione")
+        cat_raw = _get_csv_field(row, "Categoria/sottocategoria", "Categoria/Sottocategoria",
+                                  "categoria/sottocategoria", "Categoria")
+        hashtag = _get_csv_field(row, "Hashtag", "hashtag")
+        canale = _get_csv_field(row, "Canale", "canale")
+        # Se non c'è Hashtag ma c'è Canale (formato MovimentiCC), salva canale in hashtag
+        if not hashtag and canale:
+            hashtag = canale
 
         cat, subcat = _parse_categoria(cat_raw)
         dhash = _dedup_hash(data_c, importo, descrizione)
@@ -189,6 +219,23 @@ async def import_csv(file: UploadFile = File(...)):
             # Duplicato
             num_dup += 1
 
+    # Se tutte le righe sono "duplicate" e nessuna data trovata → probabile mismatch colonne
+    warning = None
+    if num_rows > 0 and num_new == 0 and date_min is None:
+        # Nessuna data parsata + zero inserimenti → colonne CSV non riconosciute
+        col_list = list(reader.fieldnames) if reader.fieldnames else []
+        conn.rollback()
+        conn.close()
+        raise HTTPException(
+            400,
+            f"Nessuna colonna riconosciuta nel CSV. "
+            f"Colonne trovate: {', '.join(col_list) if col_list else '(nessuna)'}. "
+            f"Attese: Ragione Sociale, Data contabile, Data valuta, Importo, Descrizione..."
+        )
+
+    if num_rows > 0 and num_new == 0:
+        warning = "Tutti i movimenti risultano già importati (duplicati)."
+
     # Aggiorna log
     cur.execute("""
         UPDATE banca_import_log
@@ -200,7 +247,7 @@ async def import_csv(file: UploadFile = File(...)):
     conn.commit()
     conn.close()
 
-    return {
+    result = {
         "import_id": import_id,
         "filename": file.filename,
         "total_rows": num_rows,
@@ -209,6 +256,9 @@ async def import_csv(file: UploadFile = File(...)):
         "date_from": date_min,
         "date_to": date_max,
     }
+    if warning:
+        result["warning"] = warning
+    return result
 
 
 # ═══════════════════════════════════════════════════════

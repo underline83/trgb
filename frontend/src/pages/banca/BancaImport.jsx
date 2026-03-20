@@ -1,4 +1,4 @@
-// @version: v1.0-banca-import
+// @version: v1.1-banca-import-warning
 // Import CSV Banco BPM + storico import
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -112,8 +112,17 @@ export default function BancaImport() {
         )}
 
         {result && (
-          <div className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 px-4 py-4 text-sm">
-            <div className="font-semibold mb-2">Importazione completata</div>
+          <div className={`mb-6 rounded-xl border px-4 py-4 text-sm ${
+            result.warning
+              ? "border-amber-300 bg-amber-50 text-amber-800"
+              : "border-emerald-300 bg-emerald-50 text-emerald-800"
+          }`}>
+            <div className="font-semibold mb-2">
+              {result.warning ? "Attenzione" : "Importazione completata"}
+            </div>
+            {result.warning && (
+              <div className="mb-3 text-sm">{result.warning}</div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <div className="text-xs text-emerald-600">Righe lette</div>

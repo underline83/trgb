@@ -1,4 +1,4 @@
-// @version: v2.0-finanza-categorie-gerarchiche
+// @version: v2.1-catselect-inline
 // Gestione regole di auto-categorizzazione: pattern → Cat.1/Cat.2 (gerarchiche)
 import React, { useEffect, useState, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -13,7 +13,9 @@ const EMPTY_REGOLA = {
   descrizione_finanziaria: "", cat_debito: "",
 };
 
-/* ── Componente select gerarchico con "aggiungi nuovo" inline ──── */
+/* ── Componente select gerarchico con "Inserisci nuova..." inline ──── */
+const ADD_NEW_SENTINEL = "__ADD_NEW__";
+
 function CatSelect({ label, value, onChange, options, placeholder, onAddNew }) {
   const [adding, setAdding] = useState(false);
   const [newVal, setNewVal] = useState("");
@@ -27,33 +29,34 @@ function CatSelect({ label, value, onChange, options, placeholder, onAddNew }) {
     setNewVal("");
   };
 
+  const handleSelect = (v) => {
+    if (v === ADD_NEW_SENTINEL) {
+      setAdding(true);
+    } else {
+      onChange(v);
+    }
+  };
+
   if (adding) {
     return (
       <div className="flex gap-1">
         <input value={newVal} onChange={e => setNewVal(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+          onKeyDown={e => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") { setAdding(false); setNewVal(""); } }}
           className="border border-violet-400 rounded-lg px-2 py-1.5 text-sm flex-1 focus:ring-2 focus:ring-violet-300 outline-none"
           placeholder="Nuovo nome..." autoFocus />
         <button onClick={handleAdd} className="text-xs px-2 py-1 bg-violet-100 text-violet-800 rounded-lg">OK</button>
-        <button onClick={() => setAdding(false)} className="text-xs px-2 py-1 bg-neutral-200 rounded-lg">✕</button>
+        <button onClick={() => { setAdding(false); setNewVal(""); }} className="text-xs px-2 py-1 bg-neutral-200 rounded-lg">Annulla</button>
       </div>
     );
   }
 
   return (
-    <div className="flex gap-1">
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm flex-1 focus:ring-2 focus:ring-violet-300 focus:border-violet-400 outline-none">
-        <option value="">{placeholder || "— seleziona —"}</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-      {onAddNew && (
-        <button onClick={() => setAdding(true)} title="Aggiungi nuova"
-          className="text-xs px-2 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg hover:bg-violet-100 transition">
-          +
-        </button>
-      )}
-    </div>
+    <select value={value} onChange={e => handleSelect(e.target.value)}
+      className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm w-full focus:ring-2 focus:ring-violet-300 focus:border-violet-400 outline-none">
+      <option value="">{placeholder || "— seleziona —"}</option>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      {onAddNew && <option value={ADD_NEW_SENTINEL} className="text-violet-700 font-medium">Inserisci nuova...</option>}
+    </select>
   );
 }
 
