@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/vini/MovimentiCantina.jsx
-// @version: v2.0-apifetch-delete
+// @version: v2.1-modifica
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";

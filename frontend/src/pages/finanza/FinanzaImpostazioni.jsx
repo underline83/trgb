@@ -1,4 +1,4 @@
-// @version: v1.0
+// @version: v1.1-albero-categorie
 // Pagina impostazioni modulo finanza — gestione albero categorie + link acquisti
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";

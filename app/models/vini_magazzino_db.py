@@ -1,4 +1,4 @@
-# @version: v1.4-aperte-calici-kpi
+# @version: v1.5-modifica-log
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)

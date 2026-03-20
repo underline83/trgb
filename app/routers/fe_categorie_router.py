@@ -1,4 +1,4 @@
-# @version: v1.1-esclusione-fornitori
+# @version: v1.2-sposta-sottocategorie
 # -*- coding: utf-8 -*-
 """
 Router per gestione categorie fornitori fatture elettroniche.

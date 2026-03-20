@@ -1,4 +1,4 @@
-// @version: v1.0-finanza-nav
+// @version: v1.1-impostazioni
 import React from "react";
 import { useNavigate } from "react-router-dom";
 

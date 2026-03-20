@@ -1,5 +1,5 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v1.0
+// @version: v1.1-modifica-log
 // Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 

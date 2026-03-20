@@ -1,5 +1,5 @@
 // src/pages/vini/RegistroMovimenti.jsx
-// @version: v1.0
+// @version: v1.1-modifica
 // Registro globale movimenti cantina — visibile solo admin
 
 import React, { useState, useEffect, useCallback } from "react";

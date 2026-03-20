@@ -1,4 +1,4 @@
-// @version: v3.8-statistiche-module
+// @version: v3.9-finanza-impostazioni
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
