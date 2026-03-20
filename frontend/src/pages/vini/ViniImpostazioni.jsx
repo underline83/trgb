@@ -1417,14 +1417,38 @@ export default function ViniImpostazioni() {
     } catch {}
   };
 
-  const ricalcolaTuttiMarkup = async () => {
-    if (!window.confirm("Ricalcolare PREZZO_CARTA per tutti i vini con EURO_LISTINO?")) return;
+  // Step 1: anteprima (GET preview, non salva nulla)
+  const [markupPreviewList, setMarkupPreviewList] = useState(null);
+  const [markupPreviewLoading, setMarkupPreviewLoading] = useState(false);
+  const [markupSoloSenzaPrezzo, setMarkupSoloSenzaPrezzo] = useState(false); // filtro attivo
+
+  const anteprimaRicalcolo = async (soloSenza = false) => {
+    setMarkupPreviewLoading(true); setMarkupPreviewList(null); setMarkupRecalcResult(null);
+    setMarkupSoloSenzaPrezzo(soloSenza);
+    try {
+      const qs = soloSenza ? "?solo_senza_prezzo=true" : "";
+      const r = await apiFetch(`${API_BASE}/vini/pricing/preview${qs}`);
+      if (r.ok) {
+        const data = await r.json();
+        setMarkupPreviewList(data);
+      }
+    } catch (e) { markupFlash(`Errore: ${e.message}`); }
+    finally { setMarkupPreviewLoading(false); }
+  };
+
+  // Step 2: applica (POST ricalcola-tutti, salva nel DB)
+  const applicaRicalcolo = async () => {
     setMarkupRecalcing(true); setMarkupRecalcResult(null);
     try {
-      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti`, {
+      const qs = markupSoloSenzaPrezzo ? "?solo_senza_prezzo=true" : "";
+      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti${qs}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
       });
-      if (r.ok) setMarkupRecalcResult(await r.json());
+      if (r.ok) {
+        const data = await r.json();
+        setMarkupRecalcResult(data);
+        setMarkupPreviewList(null);
+      }
     } catch (e) { markupFlash(`Errore: ${e.message}`); }
     finally { setMarkupRecalcing(false); }
   };
@@ -1545,42 +1569,102 @@ export default function ViniImpostazioni() {
             </div>
           </div>
 
-          {/* Ricalcola tutti */}
+          {/* Ricalcola tutti — step 1: anteprima, step 2: applica */}
           <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
             <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wide">Ricalcolo massivo</h3>
             <p className="text-xs text-amber-700">
               Ricalcola PREZZO_CARTA per tutti i vini che hanno EURO_LISTINO impostato.
-              I prezzi vengono aggiornati in base alla tabella markup corrente (salvata).
+              Prima viene mostrata un'anteprima di tutte le modifiche, poi puoi confermare.
             </p>
-            <button onClick={ricalcolaTuttiMarkup} disabled={markupRecalcing}
-              className="px-5 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 shadow-sm">
-              {markupRecalcing ? "Ricalcolo in corso..." : "Ricalcola tutti i prezzi"}
-            </button>
+
+            {/* Bottoni anteprima */}
+            {!markupPreviewList && !markupRecalcResult && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button onClick={() => anteprimaRicalcolo(true)} disabled={markupPreviewLoading}
+                  className="px-5 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 shadow-sm">
+                  {markupPreviewLoading && markupSoloSenzaPrezzo ? "Calcolo..." : "Calcola solo vini senza prezzo"}
+                </button>
+                <button onClick={() => anteprimaRicalcolo(false)} disabled={markupPreviewLoading}
+                  className="px-5 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 shadow-sm">
+                  {markupPreviewLoading && !markupSoloSenzaPrezzo ? "Calcolo..." : "Ricalcola tutti i prezzi"}
+                </button>
+              </div>
+            )}
+
+            {/* Tabella anteprima */}
+            {markupPreviewList && (
+              <div className="space-y-3">
+                {(() => {
+                  const conModifiche = markupPreviewList.filter(d => d.differenza !== null && d.differenza !== 0);
+                  const senzaListino = markupPreviewList.filter(d => !d.EURO_LISTINO || d.EURO_LISTINO <= 0);
+                  const invariati = markupPreviewList.filter(d => d.EURO_LISTINO > 0 && (d.differenza === null || d.differenza === 0));
+                  return (
+                    <>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="font-semibold text-amber-800">{conModifiche.length} vini da aggiornare</span>
+                        <span className="text-neutral-500">{invariati.length} invariati</span>
+                        <span className="text-neutral-400">{senzaListino.length} senza listino</span>
+                      </div>
+
+                      {conModifiche.length > 0 && (
+                        <div className="max-h-[400px] overflow-y-auto border border-neutral-200 rounded-lg bg-white">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-neutral-100">
+                              <tr>
+                                <th className="px-2 py-1.5 text-left font-semibold">ID</th>
+                                <th className="px-2 py-1.5 text-left font-semibold">Vino</th>
+                                <th className="px-2 py-1.5 text-left font-semibold">Produttore</th>
+                                <th className="px-2 py-1.5 text-right font-semibold">Listino</th>
+                                <th className="px-2 py-1.5 text-right font-semibold">Prezzo attuale</th>
+                                <th className="px-2 py-1.5 text-right font-semibold">Prezzo nuovo</th>
+                                <th className="px-2 py-1.5 text-right font-semibold">Diff.</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {conModifiche.map(d => (
+                                <tr key={d.id} className="border-t border-neutral-100 hover:bg-amber-50/40">
+                                  <td className="px-2 py-1 text-neutral-400 font-mono">{d.id}</td>
+                                  <td className="px-2 py-1 max-w-[180px] truncate" title={d.DESCRIZIONE}>{d.DESCRIZIONE}</td>
+                                  <td className="px-2 py-1 max-w-[120px] truncate text-neutral-500">{d.PRODUTTORE || "—"}</td>
+                                  <td className="px-2 py-1 text-right font-mono">{d.EURO_LISTINO?.toFixed(2)}</td>
+                                  <td className="px-2 py-1 text-right font-mono text-neutral-400">{d.PREZZO_CARTA_ATTUALE?.toFixed(2) ?? "—"}</td>
+                                  <td className="px-2 py-1 text-right font-mono font-semibold text-amber-800">{d.PREZZO_CARTA_NUOVO?.toFixed(2)}</td>
+                                  <td className={`px-2 py-1 text-right font-mono font-semibold ${d.differenza > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                    {d.differenza > 0 ? "+" : ""}{d.differenza?.toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Bottoni conferma / annulla */}
+                      <div className="flex items-center gap-3 pt-2">
+                        {conModifiche.length > 0 && (
+                          <button onClick={applicaRicalcolo} disabled={markupRecalcing}
+                            className="px-5 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 shadow-sm">
+                            {markupRecalcing ? "Applicazione..." : `Conferma — aggiorna ${conModifiche.length} prezzi`}
+                          </button>
+                        )}
+                        <button onClick={() => setMarkupPreviewList(null)}
+                          className="px-4 py-2 text-sm border border-neutral-300 rounded-xl hover:bg-neutral-50 transition">
+                          Annulla
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Risultato dopo applicazione */}
             {markupRecalcResult && (
-              <div className="text-sm space-y-1 mt-2">
+              <div className="text-sm space-y-1 mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                 <p className="font-semibold text-emerald-700">{markupRecalcResult.aggiornati} prezzi aggiornati</p>
                 <p className="text-neutral-600">{markupRecalcResult.invariati} invariati, {markupRecalcResult.senza_listino} senza listino</p>
-                {markupRecalcResult.dettaglio?.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-amber-700 font-medium text-xs">Mostra dettaglio modifiche</summary>
-                    <div className="mt-2 max-h-60 overflow-y-auto border border-neutral-200 rounded-lg">
-                      <table className="w-full text-xs">
-                        <thead><tr className="bg-neutral-50"><th className="px-2 py-1 text-left">ID</th><th className="px-2 py-1 text-left">Vino</th><th className="px-2 py-1 text-right">Listino</th><th className="px-2 py-1 text-right">Vecchio</th><th className="px-2 py-1 text-right">Nuovo</th></tr></thead>
-                        <tbody>
-                          {markupRecalcResult.dettaglio.map(d => (
-                            <tr key={d.id} className="border-t border-neutral-100">
-                              <td className="px-2 py-1 text-neutral-400">{d.id}</td>
-                              <td className="px-2 py-1 truncate max-w-[200px]">{d.DESCRIZIONE}</td>
-                              <td className="px-2 py-1 text-right">{d.EURO_LISTINO?.toFixed(2)}</td>
-                              <td className="px-2 py-1 text-right text-neutral-400">{d.vecchio?.toFixed(2) ?? "—"}</td>
-                              <td className="px-2 py-1 text-right font-semibold text-amber-800">{d.nuovo?.toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                )}
+                <button onClick={() => setMarkupRecalcResult(null)}
+                  className="mt-2 px-3 py-1 text-xs border border-neutral-300 rounded-lg hover:bg-neutral-50">Chiudi</button>
               </div>
             )}
           </div>

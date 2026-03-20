@@ -141,7 +141,10 @@ def calcola_prezzo(
 # ── Endpoint: anteprima ricalcolo ──────────────────────────
 
 @router.get("/preview", summary="Anteprima ricalcolo prezzi (senza salvare)")
-def preview_ricalcolo(current_user: Any = Depends(get_current_user)):
+def preview_ricalcolo(
+    solo_senza_prezzo: bool = False,
+    current_user: Any = Depends(get_current_user),
+):
     _require_admin(current_user)
 
     bp = load_breakpoints()
@@ -152,6 +155,10 @@ def preview_ricalcolo(current_user: Any = Depends(get_current_user)):
         r = dict(row)
         euro = r.get("EURO_LISTINO")
         attuale = r.get("PREZZO_CARTA")
+
+        # Se filtro "solo senza prezzo": salta chi ha già PREZZO_CARTA
+        if solo_senza_prezzo and attuale is not None and attuale > 0:
+            continue
 
         if euro and euro > 0:
             nuovo = calcola_prezzo_carta(euro, bp)
@@ -176,7 +183,10 @@ def preview_ricalcolo(current_user: Any = Depends(get_current_user)):
 # ── Endpoint: ricalcola tutti ──────────────────────────────
 
 @router.post("/ricalcola-tutti", summary="Ricalcola PREZZO_CARTA su tutti i vini con EURO_LISTINO")
-def ricalcola_tutti(current_user: Any = Depends(get_current_user)):
+def ricalcola_tutti(
+    solo_senza_prezzo: bool = False,
+    current_user: Any = Depends(get_current_user),
+):
     _require_admin(current_user)
 
     bp = load_breakpoints()
@@ -196,8 +206,14 @@ def ricalcola_tutti(current_user: Any = Depends(get_current_user)):
             senza_listino += 1
             continue
 
-        nuovo = calcola_prezzo_carta(euro, bp)
         attuale = r.get("PREZZO_CARTA")
+
+        # Se filtro "solo senza prezzo": salta chi ha già PREZZO_CARTA
+        if solo_senza_prezzo and attuale is not None and attuale > 0:
+            invariati += 1
+            continue
+
+        nuovo = calcola_prezzo_carta(euro, bp)
 
         if attuale is not None and abs(nuovo - attuale) < 0.01:
             invariati += 1
