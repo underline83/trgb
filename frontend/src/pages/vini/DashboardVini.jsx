@@ -58,6 +58,10 @@ export default function DashboardVini() {
   const [drilldown, setDrilldown] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [alertOpen, setAlertOpen] = useState(false);
+  const [riordSort, setRiordSort] = useState({ key: null, dir: "asc" });
+  const toggleRiordSort = (key) => setRiordSort(prev =>
+    prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }
+  );
   const [alertExpanded, setAlertExpanded] = useState(false);
   const [fermiExpanded, setFermiExpanded] = useState(false);
   const FERMI_INITIAL_SHOW = 15;
@@ -723,16 +727,38 @@ export default function DashboardVini() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-[10px] text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
-                            <th className="px-4 py-2 text-left">Vino</th>
-                            <th className="px-3 py-2 text-center">Stato</th>
-                            <th className="px-3 py-2 text-center">Giac.</th>
-                            <th className="px-3 py-2 text-center">Listino</th>
-                            <th className="px-3 py-2 text-center">Ult. carico</th>
-                            <th className="px-3 py-2 text-center">Ult. vendita</th>
+                            {[
+                              { k: "DESCRIZIONE", label: "Vino", align: "text-left" },
+                              { k: "STATO_RIORDINO", label: "Stato", align: "text-center" },
+                              { k: "QTA_TOTALE", label: "Giac.", align: "text-center" },
+                              { k: "EURO_LISTINO", label: "Listino", align: "text-center" },
+                              { k: "ultimo_carico", label: "Ult. carico", align: "text-center" },
+                              { k: "ultima_vendita", label: "Ult. vendita", align: "text-center" },
+                            ].map(col => (
+                              <th key={col.k} className={`px-3 py-2 ${col.align} cursor-pointer hover:text-orange-700 select-none transition`}
+                                onClick={() => toggleRiordSort(col.k)}>
+                                {col.label} {riordSort.key === col.k ? (riordSort.dir === "asc" ? "▲" : "▼") : ""}
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-neutral-100">
-                          {g.vini.map(v => {
+                          {[...g.vini].sort((a, b) => {
+                            if (!riordSort.key) return 0;
+                            const k = riordSort.key;
+                            let va = a[k] ?? "";
+                            let vb = b[k] ?? "";
+                            if (k === "QTA_TOTALE" || k === "EURO_LISTINO") {
+                              va = Number(va) || 0; vb = Number(vb) || 0;
+                            } else if (k === "ultimo_carico" || k === "ultima_vendita") {
+                              va = va || ""; vb = vb || "";
+                            } else {
+                              va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+                            }
+                            if (va < vb) return riordSort.dir === "asc" ? -1 : 1;
+                            if (va > vb) return riordSort.dir === "asc" ? 1 : -1;
+                            return 0;
+                          }).map(v => {
                             const ggCarico = giorniDa(v.ultimo_carico);
                             const ggVendita = giorniDa(v.ultima_vendita);
                             return (
