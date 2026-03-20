@@ -60,6 +60,23 @@ ARCHIVE_SIZE=$(du -h "${DATE}.tar.gz" | cut -f1)
 echo ""
 echo "📦 Archivio: ${DATE}.tar.gz ($ARCHIVE_SIZE)"
 
+# ── Upload su Google Drive ──
+RCLONE="/usr/bin/rclone"
+GDRIVE_DIR="TRGB-Backup"
+if [ -x "$RCLONE" ]; then
+  echo ""
+  echo "☁️ Upload su Google Drive..."
+  if $RCLONE copy "${BACKUP_BASE}/${DATE}.tar.gz" "gdrive:${GDRIVE_DIR}/" --config /home/marco/.config/rclone/rclone.conf 2>&1; then
+    echo "  ✅ Caricato su Drive: ${GDRIVE_DIR}/${DATE}.tar.gz"
+  else
+    echo "  ⚠️ Upload Drive fallito (controlla rclone config)"
+  fi
+  # Rimuovi backup vecchi anche su Drive (30 giorni)
+  $RCLONE delete "gdrive:${GDRIVE_DIR}/" --min-age ${RETENTION_DAYS}d --config /home/marco/.config/rclone/rclone.conf 2>/dev/null || true
+else
+  echo "  ⏭️ rclone non installato, skip upload Drive"
+fi
+
 # ── Rimuovi backup più vecchi di $RETENTION_DAYS giorni ──
 DELETED=$(find "$BACKUP_BASE" -name "*.tar.gz" -mtime +$RETENTION_DAYS -delete -print | wc -l)
 if [ "$DELETED" -gt 0 ]; then
