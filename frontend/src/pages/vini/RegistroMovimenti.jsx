@@ -12,6 +12,7 @@ const TIPO_LABELS = {
   SCARICO:   { label: "Scarico",   icon: "⬇️", cls: "bg-red-50 text-red-700 border-red-200" },
   VENDITA:   { label: "Vendita",   icon: "🛒", cls: "bg-violet-50 text-violet-700 border-violet-200" },
   RETTIFICA: { label: "Rettifica", icon: "✏️", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  MODIFICA:  { label: "Modifica",  icon: "🔧", cls: "bg-blue-50 text-blue-700 border-blue-200" },
 };
 
 const PAGE_SIZE = 50;
@@ -116,6 +117,7 @@ export default function RegistroMovimenti() {
               <option value="SCARICO">⬇️ Scarico</option>
               <option value="VENDITA">🛒 Vendita</option>
               <option value="RETTIFICA">✏️ Rettifica</option>
+              <option value="MODIFICA">🔧 Modifica</option>
             </select>
 
             <input type="text" placeholder="Cerca vino, produttore…" value={textFiltro}
@@ -181,7 +183,7 @@ export default function RegistroMovimenti() {
                           {t.icon} {t.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-center font-semibold">{m.qta}</td>
+                      <td className="px-3 py-2 text-center font-semibold">{m.tipo === "MODIFICA" ? "—" : m.qta}</td>
                       <td className="px-3 py-2">
                         <div
                           className="cursor-pointer hover:text-amber-700 transition"

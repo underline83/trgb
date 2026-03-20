@@ -522,18 +522,54 @@ def update_vino_magazzino(
         if euro and euro > 0:
             data["PREZZO_CARTA"] = calcola_prezzo_carta(euro)
 
-    # Legge QTA_TOTALE prima dell'aggiornamento
+    # Salva valori prima dell'aggiornamento per il log
     qta_prima = int(row["QTA_TOTALE"] or 0)
+    qta_fields = {"QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3", "QTA_TOTALE"}
+    loc_fields = {"FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"}
+    skip_fields = qta_fields | loc_fields  # loggati separatamente come RETTIFICA
+
+    # Individua campi anagrafica effettivamente cambiati
+    campi_modificati = {}
+    valori_prima = {}
+    for campo, nuovo_val in data.items():
+        if campo in skip_fields:
+            continue
+        vecchio_val = row[campo] if campo in row.keys() else None
+        # Normalizza per confronto (None vs "" vs 0)
+        v_norm = vecchio_val if vecchio_val not in (None, "") else None
+        n_norm = nuovo_val if nuovo_val not in (None, "") else None
+        # Confronto numerico se possibile
+        try:
+            if float(v_norm) == float(n_norm):
+                continue
+        except (TypeError, ValueError):
+            pass
+        if str(v_norm) != str(n_norm):
+            campi_modificati[campo] = nuovo_val
+            valori_prima[campo] = vecchio_val
 
     db.update_vino(vino_id, data)
     updated = db.get_vino_by_id(vino_id)
 
+    utente = _get_username(current_user)
+
+    # Log MODIFICA per campi anagrafica
+    if campi_modificati:
+        try:
+            db.registra_modifica(
+                vino_id=vino_id,
+                utente=utente,
+                campi_modificati=campi_modificati,
+                valori_prima=valori_prima,
+                origine="GESTIONALE-EDIT",
+            )
+        except Exception:
+            pass  # Il salvataggio è già avvenuto; il log fallisce silenziosamente
+
     # Se sono stati toccati campi QTA_*, registra RETTIFICA automatica
-    qta_fields = {"QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3"}
     if qta_fields.intersection(data.keys()):
         qta_dopo = int((updated["QTA_TOTALE"] if updated else 0) or 0)
         if qta_dopo != qta_prima:
-            utente = _get_username(current_user)
             try:
                 db.registra_movimento(
                     vino_id=vino_id,
@@ -546,7 +582,7 @@ def update_vino_magazzino(
                 # Rilegge dopo la rettifica per avere QTA_TOTALE aggiornata
                 updated = db.get_vino_by_id(vino_id)
             except Exception:
-                pass  # Il salvataggio del vino è già avvenuto; il log fallisce silenziosamente
+                pass
 
     return dict(updated) if updated else {"id": vino_id}
 

@@ -24,6 +24,7 @@ const TIPO_LABELS = {
   SCARICO:   { label: "Scarico",   cls: "bg-red-50 text-red-700 border-red-200" },
   VENDITA:   { label: "Vendita",   cls: "bg-blue-50 text-blue-700 border-blue-200" },
   RETTIFICA: { label: "Rettifica", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  MODIFICA:  { label: "Modifica",  cls: "bg-blue-50 text-blue-700 border-blue-200" },
 };
 
 // Colori sidebar in base a TIPOLOGIA vino
@@ -405,6 +406,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `Errore ${r.status}`); }
       notifyUpdate(await r.json());
       setEditMode(false); setSaveMsg("✅ Salvato.");
+      fetchMovimenti();  // Ricarica movimenti per mostrare la MODIFICA
       setTimeout(() => setSaveMsg(""), 3000);
     } catch (e) { setSaveMsg(`❌ ${e.message}`); }
     finally { setSaving(false); }
@@ -814,9 +816,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                           <tr key={m.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
                             <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">{m.data_mov?.slice(0,16).replace("T"," ")}</td>
                             <td className="px-3 py-2 text-center"><span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${t.cls}`}>{t.label}</span></td>
-                            <td className="px-3 py-2 text-center font-semibold">{m.qta}</td>
-                            <td className="px-3 py-2 text-xs text-neutral-600">{m.locazione || "—"}</td>
-                            <td className="px-3 py-2 text-xs text-neutral-700">{m.note || ""}</td>
+                            <td className="px-3 py-2 text-center font-semibold">{m.tipo === "MODIFICA" ? "—" : m.qta}</td>
+                            <td className="px-3 py-2 text-xs text-neutral-600">{m.tipo === "MODIFICA" ? "—" : (m.locazione || "—")}</td>
+                            <td className="px-3 py-2 text-xs text-neutral-700" style={{maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis"}}>{m.note || ""}</td>
                             <td className="px-3 py-2 text-xs text-neutral-500">{m.utente || "—"}</td>
                             {canDelete && <td className="px-3 py-2 text-center"><button type="button" onClick={() => deleteMovimento(m.id)} className="text-xs text-red-400 hover:text-red-600 transition" title="Elimina">🗑</button></td>}
                           </tr>

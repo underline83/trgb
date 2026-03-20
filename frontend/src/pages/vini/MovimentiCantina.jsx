@@ -11,6 +11,7 @@ const TIPO_LABELS = {
   SCARICO: { label: "Scarico", cls: "bg-red-50 text-red-700 border-red-200" },
   VENDITA: { label: "Vendita", cls: "bg-blue-50 text-blue-700 border-blue-200" },
   RETTIFICA: { label: "Rettifica", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  MODIFICA: { label: "Modifica", cls: "bg-blue-50 text-blue-700 border-blue-200" },
 };
 
 export default function MovimentiCantina() {
@@ -286,7 +287,7 @@ export default function MovimentiCantina() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-center font-semibold text-neutral-800">
-                        {m.qta}
+                        {m.tipo === "MODIFICA" ? "—" : m.qta}
                       </td>
                       <td className="px-3 py-2 text-neutral-600 text-xs">
                         {m.locazione || "—"}

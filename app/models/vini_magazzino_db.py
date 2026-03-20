@@ -190,9 +190,9 @@ def init_magazzino_database() -> None:
             vino_id     INTEGER NOT NULL,
             data_mov    TEXT NOT NULL,
             tipo        TEXT NOT NULL CHECK (
-                            tipo IN ('CARICO','SCARICO','VENDITA','RETTIFICA')
+                            tipo IN ('CARICO','SCARICO','VENDITA','RETTIFICA','MODIFICA')
                         ),
-            qta         INTEGER NOT NULL,
+            qta         INTEGER NOT NULL DEFAULT 0,
             locazione   TEXT,
             note        TEXT,
             origine     TEXT,
@@ -315,6 +315,55 @@ def init_magazzino_database() -> None:
         cleaned += res.rowcount
     if cleaned:
         print(f"✅ Pulizia: svuotate {cleaned} locazioni con quantità 0")
+
+    # ----- Migration: aggiunge tipo MODIFICA al CHECK constraint -----
+    # SQLite non supporta ALTER CHECK, quindi ricrea la tabella se necessario.
+    try:
+        cur.execute(
+            "INSERT INTO vini_magazzino_movimenti "
+            "(vino_id, data_mov, tipo, qta, origine, utente, created_at) "
+            "VALUES (1, '1970-01-01T00:00:00', 'MODIFICA', 0, 'MIGRATION-TEST', 'system', '1970-01-01T00:00:00')"
+        )
+        # Se riesce, il constraint già accetta MODIFICA → elimina la riga di test
+        cur.execute(
+            "DELETE FROM vini_magazzino_movimenti "
+            "WHERE origine = 'MIGRATION-TEST' AND data_mov = '1970-01-01T00:00:00'"
+        )
+    except sqlite3.IntegrityError:
+        # CHECK fallito → bisogna ricreare la tabella con il nuovo constraint
+        print("🔄 Migration: aggiunta tipo MODIFICA alla tabella movimenti...")
+        cur.execute("ALTER TABLE vini_magazzino_movimenti RENAME TO _vmm_old;")
+        cur.execute(
+            """
+            CREATE TABLE vini_magazzino_movimenti (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id     INTEGER NOT NULL,
+                data_mov    TEXT NOT NULL,
+                tipo        TEXT NOT NULL CHECK (
+                                tipo IN ('CARICO','SCARICO','VENDITA','RETTIFICA','MODIFICA')
+                            ),
+                qta         INTEGER NOT NULL DEFAULT 0,
+                locazione   TEXT,
+                note        TEXT,
+                origine     TEXT,
+                utente      TEXT,
+                created_at  TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id)
+            );
+            """
+        )
+        cur.execute(
+            "INSERT INTO vini_magazzino_movimenti "
+            "(id, vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at) "
+            "SELECT id, vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at "
+            "FROM _vmm_old;"
+        )
+        cur.execute("DROP TABLE _vmm_old;")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_vmm_vino_data "
+            "ON vini_magazzino_movimenti (vino_id, data_mov);"
+        )
+        print("✅ Migration completata: tipo MODIFICA disponibile")
 
     conn.commit()
     conn.close()
@@ -783,7 +832,7 @@ def aggiorna_quantita_locazioni(
 # ---------------------------------------------------------
 # MOVIMENTI CANTINA
 # ---------------------------------------------------------
-MOVIMENTI_TIPI_VALIDI = {"CARICO", "SCARICO", "VENDITA", "RETTIFICA"}
+MOVIMENTI_TIPI_VALIDI = {"CARICO", "SCARICO", "VENDITA", "RETTIFICA", "MODIFICA"}
 
 
 LOCAZIONI_VALIDE = {"frigo", "loc1", "loc2", "loc3"}
@@ -908,6 +957,49 @@ def registra_movimento(
             (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at),
         )
 
+    conn.commit()
+    conn.close()
+
+
+def registra_modifica(
+    vino_id: int,
+    utente: str,
+    campi_modificati: Dict[str, Any],
+    valori_prima: Dict[str, Any],
+    origine: str = "GESTIONALE-EDIT",
+) -> None:
+    """
+    Registra una MODIFICA anagrafica nella tabella movimenti.
+    Salva i campi modificati con i valori prima/dopo nelle note.
+    """
+    if not campi_modificati:
+        return
+
+    # Costruisci nota leggibile
+    righe = []
+    for campo, nuovo in campi_modificati.items():
+        vecchio = valori_prima.get(campo, "")
+        # Normalizza None/empty per confronto display
+        v_str = str(vecchio) if vecchio not in (None, "") else "—"
+        n_str = str(nuovo) if nuovo not in (None, "") else "—"
+        righe.append(f"{campo}: {v_str} → {n_str}")
+
+    nota = "; ".join(righe)
+    # Tronca se troppo lunga
+    if len(nota) > 1000:
+        nota = nota[:997] + "..."
+
+    now = datetime.now().isoformat(timespec="seconds")
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO vini_magazzino_movimenti
+            (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+        VALUES (?, ?, 'MODIFICA', 0, NULL, ?, ?, ?, ?);
+        """,
+        (vino_id, now, nota, origine, utente, now),
+    )
     conn.commit()
     conn.close()
 
