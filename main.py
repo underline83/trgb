@@ -208,6 +208,7 @@ app.include_router(ipratico_products_router.router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)
+app.include_router(fattureincloud_router.debug_router)  # TEMP debug
 
 
 # ----------------------------------------

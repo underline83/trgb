@@ -638,7 +638,9 @@ def fic_fornitori(
         conn.close()
 
 
-@router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
+debug_router = APIRouter(prefix="/fic", tags=["FIC Debug"])
+
+@debug_router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
 def fic_debug_fields():
     """Endpoint temporaneo: fetcha 1 documento dalla lista + il suo dettaglio
     e restituisce i campi raw per capire la struttura dell'API."""
