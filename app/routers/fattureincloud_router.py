@@ -247,54 +247,28 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
 
         for idx, item in enumerate(items_list, start=1):
-            # Prova tutti i possibili campi descrizione
-            descrizione = (
-                item.get("description", "")
-                or item.get("name", "")
-                or item.get("desc", "")
-                or ""
-            )
-
-            # Se c'è un prodotto con nome, usalo come fallback
-            product = item.get("product") or {}
-            if not descrizione and isinstance(product, dict):
-                descrizione = (
-                    product.get("name", "")
-                    or product.get("description", "")
-                    or ""
-                )
-
-            # Se ancora vuoto, usa la descrizione della fattura intera
-            if not descrizione and description:
-                descrizione = description
+            # FIC API: il campo è "name" (es. "MIELE MILLEFIORI G.750 RIGONI DI ASIAGO")
+            descrizione = item.get("name", "") or item.get("description", "") or ""
+            codice = item.get("code", "") or ""
 
             quantita = item.get("qty", None)
             unita_misura = item.get("measure", "") or ""
             prezzo_unitario = item.get("net_price", None)
 
-            # Prova vari campi per il totale riga
-            prezzo_totale = (
-                item.get("amount_net", None)
-                or item.get("net_total", None)
-                or item.get("total_net", None)
-            )
+            # Calcola totale riga = qty * net_price
+            prezzo_totale = None
+            if quantita and prezzo_unitario:
+                prezzo_totale = round(quantita * prezzo_unitario, 2)
 
-            # Calcola prezzo_totale se non presente
-            if prezzo_totale is None and quantita and prezzo_unitario:
-                prezzo_totale = quantita * prezzo_unitario
-
-            # IVA: può essere un oggetto con 'value' (percentuale) o un numero
+            # IVA: oggetto con 'value' (percentuale), es. {"id": 3, "value": 10}
             vat_info = item.get("vat") or {}
             if isinstance(vat_info, dict):
                 aliquota_iva = vat_info.get("value", None)
             else:
                 aliquota_iva = vat_info
 
-            # Categoria dal prodotto FIC (se presente)
-            categoria = ""
-            if isinstance(product, dict):
-                cat = product.get("category", "") or ""
-                categoria = cat if isinstance(cat, str) else str(cat)
+            # Categoria direttamente sull'item
+            categoria = item.get("category", "") or ""
 
             conn.execute(
                 """
