@@ -1417,6 +1417,21 @@ export default function ViniImpostazioni() {
     } catch {}
   };
 
+  // Ricalcola calici
+  const [caliciLoading, setCaliciLoading] = useState(false);
+  const [caliciResult, setCaliciResult] = useState(null);
+  const ricalcolaCalici = async () => {
+    setCaliciLoading(true); setCaliciResult(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-calici`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+      });
+      if (r.ok) setCaliciResult(await r.json());
+      else { const e = await r.json().catch(() => ({})); markupFlash(`Errore: ${e.detail || r.status}`); }
+    } catch (e) { markupFlash(`Errore: ${e.message}`); }
+    finally { setCaliciLoading(false); }
+  };
+
   // Step 1: anteprima (GET preview, non salva nulla)
   const [markupPreviewList, setMarkupPreviewList] = useState(null);
   const [markupPreviewLoading, setMarkupPreviewLoading] = useState(false);
@@ -1590,6 +1605,56 @@ export default function ViniImpostazioni() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Ricalcola calici */}
+          <div className="mt-4 p-4 bg-violet-50 border border-violet-200 rounded-xl space-y-3">
+            <h3 className="text-sm font-semibold text-violet-800 uppercase tracking-wide">Ricalcolo prezzi calice</h3>
+            <p className="text-xs text-violet-700">
+              Ricalcola PREZZO_CALICE = PREZZO_CARTA / 5 per tutti i vini in modalità automatica.
+              I vini con prezzo calice manuale non vengono toccati.
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={ricalcolaCalici} disabled={caliciLoading}
+                className="px-5 py-2 bg-violet-700 text-white rounded-xl font-semibold hover:bg-violet-800 transition disabled:opacity-40 shadow-sm">
+                {caliciLoading ? "Calcolo..." : "Ricalcola tutti i calici"}
+              </button>
+              {caliciResult && (
+                <button onClick={() => setCaliciResult(null)} className="px-3 py-1.5 text-xs border border-neutral-300 rounded-lg hover:bg-neutral-50">Chiudi</button>
+              )}
+            </div>
+            {caliciResult && (
+              <div className="text-sm space-y-1 p-3 bg-white border border-violet-200 rounded-lg">
+                <p className="font-semibold text-violet-700">{caliciResult.aggiornati} prezzi calice aggiornati</p>
+                <p className="text-neutral-600">
+                  {caliciResult.invariati} invariati, {caliciResult.manuali_skip} manuali (non toccati), {caliciResult.senza_prezzo} senza prezzo carta
+                </p>
+                {caliciResult.dettaglio?.length > 0 && (
+                  <div className="mt-2 max-h-[200px] overflow-y-auto border border-neutral-200 rounded bg-neutral-50">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-neutral-100">
+                        <tr>
+                          <th className="px-2 py-1 text-left">Vino</th>
+                          <th className="px-2 py-1 text-right">Carta</th>
+                          <th className="px-2 py-1 text-right">Calice prima</th>
+                          <th className="px-2 py-1 text-right">Calice nuovo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {caliciResult.dettaglio.map(d => (
+                          <tr key={d.id} className="border-t border-neutral-100">
+                            <td className="px-2 py-0.5 truncate max-w-[200px]">{d.DESCRIZIONE}</td>
+                            <td className="px-2 py-0.5 text-right font-mono">{d.PREZZO_CARTA?.toFixed(2)}</td>
+                            <td className="px-2 py-0.5 text-right font-mono text-neutral-400">{d.vecchio?.toFixed(2) ?? "—"}</td>
+                            <td className="px-2 py-0.5 text-right font-mono font-semibold text-violet-700">{d.nuovo?.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Ricalcola tutti — step 1: anteprima, step 2: applica */}

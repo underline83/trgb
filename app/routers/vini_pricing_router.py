@@ -10,6 +10,7 @@ Endpoint:
 - POST /vini/pricing/calcola             → calcola prezzo per un costo
 - POST /vini/pricing/ricalcola-tutti     → ricalcola PREZZO_CARTA su tutti i vini
 - GET  /vini/pricing/preview             → anteprima prezzi senza salvare
+- POST /vini/pricing/ricalcola-calici   → ricalcola PREZZO_CALICE su tutti i vini (auto)
 """
 
 from __future__ import annotations
@@ -284,3 +285,66 @@ def ricalcola_tutti(
         forza_prezzo_skipped=forza_prezzo_skipped,
         dettaglio=dettaglio,
     )
+
+
+# ── Endpoint: ricalcola calici ───────────────────────────
+
+@router.post("/ricalcola-calici", summary="Ricalcola PREZZO_CALICE su tutti i vini (auto = PREZZO_CARTA / 5)")
+def ricalcola_calici(
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Per ogni vino con PREZZO_CALICE_MANUALE = 0 (auto):
+    - Se PREZZO_CARTA > 0 → PREZZO_CALICE = round(PREZZO_CARTA / 5, 2)
+    - Altrimenti → PREZZO_CALICE = NULL
+    Non tocca i prezzi manuali (PREZZO_CALICE_MANUALE = 1).
+    """
+    _require_admin(current_user)
+
+    rows = db.search_vini()  # tutti i vini
+    aggiornati = 0
+    invariati = 0
+    manuali_skip = 0
+    senza_prezzo = 0
+    dettaglio = []
+
+    updates = []
+    for row in rows:
+        r = dict(row)
+        manuale = r.get("PREZZO_CALICE_MANUALE") or 0
+        if manuale:
+            manuali_skip += 1
+            continue
+
+        prezzo_carta = r.get("PREZZO_CARTA")
+        if not prezzo_carta or prezzo_carta <= 0:
+            senza_prezzo += 1
+            continue
+
+        nuovo = round(prezzo_carta / 5, 2)
+        attuale = r.get("PREZZO_CALICE")
+
+        if attuale is not None and abs(nuovo - attuale) < 0.01:
+            invariati += 1
+            continue
+
+        updates.append({"id": r["id"], "PREZZO_CALICE": nuovo})
+        dettaglio.append({
+            "id": r["id"],
+            "DESCRIZIONE": r.get("DESCRIZIONE", ""),
+            "PREZZO_CARTA": prezzo_carta,
+            "vecchio": attuale,
+            "nuovo": nuovo,
+        })
+        aggiornati += 1
+
+    if updates:
+        db.bulk_update_vini(updates)
+
+    return {
+        "aggiornati": aggiornati,
+        "invariati": invariati,
+        "manuali_skip": manuali_skip,
+        "senza_prezzo": senza_prezzo,
+        "dettaglio": dettaglio,
+    }
