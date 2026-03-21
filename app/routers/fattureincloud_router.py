@@ -247,13 +247,17 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
 
         for idx, item in enumerate(items_list, start=1):
-            # FIC API: il campo è "name" (es. "MIELE MILLEFIORI G.750 RIGONI DI ASIAGO")
+            # Tutti i campi dall'API FIC
             descrizione = item.get("name", "") or item.get("description", "") or ""
             codice = item.get("code", "") or ""
-
             quantita = item.get("qty", None)
             unita_misura = item.get("measure", "") or ""
             prezzo_unitario = item.get("net_price", None)
+            fic_item_id = item.get("id", None)
+            fic_product_id = item.get("product_id", None)
+            detraibilita_iva = item.get("deductibility_vat_percentage", None)
+            stock = item.get("stock", 0) or 0
+            categoria = item.get("category", "") or ""
 
             # Calcola totale riga = qty * net_price
             prezzo_totale = None
@@ -267,21 +271,22 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
             else:
                 aliquota_iva = vat_info
 
-            # Categoria direttamente sull'item
-            categoria = item.get("category", "") or ""
-
             conn.execute(
                 """
                 INSERT INTO fe_righe (
                     fattura_id, numero_linea, descrizione,
                     quantita, unita_misura, prezzo_unitario,
-                    prezzo_totale, aliquota_iva, categoria_grezza
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    prezzo_totale, aliquota_iva, categoria_grezza,
+                    codice_articolo, fic_item_id, fic_product_id,
+                    detraibilita_iva, stock
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     fattura_db_id, idx, descrizione,
                     quantita, unita_misura, prezzo_unitario,
                     prezzo_totale, aliquota_iva, categoria,
+                    codice, fic_item_id, fic_product_id,
+                    detraibilita_iva, stock,
                 ),
             )
             righe_count += 1
