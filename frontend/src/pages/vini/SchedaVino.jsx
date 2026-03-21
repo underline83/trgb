@@ -355,9 +355,12 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       ANNATA: vino.ANNATA ?? "", VITIGNI: vino.VITIGNI ?? "",
       GRADO_ALCOLICO: vino.GRADO_ALCOLICO ?? "", FORMATO: vino.FORMATO ?? "",
       PRODUTTORE: vino.PRODUTTORE ?? "", DISTRIBUTORE: vino.DISTRIBUTORE ?? "", RAPPRESENTANTE: vino.RAPPRESENTANTE ?? "",
-      PREZZO_CARTA: vino.PREZZO_CARTA ?? "", EURO_LISTINO: vino.EURO_LISTINO ?? "",
+      PREZZO_CARTA: vino.PREZZO_CARTA ?? "", PREZZO_CALICE: vino.PREZZO_CALICE ?? "",
+      PREZZO_CALICE_MANUALE: vino.PREZZO_CALICE_MANUALE ?? 0,
+      EURO_LISTINO: vino.EURO_LISTINO ?? "",
       SCONTO: vino.SCONTO ?? "", NOTE_PREZZO: vino.NOTE_PREZZO ?? "",
       CARTA: vino.CARTA ?? "NO", IPRATICO: vino.IPRATICO ?? "NO",
+      BIOLOGICO: vino.BIOLOGICO ?? "NO", VENDITA_CALICE: vino.VENDITA_CALICE ?? "NO",
       STATO_VENDITA: vino.STATO_VENDITA ?? "",
       STATO_RIORDINO: vino.STATO_RIORDINO ?? "",
       STATO_CONSERVAZIONE: vino.STATO_CONSERVAZIONE ?? "",
@@ -391,7 +394,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     setSaving(true); setSaveMsg("");
     try {
       const payload = { ...editData };
-      ["GRADO_ALCOLICO","PREZZO_CARTA","EURO_LISTINO","SCONTO"].forEach(k => {
+      ["GRADO_ALCOLICO","PREZZO_CARTA","PREZZO_CALICE","EURO_LISTINO","SCONTO"].forEach(k => {
         payload[k] = payload[k] === "" || payload[k] === null ? null : parseFloat(payload[k]);
       });
       // Converti stringhe vuote in null per i campi con CHECK constraint
@@ -571,7 +574,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   ["Tipologia", vino.TIPOLOGIA],
                   ["Nazione", vino.NAZIONE],
                   ["Regione", vino.REGIONE],
-                  ["Carta", vino.CARTA || "NO"],
+                  ["Carta Vini", vino.CARTA || "NO"],
+                  ["Calice", vino.VENDITA_CALICE || "NO"],
+                  ["Biologico", vino.BIOLOGICO || "NO"],
                   ["Vendita", (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? s.label : vino.STATO_VENDITA || "—"; })()],
                   ["Riordino", (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? s.label : vino.STATO_RIORDINO || "—"; })()],
                   ["Conservazione", (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? s.label : vino.STATO_CONSERVAZIONE || "—"; })()],
@@ -621,19 +626,18 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Field label="Vitigni" value={vino.VITIGNI} />
                       <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${fmtNum(vino.GRADO_ALCOLICO, 1)}%` : null} />
                     </div>
-                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-neutral-100">
+                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-neutral-100">
                       <Field label="Prezzo carta" value={vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA)} €` : null} />
+                      <Field label="Prezzo calice" value={vino.PREZZO_CALICE != null ? `${fmtNum(vino.PREZZO_CALICE)} €${vino.PREZZO_CALICE_MANUALE ? " ✎" : ""}` : null} />
                       <Field label="Listino" value={vino.EURO_LISTINO != null ? `${fmtNum(vino.EURO_LISTINO)} €` : null} />
                       <Field label="Sconto" value={vino.SCONTO != null ? `${fmtNum(vino.SCONTO)}%` : null} />
                     </div>
                     <div className="pt-3 border-t border-neutral-100 space-y-2">
                       <div className="flex flex-wrap gap-2">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${vino.CARTA === "SI" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-neutral-50 text-neutral-500 border-neutral-200"}`}>
-                          CARTA: {vino.CARTA || "NO"}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${vino.IPRATICO === "SI" ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-neutral-50 text-neutral-500 border-neutral-200"}`}>
-                          iPratico: {vino.IPRATICO || "NO"}
-                        </span>
+                        <FlagBadge active={vino.CARTA === "SI"} label="Carta Vini" activeColor="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                        <FlagBadge active={vino.IPRATICO === "SI"} label="iPratico" activeColor="bg-sky-50 text-sky-700 border-sky-200" />
+                        <FlagBadge active={vino.VENDITA_CALICE === "SI"} label="Calice" activeColor="bg-violet-50 text-violet-700 border-violet-200" />
+                        <FlagBadge active={vino.BIOLOGICO === "SI"} label="Biologico" activeColor="bg-lime-50 text-lime-700 border-lime-200" />
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{s.label}</span> : null; })()}
@@ -666,16 +670,32 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Input label="Distributore" name="DISTRIBUTORE" value={editData.DISTRIBUTORE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                       <Input label="Rappresentante" name="RAPPRESENTANTE" value={editData.RAPPRESENTANTE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
                       <div className="relative">
-                        <Input label={`Prezzo carta €${prezzoAutoCalc ? " ✓ auto" : ""}`} name="PREZZO_CARTA" value={editData.PREZZO_CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.50" />
+                        <Input label={`Prezzo carta €${prezzoAutoCalc ? " ✓ auto" : ""}`} name="PREZZO_CARTA" value={editData.PREZZO_CARTA}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setEditData(p => {
+                              const upd = { ...p, PREZZO_CARTA: val };
+                              // Auto-calcola calice se non manuale
+                              if (!p.PREZZO_CALICE_MANUALE) {
+                                const pf = parseFloat(val);
+                                upd.PREZZO_CALICE = pf > 0 ? Math.round(pf / 5 * 100) / 100 : "";
+                              }
+                              return upd;
+                            });
+                          }} type="number" step="0.50" />
                       </div>
+                      <Input label={`Calice €${editData.PREZZO_CALICE_MANUALE ? " ✎" : " (auto)"}`} name="PREZZO_CALICE" value={editData.PREZZO_CALICE}
+                        onChange={e => setEditData(p => ({...p, PREZZO_CALICE: e.target.value, PREZZO_CALICE_MANUALE: 1}))} type="number" step="0.50" />
                       <Input label="Listino €" name="EURO_LISTINO" value={editData.EURO_LISTINO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} onBlur={e => autoCalcPrezzo(e.target.value)} type="number" step="0.01" />
                       <Input label="Sconto %" name="SCONTO" value={editData.SCONTO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Select label="In carta" name="CARTA" value={editData.CARTA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={[{value:"SI",label:"SI"},{value:"NO",label:"NO"}]} />
-                      <Select label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={[{value:"SI",label:"SI"},{value:"NO",label:"NO"}]} />
+                    <div className="grid grid-cols-4 gap-4">
+                      <FlagToggle label="Carta Vini" name="CARTA" value={editData.CARTA} onChange={v => setEditData(p => ({...p, CARTA: v}))} />
+                      <FlagToggle label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={v => setEditData(p => ({...p, IPRATICO: v}))} />
+                      <FlagToggle label="Calice" name="VENDITA_CALICE" value={editData.VENDITA_CALICE} onChange={v => setEditData(p => ({...p, VENDITA_CALICE: v}))} />
+                      <FlagToggle label="Biologico" name="BIOLOGICO" value={editData.BIOLOGICO} onChange={v => setEditData(p => ({...p, BIOLOGICO: v}))} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-neutral-100">
                       <Select label="Stato vendita" name="STATO_VENDITA" value={editData.STATO_VENDITA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={STATO_VENDITA_OPTIONS} />
@@ -867,5 +887,29 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     </div>
   );
 });
+
+/* ─── Flag helpers ─────────────────────────────────────────── */
+function FlagBadge({ active, label, activeColor }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+      active ? activeColor : "bg-neutral-50 text-neutral-400 border-neutral-200"
+    }`}>
+      {label}
+    </span>
+  );
+}
+
+function FlagToggle({ label, name, value, onChange }) {
+  const on = value === "SI";
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-1">{label}</label>
+      <button type="button" onClick={() => onChange(on ? "NO" : "SI")}
+        className={`relative w-12 h-6 rounded-full transition-colors ${on ? "bg-emerald-500" : "bg-neutral-300"}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "translate-x-6" : ""}`} />
+      </button>
+    </div>
+  );
+}
 
 export default SchedaVino;

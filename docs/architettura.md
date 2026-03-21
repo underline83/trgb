@@ -40,6 +40,7 @@ app/
 │   ├── finanza_router.py           — Finanza (/finanza/...)
 │   ├── finanza_scadenzario_router.py — Scadenzario
 │   ├── statistiche_router.py       — Statistiche iPratico (/statistiche/...)
+│   ├── ipratico_products_router.py — Sync prodotti iPratico (/vini/ipratico/...)
 │   ├── dipendenti.py               — Dipendenti & turni (/dipendenti/...)
 │   └── settings_router.py          — Impostazioni generali
 │
@@ -65,11 +66,14 @@ app/
 │   ├── security.py     — JWT encode/decode, sha256_crypt hashing
 │   └── database.py     — Connessioni SQLite
 │
-├── migrations/         ← Migrazioni DB foodcost.db (001–017)
+├── migrations/         ← Migrazioni DB foodcost.db (001–022)
 │   ├── 001_creare_ingredients.py
 │   ├── ...
 │   ├── 014_banca_movimenti.py
-│   ├── 015–017 (finanza, scadenzario, ecc.)
+│   ├── 015–019 (finanza, scadenzario, categorie albero)
+│   ├── 020_ipratico_products.py    — Tabelle mapping prodotti iPratico
+│   ├── 021_ipratico_ignored_status.py — Aggiunge stato 'ignored'
+│   ├── 022_ipratico_export_defaults.py — Default export configurabili
 │   └── migration_runner.py         — Eseguito all'avvio
 │
 ├── repositories/       ← Accesso dati ordinato
@@ -111,7 +115,7 @@ frontend/
 │   │   └── vini/MagazzinoSubMenu.jsx
 │   └── pages/
 │       ├── Home.jsx, Login.jsx, CambioPIN.jsx
-│       ├── vini/           — Carta, Magazzino, Movimenti, Dashboard, Impostazioni
+│       ├── vini/           — Carta, Magazzino, Movimenti, Dashboard, iPratico Sync, Impostazioni
 │       ├── ricette/        — Archivio, Nuova, Dettaglio, Ingredienti, Matching, Dashboard, Settings
 │       ├── banca/          — Nav, Menu, Dashboard, Movimenti, Import, Categorie, CrossRef
 │       ├── statistiche/    — Nav, Menu, Dashboard, Prodotti, Import iPratico

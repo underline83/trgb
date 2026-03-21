@@ -8,7 +8,7 @@ Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono
 | ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | **ELIMINATO v3.0** — tutto su vini_magazzino.sqlite3 |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini) | v3.7 — creato da `vini_magazzino_db.py` |
 | `vini_settings.sqlite3` | Settings Carta Vini | v1.4 — creato da `vini_settings.py` |
-| `foodcost.db` | FoodCost, FE XML, Banca, Finanza | v3.0 — gestito da `migration_runner.py` (001–017) |
+| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, iPratico Products | v4.0 — gestito da `migration_runner.py` (001–022) |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | v2.0 — chiusure turno con pre-conti e spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | v1.0 — creato a runtime da `dipendenti_db.py` |
 
@@ -82,7 +82,7 @@ _Ordinamenti e filtri della carta vini._
 ---
 
 # 4. `foodcost.db`
-_FoodCost + Fatture XML + Banca + Finanza. Gestito da `migration_runner.py` (001–017)._
+_FoodCost + Fatture XML + Banca + Finanza + iPratico Products. Gestito da `migration_runner.py` (001–022)._
 
 ## Tabelle FoodCost
 
@@ -171,10 +171,24 @@ recipes → recipe_items ← ingredients (o sub_recipe_id → recipes)
 banca_movimenti → banca_fatture_link ← fe_fatture
 ```
 
+## Tabelle iPratico Products (migrazioni 020–022)
+
+### `ipratico_product_map`
+Mapping prodotti iPratico ↔ vini TRGB. Il codice 4 cifre nel Name iPratico = `vini_magazzino.id`.
+| id | ipratico_uuid | ipratico_wine_id | ipratico_name | ipratico_category | vino_id (FK→vini_magazzino) | match_status (auto/manual/unmatched/ignored) | last_sync_at | created_at | updated_at |
+
+### `ipratico_sync_log`
+Storico importazioni/esportazioni.
+| id | direction (import/export) | filename | n_matched | n_unmatched | n_updated_qty | n_updated_price | created_at |
+
+### `ipratico_export_defaults`
+Valori default configurabili per campi vini nuovi nell'export (editabili da frontend).
+| id | field_name | field_value | field_group (general/reparti/listini) | label | updated_at |
+
 ## Convenzioni
 - Prezzi mai sovrascritti, sempre storicizzati
 - Categorie gestite in tabella, non testo libero
-- Ogni modifica schema → nuova migrazione `00X_nome.py` + aggiornare questo file
+- Ogni modifica schema → nuova migrazione `0XX_nome.py` + aggiornare questo file
 
 ---
 

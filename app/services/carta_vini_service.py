@@ -1,4 +1,4 @@
-# @version: v1.1-carta-vini-service
+# @version: v1.2-calici-section
 # -*- coding: utf-8 -*-
 """
 TRGB — Service Carta Vini
@@ -111,6 +111,140 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
 
                     html += "</tbody></table></div>"
 
+    return html
+
+
+# ------------------------------------------------------------
+# BUILDER — SEZIONE CALICI (PDF) — "un'unica pagina"
+# ------------------------------------------------------------
+def build_calici_section_html(rows: Iterable[Dict[str, Any]]) -> str:
+    """
+    Genera la sezione Calici per PDF.
+    Stile identico alla carta bottiglie ma preceduta da un titolo 'CALICI'.
+    Tutti i vini in un blocco unico (senza page-break).
+    """
+    rows = list(rows)
+    if not rows:
+        return ""
+
+    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
+    def k_reg(r): return resolve_regione(r)
+    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
+
+    html = "<div class='calici-section'>"
+    html += "<h1 class='calici-title'>🥂 CALICI</h1>"
+
+    for tip, g1 in groupby(rows, k_tip):
+        g1 = list(g1)
+        html += f"<h2 class='tipologia'>{tip}</h2>"
+
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            html += (
+                f"<div class='nazione'>"
+                f"<span class='naz-line'></span>"
+                f"<span class='naz-label'>{naz}</span>"
+                f"<span class='naz-line'></span>"
+                f"</div>"
+            )
+
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                html += f"<h4 class='regione'>{reg}</h4>"
+
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    html += "<div class='producer-block'>"
+                    html += "<div class='spacer'></div>"
+                    html += f"<h5 class='produttore'>{prod}</h5>"
+                    html += "<table class='vini'><tbody>"
+
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, ""):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
+                        else:
+                            prezzo = ""
+
+                        html += (
+                            "<tr>"
+                            f"<td class='vino'>{desc}</td>"
+                            f"<td class='annata'>{annata}</td>"
+                            f"<td class='prezzo'>{prezzo}</td>"
+                            "</tr>"
+                        )
+
+                    html += "</tbody></table></div>"
+
+    html += "</div>"  # .calici-section
+    return html
+
+
+def build_calici_section_htmlsafe(rows: Iterable[Dict[str, Any]]) -> str:
+    """Versione HTML safe della sezione calici (per preview)."""
+    rows = list(rows)
+    if not rows:
+        return ""
+
+    def k_tip(r): return r["TIPOLOGIA"] or "Senza tipologia"
+    def k_naz(r): return r.get("NAZIONE") or "Varie"
+    def k_reg(r): return resolve_regione(r)
+    def k_prod(r): return r["PRODUTTORE"] or "Produttore sconosciuto"
+
+    html = "<div class='calici-section'>"
+    html += "<h1 class='calici-title'>🥂 CALICI</h1>"
+
+    for tip, g1 in groupby(rows, k_tip):
+        g1 = list(g1)
+        html += f"<h2 class='tipologia'>{tip}</h2>"
+
+        for naz, g1b in groupby(g1, k_naz):
+            g1b = list(g1b)
+            html += (
+                f"<div class='nazione'>"
+                f"<span class='naz-line'></span>"
+                f"<span class='naz-label'>{naz}</span>"
+                f"<span class='naz-line'></span>"
+                f"</div>"
+            )
+
+            for reg, g2 in groupby(g1b, k_reg):
+                g2 = list(g2)
+                html += f"<h4 class='regione'>{reg}</h4>"
+
+                for prod, g3 in groupby(g2, k_prod):
+                    g3 = list(g3)
+                    html += "<div class='spacer'></div>"
+                    html += f"<h5 class='produttore'>{prod}</h5>"
+                    html += "<table class='vini'><tbody>"
+
+                    for r in g3:
+                        desc = r["DESCRIZIONE"] or ""
+                        annata = r["ANNATA"] or ""
+                        prezzo = r["PREZZO"]
+                        if prezzo not in (None, ""):
+                            try:
+                                prezzo = f"€ {float(prezzo):.2f}".replace(".", ",")
+                            except Exception:
+                                prezzo = str(prezzo)
+
+                        html += (
+                            "<tr>"
+                            f"<td class='vino'>{desc}</td>"
+                            f"<td class='annata'>{annata}</td>"
+                            f"<td class='prezzo'>{prezzo}</td>"
+                            "</tr>"
+                        )
+
+                    html += "</tbody></table>"
+
+    html += "</div>"  # .calici-section
     return html
 
 

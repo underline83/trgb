@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap & TO-DO
-**Ultimo aggiornamento:** 2026-03-16
+**Ultimo aggiornamento:** 2026-03-21
 
 Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
@@ -120,6 +120,21 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [x] Icona nel Header per accesso rapido — 2026-03-14
 - [x] Admin: reset PIN qualsiasi utente a 0000 — 2026-03-14
 
+## 30. Sincronizzazione iPratico — prodotti (NUOVO)
+- [x] Import export Excel iPratico, parsing Bottiglie — 2026-03-21
+- [x] Match diretto per ID 4 cifre → vini_magazzino.id (99.7%) — 2026-03-21
+- [x] Mapping manuale per non-abbinati + Ignora/Ripristina — 2026-03-21
+- [x] Export aggiornato: giacenze TRGB → Warehouse_quantity — 2026-03-21
+- [x] Export aggiornato: nomi ricostruiti da TRGB (priorita' TRGB) — 2026-03-21
+- [x] Export aggiornato: prezzi TRGB → Price_table_1 — 2026-03-21
+- [x] Aggiunta vini mancanti come nuove righe nell'export — 2026-03-21
+- [x] Campi default configurabili da frontend (Family, reparti, listini, prezzi) — 2026-03-21
+- [x] Tile nella home Vini + tab nella nav — 2026-03-21
+- [x] Download automatico DB dal VPS in push.sh — 2026-03-21
+- [ ] Test completo end-to-end (import → verifica → export → reimport iPratico)
+- [ ] Gestione prezzi differenziati per listino (Asporto vs Ristorante vs WebApp)
+- [ ] Sync Description/Internal_name da TRGB (oltre al Name)
+
 ## 28. Modulo Banca — evoluzione
 - [ ] Riconciliazione banca: match automatico movimenti → fatture (migliorare cross-ref)
 - [ ] Eliminare scadenza mista BPM
@@ -144,7 +159,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | **2026.03.14** | Cantina v3.7 + Chiusure Turno + Cambio PIN | Completato |
 | **2026.03.15** | Statistiche v1.0 + unificazione loader carta + fix delete movimenti | Completato |
 | **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |
-| **Prossimo** | Checklist turno, carta vini pubblica, permessi centralizzati | Pianificato |
+| **2026.03.21** | iPratico Sync v2.0: import/export prodotti, match diretto, TRGB priority, default configurabili | Completato |
+| **Prossimo** | Test e2e iPratico, checklist turno, carta vini pubblica, permessi centralizzati | Pianificato |
 
 ---
 
@@ -152,6 +168,7 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 | # | Task | Data |
 |---|------|------|
+| 30 | iPratico Sync v2.0: import/export, match diretto, TRGB priority, default config | 2026-03-21 |
 | 17 | Cantina v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar | 2026-03-16 |
 | — | Statistiche v1.0 + unificazione loader + fix delete movimenti | 2026-03-15 |
 | 27 | Cambio PIN self-service + reset admin | 2026-03-14 |

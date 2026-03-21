@@ -69,9 +69,15 @@ def init_magazzino_database() -> None:
             SCONTO          REAL,
             NOTE_PREZZO     TEXT,
 
+            -- Prezzi calice
+            PREZZO_CALICE       REAL,
+            PREZZO_CALICE_MANUALE INTEGER DEFAULT 0,  -- 1 se il prezzo è stato modificato manualmente
+
             -- Flag di visibilità / export
             CARTA           TEXT CHECK (CARTA IN ('SI','NO') OR CARTA IS NULL),
             IPRATICO        TEXT CHECK (IPRATICO IN ('SI','NO') OR IPRATICO IS NULL),
+            BIOLOGICO       TEXT CHECK (BIOLOGICO IN ('SI','NO') OR BIOLOGICO IS NULL) DEFAULT 'NO',
+            VENDITA_CALICE  TEXT CHECK (VENDITA_CALICE IN ('SI','NO') OR VENDITA_CALICE IS NULL) DEFAULT 'NO',
 
             -- Stato vendite / conservazione / riordino
             STATO_VENDITA   TEXT,
@@ -118,6 +124,20 @@ def init_magazzino_database() -> None:
         "CREATE INDEX IF NOT EXISTS idx_vm_descrizione "
         "ON vini_magazzino (DESCRIZIONE);"
     )
+
+    # Nuove colonne per DB esistenti (ALTER TABLE idempotente)
+    for col_def in [
+        "PREZZO_CALICE REAL",
+        "PREZZO_CALICE_MANUALE INTEGER DEFAULT 0",
+        "BIOLOGICO TEXT DEFAULT 'NO'",
+        "VENDITA_CALICE TEXT DEFAULT 'NO'",
+    ]:
+        col_name = col_def.split()[0]
+        try:
+            cur.execute(f"ALTER TABLE vini_magazzino ADD COLUMN {col_def}")
+            print(f"  ✅ Colonna {col_name} aggiunta")
+        except sqlite3.OperationalError:
+            pass  # Già esiste
 
     # Indice UNIQUE su id_excel per proteggere l'ID storico (quando non NULL)
     try:

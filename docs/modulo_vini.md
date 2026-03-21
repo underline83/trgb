@@ -57,6 +57,26 @@ Funziona in integrazione con:
 
 > **Rimossi in v3.0:** `/vini/upload` (import Excel vecchio), `/vini/cantina-tools/sync-from-excel` (sync vecchio DB)
 
+### Sincronizzazione iPratico (`ipratico_products_router.py` v2.0)
+
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| POST | `/vini/ipratico/upload` | Import export Excel iPratico, match Bottiglie per ID diretto |
+| GET | `/vini/ipratico/mappings` | Lista mapping iPratico ↔ TRGB con dati arricchiti |
+| PUT | `/vini/ipratico/mappings/{id}` | Assegna/rimuovi collegamento manuale |
+| PUT | `/vini/ipratico/ignore/{id}` | Toggle stato ignorato |
+| POST | `/vini/ipratico/export` | Genera Excel aggiornato (QTA, nomi TRGB priority, prezzi, vini mancanti) |
+| GET | `/vini/ipratico/missing` | Vini TRGB non presenti su iPratico |
+| GET | `/vini/ipratico/export-defaults` | Valori default per nuovi vini nell'export |
+| PUT | `/vini/ipratico/export-defaults/{id}` | Modifica valore default |
+| GET | `/vini/ipratico/sync-log` | Storico sincronizzazioni |
+| GET | `/vini/ipratico/stats` | Riepilogo veloce (matched, unmatched, ignored, missing) |
+
+**Logica chiave:**
+- Il codice 4 cifre nel campo Name iPratico = `vini_magazzino.id` (match diretto, ~99.7%)
+- TRGB ha priorita': se un vino cambia su TRGB, l'export aggiorna nome/giacenza/prezzo su iPratico
+- L'export aggiunge automaticamente vini TRGB mancanti con campi default configurabili (Family, reparti, listini, prezzi)
+
 ---
 
 # 4. Componenti tecnici

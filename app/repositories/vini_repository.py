@@ -202,6 +202,97 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     return out
 
 
+# ---------------------------------------------------------
+# CARTA VINI — SEZIONE CALICI
+# ---------------------------------------------------------
+def load_vini_calici() -> List[Dict[str, Any]]:
+    """
+    Restituisce i vini destinati alla sezione CALICI della carta,
+    filtrati (VENDITA_CALICE='SI' e CARTA='SI') e ordinati come la carta bottiglie.
+    Usa PREZZO_CALICE al posto di PREZZO_CARTA.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    min_qta_stampa, mostra_negativi, mostra_senza_prezzo = _load_filtri()
+
+    rows = cur.execute(
+        """
+        SELECT
+            id,
+            TIPOLOGIA,
+            NAZIONE,
+            REGIONE,
+            PRODUTTORE,
+            DESCRIZIONE,
+            ANNATA,
+            PREZZO_CALICE,
+            PREZZO_CARTA,
+            QTA_TOTALE
+        FROM vini_magazzino
+        WHERE
+            TIPOLOGIA IS NOT NULL
+            AND TIPOLOGIA <> 'ERRORE'
+            AND CARTA = 'SI'
+            AND VENDITA_CALICE = 'SI'
+        """
+    ).fetchall()
+    conn.close()
+
+    filtered = []
+    for r in rows:
+        qta = r["QTA_TOTALE"] or 0
+        # Prezzo calice: usa PREZZO_CALICE se esiste, altrimenti auto-calc da PREZZO_CARTA / 5
+        prezzo_calice = r["PREZZO_CALICE"]
+        if prezzo_calice is None or prezzo_calice == 0:
+            prezzo_carta = r["PREZZO_CARTA"]
+            if prezzo_carta and prezzo_carta > 0:
+                prezzo_calice = round(prezzo_carta / 5, 2)
+
+        if not (qta >= min_qta_stampa or (mostra_negativi and qta < 0)):
+            continue
+        if not mostra_senza_prezzo:
+            if prezzo_calice is None or prezzo_calice == 0:
+                continue
+
+        d = dict(r)
+        d["_PREZZO_CALICE_FINAL"] = prezzo_calice
+        filtered.append(d)
+
+    for r in filtered:
+        r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
+
+    tip_map, naz_map, reg_map = _load_ordinamenti()
+
+    def sort_key(r):
+        return (
+            tip_map.get(r["TIPOLOGIA"], 9999),
+            naz_map.get(r["NAZIONE"], 9999),
+            reg_map.get(r["REGIONE"], 9999),
+            (r["PRODUTTORE"] or "").upper(),
+            (r["DESCRIZIONE"] or "").upper(),
+            r["ANNATA"] or "",
+        )
+
+    ordered = sorted(filtered, key=sort_key)
+
+    out: List[Dict[str, Any]] = []
+    for r in ordered:
+        out.append({
+            "id": r["id"],
+            "TIPOLOGIA": r["TIPOLOGIA"],
+            "NAZIONE": r["NAZIONE"],
+            "REGIONE": r["REGIONE"],
+            "PRODUTTORE": r["PRODUTTORE"],
+            "DESCRIZIONE": r["DESCRIZIONE"],
+            "ANNATA": r["ANNATA"],
+            "PREZZO": r["_PREZZO_CALICE_FINAL"],
+            "QTA": r["QTA_TOTALE"],
+        })
+
+    return out
+
+
 # =========================================================
 #  SEZIONE GESTIONALE — RICERCA / DETTAGLIO VINI
 # =========================================================

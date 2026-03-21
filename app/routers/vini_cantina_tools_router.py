@@ -51,9 +51,11 @@ from app.services.carta_vini_service import (
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
     build_carta_docx,
+    build_calici_section_html,
+    build_calici_section_htmlsafe,
     resolve_regione,
 )
-from app.repositories.vini_repository import load_vini_ordinati, _load_ordinamenti
+from app.repositories.vini_repository import load_vini_ordinati, load_vini_calici, _load_ordinamenti
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
@@ -487,6 +489,8 @@ def carta_cantina_html():
     Usa load_vini_ordinati() condiviso con /vini/carta.
     """
     rows = load_vini_ordinati()
+    calici_rows = load_vini_calici()
+    calici_html = build_calici_section_htmlsafe(calici_rows)
     body_html = build_carta_body_html_htmlsafe(rows)
 
     css_content = ""
@@ -502,6 +506,7 @@ def carta_cantina_html():
 </head>
 <body>
     <div class="carta-container">
+        {calici_html}
         {body_html}
     </div>
 </body>
@@ -521,6 +526,7 @@ def carta_cantina_pdf(
     Genera il PDF della carta vini dal DB cantina.
     """
     rows = load_vini_ordinati()
+    calici_rows = load_vini_calici()
     data_oggi = datetime.now().strftime("%d/%m/%Y")
 
     # Front page — identico al vecchio sistema (stesse classi CSS)
@@ -533,8 +539,9 @@ def carta_cantina_pdf(
     """
 
     toc_html = build_carta_toc_html(rows)
+    calici_html = build_calici_section_html(calici_rows)
     body_html = build_carta_body_html(rows)
-    carta = f"<div class='carta-body'>{body_html}</div>"
+    carta = f"<div class='carta-body'>{calici_html}{body_html}</div>"
 
     full_html = f"""
     <html>

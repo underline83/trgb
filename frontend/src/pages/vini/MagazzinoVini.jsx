@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v4.0-scheda-inline
+// @version: v4.1-flags-sortable
 // Pagina Cantina — Lista Vini + Dettaglio + Scheda completa inline modificabile
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -22,8 +22,9 @@ function StampaFiltrata({ onClose }) {
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
   const [f, setF] = useState({
     tipologia: "", nazione: "", regione: "", produttore: "",
-    annata: "", formato: "", carta: "", stato_vendita: "",
-    stato_riordino: "", stato_conservazione: "", discontinuato: "", solo_giacenza: false,
+    annata: "", formato: "", carta: "", ipratico: "", biologico: "", calice: "",
+    stato_vendita: "", stato_riordino: "", stato_conservazione: "", discontinuato: "",
+    solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
     loc1_nome: "", loc1_spazio: "",
@@ -69,8 +70,9 @@ function StampaFiltrata({ onClose }) {
 
   const pulisci = () => setF({
     tipologia: "", nazione: "", regione: "", produttore: "",
-    annata: "", formato: "", carta: "", stato_vendita: "",
-    stato_riordino: "", stato_conservazione: "", discontinuato: "", solo_giacenza: false,
+    annata: "", formato: "", carta: "", ipratico: "", biologico: "", calice: "",
+    stato_vendita: "", stato_riordino: "", stato_conservazione: "", discontinuato: "",
+    solo_giacenza: false,
     qta_min: "", qta_max: "", prezzo_min: "", prezzo_max: "", text: "",
     frigo_nome: "", frigo_spazio: "",
     loc1_nome: "", loc1_spazio: "",
@@ -143,16 +145,44 @@ function StampaFiltrata({ onClose }) {
             </div>
           </div>
 
-          {/* Stato / Flag */}
+          {/* Flag */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className={lbl}>In carta</label>
+              <label className={lbl}>Carta Vini</label>
               <select value={f.carta} onChange={set("carta")} className={sel}>
                 <option value="">Tutti</option>
                 <option value="SI">SI</option>
                 <option value="NO">NO</option>
               </select>
             </div>
+            <div>
+              <label className={lbl}>iPratico</label>
+              <select value={f.ipratico || ""} onChange={set("ipratico")} className={sel}>
+                <option value="">Tutti</option>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Biologico</label>
+              <select value={f.biologico || ""} onChange={set("biologico")} className={sel}>
+                <option value="">Tutti</option>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Calice</label>
+              <select value={f.calice || ""} onChange={set("calice")} className={sel}>
+                <option value="">Tutti</option>
+                <option value="SI">SI</option>
+                <option value="NO">NO</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Stati */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className={lbl}>Stato vendita</label>
               <select value={f.stato_vendita} onChange={set("stato_vendita")} className={sel}>
@@ -402,6 +432,28 @@ export default function MagazzinoVini() {
   const [statoRiordinoSel, setStatoRiordinoSel] = useState("");
   const [statoConservazioneSel, setStatoConservazioneSel] = useState("");
 
+  // ── Filtri flag ──
+  const [cartaSel, setCartaSel] = useState("");           // "" | SI | NO
+  const [ipraticoSel, setIpraticoSel] = useState("");     // "" | SI | NO
+  const [biologicoSel, setBiologicoSel] = useState("");   // "" | SI | NO
+  const [caliceSel, setCaliceSel] = useState("");          // "" | SI | NO
+
+  // ── Ordinamento colonne ──
+  const [sortKey, setSortKey] = useState(null);   // "id" | "descrizione" | "produttore" | "origine" | "qta" | "prezzo" | null
+  const [sortDir, setSortDir] = useState("asc");  // "asc" | "desc"
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+  const SortIcon = ({ col }) => {
+    if (sortKey !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
+    return <span className="text-amber-600 ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+
   // ── Filtro locazioni unificato ──
   const [locConfig, setLocConfig] = useState({ frigorifero: [], locazione_1: [], locazione_2: [], locazione_3: [] });
   const [locNome, setLocNome] = useState("");
@@ -513,7 +565,7 @@ export default function MagazzinoVini() {
       "TIPOLOGIA", "NAZIONE", "REGIONE", "FORMATO",
       "PRODUTTORE", "DISTRIBUTORE", "RAPPRESENTANTE",
       "PREZZO_CARTA", "EURO_LISTINO", "SCONTO",
-      "CARTA", "IPRATICO",
+      "CARTA", "IPRATICO", "BIOLOGICO", "VENDITA_CALICE",
       "STATO_VENDITA", "STATO_RIORDINO", "STATO_CONSERVAZIONE",
       "NOTE",
     ];
@@ -783,6 +835,12 @@ export default function MagazzinoVini() {
     if (statoRiordinoSel) out = out.filter((v) => v.STATO_RIORDINO === statoRiordinoSel);
     if (statoConservazioneSel) out = out.filter((v) => v.STATO_CONSERVAZIONE === statoConservazioneSel);
 
+    // 7b) Filtri flag
+    if (cartaSel) out = out.filter((v) => v.CARTA === cartaSel);
+    if (ipraticoSel) out = out.filter((v) => v.IPRATICO === ipraticoSel);
+    if (biologicoSel) out = out.filter((v) => v.BIOLOGICO === biologicoSel);
+    if (caliceSel) out = out.filter((v) => v.VENDITA_CALICE === caliceSel);
+
     // 8) Filtro locazione unificato (cerca in tutte le colonne)
     if (locNome) {
       const locCols = ["FRIGORIFERO", "LOCAZIONE_1", "LOCAZIONE_2", "LOCAZIONE_3"];
@@ -815,6 +873,7 @@ export default function MagazzinoVini() {
     prezzoVal2,
     onlyMissingListino,
     statoVenditaSel, statoRiordinoSel, statoConservazioneSel,
+    cartaSel, ipraticoSel, biologicoSel, caliceSel,
     locNome, locSpazio,
   ]);
 
@@ -839,20 +898,48 @@ export default function MagazzinoVini() {
     return { sorted, totBotQ, esaurite };
   }, [viniFiltrati]);
 
-  // Lista vini mostrata in tabella (filtrata ulteriormente dal riepilogo)
+  // Lista vini mostrata in tabella (filtrata ulteriormente dal riepilogo + ordinata)
   const viniVisibili = useMemo(() => {
-    if (!riepilogoFilter) return viniFiltrati;
-    if (riepilogoFilter === "esaurite") {
-      return viniFiltrati.filter((v) => {
+    let out;
+    if (!riepilogoFilter) {
+      out = [...viniFiltrati];
+    } else if (riepilogoFilter === "esaurite") {
+      out = viniFiltrati.filter((v) => {
         const q = (v.QTA_TOTALE ?? ((v.QTA_FRIGO ?? 0) + (v.QTA_LOC1 ?? 0) + (v.QTA_LOC2 ?? 0) + (v.QTA_LOC3 ?? 0))) || 0;
         return q <= 0;
       });
+    } else {
+      const tip = riepilogoFilter.replace("tipologia:", "");
+      out = tip === "—"
+        ? viniFiltrati.filter((v) => !v.TIPOLOGIA)
+        : viniFiltrati.filter((v) => v.TIPOLOGIA === tip);
     }
-    // "tipologia:NOME"
-    const tip = riepilogoFilter.replace("tipologia:", "");
-    if (tip === "—") return viniFiltrati.filter((v) => !v.TIPOLOGIA);
-    return viniFiltrati.filter((v) => v.TIPOLOGIA === tip);
-  }, [viniFiltrati, riepilogoFilter]);
+
+    // Ordinamento per colonna
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      out.sort((a, b) => {
+        let va, vb;
+        switch (sortKey) {
+          case "id": va = a.id ?? 0; vb = b.id ?? 0; return (va - vb) * dir;
+          case "descrizione": va = (a.DESCRIZIONE || "").toLowerCase(); vb = (b.DESCRIZIONE || "").toLowerCase(); break;
+          case "produttore": va = (a.PRODUTTORE || "").toLowerCase(); vb = (b.PRODUTTORE || "").toLowerCase(); break;
+          case "origine": va = ((a.NAZIONE || "") + (a.REGIONE || "")).toLowerCase(); vb = ((b.NAZIONE || "") + (b.REGIONE || "")).toLowerCase(); break;
+          case "qta":
+            va = (a.QTA_TOTALE ?? ((a.QTA_FRIGO ?? 0) + (a.QTA_LOC1 ?? 0) + (a.QTA_LOC2 ?? 0) + (a.QTA_LOC3 ?? 0))) || 0;
+            vb = (b.QTA_TOTALE ?? ((b.QTA_FRIGO ?? 0) + (b.QTA_LOC1 ?? 0) + (b.QTA_LOC2 ?? 0) + (b.QTA_LOC3 ?? 0))) || 0;
+            return (va - vb) * dir;
+          case "prezzo":
+            va = parseFloat(a.PREZZO_CARTA) || 0; vb = parseFloat(b.PREZZO_CARTA) || 0;
+            return (va - vb) * dir;
+          default: return 0;
+        }
+        return va < vb ? -1 * dir : va > vb ? 1 * dir : 0;
+      });
+    }
+
+    return out;
+  }, [viniFiltrati, riepilogoFilter, sortKey, sortDir]);
 
   const handleRowClick = (vino) => {
     // Se c'è una scheda aperta con modifiche non salvate, chiedi conferma
@@ -878,7 +965,8 @@ export default function MagazzinoVini() {
   const activeFilterCount = [
     searchText, searchId, tipologiaSel, nazioneSel, regioneSel, produttoreSel,
     distributoreSel, rappresentanteSel, locNome, statoVenditaSel, statoRiordinoSel,
-    statoConservazioneSel, onlyMissingListino && "x", onlyPositiveStock && "x",
+    statoConservazioneSel, cartaSel, ipraticoSel, biologicoSel, caliceSel,
+    onlyMissingListino && "x", onlyPositiveStock && "x",
     giacenzaMode !== "any" && "x", prezzoMode !== "any" && "x",
   ].filter(Boolean).length;
 
@@ -891,6 +979,7 @@ export default function MagazzinoVini() {
     setPrezzoMode("any"); setPrezzoVal1(""); setPrezzoVal2("");
     setOnlyMissingListino(false);
     setStatoVenditaSel(""); setStatoRiordinoSel(""); setStatoConservazioneSel("");
+    setCartaSel(""); setIpraticoSel(""); setBiologicoSel(""); setCaliceSel("");
     setRiepilogoFilter(null);
   };
 
@@ -1076,6 +1165,45 @@ export default function MagazzinoVini() {
               </div>
             </div>
 
+            {/* ── Flag ── */}
+            <div className="bg-rose-50/40 rounded-lg p-2.5 border border-rose-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-rose-600 uppercase tracking-widest mb-1.5">Flag</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div>
+                  <label className={fLbl}>Carta Vini</label>
+                  <select value={cartaSel} onChange={(e) => setCartaSel(e.target.value)} className={fSel}>
+                    <option value="">Tutti</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={fLbl}>iPratico</label>
+                  <select value={ipraticoSel} onChange={(e) => setIpraticoSel(e.target.value)} className={fSel}>
+                    <option value="">Tutti</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={fLbl}>Biologico</label>
+                  <select value={biologicoSel} onChange={(e) => setBiologicoSel(e.target.value)} className={fSel}>
+                    <option value="">Tutti</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={fLbl}>Calice</label>
+                  <select value={caliceSel} onChange={(e) => setCaliceSel(e.target.value)} className={fSel}>
+                    <option value="">Tutti</option>
+                    <option value="SI">SI</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* ── Giacenza e prezzo ── */}
             <div className="bg-violet-50/40 rounded-lg p-2.5 border border-violet-100 shadow-sm">
               <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Giacenza e prezzo</div>
@@ -1192,18 +1320,30 @@ export default function MagazzinoVini() {
             <div className="flex-1 overflow-auto min-h-0">
               <table className="w-full text-[11px]">
                 <thead className="bg-neutral-100 sticky top-0 z-10">
-                  <tr className="text-[9px] text-neutral-600 uppercase tracking-wide">
+                  <tr className="text-[9px] text-neutral-600 uppercase tracking-wide select-none">
                     <th className="px-1.5 py-2 text-center w-8">
                       <input type="checkbox" checked={viniVisibili.length > 0 && selectedIds.length === viniVisibili.length}
                         onChange={toggleSelectAll} className="rounded border-violet-400 text-violet-600 focus:ring-violet-300 w-3.5 h-3.5" />
                     </th>
-                    <th className="px-2 py-2 text-left w-12">ID</th>
-                    <th className="px-2 py-2 text-left">Vino</th>
-                    <th className="px-2 py-2 text-left w-20">Produttore</th>
-                    <th className="px-2 py-2 text-left w-16">Origine</th>
-                    <th className="px-2 py-2 text-center w-10">Qta</th>
-                    <th className="px-2 py-2 text-center w-14">Prezzo</th>
-                    <th className="px-2 py-2 text-center w-12">Carta</th>
+                    <th className="px-2 py-2 text-left w-12 cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("id")}>
+                      ID <SortIcon col="id" />
+                    </th>
+                    <th className="px-2 py-2 text-left cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("descrizione")}>
+                      Vino <SortIcon col="descrizione" />
+                    </th>
+                    <th className="px-2 py-2 text-left w-20 cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("produttore")}>
+                      Produttore <SortIcon col="produttore" />
+                    </th>
+                    <th className="px-2 py-2 text-left w-16 cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("origine")}>
+                      Origine <SortIcon col="origine" />
+                    </th>
+                    <th className="px-2 py-2 text-center w-10 cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("qta")}>
+                      Qta <SortIcon col="qta" />
+                    </th>
+                    <th className="px-2 py-2 text-center w-14 cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("prezzo")}>
+                      Prezzo <SortIcon col="prezzo" />
+                    </th>
+                    <th className="px-2 py-2 text-center w-20">Flag</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1239,15 +1379,13 @@ export default function MagazzinoVini() {
                         <td className="px-2 py-1.5 text-center text-[10px] text-neutral-600">
                           {vino.PREZZO_CARTA ? `€${Number(vino.PREZZO_CARTA).toLocaleString("it-IT", { minimumFractionDigits: 0 })}` : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-center">
-                          <span className={
-                            "inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold " +
-                            (vino.CARTA === "SI"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-neutral-50 text-neutral-400 border border-neutral-200")
-                          }>
-                            {vino.CARTA === "SI" ? "Si" : "No"}
-                          </span>
+                        <td className="px-1 py-1.5 text-center">
+                          <div className="flex flex-wrap gap-0.5 justify-center">
+                            {vino.CARTA === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200" title="Carta Vini">C</span>}
+                            {vino.IPRATICO === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 border border-sky-200" title="iPratico">iP</span>}
+                            {vino.VENDITA_CALICE === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200" title="Calice">🥂</span>}
+                            {vino.BIOLOGICO === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-lime-100 text-lime-700 border border-lime-200" title="Biologico">🌿</span>}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1412,9 +1550,9 @@ export default function MagazzinoVini() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">In carta</label>
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Carta Vini</label>
                       <select name="CARTA" value={bulkData.CARTA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("CARTA")}>
                         <option value="">{bfPlaceholder("CARTA")}</option><option value="SI">SI</option><option value="NO">NO</option>
                       </select>
@@ -1425,6 +1563,20 @@ export default function MagazzinoVini() {
                         <option value="">{bfPlaceholder("IPRATICO")}</option><option value="SI">SI</option><option value="NO">NO</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Biologico</label>
+                      <select name="BIOLOGICO" value={bulkData.BIOLOGICO ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("BIOLOGICO")}>
+                        <option value="">{bfPlaceholder("BIOLOGICO")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Calice</label>
+                      <select name="VENDITA_CALICE" value={bulkData.VENDITA_CALICE ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("VENDITA_CALICE")}>
+                        <option value="">{bfPlaceholder("VENDITA_CALICE")}</option><option value="SI">SI</option><option value="NO">NO</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Stato vendita</label>
                       <select name="STATO_VENDITA" value={bulkData.STATO_VENDITA ?? ""} onChange={e => bulkFieldSet(e.target.name, e.target.value)} className={bfClass("STATO_VENDITA")}>

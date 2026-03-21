@@ -257,6 +257,25 @@ td.annata { width: 10%; text-align: right; padding-right: 8pt; }
 td.prezzo { width: 10%; text-align: right; }
 
 /* ============================================================
+   SEZIONE CALICI
+   ============================================================ */
+.calici-section {
+    page-break-after: always;
+}
+.calici-title {
+    font-family: "Cormorant Garamond", "Garamond", serif;
+    font-size: 22pt;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 5pt;
+    text-transform: uppercase;
+    margin: 20pt 0 16pt 0;
+    color: #5b2c1a;
+    border-bottom: 1px solid #c4a77d;
+    padding-bottom: 8pt;
+}
+
+/* ============================================================
    MICRO-OTTIMIZZAZIONE TIPOGRAFICA v3.x
    (non cambia layout: solo resa del font)
    ============================================================ */

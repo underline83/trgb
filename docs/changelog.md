@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-03-21 — Modulo iPratico Sync v2.0
+
+### Added
+- **Sincronizzazione prodotti iPratico** — nuovo modulo per import/export bidirezionale tra iPratico e magazzino vini TRGB
+- **`app/routers/ipratico_products_router.py`** v2.0 — 10 endpoint sotto `/vini/ipratico/`: upload, mappings, ignore, export, missing, export-defaults, sync-log, stats, trgb-wines
+- **`frontend/src/pages/vini/iPraticoSync.jsx`** v2.0 — pagina workflow lineare (no tab): import → verifica → esporta
+- **Migrazioni 020–022** in `foodcost.db`:
+  - `ipratico_product_map` — mapping prodotti iPratico ↔ vini TRGB
+  - `ipratico_sync_log` — storico sincronizzazioni
+  - `ipratico_export_defaults` — valori default configurabili per nuovi vini (Family, reparti, listini)
+- **Match diretto per ID** — il codice 4 cifre nel Name iPratico corrisponde a `vini_magazzino.id` (~99.7% match rate)
+- **TRGB ha priorita'** — l'export ricostruisce il Name da dati TRGB se cambiati
+- **Vini mancanti** — l'export aggiunge automaticamente righe per vini TRGB non presenti su iPratico con tutti i campi default compilati (12 campi prezzo, reparti, family, hidden, listini)
+- **Default configurabili** — pannello collassabile nella sezione Export per modificare i valori default senza toccare il codice
+- **Ignore/Ripristina** — toggle per prodotti iPratico senza corrispondenza TRGB
+- **Tile "Import/Export iPratico"** nella home modulo Vini (`ViniMenu.jsx`)
+- **`push.sh`** — aggiunto download automatico database dal VPS prima di ogni push
+
+---
+
 ## 2026-03-16 — Cantina & Vini v4.0: Filtro locazioni unificato, Stampa selezionati PDF, SchedaVino sidebar+main
 
 ### Added

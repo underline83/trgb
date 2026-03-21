@@ -61,6 +61,9 @@ class VinoMagazzinoBase(BaseModel):
     SCONTO: Optional[float] = None
     NOTE_PREZZO: Optional[str] = None
 
+    PREZZO_CALICE: Optional[float] = None
+    PREZZO_CALICE_MANUALE: Optional[int] = 0
+
     CARTA: Optional[str] = Field(
         None,
         description="Flag pubblicazione in carta (SI/NO)",
@@ -68,6 +71,14 @@ class VinoMagazzinoBase(BaseModel):
     IPRATICO: Optional[str] = Field(
         None,
         description="Flag esportazione iPratico (SI/NO)",
+    )
+    BIOLOGICO: Optional[str] = Field(
+        "NO",
+        description="Flag vino biologico (SI/NO)",
+    )
+    VENDITA_CALICE: Optional[str] = Field(
+        "NO",
+        description="Flag vendita al calice (SI/NO)",
     )
     DISCONTINUATO: Optional[str] = Field(
         None,
@@ -128,12 +139,16 @@ class VinoMagazzinoUpdate(BaseModel):
     RAPPRESENTANTE: Optional[str] = None
 
     PREZZO_CARTA: Optional[float] = None
+    PREZZO_CALICE: Optional[float] = None
+    PREZZO_CALICE_MANUALE: Optional[int] = None
     EURO_LISTINO: Optional[float] = None
     SCONTO: Optional[float] = None
     NOTE_PREZZO: Optional[str] = None
 
     CARTA: Optional[str] = None
     IPRATICO: Optional[str] = None
+    BIOLOGICO: Optional[str] = None
+    VENDITA_CALICE: Optional[str] = None
     DISCONTINUATO: Optional[str] = None
 
     STATO_VENDITA: Optional[str] = None

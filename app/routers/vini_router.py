@@ -37,6 +37,8 @@ from app.services.carta_vini_service import (
     build_carta_body_html_htmlsafe,
     build_carta_toc_html,
     build_carta_docx,
+    build_calici_section_html,
+    build_calici_section_htmlsafe,
     resolve_regione,
 )
 from app.services.auth_service import get_current_user
@@ -45,7 +47,7 @@ from app.models.vini_magazzino_db import (
     list_movimenti_vino,
     registra_movimento,
 )
-from app.repositories.vini_repository import load_vini_ordinati
+from app.repositories.vini_repository import load_vini_ordinati, load_vini_calici
 
 
 router = APIRouter(prefix="/vini", tags=["Vini"])
@@ -66,6 +68,8 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 @router.get("/carta", response_class=HTMLResponse)
 def genera_carta_vini_html():
     rows = list(load_vini_ordinati())
+    calici_rows = list(load_vini_calici())
+    calici_html = build_calici_section_htmlsafe(calici_rows)
     body = build_carta_body_html_htmlsafe(rows)
 
     html = f"""
@@ -76,6 +80,7 @@ def genera_carta_vini_html():
     </head>
     <body>
         <h1 class='title'>OSTERIA TRE GOBBI — CARTA DEI VINI</h1>
+        {calici_html}
         {body}
     </body>
     </html>
@@ -100,6 +105,7 @@ def genera_carta_vini_html_alias():
 def genera_carta_vini_pdf():
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())
+    calici_rows = list(load_vini_calici())
 
     frontespizio = f"""
     <div class="front-page">
@@ -110,8 +116,9 @@ def genera_carta_vini_pdf():
     """
 
     toc_html = build_carta_toc_html(rows)
+    calici_html = build_calici_section_html(calici_rows)
     body_html = build_carta_body_html(rows)
-    carta = f"<div class='carta-body'>{body_html}</div>"
+    carta = f"<div class='carta-body'>{calici_html}{body_html}</div>"
 
     html = f"""
     <html>
@@ -148,6 +155,7 @@ def genera_carta_vini_pdf_staff():
     """
     data_oggi = datetime.now().strftime("%d/%m/%Y")
     rows = list(load_vini_ordinati())
+    calici_rows = list(load_vini_calici())
 
     frontespizio = f"""
     <div class="front-page">
@@ -159,8 +167,9 @@ def genera_carta_vini_pdf_staff():
     """
 
     toc_html = build_carta_toc_html(rows)
+    calici_html = build_calici_section_html(calici_rows)
     body_html = build_carta_body_html(rows)
-    carta = f"<div class='carta-body'>{body_html}</div>"
+    carta = f"<div class='carta-body'>{calici_html}{body_html}</div>"
 
     html = f"""
     <html>
