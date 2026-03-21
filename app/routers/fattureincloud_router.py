@@ -1,24 +1,28 @@
-# @version: v1.1-fattureincloud-fix-sync
+# @version: v2.0-unified-fe-fatture
 # -*- coding: utf-8 -*-
 """
 Router per integrazione Fatture in Cloud API v2.
+
+IMPORTANTE: la sync scrive nella tabella UNIFICATA fe_fatture (stessa usata
+dall'import XML), con fonte='fic' e fic_id per la deduplica.
+Questo permette a dashboard, categorie, matching e finanza di funzionare
+automaticamente senza modifiche.
 
 Endpoint:
   GET  /fic/status            — stato connessione + info azienda
   POST /fic/connect            — salva access token e recupera company_id
   POST /fic/disconnect         — rimuove token
-  POST /fic/sync               — sincronizza fatture ricevute
-  GET  /fic/fatture            — lista fatture ricevute (paginata)
-  GET  /fic/fatture/{fic_id}   — dettaglio singola fattura
+  POST /fic/sync               — sincronizza fatture ricevute → fe_fatture
+  GET  /fic/fatture            — lista fatture FIC (da fe_fatture con fonte='fic')
   GET  /fic/sync-log           — storico sincronizzazioni
-  GET  /fic/fornitori          — lista fornitori da FIC
+  GET  /fic/fornitori          — lista fornitori da FIC (live)
 """
 
 import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -85,13 +89,13 @@ class ConnectRequest(BaseModel):
 class SyncResult(BaseModel):
     nuove: int = 0
     aggiornate: int = 0
+    duplicate_xml: int = 0
     errori: int = 0
     totale_api: int = 0
     note: str = ""
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────
-
 
 @router.get("/status", summary="Stato connessione Fatture in Cloud")
 def fic_status(current_user: Any = Depends(get_current_user)):
@@ -101,14 +105,26 @@ def fic_status(current_user: Any = Depends(get_current_user)):
         if not cfg:
             return {"connected": False}
 
-        # Prova a verificare che il token funzioni
         try:
             data = fic_get(cfg["access_token"], "/user/companies")
             companies = data.get("data", {}).get("companies", [])
+
+            # Conta fatture per fonte
+            counts = conn.execute("""
+                SELECT
+                    COALESCE(fonte, 'xml') as fonte,
+                    COUNT(*) as n
+                FROM fe_fatture
+                GROUP BY COALESCE(fonte, 'xml')
+            """).fetchall()
+            count_map = {r["fonte"]: r["n"] for r in counts}
+
             return {
                 "connected": True,
                 "company_id": cfg["company_id"],
                 "company_name": cfg["company_name"],
+                "fatture_xml": count_map.get("xml", 0),
+                "fatture_fic": count_map.get("fic", 0),
                 "companies": [
                     {"id": c["id"], "name": c.get("name", "")}
                     for c in companies
@@ -132,7 +148,6 @@ def fic_connect(
     """Salva il token, recupera le aziende, seleziona la prima."""
     token = req.access_token.strip()
 
-    # Verifica token chiamando /user/companies
     try:
         data = fic_get(token, "/user/companies")
     except HTTPException:
@@ -142,7 +157,6 @@ def fic_connect(
     if not companies:
         raise HTTPException(400, "Nessuna azienda trovata per questo token")
 
-    # Prendi la prima azienda (tipicamente una sola per token personale)
     company = companies[0]
     cid = company["id"]
     cname = company.get("name", "")
@@ -183,14 +197,17 @@ def fic_disconnect(current_user: Any = Depends(get_current_user)):
         conn.close()
 
 
-@router.post("/sync", summary="Sincronizza fatture ricevute", response_model=SyncResult)
+@router.post("/sync", summary="Sincronizza fatture ricevute → fe_fatture", response_model=SyncResult)
 def fic_sync(
     anno: int = Query(None, description="Anno da sincronizzare (default: anno corrente)"),
     current_user: Any = Depends(get_current_user),
 ):
     """
-    Scarica tutte le fatture ricevute (passive) dall'API e le salva/aggiorna nel DB.
-    Se anno non specificato, sincronizza l'anno corrente.
+    Scarica fatture ricevute da FIC e le scrive nella tabella UNIFICATA fe_fatture.
+
+    Deduplica:
+    - Per fic_id: se la fattura FIC è già presente (fonte='fic'), la aggiorna.
+    - Per piva+numero+data: se la fattura esiste già da XML, la salta (conta come 'duplicate_xml').
     """
     conn = get_db()
     try:
@@ -212,24 +229,24 @@ def fic_sync(
 
         nuove = 0
         aggiornate = 0
+        duplicate_xml = 0
         errori = 0
         page = 1
         totale_api = 0
 
         while True:
             try:
-                params = {
+                req_params = {
                     "type": "expense",
                     "per_page": 50,
                     "page": page,
                 }
-                # Filtro per anno via query 'q' — sintassi FIC: field op 'value'
                 if anno:
-                    params["q"] = f"date >= '{anno}-01-01' and date <= '{anno}-12-31'"
+                    req_params["q"] = f"date >= '{anno}-01-01' and date <= '{anno}-12-31'"
 
-                data = fic_get(token, f"/c/{cid}/received_documents", params)
-            except HTTPException as e:
-                # Se il filtro q fallisce, riprova senza filtro (scarica tutto)
+                data = fic_get(token, f"/c/{cid}/received_documents", req_params)
+            except HTTPException:
+                # Fallback senza filtro data
                 if page == 1 and anno:
                     try:
                         data = fic_get(token, f"/c/{cid}/received_documents", {
@@ -246,82 +263,107 @@ def fic_sync(
 
             items = data.get("data", [])
             totale_api = data.get("total", len(items))
-            last_page = data.get("last_page", data.get("total_pages", page))
+            last_page = data.get("last_page", page)
 
             for doc in items:
                 try:
                     fic_id = doc["id"]
-                    doc_date = doc.get("date", "")
+                    doc_date = doc.get("date", "") or ""
+                    doc_number = doc.get("number", "") or ""
 
                     # Filtro anno lato server (safety net)
                     if anno and doc_date and not doc_date.startswith(str(anno)):
                         continue
 
                     entity = doc.get("entity", {}) or {}
+                    fornitore_nome = entity.get("name", "") or "Sconosciuto"
+                    fornitore_piva = entity.get("vat_number", "") or ""
 
-                    # Calcola importi
+                    # Importi
                     amount_net = doc.get("amount_net", 0) or 0
                     amount_vat = doc.get("amount_vat", 0) or 0
                     amount_gross = doc.get("amount_gross", 0) or 0
-
-                    # Se gross è 0, calcolalo
                     if not amount_gross and (amount_net or amount_vat):
                         amount_gross = amount_net + amount_vat
 
-                    existing = conn.execute(
-                        "SELECT id FROM fic_fatture WHERE fic_id = ?", (fic_id,)
+                    # ── DEDUPLICA ──────────────────────────────────
+
+                    # 1) Già presente come FIC? → aggiorna
+                    existing_fic = conn.execute(
+                        "SELECT id FROM fe_fatture WHERE fic_id = ?", (fic_id,)
                     ).fetchone()
 
-                    params = (
-                        doc.get("type", "expense"),
-                        doc.get("number", ""),
-                        doc.get("date", ""),
-                        doc.get("next_due_date", ""),
-                        amount_net,
-                        amount_vat,
-                        amount_gross,
-                        doc.get("currency", {}).get("id", "EUR") if isinstance(doc.get("currency"), dict) else "EUR",
-                        entity.get("id"),
-                        entity.get("name", ""),
-                        entity.get("vat_number", ""),
-                        doc.get("description", ""),
-                        1 if doc.get("is_marked", False) else 0,
-                        doc.get("category", ""),
-                        json.dumps(doc, ensure_ascii=False, default=str),
-                    )
-
-                    if existing:
+                    if existing_fic:
                         conn.execute(
                             """
-                            UPDATE fic_fatture SET
-                                tipo=?, numero=?, data=?, data_scadenza=?,
-                                importo_netto=?, importo_iva=?, importo_totale=?,
-                                valuta=?, fornitore_id=?, fornitore_nome=?,
-                                fornitore_piva=?, descrizione=?, pagato=?,
-                                categoria=?, raw_json=?, updated_at=CURRENT_TIMESTAMP
+                            UPDATE fe_fatture SET
+                                fornitore_nome = ?,
+                                fornitore_piva = ?,
+                                numero_fattura = ?,
+                                data_fattura   = ?,
+                                imponibile_totale = ?,
+                                iva_totale     = ?,
+                                totale_fattura = ?,
+                                valuta         = ?
                             WHERE fic_id = ?
                             """,
-                            (*params, fic_id),
+                            (
+                                fornitore_nome, fornitore_piva,
+                                doc_number, doc_date,
+                                amount_net, amount_vat, amount_gross,
+                                "EUR",
+                                fic_id,
+                            ),
                         )
                         aggiornate += 1
-                    else:
-                        conn.execute(
+                        continue
+
+                    # 2) Già presente da XML? (match su piva + numero + data)
+                    #    Confronto solo se abbiamo almeno piva e numero
+                    if fornitore_piva and doc_number and doc_date:
+                        existing_xml = conn.execute(
                             """
-                            INSERT INTO fic_fatture (
-                                fic_id, tipo, numero, data, data_scadenza,
-                                importo_netto, importo_iva, importo_totale,
-                                valuta, fornitore_id, fornitore_nome,
-                                fornitore_piva, descrizione, pagato,
-                                categoria, raw_json
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            SELECT id FROM fe_fatture
+                            WHERE fornitore_piva = ?
+                              AND numero_fattura = ?
+                              AND data_fattura = ?
+                              AND COALESCE(fonte, 'xml') = 'xml'
                             """,
-                            (fic_id, *params),
-                        )
-                        nuove += 1
+                            (fornitore_piva, doc_number, doc_date),
+                        ).fetchone()
+
+                        if existing_xml:
+                            # Aggiorna con fic_id per tracciarla, ma non duplicarla
+                            conn.execute(
+                                "UPDATE fe_fatture SET fic_id = ? WHERE id = ?",
+                                (fic_id, existing_xml["id"]),
+                            )
+                            duplicate_xml += 1
+                            continue
+
+                    # 3) Nuova fattura → inserisci
+                    now = datetime.now().isoformat(sep=" ", timespec="seconds")
+                    conn.execute(
+                        """
+                        INSERT INTO fe_fatture (
+                            fornitore_nome, fornitore_piva,
+                            numero_fattura, data_fattura,
+                            imponibile_totale, iva_totale, totale_fattura,
+                            valuta, data_import, fonte, fic_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fic', ?)
+                        """,
+                        (
+                            fornitore_nome, fornitore_piva,
+                            doc_number, doc_date,
+                            amount_net, amount_vat, amount_gross,
+                            "EUR", now, fic_id,
+                        ),
+                    )
+                    nuove += 1
 
                 except Exception as e:
                     errori += 1
-                    print(f"⚠️ FIC sync error doc {doc.get('id','?')}: {e}")
+                    print(f"⚠️ FIC sync error doc {doc.get('id', '?')}: {e}")
 
             conn.commit()
 
@@ -330,6 +372,7 @@ def fic_sync(
             page += 1
 
         # Aggiorna log
+        note = f"Anno {anno}: {nuove} nuove, {aggiornate} agg, {duplicate_xml} già da XML, totale API: {totale_api}"
         conn.execute(
             """
             UPDATE fic_sync_log SET
@@ -338,13 +381,14 @@ def fic_sync(
                 note = ?
             WHERE id = ?
             """,
-            (nuove, aggiornate, errori, f"Anno {anno}, totale API: {totale_api}", log_id),
+            (nuove, aggiornate, errori, note, log_id),
         )
         conn.commit()
 
         return SyncResult(
             nuove=nuove,
             aggiornate=aggiornate,
+            duplicate_xml=duplicate_xml,
             errori=errori,
             totale_api=totale_api,
             note=f"Sincronizzazione {anno} completata",
@@ -353,7 +397,7 @@ def fic_sync(
         conn.close()
 
 
-@router.get("/fatture", summary="Lista fatture ricevute sincronizzate")
+@router.get("/fatture", summary="Lista fatture ricevute sincronizzate da FIC")
 def fic_fatture_list(
     anno: int = Query(None),
     fornitore: str = Query(None),
@@ -361,32 +405,35 @@ def fic_fatture_list(
     per_page: int = Query(50, ge=10, le=200),
     current_user: Any = Depends(get_current_user),
 ):
+    """Lista fatture dalla tabella unificata fe_fatture, filtrate per fonte='fic'."""
     conn = get_db()
     try:
-        where = []
+        where = ["COALESCE(fonte, 'xml') = 'fic'"]
         params = []
 
         if anno:
-            where.append("data LIKE ?")
+            where.append("data_fattura LIKE ?")
             params.append(f"{anno}-%")
         if fornitore:
             where.append("fornitore_nome LIKE ?")
             params.append(f"%{fornitore}%")
 
-        where_sql = " WHERE " + " AND ".join(where) if where else ""
+        where_sql = " WHERE " + " AND ".join(where)
         offset = (page - 1) * per_page
 
         total = conn.execute(
-            f"SELECT COUNT(*) FROM fic_fatture{where_sql}", params
+            f"SELECT COUNT(*) FROM fe_fatture{where_sql}", params
         ).fetchone()[0]
 
         rows = conn.execute(
             f"""
-            SELECT id, fic_id, tipo, numero, data, data_scadenza,
-                   importo_netto, importo_iva, importo_totale,
-                   fornitore_nome, fornitore_piva, descrizione, pagato, categoria
-            FROM fic_fatture{where_sql}
-            ORDER BY data DESC
+            SELECT id, fic_id, numero_fattura as numero, data_fattura as data,
+                   imponibile_totale as importo_netto,
+                   iva_totale as importo_iva,
+                   totale_fattura as importo_totale,
+                   fornitore_nome, fornitore_piva, fonte
+            FROM fe_fatture{where_sql}
+            ORDER BY data_fattura DESC
             LIMIT ? OFFSET ?
             """,
             (*params, per_page, offset),
@@ -402,31 +449,6 @@ def fic_fatture_list(
         conn.close()
 
 
-@router.get("/fatture/{fic_id}", summary="Dettaglio fattura ricevuta")
-def fic_fattura_detail(
-    fic_id: int,
-    current_user: Any = Depends(get_current_user),
-):
-    conn = get_db()
-    try:
-        row = conn.execute(
-            "SELECT * FROM fic_fatture WHERE fic_id = ?", (fic_id,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Fattura non trovata")
-        d = dict(row)
-        # Parse raw_json per il dettaglio completo
-        if d.get("raw_json"):
-            try:
-                d["raw"] = json.loads(d["raw_json"])
-            except Exception:
-                pass
-            del d["raw_json"]
-        return d
-    finally:
-        conn.close()
-
-
 @router.get("/sync-log", summary="Storico sincronizzazioni")
 def fic_sync_log(
     limit: int = Query(20, ge=1, le=100),
@@ -435,11 +457,7 @@ def fic_sync_log(
     conn = get_db()
     try:
         rows = conn.execute(
-            """
-            SELECT * FROM fic_sync_log
-            ORDER BY started_at DESC
-            LIMIT ?
-            """,
+            "SELECT * FROM fic_sync_log ORDER BY started_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return {"log": [dict(r) for r in rows]}

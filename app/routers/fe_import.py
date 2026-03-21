@@ -275,6 +275,37 @@ def _process_single_xml(
 
     now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
 
+    # ── Deduplica cross-fonte: se la fattura esiste già da FIC, aggiorna con hash XML ──
+    if fornitore_piva and numero_fattura and data_fattura_str:
+        cur.execute(
+            """
+            SELECT id FROM fe_fatture
+            WHERE fornitore_piva = ?
+              AND numero_fattura = ?
+              AND data_fattura = ?
+              AND COALESCE(fonte, 'xml') = 'fic'
+            """,
+            (fornitore_piva, numero_fattura, data_fattura_str),
+        )
+        fic_existing = cur.fetchone()
+        if fic_existing:
+            # La fattura è già presente da FIC — aggiungi hash XML per tracciarla
+            cur.execute(
+                "UPDATE fe_fatture SET xml_hash = ?, xml_filename = ?, tipo_documento = ?, is_autofattura = ? WHERE id = ?",
+                (xml_hash, filename, tipo_documento, is_autofattura, fic_existing["id"]),
+            )
+            gia_presenti.append(
+                {
+                    "filename": filename,
+                    "fattura_id": fic_existing["id"],
+                    "fornitore": fornitore_nome,
+                    "numero_fattura": numero_fattura,
+                    "data_fattura": data_fattura_str,
+                    "nota": "già presente da Fatture in Cloud",
+                }
+            )
+            return
+
     cur.execute(
         """
         INSERT INTO fe_fatture (
@@ -282,9 +313,9 @@ def _process_single_xml(
             numero_fattura, data_fattura,
             imponibile_totale, iva_totale, totale_fattura,
             valuta, xml_hash, xml_filename, data_import,
-            tipo_documento, is_autofattura
+            tipo_documento, is_autofattura, fonte
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'xml')
         """,
         (
             fornitore_nome or "Sconosciuto",

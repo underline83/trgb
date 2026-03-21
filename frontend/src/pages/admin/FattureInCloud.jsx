@@ -180,7 +180,11 @@ export default function FattureInCloud() {
                 <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm" />
                 <div>
                   <div className="text-sm font-bold text-teal-900">{status.company_name}</div>
-                  <div className="text-xs text-neutral-500">Company ID: {status.company_id}</div>
+                  <div className="text-xs text-neutral-500">
+                    ID: {status.company_id}
+                    {status.fatture_fic != null && <span className="ml-3">FIC: {status.fatture_fic}</span>}
+                    {status.fatture_xml != null && <span className="ml-2">XML: {status.fatture_xml}</span>}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -217,6 +221,7 @@ export default function FattureInCloud() {
                 <span className="font-semibold text-emerald-800">Sync completata:</span>{" "}
                 <span className="text-emerald-700">
                   {syncResult.nuove} nuove, {syncResult.aggiornate} aggiornate
+                  {syncResult.duplicate_xml > 0 && <span className="text-neutral-500">, {syncResult.duplicate_xml} già presenti da XML</span>}
                   {syncResult.errori > 0 && <span className="text-red-600">, {syncResult.errori} errori</span>}
                   {" — "}{syncResult.totale_api} totali su FIC
                 </span>
