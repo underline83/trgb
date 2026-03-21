@@ -636,3 +636,48 @@ def fic_fornitori(
         }
     finally:
         conn.close()
+
+
+@router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
+def fic_debug_fields(
+    current_user: Any = Depends(get_current_user),
+):
+    """Endpoint temporaneo: fetcha 1 documento dalla lista + il suo dettaglio
+    e restituisce i campi raw per capire la struttura dell'API."""
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+
+        # Prendi 1 documento dalla lista
+        list_data = fic_get(token, f"/c/{cid}/received_documents", {
+            "type": "expense", "per_page": 1,
+        })
+        docs = list_data.get("data", [])
+        if not docs:
+            return {"error": "Nessun documento trovato"}
+
+        doc = docs[0]
+        fic_id = doc["id"]
+
+        # Prendi il dettaglio
+        detail_data = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
+            "fieldset": "detailed",
+        })
+        detail = detail_data.get("data", {})
+        items = detail.get("items_list", [])
+
+        return {
+            "list_doc_keys": list(doc.keys()),
+            "list_doc_sample": {k: v for k, v in doc.items()},
+            "detail_doc_keys": list(detail.keys()),
+            "detail_items_count": len(items),
+            "detail_first_item": items[0] if items else None,
+            "detail_payments_list": detail.get("payments_list", []),
+        }
+    finally:
+        conn.close()
