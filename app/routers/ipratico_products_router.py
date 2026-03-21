@@ -1,14 +1,17 @@
-# @version: v1.2-ipratico-reimport-fix
+# @version: v2.0-ipratico-trgb-priority
 # Router iPratico Products — import/export Excel prodotti, mapping ↔ vini TRGB
 # Il codice 4 cifre nel Name iPratico corrisponde DIRETTAMENTE a vini_magazzino.id
+# TRGB ha priorità: se i dati cambiano su TRGB, l'export aggiorna iPratico.
 """
 Endpoints:
-  POST /vini/ipratico/upload         Upload Excel export iPratico, parse Bottiglie, match per ID diretto
-  GET  /vini/ipratico/mappings       Lista mapping corrente (con dati iPratico + TRGB)
-  PUT  /vini/ipratico/mappings/{id}  Aggiorna mapping manuale (assegna/rimuovi vino_id)
-  POST /vini/ipratico/export         Genera Excel aggiornato con QTA e prezzi TRGB
-  GET  /vini/ipratico/sync-log       Storico sincronizzazioni
-  GET  /vini/ipratico/stats          Riepilogo veloce
+  POST /vini/ipratico/upload          Upload Excel export iPratico, parse Bottiglie, match per ID diretto
+  GET  /vini/ipratico/mappings        Lista mapping corrente (con dati iPratico + TRGB)
+  PUT  /vini/ipratico/mappings/{id}   Aggiorna mapping manuale (assegna/rimuovi vino_id)
+  PUT  /vini/ipratico/ignore/{id}     Segna prodotto come ignorato (esiste solo su iPratico)
+  POST /vini/ipratico/export          Genera Excel aggiornato con QTA, testi, prezzi TRGB + vini mancanti
+  GET  /vini/ipratico/missing         Vini TRGB non presenti nell'export iPratico (da aggiungere)
+  GET  /vini/ipratico/sync-log        Storico sincronizzazioni
+  GET  /vini/ipratico/stats           Riepilogo veloce
 """
 from __future__ import annotations
 
@@ -52,6 +55,35 @@ def _extract_wine_id(name: str) -> Optional[int]:
     """Estrae il codice 4 cifre dal campo Name iPratico → corrisponde a vini_magazzino.id."""
     m = _RE_ID.match(name.strip())
     return int(m.group(1)) if m else None
+
+
+def _build_ipratico_name(wine: dict) -> str:
+    """Costruisce il campo Name iPratico dai dati TRGB.
+    Formato: {ID:04d} {DESCRIZIONE} ({FORMATO}) {ANNATA} {PRODUTTORE}
+    """
+    parts = [str(wine["id"]).zfill(4)]
+
+    desc = (wine.get("DESCRIZIONE") or "").strip()
+    if desc:
+        parts.append(desc)
+
+    denom = (wine.get("DENOMINAZIONE") or "").strip()
+    if denom:
+        parts.append(f"({denom})")
+
+    fmt = (wine.get("FORMATO") or "").strip()
+    if fmt and fmt.upper() != "BT":  # BT = bottiglia standard, non serve
+        parts.append(f"({fmt})")
+
+    annata = (wine.get("ANNATA") or "").strip()
+    if annata:
+        parts.append(annata)
+
+    prod = (wine.get("PRODUTTORE") or "").strip()
+    if prod:
+        parts.append(prod)
+
+    return " ".join(parts)
 
 
 # ─── Upload & Match diretto per ID ────────────────────────────────
@@ -225,6 +257,26 @@ def update_mapping(map_id: int, body: MappingUpdate):
     return {"ok": True, "map_id": map_id, "vino_id": body.vino_id, "match_status": status}
 
 
+@router.put("/ignore/{map_id}")
+def ignore_mapping(map_id: int):
+    """Segna un prodotto iPratico come 'ignorato' (esiste solo su iPratico, nessun corrispondente TRGB)."""
+    fc = _fc_conn()
+    existing = fc.execute("SELECT id, match_status FROM ipratico_product_map WHERE id = ?", (map_id,)).fetchone()
+    if not existing:
+        fc.close()
+        raise HTTPException(404, "Mapping non trovato")
+
+    # Toggle: se già ignorato, torna a unmatched
+    new_status = "unmatched" if existing["match_status"] == "ignored" else "ignored"
+    fc.execute(
+        "UPDATE ipratico_product_map SET match_status = ?, updated_at = datetime('now') WHERE id = ?",
+        (new_status, map_id),
+    )
+    fc.commit()
+    fc.close()
+    return {"ok": True, "map_id": map_id, "match_status": new_status}
+
+
 # ─── TRGB wines list per match manuale ─────────────────────────────
 @router.get("/trgb-wines")
 def get_trgb_wines(search: Optional[str] = Query(None)):
@@ -255,8 +307,12 @@ def get_trgb_wines(search: Optional[str] = Query(None)):
 @router.post("/export")
 async def export_ipratico(file: UploadFile = File(...)):
     """
-    Riceve l'export iPratico originale, aggiorna Warehouse_quantity e prezzi
-    dai dati TRGB per le Bottiglie matchate, ritorna l'Excel modificato.
+    Riceve l'export iPratico originale, aggiorna:
+    1. Warehouse_quantity (TRGB → iPratico)
+    2. Name — ricostruito da TRGB se cambiato (TRGB ha priorità)
+    3. Prezzi Ristorante table = PREZZO_CARTA
+    4. Aggiunge righe per vini TRGB mancanti su iPratico
+    Ritorna l'Excel modificato pronto per import in iPratico.
     """
     import openpyxl
 
@@ -277,11 +333,14 @@ async def export_ipratico(file: UploadFile = File(...)):
     if not name_col or not cat_col:
         raise HTTPException(400, "Colonne Name/Category non trovate")
 
-    # Load TRGB data da magazzino
+    # Load TRGB data completi da magazzino
     mag_data = {}
     try:
         mconn = _mag_conn()
-        for r in mconn.execute("SELECT id, QTA_TOTALE, PREZZO_CARTA FROM vini_magazzino").fetchall():
+        for r in mconn.execute(
+            "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
+            "QTA_TOTALE, PREZZO_CARTA FROM vini_magazzino"
+        ).fetchall():
             mag_data[r["id"]] = dict(r)
         mconn.close()
     except Exception:
@@ -292,7 +351,9 @@ async def export_ipratico(file: UploadFile = File(...)):
 
     n_updated_qty = 0
     n_updated_price = 0
+    n_updated_name = 0
     n_matched = 0
+    existing_wine_ids = set()  # Track wine IDs already in the file
 
     for row_idx in range(2, ws.max_row + 1):
         cat = ws.cell(row=row_idx, column=cat_col).value
@@ -301,13 +362,23 @@ async def export_ipratico(file: UploadFile = File(...)):
 
         name = str(ws.cell(row=row_idx, column=name_col).value or "")
         wine_id = _extract_wine_id(name)
+        if wine_id:
+            existing_wine_ids.add(wine_id)
+
         if not wine_id or wine_id not in mag_data:
             continue
 
         n_matched += 1
         trgb = mag_data[wine_id]
 
-        # Update Warehouse_quantity (TRGB → iPratico)
+        # 1. Update Name (TRGB priority — ricostruisci da TRGB)
+        new_name = _build_ipratico_name(trgb)
+        old_name = ws.cell(row=row_idx, column=name_col).value or ""
+        if new_name != old_name:
+            ws.cell(row=row_idx, column=name_col).value = new_name
+            n_updated_name += 1
+
+        # 2. Update Warehouse_quantity (TRGB → iPratico)
         if qty_col:
             trgb_qty = trgb.get("QTA_TOTALE", 0) or 0
             old_qty = ws.cell(row=row_idx, column=qty_col).value
@@ -315,13 +386,38 @@ async def export_ipratico(file: UploadFile = File(...)):
                 ws.cell(row=row_idx, column=qty_col).value = trgb_qty
                 n_updated_qty += 1
 
-        # Update price Ristorante table = PREZZO_CARTA
+        # 3. Update price Ristorante table = PREZZO_CARTA
         if price_table_1_col:
             trgb_price = trgb.get("PREZZO_CARTA")
             old_price = ws.cell(row=row_idx, column=price_table_1_col).value
             if trgb_price and trgb_price > 0 and trgb_price != old_price:
                 ws.cell(row=row_idx, column=price_table_1_col).value = trgb_price
                 n_updated_price += 1
+
+    # 4. Aggiungi vini TRGB mancanti su iPratico come nuove righe
+    n_added = 0
+    total_cols = ws.max_column
+    for wine_id, trgb in mag_data.items():
+        if wine_id in existing_wine_ids:
+            continue
+        # Solo vini marcati come IPRATICO = 'SI' o comunque tutti?
+        # Li aggiungiamo tutti — l'utente decide poi su iPratico
+        new_row = ws.max_row + 1
+        n_added += 1
+
+        # Category = Bottiglie
+        ws.cell(row=new_row, column=cat_col).value = "Bottiglie"
+
+        # Name = costruito da TRGB
+        ws.cell(row=new_row, column=name_col).value = _build_ipratico_name(trgb)
+
+        # Warehouse_quantity
+        if qty_col:
+            ws.cell(row=new_row, column=qty_col).value = trgb.get("QTA_TOTALE", 0) or 0
+
+        # Price
+        if price_table_1_col and trgb.get("PREZZO_CARTA"):
+            ws.cell(row=new_row, column=price_table_1_col).value = trgb["PREZZO_CARTA"]
 
     # Log
     fc = _fc_conn()
@@ -347,9 +443,50 @@ async def export_ipratico(file: UploadFile = File(...)):
             "Content-Disposition": f'attachment; filename="ipratico_sync_{ts}.xlsx"',
             "X-Updated-Qty": str(n_updated_qty),
             "X-Updated-Price": str(n_updated_price),
+            "X-Updated-Name": str(n_updated_name),
             "X-Total-Matched": str(n_matched),
+            "X-Added-Missing": str(n_added),
         },
     )
+
+
+# ─── Mancanti: vini TRGB non presenti su iPratico ─────────────────
+@router.get("/missing")
+def get_missing_wines(search: Optional[str] = Query(None)):
+    """
+    Vini presenti in vini_magazzino ma NON nell'export iPratico (da aggiungere).
+    Confronta vini_magazzino.id con ipratico_product_map.vino_id.
+    """
+    # IDs iPratico già mappati (compresi ignored)
+    fc = _fc_conn()
+    mapped_rows = fc.execute(
+        "SELECT CAST(ipratico_wine_id AS INTEGER) AS wid FROM ipratico_product_map WHERE ipratico_wine_id IS NOT NULL"
+    ).fetchall()
+    fc.close()
+    ipratico_ids = set(r["wid"] for r in mapped_rows if r["wid"])
+
+    # Tutti i vini TRGB
+    missing = []
+    try:
+        mconn = _mag_conn()
+        rows = mconn.execute(
+            "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
+            "QTA_TOTALE, PREZZO_CARTA, IPRATICO FROM vini_magazzino ORDER BY id"
+        ).fetchall()
+        for r in rows:
+            if r["id"] not in ipratico_ids:
+                d = dict(r)
+                if search:
+                    s = search.lower()
+                    searchable = f"{d.get('DESCRIZIONE','')} {d.get('PRODUTTORE','')} {d.get('ANNATA','')}".lower()
+                    if s not in searchable:
+                        continue
+                missing.append(d)
+        mconn.close()
+    except Exception:
+        pass
+
+    return missing
 
 
 # ─── Sync log ─────────────────────────────────────────────────────
@@ -368,7 +505,7 @@ def get_ipratico_stats():
     fc = _fc_conn()
     total = fc.execute("SELECT COUNT(*) FROM ipratico_product_map").fetchone()[0]
     matched = fc.execute(
-        "SELECT COUNT(*) FROM ipratico_product_map WHERE vino_id IS NOT NULL"
+        "SELECT COUNT(*) FROM ipratico_product_map WHERE vino_id IS NOT NULL AND match_status != 'ignored'"
     ).fetchone()[0]
     auto = fc.execute(
         "SELECT COUNT(*) FROM ipratico_product_map WHERE match_status = 'auto'"
@@ -376,14 +513,37 @@ def get_ipratico_stats():
     manual = fc.execute(
         "SELECT COUNT(*) FROM ipratico_product_map WHERE match_status = 'manual'"
     ).fetchone()[0]
+    ignored = fc.execute(
+        "SELECT COUNT(*) FROM ipratico_product_map WHERE match_status = 'ignored'"
+    ).fetchone()[0]
     unmatched = fc.execute(
-        "SELECT COUNT(*) FROM ipratico_product_map WHERE vino_id IS NULL"
+        "SELECT COUNT(*) FROM ipratico_product_map WHERE match_status = 'unmatched'"
     ).fetchone()[0]
     fc.close()
+
+    # Count missing (TRGB wines not in iPratico)
+    n_missing = 0
+    ipratico_ids = set()
+    fc2 = _fc_conn()
+    for r in fc2.execute("SELECT CAST(ipratico_wine_id AS INTEGER) AS wid FROM ipratico_product_map WHERE ipratico_wine_id IS NOT NULL").fetchall():
+        if r["wid"]:
+            ipratico_ids.add(r["wid"])
+    fc2.close()
+    if ipratico_ids:
+        try:
+            mconn = _mag_conn()
+            all_ids = set(r["id"] for r in mconn.execute("SELECT id FROM vini_magazzino").fetchall())
+            n_missing = len(all_ids - ipratico_ids)
+            mconn.close()
+        except Exception:
+            pass
+
     return {
         "total": total,
         "matched": matched,
         "auto": auto,
         "manual": manual,
+        "ignored": ignored,
         "unmatched": unmatched,
+        "missing": n_missing,
     }
