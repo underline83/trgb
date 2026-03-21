@@ -1,4 +1,4 @@
-// @version: v1.0-ipratico-sync
+// @version: v1.1-ipratico-direct-id
 // Pagina sincronizzazione prodotti iPratico ↔ vini TRGB
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -137,7 +137,7 @@ function UploadTab({ onDone }) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Stat label="Prodotti totali" val={result.total_products} />
             <Stat label="Bottiglie" val={result.total_bottiglie} />
-            <Stat label="Auto-match" val={result.auto_matched} color="text-emerald-700" />
+            <Stat label="Abbinati (ID)" val={result.matched} color="text-emerald-700" />
             <Stat label="Da abbinare" val={result.unmatched} color="text-amber-700" />
           </div>
           <button onClick={onDone}
@@ -289,7 +289,7 @@ function MappingTab({ onUpdate }) {
                       {m.vino_id ? (
                         <div>
                           <span className="font-medium">{m.trgb_produttore}</span>
-                          {m.trgb_denominazione && <span className="text-neutral-400 ml-1">· {m.trgb_denominazione}</span>}
+                          {m.trgb_descrizione && <span className="text-neutral-400 ml-1">· {m.trgb_descrizione}</span>}
                           {m.trgb_annata && <span className="text-neutral-400 ml-1">({m.trgb_annata})</span>}
                           <span className="text-neutral-300 ml-1">#{m.vino_id}</span>
                         </div>
