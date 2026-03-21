@@ -181,6 +181,8 @@ def init_magazzino_database() -> None:
     if "RAPPRESENTANTE" not in cols:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN RAPPRESENTANTE TEXT DEFAULT '';")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_rappresentante ON vini_magazzino (RAPPRESENTANTE);")
+    if "FORZA_PREZZO" not in cols:
+        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN FORZA_PREZZO INTEGER DEFAULT 0;")
     # Indice su DISTRIBUTORE (se non esiste)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 

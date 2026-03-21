@@ -1420,11 +1420,29 @@ export default function ViniImpostazioni() {
   // Step 1: anteprima (GET preview, non salva nulla)
   const [markupPreviewList, setMarkupPreviewList] = useState(null);
   const [markupPreviewLoading, setMarkupPreviewLoading] = useState(false);
-  const [markupSoloSenzaPrezzo, setMarkupSoloSenzaPrezzo] = useState(false); // filtro attivo
+  const [markupSoloSenzaPrezzo, setMarkupSoloSenzaPrezzo] = useState(false);
+  // Sorting per tabella anteprima
+  const [mkSortKey, setMkSortKey] = useState(null);
+  const [mkSortDir, setMkSortDir] = useState("asc");
+  // Selezione checkbox per ricalcolo selettivo
+  const [mkSelected, setMkSelected] = useState(new Set());
+  // Vini a cui flaggare FORZA_PREZZO durante ricalcolo
+  const [mkForzaPrezzo, setMkForzaPrezzo] = useState(new Set());
+
+  const handleMkSort = (key) => {
+    if (mkSortKey === key) setMkSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setMkSortKey(key); setMkSortDir("asc"); }
+  };
+  const MkSortIcon = ({ col }) => {
+    if (mkSortKey !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
+    return <span className="text-amber-600 ml-0.5">{mkSortDir === "asc" ? "↑" : "↓"}</span>;
+  };
 
   const anteprimaRicalcolo = async (soloSenza = false) => {
     setMarkupPreviewLoading(true); setMarkupPreviewList(null); setMarkupRecalcResult(null);
     setMarkupSoloSenzaPrezzo(soloSenza);
+    setMkSelected(new Set()); setMkForzaPrezzo(new Set());
+    setMkSortKey(null); setMkSortDir("asc");
     try {
       const qs = soloSenza ? "?solo_senza_prezzo=true" : "";
       const r = await apiFetch(`${API_BASE}/vini/pricing/preview${qs}`);
@@ -1440,9 +1458,14 @@ export default function ViniImpostazioni() {
   const applicaRicalcolo = async () => {
     setMarkupRecalcing(true); setMarkupRecalcResult(null);
     try {
-      const qs = markupSoloSenzaPrezzo ? "?solo_senza_prezzo=true" : "";
-      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti${qs}`, {
+      const body = {
+        solo_senza_prezzo: markupSoloSenzaPrezzo,
+      };
+      if (mkSelected.size > 0) body.ids = [...mkSelected];
+      if (mkForzaPrezzo.size > 0) body.forza_prezzo_ids = [...mkForzaPrezzo];
+      const r = await apiFetch(`${API_BASE}/vini/pricing/ricalcola-tutti`, {
         method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       if (r.ok) {
         const data = await r.json();
@@ -1596,46 +1619,155 @@ export default function ViniImpostazioni() {
               <div className="space-y-3">
                 {(() => {
                   const conModifiche = markupPreviewList.filter(d => d.differenza !== null && d.differenza !== 0);
+                  const forzati = markupPreviewList.filter(d => d.FORZA_PREZZO);
                   const senzaListino = markupPreviewList.filter(d => !d.EURO_LISTINO || d.EURO_LISTINO <= 0);
-                  const invariati = markupPreviewList.filter(d => d.EURO_LISTINO > 0 && (d.differenza === null || d.differenza === 0));
+                  const invariati = markupPreviewList.filter(d => d.EURO_LISTINO > 0 && (d.differenza === null || d.differenza === 0) && !d.FORZA_PREZZO);
+
+                  // Sorting
+                  const sorted = [...conModifiche].sort((a, b) => {
+                    if (!mkSortKey) return 0;
+                    let va, vb;
+                    switch (mkSortKey) {
+                      case "id": va = a.id; vb = b.id; break;
+                      case "desc": va = (a.DESCRIZIONE || "").toLowerCase(); vb = (b.DESCRIZIONE || "").toLowerCase(); break;
+                      case "prod": va = (a.PRODUTTORE || "").toLowerCase(); vb = (b.PRODUTTORE || "").toLowerCase(); break;
+                      case "listino": va = a.EURO_LISTINO || 0; vb = b.EURO_LISTINO || 0; break;
+                      case "attuale": va = a.PREZZO_CARTA_ATTUALE || 0; vb = b.PREZZO_CARTA_ATTUALE || 0; break;
+                      case "nuovo": va = a.PREZZO_CARTA_NUOVO || 0; vb = b.PREZZO_CARTA_NUOVO || 0; break;
+                      case "diff": va = a.differenza || 0; vb = b.differenza || 0; break;
+                      default: return 0;
+                    }
+                    if (va < vb) return mkSortDir === "asc" ? -1 : 1;
+                    if (va > vb) return mkSortDir === "asc" ? 1 : -1;
+                    return 0;
+                  });
+
+                  const allIds = conModifiche.map(d => d.id);
+                  const allSelected = allIds.length > 0 && allIds.every(id => mkSelected.has(id));
+                  const toggleAll = () => {
+                    if (allSelected) setMkSelected(new Set());
+                    else setMkSelected(new Set(allIds));
+                  };
+                  const toggleOne = (id) => {
+                    setMkSelected(prev => {
+                      const s = new Set(prev);
+                      s.has(id) ? s.delete(id) : s.add(id);
+                      return s;
+                    });
+                  };
+                  const toggleForza = (id) => {
+                    setMkForzaPrezzo(prev => {
+                      const s = new Set(prev);
+                      s.has(id) ? s.delete(id) : s.add(id);
+                      return s;
+                    });
+                  };
+
+                  const countToApply = mkSelected.size > 0 ? mkSelected.size : conModifiche.length;
+
                   return (
                     <>
-                      <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-4 text-sm flex-wrap">
                         <span className="font-semibold text-amber-800">{conModifiche.length} vini da aggiornare</span>
                         <span className="text-neutral-500">{invariati.length} invariati</span>
                         <span className="text-neutral-400">{senzaListino.length} senza listino</span>
+                        {forzati.length > 0 && <span className="text-rose-600 font-semibold">{forzati.length} con forza prezzo</span>}
+                        {mkSelected.size > 0 && <span className="text-sky-700 font-semibold">{mkSelected.size} selezionati</span>}
+                        {mkForzaPrezzo.size > 0 && <span className="text-rose-600 font-semibold">{mkForzaPrezzo.size} da forzare</span>}
                       </div>
 
                       {conModifiche.length > 0 && (
                         <div className="max-h-[400px] overflow-y-auto border border-neutral-200 rounded-lg bg-white">
                           <table className="w-full text-xs">
-                            <thead className="sticky top-0 bg-neutral-100">
+                            <thead className="sticky top-0 bg-neutral-100 z-10">
                               <tr>
-                                <th className="px-2 py-1.5 text-left font-semibold">ID</th>
-                                <th className="px-2 py-1.5 text-left font-semibold">Vino</th>
-                                <th className="px-2 py-1.5 text-left font-semibold">Produttore</th>
-                                <th className="px-2 py-1.5 text-right font-semibold">Listino</th>
-                                <th className="px-2 py-1.5 text-right font-semibold">Prezzo attuale</th>
-                                <th className="px-2 py-1.5 text-right font-semibold">Prezzo nuovo</th>
-                                <th className="px-2 py-1.5 text-right font-semibold">Diff.</th>
+                                <th className="px-2 py-1.5 w-8">
+                                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                                    className="accent-amber-600" title="Seleziona tutti" />
+                                </th>
+                                <th className="px-2 py-1.5 text-left font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("id")}>
+                                  ID<MkSortIcon col="id" />
+                                </th>
+                                <th className="px-2 py-1.5 text-left font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("desc")}>
+                                  Vino<MkSortIcon col="desc" />
+                                </th>
+                                <th className="px-2 py-1.5 text-left font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("prod")}>
+                                  Produttore<MkSortIcon col="prod" />
+                                </th>
+                                <th className="px-2 py-1.5 text-right font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("listino")}>
+                                  Listino<MkSortIcon col="listino" />
+                                </th>
+                                <th className="px-2 py-1.5 text-right font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("attuale")}>
+                                  Attuale<MkSortIcon col="attuale" />
+                                </th>
+                                <th className="px-2 py-1.5 text-right font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("nuovo")}>
+                                  Nuovo<MkSortIcon col="nuovo" />
+                                </th>
+                                <th className="px-2 py-1.5 text-right font-semibold cursor-pointer hover:text-amber-700 select-none" onClick={() => handleMkSort("diff")}>
+                                  Diff.<MkSortIcon col="diff" />
+                                </th>
+                                <th className="px-2 py-1.5 text-center font-semibold" title="Forza Prezzo">FP</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {conModifiche.map(d => (
-                                <tr key={d.id} className="border-t border-neutral-100 hover:bg-amber-50/40">
-                                  <td className="px-2 py-1 text-neutral-400 font-mono">{d.id}</td>
-                                  <td className="px-2 py-1 max-w-[180px] truncate" title={d.DESCRIZIONE}>{d.DESCRIZIONE}</td>
-                                  <td className="px-2 py-1 max-w-[120px] truncate text-neutral-500">{d.PRODUTTORE || "—"}</td>
-                                  <td className="px-2 py-1 text-right font-mono">{d.EURO_LISTINO?.toFixed(2)}</td>
-                                  <td className="px-2 py-1 text-right font-mono text-neutral-400">{d.PREZZO_CARTA_ATTUALE?.toFixed(2) ?? "—"}</td>
-                                  <td className="px-2 py-1 text-right font-mono font-semibold text-amber-800">{d.PREZZO_CARTA_NUOVO?.toFixed(2)}</td>
-                                  <td className={`px-2 py-1 text-right font-mono font-semibold ${d.differenza > 0 ? "text-emerald-600" : "text-red-600"}`}>
-                                    {d.differenza > 0 ? "+" : ""}{d.differenza?.toFixed(2)}
-                                  </td>
-                                </tr>
-                              ))}
+                              {sorted.map(d => {
+                                const isForzato = d.FORZA_PREZZO || mkForzaPrezzo.has(d.id);
+                                return (
+                                  <tr key={d.id} className={`border-t border-neutral-100 ${isForzato ? "bg-rose-50" : "hover:bg-amber-50/40"}`}>
+                                    <td className="px-2 py-1 text-center">
+                                      <input type="checkbox" checked={mkSelected.has(d.id)} onChange={() => toggleOne(d.id)}
+                                        className="accent-amber-600" />
+                                    </td>
+                                    <td className="px-2 py-1 text-neutral-400 font-mono">{d.id}</td>
+                                    <td className="px-2 py-1 max-w-[180px] truncate" title={d.DESCRIZIONE}>{d.DESCRIZIONE}</td>
+                                    <td className="px-2 py-1 max-w-[120px] truncate text-neutral-500">{d.PRODUTTORE || "—"}</td>
+                                    <td className="px-2 py-1 text-right font-mono">{d.EURO_LISTINO?.toFixed(2)}</td>
+                                    <td className="px-2 py-1 text-right font-mono text-neutral-400">{d.PREZZO_CARTA_ATTUALE?.toFixed(2) ?? "—"}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold text-amber-800">{d.PREZZO_CARTA_NUOVO?.toFixed(2)}</td>
+                                    <td className={`px-2 py-1 text-right font-mono font-semibold ${d.differenza > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                                      {d.differenza > 0 ? "+" : ""}{d.differenza?.toFixed(2)}
+                                    </td>
+                                    <td className="px-2 py-1 text-center">
+                                      <input type="checkbox" checked={isForzato} onChange={() => !d.FORZA_PREZZO && toggleForza(d.id)}
+                                        disabled={!!d.FORZA_PREZZO}
+                                        className="accent-rose-600" title={d.FORZA_PREZZO ? "Forza Prezzo attivo (dal DB)" : "Segna come Forza Prezzo"} />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
+                        </div>
+                      )}
+
+                      {/* Vini con FORZA_PREZZO attivo — evidenziati */}
+                      {forzati.length > 0 && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                          <h4 className="text-xs font-semibold text-rose-700 uppercase mb-2">Vini con Forza Prezzo attivo (non verranno aggiornati)</h4>
+                          <div className="max-h-[200px] overflow-y-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-rose-200">
+                                  <th className="px-2 py-1 text-left font-semibold text-rose-700">Vino</th>
+                                  <th className="px-2 py-1 text-right font-semibold text-rose-700">Prezzo attuale</th>
+                                  <th className="px-2 py-1 text-right font-semibold text-rose-700">Prezzo calcolato</th>
+                                  <th className="px-2 py-1 text-right font-semibold text-rose-700">Differenza</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {forzati.map(d => (
+                                  <tr key={d.id} className="border-t border-rose-100">
+                                    <td className="px-2 py-1" title={d.DESCRIZIONE}>{d.DESCRIZIONE}</td>
+                                    <td className="px-2 py-1 text-right font-mono">{d.PREZZO_CARTA_ATTUALE?.toFixed(2) ?? "—"}</td>
+                                    <td className="px-2 py-1 text-right font-mono">{d.PREZZO_CARTA_NUOVO?.toFixed(2) ?? "—"}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">
+                                      {d.differenza != null ? `${d.differenza > 0 ? "+" : ""}${d.differenza.toFixed(2)}` : "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       )}
 
@@ -1644,7 +1776,7 @@ export default function ViniImpostazioni() {
                         {conModifiche.length > 0 && (
                           <button onClick={applicaRicalcolo} disabled={markupRecalcing}
                             className="px-5 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 shadow-sm">
-                            {markupRecalcing ? "Applicazione..." : `Conferma — aggiorna ${conModifiche.length} prezzi`}
+                            {markupRecalcing ? "Applicazione..." : `Conferma — aggiorna ${countToApply} prezzi`}
                           </button>
                         )}
                         <button onClick={() => setMarkupPreviewList(null)}
@@ -1662,7 +1794,22 @@ export default function ViniImpostazioni() {
             {markupRecalcResult && (
               <div className="text-sm space-y-1 mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                 <p className="font-semibold text-emerald-700">{markupRecalcResult.aggiornati} prezzi aggiornati</p>
-                <p className="text-neutral-600">{markupRecalcResult.invariati} invariati, {markupRecalcResult.senza_listino} senza listino</p>
+                <p className="text-neutral-600">
+                  {markupRecalcResult.invariati} invariati, {markupRecalcResult.senza_listino} senza listino
+                  {markupRecalcResult.forza_prezzo_skipped > 0 && <span className="text-rose-600 font-semibold ml-2">{markupRecalcResult.forza_prezzo_skipped} con forza prezzo (non aggiornati)</span>}
+                </p>
+                {/* Dettaglio vini con forza prezzo nel risultato */}
+                {markupRecalcResult.dettaglio?.filter(d => d.forza_prezzo).length > 0 && (
+                  <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded text-xs">
+                    <p className="font-semibold text-rose-700 mb-1">Vini con Forza Prezzo — verifica differenze:</p>
+                    {markupRecalcResult.dettaglio.filter(d => d.forza_prezzo).map(d => (
+                      <div key={d.id} className="flex justify-between py-0.5 border-b border-rose-100 last:border-0">
+                        <span>{d.DESCRIZIONE}</span>
+                        <span className="font-mono">{d.vecchio?.toFixed(2) ?? "—"} → {d.nuovo?.toFixed(2)} ({d.differenza > 0 ? "+" : ""}{d.differenza?.toFixed(2)})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button onClick={() => setMarkupRecalcResult(null)}
                   className="mt-2 px-3 py-1 text-xs border border-neutral-300 rounded-lg hover:bg-neutral-50">Chiudi</button>
               </div>

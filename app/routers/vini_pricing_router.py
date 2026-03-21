@@ -56,20 +56,29 @@ class CalcolaResponse(BaseModel):
     prezzo_carta: float
 
 
+class RicalcolaTuttiRequest(BaseModel):
+    solo_senza_prezzo: bool = False
+    ids: Optional[List[int]] = None  # se specificato, aggiorna solo questi vini
+    forza_prezzo_ids: Optional[List[int]] = None  # vini a cui settare FORZA_PREZZO=1
+
+
 class RicalcolaTuttiResponse(BaseModel):
     aggiornati: int
     invariati: int
     senza_listino: int
+    forza_prezzo_skipped: int = 0
     dettaglio: List[dict]
 
 
 class PreviewItem(BaseModel):
     id: int
     DESCRIZIONE: str
+    PRODUTTORE: Optional[str] = None
     EURO_LISTINO: Optional[float]
     PREZZO_CARTA_ATTUALE: Optional[float]
     PREZZO_CARTA_NUOVO: Optional[float]
     differenza: Optional[float]
+    FORZA_PREZZO: int = 0
 
 
 # ── Helper: verifica admin ─────────────────────────────────
@@ -175,6 +184,7 @@ def preview_ricalcolo(
             "PREZZO_CARTA_ATTUALE": attuale,
             "PREZZO_CARTA_NUOVO": nuovo,
             "differenza": diff,
+            "FORZA_PREZZO": r.get("FORZA_PREZZO", 0) or 0,
         })
 
     return result
@@ -184,10 +194,22 @@ def preview_ricalcolo(
 
 @router.post("/ricalcola-tutti", summary="Ricalcola PREZZO_CARTA su tutti i vini con EURO_LISTINO")
 def ricalcola_tutti(
-    solo_senza_prezzo: bool = False,
+    payload: RicalcolaTuttiRequest = None,
     current_user: Any = Depends(get_current_user),
 ):
     _require_admin(current_user)
+
+    if payload is None:
+        payload = RicalcolaTuttiRequest()
+
+    solo_senza_prezzo = payload.solo_senza_prezzo
+    selected_ids = set(payload.ids) if payload.ids else None
+    forza_prezzo_ids = set(payload.forza_prezzo_ids) if payload.forza_prezzo_ids else set()
+
+    # Step 1: setta FORZA_PREZZO sui vini richiesti
+    if forza_prezzo_ids:
+        fp_updates = [{"id": vid, "FORZA_PREZZO": 1} for vid in forza_prezzo_ids]
+        db.bulk_update_vini(fp_updates)
 
     bp = load_breakpoints()
     rows = db.search_vini()  # tutti i vini
@@ -195,11 +217,18 @@ def ricalcola_tutti(
     aggiornati = 0
     invariati = 0
     senza_listino = 0
+    forza_prezzo_skipped = 0
     dettaglio = []
 
     updates = []
     for row in rows:
         r = dict(row)
+        vino_id = r["id"]
+
+        # Se abbiamo una selezione, salta quelli non selezionati
+        if selected_ids is not None and vino_id not in selected_ids:
+            continue
+
         euro = r.get("EURO_LISTINO")
 
         if not euro or euro <= 0:
@@ -215,13 +244,28 @@ def ricalcola_tutti(
 
         nuovo = calcola_prezzo_carta(euro, bp)
 
+        # Se FORZA_PREZZO attivo: non aggiornare ma riporta la differenza
+        forza = (r.get("FORZA_PREZZO") or 0) or (vino_id in forza_prezzo_ids)
+        if forza:
+            forza_prezzo_skipped += 1
+            dettaglio.append({
+                "id": vino_id,
+                "DESCRIZIONE": r.get("DESCRIZIONE", ""),
+                "EURO_LISTINO": euro,
+                "vecchio": attuale,
+                "nuovo": nuovo,
+                "forza_prezzo": True,
+                "differenza": round(nuovo - (attuale or 0), 2) if attuale is not None else None,
+            })
+            continue
+
         if attuale is not None and abs(nuovo - attuale) < 0.01:
             invariati += 1
             continue
 
-        updates.append({"id": r["id"], "PREZZO_CARTA": nuovo})
+        updates.append({"id": vino_id, "PREZZO_CARTA": nuovo})
         dettaglio.append({
-            "id": r["id"],
+            "id": vino_id,
             "DESCRIZIONE": r.get("DESCRIZIONE", ""),
             "EURO_LISTINO": euro,
             "vecchio": attuale,
@@ -237,5 +281,6 @@ def ricalcola_tutti(
         aggiornati=aggiornati,
         invariati=invariati,
         senza_listino=senza_listino,
+        forza_prezzo_skipped=forza_prezzo_skipped,
         dettaglio=dettaglio,
     )

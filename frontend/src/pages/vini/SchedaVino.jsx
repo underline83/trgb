@@ -361,6 +361,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       SCONTO: vino.SCONTO ?? "", NOTE_PREZZO: vino.NOTE_PREZZO ?? "",
       CARTA: vino.CARTA ?? "NO", IPRATICO: vino.IPRATICO ?? "NO",
       BIOLOGICO: vino.BIOLOGICO ?? "NO", VENDITA_CALICE: vino.VENDITA_CALICE ?? "NO",
+      FORZA_PREZZO: vino.FORZA_PREZZO ?? 0,
       STATO_VENDITA: vino.STATO_VENDITA ?? "",
       STATO_RIORDINO: vino.STATO_RIORDINO ?? "",
       STATO_CONSERVAZIONE: vino.STATO_CONSERVAZIONE ?? "",
@@ -577,6 +578,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                   ["Carta Vini", vino.CARTA || "NO"],
                   ["Calice", vino.VENDITA_CALICE || "NO"],
                   ["Biologico", vino.BIOLOGICO || "NO"],
+                  ["Forza Prezzo", vino.FORZA_PREZZO ? "SI" : "NO"],
                   ["Vendita", (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? s.label : vino.STATO_VENDITA || "—"; })()],
                   ["Riordino", (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? s.label : vino.STATO_RIORDINO || "—"; })()],
                   ["Conservazione", (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? s.label : vino.STATO_CONSERVAZIONE || "—"; })()],
@@ -638,6 +640,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         <FlagBadge active={vino.IPRATICO === "SI"} label="iPratico" activeColor="bg-sky-50 text-sky-700 border-sky-200" />
                         <FlagBadge active={vino.VENDITA_CALICE === "SI"} label="Calice" activeColor="bg-violet-50 text-violet-700 border-violet-200" />
                         <FlagBadge active={vino.BIOLOGICO === "SI"} label="Biologico" activeColor="bg-lime-50 text-lime-700 border-lime-200" />
+                        <FlagBadge active={!!vino.FORZA_PREZZO} label="Forza Prezzo" activeColor="bg-rose-50 text-rose-700 border-rose-200" />
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${s.color}`}><span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />{s.label}</span> : null; })()}
@@ -696,6 +699,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <FlagToggle label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={v => setEditData(p => ({...p, IPRATICO: v}))} />
                       <FlagToggle label="Calice" name="VENDITA_CALICE" value={editData.VENDITA_CALICE} onChange={v => setEditData(p => ({...p, VENDITA_CALICE: v}))} />
                       <FlagToggle label="Biologico" name="BIOLOGICO" value={editData.BIOLOGICO} onChange={v => setEditData(p => ({...p, BIOLOGICO: v}))} />
+                      <FlagToggle label="Forza Prezzo" name="FORZA_PREZZO" value={editData.FORZA_PREZZO ? "SI" : "NO"} onChange={v => setEditData(p => ({...p, FORZA_PREZZO: v === "SI" ? 1 : 0}))} />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-neutral-100">
                       <Select label="Stato vendita" name="STATO_VENDITA" value={editData.STATO_VENDITA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} options={STATO_VENDITA_OPTIONS} />

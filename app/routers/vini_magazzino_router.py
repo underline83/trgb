@@ -84,6 +84,10 @@ class VinoMagazzinoBase(BaseModel):
         None,
         description="Flag vino non da riordinare (SI/NO)",
     )
+    FORZA_PREZZO: Optional[int] = Field(
+        0,
+        description="Flag forza prezzo (0=no, 1=prezzo fissato manualmente, ignora markup)",
+    )
 
     STATO_VENDITA: Optional[str] = Field(
         None,
@@ -150,6 +154,7 @@ class VinoMagazzinoUpdate(BaseModel):
     BIOLOGICO: Optional[str] = None
     VENDITA_CALICE: Optional[str] = None
     DISCONTINUATO: Optional[str] = None
+    FORZA_PREZZO: Optional[int] = None
 
     STATO_VENDITA: Optional[str] = None
     STATO_RIORDINO: Optional[str] = None

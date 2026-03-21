@@ -1,8 +1,8 @@
 // src/pages/vini/ViniVendite.jsx
-// @version: v2.1-aperte-calici-kpi
+// @version: v2.2-sortable-columns
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
@@ -78,6 +78,37 @@ export default function ViniVendite() {
   const [filtroDataA, setFiltroDataA] = useState("");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 30;
+
+  // ── Ordinamento colonne storico ──
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
+  const handleSort = (key) => {
+    if (sortKey === key) { setSortDir(d => d === "asc" ? "desc" : "asc"); }
+    else { setSortKey(key); setSortDir(key === "data" ? "desc" : "asc"); }
+  };
+  const SortIcon = ({ col }) => {
+    if (sortKey !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
+    return <span className="text-amber-600 ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+  const movimentiOrdinati = useMemo(() => {
+    if (!sortKey || !movimenti.length) return movimenti;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...movimenti].sort((a, b) => {
+      switch (sortKey) {
+        case "data": return ((a.data_mov || "") < (b.data_mov || "") ? -1 : 1) * dir;
+        case "qta": return ((a.qta || 0) - (b.qta || 0)) * dir;
+        case "vino": return ((a.vino_desc || "").toLowerCase() < (b.vino_desc || "").toLowerCase() ? -1 : 1) * dir;
+        case "modalita": {
+          const ma = (a.note || "").includes("[CALICI]") ? "C" : "B";
+          const mb = (b.note || "").includes("[CALICI]") ? "C" : "B";
+          return (ma < mb ? -1 : 1) * dir;
+        }
+        case "locazione": return ((a.locazione || "") < (b.locazione || "") ? -1 : 1) * dir;
+        case "utente": return ((a.utente || "") < (b.utente || "") ? -1 : 1) * dir;
+        default: return 0;
+      }
+    });
+  }, [movimenti, sortKey, sortDir]);
 
   // ── Fetch stats ──
   const fetchStats = useCallback(async () => {
@@ -498,14 +529,14 @@ export default function ViniVendite() {
           <div className="border border-neutral-200 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-neutral-100">
-                <tr className="text-xs text-neutral-600 uppercase tracking-wide">
-                  <th className="px-3 py-2 text-left">Data</th>
-                  <th className="px-3 py-2 text-center">Modalità</th>
-                  <th className="px-3 py-2 text-center">Qtà</th>
-                  <th className="px-3 py-2 text-left">Vino</th>
-                  <th className="px-3 py-2 text-left hidden md:table-cell">Locazione</th>
+                <tr className="text-xs text-neutral-600 uppercase tracking-wide select-none">
+                  <th className="px-3 py-2 text-left cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("data")}>Data <SortIcon col="data" /></th>
+                  <th className="px-3 py-2 text-center cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("modalita")}>Modalità <SortIcon col="modalita" /></th>
+                  <th className="px-3 py-2 text-center cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("qta")}>Qtà <SortIcon col="qta" /></th>
+                  <th className="px-3 py-2 text-left cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("vino")}>Vino <SortIcon col="vino" /></th>
+                  <th className="px-3 py-2 text-left hidden md:table-cell cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("locazione")}>Locazione <SortIcon col="locazione" /></th>
                   <th className="px-3 py-2 text-left hidden md:table-cell">Note</th>
-                  <th className="px-3 py-2 text-left hidden md:table-cell">Utente</th>
+                  <th className="px-3 py-2 text-left hidden md:table-cell cursor-pointer hover:text-amber-700 transition" onClick={() => handleSort("utente")}>Utente <SortIcon col="utente" /></th>
                 </tr>
               </thead>
               <tbody>
@@ -525,7 +556,7 @@ export default function ViniVendite() {
                   </tr>
                 )}
 
-                {movimenti.map((m) => {
+                {movimentiOrdinati.map((m) => {
                   const mod = parseModalita(m.note);
                   const modInfo = mod ? MODALITA[mod] : null;
                   // Rimuovi il tag [BOTTIGLIA] o [CALICI] dalla nota visualizzata
