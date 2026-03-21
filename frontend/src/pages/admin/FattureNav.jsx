@@ -9,6 +9,7 @@ const TABS = [
   { key: "fornitori", label: "Fornitori", path: "/acquisti/fornitori", icon: "🏢" },
   { key: "import", label: "Import", path: "/acquisti/import", icon: "📤" },
   { key: "categorie", label: "Categorie", path: "/acquisti/categorie", icon: "🏷️" },
+  { key: "fic", label: "Fatture in Cloud", path: "/acquisti/fic", icon: "☁️" },
 ];
 
 export default function FattureNav({ current }) {

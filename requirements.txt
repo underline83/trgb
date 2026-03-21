@@ -29,4 +29,7 @@ python-dateutil
 # Variabili d'ambiente (.env)
 python-dotenv
 
+# HTTP client per API esterne (Fatture in Cloud)
+httpx
+
 #Grafici

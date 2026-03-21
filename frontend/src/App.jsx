@@ -64,6 +64,7 @@ import FattureFornitoreDettaglio from "./pages/admin/FattureFornitoreDettaglio";
 import FattureElenco from "./pages/admin/FattureElenco";
 import FattureDettaglio from "./pages/admin/FattureDettaglio";
 import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
+import FattureInCloud from "./pages/admin/FattureInCloud";
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -174,6 +175,7 @@ export default function App() {
         <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
         <Route path="/acquisti/categorie" element={<FattureCategorie />} />
         <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
+        <Route path="/acquisti/fic" element={<FattureInCloud />} />
 
         {/* --- BANCA --- */}
         <Route path="/banca" element={<BancaMenu />} />
