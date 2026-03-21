@@ -655,7 +655,7 @@ def fic_debug_fields():
 
         # Prendi 1 documento dalla lista
         list_data = fic_get(token, f"/c/{cid}/received_documents", {
-            "type": "expense", "per_page": 1,
+            "type": "expense", "per_page": 5,
         })
         docs = list_data.get("data", [])
         if not docs:
