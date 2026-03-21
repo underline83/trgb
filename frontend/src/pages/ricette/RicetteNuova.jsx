@@ -183,7 +183,7 @@ export default function RicetteNuova() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
               Nuova ricetta
             </h1>
             <p className="text-neutral-600 text-sm">
@@ -213,7 +213,7 @@ export default function RicetteNuova() {
                   type="text"
                   value={form.name}
                   onChange={(e) => set("name", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="Es. Cr\u00E8me Br\u00FBl\u00E9e"
                   required
                 />
@@ -224,7 +224,7 @@ export default function RicetteNuova() {
                 <select
                   value={form.category_id}
                   onChange={(e) => set("category_id", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 >
                   <option value="">— Nessuna —</option>
                   {categorie.map((c) => (
@@ -243,7 +243,7 @@ export default function RicetteNuova() {
                   min="0.01"
                   value={form.yield_qty}
                   onChange={(e) => set("yield_qty", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="16"
                   required
                 />
@@ -255,7 +255,7 @@ export default function RicetteNuova() {
                   type="text"
                   value={form.yield_unit}
                   onChange={(e) => set("yield_unit", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="porzioni, kg, L..."
                 />
               </div>
@@ -268,7 +268,7 @@ export default function RicetteNuova() {
                   min="0"
                   value={form.selling_price}
                   onChange={(e) => set("selling_price", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="12.00"
                 />
               </div>
@@ -280,7 +280,7 @@ export default function RicetteNuova() {
                   min="0"
                   value={form.prep_time}
                   onChange={(e) => set("prep_time", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="45"
                 />
               </div>
@@ -292,7 +292,7 @@ export default function RicetteNuova() {
                   type="checkbox"
                   checked={form.is_base}
                   onChange={(e) => set("is_base", e.target.checked)}
-                  className="w-4 h-4 rounded border-neutral-300 text-amber-700 focus:ring-amber-500"
+                  className="w-4 h-4 rounded border-neutral-300 text-orange-700 focus:ring-orange-500"
                 />
                 <span className="text-sm text-neutral-700 font-medium">
                   Ricetta base (utilizzabile come sub-ricetta)
@@ -305,7 +305,7 @@ export default function RicetteNuova() {
               <textarea
                 value={form.note}
                 onChange={(e) => set("note", e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 rows={2}
                 placeholder="Note operative, forno, tempi, consigli..."
               />
@@ -322,7 +322,7 @@ export default function RicetteNuova() {
                 <button
                   type="button"
                   onClick={() => addItem("ingrediente")}
-                  className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-semibold shadow hover:bg-amber-800 transition"
+                  className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-xs font-semibold shadow hover:bg-orange-800 transition"
                 >
                   + Ingrediente
                 </button>
@@ -356,7 +356,7 @@ export default function RicetteNuova() {
                   <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                     row.tipo === "sub_ricetta"
                       ? "bg-blue-200 text-blue-800"
-                      : "bg-amber-200 text-amber-800"
+                      : "bg-orange-200 text-orange-800"
                   }`}>
                     {row.tipo === "sub_ricetta" ? "SUB" : "ING"}
                   </span>
@@ -367,7 +367,7 @@ export default function RicetteNuova() {
                       <select
                         value={row.ingredient_id}
                         onChange={(e) => updateItem(idx, "ingredient_id", e.target.value)}
-                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                       >
                         <option value="">— Seleziona ingrediente —</option>
                         {ingredienti.map((ing) => (
@@ -399,7 +399,7 @@ export default function RicetteNuova() {
                     min="0"
                     value={row.qty}
                     onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                     placeholder="q.t\u00E0"
                   />
 
@@ -407,7 +407,7 @@ export default function RicetteNuova() {
                   <select
                     value={row.unit}
                     onChange={(e) => updateItem(idx, "unit", e.target.value)}
-                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-20 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                   >
                     {UNITS.map((u) => (
                       <option key={u} value={u}>{u}</option>
@@ -420,7 +420,7 @@ export default function RicetteNuova() {
                     type="text"
                     value={row.note || ""}
                     onChange={(e) => updateItem(idx, "note", e.target.value)}
-                    className="w-28 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-28 border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500"
                     placeholder="note"
                   />
 
@@ -468,7 +468,7 @@ export default function RicetteNuova() {
             <button
               type="submit"
               disabled={saving}
-              className="px-7 py-2.5 rounded-xl bg-amber-700 text-white text-sm font-semibold shadow hover:bg-amber-800 transition disabled:opacity-50"
+              className="px-7 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-semibold shadow hover:bg-orange-800 transition disabled:opacity-50"
             >
               {saving ? "Salvataggio..." : "Salva ricetta"}
             </button>

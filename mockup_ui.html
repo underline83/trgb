@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>TRGB — Mockup Coordinamento UI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; background: #f5f0e8; }
+  .font-playfair { font-family: 'Playfair Display', serif; }
+  .mockup-frame { border: 2px solid #d4d4d4; border-radius: 12px; overflow: hidden; background: white; }
+  .label-before { background: #fee2e2; color: #991b1b; }
+  .label-after { background: #d1fae5; color: #065f46; }
+  .section-divider { border-top: 3px solid #b8894a; }
+</style>
+</head>
+<body class="p-6 max-w-7xl mx-auto">
+
+<h1 class="font-playfair text-4xl font-bold text-gray-900 mb-2">Mockup Coordinamento UI — TRGB</h1>
+<p class="text-gray-600 mb-8">Confronto visivo PRIMA → DOPO per ogni area di intervento.</p>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 1. PALETTE COLORI NAVBAR -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">1. Palette Colori — Navbar per Modulo</h2>
+  <p class="text-sm text-gray-500 mb-4">Problema: 4 moduli usano lo stesso amber. Impossibile distinguerli.</p>
+
+  <div class="grid grid-cols-2 gap-6">
+    <!-- PRIMA -->
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-before">PRIMA — Tutto amber</span>
+      <div class="mockup-frame">
+        <!-- Nav Vini -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair text-yellow-900 mr-3">🍷 Vini</span>
+          <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-900">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Magazzino</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Carta</span>
+        </div>
+        <!-- Nav Ricette -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair text-yellow-900 mr-3">👨‍🍳 Ricette</span>
+          <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-900">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Archivio</span>
+        </div>
+        <!-- Nav Acquisti -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair text-yellow-900 mr-3">📄 Acquisti</span>
+          <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-900">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Elenco</span>
+        </div>
+        <!-- Nav Vendite -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair text-yellow-900 mr-3">💰 Vendite</span>
+          <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-900">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Corrispettivi</span>
+        </div>
+        <div class="p-3 text-center text-xs text-red-500 font-semibold bg-red-50">
+          ⚠ Tutte identiche — quale modulo sto guardando?
+        </div>
+      </div>
+    </div>
+
+    <!-- DOPO -->
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-after">DOPO — Colore unico per modulo</span>
+      <div class="mockup-frame">
+        <!-- Nav Vini = amber -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair text-yellow-900 mr-3">🍷 Vini</span>
+          <span class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-900">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Magazzino</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Carta</span>
+        </div>
+        <!-- Nav Ricette = orange -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair" style="color:#9a3412">👨‍🍳 Ricette</span>
+          <span class="px-2 py-1 rounded text-xs font-medium" style="background:#fff7ed;color:#9a3412">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Archivio</span>
+        </div>
+        <!-- Nav Acquisti = teal -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair" style="color:#134e4a">📄 Acquisti</span>
+          <span class="px-2 py-1 rounded text-xs font-medium" style="background:#f0fdfa;color:#134e4a">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Elenco</span>
+        </div>
+        <!-- Nav Vendite = indigo -->
+        <div class="bg-white border-b border-gray-200 px-4 flex items-center h-10 gap-2">
+          <span class="text-sm font-bold font-playfair" style="color:#312e81">💰 Vendite</span>
+          <span class="px-2 py-1 rounded text-xs font-medium" style="background:#eef2ff;color:#312e81">Dashboard</span>
+          <span class="px-2 py-1 rounded text-xs font-medium text-gray-500">Corrispettivi</span>
+        </div>
+        <div class="p-3 text-center text-xs text-green-700 font-semibold bg-green-50">
+          ✓ Ogni modulo è immediatamente riconoscibile
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 2. HEADER DI PAGINA -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">2. Header di Pagina — Un Solo Pattern</h2>
+  <p class="text-sm text-gray-500 mb-4">Problema: alcune pagine hanno gradient header, altre titolo flat dentro card bianco.</p>
+
+  <div class="grid grid-cols-2 gap-6">
+    <!-- PRIMA: due pattern diversi -->
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-before">PRIMA — Pattern misti</span>
+      <div class="mockup-frame space-y-4 p-4">
+        <!-- Pattern A: gradient (FinanzaImpostazioni) -->
+        <div>
+          <div class="text-xs text-gray-400 mb-1">FinanzaImpostazioni:</div>
+          <div class="rounded-xl overflow-hidden" style="background:linear-gradient(90deg,#d97706,#f59e0b)">
+            <div class="px-6 py-6">
+              <h1 class="text-xl font-bold text-white font-playfair">Impostazioni</h1>
+              <p class="text-yellow-50 text-xs mt-1">Gestisci le categorie gerarchiche...</p>
+            </div>
+          </div>
+        </div>
+        <!-- Pattern B: flat (DashboardVini) -->
+        <div>
+          <div class="text-xs text-gray-400 mb-1">DashboardVini:</div>
+          <div class="bg-white border border-gray-200 rounded-xl p-6 shadow">
+            <h1 class="text-xl font-bold text-yellow-900 font-playfair">Dashboard Vini</h1>
+          </div>
+        </div>
+        <div class="text-center text-xs text-red-500 font-semibold">⚠ Due stili diversi per la stessa cosa</div>
+      </div>
+    </div>
+
+    <!-- DOPO: un solo pattern -->
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-after">DOPO — Pattern unificato</span>
+      <div class="mockup-frame space-y-4 p-4">
+        <div>
+          <div class="text-xs text-gray-400 mb-1">Tutte le pagine:</div>
+          <div class="bg-white border border-gray-200 rounded-xl shadow">
+            <div class="px-6 py-5 border-b border-gray-100">
+              <h1 class="text-xl font-bold text-yellow-900 font-playfair">Dashboard Vini</h1>
+              <p class="text-gray-500 text-xs mt-1">Panoramica magazzino e carta dei vini</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 mb-1">Anche le impostazioni:</div>
+          <div class="bg-white border border-gray-200 rounded-xl shadow">
+            <div class="px-6 py-5 border-b border-gray-100">
+              <h1 class="text-xl font-bold font-playfair" style="color:#5b21b6">Impostazioni Finanza</h1>
+              <p class="text-gray-500 text-xs mt-1">Gestisci le categorie gerarchiche</p>
+            </div>
+          </div>
+        </div>
+        <div class="text-center text-xs text-green-700 font-semibold">✓ Stesso pattern, colore del modulo nel titolo</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 3. BOTTONI -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">3. Bottoni — 3 Taglie Standard</h2>
+  <p class="text-sm text-gray-500 mb-4">Problema: padding, border-radius e font-size diversi tra pagine.</p>
+
+  <div class="grid grid-cols-2 gap-6">
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-before">PRIMA — Incoerenti</span>
+      <div class="mockup-frame p-6 space-y-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="px-5 py-2.5 bg-yellow-700 text-white rounded-xl text-sm font-semibold">Salva (rounded-xl)</button>
+          <button class="px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-medium">Conferma (diverso padding)</button>
+          <button class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-medium">Calcola (rounded-lg!)</button>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button class="px-4 py-2 text-sm border border-gray-300 rounded-xl text-gray-600">Annulla (xl)</button>
+          <button class="px-3 py-1.5 text-xs border border-gray-300 rounded-lg text-gray-600">Chiudi (lg, xs!)</button>
+        </div>
+        <div class="text-xs text-red-500 font-semibold">⚠ Misto di rounded-xl e rounded-lg, padding diversi</div>
+      </div>
+    </div>
+
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-after">DOPO — Sistema a 3 taglie</span>
+      <div class="mockup-frame p-6 space-y-4">
+        <div>
+          <div class="text-xs text-gray-400 mb-2">Large — azioni principali:</div>
+          <div class="flex gap-3">
+            <button class="px-5 py-2.5 bg-yellow-700 text-white rounded-xl text-sm font-semibold shadow-sm">Salva tabella</button>
+            <button class="px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700">Annulla</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 mb-2">Medium — azioni secondarie:</div>
+          <div class="flex gap-3">
+            <button class="px-4 py-2 bg-green-700 text-white rounded-xl text-sm font-medium shadow-sm">Conferma</button>
+            <button class="px-4 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-600">Ripristina</button>
+          </div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 mb-2">Small — azioni inline:</div>
+          <div class="flex gap-3">
+            <button class="px-3 py-1.5 bg-gray-700 text-white rounded-lg text-xs font-medium">Calcola</button>
+            <button class="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-600">Chiudi</button>
+          </div>
+        </div>
+        <div class="text-xs text-green-700 font-semibold">✓ Stessa logica ovunque: L/M/S</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 4. INPUT & FORM -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">4. Input e Form — Focus Ring Uniforme</h2>
+  <p class="text-sm text-gray-500 mb-4">Problema: ring-1 vs ring-2, colori amber-300 vs amber-500, text-xs vs text-sm.</p>
+
+  <div class="grid grid-cols-2 gap-6">
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-before">PRIMA</span>
+      <div class="mockup-frame p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1" style="font-size:10px">Magazzino (text-xs, ring-2 amber-300)</label>
+          <input class="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2" style="--tw-ring-color:#fcd34d" placeholder="Cerca vino...">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ricette (text-sm, ring-1 amber-500)</label>
+          <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1" style="--tw-ring-color:#f59e0b" placeholder="Cerca ricetta...">
+        </div>
+        <div class="text-xs text-red-500 font-semibold">⚠ Dimensioni e focus diversi</div>
+      </div>
+    </div>
+
+    <div>
+      <span class="inline-block text-xs font-bold px-3 py-1 rounded-full mb-3 label-after">DOPO</span>
+      <div class="mockup-frame p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Magazzino</label>
+          <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2" style="--tw-ring-color:#fcd34d" placeholder="Cerca vino...">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ricette</label>
+          <input class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2" style="--tw-ring-color:#fcd34d" placeholder="Cerca ricetta...">
+        </div>
+        <div class="text-xs text-green-700 font-semibold">✓ Tutti text-sm, ring-2, stesso padding</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 5. BORDER-RADIUS & SHADOW -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">5. Border-Radius & Shadow — Scala Definita</h2>
+  <p class="text-sm text-gray-500 mb-4">Problema: rounded-3xl, 2xl, xl, lg usati senza una logica chiara.</p>
+
+  <div class="mockup-frame p-6">
+    <div class="grid grid-cols-5 gap-4 text-center">
+      <div>
+        <div class="bg-white border-2 border-yellow-300 shadow-xl p-6 mb-2" style="border-radius:24px">
+          <div class="text-2xl">📄</div>
+        </div>
+        <div class="text-xs font-bold text-gray-700">Container pagina</div>
+        <div class="text-xs text-gray-400">rounded-3xl</div>
+        <div class="text-xs text-gray-400">shadow-xl</div>
+      </div>
+      <div>
+        <div class="bg-white border-2 border-blue-300 shadow-sm p-6 mb-2" style="border-radius:16px">
+          <div class="text-2xl">🗂</div>
+        </div>
+        <div class="text-xs font-bold text-gray-700">Card / Sezione</div>
+        <div class="text-xs text-gray-400">rounded-2xl</div>
+        <div class="text-xs text-gray-400">shadow-sm</div>
+      </div>
+      <div>
+        <div class="bg-white border-2 border-green-300 shadow-sm p-6 mb-2" style="border-radius:12px">
+          <div class="text-2xl">🔘</div>
+        </div>
+        <div class="text-xs font-bold text-gray-700">Bottone L / Alert</div>
+        <div class="text-xs text-gray-400">rounded-xl</div>
+        <div class="text-xs text-gray-400">shadow-sm</div>
+      </div>
+      <div>
+        <div class="bg-white border-2 border-purple-300 p-6 mb-2" style="border-radius:8px">
+          <div class="text-2xl">📝</div>
+        </div>
+        <div class="text-xs font-bold text-gray-700">Input / Btn S</div>
+        <div class="text-xs text-gray-400">rounded-lg</div>
+        <div class="text-xs text-gray-400">no shadow</div>
+      </div>
+      <div>
+        <div class="bg-white border-2 border-pink-300 p-6 mb-2" style="border-radius:9999px">
+          <div class="text-2xl">🏷</div>
+        </div>
+        <div class="text-xs font-bold text-gray-700">Badge / Tag</div>
+        <div class="text-xs text-gray-400">rounded-full</div>
+        <div class="text-xs text-gray-400">no shadow</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 6. HOME PAGE — Mappa Moduli -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">6. Home Page — Card Moduli con Colori Unici</h2>
+  <p class="text-sm text-gray-500 mb-4">Come apparirebbe la home con la nuova palette.</p>
+
+  <div class="mockup-frame p-8" style="background:#f5f0e8">
+    <h1 class="font-playfair text-2xl font-bold text-gray-900 text-center mb-6">TRGB Gestionale</h1>
+    <div class="grid grid-cols-4 gap-4 max-w-3xl mx-auto">
+      <!-- Vini = amber -->
+      <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer">
+        <div class="text-3xl mb-2">🍷</div>
+        <div class="font-bold text-yellow-900 text-sm">Vini</div>
+        <div class="text-xs text-yellow-700 mt-1">Magazzino & Carta</div>
+      </div>
+      <!-- Ricette = orange -->
+      <div class="rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer" style="background:#fff7ed;border:1px solid #fed7aa">
+        <div class="text-3xl mb-2">👨‍🍳</div>
+        <div class="font-bold text-sm" style="color:#9a3412">Ricette</div>
+        <div class="text-xs mt-1" style="color:#c2410c">FoodCost & Menu</div>
+      </div>
+      <!-- Acquisti = teal -->
+      <div class="rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer" style="background:#f0fdfa;border:1px solid #99f6e4">
+        <div class="text-3xl mb-2">📄</div>
+        <div class="font-bold text-sm" style="color:#134e4a">Acquisti</div>
+        <div class="text-xs mt-1" style="color:#0f766e">Fatture & Fornitori</div>
+      </div>
+      <!-- Vendite = indigo -->
+      <div class="rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer" style="background:#eef2ff;border:1px solid #c7d2fe">
+        <div class="text-3xl mb-2">💰</div>
+        <div class="font-bold text-sm" style="color:#312e81">Vendite</div>
+        <div class="text-xs mt-1" style="color:#4338ca">Corrispettivi & Stats</div>
+      </div>
+      <!-- Banca = emerald -->
+      <div class="bg-green-50 border border-green-200 rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer">
+        <div class="text-3xl mb-2">🏦</div>
+        <div class="font-bold text-green-900 text-sm">Banca</div>
+        <div class="text-xs text-green-700 mt-1">Conti & Movimenti</div>
+      </div>
+      <!-- Finanza = violet -->
+      <div class="rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer" style="background:#f5f3ff;border:1px solid #ddd6fe">
+        <div class="text-3xl mb-2">📊</div>
+        <div class="font-bold text-sm" style="color:#4c1d95">Finanza</div>
+        <div class="text-xs mt-1" style="color:#6d28d9">Analitiche & Cassa</div>
+      </div>
+      <!-- Statistiche = rose -->
+      <div class="rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer" style="background:#fff1f2;border:1px solid #fecdd3">
+        <div class="text-3xl mb-2">📈</div>
+        <div class="font-bold text-sm" style="color:#881337">Statistiche</div>
+        <div class="text-xs mt-1" style="color:#be123c">iPratico & Vendite</div>
+      </div>
+      <!-- Dipendenti = slate -->
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 text-center shadow hover:shadow-lg transition cursor-pointer">
+        <div class="text-3xl mb-2">👥</div>
+        <div class="font-bold text-gray-900 text-sm">Dipendenti</div>
+        <div class="text-xs text-gray-600 mt-1">Turni & Presenze</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- 7. TABELLA DATI — Pattern Unificato -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-16 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-1">7. Tabelle Dati — Pattern Unificato</h2>
+  <p class="text-sm text-gray-500 mb-4">Ogni tabella dell'app dovrebbe seguire lo stesso schema visivo.</p>
+
+  <div class="mockup-frame">
+    <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+      <span class="text-sm font-bold text-gray-800">Esempio: Magazzino Vini</span>
+      <span class="text-xs text-gray-400">Header sortabile + hover row + badge compatti</span>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 border-b border-gray-200">
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-yellow-700">ID ↕</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-yellow-700">Descrizione ↕</th>
+          <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-yellow-700">Produttore ↕</th>
+          <th class="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-yellow-700">Prezzo ↕</th>
+          <th class="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Qta</th>
+          <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Flag</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-gray-100 hover:bg-yellow-50 transition">
+          <td class="px-4 py-2 text-gray-400 font-mono text-xs">142</td>
+          <td class="px-4 py-2 font-medium text-gray-800">Barolo DOCG Riserva 2018</td>
+          <td class="px-4 py-2 text-gray-500">Marchesi di Barolo</td>
+          <td class="px-4 py-2 text-right font-mono">€ 85,00</td>
+          <td class="px-4 py-2 text-right font-mono font-semibold text-green-700">12</td>
+          <td class="px-4 py-2 text-center">
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 font-semibold mr-0.5" title="Carta">C</span>
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-semibold" title="iPratico">iP</span>
+          </td>
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-yellow-50 transition">
+          <td class="px-4 py-2 text-gray-400 font-mono text-xs">87</td>
+          <td class="px-4 py-2 font-medium text-gray-800">Prosecco Valdobbiadene DOCG</td>
+          <td class="px-4 py-2 text-gray-500">Nino Franco</td>
+          <td class="px-4 py-2 text-right font-mono">€ 38,00</td>
+          <td class="px-4 py-2 text-right font-mono font-semibold text-green-700">24</td>
+          <td class="px-4 py-2 text-center">
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-green-100 text-green-700 font-semibold mr-0.5">C</span>
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-700 font-semibold mr-0.5">🥂</span>
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-lime-100 text-lime-700 font-semibold">🌿</span>
+          </td>
+        </tr>
+        <tr class="border-b border-gray-100 hover:bg-yellow-50 transition" style="background:#fff1f2">
+          <td class="px-4 py-2 text-gray-400 font-mono text-xs">203</td>
+          <td class="px-4 py-2 font-medium text-gray-800">Amarone della Valpolicella 2015</td>
+          <td class="px-4 py-2 text-gray-500">Bertani</td>
+          <td class="px-4 py-2 text-right font-mono">€ 120,00</td>
+          <td class="px-4 py-2 text-right font-mono font-semibold text-red-600">0</td>
+          <td class="px-4 py-2 text-center">
+            <span class="inline-block px-1.5 py-0.5 text-xs rounded bg-rose-100 text-rose-700 font-semibold" title="Forza Prezzo">FP</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- RIEPILOGO -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="mb-12 section-divider pt-8">
+  <h2 class="font-playfair text-2xl font-bold text-gray-800 mb-4">Riepilogo Interventi</h2>
+
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-white rounded-2xl p-5 border border-green-200 shadow-sm">
+      <div class="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">Sforzo Basso</div>
+      <ul class="text-sm text-gray-700 space-y-1.5">
+        <li>✅ Colori unici per Nav (7 file)</li>
+        <li>✅ Focus ring uniforme (find & replace)</li>
+        <li>✅ Label form: tutti text-xs uppercase</li>
+      </ul>
+    </div>
+    <div class="bg-white rounded-2xl p-5 border border-yellow-200 shadow-sm">
+      <div class="text-xs font-bold text-yellow-700 uppercase tracking-wide mb-2">Sforzo Medio</div>
+      <ul class="text-sm text-gray-700 space-y-1.5">
+        <li>🔧 Header pagine: un solo pattern</li>
+        <li>🔧 Bottoni: sistema 3 taglie</li>
+        <li>🔧 Shadow e radius uniformi</li>
+      </ul>
+    </div>
+    <div class="bg-white rounded-2xl p-5 border border-red-200 shadow-sm">
+      <div class="text-xs font-bold text-red-700 uppercase tracking-wide mb-2">Sforzo Alto</div>
+      <ul class="text-sm text-gray-700 space-y-1.5">
+        <li>🏗 Componente PageLayout condiviso</li>
+        <li>🏗 Componente DataTable riutilizzabile</li>
+        <li>🏗 Sistema badge/status centralizzato</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

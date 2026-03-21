@@ -41,7 +41,7 @@ export default function FattureMenu() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            <h1 className="text-3xl sm:text-4xl font-bold text-teal-900 tracking-wide font-playfair mb-1">
               Gestione Acquisti
             </h1>
             <p className="text-neutral-500 text-sm">
@@ -64,7 +64,7 @@ export default function FattureMenu() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               { label: "Fatture", value: kpi.n_fatture, bg: "bg-blue-50 border-blue-200" },
-              { label: "Totale Spesa", value: `€ ${fmt(kpi.totale_spesa)}`, bg: "bg-amber-50 border-amber-200" },
+              { label: "Totale Spesa", value: `€ ${fmt(kpi.totale_spesa)}`, bg: "bg-teal-50 border-teal-200" },
               { label: "Fornitori", value: kpi.n_fornitori, bg: "bg-green-50 border-green-200" },
               { label: "Media Mensile", value: `€ ${fmt(kpi.spesa_media_mensile)}`, bg: "bg-purple-50 border-purple-200" },
             ].map((c) => (
@@ -85,11 +85,11 @@ export default function FattureMenu() {
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKey}
               placeholder="Cerca fattura per fornitore, P.IVA, numero..."
-              className="w-full text-sm border border-neutral-300 rounded-2xl px-5 py-3 pr-12 bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 transition"
+              className="w-full text-sm border border-neutral-300 rounded-2xl px-5 py-3 pr-12 bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400 transition"
             />
             <button
               onClick={handleSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition"
             >
               Cerca
             </button>
@@ -113,7 +113,7 @@ export default function FattureMenu() {
 
           <Link
             to="/acquisti/elenco"
-            className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
+            className="bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-3xl">📋</span>
@@ -123,7 +123,7 @@ export default function FattureMenu() {
               Ricerca avanzata, filtri per data/importo/fornitore, dettaglio completo.
             </p>
             {kpi && (
-              <span className="inline-block mt-2 text-[10px] font-medium bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full">
+              <span className="inline-block mt-2 text-[10px] font-medium bg-teal-200/60 text-teal-800 px-2 py-0.5 rounded-full">
                 {kpi.n_fatture} fatture
               </span>
             )}

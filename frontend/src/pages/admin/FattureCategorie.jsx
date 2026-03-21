@@ -31,13 +31,13 @@ export default function FattureCategorie() {
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-amber-900 font-playfair mb-1">Categorie Fornitori</h1>
+          <h1 className="text-2xl font-bold text-teal-900 font-playfair mb-1">Categorie Fornitori</h1>
           <p className="text-neutral-500 text-sm">Assegna una categoria a ogni fornitore e gestisci l'albero delle categorie.</p>
         </div>
         <div className="flex gap-1 mb-6 border-b border-neutral-200">
           {[{ key: "fornitori", label: "Assegna Fornitori" }, { key: "impostazioni", label: "Impostazioni Categorie" }].map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition ${tab === t.key ? "bg-amber-50 text-amber-900 border border-b-0 border-amber-200" : "text-neutral-500 hover:text-neutral-800"}`}>
+              className={`px-5 py-2.5 text-sm font-semibold rounded-t-xl transition ${tab === t.key ? "bg-teal-50 text-teal-900 border border-b-0 border-teal-200" : "text-neutral-500 hover:text-neutral-800"}`}>
               {t.label}
             </button>
           ))}
@@ -58,7 +58,7 @@ function SortTh({ label, field, sort, setSort, align }) {
   const active = sort.field === field;
   const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
   return (
-    <th className={`px-3 py-2 cursor-pointer select-none hover:text-amber-800 transition ${align === "right" ? "text-right" : "text-left"}`}
+    <th className={`px-3 py-2 cursor-pointer select-none hover:text-teal-800 transition ${align === "right" ? "text-right" : "text-left"}`}
       onClick={() => setSort(prev => ({ field, dir: prev.field === field && prev.dir === "asc" ? "desc" : "asc" }))}>
       {label}{arrow}
     </th>
@@ -208,21 +208,21 @@ function TabFornitori({ categorie, onRefresh }) {
 
       {/* BULK EDIT BAR */}
       {!showEsclusi && selected.size > 0 && (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3">
-          <span className="text-sm font-semibold text-amber-900">{selected.size} selezionati</span>
+        <div className="mb-4 rounded-xl border border-teal-300 bg-teal-50 px-4 py-3 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-teal-900">{selected.size} selezionati</span>
           <select value={bulkCatId} onChange={e => { setBulkCatId(e.target.value); setBulkSubId(""); }}
-            className="px-2 py-1 border border-amber-300 rounded-lg text-xs">
+            className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
             <option value="">— Categoria —</option>
             {categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
           <select value={bulkSubId} onChange={e => setBulkSubId(e.target.value)}
             disabled={!bulkCatId}
-            className="px-2 py-1 border border-amber-300 rounded-lg text-xs">
+            className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
             <option value="">— Sotto-cat. —</option>
             {bulkSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
           <button onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition disabled:opacity-50">
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
             {bulkSaving ? "Salvataggio..." : "Assegna a tutti"}
           </button>
           <button onClick={() => setSelected(new Set())}
@@ -246,7 +246,7 @@ function TabFornitori({ categorie, onRefresh }) {
                 {!showEsclusi && (
                   <th className="px-2 py-2 w-8 text-center">
                     <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
-                      onChange={toggleAll} className="accent-amber-600" />
+                      onChange={toggleAll} className="accent-teal-600" />
                   </th>
                 )}
                 <SortTh label="Fornitore" field="fornitore_nome" sort={sort} setSort={setSort} />
@@ -298,9 +298,9 @@ function TabFornitori({ categorie, onRefresh }) {
                 }
 
                 return (
-                  <tr key={key} className={`border-t border-neutral-200 ${!f.categoria_id ? "bg-amber-50/40" : ""} ${selected.has(key) ? "bg-amber-100/60" : ""}`}>
+                  <tr key={key} className={`border-t border-neutral-200 ${!f.categoria_id ? "bg-teal-50/40" : ""} ${selected.has(key) ? "bg-teal-100/60" : ""}`}>
                     <td className="px-2 py-2 text-center">
-                      <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)} className="accent-amber-600" />
+                      <input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelect(key)} className="accent-teal-600" />
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium">{f.fornitore_nome}</div>
@@ -413,7 +413,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
                 </>
               ) : (
                 <>
-                  <span className="text-base font-bold text-amber-900">{cat.nome}</span>
+                  <span className="text-base font-bold text-teal-900">{cat.nome}</span>
                   <span className="text-[10px] text-neutral-400">({cat.sottocategorie.length} sub)</span>
                   <button onClick={() => setEditCat({ id: cat.id, nome: cat.nome })} className="text-xs px-2 py-0.5 text-blue-700 hover:bg-blue-50 rounded-lg">✏️</button>
                   <button onClick={() => deleteCat(cat.id, cat.nome)} className="text-xs px-2 py-0.5 text-red-600 hover:bg-red-50 rounded-lg">🗑️</button>
@@ -434,7 +434,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
                     </>
                   ) : moving?.subId === sub.id ? (
                     <>
-                      <span className="text-sm font-medium text-amber-700">{sub.nome}</span>
+                      <span className="text-sm font-medium text-teal-700">{sub.nome}</span>
                       <span className="text-[10px] text-neutral-500">→ sposta in:</span>
                       <select className="text-xs border rounded px-1.5 py-0.5" defaultValue=""
                         onChange={e => { if (e.target.value) moveSub(sub.id, Number(e.target.value)); }}>
@@ -448,7 +448,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
                       <span className="text-sm">{sub.nome}</span>
                       <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })} className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
                       <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
-                        className="text-[10px] px-1.5 py-0.5 text-amber-600 hover:bg-amber-50 rounded" title="Sposta in un'altra categoria">↗️</button>
+                        className="text-[10px] px-1.5 py-0.5 text-teal-600 hover:bg-teal-50 rounded" title="Sposta in un'altra categoria">↗️</button>
                       <button onClick={() => deleteSub(sub.id, sub.nome)} className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded">🗑️</button>
                     </>
                   )}
@@ -462,7 +462,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
                   onKeyDown={e => e.key === "Enter" && addSottocategoria(cat.id)}
                   className="px-2 py-1 border border-dashed border-neutral-300 rounded text-xs flex-1" />
                 <button onClick={() => addSottocategoria(cat.id)}
-                  className="text-xs px-2 py-1 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 transition">+ Aggiungi</button>
+                  className="text-xs px-2 py-1 bg-teal-100 text-teal-800 rounded-lg hover:bg-teal-200 transition">+ Aggiungi</button>
               </div>
             </div>
           </div>
@@ -473,7 +473,7 @@ function TabImpostazioni({ categorie, onRefresh }) {
           onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCategoria()}
           className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64" />
         <button onClick={addCategoria}
-          className="px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-xl hover:bg-amber-700 transition">+ Nuova Categoria</button>
+          className="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition">+ Nuova Categoria</button>
       </div>
     </div>
   );

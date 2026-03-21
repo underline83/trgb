@@ -11,7 +11,7 @@ const TIPI = [
   { value: "RATEIZZAZIONE_ENTE", label: "Rateizzazione ente", icon: "🏛️", color: "blue" },
   { value: "MUTUO", label: "Mutuo", icon: "🏦", color: "indigo" },
   { value: "PRESTITO", label: "Prestito", icon: "💳", color: "purple" },
-  { value: "AFFITTO", label: "Affitto", icon: "🏠", color: "amber" },
+  { value: "AFFITTO", label: "Affitto", icon: "🏠", color: "violet" },
   { value: "SPESA_FISSA", label: "Spesa fissa", icon: "📌", color: "rose" },
 ];
 
@@ -239,9 +239,9 @@ export default function FinanzaScadenzario() {
                     <div className="text-2xl font-bold text-red-700">{overview.rate_scadute.num}</div>
                     <div className="text-[10px] text-red-500">Rate scadute ({fmt(overview.rate_scadute.importo)})</div>
                   </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
-                    <div className="text-2xl font-bold text-amber-700">{overview.rate_prossime_30gg.num}</div>
-                    <div className="text-[10px] text-amber-500">Prossimi 30gg ({fmt(overview.rate_prossime_30gg.importo)})</div>
+                  <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-center">
+                    <div className="text-2xl font-bold text-violet-700">{overview.rate_prossime_30gg.num}</div>
+                    <div className="text-[10px] text-violet-500">Prossimi 30gg ({fmt(overview.rate_prossime_30gg.importo)})</div>
                   </div>
                   <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center">
                     <div className="text-2xl font-bold text-neutral-800">{fmt(overview.totale_residuo)}</div>
@@ -305,7 +305,7 @@ export default function FinanzaScadenzario() {
                             <td className="py-2 text-xs text-right font-mono font-semibold text-red-600">{fmt(r.importo)}</td>
                             <td className="py-2">
                               <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                                isScaduta ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                                isScaduta ? "bg-red-100 text-red-700" : "bg-violet-100 text-violet-700"
                               }`}>{r.stato === "SCADUTA" ? "SCADUTA" : "Da pagare"}</span>
                             </td>
                             <td className="py-2 text-right">
@@ -638,7 +638,7 @@ export default function FinanzaScadenzario() {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => startEdit(s)}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium">
+                            className="text-xs px-3 py-1.5 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-medium">
                             Modifica
                           </button>
                           <button onClick={() => handleDelete(s.id)}
@@ -712,7 +712,7 @@ export default function FinanzaScadenzario() {
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                                   r.stato === "PAGATA" ? "bg-emerald-100 text-emerald-700" :
                                   r.stato === "SCADUTA" ? "bg-red-100 text-red-700" :
-                                  "bg-amber-100 text-amber-700"
+                                  "bg-violet-100 text-violet-700"
                                 }`}>{r.stato === "PAGATA" ? "Pagata" : r.stato === "SCADUTA" ? "Scaduta" : "Da pagare"}</span>
                               </td>
                               <td className="py-2 text-right">

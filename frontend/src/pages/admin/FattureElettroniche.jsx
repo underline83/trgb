@@ -242,7 +242,7 @@ export default function FattureElettroniche() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-teal-900 tracking-wide font-playfair mb-2">
               🧾 Fatture elettroniche (XML)
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
@@ -275,7 +275,7 @@ export default function FattureElettroniche() {
           {/* COLONNA SINISTRA: IMPORT XML */}
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold font-playfair text-amber-900 mb-2">
+              <h2 className="text-xl font-semibold font-playfair text-teal-900 mb-2">
                 📤 Import massivo fatture XML
               </h2>
               <p className="text-sm text-neutral-600 mb-3">
@@ -289,7 +289,7 @@ export default function FattureElettroniche() {
                 className={`border-2 rounded-2xl px-4 py-6 text-center cursor-pointer transition
                   ${
                     isDragging
-                      ? "border-amber-500 bg-amber-50"
+                      ? "border-teal-500 bg-teal-50"
                       : "border-dashed border-neutral-300 bg-neutral-50 hover:bg-neutral-100"
                   }`}
                 onDragOver={handleDragOver}
@@ -316,8 +316,8 @@ export default function FattureElettroniche() {
                              file:mr-4 file:py-2 file:px-4
                              file:rounded-xl file:border-0
                              file:text-sm file:font-medium
-                             file:bg-amber-50 file:text-amber-900
-                             hover:file:bg-amber-100"
+                             file:bg-teal-50 file:text-teal-900
+                             hover:file:bg-teal-100"
                 />
 
                 {files && files.length > 0 && (
@@ -347,7 +347,7 @@ export default function FattureElettroniche() {
                   ${
                     uploading || !files || files.length === 0
                       ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-                      : "bg-amber-600 text-white hover:bg-amber-700 transition"
+                      : "bg-teal-600 text-white hover:bg-teal-700 transition"
                   }`}
               >
                 {uploading
@@ -396,7 +396,7 @@ export default function FattureElettroniche() {
           <div className="space-y-4">
             {/* LISTA FATTURE */}
             <div>
-              <h2 className="text-xl font-semibold font-playfair text-amber-900 mb-2">
+              <h2 className="text-xl font-semibold font-playfair text-teal-900 mb-2">
                 📚 Fatture importate
               </h2>
 
@@ -459,7 +459,7 @@ export default function FattureElettroniche() {
                             <button
                               type="button"
                               onClick={() => handleSelectFattura(f.id)}
-                              className="px-3 py-1 rounded-full text-xs font-medium border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition"
+                              className="px-3 py-1 rounded-full text-xs font-medium border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition"
                             >
                               Dettaglio
                             </button>
@@ -474,7 +474,7 @@ export default function FattureElettroniche() {
 
             {/* DETTAGLIO FATTURA */}
             <div className="mt-4">
-              <h3 className="text-lg font-semibold font-playfair text-amber-900 mb-2">
+              <h3 className="text-lg font-semibold font-playfair text-teal-900 mb-2">
                 🔍 Dettaglio fattura
               </h3>
 
@@ -620,7 +620,7 @@ export default function FattureElettroniche() {
         <div className="mt-10">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-xl font-semibold font-playfair text-amber-900">
+              <h2 className="text-xl font-semibold font-playfair text-teal-900">
                 📈 Riepilogo acquisti da fatture elettroniche
               </h2>
               <p className="text-sm text-neutral-600">

@@ -82,7 +82,7 @@ export default function ChiusureTurnoLista() {
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-amber-900 font-playfair">
+              <h1 className="text-2xl font-bold text-indigo-900 font-playfair">
                 📋 Lista chiusure turno
               </h1>
               <p className="text-neutral-500 text-sm mt-1">
@@ -90,7 +90,7 @@ export default function ChiusureTurnoLista() {
               </p>
             </div>
             <button onClick={() => navigate("/vendite/fine-turno")}
-              className="px-4 py-2 bg-amber-700 text-white rounded-xl text-sm font-semibold hover:bg-amber-800 transition">
+              className="px-4 py-2 bg-indigo-700 text-white rounded-xl text-sm font-semibold hover:bg-indigo-800 transition">
               + Nuova chiusura
             </button>
           </div>
@@ -114,7 +114,7 @@ export default function ChiusureTurnoLista() {
                 <button key={t} onClick={() => setFiltroTurno(t)}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold border transition ${
                     filtroTurno === t
-                      ? "bg-amber-100 text-amber-800 border-amber-300"
+                      ? "bg-indigo-100 text-indigo-800 border-indigo-300"
                       : "bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300"
                   }`}>
                   {t === "tutti" ? "Tutti" : t === "pranzo" ? "☀️ Pranzo" : "🌙 Cena"}
@@ -173,7 +173,7 @@ export default function ChiusureTurnoLista() {
                     <div className="flex items-center gap-3">
                       {/* Turno badge */}
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-                        c.turno === "pranzo" ? "bg-amber-100" : "bg-indigo-100"
+                        c.turno === "pranzo" ? "bg-indigo-100" : "bg-indigo-100"
                       }`}>
                         {c.turno === "pranzo" ? "☀️" : "🌙"}
                       </div>
@@ -183,7 +183,7 @@ export default function ChiusureTurnoLista() {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-neutral-800">{fmtDate(c.date)}</span>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            c.turno === "pranzo" ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                            c.turno === "pranzo" ? "bg-indigo-100 text-indigo-700" : "bg-indigo-100 text-indigo-700"
                           }`}>
                             {c.turno}
                           </span>
@@ -311,7 +311,7 @@ export default function ChiusureTurnoLista() {
                       {/* Azioni */}
                       <div className="flex gap-2 pt-2">
                         <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
-                          className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-semibold hover:bg-amber-200 transition">
+                          className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
                           Modifica
                         </button>
                       </div>

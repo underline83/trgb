@@ -155,7 +155,7 @@ export default function RicetteIngredientiPrezzi() {
         </div>
 
         {/* HEADER */}
-        <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+        <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-2">
           💶 Prezzi — {ingrediente ? ingrediente.nome : "Ingrediente"}
         </h1>
 
@@ -174,11 +174,11 @@ export default function RicetteIngredientiPrezzi() {
 
         {/* RIEPILOGO PREZZI */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-inner">
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 shadow-inner">
             <div className="text-sm text-neutral-600 mb-1">
               Prezzo medio storico
             </div>
-            <div className="text-2xl font-bold text-amber-900">
+            <div className="text-2xl font-bold text-orange-900">
               {mediaPrezzo != null ? `${mediaPrezzo.toFixed(2)} €/unità` : "—"}
             </div>
           </div>
@@ -232,7 +232,7 @@ export default function RicetteIngredientiPrezzi() {
 
           <button
             onClick={addPrezzo}
-            className="px-6 py-3 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-semibold shadow transition"
+            className="px-6 py-3 rounded-xl bg-orange-700 hover:bg-orange-800 text-white font-semibold shadow transition"
           >
             Salva prezzo
           </button>
@@ -295,12 +295,12 @@ export default function RicetteIngredientiPrezzi() {
         <div className="mt-10 border-t border-neutral-200 pt-6">
           <button
             onClick={() => setShowConversions(!showConversions)}
-            className="text-lg font-playfair font-semibold text-amber-900 hover:text-amber-700 flex items-center gap-2"
+            className="text-lg font-playfair font-semibold text-orange-900 hover:text-orange-700 flex items-center gap-2"
           >
             <span>{showConversions ? "▾" : "▸"}</span>
             Conversioni unità personalizzate
             {conversions.length > 0 && (
-              <span className="text-xs font-mono font-normal bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-mono font-normal bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
                 {conversions.length}
               </span>
             )}

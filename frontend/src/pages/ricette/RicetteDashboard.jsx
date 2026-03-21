@@ -67,7 +67,7 @@ export default function RicetteDashboard() {
 
         {/* HEADER */}
         <div className="mb-6">
-          <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+          <h1 className="text-3xl lg:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
             Dashboard Food Cost
           </h1>
           <p className="text-neutral-600">
@@ -87,7 +87,7 @@ export default function RicetteDashboard() {
           <>
             {/* KPI CARDS */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-              <KpiCard label="Ricette (piatti)" value={stats.totale_ricette} color="text-amber-900" />
+              <KpiCard label="Ricette (piatti)" value={stats.totale_ricette} color="text-orange-900" />
               <KpiCard label="Ricette base" value={stats.totale_basi} color="text-blue-700" />
               <KpiCard
                 label="FC medio"

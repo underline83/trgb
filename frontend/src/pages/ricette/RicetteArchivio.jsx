@@ -93,7 +93,7 @@ export default function RicetteArchivio() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
               Archivio Ricette
             </h1>
             <p className="text-neutral-600 text-sm">
@@ -103,7 +103,7 @@ export default function RicetteArchivio() {
           <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
             <button
               onClick={() => navigate("/ricette/nuova")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition"
             >
               + Nuova ricetta
             </button>
@@ -123,13 +123,13 @@ export default function RicetteArchivio() {
             placeholder="Cerca ricetta..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[180px] focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-[180px] focus:outline-none focus:ring-1 focus:ring-orange-500"
           />
 
           <select
             value={filtroTipo}
             onChange={(e) => setFiltroTipo(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
           >
             <option value="tutti">Tutti i tipi</option>
             <option value="piatti">Solo piatti</option>
@@ -139,7 +139,7 @@ export default function RicetteArchivio() {
           <select
             value={filtroCategoria}
             onChange={(e) => setFiltroCategoria(e.target.value)}
-            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
           >
             <option value="">Tutte le categorie</option>
             {categorie.map((c) => (
@@ -177,7 +177,7 @@ export default function RicetteArchivio() {
                   {filtered.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-t border-neutral-100 hover:bg-amber-50/40 transition cursor-pointer"
+                      className="border-t border-neutral-100 hover:bg-orange-50/40 transition cursor-pointer"
                       onClick={() => navigate(`/ricette/${r.id}`)}
                     >
                       <td className="p-3">
@@ -197,7 +197,7 @@ export default function RicetteArchivio() {
                             Base
                           </span>
                         ) : (
-                          <span className="text-xs bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-semibold">
+                          <span className="text-xs bg-orange-100 text-orange-800 border border-orange-300 px-2 py-0.5 rounded-full font-semibold">
                             Piatto
                           </span>
                         )}
@@ -221,7 +221,7 @@ export default function RicetteArchivio() {
                         <div className="flex gap-1 justify-end">
                           <button
                             onClick={() => navigate(`/ricette/modifica/${r.id}`)}
-                            className="px-2 py-1 text-xs bg-amber-100 text-amber-800 border border-amber-300 rounded hover:bg-amber-200 transition"
+                            className="px-2 py-1 text-xs bg-orange-100 text-orange-800 border border-orange-300 rounded hover:bg-orange-200 transition"
                           >
                             Modifica
                           </button>

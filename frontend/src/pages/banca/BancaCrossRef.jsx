@@ -82,7 +82,7 @@ export default function BancaCrossRef() {
             <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
               {linked.length} collegati
             </span>
-            <span className="px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+            <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
               {withSuggestions.length} con suggerimenti
             </span>
             <span className="px-3 py-1 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-600 text-xs font-medium">
@@ -125,7 +125,7 @@ export default function BancaCrossRef() {
                     hasLink
                       ? "bg-emerald-50/50 border-emerald-200"
                       : hasSuggestions
-                      ? "bg-amber-50/50 border-amber-200"
+                      ? "bg-emerald-50/50 border-emerald-200"
                       : "bg-white border-neutral-200"
                   }`}
                 >
@@ -162,7 +162,7 @@ export default function BancaCrossRef() {
                     {!hasLink && hasSuggestions && (
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : m.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition flex-shrink-0"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition flex-shrink-0"
                       >
                         {isExpanded ? "Chiudi" : `${m.possibili_fatture.length} possibili match`}
                       </button>
@@ -171,7 +171,7 @@ export default function BancaCrossRef() {
 
                   {/* Suggerimenti fatture */}
                   {isExpanded && hasSuggestions && (
-                    <div className="mt-3 pt-3 border-t border-amber-200 space-y-2">
+                    <div className="mt-3 pt-3 border-t border-emerald-200 space-y-2">
                       {m.possibili_fatture.map((f) => (
                         <div key={f.id} className="flex items-center justify-between bg-white rounded-lg border border-neutral-200 p-3">
                           <div>

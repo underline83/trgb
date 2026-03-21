@@ -1,4 +1,4 @@
-// @version: v1.0-ricette-nav
+// @version: v1.1-ricette-nav-orange
 // Tab navigation persistente per la sezione ricette
 // Matching e Impostazioni visibili solo per admin/sommelier
 import React from "react";
@@ -25,7 +25,7 @@ export default function RicetteNav({ current }) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate("/ricette")}
-              className="text-sm font-bold text-amber-900 font-playfair mr-4 hover:text-amber-700 transition whitespace-nowrap"
+              className="text-sm font-bold text-orange-900 font-playfair mr-4 hover:text-orange-700 transition whitespace-nowrap"
             >
               Ricette
             </button>
@@ -38,7 +38,7 @@ export default function RicetteNav({ current }) {
                     onClick={() => navigate(tab.path)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                       active
-                        ? "bg-amber-100 text-amber-900 shadow-sm"
+                        ? "bg-orange-100 text-orange-900 shadow-sm"
                         : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
                     }`}
                   >

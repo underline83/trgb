@@ -104,7 +104,7 @@ export default function FattureFornitoriElenco() {
         <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">
           {/* HEADER */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-amber-900 font-playfair mb-1">
+            <h1 className="text-2xl font-bold text-teal-900 font-playfair mb-1">
               Elenco Fornitori
             </h1>
             <p className="text-neutral-500 text-sm">
@@ -116,7 +116,7 @@ export default function FattureFornitoriElenco() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[
               { label: "Fornitori", value: totFornitori, bg: "bg-green-50 border-green-200" },
-              { label: "Totale Spesa", value: `€ ${fmt(totSpesa)}`, bg: "bg-amber-50 border-amber-200" },
+              { label: "Totale Spesa", value: `€ ${fmt(totSpesa)}`, bg: "bg-teal-50 border-teal-200" },
               { label: "Fatture", value: totFatture, bg: "bg-blue-50 border-blue-200" },
               { label: "Media/Fornitore", value: `€ ${fmt(mediaPerFornitore)}`, bg: "bg-purple-50 border-purple-200" },
             ].map((c) => (
@@ -134,7 +134,7 @@ export default function FattureFornitoriElenco() {
               placeholder="Cerca fornitore o P.IVA..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64 focus:outline-none focus:ring-2 focus:ring-teal-300"
             />
             {years.length > 0 && (
               <select
@@ -172,32 +172,32 @@ export default function FattureFornitoriElenco() {
                   <thead className="bg-neutral-50 text-neutral-600 sticky top-0">
                     <tr>
                       <th
-                        className="px-4 py-2.5 text-left cursor-pointer hover:text-amber-700 select-none"
+                        className="px-4 py-2.5 text-left cursor-pointer hover:text-teal-700 select-none"
                         onClick={() => handleSort("fornitore_nome")}
                       >
                         Fornitore{sortIcon("fornitore_nome")}
                       </th>
                       <th className="px-4 py-2.5 text-left hidden sm:table-cell">P.IVA</th>
                       <th
-                        className="px-4 py-2.5 text-right cursor-pointer hover:text-amber-700 select-none"
+                        className="px-4 py-2.5 text-right cursor-pointer hover:text-teal-700 select-none"
                         onClick={() => handleSort("numero_fatture")}
                       >
                         Fatture{sortIcon("numero_fatture")}
                       </th>
                       <th
-                        className="px-4 py-2.5 text-right cursor-pointer hover:text-amber-700 select-none"
+                        className="px-4 py-2.5 text-right cursor-pointer hover:text-teal-700 select-none"
                         onClick={() => handleSort("totale_fatture")}
                       >
                         Totale €{sortIcon("totale_fatture")}
                       </th>
                       <th
-                        className="px-4 py-2.5 text-center hidden md:table-cell cursor-pointer hover:text-amber-700 select-none"
+                        className="px-4 py-2.5 text-center hidden md:table-cell cursor-pointer hover:text-teal-700 select-none"
                         onClick={() => handleSort("primo_acquisto")}
                       >
                         Primo{sortIcon("primo_acquisto")}
                       </th>
                       <th
-                        className="px-4 py-2.5 text-center hidden md:table-cell cursor-pointer hover:text-amber-700 select-none"
+                        className="px-4 py-2.5 text-center hidden md:table-cell cursor-pointer hover:text-teal-700 select-none"
                         onClick={() => handleSort("ultimo_acquisto")}
                       >
                         Ultimo{sortIcon("ultimo_acquisto")}
@@ -209,7 +209,7 @@ export default function FattureFornitoriElenco() {
                     {filtered.map((f, idx) => (
                       <tr
                         key={idx}
-                        className="border-t border-neutral-200 hover:bg-amber-50/40 cursor-pointer transition"
+                        className="border-t border-neutral-200 hover:bg-teal-50/40 cursor-pointer transition"
                         onClick={() =>
                           navigate(
                             `/acquisti/fornitore/${encodeURIComponent(f.fornitore_piva || f.fornitore_nome)}`
@@ -225,7 +225,7 @@ export default function FattureFornitoriElenco() {
                         <td className="px-4 py-2.5 text-right tabular-nums">
                           {f.numero_fatture}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-amber-900">
+                        <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-teal-900">
                           € {fmt(f.totale_fatture)}
                         </td>
                         <td className="px-4 py-2.5 text-center text-xs text-neutral-500 hidden md:table-cell">

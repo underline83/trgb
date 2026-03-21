@@ -254,7 +254,7 @@ export default function CorrispettiviDashboard() {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 tracking-wide font-playfair">
               Vendite — Dashboard Mensile
             </h1>
             <p className="text-neutral-600">
@@ -328,14 +328,14 @@ export default function CorrispettiviDashboard() {
           <>
             {/* KPI PRINCIPALI */}
             <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-amber-800">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-wide text-indigo-800">
                   Totale Corrispettivi
                 </p>
-                <p className="mt-2 text-2xl font-bold text-amber-900">
+                <p className="mt-2 text-2xl font-bold text-indigo-900">
                   € {formatCurrency(monthlyStats.totale_corrispettivi)}
                 </p>
-                <p className="text-xs text-amber-900/70 mt-1">
+                <p className="text-xs text-indigo-900/70 mt-1">
                   Mese di {monthName} {year}
                 </p>
               </div>
@@ -483,7 +483,7 @@ export default function CorrispettiviDashboard() {
                     return (
                       <div
                         key={idx}
-                        className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-amber-400 transition ${bgClass} ${textClass}`}
+                        className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-indigo-400 transition ${bgClass} ${textClass}`}
                         title={
                           isClosed
                             ? `Chiuso`
@@ -601,7 +601,7 @@ export default function CorrispettiviDashboard() {
                     {monthlyStats.alerts.map((a, idx) => (
                       <div
                         key={idx}
-                        className="border border-amber-300 bg-amber-50 rounded-xl px-2 py-1.5"
+                        className="border border-indigo-300 bg-indigo-50 rounded-xl px-2 py-1.5"
                       >
                         <div className="flex justify-between text-xs text-neutral-700 mb-0.5">
                           <span>{formatShortDate(a.date)}</span>
@@ -661,7 +661,7 @@ export default function CorrispettiviDashboard() {
                           className={
                             closed
                               ? "bg-neutral-50 text-neutral-500"
-                              : "hover:bg-amber-50"
+                              : "hover:bg-indigo-50"
                           }
                         >
                           <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">

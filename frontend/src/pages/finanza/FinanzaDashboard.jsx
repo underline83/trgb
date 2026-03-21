@@ -137,7 +137,7 @@ export default function FinanzaDashboard() {
                 <div className="flex gap-3">
                   {[
                     { key: "X", label: "Banca", color: "emerald" },
-                    { key: "C", label: "Contanti", color: "amber" },
+                    { key: "C", label: "Contanti", color: "violet" },
                     { key: "pending", label: "Da fare", color: "red" },
                   ].map(({ key, label, color }) => {
                     const r = dashboard.riconciliazione[key];

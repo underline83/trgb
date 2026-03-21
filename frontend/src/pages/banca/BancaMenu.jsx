@@ -68,7 +68,7 @@ export default function BancaMenu() {
 
           <Link
             to="/banca/crossref"
-            className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+            className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
           >
             <div className="text-5xl mb-3">🔗</div>
             <h2 className="text-xl font-semibold font-playfair">Cross-Ref Fatture</h2>

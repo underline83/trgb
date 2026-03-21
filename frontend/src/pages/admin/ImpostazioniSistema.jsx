@@ -162,7 +162,7 @@ function TabUtenti({ currentUsername }) {
     <>
       <div className="flex justify-end mb-4">
         <button onClick={() => openModal("add")}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 shadow transition">
+          className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow transition">
           + Nuovo utente
         </button>
       </div>
@@ -182,7 +182,7 @@ function TabUtenti({ currentUsername }) {
                 <td className="px-5 py-4 font-medium text-neutral-800">
                   {u.username}
                   {u.username === currentUsername && (
-                    <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">Tu</span>
+                    <span className="ml-2 text-xs bg-neutral-100 text-neutral-700 rounded-full px-2 py-0.5">Tu</span>
                   )}
                 </td>
                 <td className="px-5 py-4">
@@ -227,25 +227,25 @@ function TabUtenti({ currentUsername }) {
                     <label className="block text-sm font-medium text-neutral-600 mb-1">Username</label>
                     <input type="text" value={newUser.username}
                       onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-neutral-600 mb-1">Password</label>
                     <input type="password" value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-neutral-600 mb-1">Ruolo</label>
                     <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400">
                       {ALL_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r].icon} {ROLE_LABELS[r].label}</option>)}
                     </select>
                   </div>
                   {formError && <p className="text-red-600 text-sm">{formError}</p>}
                   <div className="flex gap-3 pt-2">
                     <button type="submit" disabled={saving}
-                      className="flex-1 bg-amber-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition">
+                      className="flex-1 bg-neutral-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition">
                       {saving ? "..." : "Crea utente"}
                     </button>
                     <button type="button" onClick={() => setModal(null)}
@@ -410,8 +410,8 @@ function TabModuli() {
                 {/* Admin — sempre spuntato */}
                 <td className="text-center px-4 py-4">
                   <div className="flex justify-center">
-                    <div className="w-5 h-5 rounded bg-amber-200 flex items-center justify-center">
-                      <svg className="w-3 h-3 text-amber-700" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="w-5 h-5 rounded bg-neutral-200 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-neutral-700" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                       </svg>
                     </div>
@@ -426,8 +426,8 @@ function TabModuli() {
                         <button onClick={() => toggleRole(m.key, r)} disabled={locked}
                           className={`w-5 h-5 rounded border-2 transition flex items-center justify-center
                             ${locked ? "cursor-not-allowed opacity-30 border-neutral-200 bg-neutral-100" : "cursor-pointer"}
-                            ${!locked && checked ? "bg-amber-500 border-amber-500" : ""}
-                            ${!locked && !checked ? "bg-white border-neutral-300 hover:border-amber-400" : ""}
+                            ${!locked && checked ? "bg-neutral-500 border-neutral-500" : ""}
+                            ${!locked && !checked ? "bg-white border-neutral-300 hover:border-neutral-400" : ""}
                           `}>
                           {checked && (
                             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -451,7 +451,7 @@ function TabModuli() {
 
       <div className="flex items-center gap-4">
         <button onClick={handleSave} disabled={saving}
-          className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 disabled:opacity-50 shadow transition">
+          className="px-6 py-2.5 bg-neutral-600 text-white rounded-xl text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 shadow transition">
           {saving ? "Salvataggio..." : "Salva impostazioni"}
         </button>
         {saved && <span className="text-green-600 text-sm font-medium">✓ Salvato</span>}
@@ -560,13 +560,13 @@ function TabBackup() {
       )}
 
       {/* DOWNLOAD ISTANTANEO */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+      <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6">
         <h3 className="text-lg font-semibold text-neutral-800 mb-2">Scarica backup adesso</h3>
         <p className="text-sm text-neutral-600 mb-4">
           Crea un backup fresco di tutti i database e scaricalo sul tuo computer.
         </p>
         <button onClick={handleDownloadNow} disabled={downloading}
-          className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-medium hover:bg-amber-700 disabled:opacity-50 shadow transition">
+          className="px-6 py-2.5 bg-neutral-600 text-white rounded-xl text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 shadow transition">
           {downloading ? "Preparazione backup..." : "💾 Scarica backup completo"}
         </button>
         {success && <p className="text-green-600 text-sm font-medium mt-3">{success}</p>}

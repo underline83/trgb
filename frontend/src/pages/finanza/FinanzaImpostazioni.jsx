@@ -1,4 +1,4 @@
-// @version: v2.0-estetica-movimenti
+// @version: v2.1-violet-flat-header
 // Pagina impostazioni modulo finanza — gestione albero categorie + link acquisti + lista movimenti
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,28 +25,22 @@ export default function FinanzaImpostazioni() {
   useEffect(() => { fetchAlbero(); }, [fetchAlbero]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-neutral-50 via-amber-50 to-neutral-50 font-sans">
+    <div className="min-h-screen bg-neutral-100 font-sans">
       <FinanzaNav current="impostazioni" />
 
-      {/* Gradient header */}
-      <div className="bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white font-playfair mb-2">Impostazioni</h1>
-          <p className="text-amber-50 text-sm sm:text-base">
-            Gestisci le categorie gerarchiche (Cat.1 → Cat.2) per la classificazione dei movimenti.
-          </p>
-        </div>
-      </div>
-
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-violet-900 font-playfair tracking-wide mt-4 mb-1">Impostazioni</h1>
+        <p className="text-neutral-600 text-sm mb-8">
+          Gestisci le categorie gerarchiche (Cat.1 → Cat.2) per la classificazione dei movimenti.
+        </p>
         {/* Link a categorie acquisti */}
-        <div className="mb-8 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition">
+        <div className="mb-8 rounded-2xl border-2 border-violet-200 bg-violet-50 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition">
           <div>
-            <div className="text-sm font-bold text-amber-950">Categorie Acquisti (Fornitori)</div>
-            <div className="text-xs text-amber-800 mt-1">Gestisci le categorie di primo livello del modulo Acquisti.</div>
+            <div className="text-sm font-bold text-violet-950">Categorie Acquisti (Fornitori)</div>
+            <div className="text-xs text-violet-800 mt-1">Gestisci le categorie di primo livello del modulo Acquisti.</div>
           </div>
           <button onClick={() => navigate("/acquisti/categorie")}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-amber-600 to-amber-500 text-white hover:from-amber-700 hover:to-amber-600 shadow-md hover:shadow-lg transition whitespace-nowrap">
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-violet-700 text-white hover:bg-violet-800 shadow-md hover:shadow-lg transition whitespace-nowrap">
             Vai alle Categorie Acquisti →
           </button>
         </div>
@@ -61,7 +55,7 @@ export default function FinanzaImpostazioni() {
               <button key={t.key} onClick={() => setVista(t.key)}
                 className={`px-4 py-2 text-sm font-semibold rounded-xl transition ${
                   vista === t.key
-                    ? "bg-gradient-to-r from-amber-100 to-amber-50 text-amber-900 border border-amber-300 shadow-sm"
+                    ? "bg-violet-100 text-violet-900 border border-violet-300 shadow-sm"
                     : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100"
                 }`}>
                 {t.label}
@@ -259,7 +253,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
           feedback.type === "error"
             ? "border-red-300 bg-red-50 text-red-800"
             : feedback.type === "merge"
-            ? "border-amber-300 bg-amber-50 text-amber-800"
+            ? "border-violet-300 bg-violet-50 text-violet-800"
             : "border-emerald-300 bg-emerald-50 text-emerald-800"
         }`}>
           <span>{feedback.text}</span>
@@ -269,16 +263,16 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
 
       <div className="space-y-5">
         {categorie.map(cat => (
-          <div key={cat.id} className="rounded-2xl border-2 border-amber-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
+          <div key={cat.id} className="rounded-2xl border-2 border-violet-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
             {/* HEADER CATEGORIA */}
-            <div className="bg-gradient-to-r from-amber-50 to-transparent px-5 py-4 border-b border-amber-100">
+            <div className="bg-violet-50 px-5 py-4 border-b border-violet-100">
               <div className="flex items-center gap-3 mb-3">
                 {editCat?.id === cat.id ? (
                   <>
                     <input value={editCat.nome}
                       onChange={e => setEditCat({ ...editCat, nome: e.target.value })}
                       onKeyDown={e => e.key === "Enter" && renameCat()}
-                      className="px-3 py-1.5 border border-amber-300 rounded-lg text-sm font-semibold flex-1 focus:outline-none focus:ring-2 focus:ring-amber-400" autoFocus />
+                      className="px-3 py-1.5 border border-violet-300 rounded-lg text-sm font-semibold flex-1 focus:outline-none focus:ring-2 focus:ring-violet-400" autoFocus />
                     <button onClick={renameCat}
                       className="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 font-medium">Salva</button>
                     <button onClick={() => setEditCat(null)}
@@ -286,14 +280,14 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                   </>
                 ) : (
                   <>
-                    <span className="text-lg font-bold text-amber-950">{cat.nome}</span>
+                    <span className="text-lg font-bold text-violet-950">{cat.nome}</span>
                     <span className="text-[11px] text-neutral-500 font-medium bg-neutral-100 px-2 py-1 rounded-full">
                       {cat.sottocategorie.length} sub
                     </span>
                     {cat.n_mov > 0 && (
                       <button
                         onClick={() => loadMovements("cat", cat.id, cat.nome)}
-                        className="text-[11px] px-2.5 py-1 bg-gradient-to-r from-amber-200 to-amber-100 text-amber-900 rounded-full font-semibold hover:from-amber-300 hover:to-amber-200 transition cursor-pointer shadow-sm"
+                        className="text-[11px] px-2.5 py-1 bg-violet-200 text-violet-900 rounded-full font-semibold hover:bg-violet-300 transition cursor-pointer shadow-sm"
                         title="Clicca per visualizzare i movimenti">
                         {cat.n_mov} mov.
                       </button>
@@ -311,14 +305,14 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
               {/* SOTTOCATEGORIE */}
               <div className="ml-2 space-y-2">
                 {cat.sottocategorie.map(sub => (
-                  <div key={sub.id} className="flex items-center gap-3 text-sm pl-2 border-l-2 border-amber-200">
+                  <div key={sub.id} className="flex items-center gap-3 text-sm pl-2 border-l-2 border-violet-200">
                     <span className="text-neutral-400 text-xs">└</span>
                     {editSub?.id === sub.id ? (
                       <>
                         <input value={editSub.nome}
                           onChange={e => setEditSub({ ...editSub, nome: e.target.value })}
                           onKeyDown={e => e.key === "Enter" && renameSub()}
-                          className="px-2.5 py-1 border border-amber-300 rounded-lg text-xs flex-1 focus:outline-none focus:ring-2 focus:ring-amber-400" autoFocus />
+                          className="px-2.5 py-1 border border-violet-300 rounded-lg text-xs flex-1 focus:outline-none focus:ring-2 focus:ring-violet-400" autoFocus />
                         <button onClick={renameSub}
                           className="text-[10px] px-2 py-1 bg-emerald-100 text-emerald-800 rounded font-medium">OK</button>
                         <button onClick={() => setEditSub(null)}
@@ -326,10 +320,10 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                       </>
                     ) : moving?.subId === sub.id ? (
                       <>
-                        <span className="font-medium text-amber-900">{sub.nome}</span>
+                        <span className="font-medium text-violet-900">{sub.nome}</span>
                         <span className="text-[10px] text-neutral-500">→ sposta in:</span>
                         <select
-                          className="text-xs border border-amber-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          className="text-xs border border-violet-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-violet-400"
                           defaultValue=""
                           onChange={e => {
                             if (e.target.value) moveSub(sub.id, Number(e.target.value));
@@ -358,7 +352,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                           <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })}
                             className="text-xs px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded transition">✏️</button>
                           <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
-                            className="text-xs px-1.5 py-1 text-amber-600 hover:bg-amber-50 rounded transition"
+                            className="text-xs px-1.5 py-1 text-violet-600 hover:bg-violet-50 rounded transition"
                             title="Sposta in un'altra categoria">↗️</button>
                           <button onClick={() => deleteSub(sub.id, sub.nome)}
                             className="text-xs px-1.5 py-1 text-red-600 hover:bg-red-50 rounded transition">🗑️</button>
@@ -369,15 +363,15 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
                 ))}
 
                 {/* AGGIUNGI SOTTO */}
-                <div className="flex items-center gap-3 mt-3 pl-2 text-sm border-l-2 border-amber-200">
+                <div className="flex items-center gap-3 mt-3 pl-2 text-sm border-l-2 border-violet-200">
                   <span className="text-neutral-400 text-xs">└</span>
                   <input type="text" placeholder="Nuova sotto-categoria..."
                     value={newSubNames[cat.id] || ""}
                     onChange={e => setNewSubNames(p => ({ ...p, [cat.id]: e.target.value }))}
                     onKeyDown={e => e.key === "Enter" && addSub(cat.id)}
-                    className="px-2.5 py-1 border border-dashed border-neutral-300 rounded-lg text-xs flex-1 focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                    className="px-2.5 py-1 border border-dashed border-neutral-300 rounded-lg text-xs flex-1 focus:outline-none focus:ring-2 focus:ring-violet-300" />
                   <button onClick={() => addSub(cat.id)}
-                    className="text-xs px-3 py-1 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 transition font-medium">
+                    className="text-xs px-3 py-1 bg-violet-100 text-violet-800 rounded-lg hover:bg-violet-200 transition font-medium">
                     + Aggiungi
                   </button>
                 </div>
@@ -393,7 +387,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
               />
             )}
             {expandedMovements?.id && expandedMovements?.type === "sub" && (
-              <div className="border-t border-amber-100">
+              <div className="border-t border-violet-100">
                 {cat.sottocategorie.map(sub =>
                   expandedMovements.id === sub.id && (
                     <MovementsList
@@ -416,9 +410,9 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
           value={newCatName}
           onChange={e => setNewCatName(e.target.value)}
           onKeyDown={e => e.key === "Enter" && addCat()}
-          className="px-4 py-2.5 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 flex-1 sm:flex-none sm:w-64" />
+          className="px-4 py-2.5 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400 flex-1 sm:flex-none sm:w-64" />
         <button onClick={addCat}
-          className="px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 text-white text-sm font-semibold rounded-xl hover:from-amber-700 hover:to-amber-600 shadow-md hover:shadow-lg transition">
+          className="px-5 py-2.5 bg-violet-700 text-white text-sm font-semibold rounded-xl hover:bg-violet-800 shadow-md hover:shadow-lg transition">
           + Nuova Categoria
         </button>
       </div>
@@ -429,7 +423,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
 function MovementsList({ movements, loading, onClose }) {
   if (loading) {
     return (
-      <div className="px-5 py-6 bg-amber-50 border-t border-amber-100 flex items-center justify-center">
+      <div className="px-5 py-6 bg-violet-50 border-t border-violet-100 flex items-center justify-center">
         <p className="text-sm text-neutral-600">Caricamento movimenti...</p>
       </div>
     );
@@ -437,7 +431,7 @@ function MovementsList({ movements, loading, onClose }) {
 
   if (!movements.length) {
     return (
-      <div className="px-5 py-6 bg-amber-50 border-t border-amber-100 flex items-center justify-between">
+      <div className="px-5 py-6 bg-violet-50 border-t border-violet-100 flex items-center justify-between">
         <p className="text-sm text-neutral-500">Nessun movimento trovato</p>
         <button onClick={onClose} className="text-sm px-3 py-1 text-neutral-600 hover:bg-white rounded-lg transition">
           Chiudi
@@ -465,9 +459,9 @@ function MovementsList({ movements, loading, onClose }) {
   };
 
   return (
-    <div className="px-5 py-6 bg-amber-50 border-t border-amber-100">
+    <div className="px-5 py-6 bg-violet-50 border-t border-violet-100">
       <div className="flex items-center justify-between mb-4">
-        <h4 className="text-sm font-bold text-amber-950">Movimenti ({movements.length})</h4>
+        <h4 className="text-sm font-bold text-violet-950">Movimenti ({movements.length})</h4>
         <button onClick={onClose} className="text-sm px-3 py-1 text-neutral-600 hover:bg-white rounded-lg transition font-medium">
           Chiudi
         </button>

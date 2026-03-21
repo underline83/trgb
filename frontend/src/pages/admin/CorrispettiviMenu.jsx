@@ -35,7 +35,7 @@ export default function CorrispettiviMenu() {
           <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-4xl font-bold text-center sm:text-left text-amber-900 tracking-wide font-playfair">
+                <h1 className="text-4xl font-bold text-center sm:text-left text-indigo-900 tracking-wide font-playfair">
                   💵 Gestione Vendite
                 </h1>
                 <VersionBadge modulo="corrispettivi" />
@@ -62,9 +62,9 @@ export default function CorrispettiviMenu() {
           {/* MINI-KPI */}
           {kpi && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-amber-700">Corrispettivi mese</p>
-                <p className="text-lg font-bold text-amber-900">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-indigo-700">Corrispettivi mese</p>
+                <p className="text-lg font-bold text-indigo-900">
                   € {(kpi.totale_corrispettivi ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </p>
               </div>
@@ -93,7 +93,7 @@ export default function CorrispettiviMenu() {
             {/* RIEPILOGO MENSILE */}
             <Link
               to="/vendite/riepilogo"
-              className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              className="bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
             >
               <div className="text-5xl mb-3">📋</div>
               <h2 className="text-xl font-semibold font-playfair">

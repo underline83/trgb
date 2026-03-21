@@ -294,7 +294,7 @@ export default function DipendentiAnagrafica() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+            <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-wide font-playfair">
               👥 Anagrafica Dipendenti
             </h1>
             <p className="text-neutral-600 mt-1">
@@ -311,7 +311,7 @@ export default function DipendentiAnagrafica() {
             </button>
             <button
               onClick={handleNewDipendente}
-              className="px-4 py-2 rounded-full bg-amber-900 text-amber-50 text-sm font-semibold shadow hover:bg-amber-800 transition"
+              className="px-4 py-2 rounded-full bg-neutral-900 text-neutral-50 text-sm font-semibold shadow hover:bg-neutral-800 transition"
             >
               + Nuovo dipendente
             </button>
@@ -362,7 +362,7 @@ export default function DipendentiAnagrafica() {
                     {dipendenti.map((d) => (
                       <tr
                         key={d.id}
-                        className={`border-t border-neutral-200 hover:bg-amber-50 cursor-pointer ${
+                        className={`border-t border-neutral-200 hover:bg-neutral-50 cursor-pointer ${
                           !d.attivo ? "opacity-60" : ""
                         }`}
                         onClick={() => handleSelectDipendente(d)}
@@ -426,7 +426,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("codice", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="DIP001"
                     required
                   />
@@ -440,7 +440,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("ruolo", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     required
                   >
                     <option value="">Seleziona un ruolo…</option>
@@ -464,7 +464,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("nome", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     required
                   />
                 </div>
@@ -478,7 +478,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("cognome", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     required
                   />
                 </div>
@@ -495,7 +495,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("telefono", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="+39 …"
                   />
                 </div>
@@ -509,7 +509,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("email", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="nome@esempio.it"
                   />
                 </div>
@@ -524,7 +524,7 @@ export default function DipendentiAnagrafica() {
                   type="text"
                   value={form.iban}
                   onChange={(e) => handleChange("iban", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-neutral-500"
                   placeholder="IT00 X000 0000 0000 0000 0000 000"
                 />
                 <p className="text-[11px] text-neutral-500 mt-1">
@@ -545,7 +545,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("indirizzo_via", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="Via Roma 10"
                   />
                 </div>
@@ -561,7 +561,7 @@ export default function DipendentiAnagrafica() {
                       onChange={(e) =>
                         handleChange("indirizzo_cap", e.target.value)
                       }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                       placeholder="24121"
                     />
                   </div>
@@ -575,7 +575,7 @@ export default function DipendentiAnagrafica() {
                       onChange={(e) =>
                         handleChange("indirizzo_citta", e.target.value)
                       }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                       placeholder="Bergamo"
                     />
                   </div>
@@ -592,7 +592,7 @@ export default function DipendentiAnagrafica() {
                           e.target.value
                         )
                       }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                       placeholder="BG"
                     />
                   </div>
@@ -611,7 +611,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("note", e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="Es. mansioni specifiche, allergie, note su contratto…"
                   />
                 </div>
@@ -623,7 +623,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       handleChange("attivo", e.target.checked)
                     }
-                    className="h-4 w-4 rounded border-neutral-300 text-amber-900 focus:ring-amber-500"
+                    className="h-4 w-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
                   />
                   <label
                     htmlFor="attivo"
@@ -645,7 +645,7 @@ export default function DipendentiAnagrafica() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 rounded-full bg-amber-900 text-amber-50 text-sm font-semibold shadow hover:bg-amber-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="px-5 py-2 rounded-full bg-neutral-900 text-neutral-50 text-sm font-semibold shadow hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {saving
                     ? "Salvataggio..."
@@ -687,7 +687,7 @@ export default function DipendentiAnagrafica() {
                   <select
                     value={docCategoria}
                     onChange={(e) => setDocCategoria(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     disabled={!form.id}
                   >
                     {DOC_CATEGORIE.map((c) => (
@@ -707,7 +707,7 @@ export default function DipendentiAnagrafica() {
                     onChange={(e) =>
                       setDocDescrizione(e.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
                     placeholder="Es. Contratto a tempo indeterminato 2025"
                     disabled={!form.id}
                   />

@@ -196,7 +196,7 @@ export default function GestioneUtenti() {
           <div className="flex gap-3 items-start">
             <button
               onClick={() => openModal("add")}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 shadow transition"
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow transition"
             >
               + Nuovo utente
             </button>
@@ -231,7 +231,7 @@ export default function GestioneUtenti() {
                     <td className="px-5 py-4 font-medium text-neutral-800">
                       {u.username}
                       {u.username === currentUsername && (
-                        <span className="ml-2 text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">Tu</span>
+                        <span className="ml-2 text-xs bg-neutral-100 text-neutral-700 rounded-full px-2 py-0.5">Tu</span>
                       )}
                     </td>
                     <td className="px-5 py-4">
@@ -288,7 +288,7 @@ export default function GestioneUtenti() {
                       type="text"
                       value={newUser.username}
                       onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
                       placeholder="es. mario"
                     />
                   </div>
@@ -298,7 +298,7 @@ export default function GestioneUtenti() {
                       type="password"
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
                     />
                   </div>
                   <div>
@@ -306,7 +306,7 @@ export default function GestioneUtenti() {
                     <select
                       value={newUser.role}
                       onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
                     >
                       {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                     </select>
@@ -314,7 +314,7 @@ export default function GestioneUtenti() {
                   {formError && <p className="text-red-600 text-sm">{formError}</p>}
                   <div className="flex gap-3 pt-2">
                     <button type="submit" disabled={saving}
-                      className="flex-1 bg-amber-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition">
+                      className="flex-1 bg-neutral-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition">
                       {saving ? "Salvataggio..." : "Crea utente"}
                     </button>
                     <button type="button" onClick={() => setModal(null)}

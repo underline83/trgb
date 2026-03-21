@@ -1,4 +1,4 @@
-// @version: v1.0-fatture-nav
+// @version: v1.1-fatture-nav-teal
 // Tab navigation persistente per la sezione fatture
 import React from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,7 +22,7 @@ export default function FattureNav({ current }) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate("/acquisti")}
-              className="text-sm font-bold text-amber-900 font-playfair mr-4 hover:text-amber-700 transition whitespace-nowrap"
+              className="text-sm font-bold text-teal-900 font-playfair mr-4 hover:text-teal-700 transition whitespace-nowrap"
             >
               Acquisti
             </button>
@@ -35,7 +35,7 @@ export default function FattureNav({ current }) {
                     onClick={() => navigate(tab.path)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                       active
-                        ? "bg-amber-100 text-amber-900 shadow-sm"
+                        ? "bg-teal-100 text-teal-900 shadow-sm"
                         : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
                     }`}
                   >

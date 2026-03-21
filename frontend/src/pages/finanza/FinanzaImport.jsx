@@ -95,9 +95,9 @@ export default function FinanzaImport() {
               <div className="text-2xl font-bold text-emerald-800">{stats.riconciliati}</div>
               <div className="text-[10px] text-emerald-600">Riconciliati (X/C)</div>
             </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center">
-              <div className="text-2xl font-bold text-amber-800">{stats.da_riconciliare}</div>
-              <div className="text-[10px] text-amber-600">Da riconciliare</div>
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-center">
+              <div className="text-2xl font-bold text-violet-800">{stats.da_riconciliare}</div>
+              <div className="text-[10px] text-violet-600">Da riconciliare</div>
             </div>
           </div>
         )}

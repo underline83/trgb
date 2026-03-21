@@ -36,7 +36,7 @@ export default function RicetteMenu() {
       subtitle: "Inserimento guidato con sub-ricette",
       icon: "➕",
       path: "/ricette/nuova",
-      color: "bg-amber-50 border-amber-200 text-amber-900",
+      color: "bg-orange-50 border-orange-200 text-orange-900",
     },
     {
       title: "Archivio ricette",
@@ -88,7 +88,7 @@ export default function RicetteMenu() {
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+              <h1 className="text-3xl lg:text-4xl font-bold text-orange-900 tracking-wide font-playfair">
                 Ricette & Food Cost
               </h1>
               <VersionBadge modulo="ricette" />
@@ -103,7 +103,7 @@ export default function RicetteMenu() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-amber-900">{stats.totale}</div>
+              <div className="text-2xl font-bold text-orange-900">{stats.totale}</div>
               <div className="text-xs text-neutral-500 mt-1">Ricette attive</div>
             </div>
             <div className="bg-white rounded-xl border border-neutral-200 p-4 text-center shadow-sm">

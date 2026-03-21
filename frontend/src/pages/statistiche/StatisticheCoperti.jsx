@@ -273,9 +273,9 @@ export default function StatisticheCoperti() {
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase">Media coperto</div>
                 <div className="text-lg font-bold text-neutral-800">€ {fmt2(totals.media)}</div>
               </div>
-              <div className="bg-amber-50 rounded-2xl shadow p-4 border border-amber-200 text-center">
-                <div className="text-[10px] font-semibold text-amber-500 uppercase">Media pranzo</div>
-                <div className="text-lg font-bold text-amber-800">€ {fmt2(totals.media_pranzo)}</div>
+              <div className="bg-rose-50 rounded-2xl shadow p-4 border border-rose-200 text-center">
+                <div className="text-[10px] font-semibold text-rose-500 uppercase">Media pranzo</div>
+                <div className="text-lg font-bold text-rose-800">€ {fmt2(totals.media_pranzo)}</div>
               </div>
               <div className="bg-indigo-50 rounded-2xl shadow p-4 border border-indigo-200 text-center">
                 <div className="text-[10px] font-semibold text-indigo-500 uppercase">Media cena</div>
@@ -346,11 +346,11 @@ export default function StatisticheCoperti() {
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Incassato</th>
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Cop.</th>
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-neutral-500 uppercase">Media</th>
-                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-amber-500 uppercase">P</th>
+                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-rose-500 uppercase">P</th>
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-indigo-500 uppercase">C</th>
-                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-amber-500 uppercase">Fatt.P</th>
+                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-rose-500 uppercase">Fatt.P</th>
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-indigo-500 uppercase">Fatt.C</th>
-                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-amber-500 uppercase">M.P</th>
+                      <th className="px-2 py-2 text-right text-[10px] font-semibold text-rose-500 uppercase">M.P</th>
                       <th className="px-2 py-2 text-right text-[10px] font-semibold text-indigo-500 uppercase">M.C</th>
                     </tr>
                   </thead>
@@ -364,7 +364,7 @@ export default function StatisticheCoperti() {
                       const isBest = totals.bestDay && row.date === totals.bestDay.date;
                       return (
                         <tr key={row.date}
-                          className={`hover:bg-neutral-50 ${isNewWeek ? "border-t-2 border-neutral-300" : ""} ${isWeekend ? "bg-amber-50/20" : ""} ${isBest ? "bg-emerald-50/40" : ""}`}>
+                          className={`hover:bg-neutral-50 ${isNewWeek ? "border-t-2 border-neutral-300" : ""} ${isWeekend ? "bg-rose-50/20" : ""} ${isBest ? "bg-emerald-50/40" : ""}`}>
                           <td className="px-2 py-1.5 text-neutral-300 text-[10px]">{week}</td>
                           <td className="px-2 py-1.5 text-neutral-700 text-xs">
                             <span className="font-medium">{getDay(row.date)}</span>
@@ -373,11 +373,11 @@ export default function StatisticheCoperti() {
                           <td className="px-2 py-1.5 text-right font-semibold text-neutral-800">€ {fmt(row.incassato)}</td>
                           <td className="px-2 py-1.5 text-right text-neutral-600">{row.coperti || "—"}</td>
                           <td className="px-2 py-1.5 text-right text-neutral-500 text-xs">€ {fmt2(row.media)}</td>
-                          <td className="px-2 py-1.5 text-right text-amber-600 text-xs">{row.coperti_pranzo || "—"}</td>
+                          <td className="px-2 py-1.5 text-right text-rose-600 text-xs">{row.coperti_pranzo || "—"}</td>
                           <td className="px-2 py-1.5 text-right text-indigo-600 text-xs">{row.coperti_cena || "—"}</td>
-                          <td className="px-2 py-1.5 text-right text-amber-600 text-xs">€ {fmt(row.fatt_pranzo)}</td>
+                          <td className="px-2 py-1.5 text-right text-rose-600 text-xs">€ {fmt(row.fatt_pranzo)}</td>
                           <td className="px-2 py-1.5 text-right text-indigo-600 text-xs">€ {fmt(row.fatt_cena)}</td>
-                          <td className="px-2 py-1.5 text-right text-amber-500 text-[10px]">{row.media_pranzo != null ? `€${fmt2(row.media_pranzo)}` : "—"}</td>
+                          <td className="px-2 py-1.5 text-right text-rose-500 text-[10px]">{row.media_pranzo != null ? `€${fmt2(row.media_pranzo)}` : "—"}</td>
                           <td className="px-2 py-1.5 text-right text-indigo-500 text-[10px]">{row.media_cena != null ? `€${fmt2(row.media_cena)}` : "—"}</td>
                         </tr>
                       );
@@ -391,11 +391,11 @@ export default function StatisticheCoperti() {
                       <td className="px-2 py-2.5 text-right text-neutral-900">€ {fmt(totals.incassato)}</td>
                       <td className="px-2 py-2.5 text-right text-neutral-700">{totals.coperti}</td>
                       <td className="px-2 py-2.5 text-right text-neutral-600">€ {fmt2(totals.media)}</td>
-                      <td className="px-2 py-2.5 text-right text-amber-700">{totals.coperti_pranzo}</td>
+                      <td className="px-2 py-2.5 text-right text-rose-700">{totals.coperti_pranzo}</td>
                       <td className="px-2 py-2.5 text-right text-indigo-700">{totals.coperti_cena}</td>
-                      <td className="px-2 py-2.5 text-right text-amber-700">€ {fmt(totals.fatt_pranzo)}</td>
+                      <td className="px-2 py-2.5 text-right text-rose-700">€ {fmt(totals.fatt_pranzo)}</td>
                       <td className="px-2 py-2.5 text-right text-indigo-700">€ {fmt(totals.fatt_cena)}</td>
-                      <td className="px-2 py-2.5 text-right text-amber-600">€{fmt2(totals.media_pranzo)}</td>
+                      <td className="px-2 py-2.5 text-right text-rose-600">€{fmt2(totals.media_pranzo)}</td>
                       <td className="px-2 py-2.5 text-right text-indigo-600">€{fmt2(totals.media_cena)}</td>
                     </tr>
                   </tfoot>

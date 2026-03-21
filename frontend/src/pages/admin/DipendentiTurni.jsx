@@ -360,7 +360,7 @@ const handleDeleteTurno = async (turnoId) => {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+            <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-wide font-playfair">
               📅 Turni Dipendenti
             </h1>
             <p className="text-neutral-600 mt-1">
@@ -394,7 +394,7 @@ const handleDeleteTurno = async (turnoId) => {
             >
               ←
             </button>
-            <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm font-medium">
+            <div className="px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-neutral-900 text-sm font-medium">
               {currentMonthLabel}
             </div>
             <button
@@ -407,7 +407,7 @@ const handleDeleteTurno = async (turnoId) => {
             <button
               type="button"
               onClick={goToday}
-              className="ml-2 px-3 py-2 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-xs sm:text-sm text-amber-900"
+              className="ml-2 px-3 py-2 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-xs sm:text-sm text-neutral-900"
             >
               Oggi
             </button>
@@ -419,7 +419,7 @@ const handleDeleteTurno = async (turnoId) => {
               onClick={() => setViewMode("week")}
               className={`px-3 py-2 rounded-xl text-xs sm:text-sm border ${
                 viewMode === "week"
-                  ? "bg-amber-600 text-white border-amber-700"
+                  ? "bg-neutral-600 text-white border-neutral-700"
                   : "bg-neutral-50 text-neutral-700 border-neutral-300"
               }`}
             >
@@ -430,7 +430,7 @@ const handleDeleteTurno = async (turnoId) => {
               onClick={() => setViewMode("month")}
               className={`px-3 py-2 rounded-xl text-xs sm:text-sm border ${
                 viewMode === "month"
-                  ? "bg-amber-600 text-white border-amber-700"
+                  ? "bg-neutral-600 text-white border-neutral-700"
                   : "bg-neutral-50 text-neutral-700 border-neutral-300"
               }`}
             >
@@ -491,18 +491,18 @@ const handleDeleteTurno = async (turnoId) => {
         {/* FORM NUOVO TURNO */}
         <form
           onSubmit={handleCreateTurno}
-          className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6"
+          className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 mb-6"
         >
-          <h2 className="text-sm font-semibold text-amber-900 mb-3">
+          <h2 className="text-sm font-semibold text-neutral-900 mb-3">
             Nuovo turno rapido
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
             <div>
-              <label className="block text-amber-900/90 mb-1">Dipendente</label>
+              <label className="block text-neutral-900/90 mb-1">Dipendente</label>
               <select
                 value={newDipendenteId}
                 onChange={(e) => setNewDipendenteId(e.target.value)}
-                className="w-full border border-amber-300 rounded-xl px-3 py-2 bg-white"
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 bg-white"
               >
                 <option value="">Seleziona…</option>
                 {dipendenti.map((d) => (
@@ -514,11 +514,11 @@ const handleDeleteTurno = async (turnoId) => {
             </div>
 
             <div>
-              <label className="block text-amber-900/90 mb-1">Tipo turno</label>
+              <label className="block text-neutral-900/90 mb-1">Tipo turno</label>
               <select
                 value={newTurnoTipoId}
                 onChange={(e) => setNewTurnoTipoId(e.target.value)}
-                className="w-full border border-amber-300 rounded-xl px-3 py-2 bg-white"
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 bg-white"
               >
                 <option value="">Seleziona…</option>
                 {turniTipi.map((t) => (
@@ -530,13 +530,13 @@ const handleDeleteTurno = async (turnoId) => {
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-amber-900/90 mb-1">Note</label>
+              <label className="block text-neutral-900/90 mb-1">Note</label>
               <input
                 type="text"
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 placeholder="Es. sostituzione, cambio turno, ecc."
-                className="w-full border border-amber-300 rounded-xl px-3 py-2 bg-white"
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 bg-white"
               />
             </div>
           </div>
@@ -545,7 +545,7 @@ const handleDeleteTurno = async (turnoId) => {
             <button
               type="submit"
               disabled={creating}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 shadow-sm disabled:opacity-60"
+              className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow-sm disabled:opacity-60"
             >
               {creating ? "Salvataggio..." : "Aggiungi turno"}
             </button>

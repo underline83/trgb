@@ -12,7 +12,7 @@ function SortTh({ label, field, sort, setSort, align }) {
   const active = sort.field === field;
   const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
   return (
-    <th className={`px-3 py-2 cursor-pointer select-none hover:text-amber-800 transition ${align === "right" ? "text-right" : "text-left"}`}
+    <th className={`px-3 py-2 cursor-pointer select-none hover:text-teal-800 transition ${align === "right" ? "text-right" : "text-left"}`}
       onClick={() => setSort(prev => ({ field, dir: prev.field === field && prev.dir === "asc" ? "desc" : "asc" }))}>
       {label}{arrow}
     </th>
@@ -158,7 +158,7 @@ export default function FattureFornitoreDettaglio() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-amber-900 font-playfair mb-1">
+            <h1 className="text-2xl font-bold text-teal-900 font-playfair mb-1">
               Prodotti — {loading ? "..." : fornNome}
             </h1>
             <p className="text-neutral-500 text-sm">
@@ -170,8 +170,8 @@ export default function FattureFornitoreDettaglio() {
         {/* STATS RIEPILOGO */}
         {!loading && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 text-center">
-              <div className="text-2xl font-bold text-amber-900">{nTotali}</div>
+            <div className="bg-teal-50 rounded-xl p-4 border border-teal-200 text-center">
+              <div className="text-2xl font-bold text-teal-900">{nTotali}</div>
               <div className="text-xs text-neutral-600">Prodotti unici</div>
             </div>
             <div className="bg-green-50 rounded-xl p-4 border border-green-200 text-center">
@@ -198,7 +198,7 @@ export default function FattureFornitoreDettaglio() {
               <span key={i} className={`text-xs px-2 py-1 rounded-full border ${
                 s.categoria === "(Non categorizzato)"
                   ? "bg-neutral-100 border-neutral-300 text-neutral-600"
-                  : "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-teal-50 border-teal-200 text-teal-800"
               }`}>
                 {s.categoria}{s.sottocategoria ? ` > ${s.sottocategoria}` : ""}
                 <span className="ml-1 font-semibold">
@@ -227,21 +227,21 @@ export default function FattureFornitoreDettaglio() {
 
         {/* BULK EDIT BAR */}
         {selected.size > 0 && (
-          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-amber-900">{selected.size} selezionati</span>
+          <div className="mb-4 rounded-xl border border-teal-300 bg-teal-50 px-4 py-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-teal-900">{selected.size} selezionati</span>
             <select value={bulkCatId} onChange={e => { setBulkCatId(e.target.value); setBulkSubId(""); }}
-              className="px-2 py-1 border border-amber-300 rounded-lg text-xs">
+              className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
               <option value="">— Categoria —</option>
               {categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
             <select value={bulkSubId} onChange={e => setBulkSubId(e.target.value)}
               disabled={!bulkCatId}
-              className="px-2 py-1 border border-amber-300 rounded-lg text-xs">
+              className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
               <option value="">— Sotto-cat. —</option>
               {bulkSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
             <button onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition disabled:opacity-50">
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
               {bulkSaving ? "Salvataggio..." : "Assegna a tutti"}
             </button>
             <button onClick={() => setSelected(new Set())}
@@ -261,7 +261,7 @@ export default function FattureFornitoreDettaglio() {
                   <tr>
                     <th className="px-2 py-2 w-8 text-center">
                       <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
-                        onChange={toggleAll} className="accent-amber-600" />
+                        onChange={toggleAll} className="accent-teal-600" />
                     </th>
                     <SortTh label="Descrizione" field="descrizione" sort={sort} setSort={setSort} />
                     <SortTh label="Righe" field="n_righe" sort={sort} setSort={setSort} align="right" />
@@ -280,9 +280,9 @@ export default function FattureFornitoreDettaglio() {
                     const isSelected = selected.has(p.descrizione);
                     return (
                       <tr key={idx}
-                        className={`border-t border-neutral-200 ${!p.categoria_id ? "bg-amber-50/30" : ""} ${isSelected ? "bg-amber-100/60" : ""}`}>
+                        className={`border-t border-neutral-200 ${!p.categoria_id ? "bg-teal-50/30" : ""} ${isSelected ? "bg-teal-100/60" : ""}`}>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.descrizione)} className="accent-amber-600" />
+                          <input type="checkbox" checked={isSelected} onChange={() => toggleSelect(p.descrizione)} className="accent-teal-600" />
                         </td>
                         <td className="px-3 py-2">
                           <div className="text-xs leading-tight" title={p.descrizione}>

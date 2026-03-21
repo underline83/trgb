@@ -114,7 +114,7 @@ export default function BancaImport() {
         {result && (
           <div className={`mb-6 rounded-xl border px-4 py-4 text-sm ${
             result.warning
-              ? "border-amber-300 bg-amber-50 text-amber-800"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
               : "border-emerald-300 bg-emerald-50 text-emerald-800"
           }`}>
             <div className="font-semibold mb-2">

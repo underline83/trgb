@@ -17,7 +17,7 @@ function Section({ title, icon, defaultOpen = false, children }) {
     <div className="border border-neutral-200 rounded-2xl overflow-hidden">
       <button onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-4 bg-neutral-50 hover:bg-neutral-100 transition text-left">
-        <h2 className="text-lg font-semibold text-amber-900 font-playfair">
+        <h2 className="text-lg font-semibold text-orange-900 font-playfair">
           {icon} {title}
         </h2>
         <span className="text-neutral-400 text-lg">{open ? "▾" : "▸"}</span>
@@ -168,7 +168,7 @@ export default function RicetteSettings() {
 
         {/* HEADER */}
         <div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+          <h1 className="text-3xl lg:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
             Strumenti Ricette
           </h1>
           <p className="text-neutral-600">
@@ -193,7 +193,7 @@ export default function RicetteSettings() {
             Utile per backup o per trasferire le ricette ad un'altra installazione.
           </p>
           <button onClick={handleExportJson}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition">
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition">
             Scarica JSON completo
           </button>
         </Section>
@@ -222,7 +222,7 @@ export default function RicetteSettings() {
                 </thead>
                 <tbody>
                   {ricette.map((r) => (
-                    <tr key={r.id} className="border-t border-neutral-100 hover:bg-amber-50/40 transition">
+                    <tr key={r.id} className="border-t border-neutral-100 hover:bg-orange-50/40 transition">
                       <td className="p-2.5 font-medium text-neutral-900">
                         {r.is_base && <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded mr-1.5">Base</span>}
                         {r.name}

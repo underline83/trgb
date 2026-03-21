@@ -14,7 +14,7 @@ const fmt = (n) =>
 const STATO_LABELS = { X: "Banca", C: "Contanti", "": "Da fare" };
 const STATO_COLORS = {
   X: "bg-emerald-100 text-emerald-800",
-  C: "bg-amber-100 text-amber-800",
+  C: "bg-violet-100 text-violet-800",
   "": "bg-red-50 text-red-600",
 };
 
@@ -225,7 +225,7 @@ export default function FinanzaMovimenti() {
                             <div className="text-[10px] text-neutral-400 mt-0.5">{m.descrizione_estesa}</div>
                           )}
                           {isExpanded && m.note && (
-                            <div className="text-[10px] text-amber-600 mt-0.5">Note: {m.note}</div>
+                            <div className="text-[10px] text-violet-600 mt-0.5">Note: {m.note}</div>
                           )}
                           {isExpanded && m.cat_debito && (
                             <div className="text-[10px] text-blue-600 mt-0.5">Debito: {m.cat_debito}</div>

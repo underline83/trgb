@@ -303,7 +303,7 @@ export default function FinanzaCategorie() {
                           <td className="py-2 text-right flex gap-1 justify-end">
                             <button
                               onClick={() => startEdit(r)}
-                              className="text-[10px] px-2 py-1 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 font-medium"
+                              className="text-[10px] px-2 py-1 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-medium"
                             >
                               Modifica
                             </button>
@@ -464,8 +464,8 @@ export default function FinanzaCategorie() {
                 </div>
 
                 {/* Categorie Finanziario */}
-                <div className="rounded-xl border border-amber-200 bg-amber-50/30 p-4 mb-4">
-                  <div className="text-xs font-bold text-amber-800 mb-2">Vista Finanziaria (cassa)</div>
+                <div className="rounded-xl border border-violet-200 bg-violet-50/30 p-4 mb-4">
+                  <div className="text-xs font-bold text-violet-800 mb-2">Vista Finanziaria (cassa)</div>
                   <div className="grid grid-cols-2 gap-3 mb-2">
                     <div>
                       <div className={labelCls}>Tipo (E/U)</div>

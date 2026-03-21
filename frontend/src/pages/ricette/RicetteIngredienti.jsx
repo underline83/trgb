@@ -177,7 +177,7 @@ export default function RicetteIngredienti() {
         {/* HEADER + BACK */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-2">
               🧾 Ingredienti — Food Cost
             </h1>
             <p className="text-neutral-600">
@@ -213,7 +213,7 @@ export default function RicetteIngredienti() {
                 type="text"
                 value={form.name}
                 onChange={(e) => handleChange("name", e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 placeholder="Es. Panna fresca 35%"
                 required
               />
@@ -228,7 +228,7 @@ export default function RicetteIngredienti() {
                 <select
                   value={form.category_id}
                   onChange={(e) => handleChange("category_id", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 >
                   <option value="">— Nessuna / nuova —</option>
                   {categories.map((cat) => (
@@ -247,7 +247,7 @@ export default function RicetteIngredienti() {
                   type="text"
                   value={form.category_name}
                   onChange={(e) => handleChange("category_name", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="Es. Latticini, Carne, Verdure…"
                 />
               </div>
@@ -262,7 +262,7 @@ export default function RicetteIngredienti() {
                 <select
                   value={form.default_unit}
                   onChange={(e) => handleChange("default_unit", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 >
                   {UNITS.map((u) => (
                     <option key={u} value={u}>
@@ -280,7 +280,7 @@ export default function RicetteIngredienti() {
                   type="text"
                   value={form.allergeni}
                   onChange={(e) => handleChange("allergeni", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   placeholder="latte, glutine, uovo…"
                 />
               </div>
@@ -294,7 +294,7 @@ export default function RicetteIngredienti() {
               <textarea
                 value={form.note}
                 onChange={(e) => handleChange("note", e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                 rows={3}
                 placeholder="Es. solo per dessert, prodotto bio, DOP, ecc."
               />
@@ -314,7 +314,7 @@ export default function RicetteIngredienti() {
                   <select
                     value={form.supplier_id}
                     onChange={(e) => handleChange("supplier_id", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                   >
                     <option value="">— Nessuno —</option>
                     {suppliers.map((s) => (
@@ -334,7 +334,7 @@ export default function RicetteIngredienti() {
                     step="0.0001"
                     value={form.unit_price}
                     onChange={(e) => handleChange("unit_price", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                     placeholder="Es. 7.50"
                   />
                 </div>
@@ -350,7 +350,7 @@ export default function RicetteIngredienti() {
                     step="0.0001"
                     value={form.quantity}
                     onChange={(e) => handleChange("quantity", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                     placeholder="Es. 1, 5, 10"
                   />
                 </div>
@@ -363,7 +363,7 @@ export default function RicetteIngredienti() {
                     type="text"
                     value={form.unit}
                     onChange={(e) => handleChange("unit", e.target.value)}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                     placeholder="kg, L, pz… (default = unità base)"
                   />
                 </div>
@@ -372,7 +372,7 @@ export default function RicetteIngredienti() {
 
             <button
               type="submit"
-              className="mt-4 px-6 py-2.5 rounded-xl bg-amber-700 text-white text-sm font-semibold shadow hover:bg-amber-800 transition"
+              className="mt-4 px-6 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-semibold shadow hover:bg-orange-800 transition"
             >
               💾 Salva ingrediente
             </button>

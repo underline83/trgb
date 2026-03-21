@@ -84,7 +84,7 @@ export default function CorrispettiviImport() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-indigo-900 tracking-wide font-playfair mb-2">
               📤 Import corrispettivi da Excel
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
@@ -132,8 +132,8 @@ export default function CorrispettiviImport() {
                          file:mr-4 file:py-2 file:px-4
                          file:rounded-xl file:border-0
                          file:text-sm file:font-medium
-                         file:bg-amber-50 file:text-amber-900
-                         hover:file:bg-amber-100"
+                         file:bg-indigo-50 file:text-indigo-900
+                         hover:file:bg-indigo-100"
             />
             <p className="text-xs text-neutral-500 mt-1">
               Standard colonne: DATA, GIORNO, CORRISPETTIVI-TOT, CORRISPETTIVI,
@@ -152,7 +152,7 @@ export default function CorrispettiviImport() {
                 ${
                   loading || !file
                     ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-                    : "bg-amber-600 text-white hover:bg-amber-700 transition"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 transition"
                 }`}
             >
               {loading ? "Import in corso..." : "Importa corrispettivi"}

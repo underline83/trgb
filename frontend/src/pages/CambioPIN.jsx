@@ -112,7 +112,7 @@ export default function CambioPIN() {
 
         {/* CAMBIO PIN PROPRIO */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
-          <h1 className="text-xl font-bold text-amber-900 font-playfair mb-1">
+          <h1 className="text-xl font-bold text-neutral-900 font-playfair mb-1">
             🔑 Cambia PIN
           </h1>
           <p className="text-neutral-500 text-sm mb-5">
@@ -128,7 +128,7 @@ export default function CambioPIN() {
 
             <button onClick={handleChangePin} disabled={saving}
               className={`w-full py-3 rounded-xl text-white font-bold text-sm shadow transition ${
-                saving ? "bg-neutral-400 cursor-not-allowed" : "bg-amber-700 hover:bg-amber-800"
+                saving ? "bg-neutral-400 cursor-not-allowed" : "bg-neutral-700 hover:bg-neutral-800"
               }`}>
               {saving ? "Salvataggio..." : "Cambia PIN"}
             </button>
@@ -214,7 +214,7 @@ function PinInput({ label, value, onChange }) {
           onChange(v);
         }}
         placeholder="••••"
-        className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-lg tracking-widest text-center bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-lg tracking-widest text-center bg-white focus:outline-none focus:ring-2 focus:ring-neutral-200"
       />
     </div>
   );

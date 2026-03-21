@@ -162,7 +162,7 @@ export default function FattureDashboard() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-amber-900 font-playfair">
+            <h1 className="text-2xl sm:text-3xl font-bold text-teal-900 font-playfair">
               Dashboard Acquisti
             </h1>
             <p className="text-neutral-500 text-sm mt-1">
@@ -235,7 +235,7 @@ export default function FattureDashboard() {
                 Autofatture e fornitori esclusi non sono inclusi nei dati.
               </p>
               <button onClick={() => navigate("/acquisti/import")}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition">
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200 hover:bg-teal-100 transition">
                 Import XML →
               </button>
             </div>
@@ -260,7 +260,7 @@ function KpiCards({ kpi }) {
         ? `${kpi.delta_pct > 0 ? "+" : ""}${kpi.delta_pct}% vs ${kpi.prev_year}`
         : null,
       subColor: kpi.delta_pct > 0 ? "text-red-600" : kpi.delta_pct < 0 ? "text-green-600" : "text-neutral-500",
-      bg: "bg-amber-50 border-amber-200",
+      bg: "bg-teal-50 border-teal-200",
       icon: "€",
     },
     {
@@ -368,7 +368,7 @@ function ChartMensile({ data, selectedYear, onDrill }) {
             />
             <Bar
               dataKey="totale"
-              fill="#d97706"
+              fill="#0d9488"
               radius={[4, 4, 0, 0]}
               name="Spesa"
               onClick={handleBarClick}
@@ -488,7 +488,7 @@ function TopFornitoriCard({ data, navigate }) {
                 </span>
                 <div className="flex items-center gap-2">
                   {f.categoria && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
                       {f.categoria}
                     </span>
                   )}
@@ -544,7 +544,7 @@ function ChartConfronto({ data }) {
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey={String(prev_year)} fill="#94a3b8" radius={[4, 4, 0, 0]} />
-          <Bar dataKey={String(year)} fill="#d97706" radius={[4, 4, 0, 0]} />
+          <Bar dataKey={String(year)} fill="#0d9488" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -560,11 +560,11 @@ function DrillPanel({ drill, onClose, navigate }) {
   const { label, fatture, n_fatture, totale, loading, error } = drill;
 
   return (
-    <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-lg p-4 mb-4">
+    <div className="bg-white rounded-2xl border-2 border-teal-300 shadow-lg p-4 mb-4">
       {/* Header */}
       <div className="flex justify-between items-center mb-3">
         <div>
-          <h3 className="text-sm font-bold text-amber-900">
+          <h3 className="text-sm font-bold text-teal-900">
             Dettaglio: {label}
           </h3>
           {!loading && !error && (
@@ -605,7 +605,7 @@ function DrillPanel({ drill, onClose, navigate }) {
               {fatture.map((f, i) => (
                 <tr
                   key={f.id || i}
-                  className="border-b border-neutral-100 hover:bg-amber-50/50 cursor-pointer transition"
+                  className="border-b border-neutral-100 hover:bg-teal-50/50 cursor-pointer transition"
                   onClick={() => f.id && navigate(`/acquisti/dettaglio/${f.id}`)}
                 >
                   <td className="py-1.5 pr-3 tabular-nums text-neutral-700 whitespace-nowrap">
@@ -624,7 +624,7 @@ function DrillPanel({ drill, onClose, navigate }) {
                     € {fmt(f.totale_fattura)}
                   </td>
                   <td className="py-1.5 text-center">
-                    <span className="text-amber-500 text-sm">→</span>
+                    <span className="text-teal-500 text-sm">→</span>
                   </td>
                 </tr>
               ))}

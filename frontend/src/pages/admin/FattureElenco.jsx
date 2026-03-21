@@ -146,7 +146,7 @@ export default function FattureElenco() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-amber-900 font-playfair">
+            <h1 className="text-2xl font-bold text-teal-900 font-playfair">
               Elenco Fatture
             </h1>
             <p className="text-neutral-500 text-xs mt-0.5">
@@ -165,11 +165,11 @@ export default function FattureElenco() {
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") doFetch({ page: 0 }); }}
                 placeholder="Cerca per fornitore, P.IVA, numero fattura..."
-                className="w-full text-sm border border-neutral-300 rounded-xl px-4 py-2.5 pr-10 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+                className="w-full text-sm border border-neutral-300 rounded-xl px-4 py-2.5 pr-10 bg-white focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
               />
               <button
                 onClick={() => doFetch({ page: 0 })}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-amber-800 text-sm transition"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-teal-100 hover:bg-teal-200 flex items-center justify-center text-teal-800 text-sm transition"
               >
                 ⌕
               </button>
@@ -200,7 +200,7 @@ export default function FattureElenco() {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
-                showFilters ? "bg-amber-100 border-amber-300 text-amber-900" : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                showFilters ? "bg-teal-100 border-teal-300 text-teal-900" : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
               }`}
             >
               Filtri {showFilters ? "▲" : "▼"}
@@ -270,7 +270,7 @@ export default function FattureElenco() {
                     {fatture.map((f) => (
                       <tr
                         key={f.id}
-                        className="border-b border-neutral-100 hover:bg-amber-50/40 cursor-pointer transition"
+                        className="border-b border-neutral-100 hover:bg-teal-50/40 cursor-pointer transition"
                         onClick={() => navigate(`/acquisti/dettaglio/${f.id}`)}
                       >
                         <td className="px-4 py-2.5 tabular-nums text-neutral-700 whitespace-nowrap">{f.data_fattura || "-"}</td>
@@ -280,7 +280,7 @@ export default function FattureElenco() {
                         <td className="px-4 py-2.5 text-neutral-500 tabular-nums hidden sm:table-cell">{f.fornitore_piva || "-"}</td>
                         <td className="px-4 py-2.5 text-neutral-600 whitespace-nowrap">{f.numero_fattura || "-"}</td>
                         <td className="px-4 py-2.5 text-right font-semibold text-neutral-900 tabular-nums whitespace-nowrap">€ {fmt(f.totale_fattura)}</td>
-                        <td className="px-4 py-2.5 text-center"><span className="text-amber-500 text-sm">→</span></td>
+                        <td className="px-4 py-2.5 text-center"><span className="text-teal-500 text-sm">→</span></td>
                       </tr>
                     ))}
                   </tbody>

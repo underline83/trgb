@@ -1,4 +1,4 @@
-// @version: v3.2-sala-dashboard
+// @version: v3.3-unified-colors
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -8,8 +8,8 @@ import DashboardSala from "./DashboardSala";
 const MENU_CONFIG = {
   vini:     { title: "Gestione Vini",         subtitle: "Carta, cantina, vendite, dashboard",              icon: "\uD83C\uDF77", go: "/vini",      color: "bg-amber-50 border-amber-200 text-amber-900",       vKey: "vini" },
   acquisti: { title: "Gestione Acquisti",     subtitle: "Fatture XML, fornitori, dashboard, categorie",    icon: "\uD83D\uDCE6", go: "/acquisti",  color: "bg-teal-50 border-teal-200 text-teal-900",          vKey: "fatture" },
-  vendite:  { title: "Gestione Vendite",     subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale", icon: "\uD83D\uDCB5", go: "/vendite", color: "bg-yellow-50 border-yellow-200 text-yellow-900", vKey: "corrispettivi" },
-  ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-blue-50 border-blue-200 text-blue-900",          vKey: "ricette" },
+  vendite:  { title: "Gestione Vendite",     subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale", icon: "\uD83D\uDCB5", go: "/vendite", color: "bg-indigo-50 border-indigo-200 text-indigo-900", vKey: "corrispettivi" },
+  ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-orange-50 border-orange-200 text-orange-900",    vKey: "ricette" },
   banca:    { title: "Banca",                subtitle: "Movimenti bancari, categorie, pagamenti fornitori", icon: "\uD83C\uDFE6", go: "/banca",     color: "bg-emerald-50 border-emerald-200 text-emerald-900", vKey: "banca" },
   finanza:  { title: "Finanza",             subtitle: "Gestione finanziaria, vista analitica e di cassa", icon: "\uD83D\uDCB0", go: "/finanza",   color: "bg-violet-50 border-violet-200 text-violet-900",    vKey: "finanza" },
   statistiche: { title: "Statistiche",       subtitle: "Analisi vendite iPratico, categorie, prodotti, trend", icon: "\uD83D\uDCC8", go: "/statistiche", color: "bg-rose-50 border-rose-200 text-rose-900",    vKey: "statistiche" },

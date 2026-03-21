@@ -78,7 +78,7 @@ export default function FattureDettaglio() {
         {/* BACK */}
         <button
           onClick={() => navigate(-1)}
-          className="text-xs text-neutral-500 hover:text-amber-700 mb-3 transition"
+          className="text-xs text-neutral-500 hover:text-teal-700 mb-3 transition"
         >
           ← Torna indietro
         </button>
@@ -89,7 +89,7 @@ export default function FattureDettaglio() {
             {/* Left: Fornitore */}
             <div className="flex-1">
               <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider mb-1">Fornitore</p>
-              <h1 className="text-xl font-bold text-amber-900 font-playfair">
+              <h1 className="text-xl font-bold text-teal-900 font-playfair">
                 {fattura.fornitore_nome || "-"}
               </h1>
               {fattura.fornitore_piva && (
@@ -100,7 +100,7 @@ export default function FattureDettaglio() {
               {fattura.fornitore_piva && (
                 <button
                   onClick={() => navigate(`/acquisti/fornitore/${encodeURIComponent(fattura.fornitore_piva)}`)}
-                  className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium underline underline-offset-2 transition"
+                  className="mt-2 text-xs text-teal-700 hover:text-teal-900 font-medium underline underline-offset-2 transition"
                 >
                   Vedi tutte le fatture di questo fornitore →
                 </button>
@@ -137,7 +137,7 @@ export default function FattureDettaglio() {
             </div>
             <div>
               <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Totale</p>
-              <p className="text-2xl font-bold text-amber-900 tabular-nums font-playfair">€ {fmt(fattura.totale_fattura)}</p>
+              <p className="text-2xl font-bold text-teal-900 tabular-nums font-playfair">€ {fmt(fattura.totale_fattura)}</p>
             </div>
           </div>
         </div>
@@ -197,11 +197,11 @@ export default function FattureDettaglio() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-amber-50/50 border-t-2 border-amber-200">
-                    <td colSpan={5} className="px-4 py-2 text-right text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  <tr className="bg-teal-50/50 border-t-2 border-teal-200">
+                    <td colSpan={5} className="px-4 py-2 text-right text-xs font-bold text-teal-900 uppercase tracking-wide">
                       Totale righe
                     </td>
-                    <td className="px-4 py-2 text-right tabular-nums font-bold text-amber-900 text-sm">
+                    <td className="px-4 py-2 text-right tabular-nums font-bold text-teal-900 text-sm">
                       € {fmt(totaleRighe)}
                     </td>
                     <td />

@@ -1,4 +1,4 @@
-// @version: v2.0-vendite-nav-roles
+// @version: v2.1-vendite-nav-indigo
 // Tab navigation persistente per la sezione Gestione Vendite
 // I tab admin-only sono nascosti per ruoli sala/sommelier
 import React from "react";
@@ -30,7 +30,7 @@ export default function VenditeNav({ current }) {
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate("/vendite")}
-              className="text-sm font-bold text-amber-900 font-playfair mr-4 hover:text-amber-700 transition whitespace-nowrap"
+              className="text-sm font-bold text-indigo-900 font-playfair mr-4 hover:text-indigo-700 transition whitespace-nowrap"
             >
               Vendite
             </button>
@@ -43,7 +43,7 @@ export default function VenditeNav({ current }) {
                     onClick={() => navigate(tab.path)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                       active
-                        ? "bg-amber-100 text-amber-900 shadow-sm"
+                        ? "bg-indigo-100 text-indigo-900 shadow-sm"
                         : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
                     }`}
                   >

@@ -173,7 +173,7 @@ export default function RicetteModifica() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
               Modifica ricetta
             </h1>
             <p className="text-neutral-600 text-sm">
@@ -200,12 +200,12 @@ export default function RicetteModifica() {
               <div className="space-y-1">
                 <label className="text-sm font-medium text-neutral-700">Nome ricetta *</label>
                 <input type="text" value={form.name} onChange={(e) => set("name", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" required />
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" required />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-neutral-700">Categoria</label>
                 <select value={form.category_id} onChange={(e) => set("category_id", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500">
                   <option value="">— Nessuna —</option>
                   {categorie.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -217,37 +217,37 @@ export default function RicetteModifica() {
                 <label className="text-sm font-medium text-neutral-700">Resa *</label>
                 <input type="number" step="0.01" min="0.01" value={form.yield_qty}
                   onChange={(e) => set("yield_qty", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" required />
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" required />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-neutral-700">Unit\u00E0 resa</label>
                 <input type="text" value={form.yield_unit} onChange={(e) => set("yield_unit", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-neutral-700">Vendita (\u20AC)</label>
                 <input type="number" step="0.01" min="0" value={form.selling_price}
                   onChange={(e) => set("selling_price", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-neutral-700">Prep (min)</label>
                 <input type="number" min="0" value={form.prep_time}
                   onChange={(e) => set("prep_time", e.target.value)}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" />
               </div>
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.is_base} onChange={(e) => set("is_base", e.target.checked)}
-                className="w-4 h-4 rounded border-neutral-300 text-amber-700 focus:ring-amber-500" />
+                className="w-4 h-4 rounded border-neutral-300 text-orange-700 focus:ring-orange-500" />
               <span className="text-sm text-neutral-700 font-medium">Ricetta base (sub-ricetta)</span>
             </label>
 
             <div className="space-y-1">
               <label className="text-sm font-medium text-neutral-700">Note</label>
               <textarea value={form.note} onChange={(e) => set("note", e.target.value)}
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" rows={2} />
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={2} />
             </div>
           </div>
 
@@ -257,7 +257,7 @@ export default function RicetteModifica() {
               <h2 className="text-lg font-semibold font-playfair text-neutral-800">Composizione ricetta</h2>
               <div className="flex gap-2">
                 <button type="button" onClick={() => addItem("ingrediente")}
-                  className="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-semibold shadow hover:bg-amber-800 transition">
+                  className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-xs font-semibold shadow hover:bg-orange-800 transition">
                   + Ingrediente
                 </button>
                 <button type="button" onClick={() => addItem("sub_ricetta")}
@@ -277,7 +277,7 @@ export default function RicetteModifica() {
                   row.tipo === "sub_ricetta" ? "bg-blue-50/50 border-blue-200" : "bg-neutral-50 border-neutral-200"
                 }`}>
                   <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                    row.tipo === "sub_ricetta" ? "bg-blue-200 text-blue-800" : "bg-amber-200 text-amber-800"
+                    row.tipo === "sub_ricetta" ? "bg-blue-200 text-blue-800" : "bg-orange-200 text-orange-800"
                   }`}>
                     {row.tipo === "sub_ricetta" ? "SUB" : "ING"}
                   </span>
@@ -285,7 +285,7 @@ export default function RicetteModifica() {
                   <div className="flex-1 min-w-[200px]">
                     {row.tipo === "ingrediente" ? (
                       <select value={row.ingredient_id} onChange={(e) => updateItem(idx, "ingredient_id", e.target.value)}
-                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-500">
                         <option value="">— Seleziona —</option>
                         {ingredienti.map((ing) => (
                           <option key={ing.id} value={ing.id}>{ing.name} ({ing.default_unit})</option>
@@ -335,7 +335,7 @@ export default function RicetteModifica() {
               Annulla
             </button>
             <button type="submit" disabled={saving}
-              className="px-7 py-2.5 rounded-xl bg-amber-700 text-white text-sm font-semibold shadow hover:bg-amber-800 transition disabled:opacity-50">
+              className="px-7 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-semibold shadow hover:bg-orange-800 transition disabled:opacity-50">
               {saving ? "Salvataggio..." : "Salva modifiche"}
             </button>
           </div>

@@ -10,7 +10,7 @@ export default function DipendentiMenu() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-amber-900 tracking-wide font-playfair">
+            <h1 className="text-4xl font-bold text-neutral-900 tracking-wide font-playfair">
               👥 Dipendenti — Moduli
             </h1>
             <p className="text-neutral-600">

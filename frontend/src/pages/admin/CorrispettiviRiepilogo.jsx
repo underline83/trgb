@@ -79,7 +79,7 @@ export default function CorrispettiviRiepilogo() {
         <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
           {/* HEADER */}
           <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-indigo-900 tracking-wide font-playfair mb-2">
               Riepilogo Chiusure
             </h1>
             <p className="text-neutral-600">
@@ -101,13 +101,13 @@ export default function CorrispettiviRiepilogo() {
           {/* TOTALI COMPLESSIVI */}
           {!loading && sortedYears.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-amber-700">Anni registrati</p>
-                <p className="text-2xl font-bold text-amber-900">{sortedYears.length}</p>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-indigo-700">Anni registrati</p>
+                <p className="text-2xl font-bold text-indigo-900">{sortedYears.length}</p>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                <p className="text-[10px] uppercase tracking-wide text-amber-700">Corrispettivi totali</p>
-                <p className="text-xl font-bold text-amber-900">€ {fmt(grandCorr)}</p>
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-indigo-700">Corrispettivi totali</p>
+                <p className="text-xl font-bold text-indigo-900">€ {fmt(grandCorr)}</p>
               </div>
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                 <p className="text-[10px] uppercase tracking-wide text-emerald-700">Incassi totali</p>
@@ -138,7 +138,7 @@ export default function CorrispettiviRiepilogo() {
                     className="w-full flex items-center justify-between px-6 py-4 bg-neutral-50 hover:bg-neutral-100 transition text-left"
                   >
                     <div className="flex items-center gap-4">
-                      <span className="text-2xl font-bold text-amber-900 font-playfair">{year}</span>
+                      <span className="text-2xl font-bold text-indigo-900 font-playfair">{year}</span>
                       <span className="text-sm text-neutral-600">
                         {mesi.length} mesi — {totGg} giorni aperti
                       </span>
@@ -146,7 +146,7 @@ export default function CorrispettiviRiepilogo() {
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-right">
                         <span className="text-neutral-500">Corrispettivi: </span>
-                        <span className="font-semibold text-amber-900">€ {fmt(d.totale_corrispettivi)}</span>
+                        <span className="font-semibold text-indigo-900">€ {fmt(d.totale_corrispettivi)}</span>
                       </div>
                       <div className="text-right">
                         <span className="text-neutral-500">Incassi: </span>
@@ -178,7 +178,7 @@ export default function CorrispettiviRiepilogo() {
                             return (
                               <tr
                                 key={m.month}
-                                className="hover:bg-amber-50 cursor-pointer transition"
+                                className="hover:bg-indigo-50 cursor-pointer transition"
                                 onClick={() => navigate(`/vendite/dashboard?year=${year}&month=${m.month}`)}
                                 title={`Vai alla dashboard di ${MONTH_NAMES[m.month - 1]} ${year}`}
                               >
@@ -188,7 +188,7 @@ export default function CorrispettiviRiepilogo() {
                                 <td className="border border-neutral-200 px-3 py-2 text-right text-neutral-700">
                                   {m.giorni_con_chiusura}
                                 </td>
-                                <td className="border border-neutral-200 px-3 py-2 text-right font-medium text-amber-900">
+                                <td className="border border-neutral-200 px-3 py-2 text-right font-medium text-indigo-900">
                                   € {fmt(m.totale_corrispettivi)}
                                 </td>
                                 <td className="border border-neutral-200 px-3 py-2 text-right font-medium text-emerald-700">
@@ -213,7 +213,7 @@ export default function CorrispettiviRiepilogo() {
                           <tr className="bg-neutral-50 font-bold text-neutral-900">
                             <td className="border border-neutral-200 px-3 py-2">Totale {year}</td>
                             <td className="border border-neutral-200 px-3 py-2 text-right">{totGg}</td>
-                            <td className="border border-neutral-200 px-3 py-2 text-right text-amber-900">
+                            <td className="border border-neutral-200 px-3 py-2 text-right text-indigo-900">
                               € {fmt(d.totale_corrispettivi)}
                             </td>
                             <td className="border border-neutral-200 px-3 py-2 text-right text-emerald-700">

@@ -58,7 +58,7 @@ export default function RicetteDettaglio() {
       <div className="min-h-screen bg-neutral-100 p-6">
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
           <p className="text-red-600 mb-4">{error || "Ricetta non trovata"}</p>
-          <button onClick={() => navigate("/ricette/archivio")} className="text-amber-700 underline">
+          <button onClick={() => navigate("/ricette/archivio")} className="text-orange-700 underline">
             Torna all'archivio
           </button>
         </div>
@@ -80,7 +80,7 @@ export default function RicetteDettaglio() {
               <span className="text-sm font-mono bg-slate-700 text-white px-2 py-0.5 rounded">
                 R{String(r.id).padStart(3, "0")}
               </span>
-              <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 font-playfair">
+              <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 font-playfair">
                 {r.name}
               </h1>
               {r.is_base && (
@@ -97,7 +97,7 @@ export default function RicetteDettaglio() {
           <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
             <button
               onClick={() => navigate(`/ricette/modifica/${r.id}`)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition"
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition"
             >
               Modifica
             </button>
@@ -105,7 +105,7 @@ export default function RicetteDettaglio() {
         </div>
 
         {r.note && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-sm text-amber-900">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 text-sm text-orange-900">
             {r.note}
           </div>
         )}
@@ -183,12 +183,12 @@ export default function RicetteDettaglio() {
               ))}
             </tbody>
             {r.total_cost != null && (
-              <tfoot className="bg-amber-50 border-t-2 border-amber-300">
+              <tfoot className="bg-orange-50 border-t-2 border-orange-300">
                 <tr>
-                  <td colSpan={5} className="p-3 text-right font-semibold text-amber-900">
+                  <td colSpan={5} className="p-3 text-right font-semibold text-orange-900">
                     TOTALE
                   </td>
-                  <td className="p-3 text-right font-bold text-amber-900 text-base">
+                  <td className="p-3 text-right font-bold text-orange-900 text-base">
                     {r.total_cost.toFixed(2)} \u20AC
                   </td>
                   <td></td>

@@ -420,7 +420,7 @@ export default function ChiusuraTurno() {
 
         {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
-          <h1 className="text-2xl font-bold text-amber-900 font-playfair">
+          <h1 className="text-2xl font-bold text-indigo-900 font-playfair">
             🔔 Chiusura Turno
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
@@ -434,7 +434,7 @@ export default function ChiusuraTurno() {
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Data</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Turno</label>
@@ -444,7 +444,7 @@ export default function ChiusuraTurno() {
                     className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition ${
                       turno === t
                         ? t === "pranzo"
-                          ? "bg-amber-100 text-amber-800 border-amber-300"
+                          ? "bg-indigo-100 text-indigo-800 border-indigo-300"
                           : "bg-indigo-100 text-indigo-800 border-indigo-300"
                         : "bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300"
                     }`}>
@@ -455,7 +455,7 @@ export default function ChiusuraTurno() {
             </div>
           </div>
           {existingId && (
-            <div className="mt-3 text-xs text-amber-600 font-medium">
+            <div className="mt-3 text-xs text-indigo-600 font-medium">
               Chiusura esistente — le modifiche sovrascriveranno i dati salvati.
             </div>
           )}
@@ -466,7 +466,7 @@ export default function ChiusuraTurno() {
           <div className={`rounded-2xl p-4 border text-sm ${
             pranzoData
               ? "bg-indigo-50 border-indigo-200 text-indigo-800"
-              : "bg-amber-50 border-amber-200 text-amber-800"
+              : "bg-indigo-50 border-indigo-200 text-indigo-800"
           }`}>
             {pranzoData ? (
               <>
@@ -516,13 +516,13 @@ export default function ChiusuraTurno() {
                 <div>
                   <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">{isCena ? "🪑 Coperti Cena" : "🪑 Coperti"}</label>
                   <input type="number" min={0} value={coperti} onChange={e => setCoperti(e.target.value)}
-                    className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                    className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                 </div>
               </div>
               {/* Riga pranzo read-only (solo a cena) */}
               {isCena && pranzoData && (
                 <div className="mt-3 pt-3 border-t border-dashed border-neutral-200">
-                  <div className="text-[10px] font-semibold text-amber-500 uppercase tracking-wide mb-2">📋 Riferimento pranzo</div>
+                  <div className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wide mb-2">📋 Riferimento pranzo</div>
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-[10px] font-semibold text-neutral-400 mb-1 uppercase tracking-wide">🧾 Chiusura pranzo</label>
@@ -582,7 +582,7 @@ export default function ChiusuraTurno() {
                 </h2>
                 <button type="button"
                   onClick={() => setPreconti(prev => [...prev, { tavolo: "", importo: "" }])}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition">
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition">
                   + Aggiungi tavolo
                 </button>
               </div>
@@ -603,7 +603,7 @@ export default function ChiusuraTurno() {
                             setPreconti(updated);
                           }}
                           placeholder="Tavolo (es. T4, Sala2...)"
-                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                       </div>
                       <div className="w-32">
                         <input type="text" inputMode="decimal" value={p.importo}
@@ -613,7 +613,7 @@ export default function ChiusuraTurno() {
                             setPreconti(updated);
                           }}
                           placeholder="0,00"
-                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 text-right" />
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 text-right" />
                       </div>
                       <button type="button"
                         onClick={() => setPreconti(prev => prev.filter((_, i) => i !== idx))}
@@ -659,7 +659,7 @@ export default function ChiusuraTurno() {
                           updated[idx] = { ...updated[idx], tipo: e.target.value };
                           setSpese(updated);
                         }}
-                        className="w-28 border border-neutral-300 rounded-xl px-2 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-200">
+                        className="w-28 border border-neutral-300 rounded-xl px-2 py-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200">
                         <option value="scontrino">Scontrino</option>
                         <option value="fattura">Fattura</option>
                         <option value="personale">Personale</option>
@@ -673,7 +673,7 @@ export default function ChiusuraTurno() {
                             setSpese(updated);
                           }}
                           placeholder="Descrizione..."
-                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
                       </div>
                       <div className="w-28">
                         <input type="text" inputMode="decimal" value={s.importo}
@@ -683,7 +683,7 @@ export default function ChiusuraTurno() {
                             setSpese(updated);
                           }}
                           placeholder="0,00"
-                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 text-right" />
+                          className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 text-right" />
                       </div>
                       <button type="button"
                         onClick={() => setSpese(prev => prev.filter((_, i) => i !== idx))}
@@ -724,8 +724,8 @@ export default function ChiusuraTurno() {
                       <div className="text-base font-bold text-neutral-600">€ {fmt(toNumber(preconto))}</div>
                     </div>
                     <div className="bg-white/60 rounded-lg p-2.5 border border-neutral-200">
-                      <div className="text-[10px] text-amber-500 mb-0.5">− Pranzo</div>
-                      <div className="text-base font-bold text-amber-700">€ {fmt(pranzoVal("preconto"))}</div>
+                      <div className="text-[10px] text-indigo-500 mb-0.5">− Pranzo</div>
+                      <div className="text-base font-bold text-indigo-700">€ {fmt(pranzoVal("preconto"))}</div>
                     </div>
                     <div className="bg-white/60 rounded-lg p-2.5 border border-neutral-200">
                       <div className="text-[10px] text-indigo-500 mb-0.5">= RT cena</div>
@@ -798,7 +798,7 @@ export default function ChiusuraTurno() {
                 diffStatus === "ok"
                   ? "bg-emerald-50 border-emerald-300"
                   : diffStatus === "over"
-                    ? "bg-amber-50 border-amber-300"
+                    ? "bg-indigo-50 border-indigo-300"
                     : "bg-red-50 border-red-300"
               }`}>
                 <div className="text-[10px] font-semibold uppercase mb-1 opacity-70">
@@ -806,7 +806,7 @@ export default function ChiusuraTurno() {
                 </div>
                 <div className={`text-2xl font-bold ${
                   diffStatus === "ok" ? "text-emerald-700" :
-                  diffStatus === "over" ? "text-amber-700" : "text-red-700"
+                  diffStatus === "over" ? "text-indigo-700" : "text-red-700"
                 }`}>
                   {diff >= 0 ? "+" : ""}{fmt(diff)} €
                 </div>
@@ -860,7 +860,7 @@ export default function ChiusuraTurno() {
               </label>
               <textarea value={note} onChange={e => setNote(e.target.value)} rows={3}
                 placeholder="Problemi durante il servizio, segnalazioni..."
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 resize-none" />
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none" />
             </div>
 
             {/* SALVA */}
@@ -868,7 +868,7 @@ export default function ChiusuraTurno() {
               className={`w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-lg transition ${
                 saving ? "bg-neutral-400 cursor-not-allowed" :
                 turno === "pranzo"
-                  ? "bg-amber-700 hover:bg-amber-800 hover:-translate-y-0.5"
+                  ? "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
                   : "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
               }`}>
               {saving ? "Salvataggio..." : `💾 Salva chiusura ${turno}`}
@@ -906,7 +906,7 @@ function NumberField({ label, value, onChange, icon, hint }) {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder="0,00"
-        className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+        className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200"
       />
       {hint && (
         <div className="mt-1 text-[10px] text-indigo-500 leading-tight">

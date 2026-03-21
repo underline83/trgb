@@ -349,7 +349,7 @@ export default function RicetteMatching() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+            <h1 className="text-3xl sm:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
               Matching Fatture
             </h1>
             <p className="text-neutral-600 text-sm">
@@ -398,7 +398,7 @@ export default function RicetteMatching() {
             onClick={() => setTab("pending")}
             className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
               tab === "pending"
-                ? "bg-amber-100 text-amber-900 border border-amber-300 border-b-white -mb-[3px]"
+                ? "bg-orange-100 text-orange-900 border border-orange-300 border-b-white -mb-[3px]"
                 : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
@@ -418,7 +418,7 @@ export default function RicetteMatching() {
             onClick={() => setTab("mappings")}
             className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
               tab === "mappings"
-                ? "bg-amber-100 text-amber-900 border border-amber-300 border-b-white -mb-[3px]"
+                ? "bg-orange-100 text-orange-900 border border-orange-300 border-b-white -mb-[3px]"
                 : "text-neutral-600 hover:text-neutral-900"
             }`}
           >
@@ -454,7 +454,7 @@ export default function RicetteMatching() {
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
                     placeholder="Filtra per descrizione o fornitore..."
-                    className="w-full sm:w-96 px-4 py-2 border border-neutral-300 rounded-xl text-sm focus:ring-amber-500 focus:border-amber-500"
+                    className="w-full sm:w-96 px-4 py-2 border border-neutral-300 rounded-xl text-sm focus:ring-orange-500 focus:border-orange-500"
                   />
                   {filterText && (
                     <span className="text-xs text-neutral-500 ml-2">
@@ -470,8 +470,8 @@ export default function RicetteMatching() {
                         onClick={() => handleSelectRiga(riga)}
                         className={`flex flex-wrap items-center gap-4 p-4 rounded-xl border cursor-pointer transition ${
                           selectedRiga?.riga_id === riga.riga_id
-                            ? "bg-amber-50 border-amber-300 shadow"
-                            : "bg-white border-neutral-200 hover:border-amber-200 hover:bg-amber-50/30"
+                            ? "bg-orange-50 border-orange-300 shadow"
+                            : "bg-white border-neutral-200 hover:border-orange-200 hover:bg-orange-50/30"
                         }`}
                       >
                         <div className="flex-1 min-w-[200px]">
@@ -492,7 +492,7 @@ export default function RicetteMatching() {
 
                       {/* Suggerimenti per la riga selezionata */}
                       {selectedRiga?.riga_id === riga.riga_id && (
-                        <div className="ml-6 border-l-2 border-amber-300 pl-4 pb-2 space-y-1">
+                        <div className="ml-6 border-l-2 border-orange-300 pl-4 pb-2 space-y-1">
                           {loadingSugg ? (
                             <p className="text-xs text-neutral-500">Caricamento suggerimenti...</p>
                           ) : suggestions.length === 0 ? (
@@ -678,7 +678,7 @@ export default function RicetteMatching() {
                                 <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">BIO</span>
                               )}
                               {s.has_dop_igp && (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">DOP/IGP</span>
+                                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">DOP/IGP</span>
                               )}
                             </div>
 
@@ -904,7 +904,7 @@ export default function RicetteMatching() {
                           <td className="p-3 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                               s.n_righe_pending > 50
-                                ? "bg-amber-100 text-amber-800"
+                                ? "bg-orange-100 text-orange-800"
                                 : s.n_righe_pending > 10
                                 ? "bg-blue-100 text-blue-800"
                                 : "bg-neutral-100 text-neutral-600"

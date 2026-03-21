@@ -55,7 +55,7 @@ export default function StatisticheMenu() {
           {/* COPERTI & INCASSI — da chiusure turno */}
           <Link
             to="/statistiche/coperti"
-            className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform"
+            className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform"
           >
             <div className="text-5xl mb-3 text-center">👥</div>
             <h2 className="text-xl font-semibold font-playfair text-center">Coperti & Incassi</h2>
@@ -63,9 +63,9 @@ export default function StatisticheMenu() {
               Statistiche giornaliere: incassato, coperti, medie per coperto, pranzo vs cena.
             </p>
             <div className="flex justify-center gap-2 mt-4">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Giornaliero</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Medie</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Pranzo/Cena</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Giornaliero</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Medie</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Pranzo/Cena</span>
             </div>
           </Link>
 

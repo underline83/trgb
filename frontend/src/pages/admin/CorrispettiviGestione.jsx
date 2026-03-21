@@ -189,7 +189,7 @@ export default function CorrispettiviGestione() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-amber-900 tracking-wide font-playfair mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-indigo-900 tracking-wide font-playfair mb-2">
               📝 Chiusura cassa giornaliera
             </h1>
             <p className="text-neutral-600 text-sm sm:text-base">
@@ -208,7 +208,7 @@ export default function CorrispettiviGestione() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-xl bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+            className="px-3 py-2 border border-neutral-300 rounded-xl bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
           />
           <p className="text-xs text-neutral-500 mt-1">
             Cambiando data vengono caricati (se presenti) i dati già salvati.
@@ -296,7 +296,7 @@ export default function CorrispettiviGestione() {
             className={`rounded-2xl px-4 py-3 text-sm border ${
               cashStatus === "ok"
                 ? "border-green-200 bg-green-50 text-green-800"
-                : "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-indigo-200 bg-indigo-50 text-indigo-900"
             }`}
           >
             <div className="flex justify-between">
@@ -326,7 +326,7 @@ export default function CorrispettiviGestione() {
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded-xl bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 text-sm"
+            className="w-full px-3 py-2 border border-neutral-300 rounded-xl bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 text-sm"
           />
         </div>
 
@@ -340,7 +340,7 @@ export default function CorrispettiviGestione() {
               ${
                 saving
                   ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-                  : "bg-amber-600 text-white hover:bg-amber-700 hover:-translate-y-0.5 transition"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 transition"
               }`}
           >
             {saving ? "Salvataggio..." : "Salva chiusura"}
@@ -372,7 +372,7 @@ function NumberField({ label, value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-1.5 border border-neutral-300 rounded-xl bg-neutral-50 text-sm
-                   focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+                   focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
       />
     </div>
   );

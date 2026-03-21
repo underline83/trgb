@@ -67,7 +67,7 @@ export default function PrecontiAdmin() {
 
         {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
-          <h1 className="text-2xl font-bold text-amber-900">
+          <h1 className="text-2xl font-bold text-indigo-900">
             🍽️ Pre-conti
           </h1>
           <p className="text-neutral-500 text-sm mt-1">
@@ -81,12 +81,12 @@ export default function PrecontiAdmin() {
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Da</label>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">A</label>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
             </div>
             <div className="bg-orange-50 rounded-xl p-3 border border-orange-200 text-center">
               <div className="text-[10px] font-semibold text-orange-500 uppercase">Totale pre-conti</div>
@@ -123,7 +123,7 @@ export default function PrecontiAdmin() {
                 </span>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
                   g.turno === "pranzo"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                     : "bg-indigo-50 text-indigo-700 border-indigo-200"
                 }`}>
                   {g.turno === "pranzo" ? "☀️" : "🌙"} {g.turno}

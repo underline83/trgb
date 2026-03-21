@@ -13,7 +13,7 @@ export default function AdminMenu() {
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-bold text-center sm:text-left text-amber-900 tracking-wide font-playfair">
+              <h1 className="text-4xl font-bold text-center sm:text-left text-neutral-900 tracking-wide font-playfair">
                 🧾 Amministrazione
               </h1>
               <VersionBadge modulo="sistema" />
