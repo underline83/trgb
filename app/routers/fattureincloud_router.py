@@ -668,8 +668,8 @@ def fic_debug_fields():
         detail_data = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
             "fieldset": "detailed",
         })
-        detail = detail_data.get("data", {})
-        items = detail.get("items_list", [])
+        detail = detail_data.get("data", {}) or {}
+        items = detail.get("items_list") or []
 
         return {
             "list_doc_keys": list(doc.keys()),
@@ -677,7 +677,7 @@ def fic_debug_fields():
             "detail_doc_keys": list(detail.keys()),
             "detail_items_count": len(items),
             "detail_first_item": items[0] if items else None,
-            "detail_payments_list": detail.get("payments_list", []),
+            "detail_payments_list": detail.get("payments_list") or [],
         }
     finally:
         conn.close()
