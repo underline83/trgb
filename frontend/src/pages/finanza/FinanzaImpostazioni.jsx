@@ -228,7 +228,7 @@ function AlberoCategorie({ categorie, allCategorie, vista, onRefresh }) {
       const resp = await apiFetch(url);
       if (resp.ok) {
         const data = await resp.json();
-        setMovements(p => ({ ...p, [key]: data.items || [] }));
+        setMovements(p => ({ ...p, [key]: data.movimenti || [] }));
         setExpandedMovements({ type, id, nome, parentNome });
       }
     } catch (_) {
@@ -482,8 +482,12 @@ function MovementsList({ movements, loading, onClose }) {
               </span>
             </div>
             <div className="flex items-center justify-between text-neutral-600">
-              <span className="text-[10px]">{new Date(mov.data).toLocaleDateString("it-IT")}</span>
-              <span className="font-semibold text-amber-700">{formatEUR(mov.importo)}</span>
+              <span className="text-[10px]">{mov.data ? new Date(mov.data).toLocaleDateString("it-IT") : "—"}</span>
+              <div className="flex gap-3">
+                {mov.dare > 0 && <span className="font-semibold text-red-600">Dare: {formatEUR(mov.dare)}</span>}
+                {mov.avere > 0 && <span className="font-semibold text-emerald-600">Avere: {formatEUR(mov.avere)}</span>}
+                {!mov.dare && !mov.avere && <span className="text-neutral-400">—</span>}
+              </div>
             </div>
           </div>
         ))}

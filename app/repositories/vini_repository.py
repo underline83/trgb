@@ -208,7 +208,8 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
 def load_vini_calici() -> List[Dict[str, Any]]:
     """
     Restituisce i vini destinati alla sezione CALICI della carta,
-    filtrati (VENDITA_CALICE='SI' e CARTA='SI') e ordinati come la carta bottiglie.
+    filtrati per VENDITA_CALICE='SI' (non richiede CARTA='SI').
+    Un vino solo-calice (CARTA='NO') compare qui ma non nelle bottiglie.
     Usa PREZZO_CALICE al posto di PREZZO_CARTA.
     """
     conn = get_magazzino_connection()
@@ -233,7 +234,6 @@ def load_vini_calici() -> List[Dict[str, Any]]:
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
-            AND CARTA = 'SI'
             AND VENDITA_CALICE = 'SI'
         """
     ).fetchall()
