@@ -227,8 +227,25 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         # Rimuovi righe precedenti per questa fattura (re-sync pulito)
         conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
 
+        # Log primo item per debug struttura campi
+        if items_list:
+            print(f"🔍 FIC ITEM KEYS (fic_id={fic_id}): {list(items_list[0].keys())}")
+            print(f"🔍 FIC ITEM SAMPLE (fic_id={fic_id}): {items_list[0]}")
+
         for idx, item in enumerate(items_list, start=1):
-            descrizione = item.get("description", "") or ""
+            # FIC usa diversi campi per la descrizione del prodotto
+            descrizione = (
+                item.get("name", "")
+                or item.get("description", "")
+                or item.get("desc", "")
+                or ""
+            )
+
+            # Se c'è un prodotto con nome, usalo come fallback
+            product = item.get("product", None) or {}
+            if not descrizione and isinstance(product, dict):
+                descrizione = product.get("name", "") or product.get("description", "") or ""
+
             quantita = item.get("qty", None)
             unita_misura = item.get("measure", "") or ""
             prezzo_unitario = item.get("net_price", None)
@@ -246,7 +263,6 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
                 aliquota_iva = vat_info
 
             # Categoria dal prodotto FIC (se presente)
-            product = item.get("product", None) or {}
             categoria = ""
             if isinstance(product, dict):
                 cat = product.get("category", "") or ""
@@ -350,6 +366,13 @@ def fic_sync(
             items = data.get("data", [])
             totale_api = data.get("total", len(items))
             last_page = data.get("last_page", page)
+
+            # DEBUG: log primo documento della prima pagina
+            if page == 1 and items:
+                print(f"🔍 FIC DOC KEYS: {list(items[0].keys())}")
+                print(f"🔍 FIC DOC SAMPLE: { {k: v for k, v in items[0].items() if k not in ('entity',)} }")
+                if items[0].get("entity"):
+                    print(f"🔍 FIC DOC ENTITY: {items[0]['entity']}")
 
             for doc in items:
                 try:
