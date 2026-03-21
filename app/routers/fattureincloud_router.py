@@ -1,4 +1,4 @@
-# @version: v2.0-unified-fe-fatture
+# @version: v3.0-righe-pagato
 # -*- coding: utf-8 -*-
 """
 Router per integrazione Fatture in Cloud API v2.
@@ -91,6 +91,7 @@ class SyncResult(BaseModel):
     aggiornate: int = 0
     duplicate_xml: int = 0
     errori: int = 0
+    righe_importate: int = 0
     totale_api: int = 0
     note: str = ""
 
@@ -197,6 +198,82 @@ def fic_disconnect(current_user: Any = Depends(get_current_user)):
         conn.close()
 
 
+def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_id: int) -> int:
+    """
+    Fetcha il dettaglio di un documento da FIC e inserisce le righe in fe_righe.
+    Aggiorna anche il campo 'pagato' sulla fattura.
+    Ritorna il numero di righe inserite.
+    """
+    righe_count = 0
+    try:
+        detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
+            "fieldset": "detailed",
+        })
+        doc_data = detail.get("data", {}) or {}
+
+        # ── STATO PAGAMENTO ──────────────────────────────
+        payments = doc_data.get("payments_list", []) or []
+        pagato = 1 if len(payments) > 0 else 0
+        conn.execute(
+            "UPDATE fe_fatture SET pagato = ? WHERE id = ?",
+            (pagato, fattura_db_id),
+        )
+
+        # ── RIGHE / ITEMS ────────────────────────────────
+        items_list = doc_data.get("items_list", []) or []
+        if not items_list:
+            return 0
+
+        # Rimuovi righe precedenti per questa fattura (re-sync pulito)
+        conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
+
+        for idx, item in enumerate(items_list, start=1):
+            descrizione = item.get("description", "") or ""
+            quantita = item.get("qty", None)
+            unita_misura = item.get("measure", "") or ""
+            prezzo_unitario = item.get("net_price", None)
+            prezzo_totale = item.get("amount_net", None)
+
+            # Calcola prezzo_totale se non presente
+            if prezzo_totale is None and quantita and prezzo_unitario:
+                prezzo_totale = quantita * prezzo_unitario
+
+            # IVA: può essere un oggetto con 'value' (percentuale) o un numero
+            vat_info = item.get("vat", {}) or {}
+            if isinstance(vat_info, dict):
+                aliquota_iva = vat_info.get("value", None)
+            else:
+                aliquota_iva = vat_info
+
+            # Categoria dal prodotto FIC (se presente)
+            product = item.get("product", None) or {}
+            categoria = ""
+            if isinstance(product, dict):
+                cat = product.get("category", "") or ""
+                categoria = cat if isinstance(cat, str) else str(cat)
+
+            conn.execute(
+                """
+                INSERT INTO fe_righe (
+                    fattura_id, numero_linea, descrizione,
+                    quantita, unita_misura, prezzo_unitario,
+                    prezzo_totale, aliquota_iva, categoria_grezza
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fattura_db_id, idx, descrizione,
+                    quantita, unita_misura, prezzo_unitario,
+                    prezzo_totale, aliquota_iva, categoria,
+                ),
+            )
+            righe_count += 1
+
+    except Exception as e:
+        print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
+
+    return righe_count
+
+
 @router.post("/sync", summary="Sincronizza fatture ricevute → fe_fatture", response_model=SyncResult)
 def fic_sync(
     anno: int = Query(None, description="Anno da sincronizzare (default: anno corrente)"),
@@ -204,6 +281,10 @@ def fic_sync(
 ):
     """
     Scarica fatture ricevute da FIC e le scrive nella tabella UNIFICATA fe_fatture.
+
+    Fase 1 — Lista: pagina tutte le fatture, inserisce/aggiorna header in fe_fatture.
+    Fase 2 — Dettaglio: per ogni fattura nuova/aggiornata, fetcha il dettaglio
+             con items_list e payments_list per popolare fe_righe e stato pagamento.
 
     Deduplica:
     - Per fic_id: se la fattura FIC è già presente (fonte='fic'), la aggiorna.
@@ -231,9 +312,14 @@ def fic_sync(
         aggiornate = 0
         duplicate_xml = 0
         errori = 0
+        righe_importate = 0
         page = 1
         totale_api = 0
 
+        # Traccia documenti per cui fetchare il dettaglio (fic_id → fattura_db_id)
+        docs_to_detail = []
+
+        # ── FASE 1: LISTA (header) ──────────────────────────
         while True:
             try:
                 req_params = {
@@ -315,11 +401,11 @@ def fic_sync(
                                 fic_id,
                             ),
                         )
+                        docs_to_detail.append((fic_id, existing_fic["id"]))
                         aggiornate += 1
                         continue
 
                     # 2) Già presente da XML? (match su piva + numero + data)
-                    #    Confronto solo se abbiamo almeno piva e numero
                     if fornitore_piva and doc_number and doc_date:
                         existing_xml = conn.execute(
                             """
@@ -333,17 +419,18 @@ def fic_sync(
                         ).fetchone()
 
                         if existing_xml:
-                            # Aggiorna con fic_id per tracciarla, ma non duplicarla
                             conn.execute(
                                 "UPDATE fe_fatture SET fic_id = ? WHERE id = ?",
                                 (fic_id, existing_xml["id"]),
                             )
+                            # Fetcha dettaglio anche per XML linkate (righe + pagato)
+                            docs_to_detail.append((fic_id, existing_xml["id"]))
                             duplicate_xml += 1
                             continue
 
                     # 3) Nuova fattura → inserisci
                     now = datetime.now().isoformat(sep=" ", timespec="seconds")
-                    conn.execute(
+                    cur2 = conn.execute(
                         """
                         INSERT INTO fe_fatture (
                             fornitore_nome, fornitore_piva,
@@ -359,6 +446,8 @@ def fic_sync(
                             "EUR", now, fic_id,
                         ),
                     )
+                    new_db_id = cur2.lastrowid
+                    docs_to_detail.append((fic_id, new_db_id))
                     nuove += 1
 
                 except Exception as e:
@@ -371,8 +460,28 @@ def fic_sync(
                 break
             page += 1
 
+        # ── FASE 2: DETTAGLIO (righe + pagato) ──────────────
+        print(f"🔵 FIC sync fase 2: fetching detail for {len(docs_to_detail)} documents")
+        for fic_id, fattura_db_id in docs_to_detail:
+            try:
+                n = _fetch_detail_and_righe(conn, token, cid, fic_id, fattura_db_id)
+                righe_importate += n
+            except Exception as e:
+                errori += 1
+                print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
+
+            # Commit ogni 20 documenti per non perdere tutto in caso di errore
+            if righe_importate % 100 == 0:
+                conn.commit()
+
+        conn.commit()
+
         # Aggiorna log
-        note = f"Anno {anno}: {nuove} nuove, {aggiornate} agg, {duplicate_xml} già da XML, totale API: {totale_api}"
+        note = (
+            f"Anno {anno}: {nuove} nuove, {aggiornate} agg, "
+            f"{duplicate_xml} già da XML, {righe_importate} righe, "
+            f"totale API: {totale_api}"
+        )
         conn.execute(
             """
             UPDATE fic_sync_log SET
@@ -390,6 +499,7 @@ def fic_sync(
             aggiornate=aggiornate,
             duplicate_xml=duplicate_xml,
             errori=errori,
+            righe_importate=righe_importate,
             totale_api=totale_api,
             note=f"Sincronizzazione {anno} completata",
         )
@@ -408,32 +518,34 @@ def fic_fatture_list(
     """Lista fatture dalla tabella unificata fe_fatture, filtrate per fonte='fic'."""
     conn = get_db()
     try:
-        where = ["COALESCE(fonte, 'xml') = 'fic'"]
+        where = ["COALESCE(f.fonte, 'xml') = 'fic'"]
         params = []
 
         if anno:
-            where.append("data_fattura LIKE ?")
+            where.append("f.data_fattura LIKE ?")
             params.append(f"{anno}-%")
         if fornitore:
-            where.append("fornitore_nome LIKE ?")
+            where.append("f.fornitore_nome LIKE ?")
             params.append(f"%{fornitore}%")
 
         where_sql = " WHERE " + " AND ".join(where)
         offset = (page - 1) * per_page
 
         total = conn.execute(
-            f"SELECT COUNT(*) FROM fe_fatture{where_sql}", params
+            f"SELECT COUNT(*) FROM fe_fatture f{where_sql}", params
         ).fetchone()[0]
 
         rows = conn.execute(
             f"""
-            SELECT id, fic_id, numero_fattura as numero, data_fattura as data,
-                   imponibile_totale as importo_netto,
-                   iva_totale as importo_iva,
-                   totale_fattura as importo_totale,
-                   fornitore_nome, fornitore_piva, fonte
-            FROM fe_fatture{where_sql}
-            ORDER BY data_fattura DESC
+            SELECT f.id, f.fic_id, f.numero_fattura as numero, f.data_fattura as data,
+                   f.imponibile_totale as importo_netto,
+                   f.iva_totale as importo_iva,
+                   f.totale_fattura as importo_totale,
+                   f.fornitore_nome, f.fornitore_piva, f.fonte,
+                   COALESCE(f.pagato, 0) as pagato,
+                   (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) as n_righe
+            FROM fe_fatture f{where_sql}
+            ORDER BY f.data_fattura DESC
             LIMIT ? OFFSET ?
             """,
             (*params, per_page, offset),

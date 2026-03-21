@@ -222,6 +222,7 @@ export default function FattureInCloud() {
                 <span className="text-emerald-700">
                   {syncResult.nuove} nuove, {syncResult.aggiornate} aggiornate
                   {syncResult.duplicate_xml > 0 && <span className="text-neutral-500">, {syncResult.duplicate_xml} già presenti da XML</span>}
+                  {syncResult.righe_importate > 0 && <span className="text-teal-600">, {syncResult.righe_importate} righe dettaglio</span>}
                   {syncResult.errori > 0 && <span className="text-red-600">, {syncResult.errori} errori</span>}
                   {" — "}{syncResult.totale_api} totali su FIC
                 </span>
@@ -253,13 +254,14 @@ export default function FattureInCloud() {
                     <th className="px-4 py-3 text-right text-xs font-semibold text-teal-800">Netto</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-teal-800">IVA</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-teal-800">Totale</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-teal-800">Righe</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-teal-800">Stato</th>
                   </tr>
                 </thead>
                 <tbody>
                   {fatture.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
+                      <td colSpan={8} className="px-4 py-8 text-center text-neutral-400">
                         {totalFatture === 0
                           ? "Nessuna fattura sincronizzata. Premi \"Sincronizza\" per importare."
                           : "Nessun risultato."}
@@ -274,6 +276,13 @@ export default function FattureInCloud() {
                         <td className="px-4 py-2.5 text-right text-neutral-700">€ {fmt(f.importo_netto)}</td>
                         <td className="px-4 py-2.5 text-right text-neutral-500 text-xs">€ {fmt(f.importo_iva)}</td>
                         <td className="px-4 py-2.5 text-right font-semibold text-teal-900">€ {fmt(f.importo_totale)}</td>
+                        <td className="px-4 py-2.5 text-center text-xs text-neutral-500">
+                          {f.n_righe > 0 ? (
+                            <span className="text-teal-700 font-medium">{f.n_righe}</span>
+                          ) : (
+                            <span className="text-neutral-300">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-center">
                           {f.pagato ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">Pagata</span>
