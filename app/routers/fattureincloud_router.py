@@ -639,9 +639,7 @@ def fic_fornitori(
 
 
 @router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
-def fic_debug_fields(
-    current_user: Any = Depends(get_current_user),
-):
+def fic_debug_fields():
     """Endpoint temporaneo: fetcha 1 documento dalla lista + il suo dettaglio
     e restituisce i campi raw per capire la struttura dell'API."""
     conn = get_db()
