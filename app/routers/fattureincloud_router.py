@@ -1,4 +1,4 @@
-# @version: v1.0-fattureincloud
+# @version: v1.1-fattureincloud-fix-sync
 # -*- coding: utf-8 -*-
 """
 Router per integrazione Fatture in Cloud API v2.
@@ -60,16 +60,19 @@ def fic_headers(token: str) -> dict:
 
 def fic_get(token: str, path: str, params: dict = None) -> dict:
     """GET sincrono verso API FIC."""
+    url = f"{FIC_BASE}{path}"
+    print(f"🔵 FIC GET {url} params={params}")
     r = httpx.get(
-        f"{FIC_BASE}{path}",
+        url,
         headers=fic_headers(token),
         params=params,
         timeout=30,
     )
     if r.status_code != 200:
+        print(f"🔴 FIC error {r.status_code}: {r.text[:300]}")
         raise HTTPException(
             status_code=r.status_code,
-            detail=f"Fatture in Cloud API error: {r.text[:500]}",
+            detail=f"Fatture in Cloud API error ({r.status_code}): {r.text[:500]}",
         )
     return r.json()
 
@@ -215,25 +218,45 @@ def fic_sync(
 
         while True:
             try:
-                data = fic_get(token, f"/c/{cid}/received_documents", {
+                params = {
                     "type": "expense",
                     "per_page": 50,
                     "page": page,
-                    "q": f"date >= {anno}-01-01 and date <= {anno}-12-31",
-                    "fieldset": "detailed",
-                })
+                }
+                # Filtro per anno via query 'q' — sintassi FIC: field op 'value'
+                if anno:
+                    params["q"] = f"date >= '{anno}-01-01' and date <= '{anno}-12-31'"
+
+                data = fic_get(token, f"/c/{cid}/received_documents", params)
             except HTTPException as e:
-                errori += 1
-                break
+                # Se il filtro q fallisce, riprova senza filtro (scarica tutto)
+                if page == 1 and anno:
+                    try:
+                        data = fic_get(token, f"/c/{cid}/received_documents", {
+                            "type": "expense",
+                            "per_page": 50,
+                            "page": page,
+                        })
+                    except HTTPException:
+                        errori += 1
+                        break
+                else:
+                    errori += 1
+                    break
 
             items = data.get("data", [])
-            pagination = data.get("current_page", page)
-            last_page = data.get("last_page", page)
             totale_api = data.get("total", len(items))
+            last_page = data.get("last_page", data.get("total_pages", page))
 
             for doc in items:
                 try:
                     fic_id = doc["id"]
+                    doc_date = doc.get("date", "")
+
+                    # Filtro anno lato server (safety net)
+                    if anno and doc_date and not doc_date.startswith(str(anno)):
+                        continue
+
                     entity = doc.get("entity", {}) or {}
 
                     # Calcola importi
