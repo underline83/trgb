@@ -25,6 +25,7 @@ from typing import Optional
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from typing import List as TList
 
 router = APIRouter(prefix="/vini/ipratico", tags=["ipratico-products"])
 
@@ -49,6 +50,18 @@ def _mag_conn() -> sqlite3.Connection:
 
 
 _RE_ID = re.compile(r"^(\d{4})")
+
+
+def _load_export_defaults() -> dict[str, str]:
+    """Carica i default export dalla tabella ipratico_export_defaults → {field_name: field_value}."""
+    fc = _fc_conn()
+    try:
+        rows = fc.execute("SELECT field_name, field_value FROM ipratico_export_defaults").fetchall()
+        return {r["field_name"]: r["field_value"] for r in rows}
+    except Exception:
+        return {}
+    finally:
+        fc.close()
 
 
 def _extract_wine_id(name: str) -> Optional[int]:
@@ -395,29 +408,42 @@ async def export_ipratico(file: UploadFile = File(...)):
                 n_updated_price += 1
 
     # 4. Aggiungi vini TRGB mancanti su iPratico come nuove righe
+    #    Campi default letti dalla tabella ipratico_export_defaults (configurabili da frontend)
     n_added = 0
-    total_cols = ws.max_column
+    defaults = _load_export_defaults()
+
+    # Campi prezzo: tutti e 12 a PREZZO_CARTA
+    price_fields = (
+        "Price_table", "Price_counter", "Price_takeaway", "Price_delivery",
+        "Price_table_1", "Price_counter_1", "Price_takeaway_1", "Price_delivery_1",
+        "Price_table_2", "Price_counter_2", "Price_takeaway_2", "Price_delivery_2",
+    )
+
     for wine_id, trgb in mag_data.items():
         if wine_id in existing_wine_ids:
             continue
-        # Solo vini marcati come IPRATICO = 'SI' o comunque tutti?
-        # Li aggiungiamo tutti — l'utente decide poi su iPratico
         new_row = ws.max_row + 1
         n_added += 1
+        price = trgb.get("PREZZO_CARTA") or 0
 
-        # Category = Bottiglie
+        # Campi obbligatori fissi
         ws.cell(row=new_row, column=cat_col).value = "Bottiglie"
-
-        # Name = costruito da TRGB
         ws.cell(row=new_row, column=name_col).value = _build_ipratico_name(trgb)
+
+        # Campi default dalla tabella configurabile
+        for field_name, field_value in defaults.items():
+            col = headers.get(field_name)
+            if col:
+                ws.cell(row=new_row, column=col).value = field_value
+
+        # Prezzi — tutti e 12 campi uguali a PREZZO_CARTA
+        for price_col_name in price_fields:
+            if headers.get(price_col_name) and price > 0:
+                ws.cell(row=new_row, column=headers[price_col_name]).value = price
 
         # Warehouse_quantity
         if qty_col:
             ws.cell(row=new_row, column=qty_col).value = trgb.get("QTA_TOTALE", 0) or 0
-
-        # Price
-        if price_table_1_col and trgb.get("PREZZO_CARTA"):
-            ws.cell(row=new_row, column=price_table_1_col).value = trgb["PREZZO_CARTA"]
 
     # Log
     fc = _fc_conn()
@@ -547,3 +573,40 @@ def get_ipratico_stats():
         "unmatched": unmatched,
         "missing": n_missing,
     }
+
+
+# ─── Export defaults (configurabili da frontend) ──────────────────
+@router.get("/export-defaults")
+def get_export_defaults():
+    """Lista valori di default per campi vini nuovi nell'export."""
+    fc = _fc_conn()
+    try:
+        rows = fc.execute(
+            "SELECT id, field_name, field_value, field_group, label FROM ipratico_export_defaults ORDER BY field_group, id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+    finally:
+        fc.close()
+
+
+class DefaultUpdate(BaseModel):
+    field_value: str
+
+
+@router.put("/export-defaults/{default_id}")
+def update_export_default(default_id: int, body: DefaultUpdate):
+    """Aggiorna il valore di un campo default export."""
+    fc = _fc_conn()
+    existing = fc.execute("SELECT id FROM ipratico_export_defaults WHERE id = ?", (default_id,)).fetchone()
+    if not existing:
+        fc.close()
+        raise HTTPException(404, "Default non trovato")
+    fc.execute(
+        "UPDATE ipratico_export_defaults SET field_value = ?, updated_at = datetime('now') WHERE id = ?",
+        (body.field_value, default_id),
+    )
+    fc.commit()
+    fc.close()
+    return {"ok": True, "id": default_id, "field_value": body.field_value}

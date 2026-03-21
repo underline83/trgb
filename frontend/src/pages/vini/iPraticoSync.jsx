@@ -492,6 +492,91 @@ function ExportSection() {
           <span className="text-emerald-600 font-medium self-center">✓ Scaricato</span>
         </div>
       )}
+
+      <DefaultsConfig />
+    </div>
+  );
+}
+
+/* ─── Defaults Config (collapsible, inside export) ────────────── */
+function DefaultsConfig() {
+  const [open, setOpen] = useState(false);
+  const [defaults, setDefaults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(null);
+
+  const load = async () => {
+    if (defaults.length) return;
+    setLoading(true);
+    try {
+      const r = await apiFetch(`${EP}/export-defaults`);
+      if (r.ok) setDefaults(await r.json());
+    } catch (_) {}
+    setLoading(false);
+  };
+
+  const save = async (d) => {
+    setSaving(d.id);
+    try {
+      await apiFetch(`${EP}/export-defaults/${d.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field_value: d.field_value }),
+      });
+    } catch (_) {}
+    setSaving(null);
+  };
+
+  const update = (id, val) => {
+    setDefaults(prev => prev.map(d => d.id === id ? { ...d, field_value: val } : d));
+  };
+
+  const groups = defaults.reduce((acc, d) => {
+    if (!acc[d.field_group]) acc[d.field_group] = [];
+    acc[d.field_group].push(d);
+    return acc;
+  }, {});
+
+  const groupLabels = { general: "Generali", reparti: "Reparti servizio", listini: "Listini prezzo" };
+
+  return (
+    <div className="mt-3 border-t border-neutral-100 pt-2">
+      <button onClick={() => { setOpen(!open); if (!open) load(); }}
+        className="text-[11px] text-neutral-400 hover:text-neutral-600 transition flex items-center gap-1">
+        <span>{open ? "▼" : "▶"}</span>
+        <span>Campi default vini nuovi</span>
+      </button>
+      {open && (
+        <div className="mt-2">
+          {loading ? (
+            <p className="text-neutral-400 text-xs py-3 text-center">Caricamento...</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(groups).map(([group, items]) => (
+                <div key={group}>
+                  <div className="text-[10px] text-neutral-400 uppercase tracking-wide mb-1">
+                    {groupLabels[group] || group}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {items.map(d => (
+                      <div key={d.id} className="flex items-center gap-1.5">
+                        <label className="text-[10px] text-neutral-500 w-24 truncate" title={d.field_name}>
+                          {d.label || d.field_name}
+                        </label>
+                        <input type="text" value={d.field_value}
+                          onChange={e => update(d.id, e.target.value)}
+                          onBlur={() => save(d)}
+                          className="px-1.5 py-0.5 border border-neutral-200 rounded text-[11px] flex-1 min-w-0" />
+                        {saving === d.id && <span className="text-[9px] text-amber-500">...</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
