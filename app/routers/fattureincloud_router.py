@@ -200,8 +200,10 @@ def fic_disconnect(current_user: Any = Depends(get_current_user)):
 
 def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_id: int) -> int:
     """
-    Fetcha il dettaglio di un documento da FIC e inserisce le righe in fe_righe.
-    Aggiorna anche il campo 'pagato' sulla fattura.
+    Fetcha il dettaglio di un documento da FIC e aggiorna:
+    - numero_fattura (invoice_number)
+    - pagato (da payments_list)
+    - righe in fe_righe (da items_list)
     Ritorna il numero di righe inserite.
     """
     righe_count = 0
@@ -211,52 +213,78 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         })
         doc_data = detail.get("data", {}) or {}
 
+        # ── CAMPI DAL DETTAGLIO ──────────────────────────
+        invoice_number = doc_data.get("invoice_number", "") or ""
+        description = doc_data.get("description", "") or ""
+
         # ── STATO PAGAMENTO ──────────────────────────────
-        payments = doc_data.get("payments_list", []) or []
-        pagato = 1 if len(payments) > 0 else 0
+        payments = doc_data.get("payments_list") or []
+        # Controlla se tutti i pagamenti hanno status "paid"
+        if payments:
+            all_paid = all(
+                (p.get("status", "") == "paid" or p.get("paid_date"))
+                for p in payments
+            )
+            pagato = 1 if all_paid else 0
+        else:
+            pagato = 0
+
+        # Aggiorna header con dati dal dettaglio
         conn.execute(
-            "UPDATE fe_fatture SET pagato = ? WHERE id = ?",
-            (pagato, fattura_db_id),
+            """UPDATE fe_fatture SET
+                numero_fattura = CASE WHEN COALESCE(numero_fattura, '') = '' THEN ? ELSE numero_fattura END,
+                pagato = ?
+            WHERE id = ?""",
+            (invoice_number, pagato, fattura_db_id),
         )
 
         # ── RIGHE / ITEMS ────────────────────────────────
-        items_list = doc_data.get("items_list", []) or []
+        items_list = doc_data.get("items_list") or []
         if not items_list:
             return 0
 
         # Rimuovi righe precedenti per questa fattura (re-sync pulito)
         conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
 
-        # Log primo item per debug struttura campi
-        if items_list:
-            print(f"🔍 FIC ITEM KEYS (fic_id={fic_id}): {list(items_list[0].keys())}")
-            print(f"🔍 FIC ITEM SAMPLE (fic_id={fic_id}): {items_list[0]}")
-
         for idx, item in enumerate(items_list, start=1):
-            # FIC usa diversi campi per la descrizione del prodotto
+            # Prova tutti i possibili campi descrizione
             descrizione = (
-                item.get("name", "")
-                or item.get("description", "")
+                item.get("description", "")
+                or item.get("name", "")
                 or item.get("desc", "")
                 or ""
             )
 
             # Se c'è un prodotto con nome, usalo come fallback
-            product = item.get("product", None) or {}
+            product = item.get("product") or {}
             if not descrizione and isinstance(product, dict):
-                descrizione = product.get("name", "") or product.get("description", "") or ""
+                descrizione = (
+                    product.get("name", "")
+                    or product.get("description", "")
+                    or ""
+                )
+
+            # Se ancora vuoto, usa la descrizione della fattura intera
+            if not descrizione and description:
+                descrizione = description
 
             quantita = item.get("qty", None)
             unita_misura = item.get("measure", "") or ""
             prezzo_unitario = item.get("net_price", None)
-            prezzo_totale = item.get("amount_net", None)
+
+            # Prova vari campi per il totale riga
+            prezzo_totale = (
+                item.get("amount_net", None)
+                or item.get("net_total", None)
+                or item.get("total_net", None)
+            )
 
             # Calcola prezzo_totale se non presente
             if prezzo_totale is None and quantita and prezzo_unitario:
                 prezzo_totale = quantita * prezzo_unitario
 
             # IVA: può essere un oggetto con 'value' (percentuale) o un numero
-            vat_info = item.get("vat", {}) or {}
+            vat_info = item.get("vat") or {}
             if isinstance(vat_info, dict):
                 aliquota_iva = vat_info.get("value", None)
             else:
@@ -642,8 +670,7 @@ debug_router = APIRouter(prefix="/fic", tags=["FIC Debug"])
 
 @debug_router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
 def fic_debug_fields():
-    """Endpoint temporaneo: fetcha 1 documento dalla lista + il suo dettaglio
-    e restituisce i campi raw per capire la struttura dell'API."""
+    """Endpoint temporaneo: scorre documenti finché ne trova uno CON items_list."""
     conn = get_db()
     try:
         cfg = get_config(conn)
@@ -653,31 +680,52 @@ def fic_debug_fields():
         token = cfg["access_token"]
         cid = cfg["company_id"]
 
-        # Prendi 1 documento dalla lista
+        # Prendi documenti recenti (2026) che probabilmente hanno items
         list_data = fic_get(token, f"/c/{cid}/received_documents", {
-            "type": "expense", "per_page": 5,
+            "type": "expense", "per_page": 20,
+            "q": "date >= '2026-01-01'",
         })
         docs = list_data.get("data", [])
         if not docs:
             return {"error": "Nessun documento trovato"}
 
-        doc = docs[0]
-        fic_id = doc["id"]
+        # Scorre finché trova un doc con items
+        found_with_items = None
+        found_detail = None
+        checked = 0
+        for doc in docs:
+            fic_id = doc["id"]
+            detail_data = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
+                "fieldset": "detailed",
+            })
+            detail = detail_data.get("data", {}) or {}
+            items = detail.get("items_list") or []
+            checked += 1
+            if items:
+                found_with_items = doc
+                found_detail = detail
+                break
 
-        # Prendi il dettaglio
-        detail_data = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
-            "fieldset": "detailed",
-        })
-        detail = detail_data.get("data", {}) or {}
-        items = detail.get("items_list") or []
+        if not found_detail:
+            return {
+                "error": f"Nessun doc con items trovato (controllati {checked})",
+                "sample_detail_keys": list(detail.keys()) if detail else [],
+                "is_detailed_values": [
+                    {"id": d["id"], "has_entity_piva": bool((d.get("entity") or {}).get("vat_number"))}
+                    for d in docs[:5]
+                ],
+            }
 
+        items = found_detail.get("items_list") or []
         return {
-            "list_doc_keys": list(doc.keys()),
-            "list_doc_sample": {k: v for k, v in doc.items()},
-            "detail_doc_keys": list(detail.keys()),
-            "detail_items_count": len(items),
-            "detail_first_item": items[0] if items else None,
-            "detail_payments_list": detail.get("payments_list") or [],
+            "doc_id": found_with_items["id"],
+            "invoice_number": found_detail.get("invoice_number"),
+            "is_detailed": found_detail.get("is_detailed"),
+            "detail_keys": list(found_detail.keys()),
+            "items_count": len(items),
+            "first_item_ALL_FIELDS": items[0] if items else None,
+            "second_item": items[1] if len(items) > 1 else None,
+            "payments_list": found_detail.get("payments_list") or [],
         }
     finally:
         conn.close()
