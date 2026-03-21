@@ -15,10 +15,21 @@ set -euo pipefail
 VPS_HOST="trgb"
 VPS_DIR="/home/marco/trgb/trgb"
 VENV="/home/marco/trgb/venv-trgb"
+DB_LOCAL="app/data"
+DB_REMOTE="$VPS_DIR/app/data"
 
 # ── Argomenti ────────────────────────────────────────────
 MSG="${1:-}"
 MODE="${2:-}"
+
+# ── Sync DB dal VPS (sempre) ─────────────────────────────
+echo "📦 Scarico database dal VPS..."
+for db in vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3; do
+  scp -q "$VPS_HOST:$DB_REMOTE/$db" "$DB_LOCAL/$db" 2>/dev/null \
+    && echo "  ✅ $db" \
+    || echo "  ⚠️  $db non trovato (non bloccante)"
+done
+echo ""
 
 # ── Commit se ci sono modifiche ──────────────────────────
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then

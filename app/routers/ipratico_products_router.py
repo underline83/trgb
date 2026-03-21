@@ -1,4 +1,4 @@
-# @version: v1.1-ipratico-direct-id
+# @version: v1.2-ipratico-reimport-fix
 # Router iPratico Products — import/export Excel prodotti, mapping ↔ vini TRGB
 # Il codice 4 cifre nel Name iPratico corrisponde DIRETTAMENTE a vini_magazzino.id
 """
@@ -98,24 +98,18 @@ async def upload_ipratico_export(file: UploadFile = File(...)):
         pass
 
     fc = _fc_conn()
+
+    # Pulisci mapping precedenti e ricostruisci da zero
+    fc.execute("DELETE FROM ipratico_product_map")
+    fc.commit()
+
     n_matched = 0
-    n_existing = 0
     n_unmatched = 0
 
     for _, row in bottiglie.iterrows():
         ipratico_uuid = str(row.get("Id", ""))
         name = str(row.get("Name", ""))
         wine_id = _extract_wine_id(name)
-
-        # Check if mapping already exists
-        existing = fc.execute(
-            "SELECT id FROM ipratico_product_map WHERE ipratico_uuid = ?",
-            (ipratico_uuid,)
-        ).fetchone()
-
-        if existing:
-            n_existing += 1
-            continue
 
         # Match diretto: wine_id = vini_magazzino.id
         vino_id = wine_id if wine_id and wine_id in mag_ids else None
@@ -141,7 +135,7 @@ async def upload_ipratico_export(file: UploadFile = File(...)):
     fc.execute(
         """INSERT INTO ipratico_sync_log (direction, filename, n_matched, n_unmatched)
            VALUES ('import', ?, ?, ?)""",
-        (file.filename, n_matched + n_existing, n_unmatched),
+        (file.filename, n_matched, n_unmatched),
     )
     fc.commit()
     fc.close()
@@ -149,9 +143,7 @@ async def upload_ipratico_export(file: UploadFile = File(...)):
     return {
         "total_products": len(df),
         "total_bottiglie": len(bottiglie),
-        "new_mappings": len(bottiglie) - n_existing,
         "matched": n_matched,
-        "existing": n_existing,
         "unmatched": n_unmatched,
         "filename": file.filename,
     }
