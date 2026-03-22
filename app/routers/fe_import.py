@@ -62,10 +62,34 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             valuta            TEXT DEFAULT 'EUR',
             xml_hash          TEXT UNIQUE,
             xml_filename      TEXT,
-            data_import       TEXT
+            data_import       TEXT,
+            -- Anagrafica fornitore (da XML CedentePrestatore)
+            fornitore_cf      TEXT,
+            fornitore_indirizzo TEXT,
+            fornitore_cap     TEXT,
+            fornitore_citta   TEXT,
+            fornitore_provincia TEXT,
+            fornitore_nazione TEXT
         );
         """
     )
+
+    # Migrate: add columns if missing (existing DBs)
+    try:
+        cur.execute("SELECT fornitore_cf FROM fe_fatture LIMIT 1")
+    except sqlite3.OperationalError:
+        for col, typ in [
+            ("fornitore_cf", "TEXT"),
+            ("fornitore_indirizzo", "TEXT"),
+            ("fornitore_cap", "TEXT"),
+            ("fornitore_citta", "TEXT"),
+            ("fornitore_provincia", "TEXT"),
+            ("fornitore_nazione", "TEXT"),
+        ]:
+            try:
+                cur.execute(f"ALTER TABLE fe_fatture ADD COLUMN {col} {typ}")
+            except sqlite3.OperationalError:
+                pass
 
     cur.execute(
         """
@@ -119,45 +143,53 @@ def _find_node(root: ET.Element, tag: str) -> ET.Element | None:
 
 
 def _extract_fornitore(root: ET.Element) -> tuple[str | None, str | None]:
-    """
-    Estrae il fornitore (CedentePrestatore) dalla struttura FatturaPA.
+    """Estrae nome e P.IVA dal CedentePrestatore."""
+    info = _extract_fornitore_full(root)
+    return info["nome"], info["piva"]
 
-    Struttura FatturaPA:
-      FatturaElettronicaHeader
-        ├─ DatiTrasmissione
-        │   └─ IdTrasmittente (NON e' il fornitore!)
-        ├─ CedentePrestatore (= FORNITORE REALE)
-        │   └─ DatiAnagrafici
-        │       ├─ IdFiscaleIVA → IdCodice
-        │       └─ Anagrafica → Denominazione
-        └─ CessionarioCommittente (= DESTINATARIO / noi)
 
-    Il bug precedente: _find_text(root, "Denominazione") prendeva il
-    primo <Denominazione> nell'XML, che poteva essere in DatiTrasmissione
-    o CessionarioCommittente invece che in CedentePrestatore.
+def _extract_fornitore_full(root: ET.Element) -> dict:
     """
+    Estrae dati completi del fornitore (CedentePrestatore) dalla FatturaPA:
+    nome, piva, cf, indirizzo, cap, citta, provincia, nazione.
+    """
+    result = {
+        "nome": None, "piva": None, "cf": None,
+        "indirizzo": None, "cap": None, "citta": None,
+        "provincia": None, "nazione": None,
+    }
     cedente = _find_node(root, "CedentePrestatore")
     if cedente is not None:
         nome = _find_text_in(cedente, "Denominazione")
         if nome is None:
-            # Persona fisica: Nome + Cognome
             n = _find_text_in(cedente, "Nome")
             c = _find_text_in(cedente, "Cognome")
             if n and c:
                 nome = f"{n} {c}"
             elif c:
                 nome = c
+        result["nome"] = nome
 
         piva = _find_text_in(cedente, "IdCodice")
-        if piva is None:
-            piva = _find_text_in(cedente, "CodiceFiscale")
+        result["piva"] = piva
+        result["cf"] = _find_text_in(cedente, "CodiceFiscale")
+        if result["piva"] is None:
+            result["piva"] = result["cf"]
 
-        return nome, piva
+        # Sede (indirizzo)
+        sede = _find_node(cedente, "Sede")
+        if sede is not None:
+            result["indirizzo"] = _find_text_in(sede, "Indirizzo")
+            result["cap"] = _find_text_in(sede, "CAP")
+            result["citta"] = _find_text_in(sede, "Comune")
+            result["provincia"] = _find_text_in(sede, "Provincia")
+            result["nazione"] = _find_text_in(sede, "Nazione")
+    else:
+        # Fallback per XML non standard
+        result["nome"] = _find_text(root, "Denominazione") or _find_text(root, "Nome")
+        result["piva"] = _find_text(root, "IdCodice") or _find_text(root, "CodiceFiscale")
 
-    # Fallback: vecchio metodo (per XML non standard)
-    nome = _find_text(root, "Denominazione") or _find_text(root, "Nome")
-    piva = _find_text(root, "IdCodice") or _find_text(root, "CodiceFiscale")
-    return nome, piva
+    return result
 
 
 def _to_float(v: str | None) -> float | None:
@@ -259,8 +291,10 @@ def _process_single_xml(
     AUTOFATTURA_TYPES = {"TD16", "TD17", "TD18", "TD19", "TD20", "TD21", "TD27"}
     is_autofattura = 1 if tipo_documento in AUTOFATTURA_TYPES else 0
 
-    # Fornitore: estrai specificamente da CedentePrestatore
-    fornitore_nome, fornitore_piva = _extract_fornitore(root)
+    # Fornitore: estrai specificamente da CedentePrestatore (con anagrafica completa)
+    forn_info = _extract_fornitore_full(root)
+    fornitore_nome = forn_info["nome"]
+    fornitore_piva = forn_info["piva"]
 
     numero_fattura = _find_text(root, "Numero")
     data_fattura_str = _find_text(root, "Data")
@@ -307,6 +341,26 @@ def _process_single_xml(
             if totale_fattura is not None:
                 update_fields.append("totale_fattura = ?")
                 update_params.append(totale_fattura)
+
+            # Anagrafica fornitore da XML
+            if forn_info["cf"]:
+                update_fields.append("fornitore_cf = ?")
+                update_params.append(forn_info["cf"])
+            if forn_info["indirizzo"]:
+                update_fields.append("fornitore_indirizzo = ?")
+                update_params.append(forn_info["indirizzo"])
+            if forn_info["cap"]:
+                update_fields.append("fornitore_cap = ?")
+                update_params.append(forn_info["cap"])
+            if forn_info["citta"]:
+                update_fields.append("fornitore_citta = ?")
+                update_params.append(forn_info["citta"])
+            if forn_info["provincia"]:
+                update_fields.append("fornitore_provincia = ?")
+                update_params.append(forn_info["provincia"])
+            if forn_info["nazione"]:
+                update_fields.append("fornitore_nazione = ?")
+                update_params.append(forn_info["nazione"])
 
             update_params.append(fic_id)
             cur.execute(
@@ -369,9 +423,11 @@ def _process_single_xml(
             numero_fattura, data_fattura,
             imponibile_totale, iva_totale, totale_fattura,
             valuta, xml_hash, xml_filename, data_import,
-            tipo_documento, is_autofattura, fonte
+            tipo_documento, is_autofattura, fonte,
+            fornitore_cf, fornitore_indirizzo, fornitore_cap,
+            fornitore_citta, fornitore_provincia, fornitore_nazione
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'xml')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'xml', ?, ?, ?, ?, ?, ?)
         """,
         (
             fornitore_nome or "Sconosciuto",
@@ -387,6 +443,12 @@ def _process_single_xml(
             now,
             tipo_documento,
             is_autofattura,
+            forn_info["cf"],
+            forn_info["indirizzo"],
+            forn_info["cap"],
+            forn_info["citta"],
+            forn_info["provincia"],
+            forn_info["nazione"],
         ),
     )
     fattura_id = cur.lastrowid
@@ -734,6 +796,51 @@ def stats_fornitori(
     conn.close()
 
     return [dict(r) for r in rows]
+
+
+@router.get(
+    "/fornitori/{fornitore_key}/anagrafica",
+    summary="Anagrafica fornitore (da XML)",
+)
+def fornitore_anagrafica(fornitore_key: str):
+    """
+    Ritorna i dati anagrafici del fornitore estratti dalle fatture XML.
+    Cerca per P.IVA, fallback per nome.
+    Prende i dati dalla fattura più recente che li ha.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT
+            fornitore_nome, fornitore_piva, fornitore_cf,
+            fornitore_indirizzo, fornitore_cap, fornitore_citta,
+            fornitore_provincia, fornitore_nazione
+        FROM fe_fatture
+        WHERE (fornitore_piva = ? OR fornitore_nome = ?)
+          AND fornitore_indirizzo IS NOT NULL
+        ORDER BY data_fattura DESC
+        LIMIT 1
+        """,
+        (fornitore_key, fornitore_key),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if row:
+        return dict(row)
+    return {
+        "fornitore_nome": fornitore_key,
+        "fornitore_piva": None,
+        "fornitore_cf": None,
+        "fornitore_indirizzo": None,
+        "fornitore_cap": None,
+        "fornitore_citta": None,
+        "fornitore_provincia": None,
+        "fornitore_nazione": None,
+    }
 
 
 @router.get(
