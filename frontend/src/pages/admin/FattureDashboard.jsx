@@ -34,7 +34,7 @@ export default function FattureDashboard() {
 
   // State
   const [fatture, setFatture] = useState([]);
-  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 

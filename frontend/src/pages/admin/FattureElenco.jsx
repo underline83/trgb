@@ -27,7 +27,7 @@ export default function FattureElenco() {
   // ── Filtri ──
   const [searchText, setSearchText] = useState("");
   const [searchNumero, setSearchNumero] = useState("");
-  const [annoSel, setAnnoSel] = useState("");
+  const [annoSel, setAnnoSel] = useState(String(new Date().getFullYear()));
   const [meseSel, setMeseSel] = useState("");
   const [fornitoreSel, setFornitoreSel] = useState("");
   const [pivaSel, setPivaSel] = useState("");

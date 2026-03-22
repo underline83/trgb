@@ -185,11 +185,18 @@ export default function FattureImpostazioni() {
       if (syncMese) params.append("mese", syncMese);
       if (syncSoloNuove) params.append("solo_nuove", "1");
       if (syncForceDetail) params.append("force_detail", "1");
-      const r = await apiFetch(`${FC}/sync?${params}`, { method: "POST" });
+      // Timeout 10 minuti per sync con molte fatture
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+      const r = await apiFetch(`${FC}/sync?${params}`, { method: "POST", signal: controller.signal });
+      clearTimeout(timeoutId);
       const d = await r.json();
       if (r.ok) { setSyncResult(d); fetchSyncLog(); fetchXmlStats(); }
       else alert(d.detail || "Errore sync");
-    } catch (_) { alert("Errore di rete durante sync"); }
+    } catch (e) {
+      if (e.name === "AbortError") alert("Sync timeout (>10 min). Prova mese per mese.");
+      else alert("Errore di rete durante sync");
+    }
     setSyncing(false);
   };
 
