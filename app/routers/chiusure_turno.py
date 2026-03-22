@@ -218,6 +218,10 @@ class ShiftClosureOut(ShiftClosureBase):
     checklist: List[ChecklistResponseOut] = []
     preconti: List[PrecontoOut] = []
     spese: List[SpesaOut] = []
+    # Quadratura pre-calcolata dal backend (evita ricalcolo client-side)
+    saldo: Optional[float] = None
+    diff_grezzo: Optional[float] = None
+    spese_giorno: Optional[float] = None
 
 
 # ---------------------------------------------------------
@@ -732,6 +736,33 @@ async def list_shift_closures(
     finally:
         conn.close()
 
+    # Pre-fetch pranzo data per calcolo saldo cena
+    # Raggruppa per data per trovare le coppie pranzo/cena
+    pranzo_by_date: dict = {}  # date_str -> {preconti_tot, spese_tot}
+
+    conn3 = sqlite3.connect(DB_PATH)
+    conn3.row_factory = sqlite3.Row
+    c3 = conn3.cursor()
+
+    # Trova tutte le date cena presenti nei risultati
+    cena_dates = [row["date"] for row in rows if row["turno"] == "cena"]
+    for d in cena_dates:
+        # Cerca la chiusura pranzo per questa data
+        c3.execute("SELECT id FROM shift_closures WHERE date = ? AND turno = 'pranzo'", (d,))
+        pranzo_row = c3.fetchone()
+        if pranzo_row:
+            pranzo_id = pranzo_row["id"]
+            preconti_tot = c3.execute(
+                "SELECT COALESCE(SUM(importo), 0) FROM shift_preconti WHERE shift_closure_id = ?",
+                (pranzo_id,)
+            ).fetchone()[0]
+            spese_tot = c3.execute(
+                "SELECT COALESCE(SUM(importo), 0) FROM shift_spese WHERE shift_closure_id = ?",
+                (pranzo_id,)
+            ).fetchone()[0]
+            pranzo_by_date[d] = {"preconti_tot": preconti_tot, "spese_tot": spese_tot}
+    conn3.close()
+
     results = []
     for row in rows:
         conn2 = sqlite3.connect(DB_PATH)
@@ -749,13 +780,36 @@ async def list_shift_closures(
 
         conn2.close()
 
+        # ── Calcolo saldo/quadratura lato server ──
+        # entrate = totale_incassi + fondo_in - fondo_fine
+        # (totale_incassi NON include mance — solo metodi incasso reali)
+        fondo_in = row["fondo_cassa_inizio"] or 0
+        fondo_fine = row["fondo_cassa_fine"] or 0
+        entrate = (row["totale_incassi"] or 0) + fondo_in - fondo_fine
+
+        # giustificato = chiusura RT + preconti + fatture
+        preconti_sum = sum(p.importo for p in preconti_items)
+        spese_sum = sum(s.importo for s in spese_items)
+
+        # Per cena: aggiungere preconti e spese del pranzo (valori giornalieri)
+        pranzo_preconti = 0
+        pranzo_spese = 0
+        if row["turno"] == "cena" and row["date"] in pranzo_by_date:
+            pranzo_preconti = pranzo_by_date[row["date"]]["preconti_tot"]
+            pranzo_spese = pranzo_by_date[row["date"]]["spese_tot"]
+
+        giustificato = (row["preconto"] or 0) + (preconti_sum + pranzo_preconti) + (row["fatture"] or 0)
+        spese_giorno = spese_sum + pranzo_spese
+        diff_grezzo = entrate - giustificato
+        saldo = diff_grezzo + spese_giorno
+
         results.append(
             ShiftClosureOut(
                 id=row["id"],
                 date=datetime.strptime(row["date"], "%Y-%m-%d").date(),
                 turno=row["turno"],
-                fondo_cassa_inizio=row["fondo_cassa_inizio"] or 0,
-                fondo_cassa_fine=row["fondo_cassa_fine"] or 0,
+                fondo_cassa_inizio=fondo_in,
+                fondo_cassa_fine=fondo_fine,
                 contanti=row["contanti"],
                 pos_bpm=row["pos_bpm"],
                 pos_sella=row["pos_sella"],
@@ -774,6 +828,9 @@ async def list_shift_closures(
                 checklist=checklist_items,
                 preconti=preconti_items,
                 spese=spese_items,
+                saldo=round(saldo, 2),
+                diff_grezzo=round(diff_grezzo, 2),
+                spese_giorno=round(spese_giorno, 2),
             )
         )
 

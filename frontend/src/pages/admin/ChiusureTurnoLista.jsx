@@ -157,13 +157,9 @@ export default function ChiusureTurnoLista() {
           <div className="space-y-3">
             {closures.map(c => {
               const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
-              const totPreconti = (c.preconti || []).reduce((s, p) => s + p.importo, 0);
-              // Quadratura: entrate − giustificato + spese
-              // Spese NON fanno parte del giustificato: giustificano soldi mancanti dalla cassa
-              const entrate = (c.totale_incassi || 0) + (c.fondo_cassa_inizio || 0) - (c.fondo_cassa_fine || 0);
-              const giustificato = (c.preconto || 0) + totPreconti + (c.fatture || 0);
-              const diff = (entrate - giustificato) + totSpese;
-              const quadra = Math.abs(diff) < 0.5;
+              // Quadratura: valori pre-calcolati dal backend
+              const saldo = c.saldo ?? 0;
+              const quadra = Math.abs(saldo) < 0.5;
               const isExpanded = expandedId === c.id;
 
               return (
@@ -199,7 +195,7 @@ export default function ChiusureTurnoLista() {
                       {/* Totali rapidi */}
                       <div className="hidden md:flex items-center gap-4 text-right">
                         <div>
-                          <div className="text-[10px] text-neutral-400 uppercase">Chiusura</div>
+                          <div className="text-[10px] text-neutral-400 uppercase">Chiusura RT</div>
                           <div className="text-sm font-bold text-neutral-800">€ {fmt(c.preconto)}</div>
                         </div>
                         <div>
@@ -216,10 +212,10 @@ export default function ChiusureTurnoLista() {
                             <div className="text-sm font-bold text-red-700">€ {fmt(totSpese)}</div>
                           </div>
                         )}
-                        <div title="Entrate − Giustificato (chiusura + preconti + spese + fatture)">
-                          <div className="text-[10px] text-neutral-400 uppercase">Quadr.</div>
+                        <div title="Saldo quadratura (calcolato dal server)">
+                          <div className="text-[10px] text-neutral-400 uppercase">Saldo</div>
                           <div className={`text-sm font-bold ${quadra ? "text-emerald-600" : "text-red-600"}`}>
-                            {diff >= 0 ? "+" : ""}{fmt(diff)}
+                            {saldo >= 0 ? "+" : ""}{fmt(saldo)}
                           </div>
                         </div>
                       </div>
