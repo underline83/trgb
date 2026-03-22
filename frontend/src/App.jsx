@@ -65,6 +65,7 @@ import FattureElenco from "./pages/admin/FattureElenco";
 import FattureDettaglio from "./pages/admin/FattureDettaglio";
 import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
 import FattureInCloud from "./pages/admin/FattureInCloud";
+import FattureImpostazioni from "./pages/admin/FattureImpostazioni";
 import DipendentiMenu from "./pages/admin/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/admin/DipendentiTurni";
@@ -167,15 +168,18 @@ export default function App() {
         <Route path="/vendite/import" element={<Navigate to="/vendite/impostazioni" replace />} />
 
         {/* --- GESTIONE ACQUISTI --- */}
-        <Route path="/acquisti" element={<FattureMenu />} />
-        <Route path="/acquisti/elenco" element={<FattureElenco />} />
+        <Route path="/acquisti" element={<Navigate to="/acquisti/dashboard" replace />} />
+        <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
+        <Route path="/acquisti/fatture" element={<FattureElenco />} />
         <Route path="/acquisti/dettaglio/:id" element={<FattureDettaglio />} />
         <Route path="/acquisti/fornitori" element={<FattureFornitoriElenco />} />
-        <Route path="/acquisti/import" element={<FattureImport />} />
-        <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
         <Route path="/acquisti/categorie" element={<FattureCategorie />} />
+        <Route path="/acquisti/impostazioni" element={<FattureImpostazioni />} />
         <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
-        <Route path="/acquisti/fic" element={<FattureInCloud />} />
+        {/* Redirect vecchie rotte */}
+        <Route path="/acquisti/elenco" element={<Navigate to="/acquisti/fatture" replace />} />
+        <Route path="/acquisti/import" element={<Navigate to="/acquisti/impostazioni" replace />} />
+        <Route path="/acquisti/fic" element={<Navigate to="/acquisti/impostazioni" replace />} />
 
         {/* --- BANCA --- */}
         <Route path="/banca" element={<BancaMenu />} />

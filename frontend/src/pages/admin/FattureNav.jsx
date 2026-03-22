@@ -1,15 +1,14 @@
-// @version: v1.1-fatture-nav-teal
-// Tab navigation persistente per la sezione fatture
+// @version: v2.0-refactored-nav
+// Tab navigation persistente per la sezione Acquisti
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/acquisti/dashboard", icon: "📈" },
-  { key: "elenco", label: "Elenco", path: "/acquisti/elenco", icon: "📋" },
+  { key: "fatture", label: "Fatture", path: "/acquisti/fatture", icon: "📋" },
   { key: "fornitori", label: "Fornitori", path: "/acquisti/fornitori", icon: "🏢" },
-  { key: "import", label: "Import", path: "/acquisti/import", icon: "📤" },
   { key: "categorie", label: "Categorie", path: "/acquisti/categorie", icon: "🏷️" },
-  { key: "fic", label: "Fatture in Cloud", path: "/acquisti/fic", icon: "☁️" },
+  { key: "impostazioni", label: "Impostazioni", path: "/acquisti/impostazioni", icon: "⚙️" },
 ];
 
 export default function FattureNav({ current }) {
@@ -22,7 +21,7 @@ export default function FattureNav({ current }) {
           {/* Left: brand + tabs */}
           <div className="flex items-center gap-1">
             <button
-              onClick={() => navigate("/acquisti")}
+              onClick={() => navigate("/acquisti/dashboard")}
               className="text-sm font-bold text-teal-900 font-playfair mr-4 hover:text-teal-700 transition whitespace-nowrap"
             >
               Acquisti
