@@ -511,24 +511,59 @@ export default function FattureImpostazioni() {
 
                 {/* Sync Result */}
                 {syncResult && (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm">
-                    <span className="font-semibold text-emerald-800">Sync completata:</span>{" "}
-                    <span className="text-emerald-700">
-                      {syncResult.nuove} nuove, {syncResult.aggiornate} aggiornate
-                      {syncResult.duplicate_xml > 0 && (
-                        <span className="text-neutral-500">, {syncResult.duplicate_xml} già da XML</span>
-                      )}
-                      {syncResult.merged_xml > 0 && (
-                        <span className="text-blue-600">, {syncResult.merged_xml} uniti con XML</span>
-                      )}
-                      {syncResult.righe_importate > 0 && (
-                        <span className="text-teal-600">, {syncResult.righe_importate} righe dettaglio</span>
-                      )}
-                      {syncResult.errori > 0 && (
-                        <span className="text-red-600">, {syncResult.errori} errori</span>
-                      )}
-                      {" — "}{syncResult.totale_api} totali su FIC
-                    </span>
+                  <div className={`rounded-xl p-4 text-sm border ${
+                    syncResult.errori > 0
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-emerald-50 border-emerald-200"
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <span className="text-lg">{syncResult.errori > 0 ? "⚠️" : "✅"}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold text-neutral-800 mb-1">
+                          Sync completata {syncResult.errori > 0 ? "con errori" : ""}
+                        </p>
+                        <p className="text-neutral-700">
+                          {syncResult.nuove} nuove, {syncResult.aggiornate} aggiornate
+                          {syncResult.duplicate_xml > 0 && (
+                            <span className="text-neutral-500">, {syncResult.duplicate_xml} già da XML</span>
+                          )}
+                          {syncResult.merged_xml > 0 && (
+                            <span className="text-blue-600">, {syncResult.merged_xml} uniti con XML</span>
+                          )}
+                          {syncResult.righe_importate > 0 && (
+                            <span className="text-teal-600">, {syncResult.righe_importate} righe dettaglio</span>
+                          )}
+                          {" — "}{syncResult.totale_api} totali su FIC
+                        </p>
+
+                        {/* Errori dettagliati */}
+                        {syncResult.errori > 0 && (
+                          <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="font-semibold text-red-800 text-xs mb-2">
+                              {syncResult.errori} {syncResult.errori === 1 ? "errore" : "errori"} durante la sincronizzazione:
+                            </p>
+                            <div className="space-y-1 max-h-48 overflow-y-auto">
+                              {(syncResult.error_details || []).length > 0 ? (
+                                syncResult.error_details.map((err, i) => (
+                                  <div key={i} className="text-xs text-red-700 bg-white rounded px-2 py-1.5 border border-red-100 font-mono break-all">
+                                    {err}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-xs text-red-600 italic">
+                                  Nessun dettaglio disponibile. Controlla i log del server.
+                                </p>
+                              )}
+                            </div>
+                            {syncResult.error_details?.length >= 50 && (
+                              <p className="text-[10px] text-red-500 mt-2">
+                                Mostrati i primi 50 errori. Controlla i log del server per la lista completa.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 

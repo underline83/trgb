@@ -95,6 +95,7 @@ class SyncResult(BaseModel):
     righe_importate: int = 0
     totale_api: int = 0
     note: str = ""
+    error_details: list[str] = []
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────
@@ -370,6 +371,7 @@ def fic_sync(
         righe_importate = 0
         page = 1
         totale_api = 0
+        error_details: list[str] = []
 
         # Traccia documenti per cui fetchare il dettaglio (fic_id → fattura_db_id)
         docs_to_detail = []
@@ -395,11 +397,13 @@ def fic_sync(
                             "per_page": 50,
                             "page": page,
                         })
-                    except HTTPException:
+                    except HTTPException as he:
                         errori += 1
+                        error_details.append(f"Fase1 API fallback pag.{page}: {he.detail}")
                         break
                 else:
                     errori += 1
+                    error_details.append(f"Fase1 API errore pag.{page}")
                     break
 
             items = data.get("data", [])
@@ -507,7 +511,9 @@ def fic_sync(
 
                 except Exception as e:
                     errori += 1
-                    print(f"⚠️ FIC sync error doc {doc.get('id', '?')}: {e}")
+                    err_msg = f"Fase1 doc fic_id={doc.get('id', '?')}: {e}"
+                    error_details.append(err_msg)
+                    print(f"⚠️ {err_msg}")
 
             conn.commit()
 
@@ -524,6 +530,7 @@ def fic_sync(
                 merged_xml += res["merged"]
             except Exception as e:
                 errori += 1
+                error_details.append(f"Fase2 dettaglio fic_id={fic_id}, db_id={fattura_db_id}: {e}")
 
             # Commit ogni 20 documenti
             if (i + 1) % 20 == 0:
@@ -558,6 +565,7 @@ def fic_sync(
             righe_importate=righe_importate,
             totale_api=totale_api,
             note=f"Sincronizzazione {anno} completata",
+            error_details=error_details[:50],  # max 50 errori dettagliati
         )
     finally:
         conn.close()
