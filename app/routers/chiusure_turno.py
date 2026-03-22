@@ -165,9 +165,13 @@ class SpesaBase(BaseModel):
     importo: float = Field(default=0, ge=0)
 
 
-class SpesaOut(SpesaBase):
+class SpesaOut(BaseModel):
+    """Output model — nessun vincolo ge=0 per non rompere dati storici."""
     id: int
     shift_closure_id: int
+    tipo: str
+    descrizione: str
+    importo: float = 0
 
 
 class ChecklistResponseBase(BaseModel):
