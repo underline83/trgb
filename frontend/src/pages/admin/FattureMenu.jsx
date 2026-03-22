@@ -161,7 +161,7 @@ export default function FattureMenu() {
           </Link>
 
           <Link
-            to="/acquisti/categorie"
+            to="/acquisti/fornitori"
             className="bg-purple-50 border border-purple-200 text-purple-900 rounded-2xl p-6 shadow hover:shadow-lg hover:-translate-y-0.5 transition transform"
           >
             <div className="flex items-center gap-3 mb-2">

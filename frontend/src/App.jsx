@@ -59,7 +59,6 @@ import CorrispettiviRiepilogo from "./pages/admin/CorrispettiviRiepilogo";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
-import FattureCategorie from "./pages/admin/FattureCategorie";
 import FattureFornitoreDettaglio from "./pages/admin/FattureFornitoreDettaglio";
 import FattureElenco from "./pages/admin/FattureElenco";
 import FattureDettaglio from "./pages/admin/FattureDettaglio";
@@ -173,7 +172,7 @@ export default function App() {
         <Route path="/acquisti/fatture" element={<FattureElenco />} />
         <Route path="/acquisti/dettaglio/:id" element={<FattureDettaglio />} />
         <Route path="/acquisti/fornitori" element={<FattureFornitoriElenco />} />
-        <Route path="/acquisti/categorie" element={<FattureCategorie />} />
+        <Route path="/acquisti/categorie" element={<Navigate to="/acquisti/impostazioni" replace />} />
         <Route path="/acquisti/impostazioni" element={<FattureImpostazioni />} />
         <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
         {/* Redirect vecchie rotte */}

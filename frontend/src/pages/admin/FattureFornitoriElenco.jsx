@@ -51,6 +51,12 @@ export default function FattureFornitoriElenco() {
   const [categoriaSel, setCategoriaSel] = useState("");
   const [ordineSel, setOrdineSel] = useState("totale_desc");
 
+  // ── Selezione massiva ──
+  const [selected, setSelected] = useState(new Set());
+  const [bulkCatId, setBulkCatId] = useState("");
+  const [bulkSubId, setBulkSubId] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   // ── Dettaglio inline ──
   const [openKey, setOpenKey] = useState(null);      // piva || nome del fornitore aperto
   const [detailData, setDetailData] = useState(null); // { fatture, prodotti, stats, fornNome, fornPiva }
@@ -120,6 +126,43 @@ export default function FattureFornitoriElenco() {
   const activeFilters = [searchText, annoSel, categoriaSel, ordineSel !== "totale_desc" ? "x" : ""].filter(Boolean).length;
   const clearFilters = () => {
     setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setOrdineSel("totale_desc");
+  };
+
+  // ── Selezione massiva: toggle ──
+  const toggleSelect = (key) => setSelected(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map(f => f.fornitore_piva || f.fornitore_nome)));
+  };
+
+  const bulkCat = categorie.find(c => c.id === Number(bulkCatId));
+  const bulkSubcats = bulkCat?.sottocategorie || [];
+
+  const handleBulkAssign = async () => {
+    if (selected.size === 0) return;
+    setBulkSaving(true);
+    const catId = bulkCatId ? Number(bulkCatId) : null;
+    const subId = bulkSubId ? Number(bulkSubId) : null;
+    try {
+      for (const key of selected) {
+        const forn = fornitori.find(f => (f.fornitore_piva || f.fornitore_nome) === key);
+        if (forn) {
+          await apiFetch(`${CAT_BASE}/fornitori/assegna`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fornitore_piva: forn.fornitore_piva,
+              fornitore_nome: forn.fornitore_nome,
+              categoria_id: catId,
+              sottocategoria_id: subId,
+            }),
+          });
+        }
+      }
+      setSelected(new Set());
+      setBulkCatId(""); setBulkSubId("");
+      await fetchAll();
+    } catch (_) {} finally { setBulkSaving(false); }
   };
 
   // ── Apri dettaglio inline ──
@@ -270,43 +313,81 @@ export default function FattureFornitoriElenco() {
               {fornitori.length === 0 ? "Nessun fornitore trovato." : "Nessun risultato per i filtri selezionati."}
             </div>
           ) : (
-            /* ═══════ LISTA TABELLA ═══════ */
-            <table className="w-full text-xs">
-              <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-[41px] z-[5]">
-                <tr>
-                  <th className="px-3 py-2 text-left">Fornitore</th>
-                  <th className="px-3 py-2 text-left hidden sm:table-cell">P.IVA</th>
-                  <th className="px-3 py-2 text-right">Fatture</th>
-                  <th className="px-3 py-2 text-right">Totale €</th>
-                  <th className="px-3 py-2 text-right hidden md:table-cell">Media/Fatt.</th>
-                  <th className="px-3 py-2 text-center hidden md:table-cell">Primo</th>
-                  <th className="px-3 py-2 text-center hidden md:table-cell">Ultimo</th>
-                  <th className="px-3 py-2 w-8"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((f, idx) => {
-                  const media = f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0;
-                  const key = f.fornitore_piva || f.fornitore_nome;
-                  return (
-                    <tr key={idx}
-                      className={`border-b border-neutral-100 cursor-pointer transition ${
-                        openKey === key ? "bg-teal-50" : "hover:bg-teal-50/40"
-                      }`}
-                      onClick={() => openDetail(f)}>
-                      <td className="px-3 py-2.5 font-medium text-neutral-900">{f.fornitore_nome || "—"}</td>
-                      <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{f.numero_fatture}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-teal-900">€ {fmt(f.totale_fatture)}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 hidden md:table-cell">€ {fmt(media)}</td>
-                      <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.primo_acquisto || "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.ultimo_acquisto || "—"}</td>
-                      <td className="px-3 py-2.5 text-center text-neutral-400">→</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            /* ═══════ LISTA TABELLA CON SELEZIONE ═══════ */
+            <>
+              {/* Bulk edit bar */}
+              {selected.size > 0 && (
+                <div className="sticky top-[41px] z-[8] bg-teal-50 border-b border-teal-300 px-4 py-2 flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-semibold text-teal-900">{selected.size} selezionati</span>
+                  <select value={bulkCatId} onChange={e => { setBulkCatId(e.target.value); setBulkSubId(""); }}
+                    className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
+                    <option value="">— Categoria —</option>
+                    {categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                  <select value={bulkSubId} onChange={e => setBulkSubId(e.target.value)} disabled={!bulkCatId}
+                    className="px-2 py-1 border border-teal-300 rounded-lg text-xs">
+                    <option value="">— Sotto-cat. —</option>
+                    {bulkSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                  </select>
+                  <button onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+                    {bulkSaving ? "Salvataggio..." : "Assegna categoria"}
+                  </button>
+                  <button onClick={() => setSelected(new Set())}
+                    className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 transition">Deseleziona</button>
+                </div>
+              )}
+
+              <table className="w-full text-xs">
+                <thead className="bg-neutral-50 border-b border-neutral-200 sticky top-[41px] z-[5]"
+                  style={selected.size > 0 ? { top: "77px" } : undefined}>
+                  <tr>
+                    <th className="px-2 py-2 w-8 text-center">
+                      <input type="checkbox"
+                        checked={selected.size === filtered.length && filtered.length > 0}
+                        onChange={toggleAll}
+                        className="accent-teal-600" />
+                    </th>
+                    <th className="px-3 py-2 text-left">Fornitore</th>
+                    <th className="px-3 py-2 text-left hidden sm:table-cell">P.IVA</th>
+                    <th className="px-3 py-2 text-right">Fatture</th>
+                    <th className="px-3 py-2 text-right">Totale €</th>
+                    <th className="px-3 py-2 text-right hidden md:table-cell">Media/Fatt.</th>
+                    <th className="px-3 py-2 text-center hidden md:table-cell">Primo</th>
+                    <th className="px-3 py-2 text-center hidden md:table-cell">Ultimo</th>
+                    <th className="px-3 py-2 w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((f, idx) => {
+                    const media = f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0;
+                    const key = f.fornitore_piva || f.fornitore_nome;
+                    const isSelected = selected.has(key);
+                    return (
+                      <tr key={idx}
+                        className={`border-b border-neutral-100 cursor-pointer transition ${
+                          isSelected ? "bg-teal-100/60" : openKey === key ? "bg-teal-50" : "hover:bg-teal-50/40"
+                        }`}
+                        onClick={() => openDetail(f)}>
+                        <td className="px-2 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" checked={isSelected}
+                            onChange={() => toggleSelect(key)}
+                            className="accent-teal-600" />
+                        </td>
+                        <td className="px-3 py-2.5 font-medium text-neutral-900">{f.fornitore_nome || "—"}</td>
+                        <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{f.numero_fatture}</td>
+                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-teal-900">€ {fmt(f.totale_fatture)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 hidden md:table-cell">€ {fmt(media)}</td>
+                        <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.primo_acquisto || "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.ultimo_acquisto || "—"}</td>
+                        <td className="px-3 py-2.5 text-center text-neutral-400">→</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>

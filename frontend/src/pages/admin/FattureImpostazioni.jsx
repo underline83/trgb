@@ -29,9 +29,12 @@ const MESI = [
 ];
 
 // ─── SIDEBAR MENU ────────────────────────────────────────
+const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
+
 const MENU = [
   { key: "xml",          label: "Import XML",          icon: "📄" },
   { key: "fic",          label: "Fatture in Cloud",    icon: "☁️" },
+  { key: "categorie",    label: "Categorie",           icon: "🏷️" },
   { key: "stato",        label: "Stato Database",      icon: "📊" },
   { key: "manutenzione", label: "Manutenzione",        icon: "🔧" },
 ];
@@ -60,6 +63,10 @@ export default function FattureImpostazioni() {
   const [syncSoloNuove, setSyncSoloNuove] = useState(false);
   const [syncForceDetail, setSyncForceDetail] = useState(false);
   const [syncLog, setSyncLog] = useState([]);
+
+  // ─── CATEGORIE STATE ────────────────────────────────
+  const [categorie, setCategorie] = useState([]);
+  const [catLoading, setCatLoading] = useState(false);
 
   // ─── FETCH XML STATS ──────────────────────────────────
   const fetchXmlStats = useCallback(async () => {
@@ -745,9 +752,26 @@ export default function FattureImpostazioni() {
     </div>
   );
 
+  // ─── CATEGORIE: fetch + CRUD ───────────────────────────
+  const fetchCategorie = useCallback(async () => {
+    setCatLoading(true);
+    try {
+      const r = await apiFetch(CAT_BASE);
+      if (r.ok) setCategorie(await r.json());
+    } catch (_) {}
+    setCatLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCategorie(); }, [fetchCategorie]);
+
+  const renderCategorie = () => (
+    <CategorieManager categorie={categorie} loading={catLoading} onRefresh={fetchCategorie} />
+  );
+
   const sectionRenderers = {
     xml: renderXml,
     fic: renderFic,
+    categorie: renderCategorie,
     stato: renderStato,
     manutenzione: renderManutenzione,
   };
@@ -794,6 +818,139 @@ export default function FattureImpostazioni() {
           </main>
 
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// COMPONENTE GESTIONE CATEGORIE (albero CRUD)
+// ═══════════════════════════════════════════════════════
+function CategorieManager({ categorie, loading, onRefresh }) {
+  const [newCatName, setNewCatName] = useState("");
+  const [newSubNames, setNewSubNames] = useState({});
+  const [editCat, setEditCat] = useState(null);
+  const [editSub, setEditSub] = useState(null);
+  const [moving, setMoving] = useState(null);
+
+  const addCategoria = async () => {
+    if (!newCatName.trim()) return;
+    await apiFetch(CAT_BASE, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: newCatName.trim() }) });
+    setNewCatName(""); onRefresh();
+  };
+  const addSottocategoria = async (catId) => {
+    const nome = (newSubNames[catId] || "").trim();
+    if (!nome) return;
+    await apiFetch(`${CAT_BASE}/${catId}/sotto`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) });
+    setNewSubNames(p => ({ ...p, [catId]: "" })); onRefresh();
+  };
+  const deleteCat = async (catId, nome) => {
+    if (!window.confirm(`Eliminare "${nome}" e tutte le sue sottocategorie?`)) return;
+    await apiFetch(`${CAT_BASE}/${catId}`, { method: "DELETE" }); onRefresh();
+  };
+  const deleteSub = async (subId, nome) => {
+    if (!window.confirm(`Eliminare "${nome}"?`)) return;
+    await apiFetch(`${CAT_BASE}/sotto/${subId}`, { method: "DELETE" }); onRefresh();
+  };
+  const moveSub = async (subId, newCatId) => {
+    await apiFetch(`${CAT_BASE}/sotto/${subId}/sposta`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ new_categoria_id: newCatId }) });
+    setMoving(null); onRefresh();
+  };
+  const saveCatRename = async () => {
+    if (!editCat) return;
+    await apiFetch(`${CAT_BASE}/${editCat.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: editCat.nome }) });
+    setEditCat(null); onRefresh();
+  };
+  const saveSubRename = async () => {
+    if (!editSub) return;
+    await apiFetch(`${CAT_BASE}/sotto/${editSub.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: editSub.nome }) });
+    setEditSub(null); onRefresh();
+  };
+
+  if (loading) return <p className="text-neutral-500 text-sm">Caricamento categorie...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-teal-900 mb-1">Gestione Categorie</h2>
+      <p className="text-sm text-neutral-500 mb-4">Crea, modifica e organizza le categorie e sotto-categorie per fornitori e prodotti.</p>
+
+      <div className="space-y-4">
+        {categorie.map(cat => (
+          <div key={cat.id} className="border border-neutral-200 rounded-2xl p-4 bg-neutral-50">
+            <div className="flex items-center gap-2 mb-3">
+              {editCat?.id === cat.id ? (
+                <>
+                  <input value={editCat.nome} onChange={e => setEditCat({ ...editCat, nome: e.target.value })}
+                    onKeyDown={e => e.key === "Enter" && saveCatRename()}
+                    className="px-2 py-1 border rounded-lg text-sm font-semibold flex-1" autoFocus />
+                  <button onClick={saveCatRename} className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-lg">Salva</button>
+                  <button onClick={() => setEditCat(null)} className="text-xs px-2 py-1 bg-neutral-200 rounded-lg">Annulla</button>
+                </>
+              ) : (
+                <>
+                  <span className="text-base font-bold text-teal-900">{cat.nome}</span>
+                  <span className="text-[10px] text-neutral-400">({cat.sottocategorie?.length || 0} sub)</span>
+                  <button onClick={() => setEditCat({ id: cat.id, nome: cat.nome })} className="text-xs px-2 py-0.5 text-blue-700 hover:bg-blue-50 rounded-lg">✏️</button>
+                  <button onClick={() => deleteCat(cat.id, cat.nome)} className="text-xs px-2 py-0.5 text-red-600 hover:bg-red-50 rounded-lg">🗑️</button>
+                </>
+              )}
+            </div>
+            <div className="ml-4 space-y-1">
+              {(cat.sottocategorie || []).map(sub => (
+                <div key={sub.id} className="flex items-center gap-2">
+                  <span className="text-neutral-400 text-xs">├─</span>
+                  {editSub?.id === sub.id ? (
+                    <>
+                      <input value={editSub.nome} onChange={e => setEditSub({ ...editSub, nome: e.target.value })}
+                        onKeyDown={e => e.key === "Enter" && saveSubRename()}
+                        className="px-2 py-0.5 border rounded text-xs flex-1" autoFocus />
+                      <button onClick={saveSubRename} className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-800 rounded">OK</button>
+                      <button onClick={() => setEditSub(null)} className="text-[10px] px-1.5 py-0.5 bg-neutral-200 rounded">✕</button>
+                    </>
+                  ) : moving?.subId === sub.id ? (
+                    <>
+                      <span className="text-sm font-medium text-teal-700">{sub.nome}</span>
+                      <span className="text-[10px] text-neutral-500">→ sposta in:</span>
+                      <select className="text-xs border rounded px-1.5 py-0.5" defaultValue=""
+                        onChange={e => { if (e.target.value) moveSub(sub.id, Number(e.target.value)); }}>
+                        <option value="">— scegli —</option>
+                        {categorie.filter(c => c.id !== cat.id).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </select>
+                      <button onClick={() => setMoving(null)} className="text-[10px] px-1.5 py-0.5 bg-neutral-200 rounded">✕</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm">{sub.nome}</span>
+                      <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })} className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
+                      <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
+                        className="text-[10px] px-1.5 py-0.5 text-teal-600 hover:bg-teal-50 rounded" title="Sposta in un'altra categoria">↗️</button>
+                      <button onClick={() => deleteSub(sub.id, sub.nome)} className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded">🗑️</button>
+                    </>
+                  )}
+                </div>
+              ))}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-neutral-400 text-xs">└─</span>
+                <input type="text" placeholder="Nuova sotto-categoria..."
+                  value={newSubNames[cat.id] || ""}
+                  onChange={e => setNewSubNames(p => ({ ...p, [cat.id]: e.target.value }))}
+                  onKeyDown={e => e.key === "Enter" && addSottocategoria(cat.id)}
+                  className="px-2 py-1 border border-dashed border-neutral-300 rounded text-xs flex-1" />
+                <button onClick={() => addSottocategoria(cat.id)}
+                  className="text-xs px-2 py-1 bg-teal-100 text-teal-800 rounded-lg hover:bg-teal-200 transition">+ Aggiungi</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <input type="text" placeholder="Nuova categoria..." value={newCatName}
+          onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCategoria()}
+          className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64" />
+        <button onClick={addCategoria}
+          className="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition">+ Nuova Categoria</button>
       </div>
     </div>
   );
