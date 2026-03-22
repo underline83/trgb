@@ -179,14 +179,31 @@ export default function FattureElenco() {
     setTipoSel(""); setImportoMode("any"); setImportoVal1(""); setImportoVal2("");
   };
 
-  // ── Riepilogo (conteggi su fattureBase = filtrate tranne fonte/tipo) ──
+  // ── Riepilogo ──
+  // Conteggi fonte: calcolati su fattureBase + filtro tipo attivo
+  // Conteggi tipo: calcolati su fattureBase + filtro fonte attivo
   const totFiltrate = fattureFiltrate.length;
   const totImporto = fattureFiltrate.reduce((s, f) => s + (f.totale_fattura || 0), 0);
-  const countXml = fattureBase.filter(f => (f.fonte || "xml") === "xml").length;
-  const countFic = fattureBase.filter(f => f.fonte === "fic").length;
-  const countAutofatture = fattureBase.filter(f => f.is_autofattura).length;
-  const countEscluse = fattureBase.filter(f => f.escluso && !f.is_autofattura).length;
-  const countNormali = fattureBase.filter(f => !f.is_autofattura && !f.escluso).length;
+
+  const baseTipo = useMemo(() => {
+    let list = fattureBase;
+    if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
+    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
+    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
+    return list;
+  }, [fattureBase, tipoSel]);
+
+  const baseFonte = useMemo(() => {
+    let list = fattureBase;
+    if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
+    return list;
+  }, [fattureBase, fonteSel]);
+
+  const countXml = baseTipo.filter(f => (f.fonte || "xml") === "xml").length;
+  const countFic = baseTipo.filter(f => f.fonte === "fic").length;
+  const countAutofatture = baseFonte.filter(f => f.is_autofattura).length;
+  const countEscluse = baseFonte.filter(f => f.escluso && !f.is_autofattura).length;
+  const countNormali = baseFonte.filter(f => !f.is_autofattura && !f.escluso).length;
 
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -344,22 +361,30 @@ export default function FattureElenco() {
             <span className="text-neutral-400">|</span>
 
             {/* Badge cliccabili fonte */}
-            <button onClick={() => { setFonteSel(fonteSel === "xml" ? "" : "xml"); setTipoSel(""); }}
+            <button onClick={() => setFonteSel(fonteSel === "xml" ? "" : "xml")}
               className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
                 fonteSel === "xml" ? "bg-neutral-700 text-white ring-1 ring-neutral-800" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
               }`}>
               XML: {countXml}
             </button>
-            <button onClick={() => { setFonteSel(fonteSel === "fic" ? "" : "fic"); setTipoSel(""); }}
+            <button onClick={() => setFonteSel(fonteSel === "fic" ? "" : "fic")}
               className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
                 fonteSel === "fic" ? "bg-teal-700 text-white ring-1 ring-teal-800" : "bg-teal-50 text-teal-700 hover:bg-teal-100"
               }`}>
               FIC: {countFic}
             </button>
 
+            <span className="text-neutral-300">|</span>
+
             {/* Badge cliccabili tipo */}
+            <button onClick={() => setTipoSel(tipoSel === "normale" ? "" : "normale")}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                tipoSel === "normale" ? "bg-emerald-600 text-white ring-1 ring-emerald-700" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              }`}>
+              Normali: {countNormali}
+            </button>
             {countAutofatture > 0 && (
-              <button onClick={() => { setTipoSel(tipoSel === "autofattura" ? "" : "autofattura"); setFonteSel(""); }}
+              <button onClick={() => setTipoSel(tipoSel === "autofattura" ? "" : "autofattura")}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
                   tipoSel === "autofattura" ? "bg-amber-600 text-white ring-1 ring-amber-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
                 }`}>
@@ -367,19 +392,11 @@ export default function FattureElenco() {
               </button>
             )}
             {countEscluse > 0 && (
-              <button onClick={() => { setTipoSel(tipoSel === "escluso" ? "" : "escluso"); setFonteSel(""); }}
+              <button onClick={() => setTipoSel(tipoSel === "escluso" ? "" : "escluso")}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
                   tipoSel === "escluso" ? "bg-red-600 text-white ring-1 ring-red-700" : "bg-red-50 text-red-600 hover:bg-red-100"
                 }`}>
                 Escluse: {countEscluse}
-              </button>
-            )}
-            {(countAutofatture > 0 || countEscluse > 0) && (
-              <button onClick={() => { setTipoSel(tipoSel === "normale" ? "" : "normale"); setFonteSel(""); }}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
-                  tipoSel === "normale" ? "bg-emerald-600 text-white ring-1 ring-emerald-700" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                }`}>
-                Normali: {countNormali}
               </button>
             )}
 

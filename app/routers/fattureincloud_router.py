@@ -274,7 +274,7 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         # ── RIGHE / ITEMS ────────────────────────────────
         items_list = doc_data.get("items_list") or []
         if not items_list:
-            return 0
+            return result
 
         # Rimuovi righe precedenti per questa fattura (re-sync pulito)
         conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,))
@@ -333,6 +333,7 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
 @router.post("/sync", summary="Sincronizza fatture ricevute → fe_fatture", response_model=SyncResult)
 def fic_sync(
     anno: int = Query(None, description="Anno da sincronizzare (default: anno corrente)"),
+    force_detail: bool = Query(False, description="Forza re-fetch dettaglio per tutte le fatture (ripara numeri mancanti)"),
     current_user: Any = Depends(get_current_user),
 ):
     """
@@ -439,27 +440,51 @@ def fic_sync(
                     ).fetchone()
 
                     if existing_fic:
-                        conn.execute(
-                            """
-                            UPDATE fe_fatture SET
-                                fornitore_nome = ?,
-                                fornitore_piva = ?,
-                                numero_fattura = ?,
-                                data_fattura   = ?,
-                                imponibile_totale = ?,
-                                iva_totale     = ?,
-                                totale_fattura = ?,
-                                valuta         = ?
-                            WHERE fic_id = ?
-                            """,
-                            (
-                                fornitore_nome, fornitore_piva,
-                                doc_number, doc_date,
-                                amount_net, amount_vat, amount_gross,
-                                "EUR",
-                                fic_id,
-                            ),
-                        )
+                        # NON sovrascrivere numero_fattura se la lista API non lo fornisce
+                        # (il numero viene dal detail endpoint in fase 2)
+                        if doc_number:
+                            conn.execute(
+                                """
+                                UPDATE fe_fatture SET
+                                    fornitore_nome = ?,
+                                    fornitore_piva = ?,
+                                    numero_fattura = ?,
+                                    data_fattura   = ?,
+                                    imponibile_totale = ?,
+                                    iva_totale     = ?,
+                                    totale_fattura = ?,
+                                    valuta         = ?
+                                WHERE fic_id = ?
+                                """,
+                                (
+                                    fornitore_nome, fornitore_piva,
+                                    doc_number, doc_date,
+                                    amount_net, amount_vat, amount_gross,
+                                    "EUR",
+                                    fic_id,
+                                ),
+                            )
+                        else:
+                            conn.execute(
+                                """
+                                UPDATE fe_fatture SET
+                                    fornitore_nome = ?,
+                                    fornitore_piva = ?,
+                                    data_fattura   = ?,
+                                    imponibile_totale = ?,
+                                    iva_totale     = ?,
+                                    totale_fattura = ?,
+                                    valuta         = ?
+                                WHERE fic_id = ?
+                                """,
+                                (
+                                    fornitore_nome, fornitore_piva,
+                                    doc_date,
+                                    amount_net, amount_vat, amount_gross,
+                                    "EUR",
+                                    fic_id,
+                                ),
+                            )
                         docs_to_detail.append((fic_id, existing_fic["id"]))
                         aggiornate += 1
                         continue

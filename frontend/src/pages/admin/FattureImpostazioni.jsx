@@ -58,6 +58,7 @@ export default function FattureImpostazioni() {
   const [syncAnno, setSyncAnno] = useState(new Date().getFullYear());
   const [syncMese, setSyncMese] = useState("");
   const [syncSoloNuove, setSyncSoloNuove] = useState(false);
+  const [syncForceDetail, setSyncForceDetail] = useState(false);
   const [syncLog, setSyncLog] = useState([]);
 
   // ─── FETCH XML STATS ──────────────────────────────────
@@ -183,6 +184,7 @@ export default function FattureImpostazioni() {
       const params = new URLSearchParams({ anno: syncAnno });
       if (syncMese) params.append("mese", syncMese);
       if (syncSoloNuove) params.append("solo_nuove", "1");
+      if (syncForceDetail) params.append("force_detail", "1");
       const r = await apiFetch(`${FC}/sync?${params}`, { method: "POST" });
       const d = await r.json();
       if (r.ok) { setSyncResult(d); fetchSyncLog(); fetchXmlStats(); }
@@ -381,7 +383,7 @@ export default function FattureImpostazioni() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-end pb-1">
+              <div className="flex flex-col gap-2 justify-end pb-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -390,6 +392,15 @@ export default function FattureImpostazioni() {
                     className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-400"
                   />
                   <span className="text-sm text-neutral-700">Solo nuove fatture</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none" title="Ri-scarica dettaglio per tutte le fatture, ripara numeri mancanti e unifica duplicati XML/FIC">
+                  <input
+                    type="checkbox"
+                    checked={syncForceDetail}
+                    onChange={(e) => setSyncForceDetail(e.target.checked)}
+                    className="w-4 h-4 rounded border-neutral-300 text-amber-600 focus:ring-amber-400"
+                  />
+                  <span className="text-sm text-neutral-700">Ripara dettagli</span>
                 </label>
               </div>
             </div>
