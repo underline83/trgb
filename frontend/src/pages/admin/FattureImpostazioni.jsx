@@ -114,13 +114,27 @@ export default function FattureImpostazioni() {
     try {
       const formData = new FormData();
       files.forEach((f) => formData.append("files", f));
-      const res = await apiFetch(`${FE}/import`, { method: "POST", body: formData });
+      // Timeout 10 minuti per file grossi (ZIP con molti XML)
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+      const res = await apiFetch(`${FE}/import`, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Errore importazione XML."); }
       const data = await res.json();
       setUploadResult(data);
       setFiles([]);
       fetchXmlStats();
-    } catch (e) { setUploadError(e.message); }
+    } catch (e) {
+      if (e.name === "AbortError") {
+        setUploadError("Timeout: l'importazione ha impiegato troppo tempo. Prova con file più piccoli o riprova.");
+      } else {
+        setUploadError(e.message);
+      }
+    }
     finally { setUploading(false); }
   };
 

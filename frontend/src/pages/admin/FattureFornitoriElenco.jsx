@@ -402,6 +402,11 @@ export default function FattureFornitoriElenco() {
 function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh }) {
   const [tab, setTab] = useState("fatture"); // "fatture" | "prodotti"
 
+  // ── Dettaglio fattura inline ──
+  const [openFatturaId, setOpenFatturaId] = useState(null);
+  const [fatturaDetail, setFatturaDetail] = useState(null);
+  const [fatturaDetLoading, setFatturaDetLoading] = useState(false);
+
   // ── Categoria generica fornitore ──
   const [catGenericaId, setCatGenericaId] = useState("");
   const [subGenericaId, setSubGenericaId] = useState("");
@@ -425,7 +430,24 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setSelected(new Set());
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
+    setOpenFatturaId(null); setFatturaDetail(null);
   }, [openKey]);
+
+  // ── Apri dettaglio fattura inline ──
+  const openFattura = async (id) => {
+    if (openFatturaId === id) { setOpenFatturaId(null); setFatturaDetail(null); return; }
+    setOpenFatturaId(id);
+    setFatturaDetLoading(true);
+    try {
+      const res = await apiFetch(`${FE}/fatture/${id}`);
+      if (!res.ok) throw new Error();
+      setFatturaDetail(await res.json());
+    } catch {
+      setFatturaDetail(null);
+    } finally {
+      setFatturaDetLoading(false);
+    }
+  };
 
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio...</div>;
   if (!data) return <div className="text-center py-20 text-neutral-400">Errore caricamento</div>;
@@ -667,6 +689,13 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
       {tab === "fatture" && (
         fatture.length === 0 ? (
           <p className="text-neutral-400 text-sm py-8 text-center">Nessuna fattura trovata.</p>
+        ) : openFatturaId && (fatturaDetail || fatturaDetLoading) ? (
+          /* ── Dettaglio fattura inline ── */
+          <FatturaInlineDetail
+            fattura={fatturaDetail}
+            loading={fatturaDetLoading}
+            onClose={() => { setOpenFatturaId(null); setFatturaDetail(null); }}
+          />
         ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
             <div className="max-h-[50vh] overflow-y-auto">
@@ -685,7 +714,11 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                 </thead>
                 <tbody>
                   {fatture.map(f => (
-                    <tr key={f.id} className="border-t border-neutral-100 hover:bg-teal-50/30 transition">
+                    <tr key={f.id}
+                      onClick={() => openFattura(f.id)}
+                      className={`border-t border-neutral-100 cursor-pointer transition ${
+                        openFatturaId === f.id ? "bg-teal-50" : "hover:bg-teal-50/30"
+                      }`}>
                       <td className="px-3 py-2 tabular-nums text-neutral-700">{f.data_fattura || "—"}</td>
                       <td className="px-3 py-2 text-neutral-600 font-mono text-[10px] max-w-[140px] truncate">{f.numero_fattura || "—"}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
@@ -831,6 +864,126 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// COMPONENTE DETTAGLIO FATTURA INLINE (dentro tab Fatture)
+// ═══════════════════════════════════════════════════════
+function FatturaInlineDetail({ fattura, loading, onClose }) {
+  if (loading) return <div className="text-center py-8 text-neutral-400 text-sm">Caricamento dettaglio fattura...</div>;
+  if (!fattura) return <div className="text-center py-8 text-neutral-400 text-sm">Fattura non trovata</div>;
+
+  const righe = fattura.righe || [];
+  const totaleRighe = righe.reduce((s, r) => s + (r.prezzo_totale || 0), 0);
+
+  return (
+    <div className="space-y-3">
+      {/* Back */}
+      <div className="flex items-center justify-between">
+        <button onClick={onClose}
+          className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
+          ← Torna alle fatture
+        </button>
+        <span className="text-[10px] text-neutral-400">ID: {fattura.id}</span>
+      </div>
+
+      {/* Header */}
+      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4">
+        <div className="flex flex-col sm:flex-row justify-between gap-3">
+          <div>
+            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Fattura N.</p>
+            <p className="text-lg font-bold text-neutral-900">{fattura.numero_fattura || "—"}</p>
+            <p className="text-xs text-neutral-500 mt-0.5">Data: <strong>{fattura.data_fattura || "—"}</strong></p>
+            {fattura.xml_filename && (
+              <p className="text-[10px] text-neutral-400 mt-1 font-mono truncate max-w-[250px]">{fattura.xml_filename}</p>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+              fattura.pagato ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-600"
+            }`}>
+              {fattura.pagato ? "Pagata" : "Da pagare"}
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+              fattura.fonte === "fic" ? "bg-teal-50 text-teal-700" : "bg-neutral-100 text-neutral-600"
+            }`}>
+              {(fattura.fonte || "xml").toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        {/* Importi */}
+        <div className="mt-3 pt-3 border-t border-neutral-200 grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Imponibile</p>
+            <p className="text-base font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.imponibile_totale)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">IVA</p>
+            <p className="text-base font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.iva_totale)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Totale</p>
+            <p className="text-xl font-bold text-teal-900 tabular-nums">€ {fmt(fattura.totale_fattura)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Righe */}
+      <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white">
+        <div className="px-4 py-2 border-b border-neutral-100 flex justify-between items-center">
+          <span className="text-xs font-semibold text-neutral-800">Righe fattura ({righe.length})</span>
+          <span className="text-[10px] text-neutral-400">Totale righe: € {fmt(totaleRighe)}</span>
+        </div>
+        {righe.length === 0 ? (
+          <div className="text-center py-6 text-neutral-400 text-xs">Nessuna riga presente</div>
+        ) : (
+          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-200 sticky top-0">
+                <tr>
+                  <th className="px-3 py-1.5 text-left font-medium w-8">#</th>
+                  <th className="px-3 py-1.5 text-left font-medium">Descrizione</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Q.tà</th>
+                  <th className="px-3 py-1.5 text-right font-medium">U.M.</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Prezzo Unit.</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Totale</th>
+                  <th className="px-3 py-1.5 text-right font-medium">IVA %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {righe.map((r, i) => (
+                  <tr key={r.id || i} className="border-b border-neutral-100 hover:bg-neutral-50/50">
+                    <td className="px-3 py-1.5 text-neutral-400 tabular-nums">{r.numero_linea || i + 1}</td>
+                    <td className="px-3 py-1.5 text-neutral-800 font-medium max-w-md">{r.descrizione || "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.quantita != null ? fmt(r.quantita) : "—"}</td>
+                    <td className="px-3 py-1.5 text-right text-neutral-500">{r.unita_misura || ""}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.prezzo_unitario != null ? `€ ${fmt(r.prezzo_unitario)}` : "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-neutral-900">{r.prezzo_totale != null ? `€ ${fmt(r.prezzo_totale)}` : "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{r.aliquota_iva != null ? `${r.aliquota_iva}%` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-teal-50/50 border-t-2 border-teal-200">
+                  <td colSpan={5} className="px-3 py-1.5 text-right text-xs font-bold text-teal-900 uppercase tracking-wide">Totale righe</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums font-bold text-teal-900">€ {fmt(totaleRighe)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Meta */}
+      <div className="flex justify-between items-center text-[10px] text-neutral-400 px-1">
+        <span>Importato il: {fattura.data_import || "—"}</span>
+        <span>Fonte: {(fattura.fonte || "xml").toUpperCase()}</span>
+      </div>
     </div>
   );
 }
