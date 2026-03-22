@@ -60,8 +60,15 @@ for fic in fic_list:
     xml_id = xml["id"]
     fic_id = fic["id"]
 
+    # Salva i valori XML prima di cancellare
+    xml_hash = xml["xml_hash"]
+    xml_filename = xml["xml_filename"]
+    xml_numero = xml["numero_fattura"]
+    xml_tipo = xml["tipo_documento"]
+    xml_auto = xml["is_autofattura"]
+
     try:
-        # Sposta righe se FIC non ne ha
+        # Step 1: Sposta righe da XML a FIC (se FIC non ne ha)
         fic_righe = cur.execute("SELECT COUNT(*) AS c FROM fe_righe WHERE fattura_id=?", (fic_id,)).fetchone()["c"]
         xml_righe = cur.execute("SELECT COUNT(*) AS c FROM fe_righe WHERE fattura_id=?", (xml_id,)).fetchone()["c"]
 
@@ -69,7 +76,11 @@ for fic in fic_list:
             cur.execute("UPDATE fe_righe SET fattura_id=? WHERE fattura_id=?", (fic_id, xml_id))
             righe_tot += xml_righe
 
-        # Aggiorna metadati FIC
+        # Step 2: PRIMA cancella la copia XML (libera il vincolo UNIQUE su xml_hash)
+        cur.execute("DELETE FROM fe_righe WHERE fattura_id=?", (xml_id,))
+        cur.execute("DELETE FROM fe_fatture WHERE id=?", (xml_id,))
+
+        # Step 3: POI aggiorna la FIC con i metadati XML (ora xml_hash e' libero)
         cur.execute("""
             UPDATE fe_fatture SET
                 xml_hash=?, xml_filename=?,
@@ -77,12 +88,8 @@ for fic in fic_list:
                 tipo_documento=COALESCE(?, tipo_documento),
                 is_autofattura=COALESCE(?, is_autofattura)
             WHERE id=?
-        """, (xml["xml_hash"], xml["xml_filename"], xml["numero_fattura"],
-              xml["tipo_documento"], xml["is_autofattura"], fic_id))
+        """, (xml_hash, xml_filename, xml_numero, xml_tipo, xml_auto, fic_id))
 
-        # Elimina copia XML
-        cur.execute("DELETE FROM fe_righe WHERE fattura_id=?", (xml_id,))
-        cur.execute("DELETE FROM fe_fatture WHERE id=?", (xml_id,))
         merged += 1
 
         if merged % 50 == 0:
@@ -91,9 +98,8 @@ for fic in fic_list:
 
     except Exception as e:
         errors += 1
-        if errors <= 5:
+        if errors <= 10:
             print(f"  ERRORE fic={fic_id} xml={xml_id}: {e}")
-        # Rollback singola operazione fallita e continua
         conn.rollback()
 
 conn.commit()
