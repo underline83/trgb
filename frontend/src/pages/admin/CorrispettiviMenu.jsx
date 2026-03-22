@@ -87,92 +87,136 @@ export default function CorrispettiviMenu() {
             </div>
           )}
 
-          {/* MENU GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* ── CHIUSURE TURNO ── */}
+          <div className="mb-3">
+            <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Chiusure turno</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
 
-            {/* RIEPILOGO MENSILE */}
+            {/* CHIUSURA TURNO — form inserimento */}
             <Link
-              to="/vendite/riepilogo"
+              to="/vendite/fine-turno"
               className="bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
             >
-              <div className="text-5xl mb-3">📋</div>
+              <div className="text-5xl mb-3">🔔</div>
               <h2 className="text-xl font-semibold font-playfair">
-                Riepilogo Mensile
+                Chiusura Turno
               </h2>
               <p className="text-neutral-700 text-sm mt-1">
-                Lista chiusure mese per mese, totali annuali e medie giornaliere.
+                Compila la chiusura fine servizio pranzo o cena.
               </p>
             </Link>
 
-            {/* CALENDARIO & CHIUSURE */}
-            <Link
-              to="/vendite/chiusure"
-              className="bg-green-50 border border-green-200 text-green-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-            >
-              <div className="text-5xl mb-3">📅</div>
-              <h2 className="text-xl font-semibold font-playfair">
-                Calendario & Chiusure
-              </h2>
-              <p className="text-neutral-700 text-sm mt-1">
-                Seleziona il giorno, inserisci o modifica la chiusura cassa.
-              </p>
-            </Link>
-
-            {/* DASHBOARD */}
-            <Link
-              to="/vendite/dashboard"
-              className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-            >
-              <div className="text-5xl mb-3">📊</div>
-              <h2 className="text-xl font-semibold font-playfair">
-                Dashboard Mensile
-              </h2>
-              <p className="text-neutral-700 text-sm mt-1">
-                Andamento mensile, medie per giorno e differenze cassa.
-              </p>
-            </Link>
-
-            {/* CONFRONTO ANNUALE */}
-            <Link
-              to="/vendite/annual"
-              className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-            >
-              <div className="text-5xl mb-3">📈</div>
-              <h2 className="text-xl font-semibold font-playfair">
-                Confronto Annuale
-              </h2>
-              <p className="text-neutral-700 text-sm mt-1">
-                Confronta anno su anno, variazioni mensili e trend.
-              </p>
-            </Link>
-
-            {/* IMPORT EXCEL — SOLO ADMIN */}
-            {isAdmin ? (
+            {/* LISTA CHIUSURE — storico admin */}
+            {isAdmin && (
               <Link
-                to="/vendite/import"
-                className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center sm:col-span-2 lg:col-span-3"
+                to="/vendite/chiusure"
+                className="bg-green-50 border border-green-200 text-green-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
               >
-                <div className="text-5xl mb-3">📤</div>
+                <div className="text-5xl mb-3">📋</div>
                 <h2 className="text-xl font-semibold font-playfair">
-                  Importa da Excel (solo Admin)
+                  Lista Chiusure
                 </h2>
                 <p className="text-neutral-700 text-sm mt-1">
-                  Carica i file corrispettivi (archivio, 2025, 2026, …) per aggiornare il database.
+                  Storico chiusure turno con dettaglio, quadratura e filtri.
                 </p>
               </Link>
-            ) : (
-              <div className="bg-neutral-50 border border-neutral-200 text-neutral-500 rounded-2xl p-8 shadow-inner sm:col-span-2 lg:col-span-3 text-center cursor-not-allowed">
-                <div className="text-5xl mb-3">🔒</div>
+            )}
+
+            {/* PRE-CONTI — admin */}
+            {isAdmin && (
+              <Link
+                to="/vendite/preconti"
+                className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              >
+                <div className="text-5xl mb-3">🍽️</div>
                 <h2 className="text-xl font-semibold font-playfair">
-                  Import da Excel (solo Admin)
+                  Pre-conti
                 </h2>
-                <p className="text-neutral-600 text-sm mt-1">
-                  L&apos;importazione dei corrispettivi da Excel è riservata all&apos;utente Admin.
+                <p className="text-neutral-700 text-sm mt-1">
+                  Storico tavoli aperti non battuti, importi e dettagli.
                 </p>
-              </div>
+              </Link>
             )}
 
           </div>
+
+          {/* ── CORRISPETTIVI & ANALISI ── */}
+          {isAdmin && (
+            <>
+              <div className="mb-3">
+                <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Corrispettivi & Analisi</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+
+                {/* RIEPILOGO MENSILE */}
+                <Link
+                  to="/vendite/riepilogo"
+                  className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                >
+                  <div className="text-5xl mb-3">📅</div>
+                  <h2 className="text-xl font-semibold font-playfair">
+                    Riepilogo Mensile
+                  </h2>
+                  <p className="text-neutral-700 text-sm mt-1">
+                    Lista chiusure mese per mese, totali annuali e medie giornaliere.
+                  </p>
+                </Link>
+
+                {/* DASHBOARD */}
+                <Link
+                  to="/vendite/dashboard"
+                  className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                >
+                  <div className="text-5xl mb-3">📊</div>
+                  <h2 className="text-xl font-semibold font-playfair">
+                    Dashboard Mensile
+                  </h2>
+                  <p className="text-neutral-700 text-sm mt-1">
+                    Andamento mensile, medie per giorno e differenze cassa.
+                  </p>
+                </Link>
+
+                {/* CONFRONTO ANNUALE */}
+                <Link
+                  to="/vendite/annual"
+                  className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                >
+                  <div className="text-5xl mb-3">📈</div>
+                  <h2 className="text-xl font-semibold font-playfair">
+                    Confronto Annuale
+                  </h2>
+                  <p className="text-neutral-700 text-sm mt-1">
+                    Confronta anno su anno, variazioni mensili e trend.
+                  </p>
+                </Link>
+
+              </div>
+            </>
+          )}
+
+          {/* ── IMPOSTAZIONI ── */}
+          {isAdmin && (
+            <>
+              <div className="mb-3">
+                <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Impostazioni</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-5">
+                <Link
+                  to="/vendite/impostazioni"
+                  className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                >
+                  <div className="text-4xl mb-2">⚙️</div>
+                  <h2 className="text-lg font-semibold font-playfair">
+                    Import & Impostazioni
+                  </h2>
+                  <p className="text-neutral-700 text-sm mt-1">
+                    Carica corrispettivi da Excel, configura impostazioni vendite.
+                  </p>
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
