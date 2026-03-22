@@ -222,6 +222,7 @@ export default function FattureInCloud() {
                 <span className="text-emerald-700">
                   {syncResult.nuove} nuove, {syncResult.aggiornate} aggiornate
                   {syncResult.duplicate_xml > 0 && <span className="text-neutral-500">, {syncResult.duplicate_xml} già presenti da XML</span>}
+                  {syncResult.merged_xml > 0 && <span className="text-blue-600">, {syncResult.merged_xml} uniti con XML</span>}
                   {syncResult.righe_importate > 0 && <span className="text-teal-600">, {syncResult.righe_importate} righe dettaglio</span>}
                   {syncResult.errori > 0 && <span className="text-red-600">, {syncResult.errori} errori</span>}
                   {" — "}{syncResult.totale_api} totali su FIC

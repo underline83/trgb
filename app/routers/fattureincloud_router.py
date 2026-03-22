@@ -90,6 +90,7 @@ class SyncResult(BaseModel):
     nuove: int = 0
     aggiornate: int = 0
     duplicate_xml: int = 0
+    merged_xml: int = 0
     errori: int = 0
     righe_importate: int = 0
     totale_api: int = 0
@@ -198,15 +199,16 @@ def fic_disconnect(current_user: Any = Depends(get_current_user)):
         conn.close()
 
 
-def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_id: int) -> int:
+def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_id: int) -> dict:
     """
     Fetcha il dettaglio di un documento da FIC e aggiorna:
     - numero_fattura (invoice_number)
     - pagato (da payments_list)
+    - dedup con XML (ora che abbiamo invoice_number)
     - righe in fe_righe (da items_list)
-    Ritorna il numero di righe inserite.
+    Ritorna dict con contatori: {"righe": N, "merged": 0|1}
     """
-    righe_count = 0
+    result = {"righe": 0, "merged": 0}
     try:
         detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
             "fieldset": "detailed",
@@ -215,11 +217,12 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
 
         # ── CAMPI DAL DETTAGLIO ──────────────────────────
         invoice_number = doc_data.get("invoice_number", "") or ""
-        description = doc_data.get("description", "") or ""
+        entity = doc_data.get("entity", {}) or {}
+        fornitore_piva = entity.get("vat_number", "") or ""
+        doc_date = doc_data.get("date", "") or ""
 
         # ── STATO PAGAMENTO ──────────────────────────────
         payments = doc_data.get("payments_list") or []
-        # Controlla se tutti i pagamenti hanno status "paid"
         if payments:
             all_paid = all(
                 (p.get("status", "") == "paid" or p.get("paid_date"))
@@ -229,10 +232,39 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         else:
             pagato = 0
 
+        # ── DEDUP CON XML (ora che abbiamo invoice_number) ───
+        # Cerca se esiste un duplicato XML con stessa piva+numero+data
+        if fornitore_piva and invoice_number and doc_date:
+            xml_dup = conn.execute(
+                """SELECT id FROM fe_fatture
+                WHERE fornitore_piva = ? AND numero_fattura = ? AND data_fattura = ?
+                  AND COALESCE(fonte, 'xml') = 'xml' AND id != ?""",
+                (fornitore_piva, invoice_number, doc_date, fattura_db_id),
+            ).fetchone()
+
+            if xml_dup:
+                xml_id = xml_dup["id"]
+                # Sposta le righe XML sotto il record FIC
+                conn.execute(
+                    "UPDATE fe_righe SET fattura_id = ? WHERE fattura_id = ?",
+                    (fattura_db_id, xml_id),
+                )
+                # Copia xml_hash e xml_filename dal record XML al FIC
+                conn.execute(
+                    """UPDATE fe_fatture SET
+                        xml_hash = (SELECT xml_hash FROM fe_fatture WHERE id = ?),
+                        xml_filename = (SELECT xml_filename FROM fe_fatture WHERE id = ?)
+                    WHERE id = ?""",
+                    (xml_id, xml_id, fattura_db_id),
+                )
+                # Elimina il duplicato XML
+                conn.execute("DELETE FROM fe_fatture WHERE id = ?", (xml_id,))
+                result["merged"] = 1
+
         # Aggiorna header con dati dal dettaglio
         conn.execute(
             """UPDATE fe_fatture SET
-                numero_fattura = CASE WHEN COALESCE(numero_fattura, '') = '' THEN ? ELSE numero_fattura END,
+                numero_fattura = ?,
                 pagato = ?
             WHERE id = ?""",
             (invoice_number, pagato, fattura_db_id),
@@ -490,18 +522,18 @@ def fic_sync(
                 break
             page += 1
 
-        # ── FASE 2: DETTAGLIO (righe + pagato) ──────────────
-        print(f"🔵 FIC sync fase 2: fetching detail for {len(docs_to_detail)} documents")
-        for fic_id, fattura_db_id in docs_to_detail:
+        # ── FASE 2: DETTAGLIO (righe + pagato + dedup XML) ──
+        merged_xml = 0
+        for i, (fic_id, fattura_db_id) in enumerate(docs_to_detail):
             try:
-                n = _fetch_detail_and_righe(conn, token, cid, fic_id, fattura_db_id)
-                righe_importate += n
+                res = _fetch_detail_and_righe(conn, token, cid, fic_id, fattura_db_id)
+                righe_importate += res["righe"]
+                merged_xml += res["merged"]
             except Exception as e:
                 errori += 1
-                print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
 
-            # Commit ogni 20 documenti per non perdere tutto in caso di errore
-            if righe_importate % 100 == 0:
+            # Commit ogni 20 documenti
+            if (i + 1) % 20 == 0:
                 conn.commit()
 
         conn.commit()
@@ -509,8 +541,8 @@ def fic_sync(
         # Aggiorna log
         note = (
             f"Anno {anno}: {nuove} nuove, {aggiornate} agg, "
-            f"{duplicate_xml} già da XML, {righe_importate} righe, "
-            f"totale API: {totale_api}"
+            f"{duplicate_xml} già da XML (fase1), {merged_xml} uniti (fase2), "
+            f"{righe_importate} righe, totale API: {totale_api}"
         )
         conn.execute(
             """
@@ -528,6 +560,7 @@ def fic_sync(
             nuove=nuove,
             aggiornate=aggiornate,
             duplicate_xml=duplicate_xml,
+            merged_xml=merged_xml,
             errori=errori,
             righe_importate=righe_importate,
             totale_api=totale_api,
