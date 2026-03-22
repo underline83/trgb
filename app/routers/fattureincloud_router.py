@@ -86,6 +86,13 @@ class ConnectRequest(BaseModel):
     access_token: str = Field(..., description="Token personale FIC")
 
 
+class SyncResultItem(BaseModel):
+    fornitore: str = ""
+    numero: str = ""
+    data: str = ""
+    totale: float = 0
+    stato: str = ""  # "nuova" | "aggiornata" | "merged_xml"
+
 class SyncResult(BaseModel):
     nuove: int = 0
     aggiornate: int = 0
@@ -96,6 +103,7 @@ class SyncResult(BaseModel):
     totale_api: int = 0
     note: str = ""
     error_details: list[str] = []
+    items: list[SyncResultItem] = []
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────
@@ -373,6 +381,7 @@ def fic_sync(
         page = 1
         totale_api = 0
         error_details: list[str] = []
+        sync_items: list[dict] = []
 
         # Traccia documenti per cui fetchare il dettaglio (fic_id → fattura_db_id)
         docs_to_detail = []
@@ -487,6 +496,7 @@ def fic_sync(
                             )
                         docs_to_detail.append((fic_id, existing_fic["id"]))
                         aggiornate += 1
+                        sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "aggiornata"})
                         continue
 
                     # 2) Già presente da XML? (match su piva + numero + data)
@@ -510,6 +520,7 @@ def fic_sync(
                             # Fetcha dettaglio anche per XML linkate (righe + pagato)
                             docs_to_detail.append((fic_id, existing_xml["id"]))
                             duplicate_xml += 1
+                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "merged_xml"})
                             continue
 
                     # 3) Nuova fattura → inserisci
@@ -533,6 +544,7 @@ def fic_sync(
                     new_db_id = cur2.lastrowid
                     docs_to_detail.append((fic_id, new_db_id))
                     nuove += 1
+                    sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "nuova"})
 
                 except Exception as e:
                     errori += 1
@@ -591,6 +603,7 @@ def fic_sync(
             totale_api=totale_api,
             note=f"Sincronizzazione {anno} completata",
             error_details=error_details[:50],  # max 50 errori dettagliati
+            items=[SyncResultItem(**it) for it in sync_items],
         )
     finally:
         conn.close()

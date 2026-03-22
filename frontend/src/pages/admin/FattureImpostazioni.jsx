@@ -472,6 +472,47 @@ export default function FattureImpostazioni() {
                       )}
                     </div>
                   )}
+
+                  {/* Lista fatture processate */}
+                  {(syncResult.items || []).length > 0 && (
+                    <div className="mt-3 bg-white border border-neutral-200 rounded-lg p-3">
+                      <p className="font-semibold text-neutral-700 text-xs mb-2">
+                        Fatture processate ({syncResult.items.length}):
+                      </p>
+                      <div className="max-h-64 overflow-y-auto">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-neutral-50">
+                            <tr className="text-left text-neutral-500 border-b">
+                              <th className="py-1 px-1">Stato</th>
+                              <th className="py-1 px-1">Data</th>
+                              <th className="py-1 px-1">N.</th>
+                              <th className="py-1 px-1">Fornitore</th>
+                              <th className="py-1 px-1 text-right">Totale</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {syncResult.items.map((it, i) => (
+                              <tr key={i} className="border-b border-neutral-100 hover:bg-neutral-50">
+                                <td className="py-1 px-1">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                    it.stato === "nuova" ? "bg-emerald-100 text-emerald-700" :
+                                    it.stato === "aggiornata" ? "bg-blue-100 text-blue-700" :
+                                    "bg-purple-100 text-purple-700"
+                                  }`}>
+                                    {it.stato === "nuova" ? "NUOVA" : it.stato === "aggiornata" ? "AGG." : "MERGE"}
+                                  </span>
+                                </td>
+                                <td className="py-1 px-1 text-neutral-600 whitespace-nowrap">{it.data}</td>
+                                <td className="py-1 px-1 text-neutral-600 font-mono">{it.numero || "—"}</td>
+                                <td className="py-1 px-1 text-neutral-800 truncate max-w-[200px]">{it.fornitore}</td>
+                                <td className="py-1 px-1 text-right text-neutral-700 whitespace-nowrap">€ {(it.totale || 0).toLocaleString("it-IT", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

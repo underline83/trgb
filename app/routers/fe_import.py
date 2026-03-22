@@ -733,8 +733,14 @@ def stats_mensili(
 # ENDPOINT STATISTICHE AVANZATE (dashboard v2)
 # -------------------------------------------------------------------
 
+# Join per categorie fornitore (usato da stats/drill e filtro categoria)
+_CAT_JOIN = """
+    LEFT JOIN fe_fornitore_categoria fc
+        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
+        OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+"""
 # Filtro base per escludere autofatture (doppie fiscali)
-_EXCL_JOIN = ""
+_EXCL_JOIN = _CAT_JOIN
 _EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0"
 
 
