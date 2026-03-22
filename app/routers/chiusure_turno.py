@@ -162,7 +162,7 @@ class PrecontoOut(PrecontoBase):
 class SpesaBase(BaseModel):
     tipo: str = Field(..., pattern="^(scontrino|fattura|personale|altro)$")
     descrizione: str
-    importo: float = 0
+    importo: float = Field(default=0, ge=0)
 
 
 class SpesaOut(SpesaBase):
@@ -961,7 +961,7 @@ async def upsert_shift_closure(
 
     date_str = payload.date.isoformat()
 
-    # Calculate totale_incassi
+    # Calculate totale_incassi (tutti i metodi di incasso, mance incluse)
     totale_incassi = (
         payload.contanti
         + payload.pos_bpm
@@ -969,6 +969,7 @@ async def upsert_shift_closure(
         + payload.theforkpay
         + payload.other_e_payments
         + payload.bonifici
+        + payload.mance
     )
 
     conn = sqlite3.connect(DB_PATH)
