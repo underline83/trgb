@@ -3,7 +3,7 @@
     "username": "marco",
     "display_name": "Marco",
     "password_hash": "$5$9f3c0f832d71b3cc$t1.EDykW2L/tskqjXPPYYXLDFPyiSOMxNtqF6bn.Kl6",
-    "role": "admin"
+    "role": "superadmin"
   },
   {
     "username": "iryna",

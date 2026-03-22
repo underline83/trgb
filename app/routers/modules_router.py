@@ -12,12 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import List
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/settings/modules", tags=["modules"])
 
 MODULES_FILE = Path(__file__).resolve().parent.parent / "data" / "modules.json"
-VALID_ROLES = {"admin", "chef", "sommelier", "sala", "viewer"}
+VALID_ROLES = {"superadmin", "admin", "chef", "sommelier", "sala", "viewer"}
 
 
 def _load() -> list:
@@ -42,7 +42,7 @@ def get_modules(current_user: dict = Depends(get_current_user)):
 
 @router.put("/")
 def update_modules(updates: List[ModuleUpdate], current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
 
     modules = _load()
@@ -52,13 +52,15 @@ def update_modules(updates: List[ModuleUpdate], current_user: dict = Depends(get
         if m["key"] not in update_map:
             continue
         if m["key"] == "admin":
-            # Il modulo admin ha sempre e solo il ruolo admin
-            m["roles"] = ["admin"]
+            # Il modulo admin ha sempre e solo i ruoli admin/superadmin
+            m["roles"] = ["superadmin", "admin"]
             continue
-        # Valida i ruoli, forza sempre admin nella lista
+        # Valida i ruoli, forza sempre admin e superadmin nella lista
         roles = [r for r in update_map[m["key"]] if r in VALID_ROLES]
         if "admin" not in roles:
             roles.append("admin")
+        if "superadmin" not in roles:
+            roles.append("superadmin")
         m["roles"] = roles
 
     _save(modules)

@@ -6,12 +6,13 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { VersionBadge } from "../../config/versions";
+import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 
 export default function CorrispettiviMenu() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin";
+  const isAdmin = isAdminRole(role);
 
   // Mini-KPI
   const [kpi, setKpi] = useState(null);
@@ -123,8 +124,8 @@ export default function CorrispettiviMenu() {
               </Link>
             )}
 
-            {/* PRE-CONTI — admin */}
-            {isAdmin && (
+            {/* PRE-CONTI — solo superadmin */}
+            {isSuperAdminRole(role) && (
               <Link
                 to="/vendite/preconti"
                 className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"

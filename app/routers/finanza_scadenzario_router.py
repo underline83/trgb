@@ -10,7 +10,7 @@ from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/finanza/scadenzario", tags=["finanza-scadenzario"])
 
@@ -234,7 +234,7 @@ def update_scadenza(scadenza_id: int, req: ScadenzaCreate, current_user=Depends(
 
 @router.delete("/{scadenza_id}")
 def delete_scadenza(scadenza_id: int, current_user=Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(403, "Solo admin")
     conn = get_db()
     conn.execute("DELETE FROM finanza_scadenze WHERE id = ?", (scadenza_id,))
@@ -320,7 +320,7 @@ def paga_rata(rata_id: int, current_user=Depends(get_current_user)):
 
 @router.delete("/rate/{rata_id}")
 def delete_rata(rata_id: int, current_user=Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(403, "Solo admin")
     conn = get_db()
     conn.execute("DELETE FROM finanza_rate WHERE id = ?", (rata_id,))

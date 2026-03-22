@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 
 const API = import.meta.env.VITE_API_BASE_URL;
@@ -30,7 +31,7 @@ export default function ChiusuraTurno() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = localStorage.getItem("token");
-  const isAdmin = localStorage.getItem("role") === "admin";
+  const isSuperAdmin = isSuperAdminRole(localStorage.getItem("role") || "");
 
   // ── State ──
   const [date, setDate] = useState(() =>
@@ -382,7 +383,7 @@ export default function ChiusuraTurno() {
           mance: toNumber(mance),
           note: note.trim() || null,
           checklist,
-          preconti: isAdmin ? preconti.filter(p => p.tavolo.trim()).map(p => ({
+          preconti: isSuperAdmin ? preconti.filter(p => p.tavolo.trim()).map(p => ({
             tavolo: p.tavolo.trim(),
             importo: toNumber(p.importo),
           })) : [],
@@ -586,7 +587,7 @@ export default function ChiusuraTurno() {
             </div>
 
             {/* PRE-CONTI (tavoli aperti) — solo admin */}
-            {isAdmin && <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+            {isSuperAdmin && <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
                   🍽️ Pre-conti
@@ -790,7 +791,7 @@ export default function ChiusuraTurno() {
                     <span className="font-semibold text-blue-600">€ {fmt(toNumber(fatture) + pranzoFatture)}</span>
                   </div>
                 )}
-                {isAdmin && (totalePreconti + pranzoPrecontiTotale) > 0 && (
+                {isSuperAdmin && (totalePreconti + pranzoPrecontiTotale) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
                     <span className="text-orange-400">🍽️ Pre-conti:</span>
                     <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>

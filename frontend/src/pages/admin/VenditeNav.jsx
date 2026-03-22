@@ -3,15 +3,16 @@
 // I tab admin-only sono nascosti per ruoli sala/sommelier
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 
 const TABS = [
-  { key: "fine-turno", label: "Chiusura Turno", path: "/vendite/fine-turno", icon: "🔔", roles: null },
-  { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", roles: ["admin"] },
-  { key: "preconti", label: "Pre-conti", path: "/vendite/preconti", icon: "🍽️", roles: ["admin"] },
-  { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", roles: ["admin"] },
-  { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", roles: ["admin"] },
-  { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", roles: ["admin"] },
-  { key: "impostazioni", label: "Impostazioni", path: "/vendite/impostazioni", icon: "⚙️", roles: ["admin"] },
+  { key: "fine-turno", label: "Chiusura Turno", path: "/vendite/fine-turno", icon: "🔔", check: null },
+  { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", check: "admin" },
+  { key: "preconti", label: "Pre-conti", path: "/vendite/preconti", icon: "🍽️", check: "superadmin" },
+  { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", check: "admin" },
+  { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", check: "admin" },
+  { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", check: "admin" },
+  { key: "impostazioni", label: "Impostazioni", path: "/vendite/impostazioni", icon: "⚙️", check: "admin" },
 ];
 
 export default function VenditeNav({ current }) {
@@ -19,7 +20,9 @@ export default function VenditeNav({ current }) {
   const role = localStorage.getItem("role");
 
   const visibleTabs = TABS.filter(tab =>
-    tab.roles === null || tab.roles.includes(role)
+    tab.check === null
+    || (tab.check === "admin" && isAdminRole(role))
+    || (tab.check === "superadmin" && isSuperAdminRole(role))
   );
 
   return (

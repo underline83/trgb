@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { isAdminRole } from "../utils/authHelpers";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
@@ -13,7 +14,7 @@ export default function CambioPIN() {
   const token = localStorage.getItem("token");
   const username = localStorage.getItem("username");
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin";
+  const isAdmin = isAdminRole(role);
 
   // ── Cambio PIN proprio ──
   const [currentPin, setCurrentPin] = useState("");

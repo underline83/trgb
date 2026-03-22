@@ -4,12 +4,13 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { VersionBadge } from "../../config/versions";
+import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 
 export default function RicetteMenu() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin" || role === "sommelier";
+  const isAdmin = isAdminRole(role) || role === "sommelier";
 
   const [stats, setStats] = useState(null);
 

@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 
 const TIPO_LABELS = {
@@ -18,7 +19,7 @@ export default function MovimentiCantina() {
   const { id } = useParams();
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const canDelete = role === "admin" || role === "sommelier" || role === "sala";
+  const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
 
   const [vino, setVino] = useState(null);
   const [movimenti, setMovimenti] = useState([]);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 
 const FC = `${API_BASE}/foodcost`;
@@ -22,7 +23,7 @@ function FcBadge({ pct }) {
 export default function RicetteDashboard() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAllowed = role === "admin" || role === "sommelier";
+  const isAllowed = isAdminRole(role) || role === "sommelier";
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);

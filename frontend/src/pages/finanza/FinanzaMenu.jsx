@@ -2,6 +2,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
+import { isAdminRole } from "../../utils/authHelpers";
 
 const CARDS = [
   { title: "Dashboard", desc: "Vista analitica e finanziaria, pivot mensili, categorie", icon: "📊", path: "/finanza/dashboard" },
@@ -31,7 +32,7 @@ export default function FinanzaMenu() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {CARDS.filter((c) => !c.admin || role === "admin").map((c) => (
+          {CARDS.filter((c) => !c.admin || isAdminRole(role)).map((c) => (
             <div
               key={c.path}
               onClick={() => navigate(c.path)}

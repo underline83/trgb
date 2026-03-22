@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
+import { isAdminRole } from "../../utils/authHelpers";
 
 export default function AdminMenu() {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ export default function AdminMenu() {
           </Link>
 
           {/* IMPOSTAZIONI SISTEMA (utenti + moduli) — solo admin */}
-          {role === "admin" && (
+          {isAdminRole(role) && (
             <Link
               to="/admin/impostazioni"
               className="

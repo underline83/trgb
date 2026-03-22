@@ -43,7 +43,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from weasyprint import HTML, CSS
 
-from app.services.auth_service import get_current_user, decode_access_token
+from app.services.auth_service import get_current_user, decode_access_token, is_admin
 from app.models import vini_magazzino_db as mag_db
 from app.models.vini_model import normalize_dataframe
 from app.services.carta_vini_service import (
@@ -81,7 +81,7 @@ def _require_admin(current_user: Any):
         role = current_user.get("role")
     elif hasattr(current_user, "role"):
         role = current_user.role
-    if role != "admin":
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo admin può eseguire questa operazione.",

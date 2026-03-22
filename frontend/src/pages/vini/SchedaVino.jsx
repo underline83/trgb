@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
@@ -123,7 +124,7 @@ function SectionHeader({ title, children }) {
 const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdated, inline = false }, ref) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const canDelete = role === "admin" || role === "sommelier" || role === "sala";
+  const canDelete = isAdminRole(role) || role === "sommelier" || role === "sala";
   const [duplicating, setDuplicating] = useState(false);
 
   // ── stato base ───────────────────────────────────────

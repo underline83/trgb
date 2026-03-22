@@ -15,6 +15,7 @@ from app.services.auth_service import (
     delete_user,
     change_password,
     change_role,
+    is_admin,
 )
 
 router = APIRouter(prefix="/auth/users", tags=["users"])
@@ -43,7 +44,7 @@ class ChangeRoleRequest(BaseModel):
 # ---------------------------------------------------------------------------
 @router.get("/")
 def get_users(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
     return list_users()
 
@@ -53,7 +54,7 @@ def get_users(current_user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 @router.post("/", status_code=201)
 def create_user(data: NewUserRequest, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
     return add_user(data.username, data.password, data.role)
 
@@ -63,7 +64,7 @@ def create_user(data: NewUserRequest, current_user: dict = Depends(get_current_u
 # ---------------------------------------------------------------------------
 @router.delete("/{username}", status_code=204)
 def remove_user(username: str, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
     if username == current_user["username"]:
         raise HTTPException(status_code=400, detail="Non puoi eliminare te stesso")
@@ -77,13 +78,13 @@ def remove_user(username: str, current_user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 @router.put("/{username}/password")
 def update_password(username: str, data: ChangePasswordRequest, current_user: dict = Depends(get_current_user)):
-    is_admin = current_user["role"] == "admin"
+    is_admin_user = is_admin(current_user["role"])
     is_self = current_user["username"] == username
 
-    if not is_admin and not is_self:
+    if not is_admin_user and not is_self:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Puoi cambiare solo la tua password")
 
-    if not is_admin and not is_self:
+    if not is_admin_user and not is_self:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso negato")
 
     # Non-admin deve fornire la password corrente
@@ -100,7 +101,7 @@ def update_password(username: str, data: ChangePasswordRequest, current_user: di
 # ---------------------------------------------------------------------------
 @router.put("/{username}/role")
 def update_role(username: str, data: ChangeRoleRequest, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
     change_role(username, data.new_role)
     return {"message": "Ruolo aggiornato"}

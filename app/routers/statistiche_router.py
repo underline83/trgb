@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.services.ipratico_parser import parse_ipratico_html
 from app.models.foodcost_db import get_foodcost_connection
 
@@ -48,7 +48,7 @@ def _require_admin(current_user: Any):
         role = current_user.get("role")
     elif hasattr(current_user, "role"):
         role = current_user.role
-    if role not in ("admin",):
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo admin può eseguire questa operazione.",

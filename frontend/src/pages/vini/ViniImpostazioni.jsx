@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
@@ -79,7 +80,7 @@ const MENU = [
 export default function ViniImpostazioni() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAllowed = role === "admin" || role === "sommelier";
+  const isAllowed = isAdminRole(role) || role === "sommelier";
 
   const [activeSection, setActiveSection] = useState("import");
 

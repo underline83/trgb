@@ -5,6 +5,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 
 const base =
   "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border shadow-sm transition";
@@ -43,7 +44,7 @@ export default function MagazzinoSubMenu() {
           📄 Genera Carta PDF
         </button>
 
-        {role === "admin" && (
+        {isAdminRole(role) && (
           <NavLink
             to="/vini/magazzino/tools"
             className={({ isActive }) => `${base} ${isActive ? active : inactive}`}

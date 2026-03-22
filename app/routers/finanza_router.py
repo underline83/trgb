@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Query
 from pydantic import BaseModel
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/finanza", tags=["finanza"])
 
@@ -596,7 +596,7 @@ def get_stats(current_user=Depends(get_current_user)):
 
 @router.delete("/reset")
 def reset_data(current_user=Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(403, "Solo admin")
     conn = get_db()
     conn.execute("DELETE FROM finanza_movimenti")
@@ -682,7 +682,7 @@ def update_regola(regola_id: int, req: RegolaCreate, current_user=Depends(get_cu
 
 @router.delete("/regole/{regola_id}")
 def delete_regola(regola_id: int, current_user=Depends(get_current_user)):
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(403, "Solo admin")
     conn = get_db()
     conn.execute("DELETE FROM finanza_regole_cat WHERE id=?", (regola_id,))
@@ -694,7 +694,7 @@ def delete_regola(regola_id: int, current_user=Depends(get_current_user)):
 @router.post("/auto-categorizza")
 def auto_categorizza(current_user=Depends(get_current_user)):
     """Applica tutte le regole ai movimenti non ancora categorizzati."""
-    if current_user["role"] != "admin":
+    if not is_admin(current_user["role"]):
         raise HTTPException(403, "Solo admin")
 
     conn = get_db()

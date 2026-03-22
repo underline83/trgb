@@ -34,7 +34,7 @@ export default function Home() {
       .then((r) => r.json())
       .then(setModules)
       .catch(() => {
-        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["admin", "chef", "sommelier", "sala", "viewer"] })));
+        setModules(Object.keys(MENU_CONFIG).map((key) => ({ key, roles: ["superadmin", "admin", "chef", "sommelier", "sala", "viewer"] })));
       })
       .finally(() => setLoading(false));
   }, []);

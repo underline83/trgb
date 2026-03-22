@@ -20,7 +20,7 @@ from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.services.wine_pricing import (
     calcola_prezzo_carta,
     load_breakpoints,
@@ -90,7 +90,7 @@ def _require_admin(current_user: Any):
         role = current_user.get("ruolo") or current_user.get("role")
     elif hasattr(current_user, "ruolo"):
         role = current_user.ruolo
-    if role != "admin":
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo admin può gestire i prezzi",

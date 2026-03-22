@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 import SchedaVino from "./SchedaVino";
 import {
@@ -363,7 +364,7 @@ export default function MagazzinoVini() {
 
   // ── MULTI-SELECT & BULK EDIT ──
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin";
+  const isAdmin = isAdminRole(role);
   const isSommelier = role === "sommelier";
   const isSala = role === "sala";
   const canPrint = isAdmin || isSommelier || isSala;

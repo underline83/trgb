@@ -24,7 +24,7 @@ from typing import Optional, List, Any, Dict, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.services.wine_pricing import calcola_prezzo_carta
 from app.models import vini_magazzino_db as db
 
@@ -381,7 +381,7 @@ def bulk_update(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if role != "admin":
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata agli admin.",
@@ -426,7 +426,7 @@ def bulk_duplicate_vini(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if role != "admin":
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata agli admin.",
@@ -463,7 +463,7 @@ def delete_vino_endpoint(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if role != "admin":
+    if not is_admin(role):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata agli admin.",
@@ -676,7 +676,7 @@ def delete_movimento(
         current_user.get("role") if isinstance(current_user, dict)
         else getattr(current_user, "role", None)
     )
-    if role not in ("admin", "sommelier", "sala"):
+    if not (is_admin(role) or role in ("sommelier", "sala")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operazione riservata ad admin, sommelier o sala.",

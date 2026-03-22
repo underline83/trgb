@@ -13,7 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/backup", tags=["backup"])
 
@@ -34,7 +34,7 @@ DATABASES = [
 
 
 def _require_admin(user: dict):
-    if user.get("role") != "admin":
+    if not is_admin(user.get("role", "")):
         raise HTTPException(status_code=403, detail="Solo admin")
 
 

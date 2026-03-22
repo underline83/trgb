@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 
 // ---------------------------------------------------------------
@@ -52,7 +53,7 @@ function OrderList({ items, labelKey, onReorder }) {
 export default function CantinaTools() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAdmin = role === "admin";
+  const isAdmin = isAdminRole(role);
 
   // --- Stati operazioni ---
   // syncResult/syncLoading rimossi in v3.0 (vecchio sync eliminato)

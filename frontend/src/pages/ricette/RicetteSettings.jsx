@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
 
 const FC = `${API_BASE}/foodcost`;
@@ -30,7 +31,7 @@ function Section({ title, icon, defaultOpen = false, children }) {
 export default function RicetteSettings() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
-  const isAllowed = role === "admin";
+  const isAllowed = isAdminRole(role);
 
   const [ricette, setRicette] = useState([]);
   const [loadingRicette, setLoadingRicette] = useState(false);

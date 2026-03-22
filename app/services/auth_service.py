@@ -118,7 +118,17 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------------------------------------------------------
 # CRUD UTENTI (usato da users_router)
 # ---------------------------------------------------------------------------
-VALID_ROLES = {"admin", "chef", "sommelier", "sala", "viewer"}
+VALID_ROLES = {"superadmin", "admin", "chef", "sommelier", "sala", "viewer"}
+
+
+def is_admin(role: str) -> bool:
+    """True per admin e superadmin — usare per tutti i check admin generici."""
+    return role in ("admin", "superadmin")
+
+
+def is_superadmin(role: str) -> bool:
+    """True solo per superadmin — usare per funzioni riservate (es. preconti)."""
+    return role == "superadmin"
 
 def list_users() -> list:
     return [{"username": k, "role": v["role"]} for k, v in USERS.items()]
@@ -138,8 +148,8 @@ def add_user(username: str, password: str, role: str) -> dict:
 def delete_user(username: str) -> None:
     if username not in USERS:
         raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
-    admins = [u for u, v in USERS.items() if v["role"] == "admin"]
-    if USERS[username]["role"] == "admin" and len(admins) <= 1:
+    admins = [u for u, v in USERS.items() if is_admin(v["role"])]
+    if is_admin(USERS[username]["role"]) and len(admins) <= 1:
         raise HTTPException(status_code=400, detail="Impossibile eliminare l'ultimo amministratore")
     del USERS[username]
     _save_users(USERS)
@@ -172,8 +182,8 @@ def change_role(username: str, new_role: str) -> None:
         raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
     if new_role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail=f"Ruolo non valido. Validi: {VALID_ROLES}")
-    admins = [u for u, v in USERS.items() if v["role"] == "admin"]
-    if USERS[username]["role"] == "admin" and new_role != "admin" and len(admins) <= 1:
+    admins = [u for u, v in USERS.items() if is_admin(v["role"])]
+    if is_admin(USERS[username]["role"]) and not is_admin(new_role) and len(admins) <= 1:
         raise HTTPException(status_code=400, detail="Impossibile degradare l'ultimo amministratore")
     USERS[username]["role"] = new_role
     _save_users(USERS)

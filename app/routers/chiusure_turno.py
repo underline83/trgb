@@ -235,7 +235,7 @@ def check_allowed_role(current_user: dict) -> None:
     Allowed roles: admin, sommelier, sala
     NOT allowed: viewer, chef
     """
-    allowed_roles = {"admin", "sommelier", "sala"}
+    allowed_roles = {"superadmin", "admin", "sommelier", "sala"}
     user_role = current_user.get("role")
 
     if user_role not in allowed_roles:
@@ -255,7 +255,7 @@ def check_allowed_role(current_user: dict) -> None:
 # (DEVE stare PRIMA di /{date}/{turno} per evitare conflitto route)
 # ---------------------------------------------------------
 
-@router.get("/preconti", summary="Lista storica pre-conti (admin)")
+@router.get("/preconti", summary="Lista storica pre-conti (superadmin)")
 async def list_preconti(
     date_from: Optional[str] = Query(None, description="Data inizio YYYY-MM-DD"),
     date_to: Optional[str] = Query(None, description="Data fine YYYY-MM-DD"),
@@ -263,9 +263,14 @@ async def list_preconti(
 ):
     """
     Restituisce tutti i pre-conti con data, turno, tavolo, importo e chi ha inserito la chiusura.
-    Solo admin.
+    Solo superadmin.
     """
-    check_admin_role(current_user)
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo il super-admin può accedere ai pre-conti.",
+        )
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -440,10 +445,9 @@ async def stats_daily(
 
 
 def check_admin_role(current_user: dict) -> None:
-    """Verifies that the current user is an admin."""
-    user_role = current_user.get("role")
-
-    if user_role != "admin":
+    """Verifies that the current user is an admin or superadmin."""
+    from app.services.auth_service import is_admin
+    if not is_admin(current_user.get("role", "")):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can manage checklist configuration.",

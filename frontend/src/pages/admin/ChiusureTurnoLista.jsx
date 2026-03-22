@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { isAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 
 const API = import.meta.env.VITE_API_BASE_URL;
@@ -52,7 +53,7 @@ export default function ChiusureTurnoLista() {
   }, [year, month]);
 
   useEffect(() => {
-    if (role !== "admin") return;
+    if (!isAdminRole(role)) return;
     setLoading(true);
     const url = `${API}/admin/finance/shift-closures?from_date=${fromDate}&to_date=${toDate}`;
 
@@ -63,7 +64,7 @@ export default function ChiusureTurnoLista() {
       .finally(() => setLoading(false));
   }, [fromDate, toDate, token, role]);
 
-  if (role !== "admin") {
+  if (!isAdminRole(role)) {
     return (
       <div className="min-h-screen bg-neutral-100">
         <VenditeNav current="chiusure" />
