@@ -30,6 +30,7 @@ export default function ChiusuraTurno() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = localStorage.getItem("token");
+  const isAdmin = localStorage.getItem("role") === "admin";
 
   // ── State ──
   const [date, setDate] = useState(() =>
@@ -381,10 +382,10 @@ export default function ChiusuraTurno() {
           mance: toNumber(mance),
           note: note.trim() || null,
           checklist,
-          preconti: preconti.filter(p => p.tavolo.trim()).map(p => ({
+          preconti: isAdmin ? preconti.filter(p => p.tavolo.trim()).map(p => ({
             tavolo: p.tavolo.trim(),
             importo: toNumber(p.importo),
-          })),
+          })) : [],
           spese: spese.filter(s => s.descrizione.trim()).map(s => ({
             tipo: s.tipo,
             descrizione: s.descrizione.trim(),
@@ -584,8 +585,8 @@ export default function ChiusuraTurno() {
               </div>
             </div>
 
-            {/* PRE-CONTI (tavoli aperti) */}
-            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+            {/* PRE-CONTI (tavoli aperti) — solo admin */}
+            {isAdmin && <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
                   🍽️ Pre-conti
@@ -641,7 +642,7 @@ export default function ChiusuraTurno() {
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* SPESE */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
@@ -789,7 +790,7 @@ export default function ChiusuraTurno() {
                     <span className="font-semibold text-blue-600">€ {fmt(toNumber(fatture) + pranzoFatture)}</span>
                   </div>
                 )}
-                {(totalePreconti + pranzoPrecontiTotale) > 0 && (
+                {isAdmin && (totalePreconti + pranzoPrecontiTotale) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
                     <span className="text-orange-400">🍽️ Pre-conti:</span>
                     <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>
