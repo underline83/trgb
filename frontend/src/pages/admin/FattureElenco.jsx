@@ -36,7 +36,7 @@ export default function FattureElenco() {
   const [importoMode, setImportoMode] = useState("any");
   const [importoVal1, setImportoVal1] = useState("");
   const [importoVal2, setImportoVal2] = useState("");
-  const [tipoSel, setTipoSel] = useState(""); // "" | "normale" | "autofattura" | "escluso"
+  const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura"
 
   // ── Ordinamento ──
   const [sortKey, setSortKey] = useState("data_fattura");
@@ -121,8 +121,6 @@ export default function FattureElenco() {
     let list = fattureBase;
     if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
     if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
-    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
-    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
     return list;
   }, [fattureBase, fonteSel, tipoSel]);
 
@@ -188,8 +186,6 @@ export default function FattureElenco() {
   const baseTipo = useMemo(() => {
     let list = fattureBase;
     if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
-    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
-    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
     return list;
   }, [fattureBase, tipoSel]);
 
@@ -202,8 +198,6 @@ export default function FattureElenco() {
   const countXml = baseTipo.filter(f => (f.fonte || "xml") === "xml").length;
   const countFic = baseTipo.filter(f => f.fonte === "fic").length;
   const countAutofatture = baseFonte.filter(f => f.is_autofattura).length;
-  const countEscluse = baseFonte.filter(f => f.escluso && !f.is_autofattura).length;
-  const countNormali = baseFonte.filter(f => !f.is_autofattura && !f.escluso).length;
 
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -328,9 +322,7 @@ export default function FattureElenco() {
                 <label className={fLbl}>Tipo</label>
                 <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} className={fSel}>
                   <option value="">Tutte</option>
-                  <option value="normale">Normali</option>
                   <option value="autofattura">Autofatture</option>
-                  <option value="escluso">Escluse</option>
                 </select>
               </div>
             </div>
@@ -374,30 +366,16 @@ export default function FattureElenco() {
               FIC: {countFic}
             </button>
 
-            <span className="text-neutral-300">|</span>
-
-            {/* Badge cliccabili tipo */}
-            <button onClick={() => setTipoSel(tipoSel === "normale" ? "" : "normale")}
-              className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
-                tipoSel === "normale" ? "bg-emerald-600 text-white ring-1 ring-emerald-700" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-              }`}>
-              Normali: {countNormali}
-            </button>
             {countAutofatture > 0 && (
-              <button onClick={() => setTipoSel(tipoSel === "autofattura" ? "" : "autofattura")}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
-                  tipoSel === "autofattura" ? "bg-amber-600 text-white ring-1 ring-amber-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                }`}>
-                Autofatture: {countAutofatture}
-              </button>
-            )}
-            {countEscluse > 0 && (
-              <button onClick={() => setTipoSel(tipoSel === "escluso" ? "" : "escluso")}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
-                  tipoSel === "escluso" ? "bg-red-600 text-white ring-1 ring-red-700" : "bg-red-50 text-red-600 hover:bg-red-100"
-                }`}>
-                Escluse: {countEscluse}
-              </button>
+              <>
+                <span className="text-neutral-300">|</span>
+                <button onClick={() => setTipoSel(tipoSel === "autofattura" ? "" : "autofattura")}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                    tipoSel === "autofattura" ? "bg-amber-600 text-white ring-1 ring-amber-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  }`}>
+                  Autofatture: {countAutofatture}
+                </button>
+              </>
             )}
 
             <div className="flex-1" />
@@ -459,7 +437,6 @@ export default function FattureElenco() {
                         <td className="px-3 py-2 font-medium text-neutral-900 max-w-[200px] truncate">
                           {f.fornitore_nome || "—"}
                           {f.is_autofattura ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle">AUTO</span> : null}
-                          {f.escluso ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-red-100 text-red-600 align-middle">ESCL</span> : null}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px]">€ {fmt(f.iva_totale)}</td>

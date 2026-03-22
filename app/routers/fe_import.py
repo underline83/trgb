@@ -543,12 +543,6 @@ def list_fatture(
     """, params)
     summary = dict(cur.fetchone())
 
-    # Join per campo escluso (fornitore)
-    excl_join = """
-        LEFT JOIN fe_fornitore_categoria fce
-            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fce.fornitore_piva)
-            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fce.fornitore_nome)
-    """
     cur.execute(f"""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -558,9 +552,8 @@ def list_fatture(
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
-            COALESCE(f.is_autofattura, 0) AS is_autofattura,
-            COALESCE(fce.escluso, 0) AS escluso
-        FROM fe_fatture f {excl_join} {cat_join}
+            COALESCE(f.is_autofattura, 0) AS is_autofattura
+        FROM fe_fatture f {cat_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
         LIMIT ? OFFSET ?
@@ -667,11 +660,7 @@ def stats_fornitori(
             MIN(f.data_fattura) AS primo_acquisto,
             MAX(f.data_fattura) AS ultimo_acquisto
         FROM fe_fatture f
-        LEFT JOIN fe_fornitore_categoria fc
-            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
-            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
         WHERE {where_sql}
-          AND COALESCE(fc.escluso, 0) = 0
         GROUP BY f.fornitore_nome, f.fornitore_piva
         ORDER BY totale_fatture DESC
         """,
@@ -710,12 +699,8 @@ def stats_mensili(
                 COUNT(*) AS numero_fatture,
                 SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
             FROM fe_fatture f
-            LEFT JOIN fe_fornitore_categoria fc
-                ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
-                OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
             WHERE f.data_fattura IS NOT NULL
               AND substr(f.data_fattura, 1, 4) = ?
-              AND COALESCE(fc.escluso, 0) = 0
               AND COALESCE(f.is_autofattura, 0) = 0
             GROUP BY anno, mese
             ORDER BY mese ASC
@@ -731,11 +716,7 @@ def stats_mensili(
                 COUNT(*) AS numero_fatture,
                 SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
             FROM fe_fatture f
-            LEFT JOIN fe_fornitore_categoria fc
-                ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
-                OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
             WHERE f.data_fattura IS NOT NULL
-              AND COALESCE(fc.escluso, 0) = 0
               AND COALESCE(f.is_autofattura, 0) = 0
             GROUP BY anno, mese
             ORDER BY anno DESC, mese ASC
@@ -752,13 +733,9 @@ def stats_mensili(
 # ENDPOINT STATISTICHE AVANZATE (dashboard v2)
 # -------------------------------------------------------------------
 
-# Filtro base per escludere autofatture e fornitori esclusi
-_EXCL_JOIN = """
-    LEFT JOIN fe_fornitore_categoria fc
-        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
-        OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
-"""
-_EXCL_WHERE = "COALESCE(fc.escluso, 0) = 0 AND COALESCE(f.is_autofattura, 0) = 0"
+# Filtro base per escludere autofatture (doppie fiscali)
+_EXCL_JOIN = ""
+_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0"
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
