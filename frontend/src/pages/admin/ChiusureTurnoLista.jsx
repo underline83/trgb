@@ -158,10 +158,11 @@ export default function ChiusureTurnoLista() {
             {closures.map(c => {
               const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
               const totPreconti = (c.preconti || []).reduce((s, p) => s + p.importo, 0);
-              // Quadratura: entrate − giustificato
+              // Quadratura: entrate − giustificato + spese
+              // Spese NON fanno parte del giustificato: giustificano soldi mancanti dalla cassa
               const entrate = (c.totale_incassi || 0) + (c.fondo_cassa_inizio || 0) - (c.fondo_cassa_fine || 0);
-              const giustificato = (c.preconto || 0) + totPreconti + totSpese + (c.fatture || 0);
-              const diff = entrate - giustificato;
+              const giustificato = (c.preconto || 0) + totPreconti + (c.fatture || 0);
+              const diff = (entrate - giustificato) + totSpese;
               const quadra = Math.abs(diff) < 0.5;
               const isExpanded = expandedId === c.id;
 

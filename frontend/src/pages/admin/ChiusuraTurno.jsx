@@ -201,19 +201,29 @@ export default function ChiusuraTurno() {
   }, [isCena, pranzoData]);
 
   // ── QUADRATURA (GIORNALIERA) ──
-  // GIUSTIFICATO = Chiusura RT (giornaliera) + Preconti TOTALI + Spese TOTALI + Fatture TOTALI
-  // A pranzo: solo valori del pranzo
-  // A cena: chiusura giornaliera + (pranzo + cena) per preconti/fatture/spese
-  const totaleUscite = useMemo(() =>
+  // GIUSTIFICATO = Chiusura RT (giornaliera) + Preconti TOTALI + Fatture TOTALI
+  // Le SPESE non fanno parte del giustificato: sono la giustificazione della differenza.
+  // Formula: ENTRATE - GIUSTIFICATO = differenza, poi le SPESE coprono la differenza.
+  // Se differenza + spese ≈ 0 → quadra.
+  const totaleGiustificato = useMemo(() =>
     toNumber(preconto)
     + (totalePreconti + pranzoPrecontiTotale)
-    + (totaleSpese + pranzoSpese)
     + (toNumber(fatture) + pranzoFatture)
-  , [preconto, totalePreconti, pranzoPrecontiTotale, totaleSpese, pranzoSpese, fatture, pranzoFatture]);
+  , [preconto, totalePreconti, pranzoPrecontiTotale, fatture, pranzoFatture]);
 
+  const speseGiorno = useMemo(() =>
+    totaleSpese + pranzoSpese
+  , [totaleSpese, pranzoSpese]);
+
+  // Differenza grezza (senza spese)
+  const diffGrezzo = useMemo(() =>
+    totaleEntrate - totaleGiustificato
+  , [totaleEntrate, totaleGiustificato]);
+
+  // Differenza reale: le spese giustificano soldi mancanti dalla cassa
   const diff = useMemo(() =>
-    totaleEntrate - totaleUscite
-  , [totaleEntrate, totaleUscite]);
+    diffGrezzo + speseGiorno
+  , [diffGrezzo, speseGiorno]);
 
   const diffStatus = Math.abs(diff) < 0.5 ? "ok" : diff > 0 ? "over" : "short";
 
@@ -740,7 +750,7 @@ export default function ChiusuraTurno() {
               <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-2">
                 Quadratura{isCena && pranzoData ? " giornaliera" : ""}
                 <span className="normal-case font-normal ml-1">
-                  entrate = chiusura RT + pre-conti + spese + fatture
+                  entrate = chiusura RT + pre-conti + fatture − spese
                 </span>
               </div>
 
@@ -751,18 +761,17 @@ export default function ChiusuraTurno() {
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale Entrate</div>
                   <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleEntrate)}</div>
                   <div className="text-[9px] text-neutral-400 mt-1">
-                    incassi{isCena && pranzoData ? " (giornalieri)" : ""} + fondo in − fondo fi
+                    incassi{isCena && pranzoData ? " (giornalieri)" : ""} + fondo in − fondo fine
                   </div>
                 </div>
                 {/* GIUSTIFICATO */}
                 <div className="bg-white/60 rounded-xl p-3 border border-neutral-200 text-center">
                   <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">Totale giustificato</div>
-                  <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleUscite)}</div>
+                  <div className="text-xl font-bold text-neutral-700">€ {fmt(totaleGiustificato)}</div>
                   <div className="text-[9px] text-neutral-400 mt-1">
                     chiusura RT
                     {(toNumber(fatture) + pranzoFatture) > 0 ? " + fatture" : ""}
                     {(totalePreconti + pranzoPrecontiTotale) > 0 ? " + pre-conti" : ""}
-                    {(totaleSpese + pranzoSpese) > 0 ? " + spese" : ""}
                     {isCena && pranzoData ? " (giorno)" : ""}
                   </div>
                 </div>
@@ -786,12 +795,34 @@ export default function ChiusuraTurno() {
                     <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>
                   </div>
                 )}
-                {(totaleSpese + pranzoSpese) > 0 && (
-                  <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-purple-200 text-xs">
-                    <span className="text-purple-400">💸 Spese:</span>
-                    <span className="font-semibold text-purple-600">€ {fmt(totaleSpese + pranzoSpese)}</span>
+              </div>
+
+              {/* Differenza e Spese */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="bg-white/60 rounded-lg p-2 border border-neutral-200 text-center">
+                  <div className="text-[9px] text-neutral-400 font-semibold uppercase">Differenza</div>
+                  <div className={`text-sm font-bold ${diffGrezzo < -0.5 ? "text-red-600" : diffGrezzo > 0.5 ? "text-indigo-600" : "text-neutral-600"}`}>
+                    {diffGrezzo >= 0 ? "+" : ""}{fmt(diffGrezzo)} €
                   </div>
-                )}
+                </div>
+                <div className="bg-purple-50/60 rounded-lg p-2 border border-purple-200 text-center">
+                  <div className="text-[9px] text-purple-400 font-semibold uppercase">Spese</div>
+                  <div className="text-sm font-bold text-purple-600">
+                    {speseGiorno > 0 ? `+${fmt(speseGiorno)}` : fmt(speseGiorno)} €
+                  </div>
+                </div>
+                <div className={`rounded-lg p-2 border text-center ${
+                  diffStatus === "ok" ? "bg-emerald-50 border-emerald-200" :
+                  diffStatus === "over" ? "bg-indigo-50 border-indigo-200" : "bg-red-50 border-red-200"
+                }`}>
+                  <div className="text-[9px] font-semibold uppercase opacity-70">Saldo</div>
+                  <div className={`text-sm font-bold ${
+                    diffStatus === "ok" ? "text-emerald-700" :
+                    diffStatus === "over" ? "text-indigo-700" : "text-red-700"
+                  }`}>
+                    {diff >= 0 ? "+" : ""}{fmt(diff)} €
+                  </div>
+                </div>
               </div>
 
               {/* RISULTATO QUADRATURA */}
@@ -813,7 +844,7 @@ export default function ChiusuraTurno() {
                 </div>
                 {diffStatus !== "ok" && (
                   <div className="text-xs mt-2 opacity-70">
-                    Le entrate non corrispondono a chiusura RT + pre-conti + spese + fatture
+                    (entrate − giustificato) + spese ≠ 0
                   </div>
                 )}
               </div>
