@@ -28,8 +28,10 @@ FOODCOST_DB_PATH = BASE_DIR / "data" / "foodcost.db"
 
 
 def _get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(FOODCOST_DB_PATH)
+    conn = sqlite3.connect(FOODCOST_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
