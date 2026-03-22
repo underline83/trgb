@@ -406,13 +406,6 @@ def fic_sync(
             totale_api = data.get("total", len(items))
             last_page = data.get("last_page", page)
 
-            # DEBUG: log primo documento della prima pagina
-            if page == 1 and items:
-                print(f"🔍 FIC DOC KEYS: {list(items[0].keys())}")
-                print(f"🔍 FIC DOC SAMPLE: { {k: v for k, v in items[0].items() if k not in ('entity',)} }")
-                if items[0].get("entity"):
-                    print(f"🔍 FIC DOC ENTITY: {items[0]['entity']}")
-
             for doc in items:
                 try:
                     fic_id = doc["id"]
@@ -678,66 +671,3 @@ def fic_fornitori(
         conn.close()
 
 
-debug_router = APIRouter(prefix="/fic", tags=["FIC Debug"])
-
-@debug_router.get("/debug-fields", summary="[TEMP] Mostra campi raw API per debug")
-def fic_debug_fields():
-    """Endpoint temporaneo: scorre documenti finché ne trova uno CON items_list."""
-    conn = get_db()
-    try:
-        cfg = get_config(conn)
-        if not cfg:
-            raise HTTPException(400, "Fatture in Cloud non collegato")
-
-        token = cfg["access_token"]
-        cid = cfg["company_id"]
-
-        # Prendi documenti recenti (2026) che probabilmente hanno items
-        list_data = fic_get(token, f"/c/{cid}/received_documents", {
-            "type": "expense", "per_page": 20,
-            "q": "date >= '2026-01-01'",
-        })
-        docs = list_data.get("data", [])
-        if not docs:
-            return {"error": "Nessun documento trovato"}
-
-        # Scorre finché trova un doc con items
-        found_with_items = None
-        found_detail = None
-        checked = 0
-        for doc in docs:
-            fic_id = doc["id"]
-            detail_data = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
-                "fieldset": "detailed",
-            })
-            detail = detail_data.get("data", {}) or {}
-            items = detail.get("items_list") or []
-            checked += 1
-            if items:
-                found_with_items = doc
-                found_detail = detail
-                break
-
-        if not found_detail:
-            return {
-                "error": f"Nessun doc con items trovato (controllati {checked})",
-                "sample_detail_keys": list(detail.keys()) if detail else [],
-                "is_detailed_values": [
-                    {"id": d["id"], "has_entity_piva": bool((d.get("entity") or {}).get("vat_number"))}
-                    for d in docs[:5]
-                ],
-            }
-
-        items = found_detail.get("items_list") or []
-        return {
-            "doc_id": found_with_items["id"],
-            "invoice_number": found_detail.get("invoice_number"),
-            "is_detailed": found_detail.get("is_detailed"),
-            "detail_keys": list(found_detail.keys()),
-            "items_count": len(items),
-            "first_item_ALL_FIELDS": items[0] if items else None,
-            "second_item": items[1] if len(items) > 1 else None,
-            "payments_list": found_detail.get("payments_list") or [],
-        }
-    finally:
-        conn.close()
