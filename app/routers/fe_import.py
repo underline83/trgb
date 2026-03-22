@@ -9,6 +9,14 @@ Router per importazione fatture elettroniche XML (uso statistico / controllo acq
 
 - Usa il DB: app/data/foodcost.db
 - Supporta upload di file XML singoli, multipli, e archivi ZIP contenenti XML.
+
+LIMITI INFRASTRUTTURA:
+  - Upload max: 100 MB  (nginx client_max_body_size)
+  - Timeout:    600s     (nginx proxy_read_timeout + frontend AbortController 10 min)
+  Se si cambia il limite, aggiornare anche:
+    1. nginx config  → client_max_body_size
+    2. frontend      → FattureImpostazioni.jsx (UPLOAD_TIMEOUT_MS)
+    3. questo file   → docstring
 """
 
 import datetime
@@ -310,18 +318,37 @@ def _process_single_xml(
     now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
 
     # ── Deduplica cross-fonte: se la fattura esiste già da FIC, aggiorna con hash XML ──
-    if fornitore_piva and numero_fattura and data_fattura_str:
-        cur.execute(
-            """
-            SELECT id FROM fe_fatture
-            WHERE fornitore_piva = ?
-              AND numero_fattura = ?
-              AND data_fattura = ?
-              AND COALESCE(fonte, 'xml') = 'fic'
-            """,
-            (fornitore_piva, numero_fattura, data_fattura_str),
-        )
-        fic_existing = cur.fetchone()
+    # Strategia:
+    #   1. Match esatto: piva + numero + data (fatture FIC con numero compilato)
+    #   2. Fallback: piva + data + totale (fatture FIC con numero vuoto)
+    fic_existing = None
+    if fornitore_piva and data_fattura_str:
+        if numero_fattura:
+            cur.execute(
+                """
+                SELECT id FROM fe_fatture
+                WHERE fornitore_piva = ?
+                  AND numero_fattura = ?
+                  AND data_fattura = ?
+                  AND COALESCE(fonte, 'xml') = 'fic'
+                """,
+                (fornitore_piva, numero_fattura, data_fattura_str),
+            )
+            fic_existing = cur.fetchone()
+
+        # Fallback: match per piva + data + totale (FIC spesso non ha numero_fattura)
+        if not fic_existing and totale_fattura is not None:
+            cur.execute(
+                """
+                SELECT id FROM fe_fatture
+                WHERE fornitore_piva = ?
+                  AND data_fattura = ?
+                  AND ABS(totale_fattura - ?) < 0.02
+                  AND COALESCE(fonte, 'xml') = 'fic'
+                """,
+                (fornitore_piva, data_fattura_str, totale_fattura),
+            )
+            fic_existing = cur.fetchone()
         if fic_existing:
             fic_id = fic_existing["id"]
             # La fattura è già presente da FIC — arricchisci con dati XML
@@ -331,6 +358,11 @@ def _process_single_xml(
                 "tipo_documento = ?", "is_autofattura = ?",
             ]
             update_params = [xml_hash, filename, tipo_documento, is_autofattura]
+
+            # Numero fattura: aggiorna se FIC non ce l'ha
+            if numero_fattura:
+                update_fields.append("numero_fattura = CASE WHEN numero_fattura IS NULL OR numero_fattura = '' THEN ? ELSE numero_fattura END")
+                update_params.append(numero_fattura)
 
             if imponibile_totale is not None:
                 update_fields.append("imponibile_totale = ?")
@@ -568,6 +600,111 @@ async def import_fatture_xml(
         result["errori"] = errori
 
     return result
+
+
+@router.post(
+    "/fatture/merge-duplicati",
+    summary="Unisce fatture duplicate FIC+XML: sposta righe da XML a FIC e cancella copia XML",
+)
+def merge_duplicati():
+    """
+    Trova fatture duplicate (stessa piva + data + totale, una FIC e una XML),
+    sposta righe e metadati XML nella fattura FIC, poi cancella la copia XML.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+    cur = conn.cursor()
+
+    # Trova coppie FIC (senza righe o con poche) + XML (con righe)
+    cur.execute("""
+        SELECT
+            fic.id AS fic_id, xml.id AS xml_id,
+            fic.fornitore_nome, fic.fornitore_piva,
+            fic.data_fattura, fic.totale_fattura,
+            xml.xml_hash, xml.xml_filename,
+            xml.numero_fattura AS xml_numero,
+            xml.tipo_documento, xml.is_autofattura,
+            xml.fornitore_cf, xml.fornitore_indirizzo,
+            xml.fornitore_cap, xml.fornitore_citta,
+            xml.fornitore_provincia, xml.fornitore_nazione
+        FROM fe_fatture fic
+        JOIN fe_fatture xml ON
+            fic.fornitore_piva = xml.fornitore_piva
+            AND fic.data_fattura = xml.data_fattura
+            AND ABS(fic.totale_fattura - xml.totale_fattura) < 0.02
+            AND fic.id != xml.id
+        WHERE COALESCE(fic.fonte, 'xml') = 'fic'
+          AND COALESCE(xml.fonte, 'xml') = 'xml'
+          AND xml.xml_hash IS NOT NULL
+    """)
+    coppie = cur.fetchall()
+
+    merged = []
+    for row in coppie:
+        fic_id = row["fic_id"]
+        xml_id = row["xml_id"]
+
+        # Sposta righe da XML a FIC (se FIC non ne ha)
+        fic_righe_cnt = cur.execute(
+            "SELECT COUNT(*) AS cnt FROM fe_righe WHERE fattura_id = ?", (fic_id,)
+        ).fetchone()["cnt"]
+        xml_righe_cnt = cur.execute(
+            "SELECT COUNT(*) AS cnt FROM fe_righe WHERE fattura_id = ?", (xml_id,)
+        ).fetchone()["cnt"]
+
+        if fic_righe_cnt == 0 and xml_righe_cnt > 0:
+            cur.execute(
+                "UPDATE fe_righe SET fattura_id = ? WHERE fattura_id = ?",
+                (fic_id, xml_id),
+            )
+            righe_spostate = xml_righe_cnt
+        else:
+            righe_spostate = 0
+
+        # Arricchisci fattura FIC con metadati XML
+        update_parts = ["xml_hash = ?", "xml_filename = ?"]
+        update_vals = [row["xml_hash"], row["xml_filename"]]
+
+        if row["xml_numero"]:
+            update_parts.append(
+                "numero_fattura = CASE WHEN numero_fattura IS NULL OR numero_fattura = '' THEN ? ELSE numero_fattura END"
+            )
+            update_vals.append(row["xml_numero"])
+        if row["tipo_documento"]:
+            update_parts.append("tipo_documento = ?")
+            update_vals.append(row["tipo_documento"])
+        if row["is_autofattura"] is not None:
+            update_parts.append("is_autofattura = ?")
+            update_vals.append(row["is_autofattura"])
+        for col in ("fornitore_cf", "fornitore_indirizzo", "fornitore_cap",
+                     "fornitore_citta", "fornitore_provincia", "fornitore_nazione"):
+            if row[col]:
+                update_parts.append(f"{col} = ?")
+                update_vals.append(row[col])
+
+        update_vals.append(fic_id)
+        cur.execute(
+            f"UPDATE fe_fatture SET {', '.join(update_parts)} WHERE id = ?",
+            update_vals,
+        )
+
+        # Cancella copia XML (righe già spostate o assenti)
+        cur.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (xml_id,))
+        cur.execute("DELETE FROM fe_fatture WHERE id = ?", (xml_id,))
+
+        merged.append({
+            "fic_id": fic_id,
+            "xml_id_rimosso": xml_id,
+            "fornitore": row["fornitore_nome"],
+            "data": row["data_fattura"],
+            "totale": row["totale_fattura"],
+            "righe_spostate": righe_spostate,
+        })
+
+    conn.commit()
+    conn.close()
+
+    return {"merged": len(merged), "dettagli": merged}
 
 
 @router.delete(

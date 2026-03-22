@@ -174,6 +174,13 @@ proxy_pass http://127.0.0.1:8000;   ← backend
 proxy_pass http://127.0.0.1:5173;   ← frontend
 ```
 
+**IMPORTANTE — Limiti upload:**
+```nginx
+# In /etc/nginx/sites-available/trgb.tregobbi.it.conf (blocco server HTTPS)
+client_max_body_size 100M;   # Upload max 100 MB (per import ZIP fatture XML)
+proxy_read_timeout 600s;     # Timeout 10 min (per import grossi)
+```
+
 Test configurazione:
 ```
 sudo nginx -t

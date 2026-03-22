@@ -7,6 +7,13 @@ import FattureNav from "./FattureNav";
 const FC = `${API_BASE}/fic`;
 const FE = `${API_BASE}/contabilita/fe`;
 
+// ── Limiti upload ──
+// Max 100 MB lato nginx (client_max_body_size).
+// Timeout 10 min lato frontend (AbortController).
+// Se si modifica, aggiornare anche: nginx config + backend fe_import.py docstring.
+const UPLOAD_MAX_MB = 100;
+const UPLOAD_TIMEOUT_MS = 10 * 60 * 1000; // 10 minuti
+
 const fmt = (v) =>
   v != null
     ? Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -110,13 +117,17 @@ export default function FattureImpostazioni() {
 
   const handleUpload = async () => {
     if (!files.length) { setUploadError("Seleziona almeno un file XML o ZIP."); return; }
+    const totalMB = files.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
+    if (totalMB > UPLOAD_MAX_MB) {
+      setUploadError(`File troppo grandi (${totalMB.toFixed(1)} MB). Limite: ${UPLOAD_MAX_MB} MB. Dividi in più upload.`);
+      return;
+    }
     setUploading(true); setUploadError(null); setUploadResult(null);
     try {
       const formData = new FormData();
       files.forEach((f) => formData.append("files", f));
-      // Timeout 10 minuti per file grossi (ZIP con molti XML)
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+      const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
       const res = await apiFetch(`${FE}/import`, {
         method: "POST",
         body: formData,
@@ -281,9 +292,23 @@ export default function FattureImpostazioni() {
           {uploading ? "Import in corso..." : "Importa XML"}
         </button>
         {files.length > 0 && !uploading && (
-          <span className="text-xs text-neutral-500">Pronti: <strong>{files.length} file</strong></span>
+          <span className="text-xs text-neutral-500">
+            Pronti: <strong>{files.length} file</strong>
+            {" "}({(files.reduce((s, f) => s + f.size, 0) / 1024 / 1024).toFixed(1)} MB)
+          </span>
         )}
       </div>
+
+      {/* Upload progress for large files */}
+      {uploading && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800 flex items-center gap-3">
+          <svg className="animate-spin h-4 w-4 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span>Importazione in corso — per file grossi può richiedere qualche minuto, non chiudere la pagina...</span>
+        </div>
+      )}
 
       {/* Upload Error */}
       {uploadError && (
@@ -732,6 +757,23 @@ export default function FattureImpostazioni() {
     </div>
   );
 
+  // ── Merge duplicati ──
+  const [merging, setMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState(null);
+  const [mergeError, setMergeError] = useState(null);
+
+  const handleMergeDuplicati = async () => {
+    if (!window.confirm("Unire le fatture duplicate FIC/XML? Le righe XML verranno spostate nelle fatture FIC e le copie XML rimosse.")) return;
+    setMerging(true); setMergeError(null); setMergeResult(null);
+    try {
+      const res = await apiFetch(`${FE}/fatture/merge-duplicati`, { method: "POST" });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || "Errore merge"); }
+      const data = await res.json();
+      setMergeResult(data);
+    } catch (e) { setMergeError(e.message); }
+    finally { setMerging(false); }
+  };
+
   const renderManutenzione = () => (
     <div className="space-y-6">
       <div>
@@ -739,6 +781,48 @@ export default function FattureImpostazioni() {
         <p className="text-sm text-neutral-500 mb-4">
           Operazioni di manutenzione e pulizia del database. Usare con cautela.
         </p>
+      </div>
+
+      {/* Merge duplicati FIC/XML */}
+      <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+        <h3 className="text-sm font-bold text-amber-800 mb-2">Ripara duplicati FIC / XML</h3>
+        <p className="text-xs text-neutral-600 mb-4">
+          Trova fatture presenti sia da Fatture in Cloud (senza righe) che da XML (con righe dettaglio),
+          unisce i dati nella fattura FIC e rimuove la copia XML. Corregge il conteggio fatture e
+          arricchisce le fatture FIC con numero fattura, tipo documento e righe prodotto.
+        </p>
+        <button
+          onClick={handleMergeDuplicati}
+          disabled={merging}
+          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
+            merging
+              ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+              : "bg-amber-600 text-white hover:bg-amber-700 shadow-sm"
+          }`}
+        >
+          {merging ? "Merge in corso..." : "Unisci duplicati"}
+        </button>
+        {mergeError && (
+          <p className="mt-3 text-xs text-red-700">{mergeError}</p>
+        )}
+        {mergeResult && (
+          <div className="mt-3 rounded-lg bg-white border border-amber-200 p-3">
+            <p className="text-sm font-semibold text-amber-900">
+              {mergeResult.merged > 0
+                ? `Uniti ${mergeResult.merged} duplicati`
+                : "Nessun duplicato trovato"}
+            </p>
+            {mergeResult.merged > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto text-xs text-neutral-600 space-y-0.5">
+                {mergeResult.dettagli.map((d, i) => (
+                  <div key={i}>
+                    {d.fornitore} — {d.data} — € {d.totale?.toFixed(2)} — {d.righe_spostate} righe spostate
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reset DB */}
