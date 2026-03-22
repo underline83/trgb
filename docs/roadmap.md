@@ -111,7 +111,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [x] Spese dinamiche (scontrino/fattura/personale/altro) — 2026-03-14
 - [x] Fondo cassa inizio/fine servizio — 2026-03-14
 - [x] Lista chiusure admin con dettaglio espandibile — 2026-03-14
+- [x] Fix quadratura: mance statistiche, spese come giustificativo differenza — 2026-03-23
+- [x] Saldo quadratura calcolato lato server (include dati pranzo per cena) — 2026-03-23
 - [ ] Checklist fine turno configurabile (seed dati default pranzo/cena)
+- [ ] **API REST Gestionali AdE**: studiare specifiche tecniche v4.0 per download automatico corrispettivi giornalieri dal portale Fatture e Corrispettivi (certificato digitale, endpoint GET, formato XML aggregati)
 - [ ] Integrazione con import corrispettivi (cross-check chiusura turno vs daily_closures)
 - [ ] Export PDF riepilogo giornaliero/settimanale
 
