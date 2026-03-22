@@ -748,7 +748,7 @@ async def list_shift_closures(
     cena_dates = [row["date"] for row in rows if row["turno"] == "cena"]
     for d in cena_dates:
         # Cerca la chiusura pranzo per questa data
-        c3.execute("SELECT id FROM shift_closures WHERE date = ? AND turno = 'pranzo'", (d,))
+        c3.execute("SELECT id, fatture FROM shift_closures WHERE date = ? AND turno = 'pranzo'", (d,))
         pranzo_row = c3.fetchone()
         if pranzo_row:
             pranzo_id = pranzo_row["id"]
@@ -760,7 +760,11 @@ async def list_shift_closures(
                 "SELECT COALESCE(SUM(importo), 0) FROM shift_spese WHERE shift_closure_id = ?",
                 (pranzo_id,)
             ).fetchone()[0]
-            pranzo_by_date[d] = {"preconti_tot": preconti_tot, "spese_tot": spese_tot}
+            pranzo_by_date[d] = {
+                "preconti_tot": preconti_tot,
+                "spese_tot": spese_tot,
+                "fatture": pranzo_row["fatture"] or 0,
+            }
     conn3.close()
 
     results = []
@@ -791,14 +795,18 @@ async def list_shift_closures(
         preconti_sum = sum(p.importo for p in preconti_items)
         spese_sum = sum(s.importo for s in spese_items)
 
-        # Per cena: aggiungere preconti e spese del pranzo (valori giornalieri)
+        # Per cena: aggiungere preconti, spese e fatture del pranzo
+        # (i campi principali come preconto/totale_incassi sono giornalieri,
+        #  ma preconti/spese/fatture del pranzo devono essere sommati separatamente)
         pranzo_preconti = 0
         pranzo_spese = 0
+        pranzo_fatture = 0
         if row["turno"] == "cena" and row["date"] in pranzo_by_date:
             pranzo_preconti = pranzo_by_date[row["date"]]["preconti_tot"]
             pranzo_spese = pranzo_by_date[row["date"]]["spese_tot"]
+            pranzo_fatture = pranzo_by_date[row["date"]]["fatture"]
 
-        giustificato = (row["preconto"] or 0) + (preconti_sum + pranzo_preconti) + (row["fatture"] or 0)
+        giustificato = (row["preconto"] or 0) + (preconti_sum + pranzo_preconti) + ((row["fatture"] or 0) + pranzo_fatture)
         spese_giorno = spese_sum + pranzo_spese
         diff_grezzo = entrate - giustificato
         saldo = diff_grezzo + spese_giorno
