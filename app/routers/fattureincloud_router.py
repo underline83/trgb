@@ -321,12 +321,12 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
                     detraibilita_iva, stock,
                 ),
             )
-            righe_count += 1
+            result["righe"] += 1
 
     except Exception as e:
         print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
 
-    return righe_count
+    return result
 
 
 @router.post("/sync", summary="Sincronizza fatture ricevute → fe_fatture", response_model=SyncResult)
