@@ -483,7 +483,7 @@ def list_fatture(
     importo_min: float | None = Query(None),
     importo_max: float | None = Query(None),
     categoria: str | None = Query(None),
-    limit: int = Query(500, ge=1, le=5000),
+    limit: int = Query(500, ge=1, le=50000),
     offset: int = Query(0, ge=0),
 ):
     conn = _get_conn()
@@ -548,7 +548,10 @@ def list_fatture(
             f.id, f.fornitore_nome, f.fornitore_piva,
             f.numero_fattura, f.data_fattura,
             f.imponibile_totale, f.iva_totale, f.totale_fattura,
-            f.valuta, f.xml_filename, f.data_import
+            f.valuta, f.xml_filename, f.data_import,
+            COALESCE(f.fonte, 'xml') AS fonte,
+            COALESCE(f.pagato, 0) AS pagato,
+            (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe
         FROM fe_fatture f {cat_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
@@ -576,7 +579,9 @@ def get_fattura_detail(fattura_id: int):
             id, fornitore_nome, fornitore_piva,
             numero_fattura, data_fattura,
             imponibile_totale, iva_totale, totale_fattura,
-            valuta, xml_filename, data_import
+            valuta, xml_filename, data_import,
+            COALESCE(fonte, 'xml') AS fonte,
+            COALESCE(pagato, 0) AS pagato
         FROM fe_fatture
         WHERE id = ?
         """,
@@ -596,7 +601,8 @@ def get_fattura_detail(fattura_id: int):
             numero_linea, descrizione,
             quantita, unita_misura,
             prezzo_unitario, prezzo_totale,
-            aliquota_iva, categoria_grezza, note_analisi
+            aliquota_iva, categoria_grezza, note_analisi,
+            COALESCE(codice_articolo, '') AS codice_articolo
         FROM fe_righe
         WHERE fattura_id = ?
         ORDER BY numero_linea ASC, id ASC
