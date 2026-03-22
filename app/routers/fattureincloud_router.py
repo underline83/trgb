@@ -717,3 +717,40 @@ def fic_fornitori(
         conn.close()
 
 
+@router.get("/debug-detail/{fic_id}", summary="Debug: dettaglio raw da FIC API")
+def debug_fic_detail(
+    fic_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    """Restituisce il payload grezzo dell'API FIC per un documento specifico."""
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+
+        detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
+            "fieldset": "detailed",
+        })
+        doc_data = detail.get("data", {}) or {}
+
+        items = doc_data.get("items_list") or []
+        payments = doc_data.get("payments_list") or []
+
+        return {
+            "fic_id": fic_id,
+            "invoice_number": doc_data.get("invoice_number", ""),
+            "date": doc_data.get("date", ""),
+            "entity_name": (doc_data.get("entity", {}) or {}).get("name", ""),
+            "n_items": len(items),
+            "items_preview": items[:5],
+            "n_payments": len(payments),
+            "payments_preview": payments[:3],
+            "raw_keys": list(doc_data.keys()),
+        }
+    finally:
+        conn.close()
+
