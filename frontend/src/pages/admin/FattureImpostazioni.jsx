@@ -520,6 +520,28 @@ export default function FattureImpostazioni() {
                       </div>
                     </div>
                   )}
+
+                  {/* Fatture senza dettaglio prodotti */}
+                  {(syncResult.senza_dettaglio || []).length > 0 && (
+                    <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <p className="font-semibold text-orange-800 text-xs mb-1">
+                        ⚠️ {syncResult.senza_dettaglio.length} {syncResult.senza_dettaglio.length === 1 ? "fattura" : "fatture"} senza dettaglio prodotti
+                      </p>
+                      <p className="text-[10px] text-orange-700 mb-2">
+                        Queste fatture non hanno le righe su Fatture in Cloud. Puoi completarle caricando i file XML dalla sezione Import XML.
+                      </p>
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {syncResult.senza_dettaglio.map((it, i) => (
+                          <div key={i} className="text-[11px] bg-white rounded px-2 py-1.5 border border-orange-100 flex items-center gap-2">
+                            <span className="text-orange-600 font-mono whitespace-nowrap">{it.data}</span>
+                            <span className="text-orange-800 font-semibold truncate">{it.fornitore}</span>
+                            <span className="text-orange-600 font-mono">{it.numero || "—"}</span>
+                            <span className="ml-auto text-orange-700 whitespace-nowrap">€ {(it.totale || 0).toLocaleString("it-IT", {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

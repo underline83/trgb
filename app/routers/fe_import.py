@@ -289,19 +289,75 @@ def _process_single_xml(
         )
         fic_existing = cur.fetchone()
         if fic_existing:
-            # La fattura è già presente da FIC — aggiungi hash XML per tracciarla
+            fic_id = fic_existing["id"]
+            # La fattura è già presente da FIC — arricchisci con dati XML
+            # Aggiorna campi XML + importi (XML ha i valori precisi dal SdI)
+            update_fields = [
+                "xml_hash = ?", "xml_filename = ?",
+                "tipo_documento = ?", "is_autofattura = ?",
+            ]
+            update_params = [xml_hash, filename, tipo_documento, is_autofattura]
+
+            if imponibile_totale is not None:
+                update_fields.append("imponibile_totale = ?")
+                update_params.append(imponibile_totale)
+            if iva_totale is not None:
+                update_fields.append("iva_totale = ?")
+                update_params.append(iva_totale)
+            if totale_fattura is not None:
+                update_fields.append("totale_fattura = ?")
+                update_params.append(totale_fattura)
+
+            update_params.append(fic_id)
             cur.execute(
-                "UPDATE fe_fatture SET xml_hash = ?, xml_filename = ?, tipo_documento = ?, is_autofattura = ? WHERE id = ?",
-                (xml_hash, filename, tipo_documento, is_autofattura, fic_existing["id"]),
+                f"UPDATE fe_fatture SET {', '.join(update_fields)} WHERE id = ?",
+                update_params,
             )
+
+            # Arricchisci con righe XML se la fattura FIC non ne ha
+            existing_righe = cur.execute(
+                "SELECT COUNT(*) AS cnt FROM fe_righe WHERE fattura_id = ?", (fic_id,)
+            ).fetchone()["cnt"]
+
+            if existing_righe == 0:
+                dettaglio_linee_fic = root.findall(".//{*}DettaglioLinee")
+                righe_aggiunte = 0
+                for line in dettaglio_linee_fic:
+                    numero_linea_str = _find_text(line, "NumeroLinea")
+                    descrizione = _find_text(line, "Descrizione")
+                    quantita_str = _find_text(line, "Quantita")
+                    prezzo_unitario_str = _find_text(line, "PrezzoUnitario")
+                    prezzo_totale_str = _find_text(line, "PrezzoTotale")
+                    um = _find_text(line, "UnitaMisura")
+                    aliquota_str = _find_text(line, "AliquotaIVA")
+                    numero_linea = int(numero_linea_str) if numero_linea_str else None
+
+                    cur.execute(
+                        """INSERT INTO fe_righe (
+                            fattura_id, numero_linea, descrizione,
+                            quantita, unita_misura,
+                            prezzo_unitario, prezzo_totale, aliquota_iva,
+                            categoria_grezza, note_analisi
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (fic_id, numero_linea, descrizione,
+                         _to_float(quantita_str), um,
+                         _to_float(prezzo_unitario_str), _to_float(prezzo_totale_str),
+                         _to_float(aliquota_str), None, None),
+                    )
+                    righe_aggiunte += 1
+
+                nota = f"arricchita con {righe_aggiunte} righe da XML" if righe_aggiunte > 0 else "già presente da Fatture in Cloud"
+            else:
+                nota = "già presente da Fatture in Cloud (righe già presenti)"
+
             gia_presenti.append(
                 {
                     "filename": filename,
-                    "fattura_id": fic_existing["id"],
+                    "fattura_id": fic_id,
                     "fornitore": fornitore_nome,
                     "numero_fattura": numero_fattura,
                     "data_fattura": data_fattura_str,
-                    "nota": "già presente da Fatture in Cloud",
+                    "nota": nota,
                 }
             )
             return

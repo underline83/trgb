@@ -104,6 +104,7 @@ class SyncResult(BaseModel):
     note: str = ""
     error_details: list[str] = []
     items: list[SyncResultItem] = []
+    senza_dettaglio: list[SyncResultItem] = []
 
 
 # ─── ENDPOINTS ────────────────────────────────────────────
@@ -217,7 +218,7 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
     - righe in fe_righe (da items_list)
     Ritorna dict con contatori: {"righe": N, "merged": 0|1}
     """
-    result = {"righe": 0, "merged": 0}
+    result = {"righe": 0, "merged": 0, "no_detail": False}
     try:
         detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
             "fieldset": "detailed",
@@ -282,6 +283,12 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         # ── RIGHE / ITEMS ────────────────────────────────
         items_list = doc_data.get("items_list") or []
         if not items_list:
+            # Controlla se ci sono già righe (es. da XML)
+            existing_righe = conn.execute(
+                "SELECT COUNT(*) FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,)
+            ).fetchone()[0]
+            if existing_righe == 0:
+                result["no_detail"] = True
             return result
 
         # Rimuovi righe precedenti per questa fattura (re-sync pulito)
@@ -560,11 +567,26 @@ def fic_sync(
 
         # ── FASE 2: DETTAGLIO (righe + pagato + dedup XML) ──
         merged_xml = 0
+        senza_dettaglio: list[dict] = []
         for i, (fic_id, fattura_db_id) in enumerate(docs_to_detail):
             try:
                 res = _fetch_detail_and_righe(conn, token, cid, fic_id, fattura_db_id)
                 righe_importate += res["righe"]
                 merged_xml += res["merged"]
+                if res.get("no_detail"):
+                    # Recupera info fattura per la segnalazione
+                    fat_info = conn.execute(
+                        "SELECT fornitore_nome, numero_fattura, data_fattura, totale_fattura FROM fe_fatture WHERE id = ?",
+                        (fattura_db_id,)
+                    ).fetchone()
+                    if fat_info:
+                        senza_dettaglio.append({
+                            "fornitore": fat_info["fornitore_nome"] or "",
+                            "numero": fat_info["numero_fattura"] or "",
+                            "data": fat_info["data_fattura"] or "",
+                            "totale": fat_info["totale_fattura"] or 0,
+                            "stato": "senza_dettaglio",
+                        })
             except Exception as e:
                 errori += 1
                 error_details.append(f"Fase2 dettaglio fic_id={fic_id}, db_id={fattura_db_id}: {e}")
@@ -604,6 +626,7 @@ def fic_sync(
             note=f"Sincronizzazione {anno} completata",
             error_details=error_details[:50],  # max 50 errori dettagliati
             items=[SyncResultItem(**it) for it in sync_items],
+            senza_dettaglio=[SyncResultItem(**it) for it in senza_dettaglio],
         )
     finally:
         conn.close()
