@@ -78,8 +78,8 @@ export default function FattureElenco() {
     uniq(fatture.map(f => f.fornitore_nome).filter(Boolean)),
   [fatture]);
 
-  // ── Filtro ──
-  const fattureFiltrate = useMemo(() => {
+  // ── Filtro base (tutti i filtri TRANNE fonte e tipo — usato per conteggi badge) ──
+  const fattureBase = useMemo(() => {
     let list = [...fatture];
 
     if (searchText) {
@@ -100,12 +100,8 @@ export default function FattureElenco() {
     });
     if (fornitoreSel) list = list.filter(f => f.fornitore_nome === fornitoreSel);
     if (pivaSel) list = list.filter(f => (f.fornitore_piva || "").includes(pivaSel));
-    if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
     if (pagatoSel === "si") list = list.filter(f => f.pagato);
     if (pagatoSel === "no") list = list.filter(f => !f.pagato);
-    if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
-    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
-    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
 
     if (importoMode === "gt" && importoVal1)
       list = list.filter(f => (f.totale_fattura || 0) > parseFloat(importoVal1));
@@ -118,7 +114,17 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, tipoSel, importoMode, importoVal1, importoVal2]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2]);
+
+  // ── Filtro completo (aggiunge fonte + tipo) ──
+  const fattureFiltrate = useMemo(() => {
+    let list = fattureBase;
+    if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
+    if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
+    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
+    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
+    return list;
+  }, [fattureBase, fonteSel, tipoSel]);
 
   // ── Ordinamento ──
   const fattureOrdinate = useMemo(() => {
@@ -173,14 +179,14 @@ export default function FattureElenco() {
     setTipoSel(""); setImportoMode("any"); setImportoVal1(""); setImportoVal2("");
   };
 
-  // ── Riepilogo (conteggi su tutte le fatture, non solo filtrate) ──
+  // ── Riepilogo (conteggi su fattureBase = filtrate tranne fonte/tipo) ──
   const totFiltrate = fattureFiltrate.length;
   const totImporto = fattureFiltrate.reduce((s, f) => s + (f.totale_fattura || 0), 0);
-  const countXml = fatture.filter(f => (f.fonte || "xml") === "xml").length;
-  const countFic = fatture.filter(f => f.fonte === "fic").length;
-  const countAutofatture = fatture.filter(f => f.is_autofattura).length;
-  const countEscluse = fatture.filter(f => f.escluso).length;
-  const countNormali = fatture.length - countAutofatture - countEscluse + fatture.filter(f => f.is_autofattura && f.escluso).length;
+  const countXml = fattureBase.filter(f => (f.fonte || "xml") === "xml").length;
+  const countFic = fattureBase.filter(f => f.fonte === "fic").length;
+  const countAutofatture = fattureBase.filter(f => f.is_autofattura).length;
+  const countEscluse = fattureBase.filter(f => f.escluso && !f.is_autofattura).length;
+  const countNormali = fattureBase.filter(f => !f.is_autofattura && !f.escluso).length;
 
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
