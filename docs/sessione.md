@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-20 (sessione 11 — Infrastruttura: backup, sicurezza, multi-PC, Google Drive)
+> Ultima sessione: 2026-03-22 (sessione 12 — Gestione Acquisti v2.1: FIC API v2 enrichment, fix UI escluso)
 
 ---
 
@@ -15,7 +15,54 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-20, sessione 11)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-22, sessione 12)
+
+### Gestione Acquisti v2.1: FIC API v2 enrichment, SyncResult tracking, fix UI escluso
+
+#### Backend — fe_import.py (fatture list/import)
+1. **Rimosso `escluso` field da query `/fatture`** — il flag è solo per product matching module, non per acquisti
+2. **Rimosso LEFT JOIN con `fe_fornitore_categoria`** dalla list endpoint e stats (fornitori, mensili)
+3. **`_EXCL_JOIN` e `_EXCL_WHERE` rifiloati** — ora `_EXCL_JOIN` contiene solo category JOIN (per dashboard drill-down), `_EXCL_WHERE` filtra solo autofatture
+4. **Import XML arricchisce fatture FIC** — quando import XML matcha una fattura FIC esistente (piva+numero+data), aggiunge le righe XML se FIC ritorna `is_detailed: false` (zero righe da API)
+5. **Import XML aggiorna importi** — da XML SdI: imponibile, IVA, totale quando arricchisce
+
+#### Backend — fattureincloud_router.py (FIC sync)
+6. **SyncResult tracking v2.0** — include `items` list (fornitore, numero, data, totale, stato: nuova/aggiornata/merged_xml) e `senza_dettaglio` list (fatture con `is_detailed: false` e nessun righe)
+7. **Debug endpoint** — `GET /fic/debug-detail/{fic_id}` ritorna raw FIC API response (is_detailed, e_invoice, items_list, etc.)
+8. **`force_detail` parameter** aggiunto a sync endpoint
+9. **Phase 2 XML preservation** — se FIC `items_list` vuoto, righe da XML importato non vengono cancellate
+
+#### Frontend — FattureElenco.jsx
+10. **Rimosso "Escluse" badge e filtro** — niente più badge "Escluse", "Normali" o filtro tipo "escluso"
+11. **Only "Autofatture" badge rimane** (mostrato quando count > 0)
+12. **Anno default = current year** (`new Date().getFullYear()`)
+
+#### Frontend — FattureImpostazioni.jsx
+13. **Sync result table** — lista completa fatture processate con NUOVA/AGG./MERGE badges, data, numero, fornitore, totale
+14. **Orange warning box** — per fatture senza_dettaglio con suggerimento upload XML
+15. **10-minute timeout** su sync fetch (AbortController) per prevenire network errors su sync grandi
+
+#### Frontend — FattureDashboard.jsx
+16. **Anno default = current year** invece di "all"
+
+#### Infrastructure
+17. **nginx proxy_read_timeout = 600s** su VPS per trgb.tregobbi.it
+
+#### Database & Discoveries
+18. **58 fornitori `escluso=1`** in `fe_fornitore_categoria` — è per product matching ONLY, non acquisti
+19. **Fresh FIC-only import** — `fe_fatture` e `fe_righe` cleared per reimport pulito
+20. **Zero duplicates** — cross-fonte dedup working
+21. **FIC API v2 limitation discovered** — `received_documents` con `fieldset=detailed` ritorna `items_list: []` quando `is_detailed: false`, anche con `e_invoice: true` (XML attached). FIC frontend legge dall'XML, ma REST API no. Workaround: import XML.
+
+#### Documentation
+22. **changelog.md** — aggiunta v2.1 completa
+23. **Modulo_Acquisti.md** — updated to v2.1, aggiunto FIC sync section, debug endpoint
+24. **modulo_fatture_xml.md** — updated timestamp, aggiunto FIC API v2 sync alla lista features
+25. **sessione.md** — aggiornamento completo (questo file)
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-20, sessione 11)
 
 ### Infrastruttura: backup, sicurezza, multi-PC, Google Drive
 

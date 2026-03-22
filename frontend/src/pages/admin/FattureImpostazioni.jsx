@@ -273,22 +273,104 @@ export default function FattureImpostazioni() {
 
       {/* Upload Result */}
       {uploadResult && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          <p className="font-semibold mb-1">Import completato</p>
-          <p>Nuove fatture: <strong>{uploadResult.importate?.length || 0}</strong></p>
-          {uploadResult.gia_presenti?.length > 0 && (
-            <p className="text-xs mt-1">Saltate (duplicati): <strong>{uploadResult.gia_presenti.length}</strong></p>
-          )}
-          {uploadResult.errori?.length > 0 && (
-            <div className="mt-2 text-xs text-red-700">
-              <p className="font-semibold">Errori ({uploadResult.errori.length}):</p>
-              <ul className="list-disc list-inside mt-1">
-                {uploadResult.errori.map((e, i) => (
-                  <li key={i}>{e.filename}: {e.errore}</li>
-                ))}
-              </ul>
+        <div className={`rounded-xl p-4 text-sm border ${
+          uploadResult.errori?.length > 0 ? "bg-amber-50 border-amber-200" : "bg-emerald-50 border-emerald-200"
+        }`}>
+          <div className="flex items-start gap-2">
+            <span className="text-lg">{uploadResult.errori?.length > 0 ? "⚠️" : "✅"}</span>
+            <div className="flex-1">
+              <p className="font-semibold text-neutral-800 mb-1">
+                Import completato{uploadResult.errori?.length > 0 ? " con errori" : ""}
+              </p>
+              <p className="text-neutral-700">
+                {uploadResult.importate?.length || 0} nuove
+                {uploadResult.gia_presenti?.length > 0 && (
+                  <span className="text-neutral-500">, {uploadResult.gia_presenti.length} già presenti</span>
+                )}
+                {uploadResult.errori?.length > 0 && (
+                  <span className="text-red-600">, {uploadResult.errori.length} {uploadResult.errori.length === 1 ? "errore" : "errori"}</span>
+                )}
+              </p>
+
+              {/* Errori dettagliati */}
+              {uploadResult.errori?.length > 0 && (
+                <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="font-semibold text-red-800 text-xs mb-2">Errori:</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {uploadResult.errori.map((e, i) => (
+                      <div key={i} className="text-xs text-red-700 bg-white rounded px-2 py-1.5 border border-red-100 font-mono break-all">
+                        {e.filename}: {e.errore}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fatture importate */}
+              {(uploadResult.importate?.length > 0) && (
+                <div className="mt-3 bg-white border border-neutral-200 rounded-lg p-3">
+                  <p className="font-semibold text-neutral-700 text-xs mb-2">
+                    Fatture importate ({uploadResult.importate.length}):
+                  </p>
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-[11px]">
+                      <thead className="sticky top-0 bg-neutral-50">
+                        <tr className="text-left text-neutral-500 border-b">
+                          <th className="py-1 px-1">Data</th>
+                          <th className="py-1 px-1">N.</th>
+                          <th className="py-1 px-1">Fornitore</th>
+                          <th className="py-1 px-1 text-right">Totale</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uploadResult.importate.map((it, i) => (
+                          <tr key={i} className="border-b border-neutral-100 hover:bg-neutral-50">
+                            <td className="py-1 px-1 text-neutral-600 whitespace-nowrap">{it.data_fattura || "—"}</td>
+                            <td className="py-1 px-1 text-neutral-600 font-mono">{it.numero_fattura || "—"}</td>
+                            <td className="py-1 px-1 text-neutral-800 truncate max-w-[200px]">{it.fornitore}</td>
+                            <td className="py-1 px-1 text-right text-neutral-700 whitespace-nowrap">
+                              {it.totale_fattura != null ? `€ ${it.totale_fattura.toLocaleString("it-IT", {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Fatture già presenti (duplicati / arricchite) */}
+              {(uploadResult.gia_presenti?.length > 0) && (
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="font-semibold text-blue-800 text-xs mb-2">
+                    Già presenti ({uploadResult.gia_presenti.length}):
+                  </p>
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-[11px]">
+                      <thead className="sticky top-0 bg-blue-50">
+                        <tr className="text-left text-blue-500 border-b border-blue-200">
+                          <th className="py-1 px-1">Data</th>
+                          <th className="py-1 px-1">N.</th>
+                          <th className="py-1 px-1">Fornitore</th>
+                          <th className="py-1 px-1">Nota</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uploadResult.gia_presenti.map((it, i) => (
+                          <tr key={i} className="border-b border-blue-100 hover:bg-blue-100/50">
+                            <td className="py-1 px-1 text-blue-700 whitespace-nowrap">{it.data_fattura || "—"}</td>
+                            <td className="py-1 px-1 text-blue-700 font-mono">{it.numero_fattura || "—"}</td>
+                            <td className="py-1 px-1 text-blue-900 truncate max-w-[180px]">{it.fornitore}</td>
+                            <td className="py-1 px-1 text-blue-600 text-[10px]">{it.nota || "duplicato"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
     </div>

@@ -456,54 +456,59 @@ def fic_sync(
                     ).fetchone()
 
                     if existing_fic:
-                        # NON sovrascrivere numero_fattura se la lista API non lo fornisce
-                        # (il numero viene dal detail endpoint in fase 2)
-                        if doc_number:
-                            conn.execute(
-                                """
-                                UPDATE fe_fatture SET
-                                    fornitore_nome = ?,
-                                    fornitore_piva = ?,
-                                    numero_fattura = ?,
-                                    data_fattura   = ?,
-                                    imponibile_totale = ?,
-                                    iva_totale     = ?,
-                                    totale_fattura = ?,
-                                    valuta         = ?
-                                WHERE fic_id = ?
-                                """,
-                                (
-                                    fornitore_nome, fornitore_piva,
-                                    doc_number, doc_date,
-                                    amount_net, amount_vat, amount_gross,
-                                    "EUR",
-                                    fic_id,
-                                ),
-                            )
-                        else:
-                            conn.execute(
-                                """
-                                UPDATE fe_fatture SET
-                                    fornitore_nome = ?,
-                                    fornitore_piva = ?,
-                                    data_fattura   = ?,
-                                    imponibile_totale = ?,
-                                    iva_totale     = ?,
-                                    totale_fattura = ?,
-                                    valuta         = ?
-                                WHERE fic_id = ?
-                                """,
-                                (
-                                    fornitore_nome, fornitore_piva,
-                                    doc_date,
-                                    amount_net, amount_vat, amount_gross,
-                                    "EUR",
-                                    fic_id,
-                                ),
-                            )
-                        docs_to_detail.append((fic_id, existing_fic["id"]))
-                        aggiornate += 1
-                        sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "aggiornata"})
+                        db_id = existing_fic["id"]
+
+                        # Controlla se serve aggiornare l'header
+                        cur_row = conn.execute(
+                            "SELECT fornitore_nome, fornitore_piva, data_fattura, "
+                            "imponibile_totale, iva_totale, totale_fattura, numero_fattura "
+                            "FROM fe_fatture WHERE id = ?", (db_id,)
+                        ).fetchone()
+
+                        header_changed = (
+                            cur_row["fornitore_nome"] != fornitore_nome
+                            or cur_row["fornitore_piva"] != fornitore_piva
+                            or cur_row["data_fattura"] != doc_date
+                            or round(cur_row["imponibile_totale"] or 0, 2) != round(amount_net, 2)
+                            or round(cur_row["iva_totale"] or 0, 2) != round(amount_vat, 2)
+                            or round(cur_row["totale_fattura"] or 0, 2) != round(amount_gross, 2)
+                        )
+
+                        if header_changed:
+                            if doc_number:
+                                conn.execute(
+                                    """UPDATE fe_fatture SET
+                                        fornitore_nome=?, fornitore_piva=?, numero_fattura=?,
+                                        data_fattura=?, imponibile_totale=?, iva_totale=?,
+                                        totale_fattura=?, valuta=? WHERE fic_id=?""",
+                                    (fornitore_nome, fornitore_piva, doc_number, doc_date,
+                                     amount_net, amount_vat, amount_gross, "EUR", fic_id),
+                                )
+                            else:
+                                conn.execute(
+                                    """UPDATE fe_fatture SET
+                                        fornitore_nome=?, fornitore_piva=?,
+                                        data_fattura=?, imponibile_totale=?, iva_totale=?,
+                                        totale_fattura=?, valuta=? WHERE fic_id=?""",
+                                    (fornitore_nome, fornitore_piva, doc_date,
+                                     amount_net, amount_vat, amount_gross, "EUR", fic_id),
+                                )
+
+                        # Ri-fetch dettaglio solo se mancano dati o force_detail
+                        needs_detail = force_detail or not cur_row["numero_fattura"]
+                        if not needs_detail:
+                            n_righe = conn.execute(
+                                "SELECT COUNT(*) FROM fe_righe WHERE fattura_id = ?", (db_id,)
+                            ).fetchone()[0]
+                            needs_detail = (n_righe == 0)
+
+                        if needs_detail:
+                            docs_to_detail.append((fic_id, db_id))
+
+                        if header_changed or needs_detail:
+                            aggiornate += 1
+                            sync_items.append({"fornitore": fornitore_nome, "numero": doc_number or "", "data": doc_date or "", "totale": amount_gross or 0, "stato": "aggiornata"})
+
                         continue
 
                     # 2) Già presente da XML? (match su piva + numero + data)

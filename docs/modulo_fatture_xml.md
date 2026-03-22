@@ -1,6 +1,6 @@
 # Modulo Fatture Elettroniche (XML) — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-14
-**Stato:** Operativo (integrato nel modulo Gestione Acquisti)
+**Ultimo aggiornamento:** 2026-03-22
+**Stato:** Operativo (integrato nel modulo Gestione Acquisti v2.1)
 **Data introduzione:** 2025-12-05
 **Dominio funzionale:** Acquisti & Controllo di Gestione
 
@@ -22,6 +22,7 @@ Il modulo consente di importare file FatturaPA in formato XML e trasformarli in 
 - Categorizzazione a 2 livelli (categorie + sottocategorie)
 - Esclusione fornitori (autofatture, non pertinenti)
 - **Matching ingredienti**: collegamento righe fattura → ingredienti con fuzzy search, auto-match, Smart Create
+- **FattureInCloud (FIC) API v2 Sync** (v2.1): sincronizzazione automatica con XML enrichment (quando FIC API ritorna `is_detailed: false`, il sistema tenta di aggiungere righe da XML importati)
 
 ### Da fare
 - Gestione Note di Credito XML

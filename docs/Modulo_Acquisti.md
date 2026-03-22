@@ -1,7 +1,7 @@
 # 📦 Modulo Gestione Acquisti — TRGB Gestionale
-**Versione:** 2.0
+**Versione:** 2.1
 **Stato:** Stabile
-**Data ultimo aggiornamento:** 2026-03-10
+**Data ultimo aggiornamento:** 2026-03-22
 **Dominio funzionale:** Acquisti, Fatture Elettroniche, Controllo di Gestione
 
 ---
@@ -41,6 +41,9 @@ Drag & drop XML multipli o selezione file. Anti-duplicazione SHA-256. Lista fatt
 ## 2.8 Categorie (`/acquisti/categorie`)
 Gestione albero Cat.1/Cat.2 (categorie e sottocategorie). Assegnazione fornitori a categorie. Esclusione fornitori (autofatture, non pertinenti).
 
+## 2.9 FattureInCloud (FIC) Sync (`/acquisti/impostazioni` tab FIC)
+Sincronizzazione automatica fatture ricevute da API v2 FIC. Tracciamento stato (nuova/aggiornata/merged_xml), lista fatture senza dettaglio (senza_dettaglio) con warning. XML enrichment: se FIC ritorna `is_detailed: false` (no righe), il sistema tenta match con XML importato per aggiungere righe e importi.
+
 ---
 
 # 3. Navigazione
@@ -70,6 +73,8 @@ Auth: JWT (tutte le route richiedono token)
 | GET | `/stats/drill` | Drill-down per anno/mese/categoria |
 | GET | `/stats/anomalie` | Anomalie e variazioni anno su anno |
 | GET | `/stats/confronto-annuale` | Confronto tra due anni |
+| POST | `/fic/sync` | Sincronizza fatture da FattureInCloud API v2 (con `force_detail` param) |
+| GET | `/fic/debug-detail/{fic_id}` | Ritorna raw FIC API response (is_detailed, e_invoice, items_list, etc.) |
 
 ### Endpoint categorie (`/contabilita/fe/categorie`)
 
@@ -141,6 +146,17 @@ frontend/src/pages/admin/
 ---
 
 # 8. Changelog
+
+## v2.1 (2026-03-22)
+- **FattureInCloud (FIC) sync v2.0**: sincronizzazione API v2 con SyncResult tracking (items + senza_dettaglio list)
+- **XML enrichment**: FIC fatture con `is_detailed: false` vengono arricchite da XML importati (righe + importi)
+- **Debug endpoint**: GET `/fic/debug-detail/{fic_id}` per troubleshooting FIC API responses
+- **UI FattureImpostazioni**: lista fatture processate in tabella con badges (NUOVA/AGG./MERGE), warning box per senza_dettaglio
+- **UI FattureElenco**: rimosso filtro "Escluse", badge "Escluso" (il flag è solo per product matching). Solo "Autofatture" badge rimane. Anno default = current year.
+- **UI FattureDashboard**: anno default = current year
+- **Backend cleanup**: rimosso `escluso` field da query `/fatture` list, rimosso LEFT JOIN con `fe_fornitore_categoria`. `_EXCL_JOIN` e `_EXCL_WHERE` ora specifici per autofatture.
+- **Infrastructure**: nginx proxy_read_timeout = 600s per trgb.tregobbi.it
+- **Database notes**: 58 fornitori `escluso=1` (product matching only), fresh FIC-only import, zero duplicates
 
 ## v2.0 (2026-03-10)
 - Promosso a modulo di primo livello ("Gestione Acquisti")

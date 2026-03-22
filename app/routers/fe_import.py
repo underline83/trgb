@@ -536,6 +536,7 @@ def list_fatture(
     year: int | None = Query(None),
     month: str | None = Query(None),
     fornitore: str | None = Query(None, description="Nome fornitore esatto"),
+    fornitore_piva: str | None = Query(None, description="P.IVA fornitore esatta"),
     importo_min: float | None = Query(None),
     importo_max: float | None = Query(None),
     categoria: str | None = Query(None),
@@ -567,6 +568,12 @@ def list_fatture(
     if fornitore:
         where_parts.append("f.fornitore_nome = ?")
         params.append(fornitore)
+
+    if fornitore_piva:
+        where_parts.append(
+            "(f.fornitore_piva = ? OR (f.fornitore_piva IS NULL AND f.fornitore_nome = ?))"
+        )
+        params.extend([fornitore_piva, fornitore_piva])
 
     if importo_min is not None:
         where_parts.append("COALESCE(f.totale_fattura, 0) >= ?")

@@ -3,6 +3,66 @@
 
 ---
 
+## 2026-03-22 — Gestione Acquisti & FattureInCloud v2.1: FIC API v2 enrichment, SyncResult tracking, fix UI escluso
+
+### Backend: fe_import.py (fatture list/import)
+
+#### Changed
+- **Rimosso `escluso` field dalla query `/fatture`** — il flag `fe_fornitore_categoria.escluso` è solo per il modulo product matching, non per acquisti
+- **Rimosso LEFT JOIN con `fe_fornitore_categoria`** dalla list endpoint `/fatture` e stats endpoints (fornitori, mensili)
+- **`_EXCL_JOIN` ora contiene solo category JOIN** (per drill-down dashboard), `_EXCL_WHERE` filtra solo autofatture
+- **Import XML arricchisce fatture FIC**: quando un import XML matcha una fattura FIC esistente (piva+numero+data), aggiunge le righe XML (righe) se la fattura FIC ha `is_detailed: false` (ritorna zero righe da FIC API)
+- **Import XML aggiorna importi** da XML SdI (imponibile, IVA, totale) quando arricchisce fatture FIC
+
+### Backend: fattureincloud_router.py (FIC sync)
+
+#### Added
+- **SyncResult ora include `items` list** — ogni fattura sincronizzata è tracciata con fornitore, numero, data, totale, stato (nuova/aggiornata/merged_xml)
+- **SyncResult ora include `senza_dettaglio` list** — fatture dove FIC API ritorna `items_list: []` (is_detailed: false) e nessun righe esistente da XML
+- **Debug endpoint** `GET /fic/debug-detail/{fic_id}` ritorna raw FIC API response per uno specifico documento (is_detailed, e_invoice, items_list, etc.)
+- **`force_detail` parameter** aggiunto a sync endpoint
+
+#### Changed
+- **Phase 2 preserva XML righe** — se FIC `items_list` è vuoto, le righe esistenti (da XML) non vengono cancellate
+
+### Frontend: FattureElenco.jsx
+
+#### Removed
+- **Rimosso "Escluse" badge e filtro** — niente più badge "Escluse", "Normali" o filtro tipo "escluso"
+
+#### Changed
+- **Only "Autofatture" badge rimane** (mostrato quando count > 0)
+- **Anno default è anno corrente** (`new Date().getFullYear()`)
+
+### Frontend: FattureImpostazioni.jsx
+
+#### Added
+- **Sync result mostra lista completa di fatture processate** in una tabella (NUOVA/AGG./MERGE badges, data, numero, fornitore, totale)
+- **Orange warning box** per fatture senza product detail (senza_dettaglio) — suggerisce upload file XML
+- **10-minute timeout** su sync fetch (AbortController) per prevenire network errors su sync grandi
+
+### Frontend: FattureDashboard.jsx
+
+#### Changed
+- **Anno default è anno corrente** invece di "all"
+
+### Infrastructure
+
+#### Changed
+- **nginx proxy_read_timeout** set a 600s su VPS per trgb.tregobbi.it
+
+### Database
+
+#### Notes
+- 58 fornitori marcati `escluso=1` in `fe_fornitore_categoria` — è per il modulo product matching ONLY, non acquisti
+- `fe_fatture` e `fe_righe` cleared per fresh FIC-only import
+- Cross-fonte dedup working (0 duplicates dopo fix)
+
+### Key Discovery
+- **FIC API v2 `received_documents` con `fieldset=detailed`** ritorna `items_list: []` quando `is_detailed: false`, anche se la fattura ha `e_invoice: true` (XML SdI attached). FIC frontend legge items dall'XML attached direttamente, ma REST API non li espone. Workaround: importare XML files per ottenere le righe.
+
+---
+
 ## 2026-03-21 — Modulo iPratico Sync v2.0
 
 ### Added
