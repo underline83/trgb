@@ -36,6 +36,7 @@ export default function FattureElenco() {
   const [importoMode, setImportoMode] = useState("any");
   const [importoVal1, setImportoVal1] = useState("");
   const [importoVal2, setImportoVal2] = useState("");
+  const [tipoSel, setTipoSel] = useState(""); // "" | "normale" | "autofattura" | "escluso"
 
   // ── Ordinamento ──
   const [sortKey, setSortKey] = useState("data_fattura");
@@ -102,6 +103,9 @@ export default function FattureElenco() {
     if (fonteSel) list = list.filter(f => (f.fonte || "xml") === fonteSel);
     if (pagatoSel === "si") list = list.filter(f => f.pagato);
     if (pagatoSel === "no") list = list.filter(f => !f.pagato);
+    if (tipoSel === "autofattura") list = list.filter(f => f.is_autofattura);
+    if (tipoSel === "escluso") list = list.filter(f => f.escluso);
+    if (tipoSel === "normale") list = list.filter(f => !f.is_autofattura && !f.escluso);
 
     if (importoMode === "gt" && importoVal1)
       list = list.filter(f => (f.totale_fattura || 0) > parseFloat(importoVal1));
@@ -114,7 +118,7 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, importoMode, importoVal1, importoVal2]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, tipoSel, importoMode, importoVal1, importoVal2]);
 
   // ── Ordinamento ──
   const fattureOrdinate = useMemo(() => {
@@ -135,7 +139,7 @@ export default function FattureElenco() {
   const totalPages = Math.max(1, Math.ceil(fattureOrdinate.length / perPage));
   const fattureVisibili = fattureOrdinate.slice((page - 1) * perPage, page * perPage);
 
-  useEffect(() => { setPage(1); }, [searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, importoMode, importoVal1, importoVal2]);
+  useEffect(() => { setPage(1); }, [searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, tipoSel, importoMode, importoVal1, importoVal2]);
 
   // ── Dettaglio ──
   const openDetail = async (id) => {
@@ -161,19 +165,22 @@ export default function FattureElenco() {
   const sortIcon = (key) => sortKey === key ? (sortDir === "asc" ? " ↑" : " ↓") : "";
 
   // ── Contatori filtri attivi ──
-  const activeFilters = [searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, importoMode !== "any" ? "x" : ""].filter(Boolean).length;
+  const activeFilters = [searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, tipoSel, importoMode !== "any" ? "x" : ""].filter(Boolean).length;
 
   const clearFilters = () => {
     setSearchText(""); setSearchNumero(""); setAnnoSel(""); setMeseSel("");
     setFornitoreSel(""); setPivaSel(""); setFonteSel(""); setPagatoSel("");
-    setImportoMode("any"); setImportoVal1(""); setImportoVal2("");
+    setTipoSel(""); setImportoMode("any"); setImportoVal1(""); setImportoVal2("");
   };
 
-  // ── Riepilogo ──
+  // ── Riepilogo (conteggi su tutte le fatture, non solo filtrate) ──
   const totFiltrate = fattureFiltrate.length;
   const totImporto = fattureFiltrate.reduce((s, f) => s + (f.totale_fattura || 0), 0);
-  const countXml = fattureFiltrate.filter(f => (f.fonte || "xml") === "xml").length;
-  const countFic = fattureFiltrate.filter(f => f.fonte === "fic").length;
+  const countXml = fatture.filter(f => (f.fonte || "xml") === "xml").length;
+  const countFic = fatture.filter(f => f.fonte === "fic").length;
+  const countAutofatture = fatture.filter(f => f.is_autofattura).length;
+  const countEscluse = fatture.filter(f => f.escluso).length;
+  const countNormali = fatture.length - countAutofatture - countEscluse + fatture.filter(f => f.is_autofattura && f.escluso).length;
 
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
@@ -294,6 +301,15 @@ export default function FattureElenco() {
                   </select>
                 </div>
               </div>
+              <div className="mt-1.5">
+                <label className={fLbl}>Tipo</label>
+                <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} className={fSel}>
+                  <option value="">Tutte</option>
+                  <option value="normale">Normali</option>
+                  <option value="autofattura">Autofatture</option>
+                  <option value="escluso">Escluse</option>
+                </select>
+              </div>
             </div>
 
             {/* ── Azioni filtri ── */}
@@ -315,15 +331,52 @@ export default function FattureElenco() {
         <div className="flex-1 overflow-y-auto">
 
           {/* ── Riepilogo bar ── */}
-          <div className="sticky top-0 z-10 bg-white border-b border-neutral-200 px-4 py-2 flex items-center gap-4 text-xs">
+          <div className="sticky top-0 z-10 bg-white border-b border-neutral-200 px-4 py-2 flex items-center gap-2 text-xs flex-wrap">
             <span className="font-bold text-teal-900">{totFiltrate} fatture</span>
-            <span className="text-neutral-500">Totale: <strong className="text-teal-800">€ {fmt(totImporto)}</strong></span>
-            {countXml > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 text-[10px] font-medium">XML: {countXml}</span>
+            <span className="text-neutral-400">|</span>
+            <span className="text-neutral-500">€ <strong className="text-teal-800">{fmt(totImporto)}</strong></span>
+            <span className="text-neutral-400">|</span>
+
+            {/* Badge cliccabili fonte */}
+            <button onClick={() => { setFonteSel(fonteSel === "xml" ? "" : "xml"); setTipoSel(""); }}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                fonteSel === "xml" ? "bg-neutral-700 text-white ring-1 ring-neutral-800" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+              }`}>
+              XML: {countXml}
+            </button>
+            <button onClick={() => { setFonteSel(fonteSel === "fic" ? "" : "fic"); setTipoSel(""); }}
+              className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                fonteSel === "fic" ? "bg-teal-700 text-white ring-1 ring-teal-800" : "bg-teal-50 text-teal-700 hover:bg-teal-100"
+              }`}>
+              FIC: {countFic}
+            </button>
+
+            {/* Badge cliccabili tipo */}
+            {countAutofatture > 0 && (
+              <button onClick={() => { setTipoSel(tipoSel === "autofattura" ? "" : "autofattura"); setFonteSel(""); }}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                  tipoSel === "autofattura" ? "bg-amber-600 text-white ring-1 ring-amber-700" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}>
+                Autofatture: {countAutofatture}
+              </button>
             )}
-            {countFic > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[10px] font-medium">FIC: {countFic}</span>
+            {countEscluse > 0 && (
+              <button onClick={() => { setTipoSel(tipoSel === "escluso" ? "" : "escluso"); setFonteSel(""); }}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                  tipoSel === "escluso" ? "bg-red-600 text-white ring-1 ring-red-700" : "bg-red-50 text-red-600 hover:bg-red-100"
+                }`}>
+                Escluse: {countEscluse}
+              </button>
             )}
+            {(countAutofatture > 0 || countEscluse > 0) && (
+              <button onClick={() => { setTipoSel(tipoSel === "normale" ? "" : "normale"); setFonteSel(""); }}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                  tipoSel === "normale" ? "bg-emerald-600 text-white ring-1 ring-emerald-700" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                }`}>
+                Normali: {countNormali}
+              </button>
+            )}
+
             <div className="flex-1" />
             <span className="text-neutral-400">Pag. {page}/{totalPages}</span>
           </div>
@@ -380,7 +433,11 @@ export default function FattureElenco() {
                         }`}>
                         <td className="px-3 py-2 text-neutral-700 tabular-nums">{f.data_fattura || "—"}</td>
                         <td className="px-3 py-2 text-neutral-600 font-mono text-[10px] max-w-[120px] truncate">{f.numero_fattura || "—"}</td>
-                        <td className="px-3 py-2 font-medium text-neutral-900 max-w-[200px] truncate">{f.fornitore_nome || "—"}</td>
+                        <td className="px-3 py-2 font-medium text-neutral-900 max-w-[200px] truncate">
+                          {f.fornitore_nome || "—"}
+                          {f.is_autofattura ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle">AUTO</span> : null}
+                          {f.escluso ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-red-100 text-red-600 align-middle">ESCL</span> : null}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px]">€ {fmt(f.iva_totale)}</td>
                         <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-900">€ {fmt(f.totale_fattura)}</td>

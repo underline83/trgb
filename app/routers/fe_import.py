@@ -543,6 +543,12 @@ def list_fatture(
     """, params)
     summary = dict(cur.fetchone())
 
+    # Join per campo escluso (fornitore)
+    excl_join = """
+        LEFT JOIN fe_fornitore_categoria fce
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fce.fornitore_piva)
+            OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fce.fornitore_nome)
+    """
     cur.execute(f"""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -551,8 +557,10 @@ def list_fatture(
             f.valuta, f.xml_filename, f.data_import,
             COALESCE(f.fonte, 'xml') AS fonte,
             COALESCE(f.pagato, 0) AS pagato,
-            (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe
-        FROM fe_fatture f {cat_join}
+            (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
+            COALESCE(f.is_autofattura, 0) AS is_autofattura,
+            COALESCE(fce.escluso, 0) AS escluso
+        FROM fe_fatture f {excl_join} {cat_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
         LIMIT ? OFFSET ?
