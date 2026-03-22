@@ -740,15 +740,20 @@ def debug_fic_detail(
         items = doc_data.get("items_list") or []
         payments = doc_data.get("payments_list") or []
 
+        e_inv = doc_data.get("e_invoice")
         return {
             "fic_id": fic_id,
             "invoice_number": doc_data.get("invoice_number", ""),
             "date": doc_data.get("date", ""),
             "entity_name": (doc_data.get("entity", {}) or {}).get("name", ""),
+            "is_detailed": doc_data.get("is_detailed"),
+            "auto_calculate": doc_data.get("auto_calculate"),
+            "type": doc_data.get("type"),
             "n_items": len(items),
-            "items_preview": items[:5],
+            "items_list_raw": items,
             "n_payments": len(payments),
             "payments_preview": payments[:3],
+            "e_invoice": e_inv,
             "raw_keys": list(doc_data.keys()),
         }
     finally:
