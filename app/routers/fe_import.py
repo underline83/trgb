@@ -612,41 +612,53 @@ def merge_duplicati():
     """
     Trova fatture duplicate (stessa piva + data + totale, una FIC e una XML),
     sposta righe e metadati XML nella fattura FIC, poi cancella la copia XML.
+    Approccio incrementale: scorre le fatture FIC e cerca match XML uno a uno.
     """
     conn = _get_conn()
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    # Trova coppie FIC (senza righe o con poche) + XML (con righe)
+    # Step 1: prendi tutte le fatture FIC
     cur.execute("""
-        SELECT
-            fic.id AS fic_id, xml.id AS xml_id,
-            fic.fornitore_nome, fic.fornitore_piva,
-            fic.data_fattura, fic.totale_fattura,
-            xml.xml_hash, xml.xml_filename,
-            xml.numero_fattura AS xml_numero,
-            xml.tipo_documento, xml.is_autofattura,
-            xml.fornitore_cf, xml.fornitore_indirizzo,
-            xml.fornitore_cap, xml.fornitore_citta,
-            xml.fornitore_provincia, xml.fornitore_nazione
-        FROM fe_fatture fic
-        JOIN fe_fatture xml ON
-            fic.fornitore_piva = xml.fornitore_piva
-            AND fic.data_fattura = xml.data_fattura
-            AND ABS(fic.totale_fattura - xml.totale_fattura) < 0.02
-            AND fic.id != xml.id
-        WHERE COALESCE(fic.fonte, 'xml') = 'fic'
-          AND COALESCE(xml.fonte, 'xml') = 'xml'
-          AND xml.xml_hash IS NOT NULL
+        SELECT id, fornitore_nome, fornitore_piva, data_fattura, totale_fattura, numero_fattura
+        FROM fe_fatture
+        WHERE COALESCE(fonte, 'xml') = 'fic'
     """)
-    coppie = cur.fetchall()
+    fic_rows = cur.fetchall()
 
     merged = []
-    for row in coppie:
-        fic_id = row["fic_id"]
-        xml_id = row["xml_id"]
+    for fic in fic_rows:
+        fic_id = fic["id"]
+        piva = fic["fornitore_piva"]
+        data = fic["data_fattura"]
+        totale = fic["totale_fattura"]
 
-        # Sposta righe da XML a FIC (se FIC non ne ha)
+        if not piva or not data or totale is None:
+            continue
+
+        # Step 2: cerca match XML per questa fattura FIC
+        cur.execute("""
+            SELECT id, xml_hash, xml_filename, numero_fattura,
+                   tipo_documento, is_autofattura,
+                   fornitore_cf, fornitore_indirizzo, fornitore_cap,
+                   fornitore_citta, fornitore_provincia, fornitore_nazione
+            FROM fe_fatture
+            WHERE fornitore_piva = ?
+              AND data_fattura = ?
+              AND ABS(totale_fattura - ?) < 0.02
+              AND COALESCE(fonte, 'xml') = 'xml'
+              AND xml_hash IS NOT NULL
+              AND id != ?
+            LIMIT 1
+        """, (piva, data, totale, fic_id))
+        xml_row = cur.fetchone()
+
+        if not xml_row:
+            continue
+
+        xml_id = xml_row["id"]
+
+        # Step 3: sposta righe da XML a FIC (se FIC non ne ha)
         fic_righe_cnt = cur.execute(
             "SELECT COUNT(*) AS cnt FROM fe_righe WHERE fattura_id = ?", (fic_id,)
         ).fetchone()["cnt"]
@@ -663,26 +675,26 @@ def merge_duplicati():
         else:
             righe_spostate = 0
 
-        # Arricchisci fattura FIC con metadati XML
+        # Step 4: arricchisci fattura FIC con metadati XML
         update_parts = ["xml_hash = ?", "xml_filename = ?"]
-        update_vals = [row["xml_hash"], row["xml_filename"]]
+        update_vals = [xml_row["xml_hash"], xml_row["xml_filename"]]
 
-        if row["xml_numero"]:
+        if xml_row["numero_fattura"]:
             update_parts.append(
                 "numero_fattura = CASE WHEN numero_fattura IS NULL OR numero_fattura = '' THEN ? ELSE numero_fattura END"
             )
-            update_vals.append(row["xml_numero"])
-        if row["tipo_documento"]:
+            update_vals.append(xml_row["numero_fattura"])
+        if xml_row["tipo_documento"]:
             update_parts.append("tipo_documento = ?")
-            update_vals.append(row["tipo_documento"])
-        if row["is_autofattura"] is not None:
+            update_vals.append(xml_row["tipo_documento"])
+        if xml_row["is_autofattura"] is not None:
             update_parts.append("is_autofattura = ?")
-            update_vals.append(row["is_autofattura"])
+            update_vals.append(xml_row["is_autofattura"])
         for col in ("fornitore_cf", "fornitore_indirizzo", "fornitore_cap",
                      "fornitore_citta", "fornitore_provincia", "fornitore_nazione"):
-            if row[col]:
+            if xml_row[col]:
                 update_parts.append(f"{col} = ?")
-                update_vals.append(row[col])
+                update_vals.append(xml_row[col])
 
         update_vals.append(fic_id)
         cur.execute(
@@ -690,7 +702,7 @@ def merge_duplicati():
             update_vals,
         )
 
-        # Cancella copia XML (righe già spostate o assenti)
+        # Step 5: cancella copia XML (righe già spostate)
         cur.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (xml_id,))
         cur.execute("DELETE FROM fe_fatture WHERE id = ?", (xml_id,))
 
