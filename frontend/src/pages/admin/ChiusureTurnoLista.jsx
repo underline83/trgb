@@ -241,7 +241,7 @@ export default function ChiusureTurnoLista() {
                             ["TheFork Pay", c.theforkpay],
                             ["Stripe/PayPal", c.other_e_payments],
                             ["Bonifici", c.bonifici],
-                            ["Mance", c.mance],
+                            ["Mance POS", c.mance],
                             ["Fatture", c.fatture],
                           ].filter(([, v]) => v > 0).map(([label, val]) => (
                             <div key={label} className="bg-white rounded-lg p-2 border border-neutral-200">

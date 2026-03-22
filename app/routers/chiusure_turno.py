@@ -965,7 +965,9 @@ async def upsert_shift_closure(
 
     date_str = payload.date.isoformat()
 
-    # Calculate totale_incassi (tutti i metodi di incasso, mance incluse)
+    # Calculate totale_incassi (solo metodi di incasso reali)
+    # Le mance NON entrano: sono battute/fiscalizzate nella chiusura RT
+    # ma poi vengono date al personale. Dato solo statistico.
     totale_incassi = (
         payload.contanti
         + payload.pos_bpm
@@ -973,7 +975,6 @@ async def upsert_shift_closure(
         + payload.theforkpay
         + payload.other_e_payments
         + payload.bonifici
-        + payload.mance
     )
 
     conn = sqlite3.connect(DB_PATH)

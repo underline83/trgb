@@ -158,10 +158,10 @@ export default function ChiusuraTurno() {
   }), [preconto, contanti, posBpm, posSella, theforkpay, otherEpay, bonifici, mance, fatture]);
 
   // ── TOTALE ENTRATE (valori GIORNALIERI, come dal cartaceo) ──
-  // POS + Contanti + TheFork + Altro + Mance + Fondo_in - Fondo_fi
-  // I valori inseriti a cena sono già giornalieri → si usano così come sono, NO parzialeCena
+  // POS + Contanti + TheFork + Altro + Bonifici + Fondo_in - Fondo_fine
+  // Le mance NON entrano: sono battute nella chiusura RT ma poi date al personale (solo dato statistico)
   const totaleEntrate = useMemo(() => {
-    const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici", "mance"];
+    const campiIncassi = ["contanti", "pos_bpm", "pos_sella", "theforkpay", "other_e_payments", "bonifici"];
     const sommaIncassi = campiIncassi.reduce((sum, f) =>
       sum + toNumber(fieldValues[f])
     , 0);
@@ -568,8 +568,9 @@ export default function ChiusuraTurno() {
                   hint={cenaHint("bonifici", bonifici)} />
               </div>
               <div className="mt-4 pt-4 border-t border-neutral-200">
-                <NumberField label="Mance" value={mance} onChange={setMance} icon="🤝"
+                <NumberField label="Mance POS (statistico)" value={mance} onChange={setMance} icon="🤝"
                   hint={cenaHint("mance", mance)} />
+                <p className="text-[9px] text-neutral-400 mt-0.5 ml-1">Non entra nei calcoli — solo dato statistico</p>
               </div>
             </div>
 
