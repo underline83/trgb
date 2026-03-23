@@ -1,5 +1,5 @@
 // src/pages/admin/CorrispettiviDashboard.jsx
-// @version: v2.0-vendite — Dashboard Vendite
+// @version: v3.0-fiscale — Dashboard Vendite (solo dato fiscale, nessuna differenza)
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
@@ -19,18 +19,8 @@ import {
 import { API_BASE, apiFetch } from "../../config/api";
 
 const monthNames = [
-  "Gennaio",
-  "Febbraio",
-  "Marzo",
-  "Aprile",
-  "Maggio",
-  "Giugno",
-  "Luglio",
-  "Agosto",
-  "Settembre",
-  "Ottobre",
-  "Novembre",
-  "Dicembre",
+  "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+  "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre",
 ];
 
 function getTodayYearMonth() {
@@ -40,10 +30,7 @@ function getTodayYearMonth() {
 
 function formatCurrency(value) {
   if (value == null) return "-";
-  return value.toLocaleString("it-IT", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return value.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatShortDate(iso) {
@@ -73,35 +60,22 @@ export default function CorrispettiviDashboard() {
 
   const [monthlyStats, setMonthlyStats] = useState(null);
   const [topDays, setTopDays] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // carica dati quando cambiano year/month
   useEffect(() => {
     let cancelled = false;
-
     async function loadAll() {
       setLoading(true);
       setError(null);
       try {
-        // 1) Stats mensili
-        const monthlyRes = await apiFetch(
-          `${API_BASE}/admin/finance/stats/monthly?year=${year}&month=${month}`
-        );
-        if (!monthlyRes.ok) {
-          throw new Error(`Errore stats mensili: ${monthlyRes.status}`);
-        }
+        const monthlyRes = await apiFetch(`${API_BASE}/admin/finance/stats/monthly?year=${year}&month=${month}`);
+        if (!monthlyRes.ok) throw new Error(`Errore stats mensili: ${monthlyRes.status}`);
         const monthlyJson = await monthlyRes.json();
         if (cancelled) return;
 
-        // 2) Top/bottom days anno
-        const topRes = await apiFetch(
-          `${API_BASE}/admin/finance/stats/top-days?year=${year}&limit=10`
-        );
-        if (!topRes.ok) {
-          throw new Error(`Errore top-days: ${topRes.status}`);
-        }
+        const topRes = await apiFetch(`${API_BASE}/admin/finance/stats/top-days?year=${year}&limit=10`);
+        if (!topRes.ok) throw new Error(`Errore top-days: ${topRes.status}`);
         const topJson = await topRes.json();
         if (cancelled) return;
 
@@ -114,136 +88,85 @@ export default function CorrispettiviDashboard() {
         if (!cancelled) setLoading(false);
       }
     }
-
     loadAll();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [year, month]);
 
-  const monthName = useMemo(
-    () => monthNames[month - 1] || "",
-    [month]
-  );
+  const monthName = useMemo(() => monthNames[month - 1] || "", [month]);
 
-  // dati per grafico giornaliero (solo giorni aperti)
+  // Grafico: solo corrispettivi (dato fiscale)
   const chartData = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return [];
     return monthlyStats.giorni
       .filter((g) => !g.is_closed)
       .map((g) => ({
         date: formatShortDate(g.date),
-        totale_incassi: g.totale_incassi,
         corrispettivi: g.corrispettivi,
       }));
   }, [monthlyStats]);
 
-  // medie incassi per giorno della settimana (solo giorni aperti)
+  // Medie corrispettivi per giorno della settimana
   const weekdayAverages = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return {};
-
     const sums = {};
     const counts = {};
-
     for (const g of monthlyStats.giorni) {
       if (g.is_closed) continue;
-      const tot = g.totale_incassi ?? 0;
-      if (!tot) continue;
-
-      const d = new Date(g.date);
-      const idx = d.getDay(); // 0=Dom ... 6=Sab
-
-      sums[idx] = (sums[idx] || 0) + tot;
+      const corr = g.corrispettivi ?? 0;
+      if (!corr) continue;
+      const idx = new Date(g.date).getDay();
+      sums[idx] = (sums[idx] || 0) + corr;
       counts[idx] = (counts[idx] || 0) + 1;
     }
-
     const avg = {};
-    Object.keys(sums).forEach((k) => {
-      const i = Number(k);
-      avg[i] = sums[i] / counts[i];
-    });
-
-    return avg; // es: {1: media lunedì, 2: media martedì, ...}
+    Object.keys(sums).forEach((k) => { avg[Number(k)] = sums[k] / counts[k]; });
+    return avg;
   }, [monthlyStats]);
 
-  // calcola numero di giorni nel mese + offset per calendario
+  // Calendario
   const calendarDays = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return [];
-
     const map = {};
     for (const g of monthlyStats.giorni) {
-      const d = new Date(g.date);
-      map[d.getDate()] = g;
+      map[new Date(g.date).getDate()] = g;
     }
-
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
-    const firstWeekday = firstDay.getDay(); // 0=Dom, 1=Lun,...
-
-    const offset = (firstWeekday + 6) % 7; // 0=Mon, ... 6=Sun
-
+    const offset = (firstDay.getDay() + 6) % 7;
     const days = [];
-    for (let i = 0; i < offset; i++) {
-      days.push(null);
-    }
+    for (let i = 0; i < offset; i++) days.push(null);
     for (let d = 1; d <= lastDay.getDate(); d++) {
-      days.push(
-        map[d] ||
-          {
-            date: `${year}-${String(month).padStart(2, "0")}-${String(
-              d
-            ).padStart(2, "0")}`,
-            is_closed: false,
-            corrispettivi: 0,
-            totale_incassi: 0,
-            cash_diff: 0,
-          }
-      );
+      days.push(map[d] || {
+        date: `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+        is_closed: false, corrispettivi: 0, totale_incassi: 0,
+      });
     }
     return days;
   }, [monthlyStats, year, month]);
 
-  function goPrevMonth() {
-    const next = calcMonthNavigation(year, month, -1);
-    setYear(next.year);
-    setMonth(next.month);
-  }
+  function goPrevMonth() { const n = calcMonthNavigation(year, month, -1); setYear(n.year); setMonth(n.month); }
+  function goNextMonth() { const n = calcMonthNavigation(year, month, 1); setYear(n.year); setMonth(n.month); }
+  function goToday() { const t = getTodayYearMonth(); setYear(t.year); setMonth(t.month); }
 
-  function goNextMonth() {
-    const next = calcMonthNavigation(year, month, 1);
-    setYear(next.year);
-    setMonth(next.month);
-  }
-
-  function goToday() {
-    const t = getTodayYearMonth();
-    setYear(t.year);
-    setMonth(t.month);
-  }
-
+  // Torta pagamenti: contanti = corrispettivi - elettronici (quadra sempre)
   const pag = monthlyStats?.pagamenti;
-
   const paymentPieData = useMemo(() => {
     if (!pag) return [];
+    const elettronici = (pag.pos_bpm ?? 0) + (pag.pos_sella ?? 0) + (pag.stripe_pay ?? 0) + (pag.bonifici ?? 0);
+    const corrTot = monthlyStats?.totale_corrispettivi ?? 0;
+    // Contanti = dichiarato - pagamenti elettronici tracciati
+    const contantiFiscali = Math.max(0, corrTot - elettronici);
 
     const entries = [
-      { key: "contanti_finali", label: "Contanti", color: "#f97316" },
-      { key: "pos_bpm", label: "POS", color: "#22c55e" },
-      { key: "pos_sella", label: "Sella", color: "#0ea5e9" },
-      { key: "stripe_pay", label: "Stripe / Pay", color: "#8b5cf6" },
-      { key: "bonifici", label: "Bonifici", color: "#eab308" },
-      { key: "mance", label: "Mance", color: "#ec4899" },
+      { label: "Contanti", value: contantiFiscali, color: "#f97316" },
+      { label: "POS BPM", value: pag.pos_bpm ?? 0, color: "#22c55e" },
+      { label: "POS Sella", value: pag.pos_sella ?? 0, color: "#0ea5e9" },
+      { label: "Stripe / Pay", value: pag.stripe_pay ?? 0, color: "#8b5cf6" },
+      { label: "Bonifici", value: pag.bonifici ?? 0, color: "#eab308" },
     ];
 
-    return entries
-      .map((e) => ({
-        name: e.label,
-        value: pag[e.key] ?? 0,
-        color: e.color,
-      }))
-      .filter((e) => e.value > 0);
-  }, [pag]);
+    return entries.filter((e) => e.value > 0).map((e) => ({ name: e.label, value: e.value, color: e.color }));
+  }, [pag, monthlyStats]);
 
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
@@ -258,7 +181,7 @@ export default function CorrispettiviDashboard() {
               Vendite — Dashboard Mensile
             </h1>
             <p className="text-neutral-600">
-              Analisi mensile, incassi per giorno e controllo chiusure cassa.
+              Analisi mensile corrispettivi e composizione pagamenti.
             </p>
           </div>
         </div>
@@ -266,130 +189,74 @@ export default function CorrispettiviDashboard() {
         {/* NAV MESE/ANNO */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
-            <button
-              onClick={goPrevMonth}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm"
-            >
+            <button onClick={goPrevMonth} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
               ← Mese precedente
             </button>
-            <button
-              onClick={goToday}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm"
-            >
+            <button onClick={goToday} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
               Oggi
             </button>
-            <button
-              onClick={goNextMonth}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm"
-            >
+            <button onClick={goNextMonth} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
               Mese successivo →
             </button>
           </div>
-
           <div className="flex items-center gap-2">
-            <select
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm"
-            >
-              {monthNames.map((m, idx) => (
-                <option key={idx + 1} value={idx + 1}>
-                  {m}
-                </option>
-              ))}
+            <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
+              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm">
+              {monthNames.map((m, idx) => (<option key={idx + 1} value={idx + 1}>{m}</option>))}
             </select>
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="w-24 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm"
-            />
+            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))}
+              className="w-24 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm" />
           </div>
         </div>
 
-        {/* STATO CARICAMENTO / ERRORE */}
-        {loading && (
-          <div className="mb-4 text-sm text-neutral-600">
-            Caricamento dati in corso...
-          </div>
-        )}
-        {error && (
-          <div className="mb-4 text-sm text-red-600">Errore: {error}</div>
-        )}
-
-        {/* Se non ci sono dati, mostra solo messaggio */}
+        {loading && <div className="mb-4 text-sm text-neutral-600">Caricamento dati in corso...</div>}
+        {error && <div className="mb-4 text-sm text-red-600">Errore: {error}</div>}
         {!loading && monthlyStats && monthlyStats.giorni.length === 0 && (
-          <div className="text-sm text-neutral-600">
-            Nessuna chiusura registrata per {monthName} {year}.
-          </div>
+          <div className="text-sm text-neutral-600">Nessuna chiusura registrata per {monthName} {year}.</div>
         )}
 
         {monthlyStats && (
           <>
-            {/* KPI PRINCIPALI */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {/* KPI PRINCIPALI — solo dati fiscali */}
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
               <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-indigo-800">
-                  Totale Corrispettivi
-                </p>
+                <p className="text-xs uppercase tracking-wide text-indigo-800">Totale Corrispettivi</p>
                 <p className="mt-2 text-2xl font-bold text-indigo-900">
                   € {formatCurrency(monthlyStats.totale_corrispettivi)}
                 </p>
-                <p className="text-xs text-indigo-900/70 mt-1">
-                  Mese di {monthName} {year}
-                </p>
-              </div>
-
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-emerald-800">
-                  Totale Incassi
-                </p>
-                <p className="mt-2 text-2xl font-bold text-emerald-900">
-                  € {formatCurrency(monthlyStats.totale_incassi)}
-                </p>
-                <p className="text-xs text-emerald-900/70 mt-1">
-                  Somma di contanti, POS, Sella, Stripe, bonifici, mance
-                </p>
+                <p className="text-xs text-indigo-900/70 mt-1">Mese di {monthName} {year}</p>
               </div>
 
               <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-neutral-700">
-                  Media Corrispettivi (giorni aperti)
-                </p>
+                <p className="text-xs uppercase tracking-wide text-neutral-700">Media giornaliera</p>
                 <p className="mt-2 text-2xl font-bold text-neutral-900">
                   € {formatCurrency(monthlyStats.media_corrispettivi)}
                 </p>
                 <p className="text-xs text-neutral-500 mt-1">
-                  Giorni aperti considerati: {monthlyStats.giorni_con_chiusura}
+                  Su {monthlyStats.giorni_con_chiusura} giorni aperti
                 </p>
               </div>
 
               <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-neutral-700">
-                  Giorni aperti / chiusi
-                </p>
+                <p className="text-xs uppercase tracking-wide text-neutral-700">Giorni aperti / chiusi</p>
                 <p className="mt-2 text-2xl font-bold text-neutral-900">
                   {monthlyStats.giorni_con_chiusura} aperti
                 </p>
                 <p className="text-xs text-neutral-500 mt-1">
-                  {monthlyStats.giorni.length -
-                    monthlyStats.giorni_con_chiusura}{" "}
-                  chiusi (automatici o flag)
+                  {monthlyStats.giorni.length - monthlyStats.giorni_con_chiusura} chiusi
                 </p>
               </div>
             </section>
 
-            {/* BLOCCO CENTRALE: GRAFICO + CALENDARIO */}
+            {/* GRAFICO + CALENDARIO */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* GRAFICO ANDAMENTO GIORNO PER GIORNO */}
+              {/* Grafico corrispettivi giornalieri */}
               <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="text-lg font-semibold text-neutral-900 font-playfair">
-                    Andamento giornaliero incassi vs corrispettivi
+                    Corrispettivi giornalieri
                   </h2>
-                  <p className="text-xs text-neutral-500">
-                    Nel grafico sono inclusi solo i giorni aperti.
-                  </p>
+                  <p className="text-xs text-neutral-500">Solo giorni aperti</p>
                 </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -397,126 +264,54 @@ export default function CorrispettiviDashboard() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip
-                        formatter={(value, name) => [
-                          `€ ${formatCurrency(value)}`,
-                          name === "totale_incassi"
-                            ? "Incassi"
-                            : "Corrispettivi",
-                        ]}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="totale_incassi"
-                        stroke="#16a34a"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Incassi"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="corrispettivi"
-                        stroke="#f97316"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Corrispettivi"
-                      />
+                      <Tooltip formatter={(value) => [`€ ${formatCurrency(value)}`, "Corrispettivi"]} />
+                      <Line type="monotone" dataKey="corrispettivi" stroke="#4f46e5" strokeWidth={2} dot={false} name="Corrispettivi" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* CALENDARIO MENSILE SINTETICO */}
+              {/* Calendario mensile */}
               <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
                 <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
                   Calendario {monthName} {year}
                 </h2>
                 <div className="grid grid-cols-7 text-xs text-neutral-500 mb-1">
-                  <span>Lun</span>
-                  <span>Mar</span>
-                  <span>Mer</span>
-                  <span>Gio</span>
-                  <span>Ven</span>
-                  <span>Sab</span>
-                  <span>Dom</span>
+                  <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-xs">
                   {calendarDays.map((g, idx) => {
-                    if (g === null) {
-                      return <div key={idx} />;
-                    }
-
+                    if (g === null) return <div key={idx} />;
                     const d = new Date(g.date);
                     const dayNum = d.getDate();
                     const isClosed = g.is_closed === true;
                     const corr = g.corrispettivi ?? 0;
-                    const tot = g.totale_incassi ?? 0;
-                    const diff = g.cash_diff ?? 0;
-
-                    const weekdayIdx = d.getDay(); // 0=Dom ... 6=Sab
+                    const weekdayIdx = d.getDay();
                     const avgForWeekday = weekdayAverages[weekdayIdx];
 
-                    // Colori:
-                    // - grigio chiaro: giorno chiuso
-                    // - verde forte: sopra media del suo giorno (>= +15%)
-                    // - verde chiaro: in media (±10%)
-                    // - rosso: sotto media (>10% sotto)
                     let bgClass = "bg-white";
                     let textClass = "";
-
                     if (isClosed) {
                       bgClass = "bg-neutral-200";
-                    } else if (avgForWeekday && tot > 0) {
-                      const ratio = tot / avgForWeekday;
-
-                      if (ratio >= 1.15) {
-                        bgClass = "bg-emerald-500";
-                        textClass = "text-white";
-                      } else if (ratio >= 0.9 && ratio <= 1.15) {
-                        bgClass = "bg-emerald-100";
-                      } else if (ratio < 0.9) {
-                        bgClass = "bg-red-200";
-                      }
+                    } else if (avgForWeekday && corr > 0) {
+                      const ratio = corr / avgForWeekday;
+                      if (ratio >= 1.15) { bgClass = "bg-emerald-500"; textClass = "text-white"; }
+                      else if (ratio >= 0.9) { bgClass = "bg-emerald-100"; }
+                      else { bgClass = "bg-red-200"; }
                     }
 
                     return (
-                      <div
-                        key={idx}
+                      <div key={idx}
                         className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-indigo-400 transition ${bgClass} ${textClass}`}
-                        title={
-                          isClosed
-                            ? `Chiuso`
-                            : `Incassi: € ${formatCurrency(
-                                tot
-                              )} — Corrispettivi: € ${formatCurrency(
-                                corr
-                              )} — Diff: € ${formatCurrency(diff)}`
-                        }
-                        onClick={() =>
-                          navigate(`/vendite/chiusure?date=${g.date}`)
-                        }
-                      >
+                        title={isClosed ? "Chiuso" : `Corrispettivi: € ${formatCurrency(corr)}`}
+                        onClick={() => navigate(`/vendite/chiusure?date=${g.date}`)}>
                         <div className="flex justify-between items-center mb-0.5">
-                          <span className="text-[11px] font-semibold">
-                            {dayNum}
-                          </span>
-                          {!isClosed && tot > 0 && (
-                            <span className="text-[9px] opacity-80">
-                              €{Math.round(tot / 100) * 100}
-                            </span>
+                          <span className="text-[11px] font-semibold">{dayNum}</span>
+                          {!isClosed && corr > 0 && (
+                            <span className="text-[9px] opacity-80">€{Math.round(corr / 100) * 100}</span>
                           )}
                         </div>
-                        {!isClosed && diff && Math.abs(diff) >= 20 && (
-                          <div className="text-[9px]">
-                            diff €{formatCurrency(diff)}
-                          </div>
-                        )}
-                        {isClosed && (
-                          <div className="text-[9px] text-neutral-700">
-                            chiuso
-                          </div>
-                        )}
+                        {isClosed && <div className="text-[9px] text-neutral-700">chiuso</div>}
                       </div>
                     );
                   })}
@@ -524,106 +319,92 @@ export default function CorrispettiviDashboard() {
                 <div className="mt-2 text-[10px] text-neutral-500 space-y-0.5">
                   <div className="flex items-center gap-1">
                     <span className="inline-block w-3 h-3 rounded bg-emerald-500" />
-                    <span>Verde scuro: sopra media del giorno (es. lunedì)</span>
+                    <span>Sopra media del giorno (+15%)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="inline-block w-3 h-3 rounded bg-emerald-100 border border-emerald-300" />
-                    <span>Verde chiaro: in linea con la media</span>
+                    <span>In linea con la media</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="inline-block w-3 h-3 rounded bg-red-200 border border-red-300" />
-                    <span>Rosso: sotto media del giorno</span>
+                    <span>Sotto media del giorno</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="inline-block w-3 h-3 rounded bg-neutral-200 border border-neutral-300" />
-                    <span>Grigio: giorno chiuso (manuale o mercoledì a zero)</span>
+                    <span>Giorno chiuso</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* PAGAMENTI + ALERT */}
+            {/* COMPOSIZIONE PAGAMENTI */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              {/* Breakdown pagamenti (torta) */}
               <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                 <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
-                  Breakdown metodi di pagamento
+                  Composizione pagamenti
                 </h2>
-                {pag && paymentPieData.length > 0 ? (
+                {paymentPieData.length > 0 ? (
                   <>
                     <div className="h-60">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie
-                            data={paymentPieData}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius="45%"
-                            outerRadius="80%"
-                            paddingAngle={2}
-                            label={({ name, percent }) =>
-                              `${name} ${(percent * 100).toFixed(1)}%`
-                            }
-                          >
+                          <Pie data={paymentPieData} dataKey="value" nameKey="name"
+                            innerRadius="45%" outerRadius="80%" paddingAngle={2}
+                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}>
                             {paymentPieData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip
-                            formatter={(value, name) => [
-                              `€ ${formatCurrency(value)}`,
-                              name,
-                            ]}
-                          />
+                          <Tooltip formatter={(value, name) => [`€ ${formatCurrency(value)}`, name]} />
                           <Legend />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
                     <div className="mt-2 text-sm flex justify-between font-semibold text-neutral-900">
-                      <span>Totale incassi mese</span>
-                      <span>€ {formatCurrency(pag.totale_incassi)}</span>
+                      <span>Totale corrispettivi mese</span>
+                      <span>€ {formatCurrency(monthlyStats.totale_corrispettivi)}</span>
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-neutral-500">
-                    Nessun dato pagamenti per questo mese.
-                  </p>
+                  <p className="text-sm text-neutral-500">Nessun dato pagamenti per questo mese.</p>
                 )}
               </div>
 
-              {/* Alert */}
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
-                  Alert e differenze cassa
-                </h2>
-                {monthlyStats.alerts && monthlyStats.alerts.length > 0 ? (
-                  <div className="space-y-1 max-h-60 overflow-auto text-sm">
-                    {monthlyStats.alerts.map((a, idx) => (
-                      <div
-                        key={idx}
-                        className="border border-indigo-300 bg-indigo-50 rounded-xl px-2 py-1.5"
-                      >
-                        <div className="flex justify-between text-xs text-neutral-700 mb-0.5">
-                          <span>{formatShortDate(a.date)}</span>
-                          <span>diff € {formatCurrency(a.cash_diff)}</span>
+              {/* Dettaglio metodi di pagamento */}
+              {pag && (
+                <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
+                  <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-3">
+                    Dettaglio metodi
+                  </h2>
+                  <div className="space-y-2">
+                    {(() => {
+                      const elettronici = (pag.pos_bpm ?? 0) + (pag.pos_sella ?? 0) + (pag.stripe_pay ?? 0) + (pag.bonifici ?? 0);
+                      const contantiFiscali = Math.max(0, (monthlyStats?.totale_corrispettivi ?? 0) - elettronici);
+                      const items = [
+                        { label: "Contanti", value: contantiFiscali, color: "bg-orange-100 text-orange-800 border-orange-200" },
+                        { label: "POS BPM", value: pag.pos_bpm ?? 0, color: "bg-green-100 text-green-800 border-green-200" },
+                        { label: "POS Sella", value: pag.pos_sella ?? 0, color: "bg-sky-100 text-sky-800 border-sky-200" },
+                        { label: "Stripe / PayPal", value: pag.stripe_pay ?? 0, color: "bg-violet-100 text-violet-800 border-violet-200" },
+                        { label: "Bonifici", value: pag.bonifici ?? 0, color: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+                      ];
+                      return items.filter(i => i.value > 0).map(i => (
+                        <div key={i.label} className={`flex justify-between items-center rounded-xl border px-3 py-2 text-sm font-medium ${i.color}`}>
+                          <span>{i.label}</span>
+                          <span className="font-bold">€ {formatCurrency(i.value)}</span>
                         </div>
-                        <div className="text-xs text-neutral-800">
-                          {a.message}
-                        </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
+                    <div className="flex justify-between items-center rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-900 px-3 py-2 text-sm font-bold mt-3">
+                      <span>Totale dichiarato</span>
+                      <span>€ {formatCurrency(monthlyStats.totale_corrispettivi)}</span>
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-sm text-neutral-500">
-                    Nessun alert superiore alla soglia impostata.
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
             </section>
 
-            {/* TOP/BOTTOM DAYS + TABELLA RIEPILOGO GIORNI */}
+            {/* TABELLA GIORNALIERA — solo dato fiscale */}
             <section className="space-y-6">
-              {/* Tabella riepilogo giorni */}
               <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm overflow-x-auto">
                 <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-3">
                   Dettaglio giornaliero — {monthName} {year}
@@ -631,74 +412,25 @@ export default function CorrispettiviDashboard() {
                 <table className="min-w-full text-xs sm:text-sm border-collapse">
                   <thead>
                     <tr className="bg-neutral-50 text-neutral-700">
-                      <th className="border border-neutral-200 px-2 py-1 text-left">
-                        Data
-                      </th>
-                      <th className="border border-neutral-200 px-2 py-1 text-left">
-                        Giorno
-                      </th>
-                      <th className="border border-neutral-200 px-2 py-1 text-right">
-                        Corrispettivi
-                      </th>
-                      <th className="border border-neutral-200 px-2 py-1 text-right">
-                        Incassi
-                      </th>
-                      <th className="border border-neutral-200 px-2 py-1 text-right">
-                        Diff cassa
-                      </th>
-                      <th className="border border-neutral-200 px-2 py-1 text-center">
-                        Stato
-                      </th>
+                      <th className="border border-neutral-200 px-2 py-1 text-left">Data</th>
+                      <th className="border border-neutral-200 px-2 py-1 text-left">Giorno</th>
+                      <th className="border border-neutral-200 px-2 py-1 text-right">Corrispettivi</th>
+                      <th className="border border-neutral-200 px-2 py-1 text-center">Stato</th>
                     </tr>
                   </thead>
                   <tbody>
                     {monthlyStats.giorni.map((g) => {
                       const closed = g.is_closed;
-                      const diff = g.cash_diff ?? 0;
                       return (
-                        <tr
-                          key={g.date}
-                          className={
-                            closed
-                              ? "bg-neutral-50 text-neutral-500"
-                              : "hover:bg-indigo-50"
-                          }
-                        >
-                          <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">
-                            {formatShortDate(g.date)}
-                          </td>
-                          <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">
-                            {g.weekday}
-                          </td>
-                          <td className="border border-neutral-200 px-2 py-1 text-right">
-                            € {formatCurrency(g.corrispettivi)}
-                          </td>
-                          <td className="border border-neutral-200 px-2 py-1 text-right">
-                            € {formatCurrency(g.totale_incassi)}
-                          </td>
-                          <td
-                            className={
-                              "border border-neutral-200 px-2 py-1 text-right " +
-                              (Math.abs(diff) >= 20 && !closed
-                                ? "text-red-700 font-semibold"
-                                : "")
-                            }
-                          >
-                            € {formatCurrency(diff)}
-                          </td>
+                        <tr key={g.date} className={closed ? "bg-neutral-50 text-neutral-500" : "hover:bg-indigo-50"}>
+                          <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">{formatShortDate(g.date)}</td>
+                          <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">{g.weekday}</td>
+                          <td className="border border-neutral-200 px-2 py-1 text-right">€ {formatCurrency(g.corrispettivi)}</td>
                           <td className="border border-neutral-200 px-2 py-1 text-center">
                             {closed ? (
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-200 text-neutral-700">
-                                chiuso
-                              </span>
-                            ) : Math.abs(diff) >= 20 ? (
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                                diff alta
-                              </span>
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-200 text-neutral-700">chiuso</span>
                             ) : (
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                                ok
-                              </span>
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">aperto</span>
                             )}
                           </td>
                         </tr>
@@ -708,42 +440,31 @@ export default function CorrispettiviDashboard() {
                 </table>
               </div>
 
-              {/* Top / Bottom days dell'anno */}
+              {/* Top / Bottom days dell'anno — per corrispettivi */}
               {topDays && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                     <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
-                      Giorni migliori per incassi — {year}
+                      Giorni migliori — {year}
                     </h2>
                     <ul className="space-y-1 text-sm max-h-72 overflow-auto">
                       {topDays.top_best.map((d, idx) => (
-                        <li
-                          key={idx}
-                          className="flex justify-between border-b border-neutral-100 py-1"
-                        >
-                          <span>
-                            {formatShortDate(d.date)} — {d.weekday}
-                          </span>
-                          <span>€ {formatCurrency(d.totale_incassi)}</span>
+                        <li key={idx} className="flex justify-between border-b border-neutral-100 py-1">
+                          <span>{formatShortDate(d.date)} — {d.weekday}</span>
+                          <span>€ {formatCurrency(d.corrispettivi)}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
-
                   <div className="bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                     <h2 className="text-lg font-semibold text-neutral-900 font-playfair mb-2">
-                      Giorni peggiori per incassi — {year}
+                      Giorni peggiori — {year}
                     </h2>
                     <ul className="space-y-1 text-sm max-h-72 overflow-auto">
                       {topDays.top_worst.map((d, idx) => (
-                        <li
-                          key={idx}
-                          className="flex justify-between border-b border-neutral-100 py-1"
-                        >
-                          <span>
-                            {formatShortDate(d.date)} — {d.weekday}
-                          </span>
-                          <span>€ {formatCurrency(d.totale_incassi)}</span>
+                        <li key={idx} className="flex justify-between border-b border-neutral-100 py-1">
+                          <span>{formatShortDate(d.date)} — {d.weekday}</span>
+                          <span>€ {formatCurrency(d.corrispettivi)}</span>
                         </li>
                       ))}
                     </ul>
