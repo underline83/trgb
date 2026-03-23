@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-22 (sessione 12 — Gestione Acquisti v2.1: FIC API v2 enrichment, fix UI escluso)
+> Ultima sessione: 2026-03-23 (sessione 13 — Gestione Vendite v4.0: dashboard unificata, chiusure configurabili, cleanup fiscale)
 
 ---
 
@@ -15,50 +15,77 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-22, sessione 12)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-23, sessione 13)
+
+### Gestione Vendite v4.0: Dashboard unificata 3 modalita', chiusure configurabili, cleanup fiscale
+
+#### Fix home page vuota per superadmin
+1. **modules.json** — aggiunto "superadmin" a tutti i moduli (mancava nel data layer)
+2. **Home.jsx** — aggiunto fallback: superadmin vede tutto cio' che vede admin
+
+#### Pre-conti nascosti
+3. **CorrispettiviMenu.jsx** — tile pre-conti spostata da "Chiusure turno" a "Impostazioni" (solo superadmin, icona lucchetto)
+4. **VenditeNav.jsx** — rimosso tab pre-conti dalla barra di navigazione
+5. **PrecontiAdmin.jsx** — default filtro: mese corrente (era ultimi 30 giorni)
+
+#### Dashboard v3.0-fiscale (pulizia dati)
+6. **CorrispettiviDashboard.jsx** — rimossi: Totale Incassi KPI, linea incassi nel grafico, colonna differenze, sezione alert
+7. **Contanti come residuo** — corrispettivi_tot - pagamenti_elettronici = contanti (quadra sempre)
+
+#### Confronto anno precedente
+8. **YoY mensile** — aggiunto fetch anno-1, KPI confronto totale e media, linea tratteggiata grigia nel grafico
+9. **Smart cutoff** — se mese corrente, confronta solo fino allo stesso giorno (evita confronti falsati)
+
+#### Top/bottom days fix
+10. **Esclusi giorni chiusura** — filtro corrispettivi > 0 nei ranking
+
+#### Chiusure configurabili
+11. **closures_config.json** (NUOVO) — giorno_chiusura_settimanale (0-6/null) + giorni_chiusi (array date ISO)
+12. **closures_config_router.py** (NUOVO) — GET/PUT /settings/closures-config/ con validazione
+13. **admin_finance.py** — logica chiusura configurabile con priorita': DB flag > dati reali > festivita' config > giorno settimanale
+14. **CalendarioChiusure.jsx** (NUOVO) — UI calendario con pulsanti giorno settimanale + griglia mensile toggle + lista date chiuse
+
+#### Impostazioni sidebar layout
+15. **CorrispettiviImport.jsx** — riscritto con sidebar menu (pattern ViniImpostazioni): "Calendario Chiusure" + "Import Corrispettivi"
+
+#### Chiusure Turno Lista
+16. **ChiusureTurnoLista.jsx** — espansione diretta senza doppio click
+
+#### Dashboard unificata v4.0 (3 modalita')
+17. **CorrispettiviDashboard.jsx** — rewrite completo con mode switcher (Mensile/Trimestrale/Annuale)
+18. **Modalita' trimestrale** — aggrega 3 mesi, KPI, grafico, pagamenti, tabella, confronto pari trimestre anno-1
+19. **Modalita' annuale** — grafico a barre mensili, tabella mensile con variazioni (era pagina separata)
+20. **VenditeNav.jsx** — rimosso tab "Annuale"
+21. **CorrispettiviMenu.jsx** — rimossa tile "Confronto Annuale", aggiornata tile Dashboard
+22. **App.jsx** — rimosso import CorrispettiviAnnual, route /vendite/annual → redirect a dashboard?mode=annuale
+
+#### Documentazione
+23. **versions.jsx** — corrispettivi v2.0 → v4.0, sistema v4.3 → v4.5
+24. **modulo_corrispettivi.md** — riscritto completo con dashboard unificata, chiusure configurabili, pre-conti nascosti
+25. **changelog.md** — aggiunta v4.0 completa
+26. **sessione.md** — aggiornamento completo (questo file)
+
+---
+
+## Cosa abbiamo fatto nella sessione precedente (2026-03-22, sessione 12)
 
 ### Gestione Acquisti v2.1: FIC API v2 enrichment, SyncResult tracking, fix UI escluso
 
 #### Backend — fe_import.py (fatture list/import)
-1. **Rimosso `escluso` field da query `/fatture`** — il flag è solo per product matching module, non per acquisti
+1. **Rimosso `escluso` field da query `/fatture`** — il flag e' solo per product matching module, non per acquisti
 2. **Rimosso LEFT JOIN con `fe_fornitore_categoria`** dalla list endpoint e stats (fornitori, mensili)
-3. **`_EXCL_JOIN` e `_EXCL_WHERE` rifiloati** — ora `_EXCL_JOIN` contiene solo category JOIN (per dashboard drill-down), `_EXCL_WHERE` filtra solo autofatture
-4. **Import XML arricchisce fatture FIC** — quando import XML matcha una fattura FIC esistente (piva+numero+data), aggiunge le righe XML se FIC ritorna `is_detailed: false` (zero righe da API)
-5. **Import XML aggiorna importi** — da XML SdI: imponibile, IVA, totale quando arricchisce
+3. **Import XML arricchisce fatture FIC** — quando import XML matcha una fattura FIC esistente, aggiunge le righe XML se FIC ritorna `is_detailed: false`
+4. **Import XML aggiorna importi** — da XML SdI: imponibile, IVA, totale quando arricchisce
 
 #### Backend — fattureincloud_router.py (FIC sync)
-6. **SyncResult tracking v2.0** — include `items` list (fornitore, numero, data, totale, stato: nuova/aggiornata/merged_xml) e `senza_dettaglio` list (fatture con `is_detailed: false` e nessun righe)
-7. **Debug endpoint** — `GET /fic/debug-detail/{fic_id}` ritorna raw FIC API response (is_detailed, e_invoice, items_list, etc.)
-8. **`force_detail` parameter** aggiunto a sync endpoint
-9. **Phase 2 XML preservation** — se FIC `items_list` vuoto, righe da XML importato non vengono cancellate
+5. **SyncResult tracking v2.0** — include `items` list e `senza_dettaglio` list
+6. **Debug endpoint** — `GET /fic/debug-detail/{fic_id}`
+7. **Phase 2 XML preservation** — se FIC `items_list` vuoto, righe da XML non vengono cancellate
 
-#### Frontend — FattureElenco.jsx
-10. **Rimosso "Escluse" badge e filtro** — niente più badge "Escluse", "Normali" o filtro tipo "escluso"
-11. **Only "Autofatture" badge rimane** (mostrato quando count > 0)
-12. **Anno default = current year** (`new Date().getFullYear()`)
-
-#### Frontend — FattureImpostazioni.jsx
-13. **Sync result table** — lista completa fatture processate con NUOVA/AGG./MERGE badges, data, numero, fornitore, totale
-14. **Orange warning box** — per fatture senza_dettaglio con suggerimento upload XML
-15. **10-minute timeout** su sync fetch (AbortController) per prevenire network errors su sync grandi
-
-#### Frontend — FattureDashboard.jsx
-16. **Anno default = current year** invece di "all"
-
-#### Infrastructure
-17. **nginx proxy_read_timeout = 600s** su VPS per trgb.tregobbi.it
-
-#### Database & Discoveries
-18. **58 fornitori `escluso=1`** in `fe_fornitore_categoria` — è per product matching ONLY, non acquisti
-19. **Fresh FIC-only import** — `fe_fatture` e `fe_righe` cleared per reimport pulito
-20. **Zero duplicates** — cross-fonte dedup working
-21. **FIC API v2 limitation discovered** — `received_documents` con `fieldset=detailed` ritorna `items_list: []` quando `is_detailed: false`, anche con `e_invoice: true` (XML attached). FIC frontend legge dall'XML, ma REST API no. Workaround: import XML.
-
-#### Documentation
-22. **changelog.md** — aggiunta v2.1 completa
-23. **Modulo_Acquisti.md** — updated to v2.1, aggiunto FIC sync section, debug endpoint
-24. **modulo_fatture_xml.md** — updated timestamp, aggiunto FIC API v2 sync alla lista features
-25. **sessione.md** — aggiornamento completo (questo file)
+#### Frontend
+8. **FattureElenco.jsx** — rimosso badge/filtro "Escluse", anno default = current year
+9. **FattureImpostazioni.jsx** — sync result table + warning box + 10-min timeout
+10. **FattureDashboard.jsx** — anno default = current year
 
 ---
 
@@ -66,60 +93,21 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ### Infrastruttura: backup, sicurezza, multi-PC, Google Drive
 
-#### Autosave & fix frontend
-1. **ChiusuraTurno.jsx** — completato autosave localStorage: restoreDraft() su 404, clearDraft() dopo save, banner info "Bozza ripristinata"
-2. **ChiusureTurnoLista.jsx** — fix formula quadratura: ora calcola correttamente `entrate - giustificato` con tutti i campi (fondo cassa, preconti, spese, fatture). Label cambiata da "Diff" a "Quadr." con tooltip
-
-#### VPS Recovery & Sicurezza
-3. **Accesso VPS** — risolto blocco SSH (IP bannato da fail2ban), reset password via GRUB recovery, riconfigurazione chiavi SSH
-4. **fail2ban** — configurato: whitelist reti private, bantime 10 minuti
-5. **Backup automatico** — `backup.sh` + cron notturno alle 3:00, 5 database, retention 30 giorni
-
-#### Git & Deploy
-6. **Architettura Git ibrida** — `origin` → VPS bare repo (deploy automatico), `github` → GitHub (backup codice)
-7. **push.sh** riscritto — commit + push VPS + push GitHub in un colpo, con alias SSH `trgb`
-8. **Server working directory** — corretto remote da GitHub a bare repo locale
-9. **setup-backup-and-security.sh** — script one-time per configurare cron + fail2ban
-
-#### Multi-PC
-10. **Windows configurato** — chiave SSH ed25519, alias `trgb` in SSH config, repo clonato con remote origin + github, VS Code funzionante con Git Bash
-
-#### Backup download dall'app
-11. **backup_router.py** (NUOVO) — endpoint API per download backup on-demand, lista backup giornalieri, info stato DB
-12. **ImpostazioniSistema.jsx** — aggiunto tab "Backup" con download istantaneo, lista backup giornalieri scaricabili, stato database
-
-#### Google Drive
-13. **rclone** installato e configurato sul VPS (v1.73.2, OAuth con Google Drive)
-14. **backup.sh aggiornato** — dopo compressione, upload automatico su `TRGB-Backup/` via rclone
-15. **Copia completa app** su Google Drive in `TRGB-Backup/app-code/`
-16. **Script** copiati in `TRGB-Backup/scripts/`
-
-#### Documentazione
-17. **deploy.md** — aggiornato con Google Drive, download dall'app, path Windows corretto
-18. **GUIDA-RAPIDA.md** — aggiunta sezione Drive, sincronizzazione PC, tabella postazioni
-19. **sessione.md** — aggiornamento completo (questo file)
+1. **ChiusuraTurno.jsx** — autosave localStorage completo
+2. **ChiusureTurnoLista.jsx** — fix formula quadratura
+3. **VPS Recovery** — fail2ban whitelist, backup automatico notturno
+4. **Git ibrido** — origin=VPS + github=GitHub, push.sh
+5. **Windows configurato** — SSH + Git + VS Code
+6. **backup_router.py** — download backup on-demand dall'app
+7. **rclone + Google Drive** — upload automatico backup
 
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-16, sessione 10)
-
-### Cantina & Vini v4.0 — filtro unificato, stampa selezionati, SchedaVino sidebar
-
-#### Backend
-1. **Nuovo endpoint** `POST /vini/cantina-tools/inventario/selezione/pdf` — accetta lista ID via Body, genera PDF con WeasyPrint e ritorna Response con bytes (autenticazione Bearer token)
-
-#### Frontend
-2. **MagazzinoVini.jsx** v4.0 — **filtro locazioni unificato**: 8 state vars e 6 select cascading sostituiti con 2 dropdown (Locazione + Spazio), logica di filtro cross-colonna su tutte e 4 le colonne DB
-3. **handlePrintSelection()** — entrambi i pulsanti "Stampa selezionati" ora chiamano direttamente il nuovo endpoint POST (fetch+blob+createObjectURL), senza aprire StampaFiltrata
-4. **SchedaVino.jsx** v5.0 — layout completamente riscritto da scroll verticale a **sidebar+main** con CSS grid `grid-cols-[260px_1fr]`
-5. **Mappa `TIPOLOGIA_SIDEBAR`** — 8 gradients che corrispondono ai colori categoria della tabella MagazzinoVini
-
----
-
-## Sessioni precedenti (3-9)
+## Sessioni precedenti (3-10)
 
 | # | Data | Tema |
 |---|------|------|
+| 10 | 2026-03-16 | Cantina & Vini v4.0 — filtro unificato, stampa selezionati, SchedaVino sidebar |
 | 9 | 2026-03-15c | Modulo Statistiche v1.0 — import iPratico + analytics vendite |
 | 8 | 2026-03-15b | Unificazione loader carta + DOCX tabelle + fix cancellazione movimenti |
 | 7 | 2026-03-15 | Eliminazione vecchio DB vini.sqlite3 + fix carta PDF/HTML |
@@ -148,6 +136,12 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 - **Frontend**: `ChiusuraTurno.jsx` (form con autosave localStorage), `ChiusureTurnoLista.jsx` (lista admin con quadratura corretta)
 - **DB**: `admin_finance.sqlite3` con tabelle shift_closures, shift_preconti, shift_spese
 
+### Dashboard Vendite v4.0
+- **3 modalita'**: Mensile / Trimestrale / Annuale in un'unica pagina
+- **Confronto YoY smart**: cutoff al giorno corrente se periodo in corso
+- **Dati fiscali puliti**: solo corrispettivi, contanti come residuo
+- **Chiusure configurabili**: giorno settimanale + festivi in closures_config.json
+
 ### Cambio PIN
 - **Frontend**: `CambioPIN.jsx` a `/cambio-pin`
 - **Backend**: usa endpoint esistente `PUT /auth/users/{username}/password`
@@ -166,13 +160,13 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Cantina & Vini | v4.0 | stabile |
 | Gestione Acquisti | v2.0 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
-| Gestione Vendite | v2.0 | stabile |
+| Gestione Vendite | v4.0 | stabile |
 | Statistiche | v1.0 | beta |
 | Banca | v1.0 | beta |
 | Finanza | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v4.4 | stabile |
+| Sistema | v4.5 | stabile |
 
 ---
 
@@ -195,11 +189,10 @@ Vai su `docs/roadmap.md` per la lista completa.
 ## Prossima sessione — TODO
 
 1. **Configurare snapshot Aruba settimanale** dal pannello
-2. **DNS dinamico casa** (DDNS) — rimandato, opzione "Personalizzare" su TIM Hub+ con endpoint VPS
+2. **DNS dinamico casa** (DDNS) — rimandato
 3. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-4. **Test SchedaVino sidebar+main** — verificare rendering, colori tipologia, responsive
-5. **Test filtro locazioni unificato** — verificare filtro cross-colonna
-6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
+4. **Test dashboard 3 modalita'** — verificare trimestrale e annuale con dati reali
+5. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
@@ -219,6 +212,15 @@ setup-backup-and-security.sh           — setup cron + fail2ban (one-time)
 app/routers/chiusure_turno.py          — backend, prefix /chiusure-turno
 frontend/src/pages/admin/ChiusuraTurno.jsx  — form fine servizio (con autosave)
 frontend/src/pages/admin/ChiusureTurnoLista.jsx — lista chiusure admin (quadratura corretta)
+
+# --- VENDITE ---
+app/routers/admin_finance.py              — corrispettivi legacy + stats + chiusure configurabili
+app/routers/closures_config_router.py     — GET/PUT config chiusure
+app/data/closures_config.json             — config giorno settimanale + giorni chiusi
+frontend/src/pages/admin/VenditeNav.jsx   — navigazione (senza tab Annuale)
+frontend/src/pages/admin/CorrispettiviDashboard.jsx — dashboard unificata 3 modalita'
+frontend/src/pages/admin/CorrispettiviImport.jsx    — impostazioni sidebar (chiusure + import)
+frontend/src/pages/admin/CalendarioChiusure.jsx     — UI calendario chiusure
 
 # --- VINI ---
 app/routers/vini_router.py               — carta vini + movimenti (v3.0, solo magazzino)
@@ -240,10 +242,6 @@ frontend/src/pages/statistiche/          — Menu, Nav, Dashboard, Prodotti, Imp
 
 # --- BANCA ---
 app/routers/banca_router.py              — movimenti, dashboard, categorie, cross-ref
-
-# --- VENDITE ---
-app/routers/admin_finance.py              — corrispettivi legacy
-frontend/src/pages/admin/VenditeNav.jsx   — navigazione
 
 # --- IMPOSTAZIONI ---
 frontend/src/pages/admin/ImpostazioniSistema.jsx — tab Utenti + Moduli + Backup

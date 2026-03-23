@@ -3,6 +3,59 @@
 
 ---
 
+## 2026-03-23 — Gestione Vendite v4.0: Dashboard unificata 3 modalita', chiusure configurabili, cleanup fiscale
+
+### Dashboard unificata (CorrispettiviDashboard.jsx — rewrite completo)
+
+#### Added
+- **Mode switcher**: 3 modalita' (Mensile / Trimestrale / Annuale) con pillole in alto a destra
+- **Modalita' Trimestrale**: aggrega 3 mesi, KPI, grafico, composizione pagamenti, tabella giornaliera, confronto pari trimestre anno precedente
+- **Modalita' Annuale**: grafico a barre mensili anno vs anno-1, tabella mensile dettagliata con variazioni, integrata nella dashboard (era pagina separata)
+- **Confronto YoY smart**: quando il periodo e' in corso, confronta solo fino allo stesso giorno del calendario
+- **Navigazione adattiva**: prev/next si adattano al periodo (mese/trimestre/anno)
+- **Confronto anno precedente** in tutte le modalita' con linea tratteggiata/barre grigie
+
+#### Changed
+- **Contanti come residuo** (v3.0-fiscale): corrispettivi - pagamenti elettronici = contanti (quadra sempre)
+- **Rimossi**: Totale Incassi, colonna differenze, alert discrepanze dalla dashboard
+- **Top/bottom days**: esclusi giorni con corrispettivi = 0 (chiusure)
+
+#### Removed
+- **Pagina annuale separata** (`CorrispettiviAnnual.jsx` / `/vendite/annual`) — integrata nella dashboard
+- **Tab "Annuale"** dalla barra di navigazione VenditeNav
+- **Tile "Confronto Annuale"** dal menu Vendite
+
+### Chiusure configurabili
+
+#### Added
+- **`closures_config.json`**: giorno chiusura settimanale (0-6) + array giorni chiusi (ferie/festivita')
+- **`closures_config_router.py`**: GET/PUT `/settings/closures-config/` con validazione
+- **`CalendarioChiusure.jsx`**: UI calendario per toggle chiusure — pulsanti giorno settimanale, griglia mensile, lista date chiuse
+- **Logica priorita' chiusura**: DB flag > dati reali > config festivita' > giorno settimanale
+
+### Impostazioni Vendite (sidebar layout)
+
+#### Changed
+- **`CorrispettiviImport.jsx`** riscritto con sidebar layout (pattern ViniImpostazioni): menu a sinistra con "Calendario Chiusure" e "Import Corrispettivi"
+
+### Pre-conti e accesso
+
+#### Changed
+- **Pre-conti nascosti**: rimossi dalla nav e dalla sezione Chiusure Turno, spostati dentro Impostazioni (solo superadmin)
+- **Default mese corrente** per filtro pre-conti (era "ultimi 30 giorni")
+- **Home page superadmin**: fix moduli vuoti — aggiunto "superadmin" a tutti i moduli in modules.json + fallback frontend
+
+### Chiusure Turno Lista
+
+#### Changed
+- **Espansione diretta**: rimosso doppio click (expandedTurno/renderTurnoDetail), ora mostra tutti i dati al primo expand
+
+### Versioni
+- `corrispettivi` (Gestione Vendite): v2.0 → v4.0
+- `sistema`: v4.3 → v4.5
+
+---
+
 ## 2026-03-22 — Gestione Acquisti & FattureInCloud v2.1: FIC API v2 enrichment, SyncResult tracking, fix UI escluso
 
 ### Backend: fe_import.py (fatture list/import)

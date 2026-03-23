@@ -1,8 +1,8 @@
 # Modulo Gestione Vendite — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-14
-**Stato:** operativo — v2.0 con Chiusure Turno
+**Ultimo aggiornamento:** 2026-03-23
+**Stato:** operativo — v4.0 con Dashboard unificata 3 modalita'
 **Sezione top-level:** `/vendite`
-**Backend:** `admin_finance.py` (prefix `/admin/finance`) + `chiusure_turno.py` (prefix `/chiusure-turno`)
+**Backend:** `admin_finance.py` (prefix `/admin/finance`) + `chiusure_turno.py` (prefix `/chiusure-turno`) + `closures_config_router.py` (prefix `/settings`)
 **DB:** `app/data/admin_finance.sqlite3`
 
 ---
@@ -18,9 +18,9 @@ Il modulo Gestione Vendite (ex Corrispettivi) gestisce:
 - **Fondo cassa** — inizio e fine servizio
 - **Import corrispettivi** da file Excel
 - **Chiusure giornaliere** (legacy) — apertura/chiusura cassa
-- **Statistiche** mensili, annuali e confronto annuale
-- **Dashboard** con grafici e KPI
+- **Dashboard unificata** con 3 modalita' (mensile/trimestrale/annuale) e confronto YoY
 - **Riepilogo** mensile multi-anno
+- **Configurazione chiusure** — giorno chiusura settimanale + giorni festivi/ferie
 
 ---
 
@@ -49,7 +49,64 @@ A cena, lo staff inserisce i **totali giornalieri** (la chiusura RT, i POS, ecc.
 
 ---
 
-# 3. Endpoint Backend
+# 3. Dashboard unificata v4.0 (2026-03-23)
+
+La dashboard supporta tre modalita' di visualizzazione con navigazione e confronti appropriati:
+
+### Modalita' Mensile
+- KPI: totale corrispettivi, media giornaliera, confronto YoY (smart con cutoff)
+- Grafico linea giornaliero con anno precedente tratteggiato
+- Calendario con colori per performance vs media del giorno della settimana
+- Composizione pagamenti (pie chart + dettaglio metodi)
+- Tabella giornaliera completa
+- Top/bottom days (esclusi giorni chiusura)
+
+### Modalita' Trimestrale
+- Aggrega 3 mesi del trimestre selezionato
+- Stessi KPI con confronto pari trimestre anno precedente (smart cutoff)
+- Grafico giornaliero aggregato
+- Composizione pagamenti aggregata
+- Tabella giornaliera trimestre completo
+
+### Modalita' Annuale
+- Grafico a barre mensili (anno corrente vs precedente)
+- Tabella mensile dettagliata con variazioni
+- KPI con totali annuali e confronto YoY
+
+### Confronto YoY smart
+Quando il periodo e' in corso (mese/trimestre/anno corrente), il confronto limita i dati dell'anno precedente allo stesso giorno del calendario, evitando confronti falsati da giorni in piu'.
+
+---
+
+# 4. Configurazione chiusure (2026-03-23)
+
+### File configurazione
+`app/data/closures_config.json`:
+- `giorno_chiusura_settimanale`: 0=Lunedi..6=Domenica, null=nessuno
+- `giorni_chiusi`: array di date ISO (ferie, festivita')
+
+### Logica priorita' chiusura
+1. Flag `is_closed` nel DB → sempre chiuso
+2. Dati reali presenti (corrispettivi > 0 o incassi > 0) → sempre aperto
+3. Data in `giorni_chiusi` configurati → chiuso
+4. Giorno della settimana configurato → chiuso
+
+### UI Calendario Chiusure
+`CalendarioChiusure.jsx` dentro Vendite > Impostazioni:
+- Pulsanti per selezionare il giorno di chiusura settimanale
+- Calendario mensile per toggle singoli giorni
+- Lista date chiuse con rimozione
+- Salvataggio automatico ad ogni modifica
+
+---
+
+# 5. Pre-conti (superadmin only, 2026-03-23)
+
+Il pannello Pre-conti e' stato nascosto dalla navigazione principale e spostato nella sezione Impostazioni del menu Vendite, visibile solo a superadmin. Il filtro di default mostra il mese corrente.
+
+---
+
+# 6. Endpoint Backend
 
 ## Chiusure Turno (`chiusure_turno.py`)
 
@@ -59,24 +116,29 @@ A cena, lo staff inserisce i **totali giornalieri** (la chiusura RT, i POS, ecc.
 | GET | `/chiusure-turno/{date}/{turno}` | Lettura chiusura con pre-conti e spese |
 | GET | `/chiusure-turno` | Lista chiusure con filtri (date_from, date_to, turno) |
 
-Ruoli autorizzati per scrittura: admin, sommelier, sala.
-Lista chiusure: solo admin.
-
-## Corrispettivi legacy (`admin_finance.py`)
+## Corrispettivi & Stats (`admin_finance.py`)
 
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
 | POST | `/admin/finance/import` | Import Excel corrispettivi |
 | GET | `/admin/finance/chiusure/{year}/{month}` | Chiusure mensili |
 | GET/POST/PUT | `/admin/finance/chiusura/{date}` | Chiusura giornaliera CRUD |
-| GET | `/admin/finance/stats/{year}/{month}` | Statistiche mensili |
-| GET | `/admin/finance/stats/{year}` | Statistiche annuali |
+| GET | `/admin/finance/stats/monthly` | Statistiche mensili |
+| GET | `/admin/finance/stats/annual-compare` | Confronto annuale (2 anni) |
+| GET | `/admin/finance/stats/top-days` | Top/bottom giorni |
 
-Tutti gli endpoint protetti con JWT.
+## Configurazione Chiusure (`closures_config_router.py`)
+
+| Metodo | Endpoint | Funzione |
+|--------|----------|----------|
+| GET | `/settings/closures-config/` | Leggi configurazione chiusure |
+| PUT | `/settings/closures-config/` | Aggiorna configurazione chiusure |
+
+Ruoli: scrittura chiusure turno = admin, sommelier, sala. Lista/stats = solo admin. Config chiusure = admin.
 
 ---
 
-# 4. Database
+# 7. Database
 
 DB: `app/data/admin_finance.sqlite3`
 
@@ -90,28 +152,37 @@ DB: `app/data/admin_finance.sqlite3`
 ### Tabelle legacy
 - `daily_closures` — chiusure giornaliere da import Excel
 
+### File configurazione
+- `app/data/closures_config.json` — giorno chiusura settimanale + giorni chiusi
+
 ---
 
-# 5. Frontend
+# 8. Frontend
 
 | File | Route | Funzione |
 |------|-------|----------|
 | `ChiusuraTurno.jsx` | `/vendite/fine-turno` | Form chiusura fine servizio |
-| `ChiusureTurnoLista.jsx` | `/vendite/chiusure` | Lista chiusure (admin) |
+| `ChiusureTurnoLista.jsx` | `/vendite/chiusure` | Lista chiusure (admin) — espansione diretta |
 | `CorrispettiviMenu.jsx` | `/vendite` | Hub Gestione Vendite |
 | `CorrispettiviRiepilogo.jsx` | `/vendite/riepilogo` | Riepilogo mensile multi-anno |
-| `CorrispettiviDashboard.jsx` | `/vendite/dashboard` | Dashboard mensile |
-| `CorrispettiviAnnual.jsx` | `/vendite/annual` | Confronto annuale |
-| `CorrispettiviImport.jsx` | `/vendite/import` | Import Excel |
+| `CorrispettiviDashboard.jsx` | `/vendite/dashboard` | Dashboard unificata 3 modalita' |
+| `CorrispettiviImport.jsx` | `/vendite/impostazioni` | Impostazioni con sidebar (Chiusure + Import) |
+| `CalendarioChiusure.jsx` | — | Componente calendario chiusure (dentro Impostazioni) |
+| `PrecontiAdmin.jsx` | `/vendite/preconti` | Pre-conti (superadmin, nascosto) |
 | `VenditeNav.jsx` | — | Barra navigazione con visibilita' per ruolo |
 
 ### Navigazione per ruolo
 - **Fine Turno**: visibile a tutti (staff inserisce la chiusura)
-- **Chiusure, Riepilogo, Dashboard, Annuale, Import**: solo admin
+- **Chiusure, Riepilogo, Dashboard, Impostazioni**: solo admin
+- **Pre-conti**: solo superadmin (nascosto in Impostazioni menu)
+
+### Pagine rimosse (v4.0)
+- `CorrispettiviAnnual.jsx` — confronto annuale ora integrato nella dashboard unificata
+- Route `/vendite/annual` → redirect a `/vendite/dashboard?mode=annuale`
 
 ---
 
-# 6. Servizi backend
+# 9. Servizi backend
 
 | File | Contenuto |
 |------|-----------|
@@ -119,10 +190,26 @@ DB: `app/data/admin_finance.sqlite3`
 | `services/admin_finance_stats.py` | Calcolo statistiche mensili, annuali, top-days |
 | `services/admin_finance_import.py` | Parsing e import da Excel |
 | `services/corrispettivi_import.py` | Helper parsing Excel |
+| `routers/closures_config_router.py` | GET/PUT configurazione chiusure |
 
 ---
 
-# 7. Roadmap modulo
+# 10. Concetti chiave
+
+### Dati fiscali puliti (v3.0+)
+- La dashboard mostra SOLO corrispettivi (dati dichiarati fiscalmente)
+- Contanti calcolati come residuo: `corrispettivi - pagamenti_elettronici`
+- Questo garantisce che i totali quadrino sempre
+- Rimossi: "Totale Incassi", colonna differenze, alert discrepanze
+
+### Ruoli e gerarchia
+- `superadmin` > `admin` > `sala/sommelier` > `viewer/chef`
+- `is_admin(role)` → True per admin e superadmin
+- `is_superadmin(role)` → True solo per superadmin
+
+---
+
+# 11. Roadmap modulo
 
 - [ ] Checklist fine turno configurabile (seed dati default pranzo/cena)
 - [ ] Integrazione cross-check chiusura turno vs daily_closures (import Excel)
