@@ -764,6 +764,7 @@ function SezioneSpeseVarie() {
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_categoria: {} });
+  const [precontiTotale, setPrecontiTotale] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -783,9 +784,17 @@ function SezioneSpeseVarie() {
       const params = new URLSearchParams();
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`);
-      if (!res.ok) throw new Error(`Errore ${res.status}`);
-      setData(await res.json());
+      // Fetch spese + preconti in parallelo
+      const [resSpese, resPreconti] = await Promise.all([
+        apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`),
+        apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${params}`),
+      ]);
+      if (!resSpese.ok) throw new Error(`Errore spese ${resSpese.status}`);
+      setData(await resSpese.json());
+      if (resPreconti.ok) {
+        const pc = await resPreconti.json();
+        setPrecontiTotale(pc.totale || 0);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -794,6 +803,8 @@ function SezioneSpeseVarie() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const saldo = precontiTotale - data.totale;
 
   const handleSave = async () => {
     const importo = parseFloat(formImporto);
@@ -853,22 +864,42 @@ function SezioneSpeseVarie() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI Cards — bilancio preconti vs spese */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Entrate (pre-conti)</p>
+          <p className="text-2xl font-bold text-emerald-800 mt-1">€ {fmt(precontiTotale)}</p>
+        </div>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Totale spese</p>
+          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Uscite (spese)</p>
           <p className="text-2xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
         </div>
-        {Object.entries(data.totale_per_categoria || {}).map(([cat, tot]) => {
-          const info = CATEGORIE_SPESE.find(c => c.value === cat) || { label: cat };
-          return (
-            <div key={cat} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-center">
-              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{info.label}</p>
-              <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
-            </div>
-          );
-        })}
+        <div className={`rounded-xl p-4 text-center border ${
+          saldo >= 0
+            ? "bg-emerald-50 border-emerald-200"
+            : "bg-red-50 border-red-200"
+        }`}>
+          <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo contanti</p>
+          <p className={`text-2xl font-bold mt-1 ${
+            saldo >= 0 ? "text-emerald-800" : "text-red-800"
+          }`}>€ {fmt(saldo)}</p>
+        </div>
       </div>
+
+      {/* Breakdown per categoria */}
+      {Object.keys(data.totale_per_categoria || {}).length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Object.entries(data.totale_per_categoria).map(([cat, tot]) => {
+            const info = CATEGORIE_SPESE.find(c => c.value === cat) || { label: cat };
+            return (
+              <div key={cat} className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+                <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{info.label}</p>
+                <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add button */}
       <div className="flex justify-end">
