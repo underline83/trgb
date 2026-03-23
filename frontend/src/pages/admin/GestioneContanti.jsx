@@ -156,14 +156,14 @@ function SezioneContanti() {
   const fetchBankMatches = useCallback(async () => {
     setLoadingMatches(true);
     try {
-      // Cerca movimenti entrata degli ultimi 60 giorni
+      // Cerca movimenti entrata con "contanti" in descrizione, anno corrente
+      const dFrom = `${year}-01-01`;
       const dTo = new Date().toISOString().slice(0, 10);
-      const dFrom = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
-      const res = await apiFetch(`${API_BASE}/admin/finance/cash/deposit/bank-matches?data_da=${dFrom}&data_a=${dTo}`);
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/deposit/bank-matches?data_da=${dFrom}&data_a=${dTo}&search=contanti`);
       if (res.ok) setBankMatches(await res.json());
     } catch (_) { /* ignore */ }
     finally { setLoadingMatches(false); }
-  }, []);
+  }, [year]);
 
   const handleOpenForm = () => {
     setShowForm(true);

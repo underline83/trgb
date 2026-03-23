@@ -1667,9 +1667,9 @@ async def get_bank_matches(
             query += " AND importo <= ?"
             params.append(importo_max)
         if search:
-            query += " AND descrizione LIKE ?"
+            query += " AND LOWER(descrizione) LIKE LOWER(?)"
             params.append(f"%{search}%")
-        query += " ORDER BY data_contabile DESC LIMIT 50"
+        query += " ORDER BY data_contabile DESC LIMIT 200"
 
         rows = conn.execute(query, params).fetchall()
         result = []
