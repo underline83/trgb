@@ -1,5 +1,5 @@
 # app/routers/admin_finance.py
-# @version: v1.6
+# @version: v2.1 — export/import/template canonici + gestione contanti
 
 from datetime import date as date_type, datetime
 from pathlib import Path
@@ -9,7 +9,9 @@ import uuid
 from typing import List, Optional, Dict
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import io
 
 # 🔄 IMPORT MULTI-ANNO CORRISPETTIVI
 from app.services.corrispettivi_import import (
@@ -17,6 +19,10 @@ from app.services.corrispettivi_import import (
     ensure_table,
     import_df_into_db,
     load_corrispettivi_from_excel,
+)
+from app.services.corrispettivi_export import (
+    export_corrispettivi_to_excel,
+    generate_template,
 )
 from app.services.auth_service import get_current_user
 
@@ -242,7 +248,65 @@ async def import_corrispettivi_file(
         year=year,
         inserted=inserted,
         updated=updated,
-    )# ---------------------------------------------------------
+    )
+
+
+# ---------------------------------------------------------
+# EXPORT CORRISPETTIVI → EXCEL
+# ---------------------------------------------------------
+
+@router.get("/export-corrispettivi")
+async def export_corrispettivi(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+):
+    """
+    Esporta i corrispettivi dal DB in formato Excel canonico.
+    Filtri opzionali: year, month.
+    Senza filtri → esporta tutto.
+    """
+    try:
+        excel_bytes = export_corrispettivi_to_excel(year=year, month=month)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione Excel: {e}")
+
+    if year and month:
+        filename = f"corrispettivi_{year}-{month:02d}.xlsx"
+    elif year:
+        filename = f"corrispettivi_{year}.xlsx"
+    else:
+        filename = "corrispettivi_completo.xlsx"
+
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------
+# TEMPLATE EXCEL VUOTO
+# ---------------------------------------------------------
+
+@router.get("/template-corrispettivi")
+async def download_template():
+    """
+    Scarica un Excel template vuoto con i campi canonici,
+    istruzioni e riga di esempio.
+    """
+    try:
+        excel_bytes = generate_template()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione template: {e}")
+
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="template_corrispettivi_TRGB.xlsx"'},
+    )
+
+
+# ---------------------------------------------------------
 # DAILY CLOSURES: LETTURA PER DATA
 # ---------------------------------------------------------
 
@@ -1366,3 +1430,246 @@ async def get_top_days(
         top_best=_rows_to_topdays(best_rows),
         top_worst=_rows_to_topdays(worst_rows),
     )
+
+
+# ---------------------------------------------------------
+# GESTIONE CONTANTI — Versamenti in banca
+# ---------------------------------------------------------
+
+def _ensure_cash_deposits_table(conn: sqlite3.Connection) -> None:
+    """Crea la tabella cash_deposits se non esiste."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_deposits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            importo REAL NOT NULL,
+            note TEXT DEFAULT '',
+            created_by TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
+class CashDeposit(BaseModel):
+    date: str
+    importo: float
+    note: str = ""
+
+
+class CashDepositOut(BaseModel):
+    id: int
+    date: str
+    importo: float
+    note: str
+    created_by: str
+    created_at: str
+
+
+class CashDayRow(BaseModel):
+    date: str
+    weekday: str
+    corrispettivi: float
+    elettronici: float
+    contanti_fiscali: float
+    is_closed: bool
+
+
+class CashDailyResponse(BaseModel):
+    year: int
+    month: int
+    giorni: List[CashDayRow]
+    versamenti: List[CashDepositOut]
+    totale_contanti: float
+    totale_versato: float
+    saldo_da_versare: float
+
+
+@router.get("/cash/daily", response_model=CashDailyResponse)
+async def get_cash_daily(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+):
+    """
+    Contanti fiscali giornalieri per il mese:
+    contanti_fiscali = corrispettivi_tot - pagamenti_elettronici
+    + lista versamenti in banca + saldo cumulativo
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_daily_closures_table(conn)
+    _ensure_cash_deposits_table(conn)
+
+    ym_prefix = f"{year:04d}-{month:02d}"
+
+    try:
+        # Dati giornalieri (stessa logica di stats/monthly)
+        shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix)
+
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT date, weekday, corrispettivi_tot, contanti_finali,
+                   pos_bpm, pos_sella, theforkpay, other_e_payments,
+                   bonifici, totale_incassi,
+                   COALESCE(is_closed, 0) AS is_closed
+            FROM daily_closures
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date ASC
+            """,
+            (ym_prefix,),
+        )
+        daily_rows = cur.fetchall()
+
+        # Merge
+        merged: Dict[str, dict] = {}
+        for date_str, sd in shift_data.items():
+            merged[date_str] = sd
+        for r in daily_rows:
+            ds = r["date"]
+            if ds not in merged:
+                merged[ds] = {
+                    'date': ds,
+                    'weekday': r["weekday"],
+                    'corrispettivi_tot': r["corrispettivi_tot"],
+                    'pos_bpm': r["pos_bpm"],
+                    'pos_sella': r["pos_sella"],
+                    'theforkpay': r["theforkpay"],
+                    'other_e_payments': r["other_e_payments"],
+                    'bonifici': r["bonifici"],
+                    'is_closed': bool(r["is_closed"]),
+                }
+
+        # Build daily cash rows
+        class _DRow:
+            def __init__(self, dd): self._d = dd
+            def __getitem__(self, k): return self._d.get(k, 0)
+            def keys(self): return self._d.keys()
+
+        giorni = []
+        totale_contanti = 0.0
+        for d in sorted(merged.values(), key=lambda x: x['date']):
+            is_closed = _is_effectively_closed(_DRow(d))
+            if is_closed:
+                giorni.append(CashDayRow(
+                    date=d['date'], weekday=d.get('weekday', ''),
+                    corrispettivi=0, elettronici=0, contanti_fiscali=0,
+                    is_closed=True,
+                ))
+                continue
+
+            corr = d.get('corrispettivi_tot', 0) or 0
+            elett = (
+                (d.get('pos_bpm', 0) or 0) +
+                (d.get('pos_sella', 0) or 0) +
+                (d.get('theforkpay', 0) or 0) +
+                (d.get('other_e_payments', 0) or 0) +
+                (d.get('bonifici', 0) or 0)
+            )
+            contanti = max(0, corr - elett)
+            totale_contanti += contanti
+
+            giorni.append(CashDayRow(
+                date=d['date'], weekday=d.get('weekday', ''),
+                corrispettivi=corr, elettronici=elett,
+                contanti_fiscali=contanti, is_closed=False,
+            ))
+
+        # Versamenti del mese
+        cur.execute(
+            """
+            SELECT id, date, importo, note, created_by, created_at
+            FROM cash_deposits
+            WHERE substr(date, 1, 7) = ?
+            ORDER BY date ASC, id ASC
+            """,
+            (ym_prefix,),
+        )
+        versamenti = [
+            CashDepositOut(
+                id=r["id"], date=r["date"], importo=r["importo"],
+                note=r["note"] or "", created_by=r["created_by"] or "",
+                created_at=r["created_at"] or "",
+            )
+            for r in cur.fetchall()
+        ]
+        totale_versato = sum(v.importo for v in versamenti)
+
+    finally:
+        conn.close()
+
+    return CashDailyResponse(
+        year=year, month=month,
+        giorni=giorni, versamenti=versamenti,
+        totale_contanti=round(totale_contanti, 2),
+        totale_versato=round(totale_versato, 2),
+        saldo_da_versare=round(totale_contanti - totale_versato, 2),
+    )
+
+
+@router.post("/cash/deposit")
+async def create_cash_deposit(
+    payload: CashDeposit,
+    user=Depends(get_current_user),
+):
+    """Registra un versamento in banca."""
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_deposits_table(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO cash_deposits (date, importo, note, created_by)
+            VALUES (?, ?, ?, ?)
+            """,
+            (payload.date, payload.importo, payload.note, user.get("username", "")),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "status": "ok"}
+    finally:
+        conn.close()
+
+
+@router.delete("/cash/deposit/{deposit_id}")
+async def delete_cash_deposit(
+    deposit_id: int,
+    user=Depends(get_current_user),
+):
+    """Elimina un versamento."""
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_deposits_table(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM cash_deposits WHERE id = ?", (deposit_id,))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Versamento non trovato")
+        return {"status": "ok"}
+    finally:
+        conn.close()
+
+
+@router.get("/cash/deposits")
+async def list_cash_deposits(
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(None, ge=1, le=12),
+):
+    """Lista versamenti, filtrabili per anno e mese."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    _ensure_cash_deposits_table(conn)
+    try:
+        if month:
+            ym = f"{year:04d}-{month:02d}"
+            rows = conn.execute(
+                "SELECT * FROM cash_deposits WHERE substr(date,1,7)=? ORDER BY date",
+                (ym,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM cash_deposits WHERE substr(date,1,4)=? ORDER BY date",
+                (str(year),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

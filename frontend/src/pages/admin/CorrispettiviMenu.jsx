@@ -188,18 +188,18 @@ export default function CorrispettiviMenu() {
                   </p>
                 </Link>
 
-                {/* PRE-CONTI — solo superadmin, nascosto in impostazioni */}
+                {/* GESTIONE CONTANTI — solo superadmin, nascosto in impostazioni */}
                 {isSuperAdminRole(role) && (
                   <Link
-                    to="/vendite/preconti"
-                    className="bg-neutral-50 border border-neutral-200 text-neutral-700 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                    to="/vendite/contanti"
+                    className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
                   >
-                    <div className="text-4xl mb-2">🔒</div>
+                    <div className="text-4xl mb-2">💰</div>
                     <h2 className="text-lg font-semibold font-playfair">
-                      Pre-conti
+                      Gestione Contanti
                     </h2>
                     <p className="text-neutral-500 text-sm mt-1">
-                      Storico tavoli aperti non battuti.
+                      Contanti da versare, pre-conti e versamenti banca.
                     </p>
                   </Link>
                 )}
