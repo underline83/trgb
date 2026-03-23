@@ -875,6 +875,7 @@ def registra_movimento(
     note: Optional[str] = None,
     origine: Optional[str] = "GESTIONALE",
     data_mov: Optional[str] = None,
+    celle_matrice: Optional[List[tuple]] = None,
 ) -> None:
     """
     Registra un movimento di cantina, aggiorna QTA_TOTALE e — se locazione
@@ -967,6 +968,16 @@ def registra_movimento(
             f"UPDATE vini_magazzino SET {col} = ?, UPDATED_AT = ? WHERE id = ?;",
             (nuova_qta_loc, created_at, vino_id),
         )
+
+        # Per SCARICO/VENDITA da loc3 con celle specifiche: rimuove dalla matrice
+        if loc == "loc3" and tipo in ("SCARICO", "VENDITA") and celle_matrice:
+            for (r, c) in celle_matrice:
+                cur.execute(
+                    "DELETE FROM matrice_celle WHERE vino_id = ? AND riga = ? AND colonna = ?",
+                    (vino_id, r, c),
+                )
+            # Ricalcola QTA_LOC3 e LOCAZIONE_3 dalla tabella matrice
+            _recalc_qta_loc3_from_matrice(conn, cur, vino_id)
 
     # Registra movimento solo se c'è effettivamente un delta
     if delta != 0:

@@ -30,11 +30,15 @@ function formatDate(isoStr) {
 
 function buildLocOptions(vino) {
   if (!vino) return [];
+  // Se LOCAZIONE_3 contiene coordinate matrice "(col,riga), …" mostra label pulita
+  const loc3Raw = vino.LOCAZIONE_3 || "";
+  const isMatrice = /^\(\d+,\d+\)/.test(loc3Raw.trim());
+  const loc3Label = isMatrice ? "Matrice" : (loc3Raw || "Loc 3");
   return [
     { value: "frigo", label: vino.FRIGORIFERO || "Frigo",  qta: vino.QTA_FRIGO ?? 0 },
     { value: "loc1",  label: vino.LOCAZIONE_1 || "Loc 1",  qta: vino.QTA_LOC1 ?? 0 },
     { value: "loc2",  label: vino.LOCAZIONE_2 || "Loc 2",  qta: vino.QTA_LOC2 ?? 0 },
-    { value: "loc3",  label: vino.LOCAZIONE_3 || "Loc 3",  qta: vino.QTA_LOC3 ?? 0 },
+    { value: "loc3",  label: loc3Label,                     qta: vino.QTA_LOC3 ?? 0 },
   ];
 }
 
@@ -68,6 +72,12 @@ export default function ViniVendite() {
   const [submitMsg, setSubmitMsg] = useState("");
   const searchRef = useRef(null);
   const suggestionsRef = useRef(null);
+
+  // ── Matrice (selezione celle per vendita da loc3) ──
+  const [matriceStato, setMatriceStato] = useState(null); // {righe, colonne, nome, celle}
+  const [myCelleMatrice, setMyCelleMatrice] = useState([]); // [{riga, colonna}]
+  const [selectedCelle, setSelectedCelle] = useState([]); // celle selezionate per la vendita
+  const [matriceLoading, setMatriceLoading] = useState(false);
 
   // ── Storico vendite ──
   const [movimenti, setMovimenti] = useState([]);
@@ -192,7 +202,57 @@ export default function ViniVendite() {
     setSelectedVino(null);
     setSearchText("");
     setRegLoc("");
+    setSelectedCelle([]);
+    setMatriceStato(null);
+    setMyCelleMatrice([]);
   };
+
+  // ── Matrice: detect se loc3 è matrice e carica griglia ──
+  const isLoc3Matrice = selectedVino && /^\(\d+,\d+\)/.test((selectedVino.LOCAZIONE_3 || "").trim());
+
+  const fetchMatriceData = useCallback(async () => {
+    if (!selectedVino || !isLoc3Matrice) return;
+    setMatriceLoading(true);
+    try {
+      const [rStato, rCelle] = await Promise.all([
+        apiFetch(`${API_BASE}/vini/cantina-tools/matrice/stato`),
+        apiFetch(`${API_BASE}/vini/cantina-tools/matrice/celle/${selectedVino.id}`),
+      ]);
+      if (rStato.ok) setMatriceStato(await rStato.json());
+      if (rCelle.ok) {
+        const data = await rCelle.json();
+        setMyCelleMatrice(data.celle || []);
+      }
+    } catch { /* silenzioso */ }
+    setMatriceLoading(false);
+  }, [selectedVino, isLoc3Matrice]);
+
+  // Quando cambia locazione a loc3-matrice, carica la griglia
+  useEffect(() => {
+    if (regLoc === "loc3" && isLoc3Matrice) {
+      fetchMatriceData();
+      setSelectedCelle([]);
+    } else {
+      setSelectedCelle([]);
+    }
+  }, [regLoc, isLoc3Matrice, fetchMatriceData]);
+
+  // Toggle selezione cella per vendita
+  const toggleCella = (riga, colonna) => {
+    const key = `${riga},${colonna}`;
+    setSelectedCelle(prev => {
+      const exists = prev.some(c => `${c.riga},${c.colonna}` === key);
+      if (exists) return prev.filter(c => `${c.riga},${c.colonna}` !== key);
+      return [...prev, { riga, colonna }];
+    });
+  };
+
+  // Quando le celle selezionate cambiano, aggiorna la quantità
+  useEffect(() => {
+    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
+      setRegQta(String(selectedCelle.length));
+    }
+  }, [selectedCelle, regLoc, isLoc3Matrice]);
 
   // ── Registra vendita ──
   const submitVendita = async () => {
@@ -200,6 +260,11 @@ export default function ViniVendite() {
     const qtaNum = Number(regQta);
     if (!regQta || qtaNum <= 0) { alert("Inserisci una quantità valida (> 0)."); return; }
     if (!regLoc) { alert("Seleziona la locazione da cui scalare."); return; }
+
+    // Per loc3 matrice: obbliga selezione celle
+    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length === 0) {
+      alert("Seleziona dalla griglia le celle da svuotare."); return;
+    }
 
     setSubmitting(true);
     setSubmitMsg("");
@@ -210,16 +275,22 @@ export default function ViniVendite() {
     if (regNote.trim()) notaParts.push(regNote.trim());
     const notaFinale = notaParts.join(" ");
 
+    // Prepara payload con eventuale celle_matrice
+    const payload = {
+      tipo: "VENDITA",
+      qta: qtaNum,
+      locazione: regLoc,
+      note: notaFinale,
+    };
+    if (regLoc === "loc3" && isLoc3Matrice && selectedCelle.length > 0) {
+      payload.celle_matrice = selectedCelle.map(c => [c.riga, c.colonna]);
+    }
+
     try {
       const res = await apiFetch(`${API_BASE}/vini/magazzino/${selectedVino.id}/movimenti`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "VENDITA",
-          qta: qtaNum,
-          locazione: regLoc,
-          note: notaFinale,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -420,6 +491,87 @@ export default function ViniVendite() {
                   </option>
                 ))}
               </select>
+
+              {/* Mini griglia matrice per selezione celle */}
+              {regLoc === "loc3" && isLoc3Matrice && (
+                <div className="mt-2">
+                  {matriceLoading ? (
+                    <div className="text-xs text-neutral-400">Caricamento griglia…</div>
+                  ) : matriceStato && matriceStato.righe > 0 ? (
+                    <div className="border border-violet-200 rounded-xl p-3 bg-violet-50/40">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">
+                          Seleziona celle da svuotare
+                        </span>
+                        {selectedCelle.length > 0 && (
+                          <span className="text-xs font-bold text-violet-600">
+                            {selectedCelle.length} {selectedCelle.length === 1 ? "cella" : "celle"}
+                          </span>
+                        )}
+                      </div>
+                      {/* Legenda compatta */}
+                      <div className="flex gap-3 mb-2 text-[10px]">
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-500 border border-violet-600 inline-block"></span> Selezionata</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 border border-amber-500 inline-block"></span> Tua bottiglia</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-neutral-300 border border-neutral-400 inline-block"></span> Altro vino</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white border border-neutral-200 inline-block"></span> Vuota</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <div className="inline-block">
+                          {/* Intestazione colonne */}
+                          <div className="flex">
+                            <div className="w-7 h-5"></div>
+                            {Array.from({ length: matriceStato.colonne }, (_, c) => (
+                              <div key={c} className="w-7 h-5 text-center text-[9px] font-bold text-neutral-500">{c + 1}</div>
+                            ))}
+                          </div>
+                          {/* Righe */}
+                          {Array.from({ length: matriceStato.righe }, (_, r) => {
+                            const riga = r + 1;
+                            return (
+                              <div key={r} className="flex">
+                                <div className="w-7 h-7 flex items-center justify-center text-[9px] font-bold text-neutral-500">{riga}</div>
+                                {Array.from({ length: matriceStato.colonne }, (_, c) => {
+                                  const colonna = c + 1;
+                                  const cellKey = `${riga},${colonna}`;
+                                  const isMine = myCelleMatrice.some(mc => mc.riga === riga && mc.colonna === colonna);
+                                  const isSelected = selectedCelle.some(sc => sc.riga === riga && sc.colonna === colonna);
+                                  const occupiedCell = (matriceStato.celle || []).find(mc => mc.riga === riga && mc.colonna === colonna);
+                                  const isOther = occupiedCell && !isMine;
+
+                                  let cls = "w-7 h-7 border text-[8px] font-medium flex items-center justify-center rounded-sm transition-all ";
+                                  if (isSelected) {
+                                    cls += "bg-violet-500 border-violet-600 text-white ring-2 ring-violet-300 cursor-pointer";
+                                  } else if (isMine) {
+                                    cls += "bg-amber-400 border-amber-500 text-white cursor-pointer hover:bg-violet-400 hover:border-violet-500";
+                                  } else if (isOther) {
+                                    cls += "bg-neutral-300 border-neutral-400 text-neutral-500 cursor-not-allowed";
+                                  } else {
+                                    cls += "bg-white border-neutral-200 text-neutral-200 cursor-not-allowed";
+                                  }
+
+                                  return (
+                                    <div key={cellKey} className={cls}
+                                      onClick={() => isMine && toggleCella(riga, colonna)}
+                                      title={
+                                        isSelected ? `Selezionata: (${colonna},${riga}) — click per deselezionare` :
+                                        isMine ? `Tua: (${colonna},${riga}) — click per selezionare` :
+                                        isOther ? `Occupata da: ${occupiedCell.DESCRIZIONE || "?"}` :
+                                        "Vuota"
+                                      }>
+                                      {isSelected ? "✓" : isMine ? "●" : isOther ? "■" : ""}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {/* Quantità */}
@@ -432,8 +584,11 @@ export default function ViniVendite() {
                 value={regQta}
                 min={1}
                 onChange={(e) => setRegQta(e.target.value)}
+                readOnly={regLoc === "loc3" && isLoc3Matrice}
                 placeholder="1"
-                className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className={`w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 ${
+                  regLoc === "loc3" && isLoc3Matrice ? "bg-neutral-100 cursor-not-allowed" : ""
+                }`}
               />
             </div>
 

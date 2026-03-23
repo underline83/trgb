@@ -222,6 +222,10 @@ class MovimentoCreate(BaseModel):
         None,
         description="Data movimento ISO8601; se None usa datetime.now()",
     )
+    celle_matrice: list | None = Field(
+        None,
+        description="Lista di [riga, colonna] da svuotare per vendita/scarico da matrice",
+    )
 
 
 @router.get("/{vino_id}/movimenti", response_class=JSONResponse)
@@ -276,6 +280,10 @@ def crea_movimento_vino(
         utente = "unknown"
 
     try:
+        # Converti celle_matrice da [[r,c], ...] a [(r,c), ...]
+        celle = None
+        if payload.celle_matrice:
+            celle = [(int(pair[0]), int(pair[1])) for pair in payload.celle_matrice]
         registra_movimento(
             vino_id=vino_id,
             tipo=tipo,
@@ -285,6 +293,7 @@ def crea_movimento_vino(
             note=payload.note,
             origine=payload.origine or "GESTIONALE",
             data_mov=payload.data_mov,
+            celle_matrice=celle,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

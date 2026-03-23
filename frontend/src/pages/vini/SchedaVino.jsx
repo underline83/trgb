@@ -807,7 +807,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       {!vino?.LOCAZIONE_1 && <option value="loc1">Loc 1 ({vino?.QTA_LOC1 ?? 0} bt)</option>}
                       {vino?.LOCAZIONE_2 && <option value="loc2">{vino.LOCAZIONE_2} ({vino.QTA_LOC2 ?? 0} bt)</option>}
                       {!vino?.LOCAZIONE_2 && <option value="loc2">Loc 2 ({vino?.QTA_LOC2 ?? 0} bt)</option>}
-                      {vino?.LOCAZIONE_3 && <option value="loc3">{vino.LOCAZIONE_3} ({vino.QTA_LOC3 ?? 0} bt)</option>}
+                      {vino?.LOCAZIONE_3 && <option value="loc3">{/^\(\d+,\d+\)/.test((vino.LOCAZIONE_3||"").trim()) ? "Matrice" : vino.LOCAZIONE_3} ({vino.QTA_LOC3 ?? 0} bt)</option>}
                       {!vino?.LOCAZIONE_3 && <option value="loc3">Loc 3 ({vino?.QTA_LOC3 ?? 0} bt)</option>}
                     </select>
                     <input type="number" placeholder="Qtà *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}

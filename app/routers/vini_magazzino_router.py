@@ -186,6 +186,10 @@ class MovimentoCreate(BaseModel):
         None,
         description="ISO datetime string; se None usa ora corrente del server",
     )
+    celle_matrice: Optional[list] = Field(
+        None,
+        description="Lista di [riga, colonna] da svuotare per vendita/scarico da matrice",
+    )
 
 
 class NotaCreate(BaseModel):
@@ -640,6 +644,10 @@ def crea_movimento(
     utente = _get_username(current_user)
 
     try:
+        # Converti celle_matrice da [[r,c], ...] a [(r,c), ...]
+        celle = None
+        if payload.celle_matrice:
+            celle = [(int(pair[0]), int(pair[1])) for pair in payload.celle_matrice]
         db.registra_movimento(
             vino_id=vino_id,
             tipo=payload.tipo,
@@ -649,6 +657,7 @@ def crea_movimento(
             note=payload.note,
             origine=payload.origine,
             data_mov=payload.data_mov,
+            celle_matrice=celle,
         )
     except ValueError as e:
         raise HTTPException(
