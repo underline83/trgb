@@ -4,62 +4,62 @@
     "label": "Gestione Vini",
     "description": "Carta vini, magazzino, vendite, impostazioni",
     "icon": "🍷",
-    "roles": ["admin", "sommelier", "sala", "viewer"]
+    "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"]
   },
   {
     "key": "acquisti",
     "label": "Gestione Acquisti",
     "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
     "icon": "📦",
-    "roles": ["admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"]
   },
   {
     "key": "ricette",
     "label": "Gestione Ricette",
     "description": "Archivio ricette, costi, stampa PDF",
     "icon": "📘",
-    "roles": ["admin", "chef", "viewer"]
+    "roles": ["superadmin", "admin", "chef", "viewer"]
   },
   {
     "key": "foodcost",
     "label": "Food Cost",
     "description": "Analisi costi, materie prime, porzioni",
     "icon": "📊",
-    "roles": ["admin", "chef", "viewer"]
+    "roles": ["superadmin", "admin", "chef", "viewer"]
   },
   {
     "key": "vendite",
     "label": "Gestione Vendite",
     "description": "Corrispettivi, chiusure cassa, dashboard vendite, confronto annuale",
     "icon": "💵",
-    "roles": ["admin", "sala", "viewer"]
+    "roles": ["superadmin", "admin", "sala", "viewer"]
   },
   {
     "key": "banca",
     "label": "Banca",
     "description": "Movimenti bancari, categorie, pagamenti fornitori",
     "icon": "🏦",
-    "roles": ["admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"]
   },
   {
     "key": "finanza",
     "label": "Finanza",
     "description": "Gestione finanziaria, vista analitica e di cassa, riconciliazione",
     "icon": "💰",
-    "roles": ["admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"]
   },
   {
     "key": "statistiche",
     "label": "Statistiche",
     "description": "Analisi vendite iPratico, categorie, prodotti, trend",
     "icon": "📈",
-    "roles": ["admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"]
   },
   {
     "key": "admin",
     "label": "Amministrazione",
     "description": "Dipendenti, utenti, impostazioni",
     "icon": "🧾",
-    "roles": ["admin", "viewer"]
+    "roles": ["superadmin", "admin"]
   }
 ]

@@ -39,7 +39,10 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
-  const visibleModules = modules.filter((m) => m.roles?.includes(role));
+  // superadmin vede tutto ciò che vede admin
+  const visibleModules = modules.filter((m) =>
+    m.roles?.includes(role) || (role === "superadmin" && m.roles?.includes("admin"))
+  );
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6">

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { isAdminRole } from "../../utils/authHelpers";
+import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 
 const API = import.meta.env.VITE_API_BASE_URL;
@@ -38,7 +38,7 @@ export default function ChiusureTurnoLista() {
   const [closures, setClosures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState(null);
-  const [expandedTurno, setExpandedTurno] = useState(null); // "date|turno"
+  const isSuperAdmin = isSuperAdminRole(role);
 
   // Filtro mese: default = mese corrente
   const now = new Date();
@@ -59,7 +59,7 @@ export default function ChiusureTurnoLista() {
 
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.ok ? res.json() : [])
-      .then(data => { setClosures(data); setExpandedDay(null); setExpandedTurno(null); })
+      .then(data => { setClosures(data); setExpandedDay(null); })
       .catch(() => setClosures([]))
       .finally(() => setLoading(false));
   }, [fromDate, toDate, token, role]);
@@ -118,81 +118,131 @@ export default function ChiusureTurnoLista() {
   };
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
-  // ── Render dettaglio turno ──
-  const renderTurnoDetail = (c) => {
+  // ── Render sezione turno completa ──
+  const renderTurnoFull = (c) => {
     if (!c) return null;
     const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
+    const totPreconti = (c.preconti || []).reduce((s, p) => s + p.importo, 0);
+    const saldo = c.saldo ?? 0;
+    const diffGrezzo = c.diff_grezzo ?? 0;
+    const speseGiorno = c.spese_giorno ?? 0;
+    const quadra = Math.abs(saldo) < 0.5;
+
+    // Tutti i campi incasso in una riga compatta
+    const incassiFields = [
+      ["Contanti", c.contanti],
+      ["POS BPM", c.pos_bpm],
+      ["POS Sella", c.pos_sella],
+      ["TheFork", c.theforkpay],
+      ["Stripe/PayPal", c.other_e_payments],
+      ["Bonifici", c.bonifici],
+    ].filter(([, v]) => v > 0);
+
     return (
-      <div className="space-y-3">
-        {/* Incassi dettagliati */}
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-2 text-sm">
-          {[
-            ["Contanti", c.contanti],
-            ["POS BPM", c.pos_bpm],
-            ["POS Sella", c.pos_sella],
-            ["TheFork Pay", c.theforkpay],
-            ["Stripe/PayPal", c.other_e_payments],
-            ["Bonifici", c.bonifici],
-            ["Mance POS", c.mance],
-            ["Fatture", c.fatture],
-          ].filter(([, v]) => v > 0).map(([label, val]) => (
-            <div key={label} className="bg-white rounded-lg p-2 border border-neutral-200">
-              <div className="text-[10px] text-neutral-400">{label}</div>
-              <div className="font-medium">€ {fmt(val)}</div>
+      <div className="px-5 py-3 bg-neutral-50 space-y-2">
+        {/* Riga 1: KPI principali */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
+            <div className="text-[10px] text-neutral-400 font-semibold uppercase">Chiusura RT</div>
+            <div className="text-sm font-bold text-neutral-800">€ {fmt(c.preconto)}</div>
+          </div>
+          <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
+            <div className="text-[10px] text-neutral-400 font-semibold uppercase">Tot. incassi</div>
+            <div className="text-sm font-bold text-neutral-800">€ {fmt(c.totale_incassi)}</div>
+          </div>
+          <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
+            <div className="text-[10px] text-neutral-400 font-semibold uppercase">Coperti</div>
+            <div className="text-sm font-bold text-neutral-800">{c.coperti || 0}</div>
+          </div>
+          <div className={`rounded-lg px-3 py-2 border ${quadra ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+            <div className={`text-[10px] font-semibold uppercase ${quadra ? "text-emerald-500" : "text-red-500"}`}>Saldo</div>
+            <div className={`text-sm font-bold ${quadra ? "text-emerald-700" : "text-red-700"}`}>
+              {saldo >= 0 ? "+" : ""}{fmt(saldo)}
             </div>
-          ))}
+          </div>
         </div>
 
-        {/* Fondo cassa */}
-        {(c.fondo_cassa_inizio > 0 || c.fondo_cassa_fine > 0) && (
-          <div className="flex gap-4 text-sm">
-            <span className="text-neutral-500">Fondo cassa:</span>
-            <span>Inizio <strong>€ {fmt(c.fondo_cassa_inizio)}</strong></span>
-            <span>Fine <strong>€ {fmt(c.fondo_cassa_fine)}</strong></span>
+        {/* Riga 2: dettaglio incassi */}
+        {incassiFields.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
+            {incassiFields.map(([label, val]) => (
+              <span key={label}>{label}: <strong>€ {fmt(val)}</strong></span>
+            ))}
           </div>
         )}
 
-        {/* Pre-conti */}
-        {c.preconti && c.preconti.length > 0 && (
-          <div>
-            <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Pre-conti ({c.preconti.length})</div>
-            <div className="flex flex-wrap gap-2">
-              {c.preconti.map((p, i) => (
-                <span key={i} className="bg-orange-50 border border-orange-200 rounded-lg px-2 py-1 text-xs">
-                  {p.tavolo}: <strong>€ {fmt(p.importo)}</strong>
-                </span>
-              ))}
-            </div>
+        {/* Riga 3: fondo cassa + mance + fatture (inline) */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+          {(c.fondo_cassa_inizio > 0 || c.fondo_cassa_fine > 0) && (
+            <span>Fondo cassa: <strong>{fmt(c.fondo_cassa_inizio)}</strong> → <strong>{fmt(c.fondo_cassa_fine)}</strong></span>
+          )}
+          {c.fatture > 0 && <span>Fatture: <strong className="text-blue-600">€ {fmt(c.fatture)}</strong></span>}
+          {c.mance > 0 && <span>Mance POS: <strong>€ {fmt(c.mance)}</strong> <span className="text-neutral-400">(statistico)</span></span>}
+        </div>
+
+        {/* Pre-conti (solo superadmin) */}
+        {isSuperAdmin && c.preconti && c.preconti.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-orange-600 font-semibold uppercase">Pre-conti ({c.preconti.length}):</span>
+            {c.preconti.map((p, i) => (
+              <span key={i} className="bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
+                {p.tavolo} <strong>€ {fmt(p.importo)}</strong>
+              </span>
+            ))}
+            <span className="text-orange-700 font-bold">= € {fmt(totPreconti)}</span>
           </div>
         )}
 
         {/* Spese */}
         {c.spese && c.spese.length > 0 && (
-          <div>
-            <div className="text-xs font-semibold text-red-500 uppercase mb-1">Spese ({c.spese.length}) — Tot. € {fmt(totSpese)}</div>
-            <div className="space-y-1">
+          <div className="text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-red-600 font-semibold uppercase">Spese ({c.spese.length}):</span>
               {c.spese.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase ${
+                <span key={i} className="inline-flex items-center gap-1">
+                  <span className={`px-1 py-0.5 rounded text-[10px] font-medium uppercase ${
                     s.tipo === "scontrino" ? "bg-neutral-100 text-neutral-600" :
                     s.tipo === "fattura" ? "bg-blue-50 text-blue-600" :
                     s.tipo === "personale" ? "bg-purple-50 text-purple-600" :
                     "bg-neutral-100 text-neutral-500"
                   }`}>{s.tipo}</span>
-                  <span className="flex-1 text-neutral-700">{s.descrizione}</span>
-                  <span className="font-medium text-red-700">€ {fmt(s.importo)}</span>
-                </div>
+                  <span className="text-neutral-600">{s.descrizione}</span>
+                  <strong className="text-red-700">€ {fmt(s.importo)}</strong>
+                  {i < c.spese.length - 1 && <span className="text-neutral-300 mx-1">·</span>}
+                </span>
               ))}
+              <span className="text-red-700 font-bold">= € {fmt(totSpese)}</span>
             </div>
+          </div>
+        )}
+
+        {/* Quadratura breakdown (compatto) */}
+        {(Math.abs(diffGrezzo) > 0.5 || speseGiorno > 0) && (
+          <div className="flex flex-wrap gap-x-3 text-[11px] text-neutral-500 bg-white rounded-lg px-3 py-1.5 border border-neutral-200">
+            <span>Differenza: <strong className={diffGrezzo < -0.5 ? "text-red-600" : diffGrezzo > 0.5 ? "text-indigo-600" : ""}>{diffGrezzo >= 0 ? "+" : ""}{fmt(diffGrezzo)}</strong></span>
+            {speseGiorno > 0 && <span>Spese giorno: <strong>+{fmt(speseGiorno)}</strong></span>}
+            <span>Saldo: <strong className={quadra ? "text-emerald-600" : "text-red-600"}>{saldo >= 0 ? "+" : ""}{fmt(saldo)}</strong></span>
           </div>
         )}
 
         {/* Note */}
         {c.note && (
-          <div className="text-sm text-neutral-600 bg-white rounded-lg p-2 border border-neutral-200">
-            <span className="text-xs font-semibold text-neutral-400 uppercase">Note: </span>{c.note}
+          <div className="text-xs text-neutral-600 bg-white rounded-lg px-3 py-1.5 border border-neutral-200">
+            <strong className="text-neutral-400 uppercase">Note:</strong> {c.note}
           </div>
         )}
+
+        {/* Meta + Modifica */}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-[10px] text-neutral-400">
+            di {c.created_by || "—"}
+            {c.updated_at && <> · agg. {c.updated_at.slice(0, 16).replace("T", " ")}</>}
+          </span>
+          <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
+            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
+            Modifica
+          </button>
+        </div>
       </div>
     );
   };
@@ -362,53 +412,18 @@ export default function ChiusureTurnoLista() {
                   {/* ── Dettaglio giorno espanso ── */}
                   {isDayExpanded && (
                     <div className="border-t border-neutral-200">
-                      {/* Turni */}
                       {["pranzo", "cena"].map(turno => {
                         const c = day[turno];
                         if (!c) return null;
-                        const turnoKey = `${day.date}|${turno}`;
-                        const isTurnoExpanded = expandedTurno === turnoKey;
-                        const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
-                        const saldo = c.saldo ?? 0;
-                        const turnoQuadra = Math.abs(saldo) < 0.5;
-
                         return (
                           <div key={turno} className={`${turno === "cena" && day.pranzo ? "border-t border-neutral-100" : ""}`}>
-                            {/* Header turno */}
-                            <button type="button"
-                              onClick={() => setExpandedTurno(isTurnoExpanded ? null : turnoKey)}
-                              className="w-full text-left px-5 py-3 hover:bg-neutral-50 transition">
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg">{turno === "pranzo" ? "☀️" : "🌙"}</span>
-                                <span className="font-semibold text-neutral-700 capitalize flex-1">{turno}</span>
-
-                                <div className="flex items-center gap-3 text-xs text-neutral-500">
-                                  <span>RT € {fmt(c.preconto)}</span>
-                                  <span>Inc. € {fmt(c.totale_incassi)}</span>
-                                  <span>Cop. {c.coperti || 0}</span>
-                                  {totSpese > 0 && <span className="text-red-600">Spese € {fmt(totSpese)}</span>}
-                                  <span className={`font-bold ${turnoQuadra ? "text-emerald-600" : "text-red-600"}`}>
-                                    {saldo >= 0 ? "+" : ""}{fmt(saldo)}
-                                  </span>
-                                  <span className="text-neutral-400">di {c.created_by || "—"}</span>
-                                </div>
-
-                                <span className={`text-neutral-300 text-xs transition-transform ${isTurnoExpanded ? "rotate-180" : ""}`}>▼</span>
-                              </div>
-                            </button>
-
-                            {/* Dettaglio turno espanso */}
-                            {isTurnoExpanded && (
-                              <div className="px-5 pb-4 bg-neutral-50">
-                                {renderTurnoDetail(c)}
-                                <div className="flex gap-2 pt-3">
-                                  <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
-                                    className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
-                                    Modifica
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            {/* Label turno */}
+                            <div className="px-5 pt-3 pb-1 flex items-center gap-2">
+                              <span className="text-lg">{turno === "pranzo" ? "☀️" : "🌙"}</span>
+                              <span className="font-semibold text-neutral-700 capitalize text-sm">{turno}</span>
+                            </div>
+                            {/* Dettaglio completo */}
+                            {renderTurnoFull(c)}
                           </div>
                         );
                       })}
