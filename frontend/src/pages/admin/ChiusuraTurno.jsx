@@ -383,10 +383,10 @@ export default function ChiusuraTurno() {
           mance: toNumber(mance),
           note: note.trim() || null,
           checklist,
-          preconti: isSuperAdmin ? preconti.filter(p => p.tavolo.trim()).map(p => ({
+          preconti: preconti.filter(p => p.tavolo.trim()).map(p => ({
             tavolo: p.tavolo.trim(),
             importo: toNumber(p.importo),
-          })) : [],
+          })),
           spese: spese.filter(s => s.descrizione.trim()).map(s => ({
             tipo: s.tipo,
             descrizione: s.descrizione.trim(),
@@ -586,8 +586,8 @@ export default function ChiusuraTurno() {
               </div>
             </div>
 
-            {/* PRE-CONTI (tavoli aperti) — solo admin */}
-            {isSuperAdmin && <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
+            {/* PRE-CONTI (tavoli aperti) — visibile a tutti */}
+            <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide">
                   🍽️ Pre-conti
@@ -643,7 +643,7 @@ export default function ChiusuraTurno() {
                   )}
                 </div>
               )}
-            </div>}
+            </div>
 
             {/* SPESE */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
