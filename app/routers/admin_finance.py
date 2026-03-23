@@ -784,7 +784,32 @@ def _aggregate_shift_closures_by_date(conn: sqlite3.Connection, ym_prefix: str) 
 
 
 # ---------------------------------------------------------
-# HELPER INTERNO: chiusura "effettiva" (manuale + regola mercoledì)
+# HELPER INTERNO: configurazione chiusure
+# ---------------------------------------------------------
+
+def _get_closures_config():
+    """Carica configurazione chiusure da closures_config.json."""
+    try:
+        from app.routers.closures_config_router import get_closures_config
+        return get_closures_config()
+    except Exception:
+        return {"giorno_chiusura_settimanale": 2, "giorni_chiusi": []}
+
+
+# Mappa nomi giorno (italiano/inglese) → indice ISO (0=Lun..6=Dom)
+_WEEKDAY_TO_IDX = {
+    "Monday": 0, "Lunedì": 0,
+    "Tuesday": 1, "Martedì": 1,
+    "Wednesday": 2, "Mercoledì": 2,
+    "Thursday": 3, "Giovedì": 3,
+    "Friday": 4, "Venerdì": 4,
+    "Saturday": 5, "Sabato": 5,
+    "Sunday": 6, "Domenica": 6,
+}
+
+
+# ---------------------------------------------------------
+# HELPER INTERNO: chiusura "effettiva" (configurabile)
 # ---------------------------------------------------------
 
 def _is_effectively_closed(row: sqlite3.Row) -> bool:
@@ -792,34 +817,46 @@ def _is_effectively_closed(row: sqlite3.Row) -> bool:
     Ritorna True se il giorno va considerato chiuso ai fini delle medie/statistiche.
 
     Regola:
-    - se is_closed == 1 -> chiuso
-    - altrimenti, se è mercoledì e (corrispettivi o corrispettivi_tot) == 0
-      e totale_incassi == 0 -> chiuso "automatico".
-
-    È robusta anche per query che non includono tutte le colonne:
-    usa 'corrispettivi' se presente, altrimenti 'corrispettivi_tot';
-    se mancano entrambi, assume 0.
+    - se is_closed == 1 (flag manuale nel DB) -> SEMPRE chiuso (priorità massima)
+    - se ci sono dati reali (corrispettivi > 0 o incassi > 0) -> MAI chiuso
+      (una chiusura turno inserita ha priorità sulle impostazioni)
+    - se la data è nei giorni_chiusi configurati (ferie/festivi) -> chiuso
+    - se è il giorno di chiusura settimanale configurato -> chiuso
     """
     keys = set(row.keys())
 
-    # flag manuale
+    # flag manuale nel DB → priorità assoluta
     is_closed_flag = row["is_closed"] if "is_closed" in keys else 0
     if is_closed_flag:
         return True
 
-    weekday = row["weekday"] if "weekday" in keys else ""
-
+    # Se ci sono dati reali, la chiusura turno vince sulle impostazioni
     if "corrispettivi" in keys:
-        corr = row["corrispettivi"]
+        corr = row["corrispettivi"] or 0
     elif "corrispettivi_tot" in keys:
-        corr = row["corrispettivi_tot"]
+        corr = row["corrispettivi_tot"] or 0
     else:
         corr = 0.0
 
-    tot_inc = row["totale_incassi"] if "totale_incassi" in keys else 0.0
+    tot_inc = (row["totale_incassi"] if "totale_incassi" in keys else 0) or 0
 
-    if weekday in ("Wednesday", "Mercoledì") and corr == 0 and tot_inc == 0:
+    if corr > 0 or tot_inc > 0:
+        return False  # Ha dati reali → aperto, a prescindere dalle impostazioni
+
+    config = _get_closures_config()
+
+    # Check data specifica (ferie, festivi) — solo se non ci sono dati
+    date_str = row["date"] if "date" in keys else ""
+    if date_str and date_str in config.get("giorni_chiusi", []):
         return True
+
+    # Check giorno settimanale di chiusura — solo se non ci sono dati
+    giorno_chiusura = config.get("giorno_chiusura_settimanale")
+    if giorno_chiusura is not None:
+        weekday = row["weekday"] if "weekday" in keys else ""
+        weekday_idx = _WEEKDAY_TO_IDX.get(weekday)
+        if weekday_idx == giorno_chiusura:
+            return True  # Nessun dato + giorno di chiusura → chiuso
 
     return False
     # ---------------------------------------------------------

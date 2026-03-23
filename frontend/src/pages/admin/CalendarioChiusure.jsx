@@ -1,0 +1,249 @@
+// src/pages/admin/CalendarioChiusure.jsx
+// @version: v1.0
+// Configurazione giorni di chiusura: giorno settimanale + ferie/festivi
+// Incluso dentro la pagina Impostazioni Vendite
+
+import React, { useState, useEffect, useMemo } from "react";
+import { API_BASE, apiFetch } from "../../config/api";
+
+const GIORNI_SETTIMANA = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
+const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+
+function fmtDateIT(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+export default function CalendarioChiusure() {
+  const [config, setConfig] = useState({ giorno_chiusura_settimanale: null, giorni_chiusi: [] });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  // Calendario navigazione
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth()); // 0-indexed
+
+  // Carica config
+  useEffect(() => {
+    apiFetch(`${API_BASE}/settings/closures-config/`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setConfig(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Salva
+  const save = async (newConfig) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/settings/closures-config/`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newConfig),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+        setMsg({ type: "ok", text: "Salvato" });
+        setTimeout(() => setMsg(null), 2000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setMsg({ type: "err", text: err.detail || "Errore" });
+      }
+    } catch {
+      setMsg({ type: "err", text: "Errore di rete" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Cambio giorno settimanale
+  const handleGiornoSettimanale = (val) => {
+    const v = val === "" ? null : parseInt(val);
+    const newConfig = { ...config, giorno_chiusura_settimanale: v };
+    setConfig(newConfig);
+    save(newConfig);
+  };
+
+  // Toggle giorno chiuso
+  const toggleGiornoChiuso = (dateStr) => {
+    const set = new Set(config.giorni_chiusi);
+    if (set.has(dateStr)) set.delete(dateStr);
+    else set.add(dateStr);
+    const newConfig = { ...config, giorni_chiusi: [...set].sort() };
+    setConfig(newConfig);
+    save(newConfig);
+  };
+
+  // Rimuovi giorno chiuso dalla lista
+  const removeGiornoChiuso = (dateStr) => {
+    const newConfig = { ...config, giorni_chiusi: config.giorni_chiusi.filter(d => d !== dateStr) };
+    setConfig(newConfig);
+    save(newConfig);
+  };
+
+  // Calendario griglia
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(calYear, calMonth, 1);
+    const lastDay = new Date(calYear, calMonth + 1, 0);
+    const offset = (firstDay.getDay() + 6) % 7; // 0=Lun
+    const days = [];
+    for (let i = 0; i < offset; i++) days.push(null);
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const iso = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dt = new Date(calYear, calMonth, d);
+      const weekdayIdx = (dt.getDay() + 6) % 7; // 0=Lun..6=Dom
+      days.push({ day: d, iso, weekdayIdx });
+    }
+    return days;
+  }, [calYear, calMonth]);
+
+  const giornoChiusuraSet = useMemo(() => new Set(config.giorni_chiusi), [config.giorni_chiusi]);
+
+  const prevMonth = () => {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  };
+
+  if (loading) return <div className="text-neutral-400 text-sm animate-pulse py-4">Caricamento...</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* GIORNO SETTIMANALE */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-neutral-700 uppercase tracking-wider mb-3">
+          Giorno di chiusura settimanale
+        </h3>
+        <p className="text-xs text-neutral-500 mb-3">
+          Se il giorno selezionato ha corrispettivi e incassi a zero, viene automaticamente considerato chiuso nelle statistiche.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => handleGiornoSettimanale("")}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition ${
+              config.giorno_chiusura_settimanale === null
+                ? "bg-indigo-100 border-indigo-300 text-indigo-800"
+                : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100"
+            }`}
+          >
+            Nessuno
+          </button>
+          {GIORNI_SETTIMANA.map((g, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleGiornoSettimanale(idx)}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition ${
+                config.giorno_chiusura_settimanale === idx
+                  ? "bg-red-100 border-red-300 text-red-800"
+                  : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:bg-neutral-100"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* CALENDARIO FERIE / GIORNI CHIUSI */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-neutral-700 uppercase tracking-wider mb-1">
+          Ferie e chiusure straordinarie
+        </h3>
+        <p className="text-xs text-neutral-500 mb-4">
+          Clicca su un giorno per segnarlo come chiuso (ferie, festivi, chiusure straordinarie). Clicca di nuovo per rimuoverlo.
+        </p>
+
+        {/* Nav mese */}
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <button onClick={prevMonth} className="w-8 h-8 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center text-neutral-600 font-bold">‹</button>
+          <div className="text-sm font-bold text-neutral-800 min-w-[150px] text-center">
+            {MESI[calMonth]} {calYear}
+          </div>
+          <button onClick={nextMonth} className="w-8 h-8 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 flex items-center justify-center text-neutral-600 font-bold">›</button>
+        </div>
+
+        {/* Griglia */}
+        <div className="grid grid-cols-7 text-xs text-neutral-400 font-semibold mb-1 text-center">
+          {["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(d => <span key={d}>{d}</span>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {calendarDays.map((cell, idx) => {
+            if (!cell) return <div key={idx} />;
+
+            const isChiuso = giornoChiusuraSet.has(cell.iso);
+            const isGiornoSettimanale = config.giorno_chiusura_settimanale === cell.weekdayIdx;
+            const isPast = new Date(cell.iso + "T00:00:00") < new Date(new Date().toISOString().slice(0, 10) + "T00:00:00");
+
+            return (
+              <button
+                key={idx}
+                onClick={() => toggleGiornoChiuso(cell.iso)}
+                className={`rounded-lg border text-xs h-9 font-medium transition ${
+                  isChiuso
+                    ? "bg-red-500 border-red-600 text-white"
+                    : isGiornoSettimanale
+                      ? "bg-red-50 border-red-200 text-red-400"
+                      : isPast
+                        ? "bg-neutral-50 border-neutral-100 text-neutral-400"
+                        : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
+                }`}
+                title={
+                  isChiuso ? `${cell.iso} — CHIUSO (clicca per rimuovere)`
+                  : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale`
+                  : `${cell.iso} — Clicca per chiudere`
+                }
+              >
+                {cell.day}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legenda */}
+        <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-neutral-500">
+          <div className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded bg-red-500" />
+            <span>Chiuso manualmente (ferie)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-200" />
+            <span>Giorno chiusura settimanale</span>
+          </div>
+        </div>
+      </div>
+
+      {/* LISTA GIORNI CHIUSI */}
+      {config.giorni_chiusi.length > 0 && (
+        <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-neutral-700 uppercase tracking-wider mb-3">
+            Giorni chiusi impostati ({config.giorni_chiusi.length})
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {config.giorni_chiusi.map(d => (
+              <span key={d} className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1 text-xs text-red-800">
+                {fmtDateIT(d)}
+                <button onClick={() => removeGiornoChiuso(d)} className="ml-1 text-red-400 hover:text-red-700 font-bold">×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Feedback */}
+      {msg && (
+        <div className={`text-xs font-medium px-3 py-1.5 rounded-lg ${msg.type === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+          {msg.text}
+        </div>
+      )}
+      {saving && <div className="text-xs text-neutral-400 animate-pulse">Salvataggio...</div>}
+    </div>
+  );
+}

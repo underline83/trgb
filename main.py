@@ -177,6 +177,10 @@ app.include_router(
 app.include_router(admin_finance_router)
 app.include_router(chiusure_turno_router)
 
+# CONFIGURAZIONE CHIUSURE (giorno settimanale + ferie)
+from app.routers.closures_config_router import router as closures_config_router
+app.include_router(closures_config_router)
+
 # FATTURAZIONE ELETTRONICA (XML)
 app.include_router(fe_import.router)
 app.include_router(fe_categorie_router.router)

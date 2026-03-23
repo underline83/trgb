@@ -1,7 +1,8 @@
-// @version: v2.0-vendite
+// @version: v2.1-vendite-impostazioni
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
+import CalendarioChiusure from "./CalendarioChiusure";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -185,6 +186,14 @@ export default function CorrispettiviImport() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* CALENDARIO CHIUSURE */}
+      <div className="max-w-3xl mx-auto mt-6">
+        <h2 className="text-xl font-bold text-indigo-900 font-playfair mb-4">
+          Calendario chiusure
+        </h2>
+        <CalendarioChiusure />
       </div>
       </div>
     </div>
