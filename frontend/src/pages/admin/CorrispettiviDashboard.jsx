@@ -59,6 +59,7 @@ export default function CorrispettiviDashboard() {
   });
 
   const [monthlyStats, setMonthlyStats] = useState(null);
+  const [prevYearStats, setPrevYearStats] = useState(null);
   const [topDays, setTopDays] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -69,9 +70,15 @@ export default function CorrispettiviDashboard() {
       setLoading(true);
       setError(null);
       try {
+        // Mese corrente
         const monthlyRes = await apiFetch(`${API_BASE}/admin/finance/stats/monthly?year=${year}&month=${month}`);
         if (!monthlyRes.ok) throw new Error(`Errore stats mensili: ${monthlyRes.status}`);
         const monthlyJson = await monthlyRes.json();
+        if (cancelled) return;
+
+        // Stesso mese anno precedente
+        const prevRes = await apiFetch(`${API_BASE}/admin/finance/stats/monthly?year=${year - 1}&month=${month}`);
+        const prevJson = prevRes.ok ? await prevRes.json() : null;
         if (cancelled) return;
 
         const topRes = await apiFetch(`${API_BASE}/admin/finance/stats/top-days?year=${year}&limit=10`);
@@ -80,6 +87,7 @@ export default function CorrispettiviDashboard() {
         if (cancelled) return;
 
         setMonthlyStats(monthlyJson);
+        setPrevYearStats(prevJson);
         setTopDays(topJson);
       } catch (err) {
         console.error(err);
@@ -94,16 +102,32 @@ export default function CorrispettiviDashboard() {
 
   const monthName = useMemo(() => monthNames[month - 1] || "", [month]);
 
-  // Grafico: solo corrispettivi (dato fiscale)
+  // Grafico: corrispettivi anno corrente + anno precedente
   const chartData = useMemo(() => {
     if (!monthlyStats || !monthlyStats.giorni) return [];
+
+    // Mappa anno precedente per giorno del mese
+    const prevMap = {};
+    if (prevYearStats?.giorni) {
+      for (const g of prevYearStats.giorni) {
+        if (!g.is_closed) {
+          const dayNum = new Date(g.date).getDate();
+          prevMap[dayNum] = g.corrispettivi ?? 0;
+        }
+      }
+    }
+
     return monthlyStats.giorni
       .filter((g) => !g.is_closed)
-      .map((g) => ({
-        date: formatShortDate(g.date),
-        corrispettivi: g.corrispettivi,
-      }));
-  }, [monthlyStats]);
+      .map((g) => {
+        const dayNum = new Date(g.date).getDate();
+        return {
+          date: formatShortDate(g.date),
+          corrispettivi: g.corrispettivi,
+          prev: prevMap[dayNum] ?? null,
+        };
+      });
+  }, [monthlyStats, prevYearStats]);
 
   // Medie corrispettivi per giorno della settimana
   const weekdayAverages = useMemo(() => {
@@ -217,40 +241,81 @@ export default function CorrispettiviDashboard() {
 
         {monthlyStats && (
           <>
-            {/* KPI PRINCIPALI — solo dati fiscali */}
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-indigo-800">Totale Corrispettivi</p>
-                <p className="mt-2 text-2xl font-bold text-indigo-900">
-                  € {formatCurrency(monthlyStats.totale_corrispettivi)}
-                </p>
-                <p className="text-xs text-indigo-900/70 mt-1">Mese di {monthName} {year}</p>
-              </div>
+            {/* KPI PRINCIPALI — con confronto anno precedente */}
+            {(() => {
+              const curr = monthlyStats.totale_corrispettivi ?? 0;
+              const prev = prevYearStats?.totale_corrispettivi ?? 0;
+              const delta = prev > 0 ? curr - prev : null;
+              const deltaPct = prev > 0 ? ((curr - prev) / prev) * 100 : null;
+              const currMedia = monthlyStats.media_corrispettivi ?? 0;
+              const prevMedia = prevYearStats?.media_corrispettivi ?? 0;
+              const deltaMedia = prevMedia > 0 ? currMedia - prevMedia : null;
+              const deltaMediaPct = prevMedia > 0 ? ((currMedia - prevMedia) / prevMedia) * 100 : null;
+              return (
+                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-indigo-800">Totale Corrispettivi</p>
+                    <p className="mt-2 text-2xl font-bold text-indigo-900">
+                      € {formatCurrency(curr)}
+                    </p>
+                    <p className="text-xs text-indigo-900/70 mt-1">Mese di {monthName} {year}</p>
+                  </div>
 
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-neutral-700">Media giornaliera</p>
-                <p className="mt-2 text-2xl font-bold text-neutral-900">
-                  € {formatCurrency(monthlyStats.media_corrispettivi)}
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">
-                  Su {monthlyStats.giorni_con_chiusura} giorni aperti
-                </p>
-              </div>
+                  <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
+                    <p className="text-xs uppercase tracking-wide text-neutral-700">Media giornaliera</p>
+                    <p className="mt-2 text-2xl font-bold text-neutral-900">
+                      € {formatCurrency(currMedia)}
+                    </p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      Su {monthlyStats.giorni_con_chiusura} giorni aperti
+                    </p>
+                  </div>
 
-              <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-wide text-neutral-700">Giorni aperti / chiusi</p>
-                <p className="mt-2 text-2xl font-bold text-neutral-900">
-                  {monthlyStats.giorni_con_chiusura} aperti
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">
-                  {monthlyStats.giorni.length - monthlyStats.giorni_con_chiusura} chiusi
-                </p>
-              </div>
-            </section>
+                  {/* Confronto anno precedente */}
+                  <div className={`rounded-2xl p-4 shadow-sm border ${prev > 0 ? (delta >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200") : "bg-neutral-50 border-neutral-200"}`}>
+                    <p className="text-xs uppercase tracking-wide text-neutral-700">vs {monthName} {year - 1}</p>
+                    {prev > 0 ? (
+                      <>
+                        <p className={`mt-2 text-2xl font-bold ${delta >= 0 ? "text-emerald-800" : "text-red-800"}`}>
+                          {delta >= 0 ? "+" : ""}{formatCurrency(delta)}
+                        </p>
+                        <p className={`text-xs mt-1 font-semibold ${delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                          {deltaPct >= 0 ? "+" : ""}{deltaPct.toFixed(1)}% — era € {formatCurrency(prev)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-lg font-bold text-neutral-400">—</p>
+                        <p className="text-xs text-neutral-400 mt-1">Nessun dato per {year - 1}</p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className={`rounded-2xl p-4 shadow-sm border ${prevMedia > 0 ? (deltaMedia >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200") : "bg-neutral-50 border-neutral-200"}`}>
+                    <p className="text-xs uppercase tracking-wide text-neutral-700">Media vs {year - 1}</p>
+                    {prevMedia > 0 ? (
+                      <>
+                        <p className={`mt-2 text-2xl font-bold ${deltaMedia >= 0 ? "text-emerald-800" : "text-red-800"}`}>
+                          {deltaMedia >= 0 ? "+" : ""}{formatCurrency(deltaMedia)}
+                        </p>
+                        <p className={`text-xs mt-1 font-semibold ${deltaMedia >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                          {deltaMediaPct >= 0 ? "+" : ""}{deltaMediaPct.toFixed(1)}% — era € {formatCurrency(prevMedia)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-lg font-bold text-neutral-400">—</p>
+                        <p className="text-xs text-neutral-400 mt-1">Nessun dato per {year - 1}</p>
+                      </>
+                    )}
+                  </div>
+                </section>
+              );
+            })()}
 
             {/* GRAFICO + CALENDARIO */}
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* Grafico corrispettivi giornalieri */}
+              {/* Grafico corrispettivi giornalieri + anno precedente */}
               <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="text-lg font-semibold text-neutral-900 font-playfair">
@@ -264,8 +329,13 @@ export default function CorrispettiviDashboard() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip formatter={(value) => [`€ ${formatCurrency(value)}`, "Corrispettivi"]} />
-                      <Line type="monotone" dataKey="corrispettivi" stroke="#4f46e5" strokeWidth={2} dot={false} name="Corrispettivi" />
+                      <Tooltip formatter={(value, name) => [
+                        `€ ${formatCurrency(value)}`,
+                        name === "prev" ? `${year - 1}` : `${year}`
+                      ]} />
+                      <Legend />
+                      <Line type="monotone" dataKey="corrispettivi" stroke="#4f46e5" strokeWidth={2} dot={false} name={`${year}`} />
+                      <Line type="monotone" dataKey="prev" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name={`${year - 1}`} connectNulls={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
