@@ -762,6 +762,9 @@ function SezioneSpeseVarie() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_categoria: {} });
   const [precontiTotale, setPrecontiTotale] = useState(0);
+  // Totali anno (dal 1/1 al dateTo)
+  const [yearPreconti, setYearPreconti] = useState(0);
+  const [yearSpese, setYearSpese] = useState(0);
   const [openingBalance, setOpeningBalance] = useState(0);
   const [openingNote, setOpeningNote] = useState("");
   const [categories, setCategories] = useState([]);
@@ -821,29 +824,37 @@ function SezioneSpeseVarie() {
       const params = new URLSearchParams();
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      const [resSpese, resPreconti] = await Promise.all([
+      // Params per anno intero (1/1 → dateTo)
+      const yearStart = `${currentYear}-01-01`;
+      const yearParams = new URLSearchParams({ date_from: yearStart, date_to: dateTo || yearStart });
+
+      const [resSpese, resPreconti, resYearSpese, resYearPreconti] = await Promise.all([
         apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`),
         apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${params}`),
+        apiFetch(`${API_BASE}/admin/finance/cash/expenses?${yearParams}`),
+        apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${yearParams}`),
       ]);
       if (!resSpese.ok) throw new Error(`Errore spese ${resSpese.status}`);
       setData(await resSpese.json());
-      if (resPreconti.ok) {
-        const pc = await resPreconti.json();
-        setPrecontiTotale(pc.totale || 0);
-      }
+      if (resPreconti.ok) setPrecontiTotale((await resPreconti.json()).totale || 0);
+      if (resYearSpese.ok) setYearSpese((await resYearSpese.json()).totale || 0);
+      if (resYearPreconti.ok) setYearPreconti((await resYearPreconti.json()).totale || 0);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, currentYear]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { fetchOpeningBalance(); }, [fetchOpeningBalance]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const entrate = openingBalance + precontiTotale;
-  const saldo = entrate - data.totale;
+  // Periodo selezionato
+  const saldoPeriodo = precontiTotale - data.totale;
+  // Anno intero (incluso saldo iniziale)
+  const entrateAnno = openingBalance + yearPreconti;
+  const saldoAnno = entrateAnno - yearSpese;
 
   // Helpers per categorie
   const catMap = useMemo(() => {
@@ -1052,27 +1063,51 @@ function SezioneSpeseVarie() {
         </div>
       </div>
 
-      {/* KPI Cards — bilancio preconti vs spese */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {openingBalance > 0 && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
-            <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Saldo iniziale {currentYear}</p>
-            <p className="text-xl font-bold text-indigo-800 mt-1">€ {fmt(openingBalance)}</p>
+      {/* KPI — Periodo selezionato */}
+      <div>
+        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Periodo selezionato</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Entrate</p>
+            <p className="text-xl font-bold text-emerald-800 mt-1">€ {fmt(precontiTotale)}</p>
           </div>
-        )}
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Pre-conti periodo</p>
-          <p className="text-xl font-bold text-emerald-800 mt-1">€ {fmt(precontiTotale)}</p>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Uscite</p>
+            <p className="text-xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
+          </div>
+          <div className={`rounded-xl p-3 text-center border ${
+            saldoPeriodo >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          }`}>
+            <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo periodo</p>
+            <p className={`text-xl font-bold mt-1 ${saldoPeriodo >= 0 ? "text-emerald-800" : "text-red-800"}`}>€ {fmt(saldoPeriodo)}</p>
+          </div>
         </div>
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Spese periodo</p>
-          <p className="text-xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
-        </div>
-        <div className={`rounded-xl p-4 text-center border ${
-          saldo >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
-        }`}>
-          <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo</p>
-          <p className={`text-2xl font-bold mt-1 ${saldo >= 0 ? "text-emerald-800" : "text-red-800"}`}>€ {fmt(saldo)}</p>
+      </div>
+
+      {/* KPI — Totale anno */}
+      <div>
+        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">Totale {currentYear}</p>
+        <div className="grid grid-cols-4 gap-3">
+          {openingBalance > 0 && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
+              <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Saldo iniziale</p>
+              <p className="text-lg font-bold text-indigo-800 mt-1">€ {fmt(openingBalance)}</p>
+            </div>
+          )}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Entrate anno</p>
+            <p className="text-lg font-bold text-emerald-800 mt-1">€ {fmt(yearPreconti)}</p>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Spese anno</p>
+            <p className="text-lg font-bold text-red-800 mt-1">€ {fmt(yearSpese)}</p>
+          </div>
+          <div className={`rounded-xl p-3 text-center border ${
+            saldoAnno >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          }`}>
+            <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo anno</p>
+            <p className={`text-2xl font-bold mt-1 ${saldoAnno >= 0 ? "text-emerald-800" : "text-red-800"}`}>€ {fmt(saldoAnno)}</p>
+          </div>
         </div>
       </div>
 
