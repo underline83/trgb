@@ -454,6 +454,17 @@ function SezionePreconti() {
     return [...map.values()];
   }, [data.preconti]);
 
+  // Flat list for table view
+  const flatRows = useMemo(() => {
+    const rows = [];
+    for (const g of grouped) {
+      for (const item of g.items) {
+        rows.push({ ...item, date: g.date, turno: g.turno, created_by: g.created_by });
+      }
+    }
+    return rows;
+  }, [grouped]);
+
   return (
     <div className="space-y-5">
       <div>
@@ -463,8 +474,8 @@ function SezionePreconti() {
         </p>
       </div>
 
-      {/* Filtri */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+      {/* Navigation */}
+      <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Da</label>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -475,49 +486,86 @@ function SezionePreconti() {
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
             className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
         </div>
-        <div className="bg-orange-50 rounded-xl p-3 border border-orange-200 text-center">
-          <div className="text-[10px] font-semibold text-orange-500 uppercase">Totale pre-conti</div>
-          <div className="text-lg font-bold text-orange-800">€ {fmt(data.totale)}</div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Totale pre-conti</p>
+          <p className="text-2xl font-bold text-orange-800 mt-1">€ {fmt(data.totale)}</p>
         </div>
-        <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200 text-center">
-          <div className="text-[10px] font-semibold text-neutral-400 uppercase">Registrazioni</div>
-          <div className="text-lg font-bold text-neutral-700">{data.count}</div>
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Registrazioni</p>
+          <p className="text-2xl font-bold text-neutral-700 mt-1">{data.count}</p>
         </div>
       </div>
 
       {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {error && <div className="text-sm text-red-600">Errore: {error}</div>}
 
-      {!loading && !error && grouped.length === 0 && (
+      {!loading && !error && flatRows.length === 0 && (
         <div className="bg-neutral-50 rounded-xl p-8 text-center text-neutral-400 border border-neutral-200">
           Nessun pre-conto trovato nel periodo selezionato.
         </div>
       )}
 
-      {!loading && !error && grouped.map((g, gi) => (
-        <div key={gi} className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 bg-neutral-50 border-b border-neutral-100">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-neutral-800">
-                {new Date(g.date + "T00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-              </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
-                {g.turno === "pranzo" ? "☀️" : "🌙"} {g.turno}
-              </span>
-              <span className="text-xs text-neutral-400">da {g.created_by || "—"}</span>
-            </div>
-            <span className="text-sm font-bold text-orange-700">€ {fmt(g.totale)}</span>
-          </div>
-          <div className="divide-y divide-neutral-100">
-            {g.items.map((item, ii) => (
-              <div key={ii} className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-sm text-neutral-700 font-medium">{item.tavolo || "—"}</span>
-                <span className="text-sm font-semibold text-neutral-800">€ {fmt(item.importo)}</span>
-              </div>
-            ))}
-          </div>
+      {/* Table */}
+      {!loading && !error && flatRows.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Turno</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Tavolo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Importo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Inserito da</th>
+              </tr>
+            </thead>
+            <tbody>
+              {flatRows.map((row, idx) => {
+                // Check if this is a new date group
+                const prevDate = idx > 0 ? flatRows[idx - 1].date : null;
+                const prevTurno = idx > 0 ? flatRows[idx - 1].turno : null;
+                const isNewGroup = row.date !== prevDate || row.turno !== prevTurno;
+
+                return (
+                  <tr key={idx} className={`hover:bg-indigo-50 ${isNewGroup ? "border-t-2 border-neutral-200" : ""}`}>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
+                      <span className="font-medium">{fmtDate(row.date)}</span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                        row.turno === "pranzo"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                      }`}>
+                        {row.turno === "pranzo" ? "☀️" : "🌙"} {row.turno}
+                      </span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 font-medium text-neutral-700">
+                      {row.tavolo || "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-orange-700">
+                      € {fmt(row.importo)}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-xs text-neutral-400">
+                      {row.created_by || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td className="px-3 py-2" colSpan={3}>Totale ({data.count} registrazioni)</td>
+                <td className="px-3 py-2 text-right text-orange-700">€ {fmt(data.totale)}</td>
+                <td className="px-3 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-      ))}
+      )}
     </div>
   );
 }

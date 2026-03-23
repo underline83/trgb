@@ -47,6 +47,7 @@ import RicetteSettings from "./pages/ricette/RicetteSettings";
 import ChiusuraTurno from "./pages/admin/ChiusuraTurno";
 import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
 import GestioneContanti from "./pages/admin/GestioneContanti";
+import PrecontiOggi from "./pages/admin/PrecontiOggi";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -159,7 +160,7 @@ export default function App() {
         <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
         <Route path="/vendite/chiusure" element={<ChiusureTurnoLista />} />
         <Route path="/vendite/contanti" element={<GestioneContanti />} />
-        <Route path="/vendite/preconti" element={<Navigate to="/vendite/contanti" replace />} />
+        <Route path="/vendite/preconti" element={<PrecontiOggi />} />
         <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/vendite/annual" element={<Navigate to="/vendite/dashboard?mode=annuale" replace />} />
