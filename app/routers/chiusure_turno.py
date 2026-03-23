@@ -315,6 +315,75 @@ async def list_preconti(
         conn.close()
 
 
+@router.get("/spese", summary="Lista storica spese dai fine turno (superadmin)")
+async def list_spese(
+    date_from: Optional[str] = Query(None, description="Data inizio YYYY-MM-DD"),
+    date_to: Optional[str] = Query(None, description="Data fine YYYY-MM-DD"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Restituisce tutte le spese registrate nei fine turno con data, turno, tipo, descrizione, importo.
+    Solo superadmin.
+    """
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo il super-admin può accedere alle spese.",
+        )
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_shift_closures_tables(conn)
+
+    try:
+        query = """
+            SELECT
+                sc.date, sc.turno, sc.created_by,
+                ss.tipo, ss.descrizione, ss.importo
+            FROM shift_spese ss
+            JOIN shift_closures sc ON ss.shift_closure_id = sc.id
+            WHERE 1=1
+        """
+        params = []
+        if date_from:
+            query += " AND sc.date >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND sc.date <= ?"
+            params.append(date_to)
+        query += " ORDER BY sc.date DESC, sc.turno, ss.tipo, ss.id"
+
+        rows = conn.execute(query, params).fetchall()
+
+        result = []
+        totale = 0.0
+        totale_per_tipo = {}
+        for r in rows:
+            importo = r["importo"] or 0
+            totale += importo
+            tipo = r["tipo"] or "altro"
+            totale_per_tipo[tipo] = totale_per_tipo.get(tipo, 0) + importo
+            result.append({
+                "date": r["date"],
+                "turno": r["turno"],
+                "tipo": tipo,
+                "descrizione": r["descrizione"],
+                "importo": importo,
+                "created_by": r["created_by"],
+            })
+
+        return {
+            "spese": result,
+            "totale": round(totale, 2),
+            "count": len(result),
+            "totale_per_tipo": {k: round(v, 2) for k, v in totale_per_tipo.items()},
+        }
+
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------
 # STATISTICHE COPERTI & INCASSI — aggregato giornaliero
 # ---------------------------------------------------------

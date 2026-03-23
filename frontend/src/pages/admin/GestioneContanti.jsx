@@ -23,6 +23,8 @@ function fmtDate(iso) {
 const MENU = [
   { key: "contanti", label: "Contanti da versare", icon: "💰" },
   { key: "preconti", label: "Pre-conti", icon: "🍽️" },
+  { key: "spese", label: "Spese turno", icon: "🧾" },
+  { key: "spese-varie", label: "Spese varie", icon: "💸" },
 ];
 
 export default function GestioneContanti() {
@@ -57,6 +59,8 @@ export default function GestioneContanti() {
             <div className="flex-1 p-5 md:p-6 overflow-auto">
               {activeSection === "contanti" && <SezioneContanti />}
               {activeSection === "preconti" && <SezionePreconti />}
+              {activeSection === "spese" && <SezioneSpese />}
+              {activeSection === "spese-varie" && <SezioneSpeseVarie />}
             </div>
           </div>
         </div>
@@ -409,6 +413,167 @@ function SezioneContanti() {
 
 
 // ═══════════════════════════════════════════
+// SEZIONE: SPESE (storico spese dai fine turno)
+// ═══════════════════════════════════════════
+const TIPO_LABELS = {
+  scontrino: { label: "Scontrino", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  fattura: { label: "Fattura", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  personale: { label: "Personale", color: "bg-rose-50 text-rose-700 border-rose-200" },
+  altro: { label: "Altro", color: "bg-neutral-100 text-neutral-600 border-neutral-300" },
+};
+
+function SezioneSpese() {
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_tipo: {} });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/spese?${params}`);
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      setData(await res.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, [dateFrom, dateTo]);
+
+  // Flat rows with group separators
+  const flatRows = useMemo(() => {
+    return data.spese || [];
+  }, [data.spese]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-indigo-900 font-playfair">Spese</h1>
+        <p className="text-neutral-500 text-sm mt-1">
+          Spese registrate nei fine turno — scontrini, fatture, spese personale.
+        </p>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Da</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">A</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Totale spese</p>
+          <p className="text-2xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
+        </div>
+        {Object.entries(data.totale_per_tipo || {}).map(([tipo, tot]) => {
+          const info = TIPO_LABELS[tipo] || TIPO_LABELS.altro;
+          return (
+            <div key={tipo} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-center">
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{info.label}</p>
+              <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
+      {error && <div className="text-sm text-red-600">Errore: {error}</div>}
+
+      {!loading && !error && flatRows.length === 0 && (
+        <div className="bg-neutral-50 rounded-xl p-8 text-center text-neutral-400 border border-neutral-200">
+          Nessuna spesa trovata nel periodo selezionato.
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && flatRows.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Turno</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Tipo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Descrizione</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Importo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Inserito da</th>
+              </tr>
+            </thead>
+            <tbody>
+              {flatRows.map((row, idx) => {
+                const prevDate = idx > 0 ? flatRows[idx - 1].date : null;
+                const prevTurno = idx > 0 ? flatRows[idx - 1].turno : null;
+                const isNewGroup = row.date !== prevDate || row.turno !== prevTurno;
+                const tipoInfo = TIPO_LABELS[row.tipo] || TIPO_LABELS.altro;
+
+                return (
+                  <tr key={idx} className={`hover:bg-indigo-50 ${isNewGroup && idx > 0 ? "border-t-2 border-neutral-200" : ""}`}>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
+                      <span className="font-medium">{fmtDate(row.date)}</span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                        row.turno === "pranzo"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                      }`}>
+                        {row.turno === "pranzo" ? "☀️" : "🌙"} {row.turno}
+                      </span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${tipoInfo.color}`}>
+                        {tipoInfo.label}
+                      </span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-neutral-700">
+                      {row.descrizione || "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-red-700">
+                      € {fmt(row.importo)}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-xs text-neutral-400">
+                      {row.created_by || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td className="px-3 py-2" colSpan={4}>Totale ({data.count} registrazioni)</td>
+                <td className="px-3 py-2 text-right text-red-700">€ {fmt(data.totale)}</td>
+                <td className="px-3 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════
 // SEZIONE: PRE-CONTI (storico tavoli non battuti)
 // ═══════════════════════════════════════════
 function SezionePreconti() {
@@ -561,6 +726,269 @@ function SezionePreconti() {
                 <td className="px-3 py-2" colSpan={3}>Totale ({data.count} registrazioni)</td>
                 <td className="px-3 py-2 text-right text-orange-700">€ {fmt(data.totale)}</td>
                 <td className="px-3 py-2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════
+// SEZIONE: SPESE VARIE (pagate con contanti preconti)
+// ═══════════════════════════════════════════
+const CATEGORIE_SPESE = [
+  { value: "spesa", label: "Spesa alimentare" },
+  { value: "materiale", label: "Materiale" },
+  { value: "manutenzione", label: "Manutenzione" },
+  { value: "trasporto", label: "Trasporto" },
+  { value: "personale", label: "Personale" },
+  { value: "altro", label: "Altro" },
+];
+
+const CAT_COLORS = {
+  spesa: "bg-green-50 text-green-700 border-green-200",
+  materiale: "bg-blue-50 text-blue-700 border-blue-200",
+  manutenzione: "bg-amber-50 text-amber-700 border-amber-200",
+  trasporto: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  personale: "bg-rose-50 text-rose-700 border-rose-200",
+  altro: "bg-neutral-100 text-neutral-600 border-neutral-300",
+};
+
+function SezioneSpeseVarie() {
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_categoria: {} });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Form
+  const [showForm, setShowForm] = useState(false);
+  const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formImporto, setFormImporto] = useState("");
+  const [formDescrizione, setFormDescrizione] = useState("");
+  const [formCategoria, setFormCategoria] = useState("altro");
+  const [formNote, setFormNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`);
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      setData(await res.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleSave = async () => {
+    const importo = parseFloat(formImporto);
+    if (!importo || importo <= 0 || !formDescrizione.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: formDate, importo, descrizione: formDescrizione.trim(),
+          categoria: formCategoria, note: formNote.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setShowForm(false);
+      setFormImporto(""); setFormDescrizione(""); setFormNote(""); setFormCategoria("altro");
+      fetchData();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Eliminare questa spesa?")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Errore eliminazione");
+      fetchData();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-indigo-900 font-playfair">Spese varie</h1>
+        <p className="text-neutral-500 text-sm mt-1">
+          Spese pagate con i contanti dei pre-conti (soldi non battuti al registratore).
+        </p>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Da</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">A</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="w-full border border-neutral-300 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Totale spese</p>
+          <p className="text-2xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
+        </div>
+        {Object.entries(data.totale_per_categoria || {}).map(([cat, tot]) => {
+          const info = CATEGORIE_SPESE.find(c => c.value === cat) || { label: cat };
+          return (
+            <div key={cat} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-center">
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{info.label}</p>
+              <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add button */}
+      <div className="flex justify-end">
+        <button onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition">
+          + Registra spesa
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+          <h3 className="text-sm font-bold text-red-800">Nuova spesa</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Data</label>
+              <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Importo €</label>
+              <input type="number" step="0.01" min="0" value={formImporto}
+                onChange={e => setFormImporto(e.target.value)} placeholder="0.00"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Categoria</label>
+              <select value={formCategoria} onChange={e => setFormCategoria(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                {CATEGORIE_SPESE.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Descrizione</label>
+              <input type="text" value={formDescrizione} onChange={e => setFormDescrizione(e.target.value)}
+                placeholder="es. Spesa frutta mercato"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSave} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">
+                {saving ? "..." : "Salva"}
+              </button>
+              <button onClick={() => setShowForm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50">
+                Annulla
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-neutral-500 mb-1">Note (opzionale)</label>
+            <input type="text" value={formNote} onChange={e => setFormNote(e.target.value)}
+              placeholder="Note aggiuntive..."
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+      )}
+
+      {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
+      {error && <div className="text-sm text-red-600">Errore: {error}</div>}
+
+      {!loading && !error && data.spese.length === 0 && (
+        <div className="bg-neutral-50 rounded-xl p-8 text-center text-neutral-400 border border-neutral-200">
+          Nessuna spesa registrata nel periodo selezionato.
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && !error && data.spese.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Categoria</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Descrizione</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Importo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Note</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-center w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.spese.map((row, idx) => {
+                const prevDate = idx > 0 ? data.spese[idx - 1].date : null;
+                const isNewDate = row.date !== prevDate;
+                const catColor = CAT_COLORS[row.categoria] || CAT_COLORS.altro;
+                const catLabel = (CATEGORIE_SPESE.find(c => c.value === row.categoria) || { label: row.categoria }).label;
+
+                return (
+                  <tr key={row.id} className={`hover:bg-indigo-50 ${isNewDate && idx > 0 ? "border-t-2 border-neutral-200" : ""}`}>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
+                      <span className="font-medium">{fmtDate(row.date)}</span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${catColor}`}>
+                        {catLabel}
+                      </span>
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-neutral-700">
+                      {row.descrizione || "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-red-700">
+                      € {fmt(row.importo)}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-xs text-neutral-400">
+                      {row.note || "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-center">
+                      <button onClick={() => handleDelete(row.id)}
+                        className="text-red-400 hover:text-red-600 text-xs" title="Elimina">✕</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td className="px-3 py-2" colSpan={3}>Totale ({data.count} spese)</td>
+                <td className="px-3 py-2 text-right text-red-700">€ {fmt(data.totale)}</td>
+                <td className="px-3 py-2" colSpan={2}></td>
               </tr>
             </tfoot>
           </table>

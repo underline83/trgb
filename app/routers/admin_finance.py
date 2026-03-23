@@ -1673,3 +1673,121 @@ async def list_cash_deposits(
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ─── SPESE VARIE (funded by preconti cash) ───
+
+def _ensure_cash_expenses_table(conn: sqlite3.Connection) -> None:
+    """Crea la tabella cash_expenses se non esiste."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            importo REAL NOT NULL,
+            descrizione TEXT NOT NULL DEFAULT '',
+            categoria TEXT NOT NULL DEFAULT 'altro',
+            note TEXT DEFAULT '',
+            created_by TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
+class CashExpense(BaseModel):
+    date: str
+    importo: float
+    descrizione: str
+    categoria: str = "altro"
+    note: str = ""
+
+
+@router.post("/cash/expense")
+async def create_cash_expense(
+    payload: CashExpense,
+    current_user: dict = Depends(get_current_user),
+):
+    """Registra una spesa pagata con contanti preconti."""
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_expenses_table(conn)
+    try:
+        cur = conn.execute(
+            """INSERT INTO cash_expenses (date, importo, descrizione, categoria, note, created_by)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (payload.date, payload.importo, payload.descrizione, payload.categoria,
+             payload.note, current_user.get("sub", "")),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "ok": True}
+    finally:
+        conn.close()
+
+
+@router.delete("/cash/expense/{expense_id}")
+async def delete_cash_expense(
+    expense_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_expenses_table(conn)
+    try:
+        cur = conn.execute("DELETE FROM cash_expenses WHERE id = ?", (expense_id,))
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Spesa non trovata.")
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.get("/cash/expenses")
+async def list_cash_expenses(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Lista spese varie pagate con contanti preconti."""
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    _ensure_cash_expenses_table(conn)
+    try:
+        query = "SELECT * FROM cash_expenses WHERE 1=1"
+        params = []
+        if date_from:
+            query += " AND date >= ?"
+            params.append(date_from)
+        if date_to:
+            query += " AND date <= ?"
+            params.append(date_to)
+        query += " ORDER BY date DESC, id DESC"
+
+        rows = conn.execute(query, params).fetchall()
+        result = [dict(r) for r in rows]
+        totale = sum(r["importo"] for r in rows)
+
+        # Totale per categoria
+        per_cat = {}
+        for r in rows:
+            cat = r["categoria"] or "altro"
+            per_cat[cat] = per_cat.get(cat, 0) + r["importo"]
+
+        return {
+            "spese": result,
+            "totale": round(totale, 2),
+            "count": len(result),
+            "totale_per_categoria": {k: round(v, 2) for k, v in per_cat.items()},
+        }
+    finally:
+        conn.close()
