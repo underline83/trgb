@@ -492,86 +492,6 @@ export default function ViniVendite() {
                 ))}
               </select>
 
-              {/* Mini griglia matrice per selezione celle */}
-              {regLoc === "loc3" && isLoc3Matrice && (
-                <div className="mt-2">
-                  {matriceLoading ? (
-                    <div className="text-xs text-neutral-400">Caricamento griglia…</div>
-                  ) : matriceStato && matriceStato.righe > 0 ? (
-                    <div className="border border-violet-200 rounded-xl p-3 bg-violet-50/40">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-semibold text-violet-700 uppercase tracking-wide">
-                          Seleziona celle da svuotare
-                        </span>
-                        {selectedCelle.length > 0 && (
-                          <span className="text-xs font-bold text-violet-600">
-                            {selectedCelle.length} {selectedCelle.length === 1 ? "cella" : "celle"}
-                          </span>
-                        )}
-                      </div>
-                      {/* Legenda compatta */}
-                      <div className="flex gap-3 mb-2 text-[10px]">
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-violet-500 border border-violet-600 inline-block"></span> Selezionata</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 border border-amber-500 inline-block"></span> Tua bottiglia</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-neutral-300 border border-neutral-400 inline-block"></span> Altro vino</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white border border-neutral-200 inline-block"></span> Vuota</span>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <div className="inline-block">
-                          {/* Intestazione colonne */}
-                          <div className="flex">
-                            <div className="w-7 h-5"></div>
-                            {Array.from({ length: matriceStato.colonne }, (_, c) => (
-                              <div key={c} className="w-7 h-5 text-center text-[9px] font-bold text-neutral-500">{c + 1}</div>
-                            ))}
-                          </div>
-                          {/* Righe */}
-                          {Array.from({ length: matriceStato.righe }, (_, r) => {
-                            const riga = r + 1;
-                            return (
-                              <div key={r} className="flex">
-                                <div className="w-7 h-7 flex items-center justify-center text-[9px] font-bold text-neutral-500">{riga}</div>
-                                {Array.from({ length: matriceStato.colonne }, (_, c) => {
-                                  const colonna = c + 1;
-                                  const cellKey = `${riga},${colonna}`;
-                                  const isMine = myCelleMatrice.some(mc => mc.riga === riga && mc.colonna === colonna);
-                                  const isSelected = selectedCelle.some(sc => sc.riga === riga && sc.colonna === colonna);
-                                  const occupiedCell = (matriceStato.celle || []).find(mc => mc.riga === riga && mc.colonna === colonna);
-                                  const isOther = occupiedCell && !isMine;
-
-                                  let cls = "w-7 h-7 border text-[8px] font-medium flex items-center justify-center rounded-sm transition-all ";
-                                  if (isSelected) {
-                                    cls += "bg-violet-500 border-violet-600 text-white ring-2 ring-violet-300 cursor-pointer";
-                                  } else if (isMine) {
-                                    cls += "bg-amber-400 border-amber-500 text-white cursor-pointer hover:bg-violet-400 hover:border-violet-500";
-                                  } else if (isOther) {
-                                    cls += "bg-neutral-300 border-neutral-400 text-neutral-500 cursor-not-allowed";
-                                  } else {
-                                    cls += "bg-white border-neutral-200 text-neutral-200 cursor-not-allowed";
-                                  }
-
-                                  return (
-                                    <div key={cellKey} className={cls}
-                                      onClick={() => isMine && toggleCella(riga, colonna)}
-                                      title={
-                                        isSelected ? `Selezionata: (${colonna},${riga}) — click per deselezionare` :
-                                        isMine ? `Tua: (${colonna},${riga}) — click per selezionare` :
-                                        isOther ? `Occupata da: ${occupiedCell.DESCRIZIONE || "?"}` :
-                                        "Vuota"
-                                      }>
-                                      {isSelected ? "✓" : isMine ? "●" : isOther ? "■" : ""}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              )}
             </div>
 
             {/* Quantità */}
@@ -608,6 +528,87 @@ export default function ViniVendite() {
               </button>
             </div>
           </div>
+
+          {/* Griglia matrice — full width sotto il form */}
+          {regLoc === "loc3" && isLoc3Matrice && (
+            <div className="mt-4">
+              {matriceLoading ? (
+                <div className="text-sm text-neutral-400 py-4 text-center">Caricamento griglia…</div>
+              ) : matriceStato && matriceStato.righe > 0 ? (
+                <div className="border border-violet-200 rounded-2xl p-4 bg-violet-50/40">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
+                      Tocca le tue bottiglie per selezionare quelle da scaricare
+                    </span>
+                    {selectedCelle.length > 0 && (
+                      <span className="text-sm font-bold text-violet-600 bg-violet-100 px-3 py-1 rounded-full">
+                        {selectedCelle.length} {selectedCelle.length === 1 ? "bottiglia" : "bottiglie"}
+                      </span>
+                    )}
+                  </div>
+                  {/* Legenda */}
+                  <div className="flex flex-wrap gap-4 mb-3 text-xs">
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-violet-500 border border-violet-600 inline-block"></span> Selezionata</span>
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-amber-400 border border-amber-500 inline-block"></span> Tua bottiglia</span>
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-neutral-300 border border-neutral-400 inline-block"></span> Altro vino</span>
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-white border border-neutral-200 inline-block"></span> Vuota</span>
+                  </div>
+                  <div className="overflow-x-auto pb-2">
+                    <div className="inline-block">
+                      {/* Intestazione colonne */}
+                      <div className="flex">
+                        <div className="w-8 h-8"></div>
+                        {Array.from({ length: matriceStato.colonne }, (_, c) => (
+                          <div key={c} className="w-12 h-8 text-center text-xs font-bold text-neutral-500 flex items-end justify-center">{c + 1}</div>
+                        ))}
+                      </div>
+                      {/* Righe */}
+                      {Array.from({ length: matriceStato.righe }, (_, r) => {
+                        const riga = r + 1;
+                        return (
+                          <div key={r} className="flex">
+                            <div className="w-8 h-12 flex items-center justify-center text-xs font-bold text-neutral-500">{riga}</div>
+                            {Array.from({ length: matriceStato.colonne }, (_, c) => {
+                              const colonna = c + 1;
+                              const cellKey = `${riga},${colonna}`;
+                              const isMine = myCelleMatrice.some(mc => mc.riga === riga && mc.colonna === colonna);
+                              const isSelected = selectedCelle.some(sc => sc.riga === riga && sc.colonna === colonna);
+                              const occupiedCell = (matriceStato.celle || []).find(mc => mc.riga === riga && mc.colonna === colonna);
+                              const isOther = occupiedCell && !isMine;
+
+                              let cls = "w-12 h-12 border text-base font-semibold flex items-center justify-center rounded-lg transition-all ";
+                              if (isSelected) {
+                                cls += "bg-violet-500 border-violet-600 text-white ring-2 ring-violet-300 cursor-pointer scale-105";
+                              } else if (isMine) {
+                                cls += "bg-amber-400 border-amber-500 text-white cursor-pointer hover:bg-violet-400 hover:border-violet-500 hover:scale-105 active:scale-95";
+                              } else if (isOther) {
+                                cls += "bg-neutral-200 border-neutral-300 text-neutral-400 cursor-not-allowed";
+                              } else {
+                                cls += "bg-white border-neutral-100 cursor-not-allowed";
+                              }
+
+                              return (
+                                <div key={cellKey} className={cls}
+                                  onClick={() => isMine && toggleCella(riga, colonna)}
+                                  title={
+                                    isSelected ? `Selezionata: (${colonna},${riga}) — click per deselezionare` :
+                                    isMine ? `Tua: (${colonna},${riga}) — click per selezionare` :
+                                    isOther ? `Occupata da: ${occupiedCell.DESCRIZIONE || "?"}` :
+                                    "Vuota"
+                                  }>
+                                  {isSelected ? "✓" : isMine ? "●" : isOther ? "·" : ""}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           {/* Note (riga sotto) */}
           <div className="mt-3">
