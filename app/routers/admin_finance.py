@@ -1678,7 +1678,17 @@ async def list_cash_deposits(
 # ─── SPESE VARIE (funded by preconti cash) ───
 
 def _ensure_cash_expenses_table(conn: sqlite3.Connection) -> None:
-    """Crea la tabella cash_expenses se non esiste."""
+    """Crea le tabelle cash_expenses e cash_expense_categories se non esistono."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_expense_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT 'neutral',
+            ordine INTEGER NOT NULL DEFAULT 0,
+            attiva INTEGER NOT NULL DEFAULT 1
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cash_expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1691,6 +1701,21 @@ def _ensure_cash_expenses_table(conn: sqlite3.Connection) -> None:
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
+    # Seed default categories if empty
+    count = conn.execute("SELECT COUNT(*) FROM cash_expense_categories").fetchone()[0]
+    if count == 0:
+        defaults = [
+            ("spesa", "Spesa alimentare", "green", 1),
+            ("materiale", "Materiale", "blue", 2),
+            ("manutenzione", "Manutenzione", "amber", 3),
+            ("trasporto", "Trasporto", "cyan", 4),
+            ("personale", "Personale", "rose", 5),
+            ("altro", "Altro", "neutral", 99),
+        ]
+        conn.executemany(
+            "INSERT INTO cash_expense_categories (key, label, color, ordine) VALUES (?, ?, ?, ?)",
+            defaults,
+        )
     conn.commit()
 
 
@@ -1789,5 +1814,123 @@ async def list_cash_expenses(
             "count": len(result),
             "totale_per_categoria": {k: round(v, 2) for k, v in per_cat.items()},
         }
+    finally:
+        conn.close()
+
+
+# ─── CATEGORIE SPESE VARIE ───
+
+class CashExpenseCategory(BaseModel):
+    key: str
+    label: str
+    color: str = "neutral"
+    ordine: int = 0
+
+
+@router.get("/cash/expense-categories")
+async def list_expense_categories(
+    current_user: dict = Depends(get_current_user),
+):
+    """Lista categorie spese varie (tutte, anche disattivate per superadmin)."""
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    _ensure_cash_expenses_table(conn)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM cash_expense_categories ORDER BY ordine, id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+@router.post("/cash/expense-category")
+async def create_expense_category(
+    payload: CashExpenseCategory,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_expenses_table(conn)
+    try:
+        # Check uniqueness
+        existing = conn.execute(
+            "SELECT id FROM cash_expense_categories WHERE key = ?", (payload.key,)
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Chiave '{payload.key}' già esistente.")
+        cur = conn.execute(
+            "INSERT INTO cash_expense_categories (key, label, color, ordine) VALUES (?, ?, ?, ?)",
+            (payload.key, payload.label, payload.color, payload.ordine),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "ok": True}
+    finally:
+        conn.close()
+
+
+@router.put("/cash/expense-category/{cat_id}")
+async def update_expense_category(
+    cat_id: int,
+    payload: CashExpenseCategory,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_expenses_table(conn)
+    try:
+        old = conn.execute("SELECT key FROM cash_expense_categories WHERE id = ?", (cat_id,)).fetchone()
+        if not old:
+            raise HTTPException(status_code=404, detail="Categoria non trovata.")
+        old_key = old[0]
+        conn.execute(
+            "UPDATE cash_expense_categories SET key=?, label=?, color=?, ordine=? WHERE id=?",
+            (payload.key, payload.label, payload.color, payload.ordine, cat_id),
+        )
+        # Aggiorna le spese che usano la vecchia chiave
+        if old_key != payload.key:
+            conn.execute(
+                "UPDATE cash_expenses SET categoria=? WHERE categoria=?",
+                (payload.key, old_key),
+            )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.delete("/cash/expense-category/{cat_id}")
+async def delete_expense_category(
+    cat_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_expenses_table(conn)
+    try:
+        row = conn.execute("SELECT key FROM cash_expense_categories WHERE id = ?", (cat_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Categoria non trovata.")
+        # Sposta spese orfane su "altro"
+        conn.execute(
+            "UPDATE cash_expenses SET categoria='altro' WHERE categoria=?",
+            (row[0],),
+        )
+        conn.execute("DELETE FROM cash_expense_categories WHERE id = ?", (cat_id,))
+        conn.commit()
+        return {"ok": True}
     finally:
         conn.close()

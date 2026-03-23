@@ -739,23 +739,20 @@ function SezionePreconti() {
 // ═══════════════════════════════════════════
 // SEZIONE: SPESE VARIE (pagate con contanti preconti)
 // ═══════════════════════════════════════════
-const CATEGORIE_SPESE = [
-  { value: "spesa", label: "Spesa alimentare" },
-  { value: "materiale", label: "Materiale" },
-  { value: "manutenzione", label: "Manutenzione" },
-  { value: "trasporto", label: "Trasporto" },
-  { value: "personale", label: "Personale" },
-  { value: "altro", label: "Altro" },
-];
-
-const CAT_COLORS = {
-  spesa: "bg-green-50 text-green-700 border-green-200",
-  materiale: "bg-blue-50 text-blue-700 border-blue-200",
-  manutenzione: "bg-amber-50 text-amber-700 border-amber-200",
-  trasporto: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  personale: "bg-rose-50 text-rose-700 border-rose-200",
-  altro: "bg-neutral-100 text-neutral-600 border-neutral-300",
+const COLOR_MAP = {
+  green:   "bg-green-50 text-green-700 border-green-200",
+  blue:    "bg-blue-50 text-blue-700 border-blue-200",
+  amber:   "bg-amber-50 text-amber-700 border-amber-200",
+  cyan:    "bg-cyan-50 text-cyan-700 border-cyan-200",
+  rose:    "bg-rose-50 text-rose-700 border-rose-200",
+  purple:  "bg-purple-50 text-purple-700 border-purple-200",
+  orange:  "bg-orange-50 text-orange-700 border-orange-200",
+  red:     "bg-red-50 text-red-700 border-red-200",
+  indigo:  "bg-indigo-50 text-indigo-700 border-indigo-200",
+  teal:    "bg-teal-50 text-teal-700 border-teal-200",
+  neutral: "bg-neutral-100 text-neutral-600 border-neutral-300",
 };
+const AVAILABLE_COLORS = Object.keys(COLOR_MAP);
 
 function SezioneSpeseVarie() {
   const [dateFrom, setDateFrom] = useState(() => {
@@ -765,10 +762,11 @@ function SezioneSpeseVarie() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_categoria: {} });
   const [precontiTotale, setPrecontiTotale] = useState(0);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Form
+  // Form nuova spesa
   const [showForm, setShowForm] = useState(false);
   const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formImporto, setFormImporto] = useState("");
@@ -777,6 +775,20 @@ function SezioneSpeseVarie() {
   const [formNote, setFormNote] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Gestione categorie
+  const [showCatManager, setShowCatManager] = useState(false);
+  const [newCatKey, setNewCatKey] = useState("");
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [newCatColor, setNewCatColor] = useState("neutral");
+  const [editingCat, setEditingCat] = useState(null); // {id, key, label, color, ordine}
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-categories`);
+      if (res.ok) setCategories(await res.json());
+    } catch (_) { /* ignore */ }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -784,7 +796,6 @@ function SezioneSpeseVarie() {
       const params = new URLSearchParams();
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
-      // Fetch spese + preconti in parallelo
       const [resSpese, resPreconti] = await Promise.all([
         apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`),
         apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${params}`),
@@ -802,10 +813,23 @@ function SezioneSpeseVarie() {
     }
   }, [dateFrom, dateTo]);
 
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const saldo = precontiTotale - data.totale;
 
+  // Helpers per categorie
+  const catMap = useMemo(() => {
+    const m = {};
+    for (const c of categories) m[c.key] = c;
+    return m;
+  }, [categories]);
+
+  const catColor = (key) => COLOR_MAP[catMap[key]?.color] || COLOR_MAP.neutral;
+  const catLabel = (key) => catMap[key]?.label || key;
+  const activeCats = useMemo(() => categories.filter(c => c.attiva), [categories]);
+
+  // CRUD spese
   const handleSave = async () => {
     const importo = parseFloat(formImporto);
     if (!importo || importo <= 0 || !formDescrizione.trim()) return;
@@ -823,11 +847,8 @@ function SezioneSpeseVarie() {
       setShowForm(false);
       setFormImporto(""); setFormDescrizione(""); setFormNote(""); setFormCategoria("altro");
       fetchData();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (e) { alert(e.message); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
@@ -836,19 +857,141 @@ function SezioneSpeseVarie() {
       const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Errore eliminazione");
       fetchData();
-    } catch (e) {
-      alert(e.message);
-    }
+    } catch (e) { alert(e.message); }
+  };
+
+  // CRUD categorie
+  const handleAddCat = async () => {
+    const key = newCatKey.trim().toLowerCase().replace(/\s+/g, "-");
+    const label = newCatLabel.trim();
+    if (!key || !label) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-category`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, label, color: newCatColor, ordine: categories.length + 1 }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || "Errore"); }
+      setNewCatKey(""); setNewCatLabel(""); setNewCatColor("neutral");
+      fetchCategories();
+    } catch (e) { alert(e.message); }
+  };
+
+  const handleUpdateCat = async () => {
+    if (!editingCat) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-category/${editingCat.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: editingCat.key, label: editingCat.label,
+          color: editingCat.color, ordine: editingCat.ordine,
+        }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || "Errore"); }
+      setEditingCat(null);
+      fetchCategories(); fetchData();
+    } catch (e) { alert(e.message); }
+  };
+
+  const handleDeleteCat = async (id) => {
+    if (!confirm("Eliminare questa categoria? Le spese associate verranno spostate su 'Altro'.")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-category/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Errore eliminazione");
+      fetchCategories(); fetchData();
+    } catch (e) { alert(e.message); }
   };
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-indigo-900 font-playfair">Spese varie</h1>
-        <p className="text-neutral-500 text-sm mt-1">
-          Spese pagate con i contanti dei pre-conti (soldi non battuti al registratore).
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-indigo-900 font-playfair">Spese varie</h1>
+          <p className="text-neutral-500 text-sm mt-1">
+            Spese pagate con i contanti dei pre-conti (soldi non battuti al registratore).
+          </p>
+        </div>
+        <button onClick={() => setShowCatManager(!showCatManager)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+            showCatManager
+              ? "bg-indigo-100 text-indigo-800 border-indigo-300"
+              : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+          }`}>
+          ⚙️ Categorie
+        </button>
       </div>
+
+      {/* ── GESTIONE CATEGORIE ── */}
+      {showCatManager && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-4">
+          <h3 className="text-sm font-bold text-indigo-800">Gestione categorie</h3>
+
+          {/* Lista categorie esistenti */}
+          <div className="space-y-2">
+            {categories.map(cat => (
+              <div key={cat.id} className="flex items-center gap-2 bg-white rounded-lg border border-neutral-200 px-3 py-2">
+                {editingCat?.id === cat.id ? (
+                  <>
+                    <input type="text" value={editingCat.label}
+                      onChange={e => setEditingCat({ ...editingCat, label: e.target.value })}
+                      className="flex-1 border border-neutral-300 rounded px-2 py-1 text-sm" />
+                    <select value={editingCat.color}
+                      onChange={e => setEditingCat({ ...editingCat, color: e.target.value })}
+                      className="border border-neutral-300 rounded px-2 py-1 text-xs bg-white">
+                      {AVAILABLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input type="number" value={editingCat.ordine} min={0}
+                      onChange={e => setEditingCat({ ...editingCat, ordine: Number(e.target.value) })}
+                      className="w-14 border border-neutral-300 rounded px-2 py-1 text-xs text-center" title="Ordine" />
+                    <button onClick={handleUpdateCat}
+                      className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 px-2">Salva</button>
+                    <button onClick={() => setEditingCat(null)}
+                      className="text-xs text-neutral-400 hover:text-neutral-600 px-1">Annulla</button>
+                  </>
+                ) : (
+                  <>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${COLOR_MAP[cat.color] || COLOR_MAP.neutral}`}>
+                      {cat.label}
+                    </span>
+                    <span className="text-[10px] text-neutral-400 ml-1">({cat.key})</span>
+                    <span className="text-[10px] text-neutral-300 ml-auto">#{cat.ordine}</span>
+                    <button onClick={() => setEditingCat({ ...cat })}
+                      className="text-xs text-indigo-500 hover:text-indigo-700 px-1">Modifica</button>
+                    <button onClick={() => handleDeleteCat(cat.id)}
+                      className="text-xs text-red-400 hover:text-red-600 px-1">✕</button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Aggiungi nuova */}
+          <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-indigo-200">
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 mb-0.5">Chiave</label>
+              <input type="text" value={newCatKey} onChange={e => setNewCatKey(e.target.value)}
+                placeholder="es. pulizia" className="border border-neutral-300 rounded px-2 py-1.5 text-sm w-28" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 mb-0.5">Nome</label>
+              <input type="text" value={newCatLabel} onChange={e => setNewCatLabel(e.target.value)}
+                placeholder="es. Pulizia" className="border border-neutral-300 rounded px-2 py-1.5 text-sm w-36" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 mb-0.5">Colore</label>
+              <select value={newCatColor} onChange={e => setNewCatColor(e.target.value)}
+                className="border border-neutral-300 rounded px-2 py-1.5 text-sm bg-white">
+                {AVAILABLE_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <button onClick={handleAddCat}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700">
+              + Aggiungi
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Navigation */}
       <div className="flex flex-wrap items-end gap-3">
@@ -875,29 +1018,22 @@ function SezioneSpeseVarie() {
           <p className="text-2xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
         </div>
         <div className={`rounded-xl p-4 text-center border ${
-          saldo >= 0
-            ? "bg-emerald-50 border-emerald-200"
-            : "bg-red-50 border-red-200"
+          saldo >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
         }`}>
           <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo contanti</p>
-          <p className={`text-2xl font-bold mt-1 ${
-            saldo >= 0 ? "text-emerald-800" : "text-red-800"
-          }`}>€ {fmt(saldo)}</p>
+          <p className={`text-2xl font-bold mt-1 ${saldo >= 0 ? "text-emerald-800" : "text-red-800"}`}>€ {fmt(saldo)}</p>
         </div>
       </div>
 
       {/* Breakdown per categoria */}
       {Object.keys(data.totale_per_categoria || {}).length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.entries(data.totale_per_categoria).map(([cat, tot]) => {
-            const info = CATEGORIE_SPESE.find(c => c.value === cat) || { label: cat };
-            return (
-              <div key={cat} className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
-                <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{info.label}</p>
-                <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
-              </div>
-            );
-          })}
+          {Object.entries(data.totale_per_categoria).map(([cat, tot]) => (
+            <div key={cat} className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">{catLabel(cat)}</p>
+              <p className="text-lg font-bold text-neutral-700 mt-1">€ {fmt(tot)}</p>
+            </div>
+          ))}
         </div>
       )}
 
@@ -929,7 +1065,7 @@ function SezioneSpeseVarie() {
               <label className="block text-xs font-semibold text-neutral-500 mb-1">Categoria</label>
               <select value={formCategoria} onChange={e => setFormCategoria(e.target.value)}
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
-                {CATEGORIE_SPESE.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {activeCats.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
             </div>
             <div>
@@ -985,17 +1121,14 @@ function SezioneSpeseVarie() {
               {data.spese.map((row, idx) => {
                 const prevDate = idx > 0 ? data.spese[idx - 1].date : null;
                 const isNewDate = row.date !== prevDate;
-                const catColor = CAT_COLORS[row.categoria] || CAT_COLORS.altro;
-                const catLabel = (CATEGORIE_SPESE.find(c => c.value === row.categoria) || { label: row.categoria }).label;
-
                 return (
                   <tr key={row.id} className={`hover:bg-indigo-50 ${isNewDate && idx > 0 ? "border-t-2 border-neutral-200" : ""}`}>
                     <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">
                       <span className="font-medium">{fmtDate(row.date)}</span>
                     </td>
                     <td className="border-b border-neutral-100 px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${catColor}`}>
-                        {catLabel}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${catColor(row.categoria)}`}>
+                        {catLabel(row.categoria)}
                       </span>
                     </td>
                     <td className="border-b border-neutral-100 px-3 py-2 text-neutral-700">
