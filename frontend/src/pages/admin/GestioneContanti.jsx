@@ -762,6 +762,8 @@ function SezioneSpeseVarie() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [data, setData] = useState({ spese: [], totale: 0, count: 0, totale_per_categoria: {} });
   const [precontiTotale, setPrecontiTotale] = useState(0);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [openingNote, setOpeningNote] = useState("");
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -775,6 +777,12 @@ function SezioneSpeseVarie() {
   const [formNote, setFormNote] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Saldo iniziale anno
+  const [showBalanceForm, setShowBalanceForm] = useState(false);
+  const [balanceInput, setBalanceInput] = useState("");
+  const [balanceNoteInput, setBalanceNoteInput] = useState("");
+  const [savingBalance, setSavingBalance] = useState(false);
+
   // Gestione categorie
   const [showCatManager, setShowCatManager] = useState(false);
   const [newCatKey, setNewCatKey] = useState("");
@@ -782,12 +790,29 @@ function SezioneSpeseVarie() {
   const [newCatColor, setNewCatColor] = useState("neutral");
   const [editingCat, setEditingCat] = useState(null); // {id, key, label, color, ordine}
 
+  // Anno corrente dal dateFrom
+  const currentYear = useMemo(() => {
+    if (dateFrom) return parseInt(dateFrom.slice(0, 4));
+    return new Date().getFullYear();
+  }, [dateFrom]);
+
   const fetchCategories = useCallback(async () => {
     try {
       const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-categories`);
       if (res.ok) setCategories(await res.json());
     } catch (_) { /* ignore */ }
   }, []);
+
+  const fetchOpeningBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/opening-balance/${currentYear}`);
+      if (res.ok) {
+        const ob = await res.json();
+        setOpeningBalance(ob.importo || 0);
+        setOpeningNote(ob.note || "");
+      }
+    } catch (_) { /* ignore */ }
+  }, [currentYear]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -814,9 +839,11 @@ function SezioneSpeseVarie() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchOpeningBalance(); }, [fetchOpeningBalance]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const saldo = precontiTotale - data.totale;
+  const entrate = openingBalance + precontiTotale;
+  const saldo = entrate - data.totale;
 
   // Helpers per categorie
   const catMap = useMemo(() => {
@@ -828,6 +855,24 @@ function SezioneSpeseVarie() {
   const catColor = (key) => COLOR_MAP[catMap[key]?.color] || COLOR_MAP.neutral;
   const catLabel = (key) => catMap[key]?.label || key;
   const activeCats = useMemo(() => categories.filter(c => c.attiva), [categories]);
+
+  // Saldo iniziale
+  const handleSaveBalance = async () => {
+    const importo = parseFloat(balanceInput);
+    if (isNaN(importo)) return;
+    setSavingBalance(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/opening-balance`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: currentYear, importo, note: balanceNoteInput.trim() }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setShowBalanceForm(false);
+      fetchOpeningBalance();
+    } catch (e) { alert(e.message); }
+    finally { setSavingBalance(false); }
+  };
 
   // CRUD spese
   const handleSave = async () => {
@@ -1008,22 +1053,69 @@ function SezioneSpeseVarie() {
       </div>
 
       {/* KPI Cards — bilancio preconti vs spese */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {openingBalance > 0 && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+            <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Saldo iniziale {currentYear}</p>
+            <p className="text-xl font-bold text-indigo-800 mt-1">€ {fmt(openingBalance)}</p>
+          </div>
+        )}
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Entrate (pre-conti)</p>
-          <p className="text-2xl font-bold text-emerald-800 mt-1">€ {fmt(precontiTotale)}</p>
+          <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Pre-conti periodo</p>
+          <p className="text-xl font-bold text-emerald-800 mt-1">€ {fmt(precontiTotale)}</p>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Uscite (spese)</p>
-          <p className="text-2xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
+          <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Spese periodo</p>
+          <p className="text-xl font-bold text-red-800 mt-1">€ {fmt(data.totale)}</p>
         </div>
         <div className={`rounded-xl p-4 text-center border ${
           saldo >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
         }`}>
-          <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo contanti</p>
+          <p className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">Saldo</p>
           <p className={`text-2xl font-bold mt-1 ${saldo >= 0 ? "text-emerald-800" : "text-red-800"}`}>€ {fmt(saldo)}</p>
         </div>
       </div>
+
+      {/* Saldo iniziale anno */}
+      {!showBalanceForm && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setBalanceInput(String(openingBalance || "")); setBalanceNoteInput(openingNote); setShowBalanceForm(true); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition">
+            {openingBalance > 0 ? `✏️ Saldo iniziale ${currentYear}: € ${fmt(openingBalance)}` : `+ Imposta saldo iniziale ${currentYear}`}
+          </button>
+          {openingNote && <span className="text-xs text-neutral-400">{openingNote}</span>}
+        </div>
+      )}
+      {showBalanceForm && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+          <h3 className="text-sm font-bold text-indigo-800 mb-3">Saldo iniziale {currentYear}</h3>
+          <p className="text-xs text-neutral-500 mb-3">Contanti pre-conti accumulati prima dell'inizio del tracciamento. Questo valore si somma alle entrate dell'anno.</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Importo €</label>
+              <input type="number" step="0.01" value={balanceInput}
+                onChange={e => setBalanceInput(e.target.value)} placeholder="0.00"
+                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm w-36" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Note</label>
+              <input type="text" value={balanceNoteInput}
+                onChange={e => setBalanceNoteInput(e.target.value)} placeholder="es. Contanti in cassa al 1/1"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSaveBalance} disabled={savingBalance}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savingBalance ? "..." : "Salva"}
+              </button>
+              <button onClick={() => setShowBalanceForm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50">
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Breakdown per categoria */}
       {Object.keys(data.totale_per_categoria || {}).length > 0 && (

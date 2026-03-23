@@ -1934,3 +1934,74 @@ async def delete_expense_category(
         return {"ok": True}
     finally:
         conn.close()
+
+
+# ─── SALDO INIZIALE ANNO (preconti carryover) ───
+
+def _ensure_cash_opening_balance_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_opening_balance (
+            year INTEGER PRIMARY KEY,
+            importo REAL NOT NULL DEFAULT 0,
+            note TEXT DEFAULT '',
+            updated_by TEXT DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
+class CashOpeningBalance(BaseModel):
+    year: int
+    importo: float
+    note: str = ""
+
+
+@router.get("/cash/opening-balance/{year}")
+async def get_opening_balance(
+    year: int,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    _ensure_cash_opening_balance_table(conn)
+    try:
+        row = conn.execute(
+            "SELECT * FROM cash_opening_balance WHERE year = ?", (year,)
+        ).fetchone()
+        if row:
+            return dict(row)
+        return {"year": year, "importo": 0, "note": "", "updated_by": "", "updated_at": None}
+    finally:
+        conn.close()
+
+
+@router.put("/cash/opening-balance")
+async def set_opening_balance(
+    payload: CashOpeningBalance,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(current_user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_opening_balance_table(conn)
+    try:
+        conn.execute("""
+            INSERT INTO cash_opening_balance (year, importo, note, updated_by, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(year) DO UPDATE SET
+                importo = excluded.importo,
+                note = excluded.note,
+                updated_by = excluded.updated_by,
+                updated_at = datetime('now')
+        """, (payload.year, payload.importo, payload.note, current_user.get("sub", "")))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
