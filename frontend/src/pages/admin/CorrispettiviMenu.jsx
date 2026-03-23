@@ -45,7 +45,7 @@ export default function CorrispettiviMenu() {
                 Corrispettivi, chiusure cassa, analisi fatturato e controllo di gestione.
               </p>
               <p className="text-center sm:text-left text-sm text-neutral-500">
-                Calendario giornaliero, dashboard riepilogativa, confronto annuale e import Excel.
+                Calendario giornaliero, dashboard riepilogativa e import Excel.
               </p>
             </div>
 
@@ -156,26 +156,13 @@ export default function CorrispettiviMenu() {
                 >
                   <div className="text-5xl mb-3">📊</div>
                   <h2 className="text-xl font-semibold font-playfair">
-                    Dashboard Mensile
+                    Dashboard
                   </h2>
                   <p className="text-neutral-700 text-sm mt-1">
-                    Andamento mensile, medie per giorno e differenze cassa.
+                    Analisi mensile, trimestrale e annuale con confronto anno su anno.
                   </p>
                 </Link>
 
-                {/* CONFRONTO ANNUALE */}
-                <Link
-                  to="/vendite/annual"
-                  className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-                >
-                  <div className="text-5xl mb-3">📈</div>
-                  <h2 className="text-xl font-semibold font-playfair">
-                    Confronto Annuale
-                  </h2>
-                  <p className="text-neutral-700 text-sm mt-1">
-                    Confronta anno su anno, variazioni mensili e trend.
-                  </p>
-                </Link>
 
               </div>
             </>

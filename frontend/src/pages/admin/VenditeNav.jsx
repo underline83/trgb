@@ -10,7 +10,6 @@ const TABS = [
   { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", check: "admin" },
   { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", check: "admin" },
   { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", check: "admin" },
-  { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", check: "admin" },
   { key: "impostazioni", label: "Impostazioni", path: "/vendite/impostazioni", icon: "⚙️", check: "admin" },
 ];
 

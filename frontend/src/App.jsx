@@ -54,7 +54,7 @@ import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
-import CorrispettiviAnnual from "./pages/admin/CorrispettiviAnnual";
+// CorrispettiviAnnual rimosso — integrato nella dashboard unificata
 import CorrispettiviRiepilogo from "./pages/admin/CorrispettiviRiepilogo";
 import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
@@ -161,7 +161,7 @@ export default function App() {
         <Route path="/vendite/preconti" element={<PrecontiAdmin />} />
         <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
-        <Route path="/vendite/annual" element={<CorrispettiviAnnual />} />
+        <Route path="/vendite/annual" element={<Navigate to="/vendite/dashboard?mode=annuale" replace />} />
         <Route path="/vendite/fine-turno" element={<ChiusuraTurno />} />
         <Route path="/vendite/impostazioni" element={<CorrispettiviImport />} />
         <Route path="/vendite/import" element={<Navigate to="/vendite/impostazioni" replace />} />
