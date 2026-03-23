@@ -124,21 +124,6 @@ export default function CorrispettiviMenu() {
               </Link>
             )}
 
-            {/* PRE-CONTI — solo superadmin */}
-            {isSuperAdminRole(role) && (
-              <Link
-                to="/vendite/preconti"
-                className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-              >
-                <div className="text-5xl mb-3">🍽️</div>
-                <h2 className="text-xl font-semibold font-playfair">
-                  Pre-conti
-                </h2>
-                <p className="text-neutral-700 text-sm mt-1">
-                  Storico tavoli aperti non battuti, importi e dettagli.
-                </p>
-              </Link>
-            )}
 
           </div>
 
@@ -202,7 +187,7 @@ export default function CorrispettiviMenu() {
               <div className="mb-3">
                 <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Impostazioni</h2>
               </div>
-              <div className="grid grid-cols-1 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Link
                   to="/vendite/impostazioni"
                   className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
@@ -215,6 +200,22 @@ export default function CorrispettiviMenu() {
                     Carica corrispettivi da Excel, configura impostazioni vendite.
                   </p>
                 </Link>
+
+                {/* PRE-CONTI — solo superadmin, nascosto in impostazioni */}
+                {isSuperAdminRole(role) && (
+                  <Link
+                    to="/vendite/preconti"
+                    className="bg-neutral-50 border border-neutral-200 text-neutral-700 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+                  >
+                    <div className="text-4xl mb-2">🔒</div>
+                    <h2 className="text-lg font-semibold font-playfair">
+                      Pre-conti
+                    </h2>
+                    <p className="text-neutral-500 text-sm mt-1">
+                      Storico tavoli aperti non battuti.
+                    </p>
+                  </Link>
+                )}
               </div>
             </>
           )}
