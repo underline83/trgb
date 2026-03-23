@@ -8,7 +8,6 @@ import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 const TABS = [
   { key: "fine-turno", label: "Chiusura Turno", path: "/vendite/fine-turno", icon: "🔔", check: null },
   { key: "chiusure", label: "Chiusure", path: "/vendite/chiusure", icon: "📅", check: "admin" },
-  { key: "preconti", label: "Pre-conti", path: "/vendite/preconti", icon: "🍽️", check: "superadmin" },
   { key: "riepilogo", label: "Riepilogo", path: "/vendite/riepilogo", icon: "📋", check: "admin" },
   { key: "dashboard", label: "Dashboard", path: "/vendite/dashboard", icon: "📊", check: "admin" },
   { key: "annual", label: "Annuale", path: "/vendite/annual", icon: "📈", check: "admin" },
