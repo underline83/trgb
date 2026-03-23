@@ -11,11 +11,10 @@ function fmt(n) {
 }
 
 export default function PrecontiAdmin() {
-  // Filtri data — default ultimi 30 giorni
+  // Filtri data — default mese corrente (1° del mese → oggi)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
 
