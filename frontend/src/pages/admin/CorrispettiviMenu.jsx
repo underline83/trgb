@@ -88,11 +88,8 @@ export default function CorrispettiviMenu() {
             </div>
           )}
 
-          {/* ── CHIUSURE TURNO ── */}
-          <div className="mb-3">
-            <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Chiusure turno</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+          {/* ── TILE PRINCIPALI ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
 
             {/* CHIUSURA TURNO — form inserimento */}
             <Link
@@ -103,7 +100,7 @@ export default function CorrispettiviMenu() {
               <h2 className="text-xl font-semibold font-playfair">
                 Chiusura Turno
               </h2>
-              <p className="text-neutral-700 text-sm mt-1">
+              <p className="text-neutral-600 text-sm mt-1">
                 Compila la chiusura fine servizio pranzo o cena.
               </p>
             </Link>
@@ -118,94 +115,76 @@ export default function CorrispettiviMenu() {
                 <h2 className="text-xl font-semibold font-playfair">
                   Lista Chiusure
                 </h2>
-                <p className="text-neutral-700 text-sm mt-1">
+                <p className="text-neutral-600 text-sm mt-1">
                   Storico chiusure turno con dettaglio, quadratura e filtri.
                 </p>
               </Link>
             )}
 
+            {/* RIEPILOGO MENSILE */}
+            {isAdmin && (
+              <Link
+                to="/vendite/riepilogo"
+                className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              >
+                <div className="text-5xl mb-3">📅</div>
+                <h2 className="text-xl font-semibold font-playfair">
+                  Riepilogo Mensile
+                </h2>
+                <p className="text-neutral-600 text-sm mt-1">
+                  Lista chiusure mese per mese, totali annuali e medie giornaliere.
+                </p>
+              </Link>
+            )}
 
+            {/* DASHBOARD */}
+            {isAdmin && (
+              <Link
+                to="/vendite/dashboard"
+                className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              >
+                <div className="text-5xl mb-3">📊</div>
+                <h2 className="text-xl font-semibold font-playfair">
+                  Dashboard
+                </h2>
+                <p className="text-neutral-600 text-sm mt-1">
+                  Analisi mensile, trimestrale e annuale con confronto anno su anno.
+                </p>
+              </Link>
+            )}
+
+            {/* GESTIONE CONTANTI — superadmin */}
+            {isSuperAdminRole(role) && (
+              <Link
+                to="/vendite/contanti"
+                className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              >
+                <div className="text-5xl mb-3">💰</div>
+                <h2 className="text-xl font-semibold font-playfair">
+                  Gestione Contanti
+                </h2>
+                <p className="text-neutral-600 text-sm mt-1">
+                  Contanti da versare, pre-conti e versamenti banca.
+                </p>
+              </Link>
+            )}
+
+            {/* IMPORT & IMPOSTAZIONI */}
+            {isAdmin && (
+              <Link
+                to="/vendite/impostazioni"
+                className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
+              >
+                <div className="text-5xl mb-3">⚙️</div>
+                <h2 className="text-xl font-semibold font-playfair">
+                  Import & Impostazioni
+                </h2>
+                <p className="text-neutral-600 text-sm mt-1">
+                  Carica corrispettivi da Excel, configura impostazioni vendite.
+                </p>
+              </Link>
+            )}
           </div>
-
-          {/* ── CORRISPETTIVI & ANALISI ── */}
-          {isAdmin && (
-            <>
-              <div className="mb-3">
-                <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Corrispettivi & Analisi</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-
-                {/* RIEPILOGO MENSILE */}
-                <Link
-                  to="/vendite/riepilogo"
-                  className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-                >
-                  <div className="text-5xl mb-3">📅</div>
-                  <h2 className="text-xl font-semibold font-playfair">
-                    Riepilogo Mensile
-                  </h2>
-                  <p className="text-neutral-700 text-sm mt-1">
-                    Lista chiusure mese per mese, totali annuali e medie giornaliere.
-                  </p>
-                </Link>
-
-                {/* DASHBOARD */}
-                <Link
-                  to="/vendite/dashboard"
-                  className="bg-blue-50 border border-blue-200 text-blue-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-                >
-                  <div className="text-5xl mb-3">📊</div>
-                  <h2 className="text-xl font-semibold font-playfair">
-                    Dashboard
-                  </h2>
-                  <p className="text-neutral-700 text-sm mt-1">
-                    Analisi mensile, trimestrale e annuale con confronto anno su anno.
-                  </p>
-                </Link>
-
-
-              </div>
-            </>
-          )}
-
-          {/* ── IMPOSTAZIONI ── */}
-          {isAdmin && (
-            <>
-              <div className="mb-3">
-                <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Impostazioni</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Link
-                  to="/vendite/impostazioni"
-                  className="bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-                >
-                  <div className="text-4xl mb-2">⚙️</div>
-                  <h2 className="text-lg font-semibold font-playfair">
-                    Import & Impostazioni
-                  </h2>
-                  <p className="text-neutral-700 text-sm mt-1">
-                    Carica corrispettivi da Excel, configura impostazioni vendite.
-                  </p>
-                </Link>
-
-                {/* GESTIONE CONTANTI — solo superadmin, nascosto in impostazioni */}
-                {isSuperAdminRole(role) && (
-                  <Link
-                    to="/vendite/contanti"
-                    className="bg-orange-50 border border-orange-200 text-orange-900 rounded-2xl p-6 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-                  >
-                    <div className="text-4xl mb-2">💰</div>
-                    <h2 className="text-lg font-semibold font-playfair">
-                      Gestione Contanti
-                    </h2>
-                    <p className="text-neutral-500 text-sm mt-1">
-                      Contanti da versare, pre-conti e versamenti banca.
-                    </p>
-                  </Link>
-                )}
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>
