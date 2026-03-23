@@ -86,7 +86,12 @@ function SezioneContanti() {
   const [depositDate, setDepositDate] = useState(() => today.toISOString().slice(0, 10));
   const [depositAmount, setDepositAmount] = useState("");
   const [depositNote, setDepositNote] = useState("");
+  const [depositBancaId, setDepositBancaId] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // Bank matches
+  const [bankMatches, setBankMatches] = useState([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -148,6 +153,31 @@ function SezioneContanti() {
     return rows;
   }, [data]);
 
+  const fetchBankMatches = useCallback(async () => {
+    setLoadingMatches(true);
+    try {
+      // Cerca movimenti entrata degli ultimi 60 giorni
+      const dTo = new Date().toISOString().slice(0, 10);
+      const dFrom = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/deposit/bank-matches?data_da=${dFrom}&data_a=${dTo}`);
+      if (res.ok) setBankMatches(await res.json());
+    } catch (_) { /* ignore */ }
+    finally { setLoadingMatches(false); }
+  }, []);
+
+  const handleOpenForm = () => {
+    setShowForm(true);
+    setDepositBancaId(null);
+    fetchBankMatches();
+  };
+
+  const handleSelectMatch = (mov) => {
+    setDepositBancaId(mov.id);
+    setDepositDate(mov.data_contabile);
+    setDepositAmount(String(mov.importo));
+    setDepositNote(mov.descrizione || "");
+  };
+
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
@@ -156,12 +186,16 @@ function SezioneContanti() {
       const res = await apiFetch(`${API_BASE}/admin/finance/cash/deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: depositDate, importo: amount, note: depositNote }),
+        body: JSON.stringify({
+          date: depositDate, importo: amount, note: depositNote,
+          banca_movimento_id: depositBancaId,
+        }),
       });
       if (!res.ok) throw new Error("Errore salvataggio");
       setShowForm(false);
       setDepositAmount("");
       setDepositNote("");
+      setDepositBancaId(null);
       fetchData();
     } catch (e) {
       alert(e.message);
@@ -244,7 +278,7 @@ function SezioneContanti() {
 
       {/* Add deposit button */}
       <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => showForm ? setShowForm(false) : handleOpenForm()}
           className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition">
           + Registra versamento
         </button>
@@ -252,18 +286,64 @@ function SezioneContanti() {
 
       {/* Deposit form */}
       {showForm && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-4">
           <h3 className="text-sm font-bold text-emerald-800">Nuovo versamento in banca</h3>
+
+          {/* Movimenti bancari suggeriti */}
+          <div>
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+              Movimenti bancari in ingresso (ultimi 60gg)
+            </p>
+            {loadingMatches && <p className="text-xs text-neutral-400 animate-pulse">Ricerca movimenti...</p>}
+            {!loadingMatches && bankMatches.filter(m => !m.gia_collegato).length === 0 && (
+              <p className="text-xs text-neutral-400 italic">Nessun movimento in ingresso trovato.</p>
+            )}
+            {!loadingMatches && bankMatches.filter(m => !m.gia_collegato).length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {bankMatches.filter(m => !m.gia_collegato).map(mov => {
+                  const selected = depositBancaId === mov.id;
+                  return (
+                    <button key={mov.id} type="button"
+                      onClick={() => selected ? (() => { setDepositBancaId(null); setDepositAmount(""); setDepositNote(""); })() : handleSelectMatch(mov)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-left transition border ${
+                        selected
+                          ? "bg-emerald-200 border-emerald-400 ring-2 ring-emerald-300"
+                          : "bg-white border-neutral-200 hover:border-emerald-300 hover:bg-emerald-50"
+                      }`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-xs text-neutral-500 whitespace-nowrap">{fmtDate(mov.data_contabile)}</span>
+                        <span className="truncate text-neutral-700">{mov.descrizione || "—"}</span>
+                        {mov.categoria_banca && (
+                          <span className="text-[10px] text-neutral-400 whitespace-nowrap">{mov.categoria_banca}</span>
+                        )}
+                      </div>
+                      <span className="font-bold text-emerald-700 whitespace-nowrap ml-3">€ {fmt(mov.importo)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {depositBancaId && (
+            <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-100 rounded-lg px-3 py-2">
+              <span className="font-semibold">Collegato a movimento bancario #{depositBancaId}</span>
+              <button onClick={() => { setDepositBancaId(null); setDepositAmount(""); setDepositNote(""); }}
+                className="text-emerald-500 hover:text-emerald-800 ml-auto">✕ Scollega</button>
+            </div>
+          )}
+
+          {/* Form manuale / override */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1">Data</label>
-              <input type="date" value={depositDate} onChange={e => setDepositDate(e.target.value)}
+              <input type="date" value={depositDate} onChange={e => { setDepositDate(e.target.value); if (depositBancaId) setDepositBancaId(null); }}
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1">Importo €</label>
               <input type="number" step="0.01" min="0" value={depositAmount}
-                onChange={e => setDepositAmount(e.target.value)}
+                onChange={e => { setDepositAmount(e.target.value); if (depositBancaId) setDepositBancaId(null); }}
                 placeholder="0.00"
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
             </div>
@@ -316,6 +396,9 @@ function SezioneContanti() {
                           </span>
                           <span className="text-xs text-neutral-600">{fmtDate(row.date)}</span>
                           {row.note && <span className="text-xs text-neutral-400">— {row.note}</span>}
+                          {row.banca_movimento_id && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 border border-blue-200">🏦 collegato</span>
+                          )}
                         </div>
                       </td>
                       <td className="border-b border-neutral-100 px-3 py-2 text-right text-emerald-700 font-bold">

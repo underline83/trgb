@@ -1436,6 +1436,9 @@ async def get_top_days(
 # GESTIONE CONTANTI — Versamenti in banca
 # ---------------------------------------------------------
 
+FOODCOST_DB_PATH = str(Path(__file__).resolve().parent.parent / "data" / "foodcost.db")
+
+
 def _ensure_cash_deposits_table(conn: sqlite3.Connection) -> None:
     """Crea la tabella cash_deposits se non esiste."""
     conn.execute("""
@@ -1444,10 +1447,16 @@ def _ensure_cash_deposits_table(conn: sqlite3.Connection) -> None:
             date TEXT NOT NULL,
             importo REAL NOT NULL,
             note TEXT DEFAULT '',
+            banca_movimento_id INTEGER DEFAULT NULL,
             created_by TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
+    # Add banca_movimento_id column if missing (migration for existing tables)
+    try:
+        conn.execute("ALTER TABLE cash_deposits ADD COLUMN banca_movimento_id INTEGER DEFAULT NULL")
+    except Exception:
+        pass  # column already exists
     conn.commit()
 
 
@@ -1455,6 +1464,7 @@ class CashDeposit(BaseModel):
     date: str
     importo: float
     note: str = ""
+    banca_movimento_id: Optional[int] = None
 
 
 class CashDepositOut(BaseModel):
@@ -1462,6 +1472,7 @@ class CashDepositOut(BaseModel):
     date: str
     importo: float
     note: str
+    banca_movimento_id: Optional[int] = None
     created_by: str
     created_at: str
 
@@ -1607,6 +1618,79 @@ async def get_cash_daily(
     )
 
 
+@router.get("/cash/deposit/bank-matches")
+async def get_bank_matches(
+    data_da: Optional[str] = Query(None),
+    data_a: Optional[str] = Query(None),
+    importo_min: Optional[float] = Query(None),
+    importo_max: Optional[float] = Query(None),
+    search: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """
+    Cerca movimenti bancari in ingresso (importo > 0) che potrebbero corrispondere
+    a un versamento contanti in banca. Filtra per data e range importo.
+    """
+    from app.services.auth_service import is_superadmin
+    if not is_superadmin(user.get("role", "")):
+        raise HTTPException(status_code=403, detail="Solo superadmin.")
+
+    # Movimenti già collegati a un deposito
+    conn_admin = sqlite3.connect(DB_PATH)
+    _ensure_cash_deposits_table(conn_admin)
+    linked_ids = set()
+    try:
+        rows = conn_admin.execute(
+            "SELECT banca_movimento_id FROM cash_deposits WHERE banca_movimento_id IS NOT NULL"
+        ).fetchall()
+        for r in rows:
+            linked_ids.add(r[0])
+    finally:
+        conn_admin.close()
+
+    # Cerca movimenti banca in ingresso
+    conn = sqlite3.connect(FOODCOST_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        query = "SELECT id, data_contabile, data_valuta, importo, descrizione, categoria_banca FROM banca_movimenti WHERE importo > 0"
+        params = []
+        if data_da:
+            query += " AND data_contabile >= ?"
+            params.append(data_da)
+        if data_a:
+            query += " AND data_contabile <= ?"
+            params.append(data_a)
+        if importo_min is not None:
+            query += " AND importo >= ?"
+            params.append(importo_min)
+        if importo_max is not None:
+            query += " AND importo <= ?"
+            params.append(importo_max)
+        if search:
+            query += " AND descrizione LIKE ?"
+            params.append(f"%{search}%")
+        query += " ORDER BY data_contabile DESC LIMIT 50"
+
+        rows = conn.execute(query, params).fetchall()
+        result = []
+        for r in rows:
+            result.append({
+                "id": r["id"],
+                "data_contabile": r["data_contabile"],
+                "data_valuta": r["data_valuta"],
+                "importo": r["importo"],
+                "descrizione": r["descrizione"],
+                "categoria_banca": r["categoria_banca"],
+                "gia_collegato": r["id"] in linked_ids,
+            })
+        return result
+    except Exception:
+        # Table might not exist yet
+        return []
+    finally:
+        conn.close()
+
+
 @router.post("/cash/deposit")
 async def create_cash_deposit(
     payload: CashDeposit,
@@ -1619,10 +1703,10 @@ async def create_cash_deposit(
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO cash_deposits (date, importo, note, created_by)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO cash_deposits (date, importo, note, banca_movimento_id, created_by)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (payload.date, payload.importo, payload.note, user.get("username", "")),
+            (payload.date, payload.importo, payload.note, payload.banca_movimento_id, user.get("username", "")),
         )
         conn.commit()
         return {"id": cur.lastrowid, "status": "ok"}
