@@ -462,6 +462,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [openFatturaId, setOpenFatturaId] = useState(null);
   const [fatturaDetail, setFatturaDetail] = useState(null);
   const [fatturaDetLoading, setFatturaDetLoading] = useState(false);
+  const [fattSort, setFattSort] = useState({ field: "data_fattura", dir: "desc" });
 
   // ── Categoria generica fornitore ──
   const [catGenericaId, setCatGenericaId] = useState("");
@@ -764,18 +765,18 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
               <table className="min-w-full text-xs">
                 <thead className="bg-neutral-50 text-neutral-600 sticky top-0 text-[10px] uppercase tracking-wide">
                   <tr>
-                    <th className="px-3 py-2 text-left">Data</th>
-                    <th className="px-3 py-2 text-left">N. Fattura</th>
-                    <th className="px-3 py-2 text-right">Imponibile</th>
-                    <th className="px-3 py-2 text-right">IVA</th>
-                    <th className="px-3 py-2 text-right">Totale</th>
-                    <th className="px-3 py-2 text-center">Righe</th>
-                    <th className="px-3 py-2 text-center">Stato</th>
+                    <SortTh label="Data" field="data_fattura" sort={fattSort} setSort={setFattSort} />
+                    <SortTh label="N. Fattura" field="numero_fattura" sort={fattSort} setSort={setFattSort} />
+                    <SortTh label="Imponibile" field="imponibile_totale" sort={fattSort} setSort={setFattSort} align="right" />
+                    <SortTh label="IVA" field="iva_totale" sort={fattSort} setSort={setFattSort} align="right" />
+                    <SortTh label="Totale" field="totale_fattura" sort={fattSort} setSort={setFattSort} align="right" />
+                    <SortTh label="Righe" field="n_righe" sort={fattSort} setSort={setFattSort} align="right" />
+                    <SortTh label="Stato" field="pagato_sort" sort={fattSort} setSort={setFattSort} />
                     <th className="px-3 py-2 text-center">Fonte</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fatture.map(f => (
+                  {sortRows(fatture.map(f => ({ ...f, pagato_sort: f.pagato ? 1 : 0 })), fattSort).map(f => (
                     <tr key={f.id}
                       onClick={() => openFattura(f.id)}
                       className={`border-t border-neutral-100 cursor-pointer transition ${
