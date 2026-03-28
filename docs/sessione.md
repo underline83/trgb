@@ -11,7 +11,8 @@
 - **NON fare `git commit`**. Le modifiche le fai nei file, ma il commit lo gestisce `push.sh` che lancia Marco dal suo terminale. Se committi tu, push.sh non chiede piu' il messaggio e Marco si confonde.
 - **NON fare `git push`**. L'ambiente Cowork non ha accesso alla rete (SSH/internet). Il push fallira' sempre.
 - **NON fare `git add -A`**. Rischi di includere file sensibili. Lascia che push.sh faccia tutto.
-- **Workflow corretto**: tu modifichi i file → dici a Marco "pronto, lancia `./push.sh`" → lui committa e deploya dal suo terminale.
+- **Workflow corretto**: tu modifichi i file → scrivi a Marco il testo suggerito per il commit → lui lancia `./push.sh "testo"` dal suo terminale.
+- **Suggerisci SEMPRE il testo del commit** quando dici a Marco di fare il push. Formato: una riga breve in italiano/inglese che descrive cosa cambia.
 - Se devi annullare le tue modifiche a un file: `git checkout -- <file>` (ma chiedi prima).
 
 ### Ambiente Cowork
