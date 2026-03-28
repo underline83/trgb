@@ -542,6 +542,8 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           sottocategoria_id: subGenericaId ? Number(subGenericaId) : null,
         }),
       });
+      // Ricarica lista per aggiornare badge cat_status
+      fetchAll();
     } catch (e) { console.error(e); }
     finally { setSavingGenerica(false); }
   };
