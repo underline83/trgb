@@ -1126,14 +1126,15 @@ def stats_mensili(
 # -------------------------------------------------------------------
 
 # Join per categorie fornitore (usato da stats/drill e filtro categoria)
+# Gestisce sia fornitore_piva NULL che "" (empty string da FIC)
 _CAT_JOIN = """
     LEFT JOIN fe_fornitore_categoria fc
-        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva = fc.fornitore_piva)
-        OR (f.fornitore_piva IS NULL AND f.fornitore_nome = fc.fornitore_nome)
+        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
+        OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
 """
-# Filtro base per escludere autofatture (doppie fiscali)
+# Filtro base per escludere autofatture + fornitori esclusi
 _EXCL_JOIN = _CAT_JOIN
-_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0"
+_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0 AND COALESCE(fc.escluso, 0) = 0"
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
@@ -1228,7 +1229,7 @@ def stats_kpi(
             SELECT
                 ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale_spesa,
                 COUNT(*) AS n_fatture,
-                COUNT(DISTINCT COALESCE(f.fornitore_piva, f.fornitore_nome)) AS n_fornitori,
+                COUNT(DISTINCT CASE WHEN f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' THEN f.fornitore_piva ELSE f.fornitore_nome END) AS n_fornitori,
                 COUNT(DISTINCT substr(f.data_fattura, 1, 7)) AS n_mesi
             FROM fe_fatture f {_EXCL_JOIN}
             WHERE {where}
@@ -1409,7 +1410,7 @@ def stats_anomalie(
     def _fornitori_per_anno(y):
         cur.execute(f"""
             SELECT
-                COALESCE(f.fornitore_piva, f.fornitore_nome) AS chiave,
+                CASE WHEN f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' THEN f.fornitore_piva ELSE f.fornitore_nome END AS chiave,
                 f.fornitore_nome,
                 ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
                 COUNT(*) AS n_fatture
