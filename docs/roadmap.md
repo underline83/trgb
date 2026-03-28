@@ -138,6 +138,25 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Gestione prezzi differenziati per listino (Asporto vs Ristorante vs WebApp)
 - [ ] Sync Description/Internal_name da TRGB (oltre al Name)
 
+## 31. Riorganizzazione database — Fase 2
+> Fase 1 completata (2026-03-28): rimossi DB morti (ingredients.sqlite3, vini.db) e model orfani.
+> Fase 2 da valutare quando foodcost.db diventa un collo di bottiglia (performance, concorrenza write, o crescita moduli).
+
+**Obiettivo:** spezzare `foodcost.db` (37+ tabelle, 5 domini) in database separati per modulo.
+
+- [ ] **fatture.sqlite3** — fe_fatture, fe_righe, fe_categorie, fe_sottocategorie, fe_fornitore_categoria, fe_prodotto_categoria_map, matching_*, fic_config, fic_fatture, fic_sync_log
+- [ ] **finanza.sqlite3** — finanza_movimenti, finanza_cat, finanza_subcat, finanza_regole_cat, finanza_scadenze, finanza_rate, finanza_import_log, banca_movimenti, banca_import_log, banca_categorie_map, banca_fatture_link
+- [ ] **ipratico.sqlite3** — ipratico_imports, ipratico_categorie, ipratico_prodotti, ipratico_product_map, ipratico_sync_log, ipratico_export_defaults
+- [ ] **foodcost.db** (ridotto) — ingredients, ingredient_categories, ingredient_prices, suppliers, ingredient_supplier_map, ingredient_unit_conversions, recipes, recipe_categories, recipe_items
+- [ ] Script migrazione dati con backup automatico pre-split
+- [ ] Aggiornare connection function per ogni modulo (get_fatture_conn, get_finanza_conn, etc.)
+- [ ] Aggiornare migration_runner per gestire migrazioni multi-db
+- [ ] Eliminare `vini.sqlite3` quando import Excel viene migrato a vini_magazzino direttamente
+
+**Prerequisiti:** backup automatico funzionante, test coverage minima sui router interessati.
+
+**Trigger per partire:** foodcost.db > 50 MB, oppure problemi di lock SQLite in concorrenza, oppure necessità di backup/restore granulare per modulo.
+
 ## 28. Modulo Banca — evoluzione
 - [ ] Riconciliazione banca: match automatico movimenti → fatture (migliorare cross-ref)
 - [ ] Eliminare scadenza mista BPM

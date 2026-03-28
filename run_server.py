@@ -14,7 +14,7 @@ FRONTEND_DIR="$PROJECT_DIR/frontend"
 VENV_DIR="$PROJECT_DIR/venv"
 PYTHON="$VENV_DIR/bin/python"
 PIP="$VENV_DIR/bin/pip"
-DB_PATH="$PROJECT_DIR/app/data/vini.db"
+DB_PATH="$PROJECT_DIR/app/data/vini_magazzino.sqlite3"
 
 echo "───────────────────────────────────────────────"
 echo "🚀 Avvio TRGB Gestionale — $(date '+%Y-%m-%d %H:%M:%S')"
@@ -45,15 +45,9 @@ for pkg in "${REQUIRED_PACKAGES[@]}"; do
     fi
 done
 
-# 6️⃣ Controllo database vini.db
+# 6️⃣ Controllo database principale
 if [ ! -f "$DB_PATH" ]; then
-    echo "🧱 Database non trovato → creazione automatica..."
-    $PYTHON - <<'EOF'
-from app.models.database import init_database
-print("Creazione database...")
-init_database()
-print("✅ Database vini.db creato correttamente.")
-EOF
+    echo "🧱 Database magazzino non trovato — verrà creato al primo avvio di FastAPI."
 else
     echo "✅ Database già presente."
 fi

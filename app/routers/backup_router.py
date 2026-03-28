@@ -27,9 +27,8 @@ DATABASES = [
     "vini.sqlite3",
     "vini_settings.sqlite3",
     "vini_magazzino.sqlite3",
-    "ingredients.sqlite3",
-    "vini.db",
     "foodcost.db",
+    "dipendenti.sqlite3",
 ]
 
 

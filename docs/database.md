@@ -1,16 +1,28 @@
 # Database — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-15
+**Ultimo aggiornamento:** 2026-03-28
 
 Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono in `app/data/`.
 
+## Database attivi
+
 | File | Moduli | Schema |
 |------|--------|--------|
-| ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | **ELIMINATO v3.0** — tutto su vini_magazzino.sqlite3 |
+| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, iPratico, FIC | v4.0 — gestito da `migration_runner.py` (001–026) |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini) | v3.7 — creato da `vini_magazzino_db.py` |
 | `vini_settings.sqlite3` | Settings Carta Vini | v1.4 — creato da `vini_settings.py` |
-| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, iPratico Products | v4.0 — gestito da `migration_runner.py` (001–022) |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | v2.0 — chiusure turno con pre-conti e spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | v1.0 — creato a runtime da `dipendenti_db.py` |
+| `vini.sqlite3` | Import Excel legacy (vini_raw) | Solo per ponte import, non usato direttamente |
+
+## Eliminati (2026-03-28)
+
+| File | Motivo |
+|------|--------|
+| `ingredients.sqlite3` | Vuoto (1 byte), mai usato — ingredienti gestiti in foodcost.db |
+| `vini.db` | Residuo legacy con 1 tabella ingredients, non importato da nessun modulo |
+| `app/models/vini_db.py` | Model legacy del vecchio DB vini — sostituito da vini_magazzino_db.py |
+| `app/models/ingredients_db.py` | Model per ingredients.sqlite3 — mai usato |
+| `app/models/ingredients.py` | Model legacy che puntava a vini.db — mai importato |
 
 ---
 
