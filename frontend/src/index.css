@@ -81,3 +81,11 @@ a:hover {
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+/* ----------------------------------------------------------
+   ANIMAZIONE TOAST — slide down + fade in
+   ---------------------------------------------------------- */
+@keyframes fadeSlide {
+  0%   { opacity: 0; transform: translate(-50%, -20px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}

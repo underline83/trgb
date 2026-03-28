@@ -375,6 +375,12 @@ export default function MagazzinoVini() {
   const [bulkData, setBulkData] = useState({});
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkResult, setBulkResult] = useState(null);
+  // Toast globale per feedback azioni massive
+  const [toast, setToast] = useState(null); // { type: "ok"|"error", message: string }
+  const showToast = (type, message, ms = 4000) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), ms);
+  };
   const [tabellaOpts, setTabellaOpts] = useState({ tipologie: [], nazioni: [], regioni: [], formati: [] });
 
   // ------- FILTRI --------
@@ -632,9 +638,16 @@ export default function MagazzinoVini() {
       const result = await resp.json();
       if (!resp.ok) throw new Error(result.detail || "Errore");
       setBulkResult(result);
-      fetchVini(); // ricarica dati
+      // Chiudi pannello, deseleziona e mostra toast di conferma
+      setBulkEditOpen(false);
+      setSelectedIds([]);
+      const msg = `✅ Aggiornati ${result.updated} vini` +
+        (result.errors?.length ? ` (${result.errors.length} errori)` : "");
+      showToast("ok", msg);
+      fetchVini();
     } catch (err) {
       setBulkResult({ status: "error", message: err.message });
+      showToast("error", `❌ ${err.message}`);
     } finally {
       setBulkSaving(false);
     }
@@ -653,11 +666,11 @@ export default function MagazzinoVini() {
       });
       const result = await resp.json();
       if (!resp.ok) throw new Error(result.detail || "Errore");
-      alert(result.msg);
+      showToast("ok", result.msg || `✅ Duplicati ${result.duplicati} vini`);
       setSelectedIds([]);
       fetchVini();
     } catch (err) {
-      alert(err.message || "Errore durante la duplicazione");
+      showToast("error", `❌ ${err.message || "Errore durante la duplicazione"}`);
     } finally {
       setBulkDuplicating(false);
     }
@@ -1674,6 +1687,17 @@ export default function MagazzinoVini() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── TOAST NOTIFICA GLOBALE ── */}
+      {toast && (
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-xl shadow-2xl text-sm font-semibold
+          transition-all animate-[fadeSlide_0.3s_ease-out]
+          ${toast.type === "ok"
+            ? "bg-emerald-600 text-white border border-emerald-400"
+            : "bg-red-600 text-white border border-red-400"}`}>
+          {toast.message}
         </div>
       )}
     </div>

@@ -434,6 +434,11 @@ def _process_single_xml(
                     )
                     righe_aggiunte += 1
 
+                # Auto-categorizza righe arricchite
+                if righe_aggiunte > 0:
+                    from app.routers.fe_categorie_router import auto_categorize_righe
+                    auto_categorize_righe(conn, fic_id, fornitore_piva)
+
                 nota = f"arricchita con {righe_aggiunte} righe da XML" if righe_aggiunte > 0 else "già presente da Fatture in Cloud"
             else:
                 nota = "già presente da Fatture in Cloud (righe già presenti)"
@@ -524,6 +529,10 @@ def _process_single_xml(
                 None,
             ),
         )
+
+    # Auto-categorizza righe in base a mapping prodotto + default fornitore
+    from app.routers.fe_categorie_router import auto_categorize_righe
+    auto_categorize_righe(conn, fattura_id, fornitore_piva)
 
     conn.commit()
 

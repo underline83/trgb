@@ -362,6 +362,10 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
             )
             result["righe"] += 1
 
+        # Auto-categorizza righe in base a mapping prodotto + default fornitore
+        from app.routers.fe_categorie_router import auto_categorize_righe
+        auto_categorize_righe(conn, fattura_db_id, fornitore_piva)
+
     except Exception as e:
         print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
 

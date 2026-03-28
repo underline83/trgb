@@ -36,6 +36,55 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+# ─── Auto-categorizzazione righe (usata anche dagli import) ───
+
+def auto_categorize_righe(conn, fattura_id: int, fornitore_piva: str | None):
+    """
+    Assegna categoria/sottocategoria alle righe di una fattura appena importata.
+    Priorità: 1) mapping prodotto specifico  2) default fornitore.
+    Viene chiamata dopo l'inserimento delle righe.
+    """
+    cur = conn.cursor()
+
+    # 1) Applica mapping prodotto (priorità alta)
+    cur.execute("""
+        UPDATE fe_righe
+        SET categoria_id = (
+                SELECT pm.categoria_id FROM fe_prodotto_categoria_map pm
+                WHERE pm.fornitore_piva = ? AND pm.descrizione_norm = LOWER(TRIM(fe_righe.descrizione))
+            ),
+            sottocategoria_id = (
+                SELECT pm.sottocategoria_id FROM fe_prodotto_categoria_map pm
+                WHERE pm.fornitore_piva = ? AND pm.descrizione_norm = LOWER(TRIM(fe_righe.descrizione))
+            )
+        WHERE fattura_id = ?
+          AND EXISTS (
+              SELECT 1 FROM fe_prodotto_categoria_map pm
+              WHERE pm.fornitore_piva = ? AND pm.descrizione_norm = LOWER(TRIM(fe_righe.descrizione))
+          )
+    """, (fornitore_piva, fornitore_piva, fattura_id, fornitore_piva))
+
+    # 2) Applica default fornitore alle righe rimaste senza categoria
+    if fornitore_piva:
+        cur.execute("""
+            UPDATE fe_righe
+            SET categoria_id = (
+                    SELECT fc.categoria_id FROM fe_fornitore_categoria fc
+                    WHERE fc.fornitore_piva = ?
+                ),
+                sottocategoria_id = (
+                    SELECT fc.sottocategoria_id FROM fe_fornitore_categoria fc
+                    WHERE fc.fornitore_piva = ?
+                )
+            WHERE fattura_id = ?
+              AND categoria_id IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM fe_fornitore_categoria fc
+                  WHERE fc.fornitore_piva = ? AND fc.categoria_id IS NOT NULL
+              )
+        """, (fornitore_piva, fornitore_piva, fattura_id, fornitore_piva))
+
+
 # ─── Pydantic models ───────────────────────────────────────────
 
 class CategoriaIn(BaseModel):
@@ -353,9 +402,28 @@ def assegna_fornitore(body: FornitoreAssign):
                 VALUES (NULL, ?, ?, ?, ?)
             """, (body.fornitore_nome, body.categoria_id, body.sottocategoria_id, body.note))
 
+    # ── Propaga la categoria fornitore a tutte le righe SENZA override prodotto ──
+    forn_filter = "f.fornitore_piva = ?" if body.fornitore_piva else "f.fornitore_nome = ? AND f.fornitore_piva IS NULL"
+    forn_val = body.fornitore_piva if body.fornitore_piva else body.fornitore_nome
+    cur.execute(f"""
+        UPDATE fe_righe
+        SET categoria_id = ?, sottocategoria_id = ?
+        WHERE id IN (
+            SELECT r.id FROM fe_righe r
+            JOIN fe_fatture f ON r.fattura_id = f.id
+            WHERE {forn_filter}
+              AND NOT EXISTS (
+                  SELECT 1 FROM fe_prodotto_categoria_map pm
+                  WHERE pm.fornitore_piva = f.fornitore_piva
+                    AND pm.descrizione_norm = LOWER(TRIM(r.descrizione))
+              )
+        )
+    """, (body.categoria_id, body.sottocategoria_id, forn_val))
+    righe_aggiornate = cur.execute("SELECT changes()").fetchone()[0]
+
     conn.commit()
     conn.close()
-    return {"ok": True}
+    return {"ok": True, "righe_aggiornate": righe_aggiornate}
 
 
 # ─── ESCLUSIONE FORNITORI (auto-fatture, duplicati) ───────────
@@ -462,6 +530,7 @@ def list_prodotti_fornitore(fornitore_piva: str):
           AND r.descrizione IS NOT NULL
           AND r.descrizione != ''
         GROUP BY LOWER(TRIM(r.descrizione))
+        HAVING NOT (totale_spesa = 0 AND quantita_totale = 0)
         ORDER BY totale_spesa DESC
     """, (fornitore_piva,))
 
