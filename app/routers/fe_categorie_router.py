@@ -530,7 +530,7 @@ def list_prodotti_fornitore(fornitore_piva: str):
           AND r.descrizione IS NOT NULL
           AND r.descrizione != ''
         GROUP BY LOWER(TRIM(r.descrizione))
-        HAVING NOT (totale_spesa = 0 AND quantita_totale = 0)
+        HAVING totale_spesa != 0
         ORDER BY totale_spesa DESC
     """, (fornitore_piva,))
 
