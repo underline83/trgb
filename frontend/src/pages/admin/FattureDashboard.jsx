@@ -257,7 +257,7 @@ function KpiCards({ kpi }) {
       label: "Totale Spesa",
       value: `€ ${fmt(kpi.totale_spesa)}`,
       sub: kpi.delta_pct != null
-        ? `${kpi.delta_pct > 0 ? "+" : ""}${kpi.delta_pct}% vs ${kpi.prev_year}`
+        ? `${kpi.delta_pct > 0 ? "+" : ""}${kpi.delta_pct}% vs stesso periodo ${kpi.prev_year}`
         : null,
       subColor: kpi.delta_pct > 0 ? "text-red-600" : kpi.delta_pct < 0 ? "text-green-600" : "text-neutral-500",
       bg: "bg-teal-50 border-teal-200",

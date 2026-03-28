@@ -1219,12 +1219,15 @@ def stats_kpi(
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    def _kpi_for_year(y: int | None):
+    def _kpi_for_year(y: int | None, max_date: str | None = None):
         where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
         params: list = []
         if y is not None:
             where += " AND substr(f.data_fattura, 1, 4) = ?"
             params.append(str(y))
+        if max_date is not None:
+            where += " AND f.data_fattura <= ?"
+            params.append(max_date)
         cur.execute(f"""
             SELECT
                 ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale_spesa,
@@ -1242,9 +1245,23 @@ def stats_kpi(
     kpi = _kpi_for_year(year)
     kpi["year"] = year
 
-    # Confronto anno precedente
+    # Confronto anno precedente — stesso periodo (es. gen-mar 2026 vs gen-mar 2025)
     if year is not None:
-        prev = _kpi_for_year(year - 1)
+        # Trova la data piu' recente nell'anno selezionato
+        cur.execute(f"""
+            SELECT MAX(f.data_fattura) FROM fe_fatture f
+            WHERE substr(f.data_fattura, 1, 4) = ? AND f.data_fattura IS NOT NULL
+              AND {_EXCL_WHERE}
+        """, (str(year),))
+        max_row = cur.fetchone()
+        max_date_current = max_row[0] if max_row else None
+
+        # Calcola la data equivalente nell'anno precedente
+        prev_max_date = None
+        if max_date_current:
+            prev_max_date = str(year - 1) + max_date_current[4:]  # es. 2026-03-28 → 2025-03-28
+
+        prev = _kpi_for_year(year - 1, max_date=prev_max_date)
         kpi["prev_year"] = year - 1
         kpi["prev_totale_spesa"] = prev["totale_spesa"]
         if prev["totale_spesa"] and prev["totale_spesa"] > 0:
