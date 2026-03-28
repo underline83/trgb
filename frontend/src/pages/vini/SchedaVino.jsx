@@ -684,7 +684,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                               // Auto-calcola calice se non manuale
                               if (!p.PREZZO_CALICE_MANUALE) {
                                 const pf = parseFloat(val);
-                                upd.PREZZO_CALICE = pf > 0 ? Math.round(pf / 5 * 100) / 100 : "";
+                                upd.PREZZO_CALICE = pf > 0 ? (Math.round((pf / 5) * 2) / 2).toFixed(1) : "";
                               }
                               return upd;
                             });

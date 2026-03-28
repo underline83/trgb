@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/vini/MagazzinoViniNuovo.jsx
-// @version: v1.2-loc-dropdowns
+// @version: v2.0-scheda-style-unified
 // Pagina Magazzino Vini — Inserimento nuovo vino (NO ID EXCEL) + Formato a lista + check duplicati (C)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -63,14 +63,20 @@ export default function MagazzinoViniNuovo() {
     FORMATO: "BT",
     PRODUTTORE: "",
     DISTRIBUTORE: "",
+    RAPPRESENTANTE: "",
 
     PREZZO_CARTA: "",
+    PREZZO_CALICE: "",
+    PREZZO_CALICE_MANUALE: 0,
     EURO_LISTINO: "",
     SCONTO: "",
     NOTE_PREZZO: "",
 
     CARTA: "SI",
     IPRATICO: "NO",
+    VENDITA_CALICE: "NO",
+    BIOLOGICO: "NO",
+    FORZA_PREZZO: 0,
 
     STATO_VENDITA: "",
     STATO_RIORDINO: "",
@@ -112,11 +118,6 @@ export default function MagazzinoViniNuovo() {
         setTimeout(() => setPrezzoAutoCalc(false), 2000);
       }
     } catch {}
-  };
-
-  const handleCheckboxSiNo = (field) => (e) => {
-    const checked = e.target.checked;
-    setForm((prev) => ({ ...prev, [field]: checked ? "SI" : "NO" }));
   };
 
   const numberOrNull = (val) => {
@@ -254,14 +255,20 @@ export default function MagazzinoViniNuovo() {
 
       PRODUTTORE: nullIfEmpty(form.PRODUTTORE),
       DISTRIBUTORE: nullIfEmpty(form.DISTRIBUTORE),
+      RAPPRESENTANTE: nullIfEmpty(form.RAPPRESENTANTE),
 
       PREZZO_CARTA: numberOrNull(form.PREZZO_CARTA),
+      PREZZO_CALICE: numberOrNull(form.PREZZO_CALICE),
+      PREZZO_CALICE_MANUALE: form.PREZZO_CALICE_MANUALE ? 1 : 0,
       EURO_LISTINO: numberOrNull(form.EURO_LISTINO),
       SCONTO: numberOrNull(form.SCONTO),
       NOTE_PREZZO: nullIfEmpty(form.NOTE_PREZZO),
 
       CARTA: form.CARTA === "SI" ? "SI" : "NO",
       IPRATICO: form.IPRATICO === "SI" ? "SI" : "NO",
+      VENDITA_CALICE: form.VENDITA_CALICE === "SI" ? "SI" : "NO",
+      BIOLOGICO: form.BIOLOGICO === "SI" ? "SI" : "NO",
+      FORZA_PREZZO: form.FORZA_PREZZO ? 1 : 0,
 
       STATO_VENDITA: nullIfEmpty(form.STATO_VENDITA),
       STATO_RIORDINO: nullIfEmpty(form.STATO_RIORDINO),
@@ -482,292 +489,126 @@ export default function MagazzinoViniNuovo() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* BLOCCO 1 — Anagrafica */}
-          <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Anagrafica vino
-            </h2>
+        <form onSubmit={handleSubmit} className="space-y-0">
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Tipologia *
-                </label>
-                <select value={form.TIPOLOGIA} onChange={handleChange("TIPOLOGIA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— seleziona —</option>
-                  {tipologie.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+          {/* ── ANAGRAFICA ── */}
+          <div className="border-b border-neutral-200">
+            <div className="flex items-center px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+              <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">Anagrafica</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {inputField("Descrizione *", form.DESCRIZIONE, handleChange("DESCRIZIONE"))}
+                {inputField("Denominazione", form.DENOMINAZIONE, handleChange("DENOMINAZIONE"), { placeholder: "es. Barolo DOCG" })}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {selectField("Tipologia *", form.TIPOLOGIA, handleChange("TIPOLOGIA"), tipologie.map(t => ({ value: t, label: t })), "— seleziona —")}
+                {selectField("Nazione *", form.NAZIONE, handleChange("NAZIONE"), nazioni.map(n => ({ value: n, label: n })), "— seleziona —")}
+                {selectField("Regione", form.REGIONE, handleChange("REGIONE"), regioni.map(r => ({ value: r, label: r })), "— nessuna —")}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {inputField("Annata", form.ANNATA, handleChange("ANNATA"), { placeholder: "es. 2019" })}
+                {selectField("Formato", form.FORMATO, handleChange("FORMATO"), formati.map(f => {
+                  const fmt = typeof f === "string" ? f : f.formato;
+                  const desc = typeof f === "string" ? "" : f.descrizione;
+                  const litri = typeof f === "string" ? "" : f.litri;
+                  return { value: fmt, label: desc ? `${fmt} — ${desc}${litri ? ` (${litri}L)` : ""}` : fmt };
+                }), "— seleziona —")}
+                {inputField("Vitigni", form.VITIGNI, handleChange("VITIGNI"))}
+                {inputField("Grado alcolico", form.GRADO_ALCOLICO, handleChange("GRADO_ALCOLICO"), { type: "number", step: "0.1" })}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Produttore</label>
+                  <input list="produttori-list" value={form.PRODUTTORE} onChange={handleChange("PRODUTTORE")} placeholder="es. Gaja"
+                    className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                  <datalist id="produttori-list">{produttori.map(p => <option key={p} value={p} />)}</datalist>
+                </div>
+                {inputField("Distributore", form.DISTRIBUTORE, handleChange("DISTRIBUTORE"))}
+                {inputField("Rappresentante", form.RAPPRESENTANTE, handleChange("RAPPRESENTANTE"))}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Nazione *
-                </label>
-                <select value={form.NAZIONE} onChange={handleChange("NAZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— seleziona —</option>
-                  {nazioni.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+              {/* Prezzi */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-neutral-100">
+                {inputField(`Prezzo carta €${prezzoAutoCalc ? " ✓ auto" : ""}`, form.PREZZO_CARTA, (e) => {
+                  const val = e.target.value;
+                  setForm(p => {
+                    const upd = { ...p, PREZZO_CARTA: val };
+                    if (!p.PREZZO_CALICE_MANUALE) {
+                      const pf = parseFloat(val);
+                      upd.PREZZO_CALICE = pf > 0 ? (Math.round((pf / 5) * 2) / 2).toFixed(1) : "";
+                    }
+                    return upd;
+                  });
+                }, { type: "number", step: "0.50" })}
+                {inputField(`Calice €${form.PREZZO_CALICE_MANUALE ? " ✎" : " (auto)"}`, form.PREZZO_CALICE, (e) => {
+                  setForm(p => ({ ...p, PREZZO_CALICE: e.target.value, PREZZO_CALICE_MANUALE: 1 }));
+                }, { type: "number", step: "0.50" })}
+                {inputField("Listino €", form.EURO_LISTINO, handleChange("EURO_LISTINO"), { type: "number", step: "0.01", onBlur: autoCalcPrezzo })}
+                {inputField("Sconto %", form.SCONTO, handleChange("SCONTO"), { type: "number", step: "0.01" })}
               </div>
 
+              {/* Flag toggle */}
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
+                {flagToggle("Carta Vini", form.CARTA, v => setForm(p => ({ ...p, CARTA: v })))}
+                {flagToggle("iPratico", form.IPRATICO, v => setForm(p => ({ ...p, IPRATICO: v })))}
+                {flagToggle("Calice", form.VENDITA_CALICE, v => setForm(p => ({ ...p, VENDITA_CALICE: v })))}
+                {flagToggle("Biologico", form.BIOLOGICO, v => setForm(p => ({ ...p, BIOLOGICO: v })))}
+                {flagToggle("Forza Prezzo", form.FORZA_PREZZO ? "SI" : "NO", v => setForm(p => ({ ...p, FORZA_PREZZO: v === "SI" ? 1 : 0 })))}
+              </div>
+
+              {/* Stato */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-neutral-100">
+                {selectField("Stato vendita", form.STATO_VENDITA, handleChange("STATO_VENDITA"), STATO_VENDITA_OPTIONS)}
+                {selectField("Stato riordino", form.STATO_RIORDINO, handleChange("STATO_RIORDINO"), STATO_RIORDINO_OPTIONS)}
+                {selectField("Stato conservazione", form.STATO_CONSERVAZIONE, handleChange("STATO_CONSERVAZIONE"), STATO_CONSERVAZIONE_OPTIONS)}
+              </div>
+
+              {/* Note */}
+              {inputField("Note stato", form.NOTE_STATO, handleChange("NOTE_STATO"))}
+              {inputField("Note prezzo", form.NOTE_PREZZO, handleChange("NOTE_PREZZO"))}
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Regione
-                </label>
-                <select value={form.REGIONE} onChange={handleChange("REGIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— nessuna —</option>
-                  {regioni.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">Note interne</label>
+                <textarea value={form.NOTE} onChange={handleChange("NOTE")} rows={2}
+                  className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
               </div>
             </div>
+          </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Descrizione vino *
-                </label>
-                <input
-                  type="text"
-                  value={form.DESCRIZIONE}
-                  onChange={handleChange("DESCRIZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="Testo completo come appare sulla carta"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Formato
-                </label>
-                <select value={form.FORMATO} onChange={handleChange("FORMATO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  <option value="">— seleziona —</option>
-                  {formati.map(f => {
-                    const fmt = typeof f === "string" ? f : f.formato;
-                    const desc = typeof f === "string" ? "" : f.descrizione;
-                    const litri = typeof f === "string" ? "" : f.litri;
-                    const label = desc ? `${fmt} — ${desc}${litri ? ` (${litri}L)` : ""}` : fmt;
-                    return <option key={fmt} value={fmt}>{label}</option>;
-                  })}
-                </select>
-              </div>
+          {/* ── GIACENZE ── */}
+          <div className="border-b border-neutral-200">
+            <div className="flex items-center px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+              <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">Giacenze per locazione</h2>
             </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Denominazione
-                </label>
-                <input
-                  type="text"
-                  value={form.DENOMINAZIONE}
-                  onChange={handleChange("DENOMINAZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. Barolo DOCG"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Annata
-                </label>
-                <input
-                  type="text"
-                  value={form.ANNATA}
-                  onChange={handleChange("ANNATA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. 2019"
-                />
-              </div>
-
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Produttore
-                </label>
-                <input
-                  list="produttori-list"
-                  value={form.PRODUTTORE}
-                  onChange={handleChange("PRODUTTORE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                  placeholder="es. Gaja"
-                />
-                <datalist id="produttori-list">
-                  {produttori.map((p) => (
-                    <option key={p} value={p} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-                  Distributore
-                </label>
-                <input
-                  type="text"
-                  value={form.DISTRIBUTORE}
-                  onChange={handleChange("DISTRIBUTORE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={form.CARTA === "SI"}
-                    onChange={handleCheckboxSiNo("CARTA")}
-                    className="rounded border-neutral-400"
-                  />
-                  <span>In carta</span>
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-neutral-700">
-                  <input
-                    type="checkbox"
-                    checked={form.IPRATICO === "SI"}
-                    onChange={handleCheckboxSiNo("IPRATICO")}
-                    className="rounded border-neutral-400"
-                  />
-                  <span>Presente su iPratico</span>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {/* BLOCCO 2 — Magazzino */}
-          <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Magazzino — locazioni e giacenze iniziali
-            </h2>
-            <p className="text-xs text-neutral-500 mb-3">
-              È obbligatorio indicare almeno una locazione (frigorifero o locazione 1/2/3).
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Frigorifero */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Frigorifero</div>
-                <LocationPicker options={opzioniFrigo} value={form.FRIGORIFERO}
-                  onChange={val => setForm(p => ({...p, FRIGORIFERO: val}))} placeholder="Cerca frigorifero…" />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input type="number" value={form.QTA_FRIGO} onChange={handleChange("QTA_FRIGO")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
-                  <span className="text-xs text-neutral-500">bt</span>
+            <div className="p-5">
+              <p className="text-xs text-neutral-500 mb-3">
+                Obbligatorio almeno una locazione. La matrice si assegna dopo la creazione.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {locCard("Frigorifero", opzioniFrigo, form.FRIGORIFERO, v => setForm(p => ({...p, FRIGORIFERO: v})), form.QTA_FRIGO, handleChange("QTA_FRIGO"), "Cerca frigorifero…")}
+                {locCard("Locazione 1", opzioniLoc1, form.LOCAZIONE_1, v => setForm(p => ({...p, LOCAZIONE_1: v})), form.QTA_LOC1, handleChange("QTA_LOC1"), "Cerca locazione 1…")}
+                {locCard("Locazione 2", opzioniLoc2, form.LOCAZIONE_2, v => setForm(p => ({...p, LOCAZIONE_2: v})), form.QTA_LOC2, handleChange("QTA_LOC2"), "Cerca locazione 2…")}
+                <div className="border border-neutral-200 rounded-xl bg-white p-3 flex items-center justify-center">
+                  <p className="text-xs text-neutral-400">Matrice: si assegna dalla scheda dettaglio dopo la creazione.</p>
                 </div>
               </div>
-              {/* Locazione 1 */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 1</div>
-                <LocationPicker options={opzioniLoc1} value={form.LOCAZIONE_1}
-                  onChange={val => setForm(p => ({...p, LOCAZIONE_1: val}))} placeholder="Cerca locazione 1…" />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input type="number" value={form.QTA_LOC1} onChange={handleChange("QTA_LOC1")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
-              {/* Locazione 2 */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Locazione 2</div>
-                <LocationPicker options={opzioniLoc2} value={form.LOCAZIONE_2}
-                  onChange={val => setForm(p => ({...p, LOCAZIONE_2: val}))} placeholder="Cerca locazione 2…" />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-600">Quantità</span>
-                  <input type="number" value={form.QTA_LOC2} onChange={handleChange("QTA_LOC2")}
-                    className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="0" />
-                  <span className="text-xs text-neutral-500">bt</span>
-                </div>
-              </div>
-              {/* Matrice (Locazione 3) — info */}
-              <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-                <div className="text-[11px] font-semibold text-neutral-600 uppercase">Matrice</div>
-                <p className="text-xs text-neutral-500">
-                  Le celle matrice si assegnano dopo aver creato il vino, dalla scheda dettaglio.
-                </p>
-              </div>
             </div>
-          </section>
-
-          {/* BLOCCO 3 — Prezzi & stato */}
-          <section className="border border-neutral-200 rounded-2xl p-4 lg:p-5 bg-neutral-50">
-            <h2 className="text-sm font-semibold text-neutral-800 mb-3 uppercase tracking-wide">
-              Prezzi, stato vendita e note
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {numField(`Prezzo carta (€)${prezzoAutoCalc ? " ✓ auto" : ""}`, "PREZZO_CARTA", form, handleChange, { step: "0.50" })}
-              {numField("Listino acquisto (€)", "EURO_LISTINO", form, handleChange, { onBlur: autoCalcPrezzo })}
-              {numField("Sconto (%)", "SCONTO", form, handleChange)}
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato vendita</label>
-                <select value={form.STATO_VENDITA} onChange={handleChange("STATO_VENDITA")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  {STATO_VENDITA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato riordino</label>
-                <select value={form.STATO_RIORDINO} onChange={handleChange("STATO_RIORDINO")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  {STATO_RIORDINO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">Stato conservazione</label>
-                <select value={form.STATO_CONSERVAZIONE} onChange={handleChange("STATO_CONSERVAZIONE")}
-                  className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-                  {STATO_CONSERVAZIONE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {textareaField("Note prezzo / condizioni acquisto", "NOTE_PREZZO", form, handleChange, 2)}
-              {textareaField("Note stato / vendita", "NOTE_STATO", form, handleChange, 2)}
-            </div>
-
-            <div className="mt-4">
-              {textareaField("Note interne magazzino", "NOTE", form, handleChange, 3)}
-            </div>
-          </section>
+          </div>
 
           {/* FOOTER */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 p-5">
             <div className="text-xs text-neutral-500">
-              {loadingOptions
-                ? "Caricamento suggerimenti da vini_magazzino…"
-                : "Suggerimenti caricati da vini_magazzino (tipologie, nazioni, regioni, produttori)."}
+              {loadingOptions ? "Caricamento…" : ""}
               {dupChecking ? " • Check duplicati…" : ""}
             </div>
-
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate("/vini/magazzino")}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
-              >
+              <button type="button" onClick={() => navigate("/vini/magazzino")}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
                 Annulla
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                  submitting
-                    ? "bg-gray-400 text-white cursor-not-allowed"
-                    : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
-                }`}
-              >
-                {submitting ? "Salvataggio in corso…" : "💾 Salva nuovo vino"}
+              <button type="submit" disabled={submitting}
+                className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${submitting ? "bg-gray-400 text-white cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
+                {submitting ? "Salvataggio…" : "💾 Salva nuovo vino"}
               </button>
             </div>
           </div>
@@ -778,89 +619,68 @@ export default function MagazzinoViniNuovo() {
   );
 }
 
-/* ----------------- piccoli helper UI ----------------- */
+/* ----------------- Helper UI (stile SchedaVino) ----------------- */
 
-function FORMATiOptions(list) {
-  return list.map((f) => (
-    <option key={f.code} value={f.code}>
-      {f.code} — {f.label}
-    </option>
-  ));
+function inputField(label, value, onChange, opts = {}) {
+  const { type = "text", step, placeholder, onBlur, readOnly } = opts;
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
+      <input
+        type={type} step={step} placeholder={placeholder} readOnly={readOnly}
+        value={value ?? ""} onChange={onChange} onBlur={onBlur}
+        className={`w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 ${readOnly ? "bg-neutral-50 text-neutral-500" : ""}`}
+      />
+    </div>
+  );
 }
 
-function locCard(title, locKey, qtaKey, form, handleChange) {
+function selectField(label, value, onChange, options, placeholder) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
+      <select value={value ?? ""} onChange={onChange}
+        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map(o => {
+          const val = typeof o === "string" ? o : o.value;
+          const lab = typeof o === "string" ? o : o.label;
+          return <option key={val} value={val}>{lab}</option>;
+        })}
+      </select>
+    </div>
+  );
+}
+
+function flagToggle(label, value, onChange) {
+  const on = value === "SI" || value === 1 || value === true;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-[10px] font-semibold text-neutral-600 uppercase tracking-wide">{label}</span>
+      <button type="button" onClick={() => onChange(on ? "NO" : "SI")}
+        className={`w-12 h-6 rounded-full relative transition-colors ${on ? "bg-amber-500" : "bg-neutral-300"}`}>
+        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${on ? "left-6" : "left-0.5"}`} />
+      </button>
+      <span className={`text-[10px] font-medium ${on ? "text-amber-700" : "text-neutral-400"}`}>{on ? "Sì" : "No"}</span>
+    </div>
+  );
+}
+
+function locCard(title, options, locValue, onLocChange, qtaValue, onQtaChange, placeholder) {
   return (
     <div className="border border-neutral-200 rounded-xl bg-white p-3 space-y-2">
-      <div className="text-[11px] font-semibold text-neutral-600 uppercase">
-        {title}
-      </div>
-      <input
-        type="text"
-        value={form[locKey]}
-        onChange={handleChange(locKey)}
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-      />
+      <div className="text-[11px] font-semibold text-neutral-600 uppercase tracking-wide">{title}</div>
+      <select value={locValue ?? ""} onChange={e => onLocChange(e.target.value)}
+        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+        <option value="">{placeholder || "— nessuna —"}</option>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
       <div className="flex items-center gap-2">
         <span className="text-xs text-neutral-600">Quantità</span>
-        <input
-          type="number"
-          value={form[qtaKey]}
-          onChange={handleChange(qtaKey)}
-          className="w-24 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-          placeholder="0"
-        />
+        <input type="number" value={qtaValue ?? ""} onChange={onQtaChange} placeholder="0"
+          className="w-24 border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
         <span className="text-xs text-neutral-500">bt</span>
       </div>
-    </div>
-  );
-}
-
-function numField(label, key, form, handleChange, { onBlur, step } = {}) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-        {label}
-      </label>
-      <input
-        type="number"
-        step={step || "0.01"}
-        value={form[key]}
-        onChange={handleChange(key)}
-        onBlur={onBlur}
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-      />
-    </div>
-  );
-}
-
-function textField(label, key, form, handleChange) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-        {label}
-      </label>
-      <input
-        type="text"
-        value={form[key]}
-        onChange={handleChange(key)}
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-      />
-    </div>
-  );
-}
-
-function textareaField(label, key, form, handleChange, rows) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-neutral-600 mb-1 uppercase tracking-wide">
-        {label}
-      </label>
-      <textarea
-        value={form[key]}
-        onChange={handleChange(key)}
-        rows={rows}
-        className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
-      />
     </div>
   );
 }
