@@ -49,7 +49,7 @@ export default function FattureFornitoriElenco() {
   const [searchText, setSearchText] = useState("");
   const [annoSel, setAnnoSel] = useState(String(new Date().getFullYear()));
   const [categoriaSel, setCategoriaSel] = useState(""); // "ok" | "partial" | "none" | "empty" | ""
-  const [ordineSel, setOrdineSel] = useState("totale_desc");
+  const [fornSort, setFornSort] = useState({ field: "totale_fatture", dir: "desc" });
 
   // ── Selezione massiva ──
   const [selected, setSelected] = useState(new Set());
@@ -108,29 +108,15 @@ export default function FattureFornitoriElenco() {
         list = list.filter(f => f.cat_status === categoriaSel);
       }
     }
-    list.sort((a, b) => {
-      switch (ordineSel) {
-        case "totale_desc": return (b.totale_fatture || 0) - (a.totale_fatture || 0);
-        case "totale_asc": return (a.totale_fatture || 0) - (b.totale_fatture || 0);
-        case "fatture_desc": return (b.numero_fatture || 0) - (a.numero_fatture || 0);
-        case "fatture_asc": return (a.numero_fatture || 0) - (b.numero_fatture || 0);
-        case "nome_asc": return (a.fornitore_nome || "").localeCompare(b.fornitore_nome || "", "it");
-        case "nome_desc": return (b.fornitore_nome || "").localeCompare(a.fornitore_nome || "", "it");
-        case "ultimo_desc": return (b.ultimo_acquisto || "").localeCompare(a.ultimo_acquisto || "");
-        case "ultimo_asc": return (a.ultimo_acquisto || "").localeCompare(b.ultimo_acquisto || "");
-        case "cat_asc": {
-          const ord = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
-          return (ord[a.cat_status] ?? 4) - (ord[b.cat_status] ?? 4);
-        }
-        case "cat_desc": {
-          const ord = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
-          return (ord[b.cat_status] ?? 4) - (ord[a.cat_status] ?? 4);
-        }
-        default: return 0;
-      }
-    });
-    return list;
-  }, [fornitori, searchText, ordineSel, categoriaSel]);
+    // Aggiungi campi di sort calcolati
+    const catOrd = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
+    list = list.map(f => ({
+      ...f,
+      cat_sort: catOrd[f.cat_status] ?? 4,
+      media_fattura: f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0,
+    }));
+    return sortRows(list, fornSort);
+  }, [fornitori, searchText, fornSort, categoriaSel]);
 
   // ── KPI ──
   const totFornitori = filtered.length;
@@ -138,9 +124,9 @@ export default function FattureFornitoriElenco() {
   const totFatture = filtered.reduce((s, f) => s + (f.numero_fatture || 0), 0);
 
   // ── Contatori filtri attivi ──
-  const activeFilters = [searchText, annoSel, categoriaSel, ordineSel !== "totale_desc" ? "x" : ""].filter(Boolean).length;
+  const activeFilters = [searchText, annoSel, categoriaSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
   const clearFilters = () => {
-    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setOrdineSel("totale_desc");
+    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setFornSort({ field: "totale_fatture", dir: "desc" });
   };
 
   // ── Selezione massiva: toggle ──
@@ -278,23 +264,6 @@ export default function FattureFornitoriElenco() {
               </div>
             </div>
 
-            <div className="bg-blue-50/40 rounded-lg p-2.5 border border-blue-100 shadow-sm">
-              <div className="text-[9px] font-extrabold text-blue-600 uppercase tracking-widest mb-1.5">Ordinamento</div>
-              <div>
-                <label className={fLbl}>Ordina per</label>
-                <select value={ordineSel} onChange={e => setOrdineSel(e.target.value)} className={fSel}>
-                  <option value="totale_desc">Spesa totale (alto → basso)</option>
-                  <option value="totale_asc">Spesa totale (basso → alto)</option>
-                  <option value="fatture_desc">N. fatture (alto → basso)</option>
-                  <option value="fatture_asc">N. fatture (basso → alto)</option>
-                  <option value="nome_asc">Nome (A → Z)</option>
-                  <option value="nome_desc">Nome (Z → A)</option>
-                  <option value="ultimo_desc">Ultimo acquisto (recente)</option>
-                  <option value="ultimo_asc">Ultimo acquisto (vecchio)</option>
-                </select>
-              </div>
-            </div>
-
             <div className="flex gap-1.5 pt-1">
               <button onClick={clearFilters}
                 className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
@@ -380,22 +349,19 @@ export default function FattureFornitoriElenco() {
                         onChange={toggleAll}
                         className="accent-teal-600" />
                     </th>
-                    <th className="px-3 py-2 text-left">Fornitore</th>
-                    <th className="px-2 py-2 text-center w-10 cursor-pointer select-none"
-                      onClick={() => setOrdineSel(o => o === "cat_asc" ? "cat_desc" : "cat_asc")}
-                      title="Ordina per stato categorie">Cat</th>
+                    <SortTh label="Fornitore" field="fornitore_nome" sort={fornSort} setSort={setFornSort} />
+                    <SortTh label="Cat" field="cat_sort" sort={fornSort} setSort={setFornSort} align="right" />
                     <th className="px-3 py-2 text-left hidden sm:table-cell">P.IVA</th>
-                    <th className="px-3 py-2 text-right">Fatture</th>
-                    <th className="px-3 py-2 text-right">Totale €</th>
-                    <th className="px-3 py-2 text-right hidden md:table-cell">Media/Fatt.</th>
-                    <th className="px-3 py-2 text-center hidden md:table-cell">Primo</th>
-                    <th className="px-3 py-2 text-center hidden md:table-cell">Ultimo</th>
+                    <SortTh label="Fatture" field="numero_fatture" sort={fornSort} setSort={setFornSort} align="right" />
+                    <SortTh label="Totale €" field="totale_fatture" sort={fornSort} setSort={setFornSort} align="right" />
+                    <SortTh label="Media" field="media_fattura" sort={fornSort} setSort={setFornSort} align="right" />
+                    <SortTh label="Primo" field="primo_acquisto" sort={fornSort} setSort={setFornSort} />
+                    <SortTh label="Ultimo" field="ultimo_acquisto" sort={fornSort} setSort={setFornSort} />
                     <th className="px-3 py-2 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((f, idx) => {
-                    const media = f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0;
                     const key = f.fornitore_piva || f.fornitore_nome;
                     const isSelected = selected.has(key);
                     return (
@@ -435,9 +401,9 @@ export default function FattureFornitoriElenco() {
                         <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums">{f.numero_fatture}</td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-teal-900">€ {fmt(f.totale_fatture)}</td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500 hidden md:table-cell">€ {fmt(media)}</td>
-                        <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.primo_acquisto || "—"}</td>
-                        <td className="px-3 py-2.5 text-center text-[10px] text-neutral-500 hidden md:table-cell">{f.ultimo_acquisto || "—"}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500">€ {fmt(f.media_fattura)}</td>
+                        <td className="px-3 py-2.5 text-left text-[10px] text-neutral-500">{f.primo_acquisto || "—"}</td>
+                        <td className="px-3 py-2.5 text-left text-[10px] text-neutral-500">{f.ultimo_acquisto || "—"}</td>
                         <td className="px-3 py-2.5 text-center text-neutral-400">→</td>
                       </tr>
                     );
