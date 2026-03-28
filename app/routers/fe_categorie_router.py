@@ -405,12 +405,13 @@ def assegna_fornitore(body: FornitoreAssign):
             """, (body.fornitore_nome, body.categoria_id, body.sottocategoria_id, body.note))
 
     # ── Propaga la categoria fornitore SOLO alle righe senza categoria ──
-    # (non tocca righe già categorizzate, né manuali né auto precedenti)
+    # categoria_auto = 0 perché è una scelta manuale dell'utente.
+    # Solo auto_categorize_righe (durante import) setta categoria_auto = 1.
     forn_filter = "f.fornitore_piva = ?" if body.fornitore_piva else "f.fornitore_nome = ? AND f.fornitore_piva IS NULL"
     forn_val = body.fornitore_piva if body.fornitore_piva else body.fornitore_nome
     cur.execute(f"""
         UPDATE fe_righe
-        SET categoria_id = ?, sottocategoria_id = ?, categoria_auto = 1
+        SET categoria_id = ?, sottocategoria_id = ?, categoria_auto = 0
         WHERE id IN (
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id
