@@ -1250,6 +1250,7 @@ def stats_kpi(
         # Trova la data piu' recente nell'anno selezionato
         cur.execute(f"""
             SELECT MAX(f.data_fattura) FROM fe_fatture f
+            {_EXCL_JOIN}
             WHERE substr(f.data_fattura, 1, 4) = ? AND f.data_fattura IS NOT NULL
               AND {_EXCL_WHERE}
         """, (str(year),))
