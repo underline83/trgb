@@ -803,7 +803,7 @@ def list_fatture(
     cat_join = ""
     if need_cat_join:
         cat_join = f"""
-            {_EXCL_JOIN}
+            {_CAT_JOIN}
             LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         """
         if categoria == "(Non categorizzato)":
@@ -1133,8 +1133,18 @@ _CAT_JOIN = """
         OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
 """
 # Filtro base per escludere autofatture + fornitori esclusi
-_EXCL_JOIN = _CAT_JOIN
-_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0 AND COALESCE(fc.escluso, 0) = 0"
+# NOTA: NON usare fc.escluso nel WHERE — il LEFT JOIN con OR puo' creare
+# duplicati/filtrare troppo. Usare NOT EXISTS per l'esclusione.
+_EXCL_JOIN = ""
+_EXCL_WHERE = """COALESCE(f.is_autofattura, 0) = 0
+    AND NOT EXISTS (
+        SELECT 1 FROM fe_fornitore_categoria exc
+        WHERE exc.escluso = 1
+          AND (
+              (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = exc.fornitore_piva)
+              OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = exc.fornitore_nome AND exc.fornitore_piva IS NULL)
+          )
+    )"""
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
@@ -1181,7 +1191,7 @@ def stats_drill(
             ROUND(COALESCE(f.totale_fattura, 0), 2) AS totale_fattura,
             COALESCE(c.nome, '') AS categoria
         FROM fe_fatture f
-        {_EXCL_JOIN}
+        {_CAT_JOIN}
         LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         WHERE {where_sql}
         ORDER BY f.data_fattura DESC, f.totale_fattura DESC
@@ -1196,7 +1206,7 @@ def stats_drill(
             COUNT(*) AS n_fatture,
             ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale
         FROM fe_fatture f
-        {_EXCL_JOIN}
+        {_CAT_JOIN}
         LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         WHERE {where_sql}
     """, params)
@@ -1301,7 +1311,7 @@ def stats_per_categoria_dashboard(
             ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
             COUNT(*) AS n_fatture
         FROM fe_fatture f
-        {_EXCL_JOIN}
+        {_CAT_JOIN}
         LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         WHERE {where}
         GROUP BY c.nome
@@ -1345,7 +1355,7 @@ def stats_top_fornitori(
             COUNT(*) AS n_fatture,
             COALESCE(c.nome, '') AS categoria
         FROM fe_fatture f
-        {_EXCL_JOIN}
+        {_CAT_JOIN}
         LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
         WHERE {where}
         GROUP BY f.fornitore_nome, f.fornitore_piva
@@ -1425,7 +1435,22 @@ def stats_anomalie(
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    def _fornitori_per_anno(y):
+    # Trova la data piu' recente nell'anno selezionato per confronto stesso periodo
+    cur.execute(f"""
+        SELECT MAX(f.data_fattura) FROM fe_fatture f
+        WHERE substr(f.data_fattura, 1, 4) = ? AND f.data_fattura IS NOT NULL
+          AND {_EXCL_WHERE}
+    """, (str(year),))
+    max_row = cur.fetchone()
+    max_date_current = max_row[0] if max_row else None
+    prev_max_date = str(year - 1) + max_date_current[4:] if max_date_current else None
+
+    def _fornitori_per_anno(y, max_date=None):
+        extra = ""
+        params = [str(y)]
+        if max_date:
+            extra = " AND f.data_fattura <= ?"
+            params.append(max_date)
         cur.execute(f"""
             SELECT
                 CASE WHEN f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' THEN f.fornitore_piva ELSE f.fornitore_nome END AS chiave,
@@ -1437,12 +1462,13 @@ def stats_anomalie(
             WHERE f.data_fattura IS NOT NULL
               AND substr(f.data_fattura, 1, 4) = ?
               AND {_EXCL_WHERE}
+              {extra}
             GROUP BY chiave
-        """, (str(y),))
+        """, params)
         return {r["chiave"]: dict(r) for r in cur.fetchall()}
 
     curr = _fornitori_per_anno(year)
-    prev = _fornitori_per_anno(year - 1)
+    prev = _fornitori_per_anno(year - 1, max_date=prev_max_date)
 
     anomalie = []
 
