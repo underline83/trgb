@@ -15,6 +15,7 @@ export default function FattureInCloud() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [syncProgress, setSyncProgress] = useState(null); // { phase, total, phase1_done, phase2_total, phase2_done, last_fornitore, ... }
   const [fatture, setFatture] = useState([]);
   const [totalFatture, setTotalFatture] = useState(0);
   const [page, setPage] = useState(1);
@@ -100,10 +101,34 @@ export default function FattureInCloud() {
     fetchStatus();
   };
 
-  // ── Sync ────────────────────────────────────────────────
+  // ── Sync con progress ─────────────────────────────────
   const handleSync = async () => {
     setSyncing(true);
     setSyncResult(null);
+    setSyncProgress(null);
+
+    // 1) Conta rapida per avere il totale
+    try {
+      const countR = await apiFetch(`${FC}/sync/count?anno=${anno}`);
+      if (countR.ok) {
+        const countData = await countR.json();
+        setSyncProgress({ phase: "count", total: countData.total, phase1_done: 0, phase2_total: 0, phase2_done: 0, last_fornitore: "" });
+      }
+    } catch (_) {}
+
+    // 2) Avvia polling progress
+    const pollId = setInterval(async () => {
+      try {
+        const pr = await apiFetch(`${FC}/sync/progress`);
+        if (pr.ok) {
+          const p = await pr.json();
+          setSyncProgress(prev => ({ ...prev, ...p }));
+          if (p.phase === "done") clearInterval(pollId);
+        }
+      } catch (_) {}
+    }, 1500);
+
+    // 3) Avvia sync (bloccante finché non finisce)
     try {
       const r = await apiFetch(`${FC}/sync?anno=${anno}`, { method: "POST" });
       const d = await r.json();
@@ -117,7 +142,11 @@ export default function FattureInCloud() {
     } catch (e) {
       alert("Errore di rete durante sync");
     }
+
+    clearInterval(pollId);
     setSyncing(false);
+    // Mantieni progress visibile per qualche secondo, poi nascondi
+    setTimeout(() => setSyncProgress(null), 3000);
   };
 
   // ── RENDER ──────────────────────────────────────────────
@@ -214,6 +243,54 @@ export default function FattureInCloud() {
                 </button>
               </div>
             </div>
+
+            {/* Sync progress bar */}
+            {syncing && syncProgress && syncProgress.total > 0 && (
+              <div className="bg-white border border-teal-200 rounded-xl p-4 mb-6 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-teal-900">
+                    {syncProgress.phase === "lista" ? "Fase 1 — Lettura fatture" :
+                     syncProgress.phase === "dettaglio" ? "Fase 2 — Scaricamento dettagli" :
+                     syncProgress.phase === "done" ? "Completata" : "Preparazione..."}
+                  </span>
+                  <span className="text-xs text-neutral-500">
+                    {syncProgress.phase === "lista" && `${syncProgress.phase1_done || 0} / ${syncProgress.total}`}
+                    {syncProgress.phase === "dettaglio" && `${syncProgress.phase2_done || 0} / ${syncProgress.phase2_total || "?"}`}
+                  </span>
+                </div>
+                {/* Barra progresso */}
+                <div className="w-full bg-neutral-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-teal-500 to-teal-600"
+                    style={{ width: `${(() => {
+                      const p = syncProgress;
+                      if (p.phase === "lista" && p.total > 0)
+                        return Math.min(100, Math.round((p.phase1_done / p.total) * 50));
+                      if (p.phase === "dettaglio" && p.phase2_total > 0)
+                        return Math.min(100, 50 + Math.round((p.phase2_done / p.phase2_total) * 50));
+                      if (p.phase === "done") return 100;
+                      return 2;
+                    })()}%` }}
+                  />
+                </div>
+                {/* Info sotto la barra */}
+                <div className="flex items-center justify-between mt-2 text-xs text-neutral-500">
+                  <span>
+                    {syncProgress.last_fornitore && (
+                      <span className="text-neutral-600">{syncProgress.last_fornitore}</span>
+                    )}
+                  </span>
+                  <span>
+                    {(syncProgress.nuove > 0 || syncProgress.aggiornate > 0) && (
+                      <span className="text-teal-700">
+                        +{syncProgress.nuove} nuove, ↻{syncProgress.aggiornate} agg.
+                        {syncProgress.errori > 0 && <span className="text-red-600 ml-1">⚠ {syncProgress.errori}</span>}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Sync result */}
             {syncResult && (

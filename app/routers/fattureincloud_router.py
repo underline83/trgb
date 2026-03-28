@@ -81,6 +81,29 @@ def fic_get(token: str, path: str, params: dict = None) -> dict:
     return r.json()
 
 
+# ─── SYNC PROGRESS (module-level) ─────────────────────────
+_sync_progress: Dict[str, Any] = {
+    "running": False,
+    "phase": "",           # "count" | "lista" | "dettaglio" | "done"
+    "total": 0,            # totale documenti da API
+    "current": 0,          # documento corrente in elaborazione
+    "phase1_done": 0,      # documenti processati in fase 1 (lista)
+    "phase2_total": 0,     # documenti che necessitano dettaglio
+    "phase2_done": 0,      # documenti con dettaglio completato
+    "nuove": 0,
+    "aggiornate": 0,
+    "errori": 0,
+    "last_fornitore": "",  # ultimo fornitore elaborato (feedback visivo)
+}
+
+def _reset_progress():
+    _sync_progress.update({
+        "running": False, "phase": "", "total": 0, "current": 0,
+        "phase1_done": 0, "phase2_total": 0, "phase2_done": 0,
+        "nuove": 0, "aggiornate": 0, "errori": 0, "last_fornitore": "",
+    })
+
+
 # ─── MODELS ───────────────────────────────────────────────
 class ConnectRequest(BaseModel):
     access_token: str = Field(..., description="Token personale FIC")
@@ -345,6 +368,40 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
     return result
 
 
+@router.get("/sync/count", summary="Conta veloce fatture da sincronizzare")
+def fic_sync_count(
+    anno: int = Query(None, description="Anno (default: corrente)"),
+    current_user: Any = Depends(get_current_user),
+):
+    """Chiama l'API FIC con per_page=1 per ottenere il totale rapidamente."""
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+        if not anno:
+            anno = datetime.now().year
+        params = {
+            "type": "expense",
+            "per_page": 1,
+            "page": 1,
+            "q": f"date >= '{anno}-01-01' and date <= '{anno}-12-31'",
+        }
+        data = fic_get(token, f"/c/{cid}/received_documents", params)
+        total = data.get("total", 0)
+        return {"anno": anno, "total": total}
+    finally:
+        conn.close()
+
+
+@router.get("/sync/progress", summary="Progresso sincronizzazione in corso")
+def fic_sync_progress(current_user: Any = Depends(get_current_user)):
+    """Ritorna lo stato attuale della sincronizzazione."""
+    return dict(_sync_progress)
+
+
 @router.post("/sync", summary="Sincronizza fatture ricevute → fe_fatture", response_model=SyncResult)
 def fic_sync(
     anno: int = Query(None, description="Anno da sincronizzare (default: anno corrente)"),
@@ -393,6 +450,11 @@ def fic_sync(
         # Traccia documenti per cui fetchare il dettaglio (fic_id → fattura_db_id)
         docs_to_detail = []
 
+        # ── PROGRESS INIT ────────────────────────────────────
+        _reset_progress()
+        _sync_progress["running"] = True
+        _sync_progress["phase"] = "lista"
+
         # ── FASE 1: LISTA (header) ──────────────────────────
         while True:
             try:
@@ -426,6 +488,7 @@ def fic_sync(
             items = data.get("data", [])
             totale_api = data.get("total", len(items))
             last_page = data.get("last_page", page)
+            _sync_progress["total"] = totale_api
 
             for doc in items:
                 try:
@@ -440,6 +503,7 @@ def fic_sync(
                     entity = doc.get("entity", {}) or {}
                     fornitore_nome = entity.get("name", "") or "Sconosciuto"
                     fornitore_piva = entity.get("vat_number", "") or ""
+                    _sync_progress["last_fornitore"] = fornitore_nome
 
                     # Importi
                     amount_net = doc.get("amount_net", 0) or 0
@@ -563,6 +627,11 @@ def fic_sync(
                     err_msg = f"Fase1 doc fic_id={doc.get('id', '?')}: {e}"
                     error_details.append(err_msg)
                     print(f"⚠️ {err_msg}")
+                finally:
+                    _sync_progress["phase1_done"] += 1
+                    _sync_progress["nuove"] = nuove
+                    _sync_progress["aggiornate"] = aggiornate
+                    _sync_progress["errori"] = errori
 
             conn.commit()
 
@@ -573,6 +642,9 @@ def fic_sync(
         # ── FASE 2: DETTAGLIO (righe + pagato + dedup XML) ──
         merged_xml = 0
         senza_dettaglio: list[dict] = []
+        _sync_progress["phase"] = "dettaglio"
+        _sync_progress["phase2_total"] = len(docs_to_detail)
+        _sync_progress["phase2_done"] = 0
         for i, (fic_id, fattura_db_id) in enumerate(docs_to_detail):
             try:
                 res = _fetch_detail_and_righe(conn, token, cid, fic_id, fattura_db_id)
@@ -595,6 +667,9 @@ def fic_sync(
             except Exception as e:
                 errori += 1
                 error_details.append(f"Fase2 dettaglio fic_id={fic_id}, db_id={fattura_db_id}: {e}")
+
+            _sync_progress["phase2_done"] = i + 1
+            _sync_progress["errori"] = errori
 
             # Commit ogni 20 documenti
             if (i + 1) % 20 == 0:
@@ -620,6 +695,9 @@ def fic_sync(
         )
         conn.commit()
 
+        _sync_progress["phase"] = "done"
+        _sync_progress["running"] = False
+
         return SyncResult(
             nuove=nuove,
             aggiornate=aggiornate,
@@ -633,6 +711,10 @@ def fic_sync(
             items=[SyncResultItem(**it) for it in sync_items],
             senza_dettaglio=[SyncResultItem(**it) for it in senza_dettaglio],
         )
+    except Exception:
+        _sync_progress["phase"] = "done"
+        _sync_progress["running"] = False
+        raise
     finally:
         conn.close()
 
