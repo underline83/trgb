@@ -937,10 +937,50 @@ def stats_fornitori(
         params,
     )
 
-    rows = cur.fetchall()
+    rows = [dict(r) for r in cur.fetchall()]
+
+    # ── Conteggi righe con/senza categoria per fornitore ──
+    # Per ogni fornitore conta: righe_totali, righe con categoria_id assegnata
+    cat_params: list = []
+    cat_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
+    if year is not None:
+        cat_where.append("substr(f.data_fattura, 1, 4) = ?")
+        cat_params.append(str(year))
+
+    cat_where_sql = " AND ".join(cat_where)
+    cur.execute(
+        f"""
+        SELECT
+            COALESCE(f.fornitore_piva, f.fornitore_nome) AS forn_key,
+            COUNT(r.id) AS righe_totali,
+            SUM(CASE WHEN r.categoria_id IS NOT NULL THEN 1 ELSE 0 END) AS righe_categorizzate
+        FROM fe_righe r
+        JOIN fe_fatture f ON r.fattura_id = f.id
+        WHERE {cat_where_sql}
+        GROUP BY forn_key
+        """,
+        cat_params,
+    )
+    cat_map = {r["forn_key"]: (r["righe_totali"], r["righe_categorizzate"]) for r in cur.fetchall()}
+
     conn.close()
 
-    return [dict(r) for r in rows]
+    for row in rows:
+        key = row["fornitore_piva"] or row["fornitore_nome"]
+        righe_tot, righe_cat = cat_map.get(key, (0, 0))
+        row["righe_totali"] = righe_tot
+        row["righe_categorizzate"] = righe_cat
+        # Flag: "ok" se tutte categorizzate, "partial" se alcune, "none" se nessuna, "empty" se 0 righe
+        if righe_tot == 0:
+            row["cat_status"] = "empty"
+        elif righe_cat == righe_tot:
+            row["cat_status"] = "ok"
+        elif righe_cat > 0:
+            row["cat_status"] = "partial"
+        else:
+            row["cat_status"] = "none"
+
+    return rows
 
 
 @router.get(

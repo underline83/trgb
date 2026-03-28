@@ -48,7 +48,7 @@ export default function FattureFornitoriElenco() {
   // ── Filtri ──
   const [searchText, setSearchText] = useState("");
   const [annoSel, setAnnoSel] = useState(String(new Date().getFullYear()));
-  const [categoriaSel, setCategoriaSel] = useState("");
+  const [categoriaSel, setCategoriaSel] = useState(""); // "ok" | "partial" | "none" | "empty" | ""
   const [ordineSel, setOrdineSel] = useState("totale_desc");
 
   // ── Selezione massiva ──
@@ -100,6 +100,9 @@ export default function FattureFornitoriElenco() {
         f.fornitore_nome?.toLowerCase().includes(q) ||
         f.fornitore_piva?.toLowerCase().includes(q)
       );
+    }
+    if (categoriaSel) {
+      list = list.filter(f => f.cat_status === categoriaSel);
     }
     list.sort((a, b) => {
       switch (ordineSel) {
@@ -247,6 +250,20 @@ export default function FattureFornitoriElenco() {
               </div>
             </div>
 
+            <div className="bg-amber-50/50 rounded-lg p-2.5 border border-amber-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Categorie</div>
+              <div>
+                <label className={fLbl}>Stato prodotti</label>
+                <select value={categoriaSel} onChange={e => setCategoriaSel(e.target.value)} className={fSel}>
+                  <option value="">Tutti</option>
+                  <option value="ok">✓ Tutti categorizzati</option>
+                  <option value="partial">◐ Parziale</option>
+                  <option value="none">✗ Nessuno categorizzato</option>
+                  <option value="empty">— Senza righe</option>
+                </select>
+              </div>
+            </div>
+
             <div className="bg-blue-50/40 rounded-lg p-2.5 border border-blue-100 shadow-sm">
               <div className="text-[9px] font-extrabold text-blue-600 uppercase tracking-widest mb-1.5">Ordinamento</div>
               <div>
@@ -374,7 +391,25 @@ export default function FattureFornitoriElenco() {
                             onChange={() => toggleSelect(key)}
                             className="accent-teal-600" />
                         </td>
-                        <td className="px-3 py-2.5 font-medium text-neutral-900">{f.fornitore_nome || "—"}</td>
+                        <td className="px-3 py-2.5 font-medium text-neutral-900">
+                          <span className="flex items-center gap-1.5">
+                            {f.fornitore_nome || "—"}
+                            {f.cat_status === "ok" && (
+                              <span title={`${f.righe_categorizzate}/${f.righe_totali} prodotti categorizzati`}
+                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                            )}
+                            {f.cat_status === "partial" && (
+                              <span title={`${f.righe_categorizzate}/${f.righe_totali} prodotti categorizzati`}
+                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700">
+                                {f.righe_categorizzate}/{f.righe_totali}
+                              </span>
+                            )}
+                            {f.cat_status === "none" && f.righe_totali > 0 && (
+                              <span title={`0/${f.righe_totali} — nessun prodotto categorizzato`}
+                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">✗</span>
+                            )}
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums">{f.numero_fatture}</td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-teal-900">€ {fmt(f.totale_fatture)}</td>
