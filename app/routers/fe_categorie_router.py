@@ -480,6 +480,57 @@ def escludi_fornitore(body: FornitoreEscludi):
     return {"ok": True}
 
 
+# ─── ESCLUSIONE DA ACQUISTI ─────────────────────────────────────
+
+class FornitoreEscludiAcquisti(BaseModel):
+    """Toggle esclusione fornitore dal modulo Acquisti (affitti, servizi non pertinenti)."""
+    fornitore_piva: Optional[str] = None
+    fornitore_nome: str
+    escluso_acquisti: bool = True
+
+
+@router.post("/fornitori/escludi-acquisti",
+             summary="Nascondi/mostra un fornitore nelle statistiche acquisti")
+def toggle_escluso_acquisti(body: FornitoreEscludiAcquisti):
+    """
+    Setta escluso_acquisti=1/0 per un fornitore.
+    I fornitori esclusi vengono rimossi da dashboard, KPI, grafici acquisti
+    ma restano visibili nell'elenco fornitori (con badge).
+    """
+    conn = _get_conn()
+    cur = conn.cursor()
+    val = 1 if body.escluso_acquisti else 0
+
+    if body.fornitore_piva:
+        cur.execute("SELECT id FROM fe_fornitore_categoria WHERE fornitore_piva = ?",
+                     (body.fornitore_piva,))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute("UPDATE fe_fornitore_categoria SET escluso_acquisti = ? WHERE fornitore_piva = ?",
+                        (val, body.fornitore_piva))
+        else:
+            cur.execute("""
+                INSERT INTO fe_fornitore_categoria (fornitore_piva, fornitore_nome, escluso_acquisti)
+                VALUES (?, ?, ?)
+            """, (body.fornitore_piva, body.fornitore_nome, val))
+    else:
+        cur.execute("SELECT id FROM fe_fornitore_categoria WHERE fornitore_nome = ? AND fornitore_piva IS NULL",
+                     (body.fornitore_nome,))
+        existing = cur.fetchone()
+        if existing:
+            cur.execute("UPDATE fe_fornitore_categoria SET escluso_acquisti = ? WHERE id = ?",
+                        (val, existing["id"]))
+        else:
+            cur.execute("""
+                INSERT INTO fe_fornitore_categoria (fornitore_piva, fornitore_nome, escluso_acquisti)
+                VALUES (NULL, ?, ?)
+            """, (body.fornitore_nome, val))
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "escluso_acquisti": val}
+
+
 # ─── STATS PER CATEGORIA ───────────────────────────────────────
 
 # ─── CATEGORIZZAZIONE PRODOTTI (per riga fattura) ──────────────
@@ -491,6 +542,16 @@ class ProdottoAssign(BaseModel):
     descrizione: str
     categoria_id: Optional[int] = None
     sottocategoria_id: Optional[int] = None
+
+
+def _forn_filter(key: str) -> tuple[str, str]:
+    """Genera clausola WHERE per match fornitore: se sembra una P.IVA cerca per piva, altrimenti per nome.
+    Ritorna (sql_fragment, param_value)."""
+    # P.IVA italiana = 11 cifre, oppure codice fiscale alfanumerico 11-16 char
+    if key and (key.isdigit() or (len(key) >= 11 and len(key) <= 16)):
+        return "(f.fornitore_piva = ?)", key
+    # Fallback: cerca per nome (fornitore senza P.IVA)
+    return "(f.fornitore_nome = ? AND (f.fornitore_piva IS NULL OR f.fornitore_piva = ''))", key
 
 
 def _normalize_desc(desc: str) -> str:
@@ -509,8 +570,9 @@ def list_prodotti_fornitore(fornitore_piva: str):
     conn = _get_conn()
     cur = conn.cursor()
 
-    # Cerca per P.IVA, fallback per nome
-    cur.execute("""
+    # Cerca per P.IVA o per nome (gestisce P.IVA NULL/vuota)
+    forn_filter, forn_val = _forn_filter(fornitore_piva)
+    cur.execute(f"""
         SELECT
             r.descrizione,
             COUNT(*) AS n_righe,
@@ -527,13 +589,13 @@ def list_prodotti_fornitore(fornitore_piva: str):
         JOIN fe_fatture f ON r.fattura_id = f.id
         LEFT JOIN fe_categorie c ON r.categoria_id = c.id
         LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
-        WHERE f.fornitore_piva = ?
+        WHERE {forn_filter}
           AND r.descrizione IS NOT NULL
           AND r.descrizione != ''
         GROUP BY LOWER(TRIM(r.descrizione))
         HAVING totale_spesa != 0
         ORDER BY totale_spesa DESC
-    """, (fornitore_piva,))
+    """, (forn_val,))
 
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
@@ -553,17 +615,18 @@ def assegna_prodotto(body: ProdottoAssign):
     desc_norm = _normalize_desc(body.descrizione)
 
     # 1. Aggiorna tutte le righe esistenti per questo fornitore + descrizione (manuale → auto=0)
-    cur.execute("""
+    forn_filter, forn_val = _forn_filter(body.fornitore_piva or body.fornitore_nome)
+    cur.execute(f"""
         UPDATE fe_righe
         SET categoria_id = ?, sottocategoria_id = ?, categoria_auto = 0
         WHERE id IN (
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id
-            WHERE f.fornitore_piva = ?
+            WHERE {forn_filter}
               AND LOWER(TRIM(r.descrizione)) = ?
         )
     """, (body.categoria_id, body.sottocategoria_id,
-          body.fornitore_piva, desc_norm))
+          forn_val, desc_norm))
 
     # 2. Salva/aggiorna il mapping per futuri import
     cur.execute("""
@@ -598,7 +661,8 @@ def stats_fornitore(fornitore_piva: str):
     """Breakdown spesa per categoria dentro un singolo fornitore."""
     conn = _get_conn()
     cur = conn.cursor()
-    cur.execute("""
+    forn_filter, forn_val = _forn_filter(fornitore_piva)
+    cur.execute(f"""
         SELECT
             COALESCE(c.nome, '(Non categorizzato)') AS categoria,
             COALESCE(s.nome, '') AS sottocategoria,
@@ -608,11 +672,11 @@ def stats_fornitore(fornitore_piva: str):
         JOIN fe_fatture f ON r.fattura_id = f.id
         LEFT JOIN fe_categorie c ON r.categoria_id = c.id
         LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
-        WHERE f.fornitore_piva = ?
+        WHERE {forn_filter}
           AND r.descrizione IS NOT NULL
         GROUP BY c.nome, s.nome
         ORDER BY totale_spesa DESC
-    """, (fornitore_piva,))
+    """, (forn_val,))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows

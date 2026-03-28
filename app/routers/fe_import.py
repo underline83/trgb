@@ -939,7 +939,8 @@ def stats_fornitori(
             sub.primo_acquisto,
             sub.ultimo_acquisto,
             fc.categoria_id,
-            cat.nome AS categoria_nome
+            cat.nome AS categoria_nome,
+            COALESCE(fc.escluso_acquisti, 0) AS escluso_acquisti
         FROM (
             SELECT
                 f.fornitore_nome,
@@ -1074,38 +1075,24 @@ def stats_mensili(
     _ensure_tables(conn)
     cur = conn.cursor()
 
+    where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
+    params: list = []
     if year is not None:
-        cur.execute(
-            """
-            SELECT
-                substr(f.data_fattura, 1, 4) AS anno,
-                substr(f.data_fattura, 6, 2) AS mese,
-                COUNT(*) AS numero_fatture,
-                SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
-            FROM fe_fatture f
-            WHERE f.data_fattura IS NOT NULL
-              AND substr(f.data_fattura, 1, 4) = ?
-              AND COALESCE(f.is_autofattura, 0) = 0
-            GROUP BY anno, mese
-            ORDER BY mese ASC
-            """,
-            (str(year),),
-        )
-    else:
-        cur.execute(
-            """
-            SELECT
-                substr(f.data_fattura, 1, 4) AS anno,
-                substr(f.data_fattura, 6, 2) AS mese,
-                COUNT(*) AS numero_fatture,
-                SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
-            FROM fe_fatture f
-            WHERE f.data_fattura IS NOT NULL
-              AND COALESCE(f.is_autofattura, 0) = 0
-            GROUP BY anno, mese
-            ORDER BY anno DESC, mese ASC
-            """
-        )
+        where += " AND substr(f.data_fattura, 1, 4) = ?"
+        params.append(str(year))
+
+    cur.execute(f"""
+        SELECT
+            substr(f.data_fattura, 1, 4) AS anno,
+            substr(f.data_fattura, 6, 2) AS mese,
+            COUNT(*) AS numero_fatture,
+            SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture
+        FROM fe_fatture f
+        {_EXCL_JOIN}
+        WHERE {where}
+        GROUP BY anno, mese
+        ORDER BY {'mese ASC' if year is not None else 'anno DESC, mese ASC'}
+    """, params)
 
     rows = cur.fetchall()
     conn.close()
@@ -1124,11 +1111,14 @@ _CAT_JOIN = """
         ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
         OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
 """
-# Filtro base: solo autofatture escluse.
-# NOTA: il campo `escluso` in fe_fornitore_categoria è SOLO per il modulo
-# Ricette/Matching — NON usarlo mai nelle query acquisti/dashboard.
-_EXCL_JOIN = ""
-_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0"
+# Filtro base acquisti: autofatture + fornitori esclusi da acquisti.
+# NOTA: `escluso` è SOLO per Ricette/Matching. `escluso_acquisti` è per Acquisti.
+_EXCL_JOIN = """
+    LEFT JOIN fe_fornitore_categoria fc
+        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
+        OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
+"""
+_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0 AND COALESCE(fc.escluso_acquisti, 0) = 0"
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")
@@ -1454,6 +1444,7 @@ def stats_anomalie(
     # Trova la data piu' recente nell'anno selezionato per confronto stesso periodo
     cur.execute(f"""
         SELECT MAX(f.data_fattura) FROM fe_fatture f
+        {_EXCL_JOIN}
         WHERE substr(f.data_fattura, 1, 4) = ? AND f.data_fattura IS NOT NULL
           AND {_EXCL_WHERE}
     """, (str(year),))

@@ -110,8 +110,8 @@ id, fornitore_nome, fornitore_piva, numero_fattura, data_fattura, imponibile_tot
 id, fattura_id (FK), numero_linea, descrizione, quantita, unita_misura, prezzo_unitario, prezzo_totale, aliquota_iva, categoria_id, sottocategoria_id, categoria_auto (0=manuale, 1=ereditata da import)
 
 ### Tabella `fe_fornitore_categoria`
-fornitore_piva, fornitore_nome, categoria_id, sottocategoria_id, escluso
-> **NOTA**: il campo `escluso` e' usato SOLO dal modulo Ricette/Matching (RicetteMatching.jsx). NON deve mai essere usato nelle query del modulo Acquisti.
+fornitore_piva, fornitore_nome, categoria_id, sottocategoria_id, escluso, escluso_acquisti
+> **NOTA**: `escluso` e' usato SOLO dal modulo Ricette/Matching. `escluso_acquisti` e' usato SOLO dal modulo Acquisti. Non mescolare mai i due campi!
 
 ### Tabella `fe_prodotto_categoria`
 fornitore_piva, fornitore_nome, descrizione, categoria_id, sottocategoria_id
@@ -167,6 +167,8 @@ frontend/src/pages/admin/
 - **Prop `onReloadList`**: fix aggiornamento lista fornitori dopo salvataggio categoria generica
 - **Migrazione 029**: reset `categoria_auto` residue (Latini, Risto Team)
 - **Backend**: `stats_fornitori` riscritto con subquery, `stats_per_categoria` include sottocategorie, `_CAT_JOIN` separato da `_EXCL_JOIN`
+- **Esclusione fornitori da acquisti** (`escluso_acquisti`): nuovo campo dedicato in `fe_fornitore_categoria`, separato da `escluso` (Ricette/Matching). Toggle nel dettaglio fornitore ("Nascondi da acquisti"). Fornitori esclusi rimossi da dashboard/KPI/grafici ma visibili nell'elenco con badge "escluso". Checkbox "Mostra esclusi" nella sidebar. Endpoint POST `/categorie/fornitori/escludi-acquisti`.
+- **Migrazione 030**: aggiunge colonna `escluso_acquisti` a `fe_fornitore_categoria`
 
 ## v2.1 (2026-03-22)
 - **FattureInCloud (FIC) sync v2.0**: sincronizzazione API v2 con SyncResult tracking (items + senza_dettaglio list)

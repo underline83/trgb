@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-28 (sessione 15 — Acquisti: filtro categoria sidebar, fix fornitori mancanti, dettaglio migliorato)
+> Ultima sessione: 2026-03-28 (sessione 16 — Acquisti: escluso_acquisti, donut sottocategorie, fix refresh prodotti)
 
 ---
 
@@ -175,12 +175,13 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 - **Filtri sidebar**: ricerca testo, anno, categoria fornitore, stato prodotti
 - **Pattern UI**: SortTh/sortRows su tutte le tabelle, toast per feedback
 
-### REGOLA CRITICA: campo `escluso` in fe_fornitore_categoria
-- Il campo `escluso` e' usato SOLO dal modulo **Ricette/Matching** (RicetteMatching.jsx)
-- Serve a nascondere fornitori irrilevanti dal matching fatture-ingredienti (es. vini, servizi)
-- **NON usare MAI questo campo nelle query del modulo Acquisti** (dashboard, fornitori, fatture)
-- Le query acquisti filtrano SOLO `is_autofattura = 0`, nient'altro
-- Non esiste un pulsante "Escludi" nella pagina fornitori acquisti
+### REGOLA CRITICA: campi `escluso` e `escluso_acquisti` in fe_fornitore_categoria
+- `escluso` → usato SOLO dal modulo **Ricette/Matching** (RicetteMatching.jsx). Nasconde fornitori irrilevanti dal matching fatture-ingredienti.
+- `escluso_acquisti` → usato SOLO dal modulo **Acquisti**. Nasconde fornitori da dashboard/KPI/grafici (es. affitti Cattaneo/Bana).
+- **NON mescolare mai i due campi**. Ogni modulo usa il suo.
+- Le query acquisti (`_EXCL_WHERE`) filtrano: `is_autofattura = 0 AND escluso_acquisti = 0`
+- Toggle nel dettaglio fornitore: "Nascondi da acquisti" / "Ripristina"
+- Nell'elenco fornitori: esclusi nascosti di default, checkbox "Mostra esclusi" nella sidebar
 
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.

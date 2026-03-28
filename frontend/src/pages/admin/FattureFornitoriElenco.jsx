@@ -50,6 +50,7 @@ export default function FattureFornitoriElenco() {
   const [annoSel, setAnnoSel] = useState(String(new Date().getFullYear()));
   const [categoriaSel, setCategoriaSel] = useState(""); // "ok" | "partial" | "none" | "empty" | ""
   const [catNomeSel, setCatNomeSel] = useState(""); // filtro per nome categoria fornitore
+  const [mostraEsclusi, setMostraEsclusi] = useState(false); // mostra fornitori esclusi da acquisti
   const [fornSort, setFornSort] = useState({ field: "totale_fatture", dir: "desc" });
 
   // ── Selezione massiva ──
@@ -116,6 +117,10 @@ export default function FattureFornitoriElenco() {
         list = list.filter(f => f.categoria_nome === catNomeSel);
       }
     }
+    // Nascondi fornitori esclusi da acquisti (default), mostra se toggle attivo
+    if (!mostraEsclusi) {
+      list = list.filter(f => !f.escluso_acquisti);
+    }
     // Aggiungi campi di sort calcolati
     const catOrd = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
     list = list.map(f => ({
@@ -124,7 +129,7 @@ export default function FattureFornitoriElenco() {
       media_fattura: f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0,
     }));
     return sortRows(list, fornSort);
-  }, [fornitori, searchText, fornSort, categoriaSel, catNomeSel]);
+  }, [fornitori, searchText, fornSort, categoriaSel, catNomeSel, mostraEsclusi]);
 
   // ── KPI ──
   const totFornitori = filtered.length;
@@ -134,7 +139,7 @@ export default function FattureFornitoriElenco() {
   // ── Contatori filtri attivi ──
   const activeFilters = [searchText, annoSel, categoriaSel, catNomeSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
   const clearFilters = () => {
-    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setCatNomeSel(""); setFornSort({ field: "totale_fatture", dir: "desc" });
+    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setCatNomeSel(""); setMostraEsclusi(false); setFornSort({ field: "totale_fatture", dir: "desc" });
   };
 
   // ── Selezione massiva: toggle ──
@@ -196,6 +201,7 @@ export default function FattureFornitoriElenco() {
         fatture, prodotti, stats, anagrafica,
         fornNome: forn.fornitore_nome || key,
         fornPiva: forn.fornitore_piva || null,
+        escluso_acquisti: forn.escluso_acquisti || 0,
       });
     } catch (e) {
       console.error(e);
@@ -260,6 +266,13 @@ export default function FattureFornitoriElenco() {
                   {categorie.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
+              {fornitori.some(f => f.escluso_acquisti) && (
+                <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer mt-1">
+                  <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
+                    className="accent-amber-600" />
+                  Mostra esclusi ({fornitori.filter(f => f.escluso_acquisti).length})
+                </label>
+              )}
               <div>
                 <label className={fLbl}>Stato prodotti</label>
                 <select value={categoriaSel} onChange={e => setCategoriaSel(e.target.value)} className={fSel}>
@@ -388,6 +401,9 @@ export default function FattureFornitoriElenco() {
                         </td>
                         <td className="px-3 py-2.5 font-medium text-neutral-900">
                           {f.fornitore_nome || "—"}
+                          {!!f.escluso_acquisti && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-amber-100 text-amber-700 uppercase">escluso</span>
+                          )}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           {f.cat_status === "ok" && (
@@ -442,6 +458,9 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [fatturaDetLoading, setFatturaDetLoading] = useState(false);
   const [fattSort, setFattSort] = useState({ field: "data_fattura", dir: "desc" });
 
+  // ── Esclusione acquisti ──
+  const [togglingExcl, setTogglingExcl] = useState(false);
+
   // ── Categoria generica fornitore ──
   const [catGenericaId, setCatGenericaId] = useState("");
   const [subGenericaId, setSubGenericaId] = useState("");
@@ -487,8 +506,31 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio...</div>;
   if (!data) return <div className="text-center py-20 text-neutral-400">Errore caricamento</div>;
 
-  const { fatture, prodotti, stats, anagrafica = {}, fornNome, fornPiva } = data;
+  const { fatture, prodotti, stats, anagrafica = {}, fornNome, fornPiva, escluso_acquisti: excAcqProp = 0 } = data;
   const anag = anagrafica || {};
+  const [localExcl, setLocalExcl] = useState(!!excAcqProp);
+  // Sync con prop quando cambia fornitore
+  useEffect(() => { setLocalExcl(!!excAcqProp); }, [excAcqProp]);
+  const isExcluded = localExcl;
+
+  const handleToggleExcl = async () => {
+    setTogglingExcl(true);
+    try {
+      const newVal = !isExcluded;
+      await apiFetch(`${CAT_BASE}/fornitori/escludi-acquisti`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fornitore_piva: fornPiva || null,
+          fornitore_nome: fornNome,
+          escluso_acquisti: newVal,
+        }),
+      });
+      setLocalExcl(newVal);
+      if (onReloadList) onReloadList();
+    } catch (e) { console.error(e); }
+    finally { setTogglingExcl(false); }
+  };
 
   // ── KPI ──
   const totFatture = fatture.length;
@@ -618,7 +660,20 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
           ← Torna alla lista
         </button>
+        <button onClick={handleToggleExcl} disabled={togglingExcl}
+          className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold border transition disabled:opacity-50 ${
+            isExcluded
+              ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+              : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
+          }`}>
+          {togglingExcl ? "..." : isExcluded ? "✕ Escluso da acquisti — Ripristina" : "Nascondi da acquisti"}
+        </button>
       </div>
+      {isExcluded && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Questo fornitore è escluso dalle statistiche acquisti (dashboard, KPI, grafici). Le categorie restano editabili.
+        </div>
+      )}
 
       {/* Header card */}
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
