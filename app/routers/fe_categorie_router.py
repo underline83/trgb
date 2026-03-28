@@ -46,7 +46,7 @@ def auto_categorize_righe(conn, fattura_id: int, fornitore_piva: str | None):
     """
     cur = conn.cursor()
 
-    # 1) Applica mapping prodotto (priorità alta)
+    # 1) Applica mapping prodotto (priorità alta, categoria_auto = 0)
     cur.execute("""
         UPDATE fe_righe
         SET categoria_id = (
@@ -56,7 +56,8 @@ def auto_categorize_righe(conn, fattura_id: int, fornitore_piva: str | None):
             sottocategoria_id = (
                 SELECT pm.sottocategoria_id FROM fe_prodotto_categoria_map pm
                 WHERE pm.fornitore_piva = ? AND pm.descrizione_norm = LOWER(TRIM(fe_righe.descrizione))
-            )
+            ),
+            categoria_auto = 0
         WHERE fattura_id = ?
           AND EXISTS (
               SELECT 1 FROM fe_prodotto_categoria_map pm
@@ -64,7 +65,7 @@ def auto_categorize_righe(conn, fattura_id: int, fornitore_piva: str | None):
           )
     """, (fornitore_piva, fornitore_piva, fattura_id, fornitore_piva))
 
-    # 2) Applica default fornitore alle righe rimaste senza categoria
+    # 2) Applica default fornitore alle righe rimaste senza categoria (categoria_auto = 1)
     if fornitore_piva:
         cur.execute("""
             UPDATE fe_righe
@@ -75,7 +76,8 @@ def auto_categorize_righe(conn, fattura_id: int, fornitore_piva: str | None):
                 sottocategoria_id = (
                     SELECT fc.sottocategoria_id FROM fe_fornitore_categoria fc
                     WHERE fc.fornitore_piva = ?
-                )
+                ),
+                categoria_auto = 1
             WHERE fattura_id = ?
               AND categoria_id IS NULL
               AND EXISTS (
@@ -407,7 +409,7 @@ def assegna_fornitore(body: FornitoreAssign):
     forn_val = body.fornitore_piva if body.fornitore_piva else body.fornitore_nome
     cur.execute(f"""
         UPDATE fe_righe
-        SET categoria_id = ?, sottocategoria_id = ?
+        SET categoria_id = ?, sottocategoria_id = ?, categoria_auto = 1
         WHERE id IN (
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id
@@ -521,7 +523,8 @@ def list_prodotti_fornitore(fornitore_piva: str):
             r.categoria_id,
             r.sottocategoria_id,
             c.nome AS categoria_nome,
-            s.nome AS sottocategoria_nome
+            s.nome AS sottocategoria_nome,
+            MAX(COALESCE(r.categoria_auto, 0)) AS categoria_auto
         FROM fe_righe r
         JOIN fe_fatture f ON r.fattura_id = f.id
         LEFT JOIN fe_categorie c ON r.categoria_id = c.id
@@ -551,10 +554,10 @@ def assegna_prodotto(body: ProdottoAssign):
     cur = conn.cursor()
     desc_norm = _normalize_desc(body.descrizione)
 
-    # 1. Aggiorna tutte le righe esistenti per questo fornitore + descrizione
+    # 1. Aggiorna tutte le righe esistenti per questo fornitore + descrizione (manuale → auto=0)
     cur.execute("""
         UPDATE fe_righe
-        SET categoria_id = ?, sottocategoria_id = ?
+        SET categoria_id = ?, sottocategoria_id = ?, categoria_auto = 0
         WHERE id IN (
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id

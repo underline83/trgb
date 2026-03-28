@@ -102,7 +102,11 @@ export default function FattureFornitoriElenco() {
       );
     }
     if (categoriaSel) {
-      list = list.filter(f => f.cat_status === categoriaSel);
+      if (categoriaSel === "da_fare") {
+        list = list.filter(f => f.cat_status === "none" || f.cat_status === "auto" || f.cat_status === "partial");
+      } else {
+        list = list.filter(f => f.cat_status === categoriaSel);
+      }
     }
     list.sort((a, b) => {
       switch (ordineSel) {
@@ -114,11 +118,19 @@ export default function FattureFornitoriElenco() {
         case "nome_desc": return (b.fornitore_nome || "").localeCompare(a.fornitore_nome || "", "it");
         case "ultimo_desc": return (b.ultimo_acquisto || "").localeCompare(a.ultimo_acquisto || "");
         case "ultimo_asc": return (a.ultimo_acquisto || "").localeCompare(b.ultimo_acquisto || "");
+        case "cat_asc": {
+          const ord = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
+          return (ord[a.cat_status] ?? 4) - (ord[b.cat_status] ?? 4);
+        }
+        case "cat_desc": {
+          const ord = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
+          return (ord[b.cat_status] ?? 4) - (ord[a.cat_status] ?? 4);
+        }
         default: return 0;
       }
     });
     return list;
-  }, [fornitori, searchText, ordineSel]);
+  }, [fornitori, searchText, ordineSel, categoriaSel]);
 
   // ── KPI ──
   const totFornitori = filtered.length;
@@ -256,9 +268,11 @@ export default function FattureFornitoriElenco() {
                 <label className={fLbl}>Stato prodotti</label>
                 <select value={categoriaSel} onChange={e => setCategoriaSel(e.target.value)} className={fSel}>
                   <option value="">Tutti</option>
-                  <option value="ok">✓ Tutti categorizzati</option>
+                  <option value="da_fare">Da verificare (✗ + C + ◐)</option>
+                  <option value="ok">✓ Definite manualmente</option>
+                  <option value="auto">C Ereditate da fornitore</option>
                   <option value="partial">◐ Parziale</option>
-                  <option value="none">✗ Nessuno categorizzato</option>
+                  <option value="none">✗ Non categorizzato</option>
                   <option value="empty">— Senza righe</option>
                 </select>
               </div>
@@ -366,6 +380,9 @@ export default function FattureFornitoriElenco() {
                         className="accent-teal-600" />
                     </th>
                     <th className="px-3 py-2 text-left">Fornitore</th>
+                    <th className="px-2 py-2 text-center w-10 cursor-pointer select-none"
+                      onClick={() => setOrdineSel(o => o === "cat_asc" ? "cat_desc" : "cat_asc")}
+                      title="Ordina per stato categorie">Cat</th>
                     <th className="px-3 py-2 text-left hidden sm:table-cell">P.IVA</th>
                     <th className="px-3 py-2 text-right">Fatture</th>
                     <th className="px-3 py-2 text-right">Totale €</th>
@@ -392,23 +409,27 @@ export default function FattureFornitoriElenco() {
                             className="accent-teal-600" />
                         </td>
                         <td className="px-3 py-2.5 font-medium text-neutral-900">
-                          <span className="flex items-center gap-1.5">
-                            {f.fornitore_nome || "—"}
-                            {f.cat_status === "ok" && (
-                              <span title={`${f.righe_categorizzate}/${f.righe_totali} prodotti categorizzati`}
-                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700">✓</span>
-                            )}
-                            {f.cat_status === "partial" && (
-                              <span title={`${f.righe_categorizzate}/${f.righe_totali} prodotti categorizzati`}
-                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700">
-                                {f.righe_categorizzate}/{f.righe_totali}
-                              </span>
-                            )}
-                            {f.cat_status === "none" && f.righe_totali > 0 && (
-                              <span title={`0/${f.righe_totali} — nessun prodotto categorizzato`}
-                                className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-bold bg-red-100 text-red-600">✗</span>
-                            )}
-                          </span>
+                          {f.fornitore_nome || "—"}
+                        </td>
+                        <td className="px-2 py-2.5 text-center">
+                          {f.cat_status === "ok" && (
+                            <span title={`${f.righe_categorizzate}/${f.righe_totali} — tutte definite`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                          )}
+                          {f.cat_status === "auto" && (
+                            <span title={`${f.righe_auto}/${f.righe_totali} categorie ereditate da fornitore`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">C</span>
+                          )}
+                          {f.cat_status === "partial" && (
+                            <span title={`${f.righe_categorizzate}/${f.righe_totali} categorizzati`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700">
+                              {f.righe_categorizzate}/{f.righe_totali}
+                            </span>
+                          )}
+                          {f.cat_status === "none" && f.righe_totali > 0 && (
+                            <span title={`0/${f.righe_totali} — nessuna categoria`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums">{f.numero_fatture}</td>
@@ -501,19 +522,23 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
 
   const nProdotti = prodotti.length;
   const nAssegnati = prodotti.filter(p => p.categoria_id).length;
+  const nEreditate = prodotti.filter(p => p.categoria_id && p.categoria_auto).length;
 
   // ── Prodotti filtrati ──
   let filteredProd = [...prodotti];
-  if (prodFilter === "assegnati") filteredProd = filteredProd.filter(p => p.categoria_id);
+  if (prodFilter === "assegnati") filteredProd = filteredProd.filter(p => p.categoria_id && !p.categoria_auto);
   if (prodFilter === "non_assegnati") filteredProd = filteredProd.filter(p => !p.categoria_id);
+  if (prodFilter === "ereditate") filteredProd = filteredProd.filter(p => p.categoria_id && p.categoria_auto);
   if (prodSearch.trim()) {
     const q = prodSearch.toLowerCase();
     filteredProd = filteredProd.filter(p => p.descrizione?.toLowerCase().includes(q));
   }
+  // cat_stato_sort: 0 = non definita (✗), 1 = ereditata (C), 2 = definita (✓)
   filteredProd = filteredProd.map(p => ({
     ...p,
     categoria_nome_sort: p.categoria_nome || "",
     sottocategoria_nome_sort: p.sottocategoria_nome || "",
+    cat_stato_sort: !p.categoria_id ? 0 : p.categoria_auto ? 1 : 2,
   }));
   filteredProd = sortRows(filteredProd, prodSort);
 
@@ -795,7 +820,8 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
               className="px-3 py-1.5 border border-neutral-300 rounded-xl text-xs">
               <option value="tutti">Tutti ({nProdotti})</option>
               <option value="non_assegnati">Da assegnare ({nProdotti - nAssegnati})</option>
-              <option value="assegnati">Assegnati ({nAssegnati})</option>
+              <option value="ereditate">Ereditate ({nEreditate})</option>
+              <option value="assegnati">Definite ({nAssegnati - nEreditate})</option>
             </select>
             <span className="text-[10px] text-neutral-500 ml-auto">
               {nAssegnati}/{nProdotti} categorizzati ({nProdotti > 0 ? Math.round(nAssegnati / nProdotti * 100) : 0}%)

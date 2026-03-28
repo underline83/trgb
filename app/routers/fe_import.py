@@ -962,7 +962,8 @@ def stats_fornitori(
         SELECT
             COALESCE(f.fornitore_piva, f.fornitore_nome) AS forn_key,
             COUNT(r.id) AS righe_totali,
-            SUM(CASE WHEN r.categoria_id IS NOT NULL THEN 1 ELSE 0 END) AS righe_categorizzate
+            SUM(CASE WHEN r.categoria_id IS NOT NULL THEN 1 ELSE 0 END) AS righe_categorizzate,
+            SUM(CASE WHEN r.categoria_id IS NOT NULL AND COALESCE(r.categoria_auto, 0) = 1 THEN 1 ELSE 0 END) AS righe_auto
         FROM fe_righe r
         JOIN fe_fatture f ON r.fattura_id = f.id
         WHERE {cat_where_sql}
@@ -971,20 +972,23 @@ def stats_fornitori(
         """,
         cat_params,
     )
-    cat_map = {r["forn_key"]: (r["righe_totali"], r["righe_categorizzate"]) for r in cur.fetchall()}
+    cat_map = {r["forn_key"]: (r["righe_totali"], r["righe_categorizzate"], r["righe_auto"]) for r in cur.fetchall()}
 
     conn.close()
 
     for row in rows:
         key = row["fornitore_piva"] or row["fornitore_nome"]
-        righe_tot, righe_cat = cat_map.get(key, (0, 0))
+        righe_tot, righe_cat, righe_auto = cat_map.get(key, (0, 0, 0))
         row["righe_totali"] = righe_tot
         row["righe_categorizzate"] = righe_cat
-        # Flag: "ok" se tutte categorizzate, "partial" se alcune, "none" se nessuna, "empty" se 0 righe
+        row["righe_auto"] = righe_auto
+        # cat_status: "ok" tutte manuali, "auto" ha ereditate, "partial" alcune, "none" nessuna, "empty" 0 righe
         if righe_tot == 0:
             row["cat_status"] = "empty"
-        elif righe_cat == righe_tot:
+        elif righe_cat == righe_tot and righe_auto == 0:
             row["cat_status"] = "ok"
+        elif righe_cat == righe_tot and righe_auto > 0:
+            row["cat_status"] = "auto"
         elif righe_cat > 0:
             row["cat_status"] = "partial"
         else:
