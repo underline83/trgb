@@ -966,6 +966,7 @@ def stats_fornitori(
         FROM fe_righe r
         JOIN fe_fatture f ON r.fattura_id = f.id
         WHERE {cat_where_sql}
+          AND NOT (COALESCE(r.prezzo_totale, 0) = 0 AND COALESCE(r.quantita, 0) = 0)
         GROUP BY forn_key
         """,
         cat_params,
