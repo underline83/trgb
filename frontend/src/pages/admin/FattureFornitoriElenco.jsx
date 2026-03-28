@@ -338,6 +338,7 @@ export default function FattureFornitoriElenco() {
               openKey={openKey}
               onClose={() => { setOpenKey(null); setDetailData(null); }}
               onRefresh={refreshDetail}
+              onExclude={() => { setOpenKey(null); setDetailData(null); fetchAll(); }}
             />
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-neutral-400">
@@ -455,7 +456,7 @@ export default function FattureFornitoriElenco() {
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FORNITORE (inline)
 // ═══════════════════════════════════════════════════════
-function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh }) {
+function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh, onExclude }) {
   const [tab, setTab] = useState("fatture"); // "fatture" | "prodotti"
 
   // ── Dettaglio fattura inline ──
@@ -635,6 +636,26 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
         <button onClick={onClose}
           className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
           ← Torna alla lista
+        </button>
+        <button onClick={async () => {
+          const motivo = window.prompt("Motivo esclusione:\n• affitto\n• duplicato\n• test\n• altro", "affitto");
+          if (motivo === null) return;
+          try {
+            await apiFetch(`${CAT_BASE}/fornitori/escludi`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fornitore_piva: fornPiva || null,
+                fornitore_nome: fornNome,
+                escluso: true,
+                motivo_esclusione: motivo,
+              }),
+            });
+            if (onExclude) onExclude();
+          } catch (e) { console.error(e); }
+        }}
+          className="text-[10px] text-red-500 hover:text-red-700 font-medium transition">
+          Escludi fornitore
         </button>
       </div>
 

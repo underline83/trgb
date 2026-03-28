@@ -939,7 +939,11 @@ def stats_fornitori(
             MIN(f.data_fattura) AS primo_acquisto,
             MAX(f.data_fattura) AS ultimo_acquisto
         FROM fe_fatture f
+        LEFT JOIN fe_fornitore_categoria fc
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
+            OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
         WHERE {where_sql}
+          AND COALESCE(fc.escluso, 0) = 0
         GROUP BY f.fornitore_nome, f.fornitore_piva
         ORDER BY totale_fatture DESC
         """,
