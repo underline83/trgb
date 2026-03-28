@@ -950,14 +950,6 @@ def stats_fornitori(
                 MAX(f.data_fattura) AS ultimo_acquisto
             FROM fe_fatture f
             WHERE {where_sql}
-              AND NOT EXISTS (
-                  SELECT 1 FROM fe_fornitore_categoria exc
-                  WHERE exc.escluso = 1
-                    AND (
-                        (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = exc.fornitore_piva)
-                        OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = exc.fornitore_nome AND exc.fornitore_piva IS NULL)
-                    )
-              )
             GROUP BY f.fornitore_nome, f.fornitore_piva
         ) sub
         LEFT JOIN fe_fornitore_categoria fc
@@ -1132,19 +1124,11 @@ _CAT_JOIN = """
         ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
         OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
 """
-# Filtro base per escludere autofatture + fornitori esclusi
-# NOTA: NON usare fc.escluso nel WHERE — il LEFT JOIN con OR puo' creare
-# duplicati/filtrare troppo. Usare NOT EXISTS per l'esclusione.
+# Filtro base: solo autofatture escluse.
+# NOTA: il campo `escluso` in fe_fornitore_categoria è SOLO per il modulo
+# Ricette/Matching — NON usarlo mai nelle query acquisti/dashboard.
 _EXCL_JOIN = ""
-_EXCL_WHERE = """COALESCE(f.is_autofattura, 0) = 0
-    AND NOT EXISTS (
-        SELECT 1 FROM fe_fornitore_categoria exc
-        WHERE exc.escluso = 1
-          AND (
-              (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = exc.fornitore_piva)
-              OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = exc.fornitore_nome AND exc.fornitore_piva IS NULL)
-          )
-    )"""
+_EXCL_WHERE = "COALESCE(f.is_autofattura, 0) = 0"
 
 
 @router.get("/stats/drill", summary="Drill-down fatture filtrate per mese e/o categoria")

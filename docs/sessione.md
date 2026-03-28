@@ -172,9 +172,15 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 - **`auto_categorize_righe()`** in `fe_categorie_router.py`: shared helper usato da import XML e FIC sync
 - **`categoria_auto` flag** su `fe_righe`: 0=manuale, 1=ereditata da import
 - **Badge cat_status**: ok (tutte manuali), auto (ha ereditate), partial, none, empty
-- **Esclusione fornitori**: `fe_fornitore_categoria.escluso` + `motivo_esclusione`
 - **Filtri sidebar**: ricerca testo, anno, categoria fornitore, stato prodotti
 - **Pattern UI**: SortTh/sortRows su tutte le tabelle, toast per feedback
+
+### REGOLA CRITICA: campo `escluso` in fe_fornitore_categoria
+- Il campo `escluso` e' usato SOLO dal modulo **Ricette/Matching** (RicetteMatching.jsx)
+- Serve a nascondere fornitori irrilevanti dal matching fatture-ingredienti (es. vini, servizi)
+- **NON usare MAI questo campo nelle query del modulo Acquisti** (dashboard, fornitori, fatture)
+- Le query acquisti filtrano SOLO `is_autofattura = 0`, nient'altro
+- Non esiste un pulsante "Escludi" nella pagina fornitori acquisti
 
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
