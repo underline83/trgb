@@ -1278,7 +1278,7 @@ def stats_kpi(
 def stats_per_categoria_dashboard(
     year: int | None = Query(None),
 ):
-    """Totale spesa raggruppato per Cat.1 (per la donut chart)."""
+    """Totale spesa raggruppato per Cat.1, con dettaglio sottocategorie."""
     conn = _get_conn()
     _ensure_tables(conn)
     cur = conn.cursor()
@@ -1289,6 +1289,7 @@ def stats_per_categoria_dashboard(
         where += " AND substr(f.data_fattura, 1, 4) = ?"
         params.append(str(year))
 
+    # Categorie principali
     cur.execute(f"""
         SELECT
             COALESCE(c.nome, '(Non categorizzato)') AS categoria,
@@ -1301,8 +1302,39 @@ def stats_per_categoria_dashboard(
         GROUP BY c.nome
         ORDER BY totale DESC
     """, params)
-
     rows = [dict(r) for r in cur.fetchall()]
+
+    # Sottocategorie (solo dove fc.sottocategoria_id IS NOT NULL)
+    cur.execute(f"""
+        SELECT
+            COALESCE(c.nome, '(Non categorizzato)') AS categoria,
+            s.nome AS sottocategoria,
+            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
+            COUNT(*) AS n_fatture
+        FROM fe_fatture f
+        {_CAT_JOIN}
+        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+        LEFT JOIN fe_sottocategorie s ON fc.sottocategoria_id = s.id
+        WHERE {where}
+          AND fc.sottocategoria_id IS NOT NULL
+        GROUP BY c.nome, s.nome
+        ORDER BY c.nome, totale DESC
+    """, params)
+    sub_rows = cur.fetchall()
+
+    # Mappa sottocategorie per categoria
+    sub_map: dict = {}
+    for sr in sub_rows:
+        cat_name = sr["categoria"]
+        sub_map.setdefault(cat_name, []).append({
+            "sottocategoria": sr["sottocategoria"],
+            "totale": sr["totale"],
+            "n_fatture": sr["n_fatture"],
+        })
+
+    for row in rows:
+        row["sottocategorie"] = sub_map.get(row["categoria"], [])
+
     conn.close()
     return rows
 

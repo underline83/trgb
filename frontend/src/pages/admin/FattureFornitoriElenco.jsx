@@ -214,12 +214,6 @@ export default function FattureFornitoriElenco() {
         apiFetch(`${CAT_BASE}/fornitori/${enc}/prodotti`),
         apiFetch(`${CAT_BASE}/fornitori/${enc}/stats`),
       ]);
-      setDetailData(prev => ({
-        ...prev,
-        prodotti: resProd.ok ? null : prev.prodotti,
-        stats: resStats.ok ? null : prev.stats,
-      }));
-      // Need to await json
       const prodotti = resProd.ok ? await resProd.json() : detailData?.prodotti || [];
       const stats = resStats.ok ? await resStats.json() : detailData?.stats || [];
       setDetailData(prev => ({ ...prev, prodotti, stats }));

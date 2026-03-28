@@ -1,7 +1,7 @@
-# 📦 Modulo Gestione Acquisti — TRGB Gestionale
-**Versione:** 2.1
+# Modulo Gestione Acquisti — TRGB Gestionale
+**Versione:** 2.3
 **Stato:** Stabile
-**Data ultimo aggiornamento:** 2026-03-22
+**Data ultimo aggiornamento:** 2026-03-28
 **Dominio funzionale:** Acquisti, Fatture Elettroniche, Controllo di Gestione
 
 ---
@@ -30,10 +30,17 @@ Lista completa con ricerca full-text (fornitore, P.IVA, numero fattura), filtri 
 Info complete: fornitore (nome + P.IVA), importi (imponibile, IVA, totale), righe fattura con descrizione, quantita', prezzo unitario e totale. Link a pagina fornitore.
 
 ## 2.5 Elenco Fornitori (`/acquisti/fornitori`)
-Lista fornitori con ricerca, filtro anno, ordinamento cliccabile su ogni colonna. KPI: n. fornitori, totale spesa, n. fatture, media per fornitore. Click su riga per aprire dettaglio prodotti.
+Layout Cantina: sidebar filtri a sinistra + lista/dettaglio inline a destra.
+- **Sidebar filtri**: ricerca testo, anno, categoria fornitore (dropdown), stato prodotti (ok/auto/partial/none/empty)
+- **Tabella**: tutte le colonne ordinabili con SortTh (Fornitore, Cat, P.IVA, Fatture, Totale, Media, Primo, Ultimo)
+- **Selezione massiva**: checkbox + assegnazione categoria bulk
+- **Dettaglio inline**: click su fornitore per aprire dettaglio senza cambio pagina
 
-## 2.6 Dettaglio Fornitore (`/acquisti/fornitore/:piva`)
-Prodotti acquistati dal fornitore con categorizzazione per riga. Statistiche riepilogative. Assegnazione categoria/sottocategoria per prodotto.
+## 2.6 Dettaglio Fornitore (inline in `/acquisti/fornitori`)
+- **Header**: nome, P.IVA, C.F., indirizzo (da XML), KPI (fatture, spesa, imponibile, media, da pagare, prodotti, date)
+- **Categoria generica fornitore**: assegnazione con propagazione alle righe senza categoria
+- **Tab Fatture**: lista ordinabile con stato pagamento, fonte (XML/FIC), click per dettaglio fattura inline
+- **Tab Prodotti**: lista ordinabile con assegnazione categoria/sottocategoria per riga, filtro (tutti/da assegnare/ereditate/definite), selezione massiva
 
 ## 2.7 Import XML (`/acquisti/import`)
 Drag & drop XML multipli o selezione file. Anti-duplicazione SHA-256. Lista fatture importate con dettaglio.
@@ -100,10 +107,11 @@ Posizione: `app/data/foodcost.db`
 id, fornitore_nome, fornitore_piva, numero_fattura, data_fattura, imponibile_totale, iva_totale, totale_fattura, valuta, xml_hash (SHA-256), xml_filename, data_import, is_autofattura
 
 ### Tabella `fe_righe`
-id, fattura_id (FK), numero_linea, descrizione, quantita, unita_misura, prezzo_unitario, prezzo_totale, aliquota_iva
+id, fattura_id (FK), numero_linea, descrizione, quantita, unita_misura, prezzo_unitario, prezzo_totale, aliquota_iva, categoria_id, sottocategoria_id, categoria_auto (0=manuale, 1=ereditata da import)
 
 ### Tabella `fe_fornitore_categoria`
 fornitore_piva, fornitore_nome, categoria_id, sottocategoria_id, escluso
+> **NOTA**: il campo `escluso` e' usato SOLO dal modulo Ricette/Matching (RicetteMatching.jsx). NON deve mai essere usato nelle query del modulo Acquisti.
 
 ### Tabella `fe_prodotto_categoria`
 fornitore_piva, fornitore_nome, descrizione, categoria_id, sottocategoria_id
@@ -146,6 +154,19 @@ frontend/src/pages/admin/
 ---
 
 # 8. Changelog
+
+## v2.3 (2026-03-28)
+- **CRITICO — Rimosso filtro `escluso` da query acquisti**: il campo `fe_fornitore_categoria.escluso` e' SOLO per il modulo Ricette/Matching. Era usato erroneamente nelle query dashboard/stats, escludendo 58 fornitori dai totali acquisti. `_EXCL_JOIN` ora vuoto, `_EXCL_WHERE` filtra solo autofatture.
+- **Filtro categoria sidebar fornitori**: aggiunto dropdown "Categoria fornitore" nella sidebar filtri di `/acquisti/fornitori` (include opzione "Senza categoria")
+- **Confronto annuale stesso periodo**: dashboard YoY ora confronta solo lo stesso periodo (es. gen-mar 2026 vs gen-mar 2025) usando MAX(data_fattura) come cutoff
+- **Fix anno default dashboard**: `fetchAll(selectedYear)` al mount, non piu' `fetchAll("all")`
+- **Donut sottocategorie**: grafico categorie dashboard ora ha due anelli — interno categorie, esterno sottocategorie. Legenda espandibile con drill-down sottocategorie.
+- **Fix refresh categorie prodotti**: rimosso `setDetailData(null)` intermedio in `refreshDetail` che causava crash
+- **Rimosso pulsante "Escludi fornitore"** dal dettaglio fornitore (era inutile in acquisti)
+- **Dettaglio fornitore migliorato**: P.IVA + C.F. sulla stessa riga, KPI "Media fattura" e "Da pagare"
+- **Prop `onReloadList`**: fix aggiornamento lista fornitori dopo salvataggio categoria generica
+- **Migrazione 029**: reset `categoria_auto` residue (Latini, Risto Team)
+- **Backend**: `stats_fornitori` riscritto con subquery, `stats_per_categoria` include sottocategorie, `_CAT_JOIN` separato da `_EXCL_JOIN`
 
 ## v2.1 (2026-03-22)
 - **FattureInCloud (FIC) sync v2.0**: sincronizzazione API v2 con SyncResult tracking (items + senza_dettaglio list)

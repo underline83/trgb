@@ -389,12 +389,69 @@ function ChartMensile({ data, selectedYear, onDrill }) {
 function ChartCategorie({ data, onDrill }) {
   const totale = useMemo(() => data.reduce((s, d) => s + (d.totale || 0), 0), [data]);
 
+  // Costruisce anello esterno sottocategorie: per ogni categoria con sottocategorie,
+  // mostra le fette; per categorie senza sotto, mostra un'unica fetta con lo stesso colore
+  const outerData = useMemo(() => {
+    const items = [];
+    data.forEach((d, catIdx) => {
+      const subs = d.sottocategorie || [];
+      if (subs.length > 0) {
+        // Calcola totale sottocategorie vs totale categoria per il "resto"
+        const subTot = subs.reduce((s, sub) => s + (sub.totale || 0), 0);
+        const resto = d.totale - subTot;
+        subs.forEach(sub => {
+          items.push({
+            name: sub.sottocategoria,
+            totale: sub.totale,
+            catIdx,
+            parentCat: d.categoria,
+            isSub: true,
+          });
+        });
+        if (resto > 0) {
+          items.push({
+            name: "(altro)",
+            totale: resto,
+            catIdx,
+            parentCat: d.categoria,
+            isSub: true,
+          });
+        }
+      } else {
+        // Nessuna sottocategoria — fetta unica
+        items.push({
+          name: d.categoria,
+          totale: d.totale,
+          catIdx,
+          parentCat: d.categoria,
+          isSub: false,
+        });
+      }
+    });
+    return items;
+  }, [data]);
+
+  // Colori outer ring: variazioni del colore parent (più chiaro/scuro)
+  const outerColors = useMemo(() => {
+    return outerData.map((item) => {
+      const base = CAT_COLORS[item.catIdx % CAT_COLORS.length];
+      if (!item.isSub) return base;
+      // Genera variazione di luminosità basata sulla posizione nel gruppo
+      const subsInCat = outerData.filter(o => o.catIdx === item.catIdx);
+      const idxInGroup = subsInCat.indexOf(item);
+      const lightness = 0.15 + (idxInGroup * 0.15); // progressivamente più chiaro
+      return blendColor(base, lightness);
+    });
+  }, [outerData]);
+
   const handleSliceClick = (entry) => {
-    // Recharts Pie onClick passes (data, index) — data is the entry
     if (!entry || entry.totale <= 0) return;
     const catName = entry.categoria || entry.name || "(Non categorizzato)";
     onDrill({ label: `Cat: ${catName}`, categoria: catName });
   };
+
+  const [expanded, setExpanded] = useState({});
+  const toggleExpand = (cat) => setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
 
   return (
     <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-4 h-full">
@@ -410,16 +467,17 @@ function ChartCategorie({ data, onDrill }) {
         </p>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={170}>
+          <ResponsiveContainer width="100%" height={190}>
             <PieChart>
+              {/* Anello interno — Categorie */}
               <Pie
                 data={data}
                 dataKey="totale"
                 nameKey="categoria"
                 cx="50%"
                 cy="50%"
-                innerRadius={40}
-                outerRadius={70}
+                innerRadius={30}
+                outerRadius={55}
                 paddingAngle={2}
                 onClick={handleSliceClick}
                 style={{ cursor: "pointer" }}
@@ -428,34 +486,105 @@ function ChartCategorie({ data, onDrill }) {
                   <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
                 ))}
               </Pie>
+              {/* Anello esterno — Sottocategorie */}
+              {outerData.some(o => o.isSub) && (
+                <Pie
+                  data={outerData}
+                  dataKey="totale"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={58}
+                  outerRadius={78}
+                  paddingAngle={1}
+                  style={{ cursor: "default" }}
+                >
+                  {outerData.map((item, i) => (
+                    <Cell key={i} fill={outerColors[i]} stroke="#fff" strokeWidth={1} />
+                  ))}
+                </Pie>
+              )}
               <Tooltip
-                formatter={(v, name) => [`€ ${fmt(v)} (${totale > 0 ? Math.round(v / totale * 100) : 0}%)`, name]}
-                contentStyle={{ fontSize: 11, borderRadius: 12 }}
+                content={({ payload }) => {
+                  if (!payload || !payload.length) return null;
+                  const d = payload[0].payload;
+                  const label = d.parentCat
+                    ? `${d.parentCat} › ${d.name}`
+                    : (d.categoria || d.name);
+                  return (
+                    <div className="bg-white rounded-xl shadow-lg border border-neutral-200 px-3 py-2 text-[11px]">
+                      <p className="font-semibold text-neutral-800">{label}</p>
+                      <p className="text-neutral-600">
+                        € {fmt(d.totale)} ({totale > 0 ? Math.round(d.totale / totale * 100) : 0}%)
+                      </p>
+                    </div>
+                  );
+                }}
               />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-1 mt-1 max-h-32 overflow-y-auto">
-            {data.map((d, i) => (
-              <div
-                key={d.categoria}
-                className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5"
-                onClick={() => handleSliceClick(d)}
-              >
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
-                />
-                <span className="truncate flex-1 text-neutral-700">{d.categoria}</span>
-                <span className="font-medium text-neutral-900 tabular-nums">
-                  {totale > 0 ? Math.round((d.totale / totale) * 100) : 0}%
-                </span>
-              </div>
-            ))}
+          <div className="space-y-0.5 mt-1 max-h-40 overflow-y-auto">
+            {data.map((d, i) => {
+              const subs = d.sottocategorie || [];
+              const hasSubs = subs.length > 0;
+              const isExpanded = expanded[d.categoria];
+              return (
+                <div key={d.categoria}>
+                  <div
+                    className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5"
+                    onClick={() => hasSubs ? toggleExpand(d.categoria) : handleSliceClick(d)}
+                  >
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
+                    />
+                    <span className="truncate flex-1 text-neutral-700">
+                      {hasSubs && <span className="text-neutral-400 mr-0.5">{isExpanded ? "▾" : "▸"}</span>}
+                      {d.categoria}
+                    </span>
+                    <span className="font-medium text-neutral-900 tabular-nums whitespace-nowrap">
+                      € {fmtK(d.totale)}
+                    </span>
+                    <span className="text-neutral-400 tabular-nums w-8 text-right">
+                      {totale > 0 ? Math.round((d.totale / totale) * 100) : 0}%
+                    </span>
+                  </div>
+                  {hasSubs && isExpanded && (
+                    <div className="ml-5 space-y-0.5">
+                      {subs.map((sub, si) => (
+                        <div key={si} className="flex items-center gap-2 text-[10px] text-neutral-500 px-1 py-0.5">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: blendColor(CAT_COLORS[i % CAT_COLORS.length], 0.15 + si * 0.15) }}
+                          />
+                          <span className="truncate flex-1">{sub.sottocategoria}</span>
+                          <span className="tabular-nums whitespace-nowrap">€ {fmtK(sub.totale)}</span>
+                          <span className="tabular-nums w-8 text-right">
+                            {d.totale > 0 ? Math.round(sub.totale / d.totale * 100) : 0}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
     </div>
   );
+}
+
+// Helper: miscela colore HEX con bianco per ottenere variazione di luminosità
+function blendColor(hex, amount) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const nr = Math.round(r + (255 - r) * amount);
+  const ng = Math.round(g + (255 - g) * amount);
+  const nb = Math.round(b + (255 - b) * amount);
+  return `#${nr.toString(16).padStart(2, "0")}${ng.toString(16).padStart(2, "0")}${nb.toString(16).padStart(2, "0")}`;
 }
 
 
