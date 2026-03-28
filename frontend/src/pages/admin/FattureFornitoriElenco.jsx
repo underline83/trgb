@@ -324,6 +324,7 @@ export default function FattureFornitoriElenco() {
               onClose={() => { setOpenKey(null); setDetailData(null); }}
               onRefresh={refreshDetail}
               onExclude={() => { setOpenKey(null); setDetailData(null); fetchAll(); }}
+              onReloadList={fetchAll}
             />
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-neutral-400">
@@ -438,7 +439,7 @@ export default function FattureFornitoriElenco() {
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FORNITORE (inline)
 // ═══════════════════════════════════════════════════════
-function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh, onExclude }) {
+function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh, onExclude, onReloadList }) {
   const [tab, setTab] = useState("fatture"); // "fatture" | "prodotti"
 
   // ── Dettaglio fattura inline ──
@@ -554,8 +555,9 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           sottocategoria_id: subGenericaId ? Number(subGenericaId) : null,
         }),
       });
-      // Ricarica lista per aggiornare badge cat_status
-      fetchAll();
+      // Ricarica dettaglio + lista fornitori per aggiornare badge
+      onRefresh();
+      if (onReloadList) onReloadList();
     } catch (e) { console.error(e); }
     finally { setSavingGenerica(false); }
   };
