@@ -404,7 +404,8 @@ def assegna_fornitore(body: FornitoreAssign):
                 VALUES (NULL, ?, ?, ?, ?)
             """, (body.fornitore_nome, body.categoria_id, body.sottocategoria_id, body.note))
 
-    # ── Propaga la categoria fornitore a tutte le righe SENZA override prodotto ──
+    # ── Propaga la categoria fornitore SOLO alle righe senza categoria ──
+    # (non tocca righe già categorizzate, né manuali né auto precedenti)
     forn_filter = "f.fornitore_piva = ?" if body.fornitore_piva else "f.fornitore_nome = ? AND f.fornitore_piva IS NULL"
     forn_val = body.fornitore_piva if body.fornitore_piva else body.fornitore_nome
     cur.execute(f"""
@@ -414,11 +415,7 @@ def assegna_fornitore(body: FornitoreAssign):
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id
             WHERE {forn_filter}
-              AND NOT EXISTS (
-                  SELECT 1 FROM fe_prodotto_categoria_map pm
-                  WHERE pm.fornitore_piva = f.fornitore_piva
-                    AND pm.descrizione_norm = LOWER(TRIM(r.descrizione))
-              )
+              AND r.categoria_id IS NULL
         )
     """, (body.categoria_id, body.sottocategoria_id, forn_val))
     righe_aggiornate = cur.execute("SELECT changes()").fetchone()[0]
