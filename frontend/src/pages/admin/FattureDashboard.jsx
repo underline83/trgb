@@ -147,7 +147,7 @@ export default function FattureDashboard() {
   };
 
   useEffect(() => {
-    fetchAll("all");
+    fetchAll(selectedYear);
   }, []);
 
   const handleYearChange = (val) => {
