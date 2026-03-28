@@ -49,6 +49,7 @@ export default function FattureFornitoriElenco() {
   const [searchText, setSearchText] = useState("");
   const [annoSel, setAnnoSel] = useState(String(new Date().getFullYear()));
   const [categoriaSel, setCategoriaSel] = useState(""); // "ok" | "partial" | "none" | "empty" | ""
+  const [catNomeSel, setCatNomeSel] = useState(""); // filtro per nome categoria fornitore
   const [fornSort, setFornSort] = useState({ field: "totale_fatture", dir: "desc" });
 
   // ── Selezione massiva ──
@@ -108,6 +109,13 @@ export default function FattureFornitoriElenco() {
         list = list.filter(f => f.cat_status === categoriaSel);
       }
     }
+    if (catNomeSel) {
+      if (catNomeSel === "__none__") {
+        list = list.filter(f => !f.categoria_nome);
+      } else {
+        list = list.filter(f => f.categoria_nome === catNomeSel);
+      }
+    }
     // Aggiungi campi di sort calcolati
     const catOrd = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
     list = list.map(f => ({
@@ -116,7 +124,7 @@ export default function FattureFornitoriElenco() {
       media_fattura: f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0,
     }));
     return sortRows(list, fornSort);
-  }, [fornitori, searchText, fornSort, categoriaSel]);
+  }, [fornitori, searchText, fornSort, categoriaSel, catNomeSel]);
 
   // ── KPI ──
   const totFornitori = filtered.length;
@@ -124,9 +132,9 @@ export default function FattureFornitoriElenco() {
   const totFatture = filtered.reduce((s, f) => s + (f.numero_fatture || 0), 0);
 
   // ── Contatori filtri attivi ──
-  const activeFilters = [searchText, annoSel, categoriaSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
+  const activeFilters = [searchText, annoSel, categoriaSel, catNomeSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
   const clearFilters = () => {
-    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setFornSort({ field: "totale_fatture", dir: "desc" });
+    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setCatNomeSel(""); setFornSort({ field: "totale_fatture", dir: "desc" });
   };
 
   // ── Selezione massiva: toggle ──
@@ -248,8 +256,16 @@ export default function FattureFornitoriElenco() {
               </div>
             </div>
 
-            <div className="bg-amber-50/50 rounded-lg p-2.5 border border-amber-100 shadow-sm">
+            <div className="bg-amber-50/50 rounded-lg p-2.5 border border-amber-100 shadow-sm space-y-2">
               <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Categorie</div>
+              <div>
+                <label className={fLbl}>Categoria fornitore</label>
+                <select value={catNomeSel} onChange={e => setCatNomeSel(e.target.value)} className={fSel}>
+                  <option value="">Tutte le categorie</option>
+                  <option value="__none__">— Senza categoria —</option>
+                  {categorie.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                </select>
+              </div>
               <div>
                 <label className={fLbl}>Stato prodotti</label>
                 <select value={categoriaSel} onChange={e => setCategoriaSel(e.target.value)} className={fSel}>
@@ -491,6 +507,9 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const nProdotti = prodotti.length;
   const nAssegnati = prodotti.filter(p => p.categoria_id).length;
   const nEreditate = prodotti.filter(p => p.categoria_id && p.categoria_auto).length;
+  const nPagate = fatture.filter(f => f.pagato).length;
+  const nDaPagare = totFatture - nPagate;
+  const totDaPagare = fatture.filter(f => !f.pagato).reduce((s, f) => s + (f.totale_fattura || 0), 0);
 
   // ── Prodotti filtrati ──
   let filteredProd = [...prodotti];
@@ -620,8 +639,8 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
             if (onExclude) onExclude();
           } catch (e) { console.error(e); }
         }}
-          className="text-[10px] text-red-500 hover:text-red-700 font-medium transition">
-          Escludi fornitore
+          className="px-2.5 py-1 rounded-lg text-[10px] font-medium border border-neutral-200 text-neutral-400 hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition">
+          Escludi
         </button>
       </div>
 
@@ -631,15 +650,17 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           <div className="flex-1">
             <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider mb-1">Fornitore</p>
             <h2 className="text-xl font-bold text-teal-900 font-playfair">{fornNome}</h2>
-            {fornPiva && <p className="text-xs text-neutral-500 font-mono mt-0.5">P.IVA: {fornPiva}</p>}
-            {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && (
-              <p className="text-xs text-neutral-500 font-mono mt-0.5">C.F.: {anag.fornitore_cf}</p>
-            )}
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+              {fornPiva && <p className="text-xs text-neutral-500 font-mono">P.IVA: {fornPiva}</p>}
+              {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && (
+                <p className="text-xs text-neutral-500 font-mono">C.F.: {anag.fornitore_cf}</p>
+              )}
+            </div>
           </div>
           {/* Anagrafica sede */}
           {(anag.fornitore_indirizzo || anag.fornitore_citta) && (
-            <div className="md:text-right text-xs text-neutral-600 space-y-0.5">
-              {anag.fornitore_indirizzo && <p>{anag.fornitore_indirizzo}</p>}
+            <div className="md:text-right text-xs text-neutral-500 space-y-0.5">
+              {anag.fornitore_indirizzo && <p className="text-neutral-700">{anag.fornitore_indirizzo}</p>}
               <p>
                 {[anag.fornitore_cap, anag.fornitore_citta, anag.fornitore_provincia ? `(${anag.fornitore_provincia})` : null]
                   .filter(Boolean).join(" ")}
@@ -652,7 +673,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
         </div>
 
         {/* KPI grid */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 mb-4">
           <div className="bg-teal-50 rounded-xl p-2.5 border border-teal-200 text-center">
             <p className="text-lg font-bold text-teal-900 tabular-nums">{totFatture}</p>
             <p className="text-[9px] text-neutral-500 uppercase">Fatture</p>
@@ -665,10 +686,20 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
             <p className="text-lg font-bold text-blue-900 tabular-nums">€ {fmt(totImponibile)}</p>
             <p className="text-[9px] text-neutral-500 uppercase">Imponibile</p>
           </div>
+          <div className="bg-neutral-50 rounded-xl p-2.5 border border-neutral-200 text-center">
+            <p className="text-lg font-bold text-neutral-800 tabular-nums">€ {fmt(totFatture > 0 ? totSpesa / totFatture : 0)}</p>
+            <p className="text-[9px] text-neutral-500 uppercase">Media fatt.</p>
+          </div>
           <div className="bg-purple-50 rounded-xl p-2.5 border border-purple-200 text-center">
             <p className="text-lg font-bold text-purple-900 tabular-nums">{nProdotti}</p>
             <p className="text-[9px] text-neutral-500 uppercase">Prodotti</p>
           </div>
+          {nDaPagare > 0 && (
+            <div className="bg-red-50 rounded-xl p-2.5 border border-red-200 text-center">
+              <p className="text-lg font-bold text-red-700 tabular-nums">€ {fmt(totDaPagare)}</p>
+              <p className="text-[9px] text-neutral-500 uppercase">{nDaPagare} da pagare</p>
+            </div>
+          )}
           <div className="bg-neutral-50 rounded-xl p-2.5 border border-neutral-200 text-center">
             <p className="text-sm font-bold text-neutral-900">{primoAcquisto || "—"}</p>
             <p className="text-[9px] text-neutral-500 uppercase">Primo acq.</p>

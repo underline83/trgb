@@ -932,20 +932,39 @@ def stats_fornitori(
     cur.execute(
         f"""
         SELECT
-            f.fornitore_nome,
-            f.fornitore_piva,
-            COUNT(*) AS numero_fatture,
-            SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture,
-            MIN(f.data_fattura) AS primo_acquisto,
-            MAX(f.data_fattura) AS ultimo_acquisto
-        FROM fe_fatture f
+            sub.fornitore_nome,
+            sub.fornitore_piva,
+            sub.numero_fatture,
+            sub.totale_fatture,
+            sub.primo_acquisto,
+            sub.ultimo_acquisto,
+            fc.categoria_id,
+            cat.nome AS categoria_nome
+        FROM (
+            SELECT
+                f.fornitore_nome,
+                f.fornitore_piva,
+                COUNT(*) AS numero_fatture,
+                SUM(COALESCE(f.totale_fattura, 0)) AS totale_fatture,
+                MIN(f.data_fattura) AS primo_acquisto,
+                MAX(f.data_fattura) AS ultimo_acquisto
+            FROM fe_fatture f
+            WHERE {where_sql}
+              AND NOT EXISTS (
+                  SELECT 1 FROM fe_fornitore_categoria exc
+                  WHERE exc.escluso = 1
+                    AND (
+                        (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = exc.fornitore_piva)
+                        OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = exc.fornitore_nome AND exc.fornitore_piva IS NULL)
+                    )
+              )
+            GROUP BY f.fornitore_nome, f.fornitore_piva
+        ) sub
         LEFT JOIN fe_fornitore_categoria fc
-            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc.fornitore_piva)
-            OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
-        WHERE {where_sql}
-          AND COALESCE(fc.escluso, 0) = 0
-        GROUP BY f.fornitore_nome, f.fornitore_piva
-        ORDER BY totale_fatture DESC
+            ON (sub.fornitore_piva IS NOT NULL AND sub.fornitore_piva != '' AND sub.fornitore_piva = fc.fornitore_piva)
+            OR (COALESCE(sub.fornitore_piva, '') = '' AND sub.fornitore_nome = fc.fornitore_nome AND fc.fornitore_piva IS NULL)
+        LEFT JOIN fe_categorie cat ON fc.categoria_id = cat.id
+        ORDER BY sub.totale_fatture DESC
         """,
         params,
     )
@@ -964,7 +983,7 @@ def stats_fornitori(
     cur.execute(
         f"""
         SELECT
-            COALESCE(f.fornitore_piva, f.fornitore_nome) AS forn_key,
+            CASE WHEN f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' THEN f.fornitore_piva ELSE f.fornitore_nome END AS forn_key,
             COUNT(r.id) AS righe_totali,
             SUM(CASE WHEN r.categoria_id IS NOT NULL THEN 1 ELSE 0 END) AS righe_categorizzate,
             SUM(CASE WHEN r.categoria_id IS NOT NULL AND COALESCE(r.categoria_auto, 0) = 1 THEN 1 ELSE 0 END) AS righe_auto
