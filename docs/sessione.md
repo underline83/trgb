@@ -1,7 +1,40 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-23 (sessione 13 — Gestione Vendite v4.0: dashboard unificata, chiusure configurabili, cleanup fiscale)
+> Ultima sessione: 2026-03-28 (sessione 15 — Acquisti: filtro categoria sidebar, fix fornitori mancanti, dettaglio migliorato)
+
+---
+
+## REGOLE OPERATIVE — LEGGERE PRIMA DI TUTTO
+
+### Git & Deploy
+- **NON fare `git commit`**. Le modifiche le fai nei file, ma il commit lo gestisce `push.sh` che lancia Marco dal suo terminale. Se committi tu, push.sh non chiede piu' il messaggio e Marco si confonde.
+- **NON fare `git push`**. L'ambiente Cowork non ha accesso alla rete (SSH/internet). Il push fallira' sempre.
+- **NON fare `git add -A`**. Rischi di includere file sensibili. Lascia che push.sh faccia tutto.
+- **Workflow corretto**: tu modifichi i file → dici a Marco "pronto, lancia `./push.sh`" → lui committa e deploya dal suo terminale.
+- Se devi annullare le tue modifiche a un file: `git checkout -- <file>` (ma chiedi prima).
+
+### Ambiente Cowork
+- Non hai accesso alla rete. Niente curl, wget, npm install da remoto, pip install da remoto, push, fetch.
+- I database `.sqlite3` e `.db` sono nella cartella `app/data/`. Puoi leggerli con sqlite3 per debug.
+- push.sh scarica i DB dal VPS prima di committare, quindi i DB locali sono aggiornati solo dopo un push.
+
+### Comunicazione con Marco
+- Marco parla in italiano. Rispondi in italiano.
+- Marco usa spesso CAPS LOCK per enfasi, non si sta arrabbiando.
+- Quando Marco dice "caricato" significa che ha fatto il push e il VPS e' aggiornato.
+- Se qualcosa non funziona dopo il push, chiedi a Marco di refreshare la pagina (Ctrl+Shift+R).
+
+### Stile codice
+- Frontend: React + Tailwind CSS, no CSS separati. Componenti funzionali con hooks.
+- Backend: FastAPI + SQLite. Migrazioni numerate in `app/migrations/`.
+- Pattern UI consolidati: `SortTh`/`sortRows` per colonne ordinabili, toast per feedback, sidebar filtri a sinistra.
+- Colori: teal per primario, amber per warning, emerald per successo, red per errore.
+
+### Migrazioni DB
+- Le migrazioni sono in `app/migrations/NNN_nome.py` e vengono tracciate in `schema_migrations`.
+- Una migrazione gia' eseguita NON verra' rieseguita. Se serve correggere, crea una nuova migrazione.
+- Controlla sempre se la colonna esiste prima di ALTER TABLE (try/except).
 
 ---
 
@@ -15,59 +48,46 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-23, sessione 13)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-28, sessione 15)
 
-### Gestione Vendite v4.0: Dashboard unificata 3 modalita', chiusure configurabili, cleanup fiscale
+### Acquisti v2.2: Filtro categoria sidebar, fix fornitori mancanti, dettaglio migliorato
 
-#### Fix home page vuota per superadmin
-1. **modules.json** — aggiunto "superadmin" a tutti i moduli (mancava nel data layer)
-2. **Home.jsx** — aggiunto fallback: superadmin vede tutto cio' che vede admin
+#### Fix fornitori mancanti (sessione 14+15)
+1. **stats_fornitori query riscritta** — il vecchio LEFT JOIN con `escluso` filter nel WHERE nascondeva fornitori legittimi. Ora usa NOT EXISTS subquery per esclusione + JOIN separato per categoria
+2. **forn_key fix** — COALESCE non gestiva fornitore_piva="" (empty string vs NULL). Ora usa CASE WHEN
 
-#### Pre-conti nascosti
-3. **CorrispettiviMenu.jsx** — tile pre-conti spostata da "Chiusure turno" a "Impostazioni" (solo superadmin, icona lucchetto)
-4. **VenditeNav.jsx** — rimosso tab pre-conti dalla barra di navigazione
-5. **PrecontiAdmin.jsx** — default filtro: mese corrente (era ultimi 30 giorni)
+#### Filtro categoria sidebar
+3. **FattureFornitoriElenco.jsx** — aggiunto dropdown "Categoria fornitore" nella sidebar sinistra (filtra per categoria assegnata al fornitore, oppure "Senza categoria")
+4. **stats_fornitori** — ora ritorna `categoria_id` e `categoria_nome` dal JOIN con fe_fornitore_categoria + fe_categorie
 
-#### Dashboard v3.0-fiscale (pulizia dati)
-6. **CorrispettiviDashboard.jsx** — rimossi: Totale Incassi KPI, linea incassi nel grafico, colonna differenze, sezione alert
-7. **Contanti come residuo** — corrispettivi_tot - pagamenti_elettronici = contanti (quadra sempre)
+#### Dettaglio fornitore migliorato
+5. **KPI arricchiti** — aggiunto "Media fattura" e "Da pagare" (importo rosso, solo se ci sono fatture non pagate)
+6. **Layout header** — P.IVA e C.F. su stessa riga, piu' compatto
+7. **Pulsante "Escludi" ridisegnato** — grigio discreto, diventa rosso solo al hover
 
-#### Confronto anno precedente
-8. **YoY mensile** — aggiunto fetch anno-1, KPI confronto totale e media, linea tratteggiata grigia nel grafico
-9. **Smart cutoff** — se mese corrente, confronta solo fino allo stesso giorno (evita confronti falsati)
-
-#### Top/bottom days fix
-10. **Esclusi giorni chiusura** — filtro corrispettivi > 0 nei ranking
-
-#### Chiusure configurabili
-11. **closures_config.json** (NUOVO) — giorno_chiusura_settimanale (0-6/null) + giorni_chiusi (array date ISO)
-12. **closures_config_router.py** (NUOVO) — GET/PUT /settings/closures-config/ con validazione
-13. **admin_finance.py** — logica chiusura configurabile con priorita': DB flag > dati reali > festivita' config > giorno settimanale
-14. **CalendarioChiusure.jsx** (NUOVO) — UI calendario con pulsanti giorno settimanale + griglia mensile toggle + lista date chiuse
-
-#### Impostazioni sidebar layout
-15. **CorrispettiviImport.jsx** — riscritto con sidebar menu (pattern ViniImpostazioni): "Calendario Chiusure" + "Import Corrispettivi"
-
-#### Chiusure Turno Lista
-16. **ChiusureTurnoLista.jsx** — espansione diretta senza doppio click
-
-#### Dashboard unificata v4.0 (3 modalita')
-17. **CorrispettiviDashboard.jsx** — rewrite completo con mode switcher (Mensile/Trimestrale/Annuale)
-18. **Modalita' trimestrale** — aggrega 3 mesi, KPI, grafico, pagamenti, tabella, confronto pari trimestre anno-1
-19. **Modalita' annuale** — grafico a barre mensili, tabella mensile con variazioni (era pagina separata)
-20. **VenditeNav.jsx** — rimosso tab "Annuale"
-21. **CorrispettiviMenu.jsx** — rimossa tile "Confronto Annuale", aggiornata tile Dashboard
-22. **App.jsx** — rimosso import CorrispettiviAnnual, route /vendite/annual → redirect a dashboard?mode=annuale
-
-#### Documentazione
-23. **versions.jsx** — corrispettivi v2.0 → v4.0, sistema v4.3 → v4.5
-24. **modulo_corrispettivi.md** — riscritto completo con dashboard unificata, chiusure configurabili, pre-conti nascosti
-25. **changelog.md** — aggiunta v4.0 completa
-26. **sessione.md** — aggiornamento completo (questo file)
+#### Sessione 14 (2026-03-25/27) — riepilogo
+8. **Toast feedback** per azioni massive in MagazzinoVini.jsx
+9. **Categoria fornitore propagata** ai prodotti (con flag `categoria_auto`)
+10. **Righe descrittive nascoste** (prezzo_totale=0 filtrate da prodotti e cat_status)
+11. **Colonne ordinabili** sia nella tabella fornitori che nella tab fatture del dettaglio
+12. **Esclusione fornitori** (Cattaneo/Bana come affitti) con filtro in stats_fornitori
+13. **Migrazione 027** (fe_righe.categoria_auto) + **028** (reset valori errati)
 
 ---
 
-## Cosa abbiamo fatto nella sessione precedente (2026-03-22, sessione 12)
+## Cosa abbiamo fatto nella sessione 13 (2026-03-23)
+
+### Gestione Vendite v4.0: Dashboard unificata 3 modalita', chiusure configurabili, cleanup fiscale
+- Fix home page vuota per superadmin (modules.json + Home.jsx)
+- Pre-conti nascosti in Impostazioni (solo superadmin)
+- Dashboard fiscale pulita: contanti come residuo, rimossi alert/differenze
+- Confronto YoY con smart cutoff (giorno corrente se mese in corso)
+- Chiusure configurabili: closures_config.json + CalendarioChiusure.jsx
+- Dashboard unificata 3 modalita' (Mensile/Trimestrale/Annuale) in una pagina
+
+---
+
+## Cosa abbiamo fatto nella sessione 12 (2026-03-22)
 
 ### Gestione Acquisti v2.1: FIC API v2 enrichment, SyncResult tracking, fix UI escluso
 
@@ -103,7 +123,7 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Sessioni precedenti (3-10)
+## Sessioni precedenti (3-11)
 
 | # | Data | Tema |
 |---|------|------|
@@ -146,6 +166,15 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 - **Frontend**: `CambioPIN.jsx` a `/cambio-pin`
 - **Backend**: usa endpoint esistente `PUT /auth/users/{username}/password`
 
+### Modulo Acquisti — Fornitori (v2.2)
+- **Categorizzazione a 3 livelli**: prodotto manuale > fornitore manuale > import automatico
+- **`auto_categorize_righe()`** in `fe_categorie_router.py`: shared helper usato da import XML e FIC sync
+- **`categoria_auto` flag** su `fe_righe`: 0=manuale, 1=ereditata da import
+- **Badge cat_status**: ok (tutte manuali), auto (ha ereditate), partial, none, empty
+- **Esclusione fornitori**: `fe_fornitore_categoria.escluso` + `motivo_esclusione`
+- **Filtri sidebar**: ricerca testo, anno, categoria fornitore, stato prodotti
+- **Pattern UI**: SortTh/sortRows su tutte le tabelle, toast per feedback
+
 ### FORCE IMPORT SENZA CHECK RUOLO
 `vini_magazzino_router.py` riga ~403: commento `# per ora nessun controllo di ruolo`.
 
@@ -158,7 +187,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Modulo | Versione | Stato |
 |--------|----------|-------|
 | Cantina & Vini | v4.0 | stabile |
-| Gestione Acquisti | v2.0 | stabile |
+| Gestione Acquisti | v2.2 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v4.0 | stabile |
 | Statistiche | v1.0 | beta |
@@ -230,6 +259,16 @@ app/models/vini_magazzino_db.py          — DB unico vini + fix delete_moviment
 app/services/carta_vini_service.py       — builder HTML/PDF/DOCX carta vini
 app/repositories/vini_repository.py      — load_vini_ordinati() da magazzino (usato da tutti)
 
+# --- ACQUISTI (FATTURE ELETTRONICHE) ---
+app/routers/fe_import.py                    — import XML/ZIP, stats fornitori, dashboard, drill
+app/routers/fe_categorie_router.py          — categorie, assegnazione prodotti/fornitori, auto_categorize
+app/routers/fattureincloud_router.py        — sync FIC API v2
+frontend/src/pages/admin/FattureFornitoriElenco.jsx — lista fornitori con sidebar filtri + dettaglio inline
+frontend/src/pages/admin/FattureDashboard.jsx       — dashboard acquisti
+frontend/src/pages/admin/FattureElenco.jsx          — lista fatture
+frontend/src/pages/admin/FattureCategorie.jsx       — gestione categorie
+frontend/src/pages/admin/FattureImpostazioni.jsx    — import + sync settings
+
 # --- RICETTE & FOOD COST ---
 app/routers/foodcost_recipes_router.py    — ricette + calcolo food cost
 app/routers/foodcost_matching_router.py   — matching fatture → ingredienti
@@ -263,7 +302,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche (migraz. 001-018) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche (migraz. 001-028) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 
