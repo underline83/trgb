@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-29 (sessione 17 — Controllo Gestione: nuovo modulo, dashboard, tabellone uscite, import fatture)
+> Ultima sessione: 2026-03-30 (sessione 18 — Fix scadenzario, DB recovery, backup system, riconciliazione banca)
 
 ---
 

@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-03-30 — Controllo Gestione: Riconciliazione Banca
+
+### Scadenzario Uscite (ControlloGestioneUscite.jsx v3.0)
+
+#### Added
+- **Riconciliazione banca**: nuova colonna "Banca" con icone per collegare uscite a movimenti bancari
+- **Modale candidati**: click sull'icona viola mostra movimenti bancari compatibili (importo +-10%, data +-15gg)
+- **Match scoring**: indica % di corrispondenza importo, evidenzia "Match esatto" quando >= 99%
+- **Flusso stati**: PAGATA_MANUALE + match banca → PAGATA (confermata). Scollega riporta a PAGATA_MANUALE
+- **KPI riconciliazione**: contatore nella sidebar e nella barra KPI
+- **Filtro automatico**: esclude movimenti gia collegati ad altre uscite
+
+### Backend (controllo_gestione_router.py)
+
+#### Added
+- `GET /uscite/{id}/candidati-banca` — trova movimenti bancari candidati al match
+- `POST /uscite/{id}/riconcilia` — collega uscita a movimento, stato → PAGATA
+- `DELETE /uscite/{id}/riconcilia` — scollega, stato → PAGATA_MANUALE
+- Riepilogo: num_riconciliate e num_da_riconciliare nel GET /uscite
+
+---
+
 ## 2026-03-23 — Gestione Vendite v4.0: Dashboard unificata 3 modalita', chiusure configurabili, cleanup fiscale
 
 ### Dashboard unificata (CorrispettiviDashboard.jsx — rewrite completo)

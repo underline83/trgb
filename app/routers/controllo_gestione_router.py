@@ -750,6 +750,8 @@ def get_uscite(
     totale_pagate = sum(r["importo_pagato"] for r in rows if r["stato"] in stati_pagata)
     n_senza_scadenza = sum(1 for r in rows if r["data_scadenza"] is None and r["stato"] not in stati_pagata)
     n_pagata_manuale = sum(1 for r in rows if r["stato"] == "PAGATA_MANUALE")
+    n_riconciliate = sum(1 for r in rows if r.get("banca_movimento_id"))
+    n_da_riconciliare = sum(1 for r in rows if r["stato"] == "PAGATA_MANUALE" and not r.get("banca_movimento_id"))
 
     fc.close()
 
@@ -764,6 +766,8 @@ def get_uscite(
             "num_pagate": sum(1 for r in rows if r["stato"] in stati_pagata),
             "num_pagata_manuale": n_pagata_manuale,
             "num_senza_scadenza": n_senza_scadenza,
+            "num_riconciliate": n_riconciliate,
+            "num_da_riconciliare": n_da_riconciliare,
         },
     }
 
@@ -1187,3 +1191,166 @@ def delete_spesa_fissa(
     fc.commit()
     fc.close()
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# RICONCILIAZIONE BANCA — match uscite ↔ movimenti bancari
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/uscite/{uscita_id}/candidati-banca")
+def get_candidati_banca(
+    uscita_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Dato un'uscita, trova movimenti bancari candidati al match.
+    Criteri: importo ±5%, data ±15gg dalla scadenza (o data fattura).
+    Restituisce max 10 candidati ordinati per vicinanza importo.
+    """
+    fc = get_fc_db()
+
+    uscita = fc.execute("SELECT * FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+    if not uscita:
+        fc.close()
+        return {"ok": False, "error": "Uscita non trovata"}
+
+    u = dict(uscita)
+    importo = abs(u["totale"] or 0)
+    # Usa data_pagamento se presente, altrimenti data_scadenza, altrimenti data_fattura
+    data_rif = u.get("data_pagamento") or u.get("data_scadenza") or u.get("data_fattura")
+
+    if importo == 0:
+        fc.close()
+        return {"ok": True, "candidati": [], "msg": "Importo zero, nessun match possibile"}
+
+    # Movimenti bancari in USCITA (importo negativo) — match con ABS
+    query = """
+        SELECT m.*,
+               ABS(ABS(m.importo) - ?) AS diff_importo,
+               CASE WHEN ? IS NOT NULL
+                    THEN ABS(JULIANDAY(m.data_contabile) - JULIANDAY(?))
+                    ELSE 999 END AS diff_giorni
+        FROM banca_movimenti m
+        LEFT JOIN cg_uscite u2 ON u2.banca_movimento_id = m.id
+        WHERE m.importo < 0
+          AND ABS(ABS(m.importo) - ?) / MAX(?, 0.01) < 0.10
+          AND u2.id IS NULL
+    """
+    params = [importo, data_rif, data_rif, importo, importo]
+
+    if data_rif:
+        query += " AND m.data_contabile BETWEEN date(?, '-15 days') AND date(?, '+15 days')"
+        params.extend([data_rif, data_rif])
+
+    query += " ORDER BY diff_importo ASC, diff_giorni ASC LIMIT 10"
+
+    candidati = fc.execute(query, params).fetchall()
+
+    rows = []
+    for c in candidati:
+        cd = dict(c)
+        cd["importo_abs"] = abs(cd["importo"])
+        cd["match_pct"] = round(100 - (cd["diff_importo"] / max(importo, 0.01) * 100), 1)
+        rows.append(cd)
+
+    fc.close()
+    return {
+        "ok": True,
+        "uscita": {
+            "id": u["id"],
+            "fornitore_nome": u["fornitore_nome"],
+            "totale": u["totale"],
+            "data_scadenza": u.get("data_scadenza"),
+            "data_pagamento": u.get("data_pagamento"),
+            "stato": u["stato"],
+        },
+        "candidati": rows,
+    }
+
+
+@router.post("/uscite/{uscita_id}/riconcilia")
+def riconcilia_uscita(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Collega un'uscita a un movimento bancario.
+    Body: { "banca_movimento_id": int }
+    Effetto: banca_movimento_id viene salvato, stato → PAGATA.
+    """
+    fc = get_fc_db()
+    banca_id = payload.get("banca_movimento_id")
+    if not banca_id:
+        fc.close()
+        return {"ok": False, "error": "banca_movimento_id richiesto"}
+
+    # Verifica che l'uscita esista
+    uscita = fc.execute("SELECT id, stato FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+    if not uscita:
+        fc.close()
+        return {"ok": False, "error": "Uscita non trovata"}
+
+    # Verifica che il movimento non sia già usato da un'altra uscita
+    existing = fc.execute(
+        "SELECT id, fornitore_nome FROM cg_uscite WHERE banca_movimento_id = ? AND id != ?",
+        (banca_id, uscita_id)
+    ).fetchone()
+    if existing:
+        fc.close()
+        return {"ok": False, "error": f"Movimento già collegato a uscita #{existing['id']} ({existing['fornitore_nome']})"}
+
+    # Verifica che il movimento esista
+    mov = fc.execute("SELECT id, importo, data_contabile FROM banca_movimenti WHERE id = ?", (banca_id,)).fetchone()
+    if not mov:
+        fc.close()
+        return {"ok": False, "error": "Movimento bancario non trovato"}
+
+    oggi_str = date.today().isoformat()
+    fc.execute("""
+        UPDATE cg_uscite
+        SET banca_movimento_id = ?,
+            stato = 'PAGATA',
+            data_pagamento = COALESCE(data_pagamento, ?),
+            importo_pagato = totale,
+            updated_at = ?
+        WHERE id = ?
+    """, (banca_id, dict(mov)["data_contabile"], oggi_str, uscita_id))
+    fc.commit()
+    fc.close()
+
+    return {"ok": True, "nuovo_stato": "PAGATA"}
+
+
+@router.delete("/uscite/{uscita_id}/riconcilia")
+def scollega_uscita(
+    uscita_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Scollega un'uscita dal movimento bancario.
+    Riporta lo stato a PAGATA_MANUALE.
+    """
+    fc = get_fc_db()
+
+    uscita = fc.execute("SELECT id, stato, banca_movimento_id FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+    if not uscita:
+        fc.close()
+        return {"ok": False, "error": "Uscita non trovata"}
+
+    if not uscita["banca_movimento_id"]:
+        fc.close()
+        return {"ok": False, "error": "Uscita non riconciliata"}
+
+    oggi_str = date.today().isoformat()
+    fc.execute("""
+        UPDATE cg_uscite
+        SET banca_movimento_id = NULL,
+            stato = 'PAGATA_MANUALE',
+            updated_at = ?
+        WHERE id = ?
+    """, (oggi_str, uscita_id))
+    fc.commit()
+    fc.close()
+
+    return {"ok": True, "nuovo_stato": "PAGATA_MANUALE"}

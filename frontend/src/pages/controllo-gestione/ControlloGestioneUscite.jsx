@@ -1,5 +1,6 @@
-// @version: v2.0-scadenzario-cantina-layout
+// @version: v3.0-riconciliazione-banca
 // Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
+// + Riconciliazione Banca: match uscite ↔ movimenti bancari
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -50,6 +51,12 @@ export default function ControlloGestioneUscite() {
   const [filtroA, setFiltroA] = useState("");
   const [sortCol, setSortCol] = useState("data_scadenza");
   const [sortDir, setSortDir] = useState("asc");
+
+  // ── Modale riconciliazione ──
+  const [modaleBanca, setModaleBanca] = useState(null); // { uscita_id, fornitore, totale }
+  const [candidati, setCandidati] = useState([]);
+  const [loadingCandidati, setLoadingCandidati] = useState(false);
+  const [linkingId, setLinkingId] = useState(null);
 
   // ── Auto-import + fetch ──
   const fetchData = useCallback(async (doImport = false) => {
@@ -137,8 +144,66 @@ export default function ControlloGestioneUscite() {
   };
 
   const SortIcon = ({ col }) => {
-    if (sortCol !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
-    return <span className="text-sky-600 ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
+    if (sortCol !== col) return <span className="text-neutral-300 ml-0.5">&updownarrow;</span>;
+    return <span className="text-sky-600 ml-0.5">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>;
+  };
+
+  // ── Riconciliazione: apri modale ──
+  const apriRiconciliazione = async (uscita) => {
+    setModaleBanca({ id: uscita.id, fornitore: uscita.fornitore_nome, totale: uscita.totale });
+    setCandidati([]);
+    setLoadingCandidati(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/${uscita.id}/candidati-banca`);
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      setCandidati(json.candidati || []);
+    } catch (e) {
+      console.error("Errore candidati banca:", e);
+    } finally {
+      setLoadingCandidati(false);
+    }
+  };
+
+  // ── Riconciliazione: collega ──
+  const collegaMovimento = async (banca_movimento_id) => {
+    if (!modaleBanca) return;
+    setLinkingId(banca_movimento_id);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/${modaleBanca.id}/riconcilia`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ banca_movimento_id }),
+      });
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      if (json.ok) {
+        setModaleBanca(null);
+        fetchData(false); // Refresh tabella
+      } else {
+        alert(json.error || "Errore");
+      }
+    } catch (e) {
+      console.error("Errore riconciliazione:", e);
+      alert("Errore di rete");
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
+  // ── Riconciliazione: scollega ──
+  const scollegaMovimento = async (uscita_id) => {
+    if (!confirm("Scollegare il movimento bancario? Lo stato tornerà a 'Pagata *'")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/${uscita_id}/riconcilia`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Errore API");
+      fetchData(false);
+    } catch (e) {
+      console.error("Errore scollega:", e);
+      alert("Errore di rete");
+    }
   };
 
   const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA].filter(Boolean).length;
@@ -175,7 +240,7 @@ export default function ControlloGestioneUscite() {
             <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">
               <div className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mb-1.5">Ricerca</div>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Fornitore, n° fattura..." className={fInp} />
+                placeholder="Fornitore, n. fattura..." className={fInp} />
             </div>
 
             {/* Stato */}
@@ -233,6 +298,19 @@ export default function ControlloGestioneUscite() {
               </div>
             </div>
 
+            {/* Riconciliazione mini-info */}
+            {rig.num_da_riconciliare > 0 && (
+              <div className="bg-violet-50/60 rounded-lg p-2.5 border border-violet-200 shadow-sm">
+                <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Riconciliazione</div>
+                <div className="text-xs text-violet-800">
+                  <span className="font-bold">{rig.num_da_riconciliare}</span> pagate da riconciliare
+                </div>
+                <div className="text-[10px] text-violet-500 mt-0.5">
+                  {rig.num_riconciliate || 0} gia verificate in banca
+                </div>
+              </div>
+            )}
+
             {/* Azioni */}
             <div className="flex gap-2 pt-1">
               <button onClick={clearFilters}
@@ -259,6 +337,11 @@ export default function ControlloGestioneUscite() {
               active={filtroStato === "SCADUTA"} onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")} />
             <KPI label="Pagate" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
               active={filtroStato === "PAGATA"} onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")} />
+            {rig.num_riconciliate > 0 && (
+              <span className="text-[10px] text-violet-600 flex items-center gap-1 ml-1">
+                <BancaCheckIcon size={12} /> {rig.num_riconciliate} riconc.
+              </span>
+            )}
             <span className="ml-auto text-[10px] text-neutral-400 flex-shrink-0">
               {sorted.length} / {allUscite.length} righe
             </span>
@@ -294,7 +377,9 @@ export default function ControlloGestioneUscite() {
                     <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("tipo_uscita")}>
                       Categoria <SortIcon col="tipo_uscita" />
                     </th>
-                    <th className="px-3 py-2 text-left">Mod. Pagamento</th>
+                    <th className="px-3 py-2 text-center" title="Riconciliazione banca">
+                      Banca
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,6 +387,8 @@ export default function ControlloGestioneUscite() {
                     const st = STATO_STYLE[u.stato] || STATO_STYLE.DA_PAGARE;
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
+                    const isRiconciliata = !!u.banca_movimento_id;
+                    const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
 
                     return (
                       <tr key={u.id} className={`border-b border-neutral-100 hover:bg-sky-50/50 transition ${
@@ -314,7 +401,7 @@ export default function ControlloGestioneUscite() {
                               {fmtDateFull(u.data_scadenza)}
                             </span>
                           ) : (
-                            <span className="text-neutral-300 italic">—</span>
+                            <span className="text-neutral-300 italic">&mdash;</span>
                           )}
                         </td>
                         {/* FORNITORE */}
@@ -325,12 +412,12 @@ export default function ControlloGestioneUscite() {
                         <td className="px-3 py-1.5">
                           {isSF ? (
                             <span className="text-neutral-500 italic">
-                              {u.periodo_riferimento || "—"}
+                              {u.periodo_riferimento || "&mdash;"}
                               {u.sf_frequenza && <span className="ml-1 text-[9px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
                             </span>
                           ) : (
                             <>
-                              <span className="text-neutral-700">{u.numero_fattura || "—"}</span>
+                              <span className="text-neutral-700">{u.numero_fattura || "&mdash;"}</span>
                               {u.data_fattura && (
                                 <span className="ml-1.5 text-[9px] text-neutral-400">{fmtDateFull(u.data_fattura)}</span>
                               )}
@@ -339,9 +426,9 @@ export default function ControlloGestioneUscite() {
                         </td>
                         {/* IMPORTO */}
                         <td className="px-3 py-1.5 text-right">
-                          <span className="font-semibold text-neutral-800">€ {fmt(u.totale)}</span>
+                          <span className="font-semibold text-neutral-800">&euro; {fmt(u.totale)}</span>
                           {residuo > 0 && residuo < u.totale && (
-                            <div className="text-[9px] text-amber-600">res. € {fmt(residuo)}</div>
+                            <div className="text-[9px] text-amber-600">res. &euro; {fmt(residuo)}</div>
                           )}
                         </td>
                         {/* STATO */}
@@ -362,15 +449,24 @@ export default function ControlloGestioneUscite() {
                             </span>
                           )}
                         </td>
-                        {/* MOD PAGAMENTO */}
-                        <td className="px-3 py-1.5">
-                          <div className="text-neutral-500">{u.modalita_pagamento_label || "—"}</div>
-                          {u.metodo_pagamento_label && (
-                            <span className={`text-[9px] px-1 py-0.5 rounded-full ${
-                              u.metodo_pagamento === "CONTANTI" ? "bg-orange-100 text-orange-700"
-                              : u.metodo_pagamento === "CARTA" ? "bg-purple-100 text-purple-700"
-                              : "bg-sky-100 text-sky-700"
-                            }`}>{u.metodo_pagamento_label}</span>
+                        {/* BANCA (riconciliazione) */}
+                        <td className="px-3 py-1.5 text-center">
+                          {isRiconciliata ? (
+                            <button onClick={() => scollegaMovimento(u.id)}
+                              title="Riconciliata — click per scollegare"
+                              className="inline-flex items-center gap-0.5 text-emerald-600 hover:text-red-500 transition">
+                              <BancaCheckIcon size={14} />
+                            </button>
+                          ) : puoRiconciliare ? (
+                            <button onClick={() => apriRiconciliazione(u)}
+                              title="Collega a movimento bancario"
+                              className="inline-flex items-center gap-0.5 text-violet-500 hover:text-violet-700 transition hover:scale-110">
+                              <BancaLinkIcon size={14} />
+                            </button>
+                          ) : u.stato === "PAGATA" && u.banca_movimento_id ? (
+                            <BancaCheckIcon size={14} className="text-emerald-400" />
+                          ) : (
+                            <span className="text-neutral-200">&mdash;</span>
                           )}
                         </td>
                       </tr>
@@ -383,6 +479,84 @@ export default function ControlloGestioneUscite() {
 
         </div>
       </div>
+
+      {/* ══════ MODALE RICONCILIAZIONE ══════ */}
+      {modaleBanca && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setModaleBanca(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header modale */}
+            <div className="px-5 py-3 border-b border-neutral-200 bg-violet-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-violet-900">Riconcilia con Banca</h3>
+                  <p className="text-[11px] text-violet-600 mt-0.5">
+                    {modaleBanca.fornitore} &mdash; &euro; {fmt(modaleBanca.totale)}
+                  </p>
+                </div>
+                <button onClick={() => setModaleBanca(null)}
+                  className="text-neutral-400 hover:text-neutral-600 text-lg leading-none">&times;</button>
+              </div>
+            </div>
+
+            {/* Body modale */}
+            <div className="p-5 overflow-y-auto max-h-[60vh]">
+              {loadingCandidati ? (
+                <div className="text-center py-8 text-neutral-400">Ricerca movimenti...</div>
+              ) : candidati.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-neutral-400 text-sm">Nessun movimento bancario compatibile trovato</div>
+                  <div className="text-[10px] text-neutral-300 mt-1">
+                    Criteri: importo &plusmn;10%, data &plusmn;15 giorni
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-[10px] text-neutral-500 mb-2">
+                    {candidati.length} moviment{candidati.length === 1 ? "o" : "i"} compatibil{candidati.length === 1 ? "e" : "i"}
+                  </div>
+                  {candidati.map((c) => (
+                    <div key={c.id}
+                      className="border border-neutral-200 rounded-lg p-3 hover:border-violet-300 hover:bg-violet-50/30 transition">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-neutral-800 truncate">
+                            {c.descrizione || "Movimento senza descrizione"}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-neutral-500">
+                            <span>{fmtDateFull(c.data_contabile)}</span>
+                            <span className="font-semibold text-neutral-700">&euro; {fmt(c.importo_abs)}</span>
+                            {c.match_pct >= 99 ? (
+                              <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
+                                Match esatto
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                {c.match_pct}% match
+                              </span>
+                            )}
+                          </div>
+                          {c.categoria_banca && (
+                            <div className="text-[9px] text-neutral-400 mt-0.5">{c.categoria_banca}</div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => collegaMovimento(c.id)}
+                          disabled={linkingId === c.id}
+                          className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 flex-shrink-0">
+                          {linkingId === c.id ? "..." : "Collega"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -395,8 +569,32 @@ function KPI({ label, value, n, color, active, onClick }) {
     <button onClick={onClick}
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition cursor-pointer ${cm[color] || ""} ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}>
       <span>{label}</span>
-      <span className="font-bold">€ {fmt(value)}</span>
+      <span className="font-bold">&euro; {fmt(value)}</span>
       <span className="opacity-50 font-normal text-[9px]">({n})</span>
     </button>
+  );
+}
+
+
+// ── Icone SVG inline ──
+function BancaCheckIcon({ size = 16, className = "" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M2 10h16" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M8 14l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 7V5a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    </svg>
+  );
+}
+
+function BancaLinkIcon({ size = 16, className = "" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="7" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <path d="M2 10h16" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6 7V5a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.5" fill="none" />
+      <circle cx="10" cy="14" r="1.5" fill="currentColor" />
+    </svg>
   );
 }
