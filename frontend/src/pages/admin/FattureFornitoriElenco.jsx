@@ -460,6 +460,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
 
   // ── Esclusione acquisti ──
   const [togglingExcl, setTogglingExcl] = useState(false);
+  const [localExcl, setLocalExcl] = useState(false);
 
   // ── Categoria generica fornitore ──
   const [catGenericaId, setCatGenericaId] = useState("");
@@ -494,7 +495,13 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setCatGenericaId(""); setSubGenericaId("");
     setOpenFatturaId(null); setFatturaDetail(null);
     setPagMp(""); setPagGiorni(""); setPagNote(""); setPagSaved(false);
+    setLocalExcl(false);
   }, [openKey]);
+
+  // Sync esclusione con data
+  useEffect(() => {
+    if (data?.escluso_acquisti != null) setLocalExcl(!!data.escluso_acquisti);
+  }, [data?.escluso_acquisti]);
 
   // Carica dati pagamento fornitore
   useEffect(() => {
@@ -567,9 +574,6 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
 
   const { fatture, prodotti, stats, anagrafica = {}, fornNome, fornPiva, escluso_acquisti: excAcqProp = 0 } = data;
   const anag = anagrafica || {};
-  const [localExcl, setLocalExcl] = useState(!!excAcqProp);
-  // Sync con prop quando cambia fornitore
-  useEffect(() => { setLocalExcl(!!excAcqProp); }, [excAcqProp]);
   const isExcluded = localExcl;
 
   const handleToggleExcl = async () => {
