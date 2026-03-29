@@ -202,6 +202,43 @@ def _extract_fornitore_full(root: ET.Element) -> dict:
     return result
 
 
+def _extract_dati_pagamento(root: ET.Element) -> dict:
+    """
+    Estrae dati di pagamento dal blocco <DatiPagamento> della FatturaPA.
+    Ritorna dict con:
+      - condizioni_pagamento: TP01 (a rate), TP02 (completo), TP03 (anticipo)
+      - modalita_pagamento: MP01..MP23 (contanti, bonifico, carta, ecc.)
+      - data_scadenza: YYYY-MM-DD (prima scadenza trovata)
+      - importo_pagamento: float (importo del primo dettaglio pagamento)
+    """
+    result = {
+        "condizioni_pagamento": None,
+        "modalita_pagamento": None,
+        "data_scadenza": None,
+        "importo_pagamento": None,
+    }
+    dati_pag = _find_node(root, "DatiPagamento")
+    if dati_pag is None:
+        return result
+
+    result["condizioni_pagamento"] = _find_text_in(dati_pag, "CondizioniPagamento")
+
+    # Cerca il primo DettaglioPagamento
+    dettaglio = _find_node(dati_pag, "DettaglioPagamento")
+    if dettaglio is not None:
+        result["modalita_pagamento"] = _find_text_in(dettaglio, "ModalitaPagamento")
+        result["data_scadenza"] = _find_text_in(dettaglio, "DataScadenzaPagamento")
+        imp = _find_text_in(dettaglio, "ImportoPagamento")
+        if imp:
+            imp = imp.replace(",", ".")
+            try:
+                result["importo_pagamento"] = float(imp)
+            except ValueError:
+                pass
+
+    return result
+
+
 def _to_float(v: str | None) -> float | None:
     if v is None:
         return None
@@ -315,6 +352,9 @@ def _process_single_xml(
 
     imponibile_totale = _to_float(imponibile_str)
     iva_totale = _to_float(iva_str)
+
+    # PAGAMENTO: estrai DatiPagamento (condizioni, modalità, scadenza, importo)
+    pag_info = _extract_dati_pagamento(root)
     totale_fattura = _to_float(totale_str)
 
     now = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
@@ -396,6 +436,20 @@ def _process_single_xml(
                 update_fields.append("fornitore_nazione = ?")
                 update_params.append(forn_info["nazione"])
 
+            # Dati pagamento da XML
+            if pag_info["condizioni_pagamento"]:
+                update_fields.append("condizioni_pagamento = ?")
+                update_params.append(pag_info["condizioni_pagamento"])
+            if pag_info["modalita_pagamento"]:
+                update_fields.append("modalita_pagamento = ?")
+                update_params.append(pag_info["modalita_pagamento"])
+            if pag_info["data_scadenza"]:
+                update_fields.append("data_scadenza = ?")
+                update_params.append(pag_info["data_scadenza"])
+            if pag_info["importo_pagamento"] is not None:
+                update_fields.append("importo_pagamento = ?")
+                update_params.append(pag_info["importo_pagamento"])
+
             update_params.append(fic_id)
             cur.execute(
                 f"UPDATE fe_fatture SET {', '.join(update_fields)} WHERE id = ?",
@@ -464,9 +518,11 @@ def _process_single_xml(
             valuta, xml_hash, xml_filename, data_import,
             tipo_documento, is_autofattura, fonte,
             fornitore_cf, fornitore_indirizzo, fornitore_cap,
-            fornitore_citta, fornitore_provincia, fornitore_nazione
+            fornitore_citta, fornitore_provincia, fornitore_nazione,
+            condizioni_pagamento, modalita_pagamento,
+            data_scadenza, importo_pagamento
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'xml', ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'xml', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             fornitore_nome or "Sconosciuto",
@@ -488,6 +544,10 @@ def _process_single_xml(
             forn_info["citta"],
             forn_info["provincia"],
             forn_info["nazione"],
+            pag_info["condizioni_pagamento"],
+            pag_info["modalita_pagamento"],
+            pag_info["data_scadenza"],
+            pag_info["importo_pagamento"],
         ),
     )
     fattura_id = cur.lastrowid

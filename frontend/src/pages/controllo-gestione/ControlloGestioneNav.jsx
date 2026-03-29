@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/controllo-gestione/dashboard" },
+  { key: "uscite", label: "Uscite", path: "/controllo-gestione/uscite" },
   { key: "confronto", label: "Confronto", path: "/controllo-gestione/confronto" },
 ];
 

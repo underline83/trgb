@@ -4,8 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
 
 const CARDS = [
-  { title: "Dashboard", desc: "Panorama completo: vendite, acquisti, banca, scadenze, margine", icon: "📊", path: "/controllo-gestione/dashboard" },
+  { title: "Dashboard", desc: "Panorama completo: vendite, acquisti, banca, margine", icon: "📊", path: "/controllo-gestione/dashboard" },
+  { title: "Tabellone Uscite", desc: "Fatture da pagare, arretrati, scadenze — importate da Acquisti", icon: "💸", path: "/controllo-gestione/uscite" },
   { title: "Confronto Periodi", desc: "Confronta due mesi o due anni — vendite, acquisti, margine", icon: "📈", path: "/controllo-gestione/confronto" },
+  { title: "Spese Fisse", desc: "Affitti, tasse, stipendi, prestiti, rateizzazioni", icon: "🏠", path: "/controllo-gestione/spese-fisse", disabled: true },
 ];
 
 export default function ControlloGestioneMenu() {
@@ -30,12 +32,18 @@ export default function ControlloGestioneMenu() {
           {CARDS.map((c) => (
             <div
               key={c.path}
-              onClick={() => navigate(c.path)}
-              className="rounded-2xl border border-sky-200 bg-sky-50 p-5 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition"
+              onClick={() => !c.disabled && navigate(c.path)}
+              className={`rounded-2xl border p-5 transition ${
+                c.disabled
+                  ? "border-neutral-200 bg-neutral-50 cursor-not-allowed opacity-60"
+                  : "border-sky-200 bg-sky-50 cursor-pointer hover:shadow-lg hover:-translate-y-0.5"
+              }`}
             >
               <div className="text-3xl mb-2">{c.icon}</div>
-              <div className="text-lg font-semibold text-sky-900">{c.title}</div>
-              <div className="text-xs text-sky-600 mt-1">{c.desc}</div>
+              <div className={`text-lg font-semibold ${c.disabled ? "text-neutral-500" : "text-sky-900"}`}>
+                {c.title} {c.disabled && <span className="text-xs font-normal text-neutral-400 ml-1">In lavorazione</span>}
+              </div>
+              <div className={`text-xs mt-1 ${c.disabled ? "text-neutral-400" : "text-sky-600"}`}>{c.desc}</div>
             </div>
           ))}
         </div>

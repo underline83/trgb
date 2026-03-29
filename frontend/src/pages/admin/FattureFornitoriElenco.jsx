@@ -466,6 +466,14 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [subGenericaId, setSubGenericaId] = useState("");
   const [savingGenerica, setSavingGenerica] = useState(false);
 
+  // ── Condizioni pagamento fornitore ──
+  const [pagMp, setPagMp] = useState("");
+  const [pagGiorni, setPagGiorni] = useState("");
+  const [pagNote, setPagNote] = useState("");
+  const [pagLoading, setPagLoading] = useState(false);
+  const [pagSaving, setPagSaving] = useState(false);
+  const [pagSaved, setPagSaved] = useState(false);
+
   // ── Prodotti: filtri e bulk ──
   const [prodSearch, setProdSearch] = useState("");
   const [prodFilter, setProdFilter] = useState("tutti");
@@ -485,7 +493,48 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
     setOpenFatturaId(null); setFatturaDetail(null);
+    setPagMp(""); setPagGiorni(""); setPagNote(""); setPagSaved(false);
   }, [openKey]);
+
+  // Carica dati pagamento fornitore
+  useEffect(() => {
+    if (!data?.fornPiva) return;
+    setPagLoading(true);
+    apiFetch(`/controllo-gestione/fornitore/${data.fornPiva}/pagamento`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) {
+          setPagMp(d.modalita_pagamento_default || "");
+          setPagGiorni(d.giorni_pagamento ?? "");
+          setPagNote(d.note_pagamento || "");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPagLoading(false));
+  }, [data?.fornPiva]);
+
+  const handleSavePagamento = async () => {
+    if (!data?.fornPiva) return;
+    setPagSaving(true);
+    setPagSaved(false);
+    try {
+      await apiFetch(`/controllo-gestione/fornitore/${data.fornPiva}/pagamento`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          modalita_pagamento_default: pagMp || null,
+          giorni_pagamento: pagGiorni ? parseInt(pagGiorni) : null,
+          note_pagamento: pagNote || null,
+        }),
+      });
+      setPagSaved(true);
+      setTimeout(() => setPagSaved(false), 2000);
+    } catch (e) {
+      console.error("Errore salvataggio pagamento:", e);
+    } finally {
+      setPagSaving(false);
+    }
+  };
 
   // ── Apri dettaglio fattura inline ──
   const openFattura = async (id) => {
@@ -780,6 +829,50 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
             </div>
           )}
         </div>
+
+        {/* Condizioni pagamento */}
+        {fornPiva && (
+          <div className="border-t border-neutral-100 pt-3 mt-3">
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Condizioni di pagamento</p>
+            {pagLoading ? (
+              <p className="text-xs text-neutral-400">Caricamento...</p>
+            ) : (
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="text-[10px] text-neutral-400 block mb-0.5">Modalit\u00e0</label>
+                  <select value={pagMp} onChange={e => setPagMp(e.target.value)}
+                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-44">
+                    <option value="">— Non specificata —</option>
+                    <option value="MP01">MP01 — Contanti</option>
+                    <option value="MP02">MP02 — Assegno</option>
+                    <option value="MP05">MP05 — Bonifico</option>
+                    <option value="MP08">MP08 — Carta</option>
+                    <option value="MP09">MP09 — RID</option>
+                    <option value="MP12">MP12 — RIBA</option>
+                    <option value="MP16">MP16 — Domiciliaz. bancaria</option>
+                    <option value="MP19">MP19 — SEPA DD</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</label>
+                  <input type="number" value={pagGiorni} onChange={e => setPagGiorni(e.target.value)}
+                    placeholder="es. 30, 60, 90"
+                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-28" />
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <label className="text-[10px] text-neutral-400 block mb-0.5">Note</label>
+                  <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
+                    placeholder="es. fine mese, 30gg data fattura..."
+                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
+                </div>
+                <button onClick={handleSavePagamento} disabled={pagSaving}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
+                  {pagSaving ? "..." : pagSaved ? "\u2713 Salvato" : "Salva"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

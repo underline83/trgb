@@ -1,15 +1,17 @@
 """
 TRGB — Controllo di Gestione Router
 Dashboard unificata che incrocia dati da: Acquisti, Banca, Vendite.
+Tabellone Uscite: importa fatture da Acquisti, calcola scadenze, gestisce stati.
 
 Prefix: /controllo-gestione
-DB: foodcost.db (lettura acquisti, banca), admin_finance.sqlite3 (lettura vendite)
+DB: foodcost.db (lettura acquisti, banca, cg_uscite, cg_spese_fisse),
+    admin_finance.sqlite3 (lettura vendite)
 """
 
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"])
@@ -365,3 +367,360 @@ def confronto(
         "periodo_2": p2,
         "variazioni": variazioni,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MAPPING MODALITÀ PAGAMENTO FatturaPA
+# ═══════════════════════════════════════════════════════════════════
+
+MP_LABELS = {
+    "MP01": "Contanti",
+    "MP02": "Assegno",
+    "MP03": "Assegno circolare",
+    "MP04": "Contanti c/o Tesoreria",
+    "MP05": "Bonifico",
+    "MP06": "Vaglia cambiario",
+    "MP07": "Bollettino bancario",
+    "MP08": "Carta di pagamento",
+    "MP09": "RID",
+    "MP10": "RID utenze",
+    "MP11": "RID veloce",
+    "MP12": "RIBA",
+    "MP13": "MAV",
+    "MP14": "Quietanza erario",
+    "MP15": "Giroconto su conti di contabilità speciale",
+    "MP16": "Domiciliazione bancaria",
+    "MP17": "Domiciliazione postale",
+    "MP18": "Bollettino di c/c postale",
+    "MP19": "SEPA Direct Debit",
+    "MP20": "SEPA Direct Debit CORE",
+    "MP21": "SEPA Direct Debit B2B",
+    "MP22": "Trattenuta su somme già riscosse",
+    "MP23": "PagoPA",
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# IMPORT USCITE DA FATTURE ACQUISTI
+# ═══════════════════════════════════════════════════════════════════
+
+@router.post("/uscite/import")
+def import_uscite(
+    current_user=Depends(get_current_user),
+):
+    """
+    Importa le fatture non pagate da fe_fatture nella tabella cg_uscite.
+
+    Logica scadenza (in ordine di priorità):
+    1. data_scadenza presente nell'XML della fattura (DatiPagamento)
+    2. giorni_pagamento del fornitore (suppliers.giorni_pagamento) → data_fattura + giorni
+    3. NULL → la fattura finisce in "senza scadenza" (avviso)
+
+    Logica stato:
+    - Se data_scadenza < oggi → SCADUTA (arretrato)
+    - Se data_scadenza >= oggi → DA_PAGARE (uscita corrente)
+    - Se data_scadenza è NULL → DA_PAGARE (senza scadenza, richiede attenzione)
+
+    Fatture già importate: aggiorna stato se cambiato.
+    Autofatture (is_autofattura=1) e note credito (TD04) escluse.
+    """
+    fc = get_fc_db()
+    oggi_str = date.today().isoformat()
+
+    # ── Fetch tutte le fatture non-auto, non-nota-credito ──
+    fatture = fc.execute("""
+        SELECT
+            f.id, f.fornitore_nome, f.fornitore_piva,
+            f.numero_fattura, f.data_fattura,
+            f.totale_fattura, f.data_scadenza,
+            f.condizioni_pagamento, f.modalita_pagamento,
+            s.giorni_pagamento AS fornitore_giorni,
+            s.modalita_pagamento_default AS fornitore_mp
+        FROM fe_fatture f
+        LEFT JOIN suppliers s ON f.fornitore_piva = s.partita_iva
+        WHERE f.is_autofattura = 0
+          AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
+          AND f.totale_fattura > 0
+    """).fetchall()
+
+    importate = 0
+    aggiornate = 0
+    saltate = 0
+    senza_scadenza = 0
+
+    for fat in fatture:
+        fat = dict(fat)
+        fattura_id = fat["id"]
+
+        # ── Calcola data_scadenza ──
+        data_scad = fat["data_scadenza"]  # da XML
+        if not data_scad and fat["fornitore_giorni"] and fat["data_fattura"]:
+            # Calcola da default fornitore
+            try:
+                df = datetime.strptime(fat["data_fattura"], "%Y-%m-%d")
+                data_scad = (df + timedelta(days=fat["fornitore_giorni"])).strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                data_scad = None
+
+        if not data_scad:
+            senza_scadenza += 1
+
+        # ── Calcola stato ──
+        if data_scad and data_scad < oggi_str:
+            stato = "SCADUTA"
+        else:
+            stato = "DA_PAGARE"
+
+        # ── Controlla se già importata ──
+        existing = fc.execute(
+            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?",
+            (fattura_id,)
+        ).fetchone()
+
+        if existing:
+            ex = dict(existing)
+            # Se già PAGATA o PARZIALE, non toccare
+            if ex["stato"] in ("PAGATA", "PARZIALE"):
+                saltate += 1
+                continue
+            # Aggiorna stato e scadenza se cambiati
+            if ex["stato"] != stato or ex["data_scadenza"] != data_scad:
+                fc.execute("""
+                    UPDATE cg_uscite
+                    SET stato = ?, data_scadenza = ?, updated_at = ?
+                    WHERE id = ?
+                """, (stato, data_scad, oggi_str, ex["id"]))
+                aggiornate += 1
+            else:
+                saltate += 1
+        else:
+            # Nuova uscita
+            fc.execute("""
+                INSERT INTO cg_uscite (
+                    fattura_id, fornitore_nome, fornitore_piva,
+                    numero_fattura, data_fattura, totale,
+                    data_scadenza, stato, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                fattura_id, fat["fornitore_nome"], fat["fornitore_piva"],
+                fat["numero_fattura"], fat["data_fattura"],
+                fat["totale_fattura"],
+                data_scad, stato, oggi_str, oggi_str,
+            ))
+            importate += 1
+
+    # ── Log import ──
+    fc.execute("""
+        INSERT INTO cg_uscite_log (tipo, fatture_importate, fatture_aggiornate, fatture_saltate, note)
+        VALUES (?, ?, ?, ?, ?)
+    """, (
+        "IMPORT_FATTURE", importate, aggiornate, saltate,
+        f"Senza scadenza: {senza_scadenza}"
+    ))
+
+    fc.commit()
+    fc.close()
+
+    return {
+        "importate": importate,
+        "aggiornate": aggiornate,
+        "saltate": saltate,
+        "senza_scadenza": senza_scadenza,
+        "totale_fatture": len(fatture),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TABELLONE USCITE — Lista completa con filtri
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/uscite")
+def get_uscite(
+    stato: Optional[str] = Query(default=None),
+    fornitore: Optional[str] = Query(default=None),
+    da: Optional[str] = Query(default=None, description="Data scadenza da (YYYY-MM-DD)"),
+    a: Optional[str] = Query(default=None, description="Data scadenza a (YYYY-MM-DD)"),
+    ordine: str = Query(default="scadenza_asc"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Tabellone uscite.
+    Filtri: stato (DA_PAGARE, SCADUTA, PAGATA, PARZIALE), fornitore, range scadenza.
+    """
+    fc = get_fc_db()
+    oggi_str = date.today().isoformat()
+
+    where = []
+    params = []
+
+    if stato:
+        where.append("u.stato = ?")
+        params.append(stato)
+    if fornitore:
+        where.append("u.fornitore_nome LIKE ?")
+        params.append(f"%{fornitore}%")
+    if da:
+        where.append("u.data_scadenza >= ?")
+        params.append(da)
+    if a:
+        where.append("u.data_scadenza <= ?")
+        params.append(a)
+
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+
+    ordine_map = {
+        "scadenza_asc": "u.data_scadenza ASC NULLS LAST",
+        "scadenza_desc": "u.data_scadenza DESC NULLS LAST",
+        "importo_asc": "u.totale ASC",
+        "importo_desc": "u.totale DESC",
+        "fornitore": "u.fornitore_nome ASC",
+        "data_fattura": "u.data_fattura DESC",
+    }
+    order_sql = ordine_map.get(ordine, "u.data_scadenza ASC NULLS LAST")
+
+    uscite = fc.execute(f"""
+        SELECT
+            u.*,
+            f.modalita_pagamento AS mp_xml,
+            f.condizioni_pagamento AS cp_xml,
+            s.modalita_pagamento_default AS mp_fornitore,
+            s.giorni_pagamento AS giorni_fornitore
+        FROM cg_uscite u
+        LEFT JOIN fe_fatture f ON u.fattura_id = f.id
+        LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
+        {where_sql}
+        ORDER BY {order_sql}
+    """, params).fetchall()
+
+    rows = []
+    for r in uscite:
+        row = dict(r)
+        # Arricchisci con label modalità pagamento
+        mp = row.get("mp_xml") or row.get("mp_fornitore")
+        row["modalita_pagamento_label"] = MP_LABELS.get(mp, mp) if mp else None
+        row["modalita_pagamento_codice"] = mp
+        # Sorgente scadenza
+        if row.get("mp_xml") or (r["data_scadenza"] and not row.get("giorni_fornitore")):
+            row["scadenza_fonte"] = "xml"
+        elif row.get("giorni_fornitore"):
+            row["scadenza_fonte"] = "fornitore"
+        else:
+            row["scadenza_fonte"] = None
+        rows.append(row)
+
+    # ── Riepilogo ──
+    totale_da_pagare = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "DA_PAGARE")
+    totale_scadute = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "SCADUTA")
+    totale_pagate = sum(r["importo_pagato"] for r in rows if r["stato"] in ("PAGATA", "PARZIALE"))
+    n_senza_scadenza = sum(1 for r in rows if r["data_scadenza"] is None and r["stato"] != "PAGATA")
+
+    fc.close()
+
+    return {
+        "uscite": rows,
+        "riepilogo": {
+            "totale_da_pagare": round(totale_da_pagare, 2),
+            "totale_scadute": round(totale_scadute, 2),
+            "totale_pagate": round(totale_pagate, 2),
+            "num_da_pagare": sum(1 for r in rows if r["stato"] == "DA_PAGARE"),
+            "num_scadute": sum(1 for r in rows if r["stato"] == "SCADUTA"),
+            "num_pagate": sum(1 for r in rows if r["stato"] in ("PAGATA", "PARZIALE")),
+            "num_senza_scadenza": n_senza_scadenza,
+        },
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FATTURE SENZA SCADENZA — per avvisi in Acquisti
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/uscite/senza-scadenza")
+def get_fatture_senza_scadenza(
+    current_user=Depends(get_current_user),
+):
+    """
+    Lista fatture importate in cg_uscite che non hanno data_scadenza.
+    Queste richiedono: configurare giorni_pagamento sul fornitore,
+    oppure scadenza manuale.
+    """
+    fc = get_fc_db()
+    rows = fc.execute("""
+        SELECT
+            u.id, u.fattura_id, u.fornitore_nome, u.fornitore_piva,
+            u.numero_fattura, u.data_fattura, u.totale,
+            s.id AS supplier_id,
+            s.modalita_pagamento_default,
+            s.giorni_pagamento
+        FROM cg_uscite u
+        LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
+        WHERE u.data_scadenza IS NULL
+          AND u.stato NOT IN ('PAGATA')
+        ORDER BY u.totale DESC
+    """).fetchall()
+    fc.close()
+
+    return {
+        "fatture": [dict(r) for r in rows],
+        "count": len(rows),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FORNITORE — Modalità pagamento default
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/fornitore/{piva}/pagamento")
+def get_fornitore_pagamento(piva: str, current_user=Depends(get_current_user)):
+    """Ritorna i dati di pagamento di default di un fornitore."""
+    fc = get_fc_db()
+    row = fc.execute("""
+        SELECT modalita_pagamento_default, giorni_pagamento, note_pagamento
+        FROM suppliers WHERE partita_iva = ?
+    """, (piva,)).fetchone()
+    fc.close()
+    if row:
+        return dict(row)
+    return {"modalita_pagamento_default": None, "giorni_pagamento": None, "note_pagamento": None}
+
+
+@router.put("/fornitore/{piva}/pagamento")
+def update_fornitore_pagamento(
+    piva: str,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Aggiorna modalità pagamento di default per un fornitore.
+    Body: { modalita_pagamento_default, giorni_pagamento, note_pagamento }
+    """
+    fc = get_fc_db()
+
+    # Verifica che il fornitore esista in suppliers
+    existing = fc.execute("SELECT id FROM suppliers WHERE partita_iva = ?", (piva,)).fetchone()
+    if not existing:
+        fc.close()
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Fornitore non trovato in suppliers")
+
+    fc.execute("""
+        UPDATE suppliers
+        SET modalita_pagamento_default = ?,
+            giorni_pagamento = ?,
+            note_pagamento = ?
+        WHERE partita_iva = ?
+    """, (
+        payload.get("modalita_pagamento_default"),
+        payload.get("giorni_pagamento"),
+        payload.get("note_pagamento"),
+        piva,
+    ))
+    fc.commit()
+    fc.close()
+
+    return {"ok": True}
+
+
+@router.get("/mp-labels")
+def get_mp_labels(current_user=Depends(get_current_user)):
+    """Ritorna il mapping codici modalità pagamento FatturaPA → label italiane."""
+    return MP_LABELS

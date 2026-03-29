@@ -95,6 +95,7 @@ import FinanzaScadenzario from "./pages/finanza/FinanzaScadenzario";
 import ControlloGestioneMenu from "./pages/controllo-gestione/ControlloGestioneMenu";
 import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGestioneDashboard";
 import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
+import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
 
 // --- STATISTICHE ---
 import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
@@ -209,6 +210,7 @@ export default function App() {
         <Route path="/controllo-gestione" element={<ControlloGestioneMenu />} />
         <Route path="/controllo-gestione/dashboard" element={<ControlloGestioneDashboard />} />
         <Route path="/controllo-gestione/confronto" element={<ControlloGestioneConfronto />} />
+        <Route path="/controllo-gestione/uscite" element={<ControlloGestioneUscite />} />
 
         {/* --- STATISTICHE --- */}
         <Route path="/statistiche" element={<StatisticheMenu />} />

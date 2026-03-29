@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-28 (sessione 16 — Acquisti: escluso_acquisti, donut sottocategorie, fix refresh prodotti)
+> Ultima sessione: 2026-03-29 (sessione 17 — Controllo Gestione: nuovo modulo, dashboard, tabellone uscite, import fatture)
 
 ---
 
@@ -49,7 +49,41 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-28, sessione 15)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-29, sessione 17)
+
+### Controllo Gestione v1.0: Nuovo modulo, dashboard, tabellone uscite
+
+#### Nuovo modulo Controllo Gestione
+1. **Modulo top-level** separato da Finanza — colore sky/cyan, icona 🎯
+2. **Dashboard unificata** — KPI vendite/acquisti/banca/margine, andamento annuale, top fornitori, categorie acquisti
+3. **Tabellone Uscite** — importa fatture da Acquisti, calcola scadenze, gestisce stati (DA_PAGARE, SCADUTA, PAGATA, PARZIALE)
+4. **Confronto Periodi** — placeholder per confronto mesi/anni
+
+#### Estrazione DatiPagamento da XML FatturaPA
+5. **fe_import.py** — aggiunta funzione `_extract_dati_pagamento()` che estrae DatiPagamento/DettaglioPagamento (condizioni, modalità, scadenza, importo) dall'XML
+6. **Migration 031** — aggiunge `condizioni_pagamento`, `modalita_pagamento`, `data_scadenza`, `importo_pagamento` a `fe_fatture` + `modalita_pagamento_default`, `giorni_pagamento`, `note_pagamento` a `suppliers`
+
+#### Tabelle Controllo Gestione
+7. **Migration 032** — crea `cg_uscite` (fatture importate con stato pagamento), `cg_spese_fisse` (affitti, tasse, stipendi), `cg_uscite_log`
+
+#### Import uscite e logica scadenze
+8. **POST /controllo-gestione/uscite/import** — importa fatture da fe_fatture → cg_uscite, calcola scadenza (XML > default fornitore > NULL), aggiorna stati
+9. **GET /controllo-gestione/uscite** — tabellone con filtri (stato, fornitore, range date, ordinamento)
+10. **GET /controllo-gestione/uscite/senza-scadenza** — fatture senza scadenza (da configurare)
+
+#### Condizioni pagamento fornitore
+11. **FattureFornitoriElenco.jsx** — aggiunta sezione "Condizioni di pagamento" nella scheda fornitore (modalità, giorni, note)
+12. **PUT /controllo-gestione/fornitore/{piva}/pagamento** — salva condizioni pagamento default per fornitore
+
+#### Ancora da fare (prossime sessioni)
+- **Punto 5**: Cross-ref pagamenti con Banca (matching uscite ↔ movimenti)
+- **Spese Fisse**: sezione per affitti, tasse, stipendi, prestiti, rateizzazioni
+- **Gestione contanti**: matching pagamenti cash
+- Finanza: lasciato intatto, "in lavorazione" dove serve
+
+---
+
+## Cosa abbiamo fatto nella sessione 15 (2026-03-28)
 
 ### Acquisti v2.2: Filtro categoria sidebar, fix fornitori mancanti, dettaglio migliorato
 
@@ -201,6 +235,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Statistiche | v1.0 | beta |
 | Banca | v1.0 | beta |
 | Finanza | v1.0 | beta |
+| Controllo Gestione | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
 | Sistema | v4.5 | stabile |
@@ -310,7 +345,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche (migraz. 001-028) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche + Controllo Gestione (migraz. 001-032) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 
