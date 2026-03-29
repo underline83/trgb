@@ -51,6 +51,7 @@ export default function FattureFornitoriElenco() {
   const [categoriaSel, setCategoriaSel] = useState(""); // "ok" | "partial" | "none" | "empty" | ""
   const [catNomeSel, setCatNomeSel] = useState(""); // filtro per nome categoria fornitore
   const [mostraEsclusi, setMostraEsclusi] = useState(false); // mostra fornitori esclusi da acquisti
+  const [pagSel, setPagSel] = useState(""); // filtro pagamento: "ok" | "partial" | "default" | "none" | "da_fare"
   const [fornSort, setFornSort] = useState({ field: "totale_fatture", dir: "desc" });
 
   // ── Selezione massiva ──
@@ -121,15 +122,25 @@ export default function FattureFornitoriElenco() {
     if (!mostraEsclusi) {
       list = list.filter(f => !f.escluso_acquisti);
     }
+    // Filtro pagamento
+    if (pagSel) {
+      if (pagSel === "da_fare") {
+        list = list.filter(f => f.pag_status === "none" || f.pag_status === "partial");
+      } else {
+        list = list.filter(f => f.pag_status === pagSel);
+      }
+    }
     // Aggiungi campi di sort calcolati
     const catOrd = { none: 0, auto: 1, partial: 2, ok: 3, empty: 4 };
+    const pagOrd = { none: 0, partial: 1, default: 2, ok: 3 };
     list = list.map(f => ({
       ...f,
       cat_sort: catOrd[f.cat_status] ?? 4,
+      pag_sort: pagOrd[f.pag_status] ?? 4,
       media_fattura: f.numero_fatture > 0 ? f.totale_fatture / f.numero_fatture : 0,
     }));
     return sortRows(list, fornSort);
-  }, [fornitori, searchText, fornSort, categoriaSel, catNomeSel, mostraEsclusi]);
+  }, [fornitori, searchText, fornSort, categoriaSel, catNomeSel, mostraEsclusi, pagSel]);
 
   // ── KPI ──
   const totFornitori = filtered.length;
@@ -137,9 +148,9 @@ export default function FattureFornitoriElenco() {
   const totFatture = filtered.reduce((s, f) => s + (f.numero_fatture || 0), 0);
 
   // ── Contatori filtri attivi ──
-  const activeFilters = [searchText, annoSel, categoriaSel, catNomeSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
+  const activeFilters = [searchText, annoSel, categoriaSel, catNomeSel, pagSel, fornSort.field !== "totale_fatture" ? "x" : ""].filter(Boolean).length;
   const clearFilters = () => {
-    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setCatNomeSel(""); setMostraEsclusi(false); setFornSort({ field: "totale_fatture", dir: "desc" });
+    setSearchText(""); setAnnoSel(""); setCategoriaSel(""); setCatNomeSel(""); setPagSel(""); setMostraEsclusi(false); setFornSort({ field: "totale_fatture", dir: "desc" });
   };
 
   // ── Selezione massiva: toggle ──
@@ -287,6 +298,21 @@ export default function FattureFornitoriElenco() {
               </div>
             </div>
 
+            <div className="bg-blue-50/50 rounded-lg p-2.5 border border-blue-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-blue-600 uppercase tracking-widest mb-1.5">Pagamento</div>
+              <div>
+                <label className={fLbl}>Dati scadenza</label>
+                <select value={pagSel} onChange={e => setPagSel(e.target.value)} className={fSel}>
+                  <option value="">Tutti</option>
+                  <option value="da_fare">Da configurare (✗ + ◐)</option>
+                  <option value="ok">✓ Tutte con scadenza</option>
+                  <option value="partial">◐ Parziale</option>
+                  <option value="default">D Solo default fornitore</option>
+                  <option value="none">✗ Senza dati pagamento</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex gap-1.5 pt-1">
               <button onClick={clearFilters}
                 className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
@@ -375,6 +401,7 @@ export default function FattureFornitoriElenco() {
                     </th>
                     <SortTh label="Fornitore" field="fornitore_nome" sort={fornSort} setSort={setFornSort} />
                     <SortTh label="Cat" field="cat_sort" sort={fornSort} setSort={setFornSort} align="right" />
+                    <SortTh label="Pag" field="pag_sort" sort={fornSort} setSort={setFornSort} align="right" />
                     <th className="px-3 py-2 text-left hidden sm:table-cell">P.IVA</th>
                     <SortTh label="Fatture" field="numero_fatture" sort={fornSort} setSort={setFornSort} align="right" />
                     <SortTh label="Totale €" field="totale_fatture" sort={fornSort} setSort={setFornSort} align="right" />
@@ -422,6 +449,26 @@ export default function FattureFornitoriElenco() {
                           )}
                           {f.cat_status === "none" && f.righe_totali > 0 && (
                             <span title={`0/${f.righe_totali} — nessuna categoria`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2.5 text-center">
+                          {f.pag_status === "ok" && (
+                            <span title={`${f.fat_con_scadenza}/${f.fat_totali_pag} — tutte con scadenza`}
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                          )}
+                          {f.pag_status === "partial" && (
+                            <span title={`${f.fat_con_scadenza}/${f.fat_totali_pag} con scadenza`}
+                              className="inline-flex items-center justify-center min-w-[24px] h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700 px-1">
+                              {f.fat_con_scadenza}/{f.fat_totali_pag}
+                            </span>
+                          )}
+                          {f.pag_status === "default" && (
+                            <span title="Default fornitore configurato, nessuna scadenza da fatture"
+                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-blue-100 text-blue-700">D</span>
+                          )}
+                          {f.pag_status === "none" && (
+                            <span title="Nessun dato pagamento"
                               className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
                           )}
                         </td>

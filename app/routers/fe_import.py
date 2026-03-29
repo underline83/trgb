@@ -1091,6 +1091,32 @@ def stats_fornitori(
     )
     cat_map = {r["forn_key"]: (r["righe_totali"], r["righe_categorizzate"], r["righe_auto"]) for r in cur.fetchall()}
 
+    # ── Conteggi dati pagamento per fornitore ──
+    pag_params: list = []
+    pag_where = ["f.data_fattura IS NOT NULL", "COALESCE(f.is_autofattura, 0) = 0"]
+    if year is not None:
+        pag_where.append("substr(f.data_fattura, 1, 4) = ?")
+        pag_params.append(str(year))
+    pag_where_sql = " AND ".join(pag_where)
+
+    cur.execute(
+        f"""
+        SELECT
+            CASE WHEN f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' THEN f.fornitore_piva ELSE f.fornitore_nome END AS forn_key,
+            COUNT(*) AS fat_totali,
+            SUM(CASE WHEN f.data_scadenza IS NOT NULL THEN 1 ELSE 0 END) AS fat_con_scadenza
+        FROM fe_fatture f
+        WHERE {pag_where_sql}
+        GROUP BY forn_key
+        """,
+        pag_params,
+    )
+    pag_map = {r["forn_key"]: (r["fat_totali"], r["fat_con_scadenza"]) for r in cur.fetchall()}
+
+    # ── Fornitori con default pagamento ──
+    cur.execute("SELECT piva, giorni_pagamento, modalita_pagamento_default FROM suppliers WHERE giorni_pagamento IS NOT NULL OR modalita_pagamento_default IS NOT NULL")
+    sup_map = {r["piva"]: {"giorni": r["giorni_pagamento"], "mp": r["modalita_pagamento_default"]} for r in cur.fetchall()}
+
     conn.close()
 
     for row in rows:
@@ -1110,6 +1136,23 @@ def stats_fornitori(
             row["cat_status"] = "partial"
         else:
             row["cat_status"] = "none"
+
+        # ── Flag dati pagamento ──
+        fat_tot, fat_scad = pag_map.get(key, (0, 0))
+        sup_info = sup_map.get(row.get("fornitore_piva") or "", {})
+        ha_default = bool(sup_info.get("giorni") or sup_info.get("mp"))
+        # pag_status: "ok" tutte con scadenza, "partial" alcune, "none" nessuna, "default" ha default fornitore ma non da fatture
+        if fat_scad == fat_tot and fat_tot > 0:
+            row["pag_status"] = "ok"
+        elif fat_scad > 0:
+            row["pag_status"] = "partial"
+        elif ha_default:
+            row["pag_status"] = "default"
+        else:
+            row["pag_status"] = "none"
+        row["fat_con_scadenza"] = fat_scad
+        row["fat_totali_pag"] = fat_tot
+        row["ha_default_pagamento"] = ha_default
 
     return rows
 
