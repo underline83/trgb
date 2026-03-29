@@ -580,7 +580,11 @@ def get_cross_ref(
 
 @router.post("/cross-ref/link")
 def create_link(req: CrossRefLinkRequest):
-    """Collega un movimento bancario a una fattura."""
+    """
+    Collega un movimento bancario a una fattura.
+    Propaga il link anche a cg_uscite (se esiste la riga corrispondente)
+    per mantenere sincronizzato lo scadenzario.
+    """
     conn = get_db()
     cur = conn.cursor()
     try:
@@ -588,6 +592,21 @@ def create_link(req: CrossRefLinkRequest):
             INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
             VALUES (?, ?, ?)
         """, (req.movimento_id, req.fattura_id, req.note))
+
+        # Propaga a cg_uscite: se esiste un'uscita per questa fattura, collega e segna PAGATA
+        mov = cur.execute("SELECT data_contabile FROM banca_movimenti WHERE id = ?", (req.movimento_id,)).fetchone()
+        data_mov = dict(mov)["data_contabile"] if mov else None
+        cur.execute("""
+            UPDATE cg_uscite
+            SET banca_movimento_id = ?,
+                stato = 'PAGATA',
+                data_pagamento = COALESCE(data_pagamento, ?),
+                importo_pagato = totale,
+                updated_at = datetime('now')
+            WHERE fattura_id = ?
+              AND banca_movimento_id IS NULL
+        """, (req.movimento_id, data_mov, req.fattura_id))
+
         conn.commit()
         link_id = cur.lastrowid
     except sqlite3.IntegrityError:
@@ -599,12 +618,33 @@ def create_link(req: CrossRefLinkRequest):
 
 @router.delete("/cross-ref/link/{link_id}")
 def delete_link(link_id: int):
-    """Rimuove collegamento movimento ↔ fattura."""
+    """
+    Rimuove collegamento movimento ↔ fattura.
+    Propaga lo scollega anche a cg_uscite.
+    """
     conn = get_db()
     cur = conn.cursor()
+
+    # Recupera il link prima di cancellarlo per propagare a cg_uscite
+    link = cur.execute(
+        "SELECT movimento_id, fattura_id FROM banca_fatture_link WHERE id = ?", (link_id,)
+    ).fetchone()
+
     cur.execute("DELETE FROM banca_fatture_link WHERE id = ?", (link_id,))
-    conn.commit()
     deleted = cur.rowcount
+
+    # Propaga: scollega cg_uscite se era collegata a questo movimento
+    if link:
+        l = dict(link)
+        cur.execute("""
+            UPDATE cg_uscite
+            SET banca_movimento_id = NULL,
+                stato = 'PAGATA_MANUALE',
+                updated_at = datetime('now')
+            WHERE fattura_id = ? AND banca_movimento_id = ?
+        """, (l["fattura_id"], l["movimento_id"]))
+
+    conn.commit()
     conn.close()
     if not deleted:
         raise HTTPException(404, "Collegamento non trovato")

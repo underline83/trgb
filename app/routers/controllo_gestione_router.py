@@ -1307,6 +1307,11 @@ def riconcilia_uscita(
         return {"ok": False, "error": "Movimento bancario non trovato"}
 
     oggi_str = date.today().isoformat()
+
+    # Recupera fattura_id per propagare a banca_fatture_link
+    uscita_full = fc.execute("SELECT fattura_id FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+    fattura_id = dict(uscita_full).get("fattura_id") if uscita_full else None
+
     fc.execute("""
         UPDATE cg_uscite
         SET banca_movimento_id = ?,
@@ -1316,6 +1321,17 @@ def riconcilia_uscita(
             updated_at = ?
         WHERE id = ?
     """, (banca_id, dict(mov)["data_contabile"], oggi_str, uscita_id))
+
+    # Propaga a banca_fatture_link (sync bidirezionale con modulo Banca)
+    if fattura_id:
+        try:
+            fc.execute("""
+                INSERT OR IGNORE INTO banca_fatture_link (movimento_id, fattura_id, note)
+                VALUES (?, ?, 'Collegato da scadenzario')
+            """, (banca_id, fattura_id))
+        except Exception:
+            pass  # Non bloccante: il link in banca_fatture_link e' opzionale
+
     fc.commit()
     fc.close()
 
@@ -1330,15 +1346,17 @@ def scollega_uscita(
     """
     Scollega un'uscita dal movimento bancario.
     Riporta lo stato a PAGATA_MANUALE.
+    Propaga lo scollega anche a banca_fatture_link.
     """
     fc = get_fc_db()
 
-    uscita = fc.execute("SELECT id, stato, banca_movimento_id FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+    uscita = fc.execute("SELECT id, stato, banca_movimento_id, fattura_id FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
     if not uscita:
         fc.close()
         return {"ok": False, "error": "Uscita non trovata"}
 
-    if not uscita["banca_movimento_id"]:
+    u = dict(uscita)
+    if not u["banca_movimento_id"]:
         fc.close()
         return {"ok": False, "error": "Uscita non riconciliata"}
 
@@ -1350,6 +1368,14 @@ def scollega_uscita(
             updated_at = ?
         WHERE id = ?
     """, (oggi_str, uscita_id))
+
+    # Propaga: rimuovi anche il link in banca_fatture_link
+    if u.get("fattura_id") and u["banca_movimento_id"]:
+        fc.execute("""
+            DELETE FROM banca_fatture_link
+            WHERE movimento_id = ? AND fattura_id = ?
+        """, (u["banca_movimento_id"], u["fattura_id"]))
+
     fc.commit()
     fc.close()
 
