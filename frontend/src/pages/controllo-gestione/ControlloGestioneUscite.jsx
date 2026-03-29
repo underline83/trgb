@@ -73,8 +73,8 @@ export default function ControlloGestioneUscite() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Tabellone Uscite</h1>
-            <p className="text-sm text-neutral-500 mt-0.5">Fatture da pagare, arretrati, scadenze</p>
+            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Scadenzario Uscite</h1>
+            <p className="text-sm text-neutral-500 mt-0.5">Tutte le uscite: fatture, spese fisse, scadenze e arretrati</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -98,7 +98,7 @@ export default function ControlloGestioneUscite() {
           <div className={`mb-4 p-3 rounded-xl text-sm ${importResult.errore ? "bg-red-50 border border-red-200 text-red-700" : "bg-emerald-50 border border-emerald-200 text-emerald-700"}`}>
             {importResult.errore
               ? `Errore: ${importResult.errore}`
-              : `Import completato — ${importResult.importate} nuove, ${importResult.aggiornate} aggiornate, ${importResult.saltate} invariate. ${importResult.senza_scadenza > 0 ? `⚠️ ${importResult.senza_scadenza} senza scadenza!` : ""}`
+              : `Import completato — ${importResult.importate} nuove, ${importResult.aggiornate} aggiornate, ${importResult.saltate} invariate.${importResult.spese_fisse_generate > 0 ? ` 🏠 ${importResult.spese_fisse_generate} scadenze spese fisse generate.` : ""}${importResult.senza_scadenza > 0 ? ` ⚠️ ${importResult.senza_scadenza} senza scadenza!` : ""}`
             }
           </div>
         )}
@@ -185,15 +185,12 @@ export default function ControlloGestioneUscite() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-sky-50 border-b border-sky-100">
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Stato</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Fornitore</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">N° Fattura</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Data Fatt.</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-sky-800">Importo</th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Scadenza</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Mod. Pag.</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-sky-800">Pagato</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-sky-800">Residuo</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Fornitore</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Fattura</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-sky-800">Importo</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-sky-800">Stato</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Mod. Pagamento</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -207,21 +204,7 @@ export default function ControlloGestioneUscite() {
 
                     return (
                       <tr key={u.id} className={`border-b border-neutral-100 hover:bg-neutral-50 ${u.stato === "SCADUTA" ? "bg-red-50/30" : ""}`}>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${st.bg} ${st.text} ${st.border} border`}>
-                            {st.label}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <div className="font-medium text-neutral-800 truncate max-w-[200px]">{u.fornitore_nome}</div>
-                        </td>
-                        <td className="px-4 py-2.5 text-neutral-600">{u.numero_fattura || "—"}</td>
-                        <td className="px-4 py-2.5 text-neutral-500 whitespace-nowrap">
-                          {u.data_fattura ? new Date(u.data_fattura + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-800">
-                          € {fmt(u.totale)}
-                        </td>
+                        {/* SCADENZA */}
                         <td className="px-4 py-2.5">
                           {u.data_scadenza ? (
                             <div className="flex items-center gap-1.5">
@@ -245,11 +228,49 @@ export default function ControlloGestioneUscite() {
                             <span className="text-neutral-300 text-xs italic">nessuna</span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-neutral-500">
-                          {u.modalita_pagamento_label || "—"}
+                        {/* FORNITORE */}
+                        <td className="px-4 py-2.5">
+                          <div className="font-medium text-neutral-800 truncate max-w-[200px]">{u.fornitore_nome}</div>
+                          {u.tipo_uscita === "SPESA_FISSA" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium">
+                              {u.sf_tipo_label || "Spesa fissa"}
+                            </span>
+                          )}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-emerald-700">
-                          <div>{u.importo_pagato > 0 ? `€ ${fmt(u.importo_pagato)}` : "—"}</div>
+                        {/* FATTURA / DESCRIZIONE */}
+                        <td className="px-4 py-2.5">
+                          {u.tipo_uscita === "SPESA_FISSA" ? (
+                            <div className="text-neutral-500 text-xs italic">
+                              {u.periodo_riferimento || "—"}
+                              {u.sf_frequenza && <span className="ml-1 text-[10px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
+                            </div>
+                          ) : (
+                            <>
+                              <div className="text-neutral-700">{u.numero_fattura || "—"}</div>
+                              {u.data_fattura && (
+                                <div className="text-[10px] text-neutral-400">
+                                  {new Date(u.data_fattura + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" })}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </td>
+                        {/* IMPORTO */}
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="font-semibold text-neutral-800">€ {fmt(u.totale)}</div>
+                          {residuo > 0 && residuo < u.totale && (
+                            <div className="text-[10px] text-amber-600">residuo € {fmt(residuo)}</div>
+                          )}
+                        </td>
+                        {/* STATO */}
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${st.bg} ${st.text} ${st.border} border`}>
+                            {st.label}
+                          </span>
+                        </td>
+                        {/* MODALITA PAGAMENTO */}
+                        <td className="px-4 py-2.5">
+                          <div className="text-xs text-neutral-600">{u.modalita_pagamento_label || "—"}</div>
                           {u.metodo_pagamento_label && (
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                               u.metodo_pagamento === "CONTANTI" ? "bg-orange-100 text-orange-700"
@@ -257,11 +278,6 @@ export default function ControlloGestioneUscite() {
                               : "bg-sky-100 text-sky-700"
                             }`}>{u.metodo_pagamento_label}</span>
                           )}
-                        </td>
-                        <td className={`px-4 py-2.5 text-right font-bold ${
-                          residuo > 0 && u.stato === "SCADUTA" ? "text-red-700" : residuo > 0 ? "text-amber-700" : "text-emerald-600"
-                        }`}>
-                          {residuo > 0 ? `€ ${fmt(residuo)}` : "✓"}
                         </td>
                       </tr>
                     );

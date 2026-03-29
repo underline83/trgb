@@ -8,6 +8,7 @@ DB: foodcost.db (lettura acquisti, banca, cg_uscite, cg_spese_fisse),
     admin_finance.sqlite3 (lettura vendite)
 """
 
+import calendar
 import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -509,13 +510,125 @@ def import_uscite(
             ))
             importate += 1
 
+    # ═══════════════════════════════════════════════════════════════
+    # PARTE 2: Genera righe dalle SPESE FISSE attive
+    # ═══════════════════════════════════════════════════════════════
+    spese_fisse = fc.execute("""
+        SELECT * FROM cg_spese_fisse WHERE attiva = 1
+    """).fetchall()
+
+    sf_importate = 0
+    sf_saltate = 0
+
+    # Genera scadenze per i prossimi 3 mesi + mese corrente + mesi passati dall'inizio
+    oggi = date.today()
+    mesi_avanti = 3
+
+    freq_mesi = {
+        "MENSILE": 1, "BIMESTRALE": 2, "TRIMESTRALE": 3,
+        "SEMESTRALE": 6, "ANNUALE": 12, "UNA_TANTUM": 0,
+    }
+
+    for sf in spese_fisse:
+        sf = dict(sf)
+        intervallo = freq_mesi.get(sf["frequenza"], 1)
+        if intervallo == 0:
+            # UNA_TANTUM: una sola riga con data_inizio come scadenza
+            periodo = sf["data_inizio"][:7] if sf["data_inizio"] else oggi.strftime("%Y-%m")
+            giorno = sf["giorno_scadenza"] or 1
+            if sf["data_inizio"]:
+                data_scad = sf["data_inizio"]
+            else:
+                data_scad = f"{periodo}-{giorno:02d}"
+
+            existing = fc.execute(
+                "SELECT id FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
+                (sf["id"], periodo)
+            ).fetchone()
+            if not existing:
+                stato_sf = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                fc.execute("""
+                    INSERT INTO cg_uscite (
+                        spesa_fissa_id, tipo_uscita, fornitore_nome,
+                        numero_fattura, totale, data_scadenza,
+                        stato, periodo_riferimento, created_at, updated_at
+                    ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    sf["id"], sf["titolo"],
+                    sf["tipo"], sf["importo"], data_scad,
+                    stato_sf, periodo, oggi_str, oggi_str,
+                ))
+                sf_importate += 1
+            else:
+                sf_saltate += 1
+            continue
+
+        # Calcola range mesi: da data_inizio (o 12 mesi fa) fino a oggi + mesi_avanti
+        inizio = date.fromisoformat(sf["data_inizio"]) if sf["data_inizio"] else date(oggi.year - 1, oggi.month, 1)
+        fine_limite = date(oggi.year, oggi.month, 1) + timedelta(days=32 * mesi_avanti)
+        if sf["data_fine"]:
+            fine_spesa = date.fromisoformat(sf["data_fine"])
+            if fine_limite > fine_spesa:
+                fine_limite = fine_spesa
+
+        # Genera mesi
+        current = date(inizio.year, inizio.month, 1)
+        step = 0
+        while current < fine_limite:
+            if step % intervallo == 0:
+                periodo = current.strftime("%Y-%m")
+                giorno = sf["giorno_scadenza"] or 1
+                # Clamp giorno al max del mese
+                max_day = calendar.monthrange(current.year, current.month)[1]
+                g = min(giorno, max_day)
+                data_scad = f"{current.year}-{current.month:02d}-{g:02d}"
+
+                existing = fc.execute(
+                    "SELECT id, stato FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
+                    (sf["id"], periodo)
+                ).fetchone()
+                if not existing:
+                    stato_sf = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                    fc.execute("""
+                        INSERT INTO cg_uscite (
+                            spesa_fissa_id, tipo_uscita, fornitore_nome,
+                            numero_fattura, totale, data_scadenza,
+                            stato, periodo_riferimento, created_at, updated_at
+                        ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        sf["id"], sf["titolo"],
+                        sf["tipo"], sf["importo"], data_scad,
+                        stato_sf, periodo, oggi_str, oggi_str,
+                    ))
+                    sf_importate += 1
+                else:
+                    ex = dict(existing)
+                    if ex["stato"] not in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
+                        new_stato = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
+                        if ex["stato"] != new_stato:
+                            fc.execute(
+                                "UPDATE cg_uscite SET stato = ?, updated_at = ? WHERE id = ?",
+                                (new_stato, oggi_str, ex["id"])
+                            )
+                    sf_saltate += 1
+
+            # Avanza di un mese
+            if current.month == 12:
+                current = date(current.year + 1, 1, 1)
+            else:
+                current = date(current.year, current.month + 1, 1)
+            step += 1
+
     # ── Log import ──
+    note_log = f"Senza scadenza: {senza_scadenza}"
+    if sf_importate > 0:
+        note_log += f", Spese fisse generate: {sf_importate}"
     fc.execute("""
         INSERT INTO cg_uscite_log (tipo, fatture_importate, fatture_aggiornate, fatture_saltate, note)
         VALUES (?, ?, ?, ?, ?)
     """, (
-        "IMPORT_FATTURE", importate, aggiornate, saltate,
-        f"Senza scadenza: {senza_scadenza}"
+        "IMPORT_FATTURE", importate + sf_importate, aggiornate, saltate + sf_saltate,
+        note_log,
     ))
 
     fc.commit()
@@ -527,6 +640,8 @@ def import_uscite(
         "saltate": saltate,
         "senza_scadenza": senza_scadenza,
         "totale_fatture": len(fatture),
+        "spese_fisse_generate": sf_importate,
+        "spese_fisse_saltate": sf_saltate,
     }
 
 
@@ -584,10 +699,14 @@ def get_uscite(
             f.modalita_pagamento AS mp_xml,
             f.condizioni_pagamento AS cp_xml,
             s.modalita_pagamento_default AS mp_fornitore,
-            s.giorni_pagamento AS giorni_fornitore
+            s.giorni_pagamento AS giorni_fornitore,
+            sf.tipo AS sf_tipo,
+            sf.frequenza AS sf_frequenza,
+            sf.titolo AS sf_titolo
         FROM cg_uscite u
         LEFT JOIN fe_fatture f ON u.fattura_id = f.id
         LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
+        LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
         {where_sql}
         ORDER BY {order_sql}
     """, params).fetchall()
@@ -600,8 +719,15 @@ def get_uscite(
         row["modalita_pagamento_label"] = MP_LABELS.get(mp, mp) if mp else None
         row["modalita_pagamento_codice"] = mp
         # Label metodo pagamento manuale
-        metodo_labels = {"CONTO_CORRENTE": "Conto Corrente", "CARTA": "Carta", "CONTANTI": "Contanti"}
-        row["metodo_pagamento_label"] = metodo_labels.get(row.get("metodo_pagamento")) if row.get("metodo_pagamento") else None
+        _metodo_labels = {"CONTO_CORRENTE": "Conto Corrente", "CARTA": "Carta", "CONTANTI": "Contanti"}
+        row["metodo_pagamento_label"] = _metodo_labels.get(row.get("metodo_pagamento")) if row.get("metodo_pagamento") else None
+        # Tipo uscita label
+        tipo_u = row.get("tipo_uscita") or "FATTURA"
+        row["tipo_uscita"] = tipo_u
+        if tipo_u == "SPESA_FISSA":
+            _sf_tipo_labels = {"AFFITTO": "Affitto", "TASSA": "Tassa", "STIPENDIO": "Stipendio",
+                               "PRESTITO": "Prestito", "RATEIZZAZIONE": "Rateizzazione", "ALTRO": "Altro"}
+            row["sf_tipo_label"] = _sf_tipo_labels.get(row.get("sf_tipo"), row.get("sf_tipo"))
         # Sorgente scadenza
         if row.get("mp_xml") or (r["data_scadenza"] and not row.get("giorni_fornitore")):
             row["scadenza_fonte"] = "xml"

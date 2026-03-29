@@ -5,7 +5,7 @@ import { VersionBadge } from "../../config/versions";
 
 const CARDS = [
   { title: "Dashboard", desc: "Panorama completo: vendite, acquisti, banca, margine", icon: "📊", path: "/controllo-gestione/dashboard" },
-  { title: "Tabellone Uscite", desc: "Fatture da pagare, arretrati, scadenze — importate da Acquisti", icon: "💸", path: "/controllo-gestione/uscite" },
+  { title: "Scadenzario Uscite", desc: "Tutte le uscite: fatture, spese fisse, scadenze e arretrati", icon: "💸", path: "/controllo-gestione/uscite" },
   { title: "Confronto Periodi", desc: "Confronta due mesi o due anni — vendite, acquisti, margine", icon: "📈", path: "/controllo-gestione/confronto" },
   { title: "Spese Fisse", desc: "Affitti, tasse, stipendi, prestiti, rateizzazioni", icon: "🏠", path: "/controllo-gestione/spese-fisse" },
 ];
