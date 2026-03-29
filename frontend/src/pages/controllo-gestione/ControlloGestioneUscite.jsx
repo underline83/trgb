@@ -1,10 +1,13 @@
-// @version: v1.0-controllo-gestione-uscite
-// Tabellone Uscite — fatture da pagare, arretrati, scadenze
-import React, { useState, useEffect, useCallback } from "react";
+// @version: v2.0-scadenzario-cantina-layout
+// Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
+const fmtDateFull = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : null;
+const giorniA = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null;
 
 const STATO_STYLE = {
   DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Da pagare" },
@@ -14,265 +17,354 @@ const STATO_STYLE = {
   PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
 };
 
-const FONTE_BADGE = {
-  xml: { label: "XML", color: "bg-sky-100 text-sky-700" },
-  fornitore: { label: "Default forn.", color: "bg-violet-100 text-violet-700" },
+const TIPO_USCITA_STYLE = {
+  FATTURA:      { label: "Fattura", color: "bg-sky-50 text-sky-700 border-sky-200" },
+  SPESA_FISSA:  { label: "Spesa fissa", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
 };
+
+// ── Sort helper ──
+function sortRows(rows, sortCol, sortDir) {
+  if (!sortCol) return rows;
+  return [...rows].sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
+    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+    return sortDir === "asc" ? va.localeCompare(vb, "it") : vb.localeCompare(va, "it");
+  });
+}
 
 export default function ControlloGestioneUscite() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [filtroStato, setFiltroStato] = useState("");
-  const [filtroFornitore, setFiltroFornitore] = useState("");
-  const [ordine, setOrdine] = useState("scadenza_asc");
+  const importDone = useRef(false);
 
-  const fetchData = useCallback(async () => {
+  // ── Filtri (locali, no API) ──
+  const [search, setSearch] = useState("");
+  const [filtroStato, setFiltroStato] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
+  const [filtroDa, setFiltroDa] = useState("");
+  const [filtroA, setFiltroA] = useState("");
+  const [sortCol, setSortCol] = useState("data_scadenza");
+  const [sortDir, setSortDir] = useState("asc");
+
+  // ── Auto-import + fetch ──
+  const fetchData = useCallback(async (doImport = false) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filtroStato) params.append("stato", filtroStato);
-      if (filtroFornitore) params.append("fornitore", filtroFornitore);
-      params.append("ordine", ordine);
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite?${params}`);
+      if (doImport) {
+        await apiFetch(`${API_BASE}/controllo-gestione/uscite/import`, { method: "POST" });
+      }
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite`);
       if (!res.ok) throw new Error("Errore API");
       setData(await res.json());
     } catch (e) {
-      console.error("Errore caricamento uscite:", e);
+      console.error("Errore:", e);
     } finally {
       setLoading(false);
     }
-  }, [filtroStato, filtroFornitore, ordine]);
+  }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    // Auto-import al primo caricamento
+    if (!importDone.current) {
+      importDone.current = true;
+      fetchData(true);
+    } else {
+      fetchData(false);
+    }
+  }, []); // eslint-disable-line
 
-  const handleImport = async () => {
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/import`, { method: "POST" });
-      if (!res.ok) throw new Error("Errore import");
-      setImportResult(await res.json());
-      fetchData();
-    } catch (e) {
-      setImportResult({ errore: e.message });
-    } finally {
-      setImporting(false);
+  const allUscite = data?.uscite || [];
+  const rig = data?.riepilogo || {};
+
+  // ── Filtraggio locale ──
+  const filtered = useMemo(() => {
+    let rows = allUscite;
+    if (search) {
+      const s = search.toLowerCase();
+      rows = rows.filter(u =>
+        (u.fornitore_nome || "").toLowerCase().includes(s) ||
+        (u.numero_fattura || "").toLowerCase().includes(s)
+      );
+    }
+    if (filtroStato) {
+      if (filtroStato === "PAGATA") {
+        rows = rows.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE");
+      } else {
+        rows = rows.filter(u => u.stato === filtroStato);
+      }
+    }
+    if (filtroTipo) rows = rows.filter(u => (u.tipo_uscita || "FATTURA") === filtroTipo);
+    if (filtroDa) rows = rows.filter(u => u.data_scadenza && u.data_scadenza >= filtroDa);
+    if (filtroA) rows = rows.filter(u => u.data_scadenza && u.data_scadenza <= filtroA);
+    return rows;
+  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA]);
+
+  // ── Sorting locale ──
+  const sorted = useMemo(() => sortRows(filtered, sortCol, sortDir), [filtered, sortCol, sortDir]);
+
+  // ── KPI calcolati sui filtrati ──
+  const kpi = useMemo(() => {
+    const dp = filtered.filter(u => u.stato === "DA_PAGARE");
+    const sc = filtered.filter(u => u.stato === "SCADUTA");
+    const pg = filtered.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE" || u.stato === "PARZIALE");
+    return {
+      da_pagare: dp.reduce((s, u) => s + (u.totale - u.importo_pagato), 0),
+      n_da_pagare: dp.length,
+      scadute: sc.reduce((s, u) => s + (u.totale - u.importo_pagato), 0),
+      n_scadute: sc.length,
+      pagate: pg.reduce((s, u) => s + u.importo_pagato, 0),
+      n_pagate: pg.length,
+      totale: filtered.length,
+    };
+  }, [filtered]);
+
+  const handleSort = (col) => {
+    if (sortCol === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
     }
   };
 
-  const rig = data?.riepilogo || {};
-  const uscite = data?.uscite || [];
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span className="text-neutral-300 ml-0.5">↕</span>;
+    return <span className="text-sky-600 ml-0.5">{sortDir === "asc" ? "↑" : "↓"}</span>;
+  };
+
+  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); };
+
+  const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
+  const fSel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-300";
+  const fInp = fSel;
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-neutral-100">
+      {/* HEADER BAR */}
+      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/controllo-gestione")}
+            className="text-neutral-400 hover:text-neutral-600 text-sm">&larr;</button>
+          <h1 className="text-lg font-bold text-sky-900 font-playfair">Scadenzario Uscite</h1>
+          <span className="text-[10px] text-neutral-400">{loading ? "Caricamento..." : `${sorted.length} righe`}</span>
+        </div>
+        <button onClick={() => navigate("/controllo-gestione/spese-fisse")}
+          className="px-3 py-1 text-xs rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+          Gestisci Spese Fisse
+        </button>
+      </div>
 
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Scadenzario Uscite</h1>
-            <p className="text-sm text-neutral-500 mt-0.5">Tutte le uscite: fatture, spese fisse, scadenze e arretrati</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate("/controllo-gestione")}
-              className="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-            >
-              &larr; Menu
-            </button>
-            <button
-              onClick={handleImport}
-              disabled={importing}
-              className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 font-medium"
-            >
-              {importing ? "Importando..." : "Importa da Acquisti"}
-            </button>
+      {/* LAYOUT: Filtri SX + Contenuto DX */}
+      <div className="flex" style={{ height: "calc(100vh - 49px)" }}>
+
+        {/* ══════ SIDEBAR FILTRI ══════ */}
+        <div className="w-[240px] min-w-[240px] border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">
+          <div className="p-2.5 space-y-2">
+
+            {/* Ricerca */}
+            <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">
+              <div className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mb-1.5">Ricerca</div>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Fornitore, n° fattura..." className={fInp} />
+            </div>
+
+            {/* Stato */}
+            <div className="bg-sky-50/50 rounded-lg p-2.5 border border-sky-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-sky-600 uppercase tracking-widest mb-1.5">Stato</div>
+              <div className="space-y-1">
+                {[
+                  { value: "", label: "Tutti", n: allUscite.length },
+                  { value: "DA_PAGARE", label: "Da pagare", n: allUscite.filter(u => u.stato === "DA_PAGARE").length },
+                  { value: "SCADUTA", label: "Scadute", n: allUscite.filter(u => u.stato === "SCADUTA").length },
+                  { value: "PAGATA", label: "Pagate", n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length },
+                ].map(o => (
+                  <button key={o.value} onClick={() => setFiltroStato(filtroStato === o.value ? "" : o.value)}
+                    className={`w-full text-left px-2 py-1 rounded-md text-xs transition flex justify-between ${
+                      filtroStato === o.value ? "bg-sky-200 text-sky-900 font-semibold" : "hover:bg-sky-100 text-neutral-700"
+                    }`}>
+                    <span>{o.label}</span>
+                    <span className="text-neutral-400 font-normal">{o.n}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tipo */}
+            <div className="bg-indigo-50/40 rounded-lg p-2.5 border border-indigo-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest mb-1.5">Tipo</div>
+              <div className="space-y-1">
+                {[
+                  { value: "", label: "Tutti" },
+                  { value: "FATTURA", label: "Fatture" },
+                  { value: "SPESA_FISSA", label: "Spese fisse" },
+                ].map(o => (
+                  <button key={o.value} onClick={() => setFiltroTipo(filtroTipo === o.value ? "" : o.value)}
+                    className={`w-full text-left px-2 py-1 rounded-md text-xs transition ${
+                      filtroTipo === o.value ? "bg-indigo-200 text-indigo-900 font-semibold" : "hover:bg-indigo-100 text-neutral-700"
+                    }`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Periodo */}
+            <div className="bg-amber-50/40 rounded-lg p-2.5 border border-amber-100 shadow-sm">
+              <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Periodo Scadenza</div>
+              <div className="space-y-1.5">
+                <div>
+                  <label className={fLbl}>Da</label>
+                  <input type="date" value={filtroDa} onChange={e => setFiltroDa(e.target.value)} className={fInp} />
+                </div>
+                <div>
+                  <label className={fLbl}>A</label>
+                  <input type="date" value={filtroA} onChange={e => setFiltroA(e.target.value)} className={fInp} />
+                </div>
+              </div>
+            </div>
+
+            {/* Azioni */}
+            <div className="flex gap-2 pt-1">
+              <button onClick={clearFilters}
+                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100">
+                Pulisci {activeFilters > 0 && <span className="text-sky-600">({activeFilters})</span>}
+              </button>
+              <button onClick={() => fetchData(true)} disabled={loading}
+                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50">
+                {loading ? "..." : "Aggiorna"}
+              </button>
+            </div>
+
           </div>
         </div>
 
-        {/* IMPORT RESULT */}
-        {importResult && (
-          <div className={`mb-4 p-3 rounded-xl text-sm ${importResult.errore ? "bg-red-50 border border-red-200 text-red-700" : "bg-emerald-50 border border-emerald-200 text-emerald-700"}`}>
-            {importResult.errore
-              ? `Errore: ${importResult.errore}`
-              : `Import completato — ${importResult.importate} nuove, ${importResult.aggiornate} aggiornate, ${importResult.saltate} invariate.${importResult.spese_fisse_generate > 0 ? ` 🏠 ${importResult.spese_fisse_generate} scadenze spese fisse generate.` : ""}${importResult.senza_scadenza > 0 ? ` ⚠️ ${importResult.senza_scadenza} senza scadenza!` : ""}`
-            }
+        {/* ══════ COLONNA DESTRA: KPI + TABELLA ══════ */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+          {/* KPI BAR */}
+          <div className="px-3 py-2 border-b border-neutral-200 bg-white flex flex-wrap gap-2 items-center flex-shrink-0">
+            <KPI label="Da pagare" value={kpi.da_pagare} n={kpi.n_da_pagare} color="amber"
+              active={filtroStato === "DA_PAGARE"} onClick={() => setFiltroStato(filtroStato === "DA_PAGARE" ? "" : "DA_PAGARE")} />
+            <KPI label="Scadute" value={kpi.scadute} n={kpi.n_scadute} color="red"
+              active={filtroStato === "SCADUTA"} onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")} />
+            <KPI label="Pagate" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
+              active={filtroStato === "PAGATA"} onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")} />
+            <span className="ml-auto text-[10px] text-neutral-400 flex-shrink-0">
+              {sorted.length} / {allUscite.length} righe
+            </span>
           </div>
-        )}
 
-        {/* KPI CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <KPI
-            label="Da pagare"
-            value={`€ ${fmt(rig.totale_da_pagare)}`}
-            sub={`${rig.num_da_pagare || 0} fatture`}
-            color="amber"
-            onClick={() => setFiltroStato(filtroStato === "DA_PAGARE" ? "" : "DA_PAGARE")}
-            active={filtroStato === "DA_PAGARE"}
-          />
-          <KPI
-            label="Arretrati"
-            value={`€ ${fmt(rig.totale_scadute)}`}
-            sub={`${rig.num_scadute || 0} scadute`}
-            color="red"
-            onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")}
-            active={filtroStato === "SCADUTA"}
-          />
-          <KPI
-            label="Pagate"
-            value={`€ ${fmt(rig.totale_pagate)}`}
-            sub={`${rig.num_pagate || 0} fatture`}
-            color="emerald"
-            onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")}
-            active={filtroStato === "PAGATA"}
-          />
-          <KPI
-            label="Senza scadenza"
-            value={rig.num_senza_scadenza || 0}
-            sub="Da configurare"
-            color="violet"
-            onClick={() => navigate("/controllo-gestione/uscite/senza-scadenza")}
-          />
-        </div>
-
-        {/* FILTRI */}
-        <div className="flex flex-wrap gap-3 mb-4 items-center">
-          <input
-            type="text"
-            placeholder="Cerca fornitore..."
-            value={filtroFornitore}
-            onChange={(e) => setFiltroFornitore(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm w-56 focus:border-sky-400 focus:ring-1 focus:ring-sky-200 outline-none"
-          />
-          <select
-            value={ordine}
-            onChange={(e) => setOrdine(e.target.value)}
-            className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm bg-white"
-          >
-            <option value="scadenza_asc">Scadenza (prossime prima)</option>
-            <option value="scadenza_desc">Scadenza (ultime prima)</option>
-            <option value="importo_desc">Importo (alto → basso)</option>
-            <option value="importo_asc">Importo (basso → alto)</option>
-            <option value="fornitore">Fornitore A→Z</option>
-            <option value="data_fattura">Data fattura (recenti)</option>
-          </select>
-          {filtroStato && (
-            <button
-              onClick={() => setFiltroStato("")}
-              className="px-3 py-1.5 text-xs rounded-lg bg-neutral-200 text-neutral-600 hover:bg-neutral-300"
-            >
-              Rimuovi filtro: {STATO_STYLE[filtroStato]?.label} ×
-            </button>
-          )}
-          <span className="text-xs text-neutral-400 ml-auto">{uscite.length} righe</span>
-        </div>
-
-        {/* TABELLONE */}
-        {loading ? (
-          <div className="text-center py-12 text-neutral-400">Caricamento...</div>
-        ) : uscite.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-neutral-400 text-sm">
-              {data ? "Nessuna uscita trovata. Clicca \"Importa da Acquisti\" per popolare." : "Errore di caricamento."}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-sky-50 border-b border-sky-100">
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Scadenza</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Fornitore</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Fattura</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-sky-800">Importo</th>
-                    <th className="px-4 py-3 text-center text-xs font-bold text-sky-800">Stato</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-sky-800">Mod. Pagamento</th>
+          {/* TABELLA SCROLLABILE con STICKY HEADER */}
+          <div className="flex-1 overflow-auto min-h-0">
+            {loading ? (
+              <div className="text-center py-20 text-neutral-400">Caricamento...</div>
+            ) : sorted.length === 0 ? (
+              <div className="text-center py-20 text-neutral-400 text-sm">
+                {allUscite.length === 0 ? "Nessuna uscita. Verranno importate automaticamente." : "Nessun risultato per i filtri selezionati."}
+              </div>
+            ) : (
+              <table className="w-full text-[11px]">
+                <thead className="bg-neutral-100 sticky top-0 z-10">
+                  <tr className="text-[9px] text-neutral-600 uppercase tracking-wide select-none">
+                    <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("data_scadenza")}>
+                      Scadenza <SortIcon col="data_scadenza" />
+                    </th>
+                    <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("fornitore_nome")}>
+                      Fornitore <SortIcon col="fornitore_nome" />
+                    </th>
+                    <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("numero_fattura")}>
+                      Fattura / Descrizione <SortIcon col="numero_fattura" />
+                    </th>
+                    <th className="px-3 py-2 text-right cursor-pointer hover:text-sky-700" onClick={() => handleSort("totale")}>
+                      Importo <SortIcon col="totale" />
+                    </th>
+                    <th className="px-3 py-2 text-center cursor-pointer hover:text-sky-700" onClick={() => handleSort("stato")}>
+                      Stato <SortIcon col="stato" />
+                    </th>
+                    <th className="px-3 py-2 text-left">Mod. Pagamento</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {uscite.map((u) => {
+                  {sorted.map((u) => {
                     const st = STATO_STYLE[u.stato] || STATO_STYLE.DA_PAGARE;
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
-                    const fonte = FONTE_BADGE[u.scadenza_fonte];
-                    const giorniAScad = u.data_scadenza
-                      ? Math.ceil((new Date(u.data_scadenza) - new Date()) / 86400000)
-                      : null;
+                    const gg = giorniA(u.data_scadenza);
+                    const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
 
                     return (
-                      <tr key={u.id} className={`border-b border-neutral-100 hover:bg-neutral-50 ${u.stato === "SCADUTA" ? "bg-red-50/30" : ""}`}>
+                      <tr key={u.id} className={`border-b border-neutral-100 hover:bg-sky-50/50 transition ${
+                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : "bg-white"
+                      }`}>
                         {/* SCADENZA */}
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-1.5 whitespace-nowrap">
                           {u.data_scadenza ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className={`whitespace-nowrap ${u.stato === "SCADUTA" ? "text-red-700 font-bold" : "text-neutral-700"}`}>
-                                {new Date(u.data_scadenza + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                            <div className="flex items-center gap-1">
+                              <span className={u.stato === "SCADUTA" ? "text-red-700 font-bold" : "text-neutral-700"}>
+                                {fmtDate(u.data_scadenza)}
                               </span>
-                              {giorniAScad !== null && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                                  giorniAScad < 0 ? "bg-red-100 text-red-600"
-                                  : giorniAScad <= 7 ? "bg-amber-100 text-amber-700"
-                                  : "bg-neutral-100 text-neutral-500"
+                              {gg !== null && (
+                                <span className={`text-[9px] px-1 py-0.5 rounded-full ${
+                                  gg < 0 ? "bg-red-100 text-red-600"
+                                  : gg <= 7 ? "bg-amber-100 text-amber-700"
+                                  : "bg-neutral-100 text-neutral-400"
                                 }`}>
-                                  {giorniAScad < 0 ? `${Math.abs(giorniAScad)}gg fa` : giorniAScad === 0 ? "oggi" : `fra ${giorniAScad}gg`}
+                                  {gg < 0 ? `${Math.abs(gg)}gg fa` : gg === 0 ? "oggi" : `${gg}gg`}
                                 </span>
-                              )}
-                              {fonte && (
-                                <span className={`text-[10px] px-1 py-0.5 rounded ${fonte.color}`}>{fonte.label}</span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-neutral-300 text-xs italic">nessuna</span>
+                            <span className="text-neutral-300 italic">—</span>
                           )}
                         </td>
                         {/* FORNITORE */}
-                        <td className="px-4 py-2.5">
-                          <div className="font-medium text-neutral-800 truncate max-w-[200px]">{u.fornitore_nome}</div>
-                          {u.tipo_uscita === "SPESA_FISSA" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium">
+                        <td className="px-3 py-1.5">
+                          <div className="font-medium text-neutral-800 truncate max-w-[180px]">{u.fornitore_nome}</div>
+                          {isSF && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 border border-indigo-200">
                               {u.sf_tipo_label || "Spesa fissa"}
                             </span>
                           )}
                         </td>
                         {/* FATTURA / DESCRIZIONE */}
-                        <td className="px-4 py-2.5">
-                          {u.tipo_uscita === "SPESA_FISSA" ? (
-                            <div className="text-neutral-500 text-xs italic">
+                        <td className="px-3 py-1.5">
+                          {isSF ? (
+                            <span className="text-neutral-500 italic">
                               {u.periodo_riferimento || "—"}
-                              {u.sf_frequenza && <span className="ml-1 text-[10px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
-                            </div>
+                              {u.sf_frequenza && <span className="ml-1 text-[9px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
+                            </span>
                           ) : (
                             <>
-                              <div className="text-neutral-700">{u.numero_fattura || "—"}</div>
+                              <span className="text-neutral-700">{u.numero_fattura || "—"}</span>
                               {u.data_fattura && (
-                                <div className="text-[10px] text-neutral-400">
-                                  {new Date(u.data_fattura + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" })}
-                                </div>
+                                <span className="ml-1.5 text-[9px] text-neutral-400">{fmtDateFull(u.data_fattura)}</span>
                               )}
                             </>
                           )}
                         </td>
                         {/* IMPORTO */}
-                        <td className="px-4 py-2.5 text-right">
-                          <div className="font-semibold text-neutral-800">€ {fmt(u.totale)}</div>
+                        <td className="px-3 py-1.5 text-right">
+                          <span className="font-semibold text-neutral-800">€ {fmt(u.totale)}</span>
                           {residuo > 0 && residuo < u.totale && (
-                            <div className="text-[10px] text-amber-600">residuo € {fmt(residuo)}</div>
+                            <div className="text-[9px] text-amber-600">res. € {fmt(residuo)}</div>
                           )}
                         </td>
                         {/* STATO */}
-                        <td className="px-4 py-2.5 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${st.bg} ${st.text} ${st.border} border`}>
+                        <td className="px-3 py-1.5 text-center">
+                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text} ${st.border} border`}>
                             {st.label}
                           </span>
                         </td>
-                        {/* MODALITA PAGAMENTO */}
-                        <td className="px-4 py-2.5">
-                          <div className="text-xs text-neutral-600">{u.modalita_pagamento_label || "—"}</div>
+                        {/* MOD PAGAMENTO */}
+                        <td className="px-3 py-1.5">
+                          <div className="text-neutral-500">{u.modalita_pagamento_label || "—"}</div>
                           {u.metodo_pagamento_label && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            <span className={`text-[9px] px-1 py-0.5 rounded-full ${
                               u.metodo_pagamento === "CONTANTI" ? "bg-orange-100 text-orange-700"
                               : u.metodo_pagamento === "CARTA" ? "bg-purple-100 text-purple-700"
                               : "bg-sky-100 text-sky-700"
@@ -284,38 +376,25 @@ export default function ControlloGestioneUscite() {
                   })}
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
-        )}
+
+        </div>
       </div>
     </div>
   );
 }
 
 
-function KPI({ label, value, sub, color, onClick, active }) {
-  const colorMap = {
-    amber: "border-amber-200 bg-amber-50",
-    red: "border-red-200 bg-red-50",
-    emerald: "border-emerald-200 bg-emerald-50",
-    violet: "border-violet-200 bg-violet-50",
-  };
-  const textMap = {
-    amber: "text-amber-800",
-    red: "text-red-800",
-    emerald: "text-emerald-800",
-    violet: "text-violet-800",
-  };
-
+function KPI({ label, value, n, color, active, onClick }) {
+  const cm = { amber: "border-amber-200 bg-amber-50 text-amber-800", red: "border-red-200 bg-red-50 text-red-800",
+               emerald: "border-emerald-200 bg-emerald-50 text-emerald-800" };
   return (
-    <div
-      onClick={onClick}
-      className={`rounded-xl border p-4 cursor-pointer transition ${colorMap[color] || "border-neutral-200 bg-neutral-50"}
-        ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}
-    >
-      <div className={`text-xs font-semibold ${textMap[color] || "text-neutral-600"}`}>{label}</div>
-      <div className={`text-lg font-bold mt-1 ${textMap[color] || "text-neutral-800"}`}>{value}</div>
-      <div className="text-xs text-neutral-400 mt-0.5">{sub}</div>
-    </div>
+    <button onClick={onClick}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition cursor-pointer ${cm[color] || ""} ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}>
+      <span>{label}</span>
+      <span className="font-bold">€ {fmt(value)}</span>
+      <span className="opacity-50 font-normal text-[9px]">({n})</span>
+    </button>
   );
 }
