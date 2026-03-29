@@ -518,6 +518,8 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [pagMp, setPagMp] = useState("");
   const [pagGiorni, setPagGiorni] = useState("");
   const [pagNote, setPagNote] = useState("");
+  const [pagPreset, setPagPreset] = useState("");
+  const [pagPresets, setPagPresets] = useState([]);
   const [pagLoading, setPagLoading] = useState(false);
   const [pagSaving, setPagSaving] = useState(false);
   const [pagSaved, setPagSaved] = useState(false);
@@ -543,7 +545,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
     setOpenFatturaId(null); setFatturaDetail(null);
-    setPagMp(""); setPagGiorni(""); setPagNote(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
+    setPagMp(""); setPagGiorni(""); setPagNote(""); setPagPreset(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
     setLocalExcl(false);
   }, [openKey]);
 
@@ -552,26 +554,38 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     if (data?.escluso_acquisti != null) setLocalExcl(!!data.escluso_acquisti);
   }, [data?.escluso_acquisti]);
 
-  // Carica dati pagamento fornitore
+  // Carica dati pagamento fornitore + preset
   useEffect(() => {
     if (!data?.fornPiva) { setPagLoading(false); return; }
     let cancelled = false;
     const loadPag = async () => {
       try {
         setPagLoading(true);
-        const r = await apiFetch(`${API_BASE}/controllo-gestione/fornitore/${encodeURIComponent(data.fornPiva)}/pagamento`);
+        const [r, rPresets] = await Promise.all([
+          apiFetch(`${API_BASE}/controllo-gestione/fornitore/${encodeURIComponent(data.fornPiva)}/pagamento`),
+          apiFetch(`${API_BASE}/controllo-gestione/condizioni-pagamento/preset`),
+        ]);
         if (cancelled) return;
+        if (rPresets.ok) setPagPresets(await rPresets.json());
         if (r.ok) {
           const d = await r.json();
           if (!cancelled) {
             setPagHasManual(!!d.has_manual);
             setPagAutoDetected(d.auto_detected || null);
+            setPagPreset(d.preset_codice || "");
             if (d.has_manual) {
               setPagMp(d.modalita_pagamento_default || "");
               setPagGiorni(d.giorni_pagamento != null ? String(d.giorni_pagamento) : "");
               setPagNote(d.note_pagamento || "");
+              if (!d.preset_codice && d.auto_detected?.preset_suggerito) {
+                // Suggerisci il preset ma non selezionarlo
+              }
+            } else if (d.auto_detected?.preset_suggerito) {
+              setPagPreset(d.auto_detected.preset_suggerito.codice || "");
+              setPagMp(d.auto_detected.modalita_pagamento || "");
+              setPagGiorni(d.auto_detected.giorni_pagamento != null ? String(d.auto_detected.giorni_pagamento) : "");
+              setPagNote("");
             } else if (d.auto_detected) {
-              // Pre-popola con dati auto-rilevati
               setPagMp(d.auto_detected.modalita_pagamento || "");
               setPagGiorni(d.auto_detected.giorni_pagamento != null ? String(d.auto_detected.giorni_pagamento) : "");
               setPagNote("");
@@ -581,7 +595,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           }
         }
       } catch {
-        // Endpoint non disponibile — ignora silenziosamente
+        // Endpoint non disponibile
       } finally {
         if (!cancelled) setPagLoading(false);
       }
@@ -602,8 +616,10 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           modalita_pagamento_default: pagMp || null,
           giorni_pagamento: pagGiorni ? parseInt(pagGiorni) : null,
           note_pagamento: pagNote || null,
+          preset_codice: pagPreset || null,
         }),
       });
+      setPagHasManual(true);
       setPagSaved(true);
       setTimeout(() => setPagSaved(false), 2000);
     } catch (e) {
@@ -914,51 +930,62 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
               <>
                 {/* Banner auto-rilevato */}
                 {pagAutoDetected && !pagHasManual && (
-                  <div className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
+                  <div className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] text-blue-700">
                       <strong>Auto-rilevato</strong> da {pagAutoDetected.fatture_analizzate} fatture:
-                      {pagAutoDetected.modalita_pagamento && <> {pagAutoDetected.modalita_pagamento} ({pagAutoDetected.mp_percentuale}%)</>}
-                      {pagAutoDetected.giorni_pagamento != null && <>, ~{pagAutoDetected.giorni_pagamento}gg</>}
-                      {pagAutoDetected.giorni_uniforme ? " (uniforme)" : " (variabile)"}
+                      {pagAutoDetected.modalita_pagamento && <> {pagAutoDetected.modalita_pagamento}</>}
+                      {pagAutoDetected.giorni_pagamento != null && <> ~{pagAutoDetected.giorni_pagamento}gg</>}
+                      {" "}{pagAutoDetected.calcolo === "FM" ? "Fine Mese" : "Data Fattura"}
+                      {pagAutoDetected.preset_suggerito && (
+                        <span className="ml-1 font-semibold">→ {pagAutoDetected.preset_suggerito.descrizione}</span>
+                      )}
                     </span>
                     <button onClick={handleSavePagamento}
                       className="ml-auto px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
-                      Conferma come default
+                      Conferma
                     </button>
                   </div>
                 )}
-                {pagHasManual && pagAutoDetected && (
+                {pagHasManual && (
                   <div className="mb-2 px-2 py-1 rounded text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100">
-                    ✓ Default salvato — rilevato da {pagAutoDetected.fatture_analizzate} fatture
+                    ✓ Default salvato{pagAutoDetected ? ` — da ${pagAutoDetected.fatture_analizzate} fatture` : ""}
                   </div>
                 )}
                 <div className="flex flex-wrap items-end gap-3">
-                  <div>
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Modalità</span>
-                    <select value={pagMp} onChange={e => setPagMp(e.target.value)}
-                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-44">
-                      <option value="">— Non specificata —</option>
-                      <option value="MP01">MP01 — Contanti</option>
-                      <option value="MP02">MP02 — Assegno</option>
-                      <option value="MP05">MP05 — Bonifico</option>
-                      <option value="MP08">MP08 — Carta</option>
-                      <option value="MP09">MP09 — RID</option>
-                      <option value="MP12">MP12 — RIBA</option>
-                      <option value="MP16">MP16 — Domiciliaz. bancaria</option>
-                      <option value="MP19">MP19 — SEPA DD</option>
-                      <option value="MP20">MP20 — SEPA DD core</option>
+                  <div className="flex-1 min-w-[220px]">
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Condizione di pagamento</span>
+                    <select value={pagPreset} onChange={e => {
+                      const cod = e.target.value;
+                      setPagPreset(cod);
+                      const p = pagPresets.find(p => p.codice === cod);
+                      if (p) {
+                        setPagMp(p.modalita);
+                        setPagGiorni(String(p.giorni));
+                      } else {
+                        setPagMp(""); setPagGiorni("");
+                      }
+                    }}
+                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full">
+                      <option value="">— Seleziona condizione —</option>
+                      {pagPresets.map(p => (
+                        <option key={p.codice} value={p.codice}>{p.descrizione}</option>
+                      ))}
                     </select>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</span>
-                    <input type="number" value={pagGiorni} onChange={e => setPagGiorni(e.target.value)}
-                      placeholder="es. 30, 60, 90"
-                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-28" />
+                  <div className="w-24">
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Modalita</span>
+                    <input type="text" value={pagMp} readOnly
+                      className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
                   </div>
-                  <div className="flex-1 min-w-[120px]">
+                  <div className="w-16">
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni</span>
+                    <input type="text" value={pagGiorni} readOnly
+                      className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
+                  </div>
+                  <div className="flex-1 min-w-[100px]">
                     <span className="text-[10px] text-neutral-400 block mb-0.5">Note</span>
                     <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
-                      placeholder="es. fine mese, 30gg data fattura..."
+                      placeholder="Note aggiuntive..."
                       className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
                   </div>
                   <button onClick={handleSavePagamento} disabled={pagSaving}

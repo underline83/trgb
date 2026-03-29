@@ -42,6 +42,7 @@ const MENU = [
   { key: "xml",          label: "Import XML",          icon: "📄" },
   { key: "fic",          label: "Fatture in Cloud",    icon: "☁️" },
   { key: "categorie",    label: "Categorie",           icon: "🏷️" },
+  { key: "pagamenti",    label: "Cond. Pagamento",     icon: "💳" },
   { key: "stato",        label: "Stato Database",      icon: "📊" },
   { key: "manutenzione", label: "Manutenzione",        icon: "🔧" },
 ];
@@ -869,10 +870,15 @@ export default function FattureImpostazioni() {
     <CategorieManager categorie={categorie} loading={catLoading} onRefresh={fetchCategorie} />
   );
 
+  const renderPagamenti = () => (
+    <PresetPagamentoManager />
+  );
+
   const sectionRenderers = {
     xml: renderXml,
     fic: renderFic,
     categorie: renderCategorie,
+    pagamenti: renderPagamenti,
     stato: renderStato,
     manutenzione: renderManutenzione,
   };
@@ -1052,6 +1058,192 @@ function CategorieManager({ categorie, loading, onRefresh }) {
           className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64" />
         <button onClick={addCategoria}
           className="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition">+ Nuova Categoria</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// COMPONENTE GESTIONE PRESET CONDIZIONI PAGAMENTO
+// ═══════════════════════════════════════════════════════
+const CG = `${API_BASE}/controllo-gestione`;
+const MP_OPTIONS = [
+  { code: "MP01", label: "Contanti" },
+  { code: "MP02", label: "Assegno" },
+  { code: "MP05", label: "Bonifico" },
+  { code: "MP08", label: "Carta di credito" },
+  { code: "MP09", label: "RID" },
+  { code: "MP12", label: "RIBA" },
+  { code: "MP16", label: "Domiciliazione bancaria" },
+  { code: "MP19", label: "SEPA DD" },
+  { code: "MP20", label: "SEPA DD Core" },
+];
+
+function PresetPagamentoManager() {
+  const [presets, setPresets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [newForm, setNewForm] = useState({ codice: "", descrizione: "", modalita: "MP12", giorni: 30, calcolo: "DF", rate: 1 });
+  const [saving, setSaving] = useState(false);
+
+  const fetchPresets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await apiFetch(`${CG}/condizioni-pagamento/preset?solo_attivi=false`);
+      if (r.ok) setPresets(await r.json());
+    } catch (_) {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchPresets(); }, [fetchPresets]);
+
+  const toggleAttivo = async (p) => {
+    await apiFetch(`${CG}/condizioni-pagamento/preset/${p.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attivo: p.attivo ? 0 : 1 }),
+    });
+    fetchPresets();
+  };
+
+  const handleCreate = async () => {
+    if (!newForm.codice || !newForm.descrizione) return;
+    setSaving(true);
+    try {
+      await apiFetch(`${CG}/condizioni-pagamento/preset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newForm),
+      });
+      setShowNew(false);
+      setNewForm({ codice: "", descrizione: "", modalita: "MP12", giorni: 30, calcolo: "DF", rate: 1 });
+      fetchPresets();
+    } catch (_) {}
+    setSaving(false);
+  };
+
+  const handleDelete = async (p) => {
+    if (!confirm(`Eliminare "${p.descrizione}"?`)) return;
+    await apiFetch(`${CG}/condizioni-pagamento/preset/${p.id}`, { method: "DELETE" });
+    fetchPresets();
+  };
+
+  const mpLabel = (code) => MP_OPTIONS.find(m => m.code === code)?.label || code;
+
+  if (loading) return <p className="text-neutral-400 text-sm py-8 text-center">Caricamento preset...</p>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-neutral-800">Condizioni di Pagamento</h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Preset standard da assegnare ai fornitori. DF = data fattura, FM = fine mese.
+          </p>
+        </div>
+        <button onClick={() => setShowNew(!showNew)}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition">
+          + Nuovo preset
+        </button>
+      </div>
+
+      {/* Form nuovo preset */}
+      {showNew && (
+        <div className="mb-4 p-4 bg-teal-50 border border-teal-200 rounded-xl">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Codice</label>
+              <input type="text" value={newForm.codice} onChange={e => setNewForm(f => ({...f, codice: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")}))}
+                placeholder="es. RIBA_45_DF" className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Descrizione</label>
+              <input type="text" value={newForm.descrizione} onChange={e => setNewForm(f => ({...f, descrizione: e.target.value}))}
+                placeholder="es. RIBA 45gg DF" className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Modalita</label>
+              <select value={newForm.modalita} onChange={e => setNewForm(f => ({...f, modalita: e.target.value}))}
+                className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs">
+                {MP_OPTIONS.map(m => <option key={m.code} value={m.code}>{m.code} — {m.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Giorni</label>
+              <input type="number" value={newForm.giorni} onChange={e => setNewForm(f => ({...f, giorni: parseInt(e.target.value) || 0}))}
+                className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Calcolo</label>
+              <select value={newForm.calcolo} onChange={e => setNewForm(f => ({...f, calcolo: e.target.value}))}
+                className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs">
+                <option value="DF">DF — Data Fattura</option>
+                <option value="FM">FM — Fine Mese</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-0.5">Rate</label>
+              <input type="number" min="1" max="12" value={newForm.rate} onChange={e => setNewForm(f => ({...f, rate: parseInt(e.target.value) || 1}))}
+                className="w-full px-2 py-1.5 border border-neutral-300 rounded-lg text-xs" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button onClick={handleCreate} disabled={saving || !newForm.codice || !newForm.descrizione}
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+              {saving ? "Salvataggio..." : "Crea preset"}
+            </button>
+            <button onClick={() => setShowNew(false)}
+              className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 transition">Annulla</button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabella preset */}
+      <div className="border border-neutral-200 rounded-xl overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-neutral-50 text-neutral-600 text-[10px] uppercase tracking-wide">
+            <tr>
+              <th className="px-3 py-2 text-left">Descrizione</th>
+              <th className="px-3 py-2 text-left">Modalita</th>
+              <th className="px-3 py-2 text-center">Giorni</th>
+              <th className="px-3 py-2 text-center">Calcolo</th>
+              <th className="px-3 py-2 text-center">Rate</th>
+              <th className="px-3 py-2 text-center">Attivo</th>
+              <th className="px-3 py-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {presets.map(p => (
+              <tr key={p.id} className={`border-t border-neutral-100 ${p.attivo ? "" : "opacity-40"}`}>
+                <td className="px-3 py-2 font-medium text-neutral-800">
+                  {p.descrizione}
+                  <span className="ml-2 text-[9px] text-neutral-400 font-mono">{p.codice}</span>
+                </td>
+                <td className="px-3 py-2 text-neutral-600">
+                  <span className="font-mono text-[10px]">{p.modalita}</span>
+                  <span className="text-neutral-400 ml-1 text-[10px]">{mpLabel(p.modalita)}</span>
+                </td>
+                <td className="px-3 py-2 text-center font-mono">{p.giorni}</td>
+                <td className="px-3 py-2 text-center">
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                    p.calcolo === "FM" ? "bg-blue-100 text-blue-700" : "bg-neutral-100 text-neutral-600"
+                  }`}>{p.calcolo}</span>
+                </td>
+                <td className="px-3 py-2 text-center font-mono">{p.rate > 1 ? p.rate : "—"}</td>
+                <td className="px-3 py-2 text-center">
+                  <button onClick={() => toggleAttivo(p)}
+                    className={`w-8 h-4 rounded-full transition relative ${p.attivo ? "bg-teal-500" : "bg-neutral-300"}`}>
+                    <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition ${p.attivo ? "right-0.5" : "left-0.5"}`} />
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-center">
+                  <button onClick={() => handleDelete(p)} className="text-red-400 hover:text-red-600 text-[10px]" title="Elimina">x</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

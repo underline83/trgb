@@ -685,6 +685,12 @@ def get_fornitore_pagamento(piva: str, current_user=Depends(get_current_user)):
     manual = dict(row) if row else {"modalita_pagamento_default": None, "giorni_pagamento": None, "note_pagamento": None}
     has_manual = bool(manual.get("giorni_pagamento") or manual.get("modalita_pagamento_default"))
 
+    # Carica preset associato
+    preset_row = fc.execute(
+        "SELECT condizioni_pagamento_preset FROM suppliers WHERE partita_iva = ?", (piva,)
+    ).fetchone()
+    preset_codice = preset_row["condizioni_pagamento_preset"] if preset_row and preset_row["condizioni_pagamento_preset"] else None
+
     # ── Auto-detect dalle fatture ──
     fatture_pag = fc.execute("""
         SELECT modalita_pagamento, data_fattura, data_scadenza
@@ -713,17 +719,52 @@ def get_fornitore_pagamento(piva: str, current_user=Depends(get_current_user)):
         giorni_median = sorted(giorni_list)[len(giorni_list) // 2] if giorni_list else None
         giorni_varianza = len(set(giorni_list)) <= 3 if giorni_list else False
 
+        # ── Rileva se è FM (fine mese) o DF (data fattura) ──
+        # Se la maggior parte delle scadenze cadono a fine mese (28-31), è FM
+        fine_mese_count = 0
+        for f in fatture_pag:
+            try:
+                ds = datetime.strptime(f["data_scadenza"], "%Y-%m-%d")
+                import calendar
+                ultimo_giorno = calendar.monthrange(ds.year, ds.month)[1]
+                if ds.day >= ultimo_giorno - 1:  # 28-31 del mese
+                    fine_mese_count += 1
+            except (ValueError, TypeError):
+                pass
+        calcolo = "FM" if fine_mese_count > len(fatture_pag) * 0.6 else "DF"
+
+        # ── Arrotonda giorni a multipli standard ──
+        giorni_arrotondati = giorni_median
+        if giorni_median is not None:
+            standard = [0, 15, 20, 30, 45, 60, 90, 120, 150, 180]
+            giorni_arrotondati = min(standard, key=lambda x: abs(x - giorni_median))
+
+        # ── Suggerisci preset matching ──
+        preset_suggerito = None
+        if mp_top and giorni_arrotondati is not None:
+            preset_match = fc.execute("""
+                SELECT codice, descrizione FROM condizioni_pagamento_preset
+                WHERE modalita = ? AND giorni = ? AND calcolo = ? AND rate = 1 AND attivo = 1
+                LIMIT 1
+            """, (mp_top, giorni_arrotondati, calcolo)).fetchone()
+            if preset_match:
+                preset_suggerito = dict(preset_match)
+
         auto_detected = {
             "modalita_pagamento": mp_top,
-            "giorni_pagamento": giorni_median,
+            "giorni_pagamento": giorni_arrotondati,
+            "giorni_raw": giorni_median,
+            "calcolo": calcolo,
             "fatture_analizzate": len(fatture_pag),
             "mp_percentuale": mp_top_pct,
             "giorni_uniforme": giorni_varianza,
+            "fine_mese_pct": round(fine_mese_count / len(fatture_pag) * 100) if fatture_pag else 0,
+            "preset_suggerito": preset_suggerito,
         }
 
     fc.close()
 
-    result = {**manual, "has_manual": has_manual, "auto_detected": auto_detected}
+    result = {**manual, "has_manual": has_manual, "preset_codice": preset_codice, "auto_detected": auto_detected}
     return result
 
 
@@ -745,28 +786,30 @@ def update_fornitore_pagamento(
             UPDATE suppliers
             SET modalita_pagamento_default = ?,
                 giorni_pagamento = ?,
-                note_pagamento = ?
+                note_pagamento = ?,
+                condizioni_pagamento_preset = ?
             WHERE partita_iva = ?
         """, (
             payload.get("modalita_pagamento_default"),
             payload.get("giorni_pagamento"),
             payload.get("note_pagamento"),
+            payload.get("preset_codice"),
             piva,
         ))
     else:
-        # Recupera nome fornitore da fe_fatture
         nome_row = fc.execute(
             "SELECT fornitore_nome FROM fe_fatture WHERE fornitore_piva = ? LIMIT 1", (piva,)
         ).fetchone()
         nome = nome_row["fornitore_nome"] if nome_row else piva
         fc.execute("""
-            INSERT INTO suppliers (name, partita_iva, modalita_pagamento_default, giorni_pagamento, note_pagamento, created_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            INSERT INTO suppliers (name, partita_iva, modalita_pagamento_default, giorni_pagamento, note_pagamento, condizioni_pagamento_preset, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
         """, (
             nome, piva,
             payload.get("modalita_pagamento_default"),
             payload.get("giorni_pagamento"),
             payload.get("note_pagamento"),
+            payload.get("preset_codice"),
         ))
     fc.commit()
     fc.close()
@@ -778,3 +821,79 @@ def update_fornitore_pagamento(
 def get_mp_labels(current_user=Depends(get_current_user)):
     """Ritorna il mapping codici modalità pagamento FatturaPA → label italiane."""
     return MP_LABELS
+
+
+# ── Preset condizioni pagamento ──────────────────────────
+
+@router.get("/condizioni-pagamento/preset")
+def list_preset_pagamento(
+    solo_attivi: bool = Query(True),
+    current_user=Depends(get_current_user),
+):
+    """Lista preset condizioni pagamento."""
+    fc = get_fc_db()
+    where = "WHERE attivo = 1" if solo_attivi else ""
+    rows = fc.execute(f"""
+        SELECT id, codice, descrizione, modalita, giorni, calcolo, rate, attivo, ordine
+        FROM condizioni_pagamento_preset {where}
+        ORDER BY ordine, codice
+    """).fetchall()
+    fc.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/condizioni-pagamento/preset")
+def create_preset_pagamento(
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Crea un nuovo preset personalizzato."""
+    fc = get_fc_db()
+    fc.execute("""
+        INSERT INTO condizioni_pagamento_preset (codice, descrizione, modalita, giorni, calcolo, rate, attivo, ordine)
+        VALUES (?, ?, ?, ?, ?, ?, 1, (SELECT COALESCE(MAX(ordine), 0) + 1 FROM condizioni_pagamento_preset))
+    """, (
+        payload["codice"], payload["descrizione"], payload.get("modalita", "MP12"),
+        payload.get("giorni", 30), payload.get("calcolo", "DF"), payload.get("rate", 1),
+    ))
+    fc.commit()
+    new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
+    fc.close()
+    return {"ok": True, "id": new_id}
+
+
+@router.put("/condizioni-pagamento/preset/{preset_id}")
+def update_preset_pagamento(
+    preset_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Aggiorna un preset (descrizione, attivo, ordine, ecc.)."""
+    fc = get_fc_db()
+    sets = []
+    params = []
+    for field in ("descrizione", "modalita", "giorni", "calcolo", "rate", "attivo", "ordine"):
+        if field in payload:
+            sets.append(f"{field} = ?")
+            params.append(payload[field])
+    if not sets:
+        fc.close()
+        return {"ok": False, "error": "Nessun campo da aggiornare"}
+    params.append(preset_id)
+    fc.execute(f"UPDATE condizioni_pagamento_preset SET {', '.join(sets)} WHERE id = ?", params)
+    fc.commit()
+    fc.close()
+    return {"ok": True}
+
+
+@router.delete("/condizioni-pagamento/preset/{preset_id}")
+def delete_preset_pagamento(
+    preset_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Elimina un preset."""
+    fc = get_fc_db()
+    fc.execute("DELETE FROM condizioni_pagamento_preset WHERE id = ?", (preset_id,))
+    fc.commit()
+    fc.close()
+    return {"ok": True}
