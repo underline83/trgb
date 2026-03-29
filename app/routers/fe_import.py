@@ -28,7 +28,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 from app.services.auth_service import get_current_user
 
 router = APIRouter(
