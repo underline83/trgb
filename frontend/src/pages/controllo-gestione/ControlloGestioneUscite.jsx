@@ -2,7 +2,7 @@
 // Tabellone Uscite — fatture da pagare, arretrati, scadenze
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../../api/api";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 
@@ -35,8 +35,9 @@ export default function ControlloGestioneUscite() {
       if (filtroStato) params.append("stato", filtroStato);
       if (filtroFornitore) params.append("fornitore", filtroFornitore);
       params.append("ordine", ordine);
-      const res = await api.get(`/controllo-gestione/uscite?${params}`);
-      setData(res.data);
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite?${params}`);
+      if (!res.ok) throw new Error("Errore API");
+      setData(await res.json());
     } catch (e) {
       console.error("Errore caricamento uscite:", e);
     } finally {
@@ -50,8 +51,9 @@ export default function ControlloGestioneUscite() {
     setImporting(true);
     setImportResult(null);
     try {
-      const res = await api.post("/controllo-gestione/uscite/import");
-      setImportResult(res.data);
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/import`, { method: "POST" });
+      if (!res.ok) throw new Error("Errore import");
+      setImportResult(await res.json());
       fetchData();
     } catch (e) {
       setImportResult({ errore: e.message });
