@@ -80,6 +80,7 @@ import BancaMovimenti from "./pages/banca/BancaMovimenti";
 import BancaImport from "./pages/banca/BancaImport";
 import BancaCategorie from "./pages/banca/BancaCategorie";
 import BancaCrossRef from "./pages/banca/BancaCrossRef";
+import BancaImpostazioni from "./pages/banca/BancaImpostazioni";
 
 // --- FINANZA ---
 import FinanzaMenu from "./pages/finanza/FinanzaMenu";
@@ -89,6 +90,11 @@ import FinanzaImport from "./pages/finanza/FinanzaImport";
 import FinanzaCategorie from "./pages/finanza/FinanzaCategorie";
 import FinanzaImpostazioni from "./pages/finanza/FinanzaImpostazioni";
 import FinanzaScadenzario from "./pages/finanza/FinanzaScadenzario";
+
+// --- CONTROLLO DI GESTIONE ---
+import ControlloGestioneMenu from "./pages/controllo-gestione/ControlloGestioneMenu";
+import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGestioneDashboard";
+import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
 
 // --- STATISTICHE ---
 import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
@@ -185,9 +191,10 @@ export default function App() {
         <Route path="/banca" element={<BancaMenu />} />
         <Route path="/banca/dashboard" element={<BancaDashboard />} />
         <Route path="/banca/movimenti" element={<BancaMovimenti />} />
-        <Route path="/banca/import" element={<BancaImport />} />
-        <Route path="/banca/categorie" element={<BancaCategorie />} />
+        <Route path="/banca/import" element={<Navigate to="/banca/impostazioni" replace />} />
+        <Route path="/banca/categorie" element={<Navigate to="/banca/impostazioni" replace />} />
         <Route path="/banca/crossref" element={<BancaCrossRef />} />
+        <Route path="/banca/impostazioni" element={<BancaImpostazioni />} />
 
         {/* --- FINANZA --- */}
         <Route path="/finanza" element={<FinanzaMenu />} />

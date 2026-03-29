@@ -49,6 +49,13 @@
     "roles": ["superadmin", "admin", "viewer"]
   },
   {
+    "key": "controllo-gestione",
+    "label": "Controllo di Gestione",
+    "description": "Panorama finanziario unificato — vendite, acquisti, banca, scadenze, margine",
+    "icon": "🎯",
+    "roles": ["superadmin", "admin"]
+  },
+  {
     "key": "statistiche",
     "label": "Statistiche",
     "description": "Analisi vendite iPratico, categorie, prodotti, trend",

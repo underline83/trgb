@@ -6,9 +6,8 @@ import { useNavigate } from "react-router-dom";
 const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/banca/dashboard", icon: "📊" },
   { key: "movimenti", label: "Movimenti", path: "/banca/movimenti", icon: "📋" },
-  { key: "categorie", label: "Categorie", path: "/banca/categorie", icon: "🏷️" },
   { key: "crossref", label: "Fatture", path: "/banca/crossref", icon: "🔗" },
-  { key: "import", label: "Import", path: "/banca/import", icon: "📥", roles: ["admin"] },
+  { key: "impostazioni", label: "Impostazioni", path: "/banca/impostazioni", icon: "⚙️", roles: ["admin"] },
 ];
 
 export default function BancaNav({ current }) {

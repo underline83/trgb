@@ -56,17 +56,6 @@ export default function BancaMenu() {
           </Link>
 
           <Link
-            to="/banca/categorie"
-            className="bg-purple-50 border border-purple-200 text-purple-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
-          >
-            <div className="text-5xl mb-3">🏷️</div>
-            <h2 className="text-xl font-semibold font-playfair">Categorie</h2>
-            <p className="text-neutral-700 text-sm mt-1">
-              Mappa le categorie della banca alle tue categorie personalizzate.
-            </p>
-          </Link>
-
-          <Link
             to="/banca/crossref"
             className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
           >
@@ -78,13 +67,13 @@ export default function BancaMenu() {
           </Link>
 
           <Link
-            to="/banca/import"
+            to="/banca/impostazioni"
             className="bg-neutral-50 border border-neutral-300 text-neutral-800 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform text-center"
           >
-            <div className="text-5xl mb-3">📥</div>
-            <h2 className="text-xl font-semibold font-playfair">Importa CSV</h2>
+            <div className="text-5xl mb-3">⚙️</div>
+            <h2 className="text-xl font-semibold font-playfair">Impostazioni</h2>
             <p className="text-neutral-700 text-sm mt-1">
-              Carica l'export Banco BPM per aggiornare i movimenti.
+              Import CSV e gestione categorie bancarie.
             </p>
           </Link>
         </div>

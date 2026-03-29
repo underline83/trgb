@@ -49,6 +49,9 @@ from app.routers import banca_router
 from app.routers import finanza_router
 from app.routers import finanza_scadenzario_router
 
+# CONTROLLO DI GESTIONE — dashboard unificata cross-modulo
+from app.routers import controllo_gestione_router
+
 # STATISTICHE — import iPratico e analytics vendite
 from app.routers import statistiche_router
 
@@ -195,6 +198,9 @@ app.include_router(banca_router.router)
 # FINANZA
 app.include_router(finanza_router.router)
 app.include_router(finanza_scadenzario_router.router)
+
+# CONTROLLO DI GESTIONE
+app.include_router(controllo_gestione_router.router)
 
 # STATISTICHE
 app.include_router(statistiche_router.router)
