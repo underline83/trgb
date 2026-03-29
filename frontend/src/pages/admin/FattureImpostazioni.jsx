@@ -333,6 +333,9 @@ export default function FattureImpostazioni() {
                 {uploadResult.gia_presenti?.length > 0 && (
                   <span className="text-neutral-500">, {uploadResult.gia_presenti.length} già presenti</span>
                 )}
+                {uploadResult.arricchite_pagamento > 0 && (
+                  <span className="text-blue-600 font-medium">, {uploadResult.arricchite_pagamento} arricchite con dati pagamento</span>
+                )}
                 {uploadResult.errori?.length > 0 && (
                   <span className="text-red-600">, {uploadResult.errori.length} {uploadResult.errori.length === 1 ? "errore" : "errori"}</span>
                 )}
