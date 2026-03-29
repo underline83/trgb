@@ -351,6 +351,7 @@ export default function FattureFornitoriElenco() {
             /* ═══════ VISTA DETTAGLIO INLINE ═══════ */
             <FornitoreDetailView
               data={detailData}
+              setDetailData={setDetailData}
               loading={detLoading}
               categorie={categorie}
               openKey={openKey}
@@ -496,7 +497,7 @@ export default function FattureFornitoriElenco() {
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FORNITORE (inline)
 // ═══════════════════════════════════════════════════════
-function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRefresh, onReloadList }) {
+function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey, onClose, onRefresh, onReloadList }) {
   const [tab, setTab] = useState("fatture"); // "fatture" | "prodotti"
 
   // ── Dettaglio fattura inline ──
@@ -635,55 +636,72 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   };
 
   // ── Segna fatture come pagate ──
+  const [markMsg, setMarkMsg] = useState(null);
+
+  const reloadFatture = async () => {
+    const key = data?.fornPiva || data?.fornNome;
+    if (!key) return;
+    const enc = encodeURIComponent(key);
+    const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
+    if (res.ok) {
+      const d = await res.json();
+      setDetailData(prev => ({ ...prev, fatture: d.fatture || [] }));
+    }
+  };
+
   const handleMarkPaid = async () => {
     if (selFatt.size === 0) return;
     setMarkingPaid(true);
+    setMarkMsg(null);
     try {
       const r = await apiFetch(`${FE}/fatture/segna-pagate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fattura_ids: [...selFatt], metodo_pagamento: metodoPag }),
       });
-      if (r.ok) {
+      const result = await r.json();
+      if (result.ok) {
+        const n = selFatt.size;
         setSelFatt(new Set());
+        setMarkMsg({ type: "ok", text: `${n} fatture segnate come pagate (${metodoPag === "CONTO_CORRENTE" ? "Conto Corrente" : metodoPag === "CARTA" ? "Carta" : "Contanti"})` });
+        setTimeout(() => setMarkMsg(null), 4000);
         if (onReloadList) onReloadList();
-        // Ricarica fatture nel dettaglio
-        if (data?.fornPiva || data?.fornNome) {
-          const enc = encodeURIComponent(data.fornPiva || data.fornNome);
-          const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
-          if (res.ok) {
-            const d = await res.json();
-            // Aggiorna fatture nel data
-            data.fatture = d.fatture || [];
-          }
-        }
+        await reloadFatture();
+      } else {
+        setMarkMsg({ type: "err", text: result.error || "Errore" });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setMarkMsg({ type: "err", text: "Errore di rete" });
+    }
     setMarkingPaid(false);
   };
 
   const handleMarkUnpaid = async () => {
     if (selFatt.size === 0) return;
     setMarkingPaid(true);
+    setMarkMsg(null);
     try {
       const r = await apiFetch(`${FE}/fatture/segna-non-pagate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fattura_ids: [...selFatt] }),
       });
-      if (r.ok) {
+      const result = await r.json();
+      if (result.ok) {
+        const n = selFatt.size;
         setSelFatt(new Set());
+        setMarkMsg({ type: "ok", text: `${n} fatture riportate a non pagate` });
+        setTimeout(() => setMarkMsg(null), 4000);
         if (onReloadList) onReloadList();
-        if (data?.fornPiva || data?.fornNome) {
-          const enc = encodeURIComponent(data.fornPiva || data.fornNome);
-          const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
-          if (res.ok) {
-            const d = await res.json();
-            data.fatture = d.fatture || [];
-          }
-        }
+        await reloadFatture();
+      } else {
+        setMarkMsg({ type: "err", text: result.error || "Errore" });
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setMarkMsg({ type: "err", text: "Errore di rete" });
+    }
     setMarkingPaid(false);
   };
 
@@ -1094,6 +1112,12 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           />
         ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            {/* Feedback messaggio */}
+            {markMsg && (
+              <div className={`px-4 py-2 text-xs font-medium ${markMsg.type === "ok" ? "bg-emerald-50 text-emerald-700 border-b border-emerald-200" : "bg-red-50 text-red-700 border-b border-red-200"}`}>
+                {markMsg.type === "ok" ? "✓ " : "✗ "}{markMsg.text}
+              </div>
+            )}
             {/* Barra azioni selezione */}
             {selFatt.size > 0 && (
               <div className="bg-sky-50 border-b border-sky-200 px-4 py-2 flex flex-wrap items-center gap-3">
