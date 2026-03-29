@@ -1114,8 +1114,8 @@ def stats_fornitori(
     pag_map = {r["forn_key"]: (r["fat_totali"], r["fat_con_scadenza"]) for r in cur.fetchall()}
 
     # ── Fornitori con default pagamento ──
-    cur.execute("SELECT piva, giorni_pagamento, modalita_pagamento_default FROM suppliers WHERE giorni_pagamento IS NOT NULL OR modalita_pagamento_default IS NOT NULL")
-    sup_map = {r["piva"]: {"giorni": r["giorni_pagamento"], "mp": r["modalita_pagamento_default"]} for r in cur.fetchall()}
+    cur.execute("SELECT partita_iva, giorni_pagamento, modalita_pagamento_default FROM suppliers WHERE giorni_pagamento IS NOT NULL OR modalita_pagamento_default IS NOT NULL")
+    sup_map = {r["partita_iva"]: {"giorni": r["giorni_pagamento"], "mp": r["modalita_pagamento_default"]} for r in cur.fetchall()}
 
     conn.close()
 
