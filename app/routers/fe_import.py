@@ -313,6 +313,43 @@ def _process_single_xml(
     )
     existing = cur.fetchone()
     if existing:
+        # ── Arricchimento: se la fattura esiste ma manca data_scadenza, prova a estrarla ──
+        needs_pag = cur.execute(
+            "SELECT data_scadenza FROM fe_fatture WHERE id = ?", (existing["id"],)
+        ).fetchone()
+        if needs_pag and needs_pag["data_scadenza"] is None:
+            try:
+                root_existing = ET.fromstring(content)
+                pag_existing = _extract_dati_pagamento(root_existing)
+                if any(v for v in pag_existing.values()):
+                    upd = []
+                    prm = []
+                    if pag_existing["condizioni_pagamento"]:
+                        upd.append("condizioni_pagamento = ?"); prm.append(pag_existing["condizioni_pagamento"])
+                    if pag_existing["modalita_pagamento"]:
+                        upd.append("modalita_pagamento = ?"); prm.append(pag_existing["modalita_pagamento"])
+                    if pag_existing["data_scadenza"]:
+                        upd.append("data_scadenza = ?"); prm.append(pag_existing["data_scadenza"])
+                    if pag_existing["importo_pagamento"] is not None:
+                        upd.append("importo_pagamento = ?"); prm.append(pag_existing["importo_pagamento"])
+                    if upd:
+                        prm.append(existing["id"])
+                        cur.execute(f"UPDATE fe_fatture SET {', '.join(upd)} WHERE id = ?", prm)
+                        conn.commit()
+                        gia_presenti.append(
+                            {
+                                "filename": filename,
+                                "fattura_id": existing["id"],
+                                "fornitore": existing["fornitore_nome"],
+                                "numero_fattura": existing["numero_fattura"],
+                                "data_fattura": existing["data_fattura"],
+                                "arricchita_pagamento": True,
+                            }
+                        )
+                        return
+            except ET.ParseError:
+                pass
+
         gia_presenti.append(
             {
                 "filename": filename,
@@ -663,10 +700,14 @@ async def import_fatture_xml(
 
     conn.close()
 
+    arricchite_pag = [g for g in gia_presenti if g.get("arricchita_pagamento")]
+
     result: Dict[str, Any] = {
         "importate": importate,
         "gia_presenti": gia_presenti,
     }
+    if arricchite_pag:
+        result["arricchite_pagamento"] = len(arricchite_pag)
     if errori:
         result["errori"] = errori
 

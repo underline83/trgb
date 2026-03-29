@@ -500,7 +500,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   useEffect(() => {
     if (!data?.fornPiva) return;
     setPagLoading(true);
-    apiFetch(`/controllo-gestione/fornitore/${data.fornPiva}/pagamento`)
+    apiFetch(`${API_BASE}/controllo-gestione/fornitore/${data.fornPiva}/pagamento`)
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d) {
@@ -518,7 +518,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setPagSaving(true);
     setPagSaved(false);
     try {
-      await apiFetch(`/controllo-gestione/fornitore/${data.fornPiva}/pagamento`, {
+      await apiFetch(`${API_BASE}/controllo-gestione/fornitore/${data.fornPiva}/pagamento`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
