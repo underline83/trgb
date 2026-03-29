@@ -521,6 +521,8 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [pagLoading, setPagLoading] = useState(false);
   const [pagSaving, setPagSaving] = useState(false);
   const [pagSaved, setPagSaved] = useState(false);
+  const [pagAutoDetected, setPagAutoDetected] = useState(null);
+  const [pagHasManual, setPagHasManual] = useState(false);
 
   // ── Prodotti: filtri e bulk ──
   const [prodSearch, setProdSearch] = useState("");
@@ -541,7 +543,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
     setOpenFatturaId(null); setFatturaDetail(null);
-    setPagMp(""); setPagGiorni(""); setPagNote(""); setPagSaved(false);
+    setPagMp(""); setPagGiorni(""); setPagNote(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
     setLocalExcl(false);
   }, [openKey]);
 
@@ -562,9 +564,20 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
         if (r.ok) {
           const d = await r.json();
           if (!cancelled) {
-            setPagMp(d.modalita_pagamento_default || "");
-            setPagGiorni(d.giorni_pagamento != null ? String(d.giorni_pagamento) : "");
-            setPagNote(d.note_pagamento || "");
+            setPagHasManual(!!d.has_manual);
+            setPagAutoDetected(d.auto_detected || null);
+            if (d.has_manual) {
+              setPagMp(d.modalita_pagamento_default || "");
+              setPagGiorni(d.giorni_pagamento != null ? String(d.giorni_pagamento) : "");
+              setPagNote(d.note_pagamento || "");
+            } else if (d.auto_detected) {
+              // Pre-popola con dati auto-rilevati
+              setPagMp(d.auto_detected.modalita_pagamento || "");
+              setPagGiorni(d.auto_detected.giorni_pagamento != null ? String(d.auto_detected.giorni_pagamento) : "");
+              setPagNote("");
+            } else {
+              setPagMp(""); setPagGiorni(""); setPagNote("");
+            }
           }
         }
       } catch {
@@ -898,39 +911,62 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
             {pagLoading ? (
               <p className="text-xs text-neutral-400">Caricamento...</p>
             ) : (
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <span className="text-[10px] text-neutral-400 block mb-0.5">Modalità</span>
-                  <select value={pagMp} onChange={e => setPagMp(e.target.value)}
-                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-44">
-                    <option value="">— Non specificata —</option>
-                    <option value="MP01">MP01 — Contanti</option>
-                    <option value="MP02">MP02 — Assegno</option>
-                    <option value="MP05">MP05 — Bonifico</option>
-                    <option value="MP08">MP08 — Carta</option>
-                    <option value="MP09">MP09 — RID</option>
-                    <option value="MP12">MP12 — RIBA</option>
-                    <option value="MP16">MP16 — Domiciliaz. bancaria</option>
-                    <option value="MP19">MP19 — SEPA DD</option>
-                  </select>
+              <>
+                {/* Banner auto-rilevato */}
+                {pagAutoDetected && !pagHasManual && (
+                  <div className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 flex items-center gap-3">
+                    <span className="text-[10px] text-blue-700">
+                      <strong>Auto-rilevato</strong> da {pagAutoDetected.fatture_analizzate} fatture:
+                      {pagAutoDetected.modalita_pagamento && <> {pagAutoDetected.modalita_pagamento} ({pagAutoDetected.mp_percentuale}%)</>}
+                      {pagAutoDetected.giorni_pagamento != null && <>, ~{pagAutoDetected.giorni_pagamento}gg</>}
+                      {pagAutoDetected.giorni_uniforme ? " (uniforme)" : " (variabile)"}
+                    </span>
+                    <button onClick={handleSavePagamento}
+                      className="ml-auto px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
+                      Conferma come default
+                    </button>
+                  </div>
+                )}
+                {pagHasManual && pagAutoDetected && (
+                  <div className="mb-2 px-2 py-1 rounded text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100">
+                    ✓ Default salvato — rilevato da {pagAutoDetected.fatture_analizzate} fatture
+                  </div>
+                )}
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Modalità</span>
+                    <select value={pagMp} onChange={e => setPagMp(e.target.value)}
+                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-44">
+                      <option value="">— Non specificata —</option>
+                      <option value="MP01">MP01 — Contanti</option>
+                      <option value="MP02">MP02 — Assegno</option>
+                      <option value="MP05">MP05 — Bonifico</option>
+                      <option value="MP08">MP08 — Carta</option>
+                      <option value="MP09">MP09 — RID</option>
+                      <option value="MP12">MP12 — RIBA</option>
+                      <option value="MP16">MP16 — Domiciliaz. bancaria</option>
+                      <option value="MP19">MP19 — SEPA DD</option>
+                      <option value="MP20">MP20 — SEPA DD core</option>
+                    </select>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</span>
+                    <input type="number" value={pagGiorni} onChange={e => setPagGiorni(e.target.value)}
+                      placeholder="es. 30, 60, 90"
+                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-28" />
+                  </div>
+                  <div className="flex-1 min-w-[120px]">
+                    <span className="text-[10px] text-neutral-400 block mb-0.5">Note</span>
+                    <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
+                      placeholder="es. fine mese, 30gg data fattura..."
+                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
+                  </div>
+                  <button onClick={handleSavePagamento} disabled={pagSaving}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
+                    {pagSaving ? "..." : pagSaved ? "✓ Salvato" : "Salva"}
+                  </button>
                 </div>
-                <div>
-                  <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</span>
-                  <input type="number" value={pagGiorni} onChange={e => setPagGiorni(e.target.value)}
-                    placeholder="es. 30, 60, 90"
-                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-28" />
-                </div>
-                <div className="flex-1 min-w-[120px]">
-                  <span className="text-[10px] text-neutral-400 block mb-0.5">Note</span>
-                  <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
-                    placeholder="es. fine mese, 30gg data fattura..."
-                    className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
-                </div>
-                <button onClick={handleSavePagamento} disabled={pagSaving}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
-                  {pagSaving ? "..." : pagSaved ? "✓ Salvato" : "Salva"}
-                </button>
-              </div>
+              </>
             )}
           </div>
         )}
@@ -992,9 +1028,18 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                       <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px]">€ {fmt(f.iva_totale)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-900">€ {fmt(f.totale_fattura)}</td>
                       <td className="px-3 py-2 tabular-nums text-[10px]">
-                        {f.data_scadenza
-                          ? <span className="text-emerald-700">{f.data_scadenza}</span>
-                          : <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-red-100 text-red-600">MANCA</span>}
+                        {f.data_scadenza ? (
+                          <span className="text-emerald-700">
+                            {f.data_scadenza}
+                            {/* Segnala se la modalità pagamento è diversa dal default */}
+                            {pagMp && f.modalita_pagamento && f.modalita_pagamento !== pagMp && (
+                              <span title={`Modalità diversa: ${f.modalita_pagamento} (default: ${pagMp})`}
+                                className="ml-1 px-1 py-0.5 rounded text-[7px] font-bold bg-amber-100 text-amber-700">≠</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-red-100 text-red-600">MANCA</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-center">
                         {f.n_righe > 0 ? <span className="text-teal-700 font-medium">{f.n_righe}</span> : <span className="text-neutral-300">—</span>}

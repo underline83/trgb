@@ -671,16 +671,60 @@ def get_fatture_senza_scadenza(
 
 @router.get("/fornitore/{piva}/pagamento")
 def get_fornitore_pagamento(piva: str, current_user=Depends(get_current_user)):
-    """Ritorna i dati di pagamento di default di un fornitore."""
+    """
+    Ritorna i dati di pagamento di un fornitore.
+    Se ha default manuali in suppliers li ritorna.
+    Altrimenti auto-rileva dalle fatture con dati pagamento.
+    """
     fc = get_fc_db()
     row = fc.execute("""
         SELECT modalita_pagamento_default, giorni_pagamento, note_pagamento
         FROM suppliers WHERE partita_iva = ?
     """, (piva,)).fetchone()
+
+    manual = dict(row) if row else {"modalita_pagamento_default": None, "giorni_pagamento": None, "note_pagamento": None}
+    has_manual = bool(manual.get("giorni_pagamento") or manual.get("modalita_pagamento_default"))
+
+    # ── Auto-detect dalle fatture ──
+    fatture_pag = fc.execute("""
+        SELECT modalita_pagamento, data_fattura, data_scadenza
+        FROM fe_fatture
+        WHERE (fornitore_piva = ? OR (fornitore_piva IS NULL AND fornitore_nome = ?))
+          AND data_scadenza IS NOT NULL
+    """, (piva, piva)).fetchall()
+
+    auto_detected = None
+    if fatture_pag:
+        from collections import Counter
+        mp_counts = Counter()
+        giorni_list = []
+        for f in fatture_pag:
+            if f["modalita_pagamento"]:
+                mp_counts[f["modalita_pagamento"]] += 1
+            try:
+                df = datetime.strptime(f["data_fattura"], "%Y-%m-%d")
+                ds = datetime.strptime(f["data_scadenza"], "%Y-%m-%d")
+                giorni_list.append((ds - df).days)
+            except (ValueError, TypeError):
+                pass
+
+        mp_top = mp_counts.most_common(1)[0][0] if mp_counts else None
+        mp_top_pct = round(mp_counts.most_common(1)[0][1] / sum(mp_counts.values()) * 100) if mp_counts else 0
+        giorni_median = sorted(giorni_list)[len(giorni_list) // 2] if giorni_list else None
+        giorni_varianza = len(set(giorni_list)) <= 3 if giorni_list else False
+
+        auto_detected = {
+            "modalita_pagamento": mp_top,
+            "giorni_pagamento": giorni_median,
+            "fatture_analizzate": len(fatture_pag),
+            "mp_percentuale": mp_top_pct,
+            "giorni_uniforme": giorni_varianza,
+        }
+
     fc.close()
-    if row:
-        return dict(row)
-    return {"modalita_pagamento_default": None, "giorni_pagamento": None, "note_pagamento": None}
+
+    result = {**manual, "has_manual": has_manual, "auto_detected": auto_detected}
+    return result
 
 
 @router.put("/fornitore/{piva}/pagamento")
@@ -695,25 +739,35 @@ def update_fornitore_pagamento(
     """
     fc = get_fc_db()
 
-    # Verifica che il fornitore esista in suppliers
     existing = fc.execute("SELECT id FROM suppliers WHERE partita_iva = ?", (piva,)).fetchone()
-    if not existing:
-        fc.close()
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Fornitore non trovato in suppliers")
-
-    fc.execute("""
-        UPDATE suppliers
-        SET modalita_pagamento_default = ?,
-            giorni_pagamento = ?,
-            note_pagamento = ?
-        WHERE partita_iva = ?
-    """, (
-        payload.get("modalita_pagamento_default"),
-        payload.get("giorni_pagamento"),
-        payload.get("note_pagamento"),
-        piva,
-    ))
+    if existing:
+        fc.execute("""
+            UPDATE suppliers
+            SET modalita_pagamento_default = ?,
+                giorni_pagamento = ?,
+                note_pagamento = ?
+            WHERE partita_iva = ?
+        """, (
+            payload.get("modalita_pagamento_default"),
+            payload.get("giorni_pagamento"),
+            payload.get("note_pagamento"),
+            piva,
+        ))
+    else:
+        # Recupera nome fornitore da fe_fatture
+        nome_row = fc.execute(
+            "SELECT fornitore_nome FROM fe_fatture WHERE fornitore_piva = ? LIMIT 1", (piva,)
+        ).fetchone()
+        nome = nome_row["fornitore_nome"] if nome_row else piva
+        fc.execute("""
+            INSERT INTO suppliers (name, partita_iva, modalita_pagamento_default, giorni_pagamento, note_pagamento, created_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            nome, piva,
+            payload.get("modalita_pagamento_default"),
+            payload.get("giorni_pagamento"),
+            payload.get("note_pagamento"),
+        ))
     fc.commit()
     fc.close()
 
