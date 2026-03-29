@@ -498,19 +498,29 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
 
   // Carica dati pagamento fornitore
   useEffect(() => {
-    if (!data?.fornPiva) return;
-    setPagLoading(true);
-    apiFetch(`${API_BASE}/controllo-gestione/fornitore/${data.fornPiva}/pagamento`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) {
-          setPagMp(d.modalita_pagamento_default || "");
-          setPagGiorni(d.giorni_pagamento ?? "");
-          setPagNote(d.note_pagamento || "");
+    if (!data?.fornPiva) { setPagLoading(false); return; }
+    let cancelled = false;
+    const loadPag = async () => {
+      try {
+        setPagLoading(true);
+        const r = await apiFetch(`${API_BASE}/controllo-gestione/fornitore/${encodeURIComponent(data.fornPiva)}/pagamento`);
+        if (cancelled) return;
+        if (r.ok) {
+          const d = await r.json();
+          if (!cancelled) {
+            setPagMp(d.modalita_pagamento_default || "");
+            setPagGiorni(d.giorni_pagamento != null ? String(d.giorni_pagamento) : "");
+            setPagNote(d.note_pagamento || "");
+          }
         }
-      })
-      .catch(() => {})
-      .finally(() => setPagLoading(false));
+      } catch {
+        // Endpoint non disponibile — ignora silenziosamente
+      } finally {
+        if (!cancelled) setPagLoading(false);
+      }
+    };
+    loadPag();
+    return () => { cancelled = true; };
   }, [data?.fornPiva]);
 
   const handleSavePagamento = async () => {
@@ -830,7 +840,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           )}
         </div>
 
-        {/* Condizioni pagamento */}
+        {/* Condizioni pagamento — DEBUG: abilita gradualmente */}
         {fornPiva && (
           <div className="border-t border-neutral-100 pt-3 mt-3">
             <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Condizioni di pagamento</p>
@@ -839,7 +849,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
             ) : (
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <label className="text-[10px] text-neutral-400 block mb-0.5">Modalit\u00e0</label>
+                  <span className="text-[10px] text-neutral-400 block mb-0.5">Modalità</span>
                   <select value={pagMp} onChange={e => setPagMp(e.target.value)}
                     className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-44">
                     <option value="">— Non specificata —</option>
@@ -854,20 +864,20 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</label>
+                  <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni pagamento</span>
                   <input type="number" value={pagGiorni} onChange={e => setPagGiorni(e.target.value)}
                     placeholder="es. 30, 60, 90"
                     className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-28" />
                 </div>
                 <div className="flex-1 min-w-[120px]">
-                  <label className="text-[10px] text-neutral-400 block mb-0.5">Note</label>
+                  <span className="text-[10px] text-neutral-400 block mb-0.5">Note</span>
                   <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
                     placeholder="es. fine mese, 30gg data fattura..."
                     className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
                 </div>
                 <button onClick={handleSavePagamento} disabled={pagSaving}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
-                  {pagSaving ? "..." : pagSaved ? "\u2713 Salvato" : "Salva"}
+                  {pagSaving ? "..." : pagSaved ? "✓ Salvato" : "Salva"}
                 </button>
               </div>
             )}
