@@ -560,6 +560,12 @@ def import_uscite(
                 ))
                 sf_importate += 1
             else:
+                # Sync titolo/importo se cambiati nella spesa fissa
+                fc.execute("""
+                    UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, updated_at = ?
+                    WHERE spesa_fissa_id = ? AND periodo_riferimento = ?
+                      AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                """, (sf["titolo"], sf["importo"], oggi_str, sf["id"], periodo))
                 sf_saltate += 1
             continue
 
@@ -605,11 +611,11 @@ def import_uscite(
                     ex = dict(existing)
                     if ex["stato"] not in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
                         new_stato = "SCADUTA" if data_scad < oggi_str else "DA_PAGARE"
-                        if ex["stato"] != new_stato:
-                            fc.execute(
-                                "UPDATE cg_uscite SET stato = ?, updated_at = ? WHERE id = ?",
-                                (new_stato, oggi_str, ex["id"])
-                            )
+                        # Sync titolo, importo e stato
+                        fc.execute("""
+                            UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, stato = ?, updated_at = ?
+                            WHERE id = ?
+                        """, (sf["titolo"], sf["importo"], new_stato, oggi_str, ex["id"]))
                     sf_saltate += 1
 
             # Avanza di un mese

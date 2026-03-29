@@ -291,6 +291,9 @@ export default function ControlloGestioneUscite() {
                     <th className="px-3 py-2 text-center cursor-pointer hover:text-sky-700" onClick={() => handleSort("stato")}>
                       Stato <SortIcon col="stato" />
                     </th>
+                    <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("tipo_uscita")}>
+                      Categoria <SortIcon col="tipo_uscita" />
+                    </th>
                     <th className="px-3 py-2 text-left">Mod. Pagamento</th>
                   </tr>
                 </thead>
@@ -298,7 +301,6 @@ export default function ControlloGestioneUscite() {
                   {sorted.map((u) => {
                     const st = STATO_STYLE[u.stato] || STATO_STYLE.DA_PAGARE;
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
-                    const gg = giorniA(u.data_scadenza);
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
 
                     return (
@@ -308,20 +310,9 @@ export default function ControlloGestioneUscite() {
                         {/* SCADENZA */}
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           {u.data_scadenza ? (
-                            <div className="flex items-center gap-1">
-                              <span className={u.stato === "SCADUTA" ? "text-red-700 font-bold" : "text-neutral-700"}>
-                                {fmtDate(u.data_scadenza)}
-                              </span>
-                              {gg !== null && (
-                                <span className={`text-[9px] px-1 py-0.5 rounded-full ${
-                                  gg < 0 ? "bg-red-100 text-red-600"
-                                  : gg <= 7 ? "bg-amber-100 text-amber-700"
-                                  : "bg-neutral-100 text-neutral-400"
-                                }`}>
-                                  {gg < 0 ? `${Math.abs(gg)}gg fa` : gg === 0 ? "oggi" : `${gg}gg`}
-                                </span>
-                              )}
-                            </div>
+                            <span className={u.stato === "SCADUTA" ? "text-red-700 font-bold" : "text-neutral-700"}>
+                              {fmtDateFull(u.data_scadenza)}
+                            </span>
                           ) : (
                             <span className="text-neutral-300 italic">—</span>
                           )}
@@ -329,11 +320,6 @@ export default function ControlloGestioneUscite() {
                         {/* FORNITORE */}
                         <td className="px-3 py-1.5">
                           <div className="font-medium text-neutral-800 truncate max-w-[180px]">{u.fornitore_nome}</div>
-                          {isSF && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600 border border-indigo-200">
-                              {u.sf_tipo_label || "Spesa fissa"}
-                            </span>
-                          )}
                         </td>
                         {/* FATTURA / DESCRIZIONE */}
                         <td className="px-3 py-1.5">
@@ -363,6 +349,18 @@ export default function ControlloGestioneUscite() {
                           <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text} ${st.border} border`}>
                             {st.label}
                           </span>
+                        </td>
+                        {/* CATEGORIA */}
+                        <td className="px-3 py-1.5">
+                          {isSF ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium">
+                              {u.sf_tipo_label || "Spesa fissa"}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                              Fattura
+                            </span>
+                          )}
                         </td>
                         {/* MOD PAGAMENTO */}
                         <td className="px-3 py-1.5">
