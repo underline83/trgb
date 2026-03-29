@@ -1,5 +1,5 @@
 // @version: v1.0-controllo-gestione-dashboard
-// Dashboard unificata: vendite, acquisti, banca, scadenze, margine, andamento annuale
+// Dashboard unificata: vendite, acquisti, banca, margine, andamento annuale
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -18,9 +18,6 @@ const fmtK = (n) => {
   if (abs >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return fmt(n);
 };
-
-const fmtDate = (d) =>
-  d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : "—";
 
 const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -115,7 +112,7 @@ export default function ControlloGestioneDashboard() {
   const v = d?.vendite || {};
   const a = d?.acquisti || {};
   const b = d?.banca || {};
-  const s = d?.scadenze || {};
+
   const m = d?.margine || {};
   const andamento = d?.andamento || [];
 
@@ -170,24 +167,22 @@ export default function ControlloGestioneDashboard() {
             color="blue"
             onClick={() => navigate("/banca/dashboard")} />
 
-          <KPI icon="📅" label="Scadenze 30gg"
-            value={`€ ${fmt(s.prossime_30gg?.importo)}`}
-            sub={`${s.prossime_30gg?.num || 0} rate`}
-            color="violet"
-            onClick={() => navigate("/finanza/scadenzario")} />
+          <KPI icon="📅" label="Uscite programmate"
+            value="In lavorazione"
+            sub="TODO"
+            color="neutral" />
 
-          <KPI icon="🚨" label="Rate scadute"
-            value={s.rate_scadute?.num > 0 ? `€ ${fmt(s.rate_scadute?.importo)}` : "Nessuna"}
-            sub={s.rate_scadute?.num > 0 ? `${s.rate_scadute.num} rate` : null}
-            alert={s.rate_scadute?.num > 0}
-            color="red" />
+          <KPI icon="🔄" label="Rateizzazioni"
+            value="In lavorazione"
+            sub="TODO"
+            color="neutral" />
         </div>
 
-        {/* ─── RIGA 2: ANDAMENTO ANNUALE + PROSSIME SCADENZE ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* ─── RIGA 2: ANDAMENTO ANNUALE ─── */}
+        <div className="grid grid-cols-1 gap-6 mb-6">
 
-          {/* Andamento annuale — occupa 2/3 */}
-          <div className="lg:col-span-2 rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
+          {/* Andamento annuale — full width */}
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
             <h2 className="text-sm font-bold text-sky-800 mb-3">
               Andamento {anno} — Vendite vs Acquisti
             </h2>
@@ -226,42 +221,6 @@ export default function ControlloGestioneDashboard() {
             </div>
           </div>
 
-          {/* Prossime scadenze — occupa 1/3 */}
-          <div className="rounded-2xl border border-violet-100 bg-violet-50/30 p-5">
-            <h2 className="text-sm font-bold text-violet-800 mb-3">
-              Prossime scadenze
-            </h2>
-            {s.prossime_rate?.length > 0 ? (
-              <div className="space-y-2">
-                {s.prossime_rate.map((r) => (
-                  <div key={r.id} className={`flex items-center justify-between text-xs p-2 rounded-lg ${
-                    r.stato === "SCADUTA" ? "bg-red-100 border border-red-200" : "bg-white border border-violet-100"
-                  }`}>
-                    <div>
-                      <div className="font-semibold text-neutral-800 truncate" style={{ maxWidth: 180 }}>
-                        {r.titolo}
-                      </div>
-                      <div className="text-neutral-500">
-                        {fmtDate(r.data_scadenza)}
-                        {r.stato === "SCADUTA" && <span className="ml-1 text-red-600 font-bold">SCADUTA</span>}
-                      </div>
-                    </div>
-                    <div className="font-bold text-violet-800 whitespace-nowrap">
-                      € {fmt(r.importo)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-neutral-400 py-4 text-center">Nessuna scadenza imminente</p>
-            )}
-            {s.totale_residuo > 0 && (
-              <div className="mt-3 pt-3 border-t border-violet-200 flex justify-between text-xs">
-                <span className="text-violet-600">Debito residuo totale</span>
-                <span className="font-bold text-violet-800">€ {fmt(s.totale_residuo)}</span>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* ─── RIGA 3: TOP FORNITORI + CATEGORIE ACQUISTI ─── */}

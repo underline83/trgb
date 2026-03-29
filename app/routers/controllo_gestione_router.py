@@ -1,13 +1,13 @@
 """
 TRGB — Controllo di Gestione Router
-Dashboard unificata che incrocia dati da: Acquisti, Banca, Vendite, Scadenzario.
+Dashboard unificata che incrocia dati da: Acquisti, Banca, Vendite.
 
 Prefix: /controllo-gestione
-DB: foodcost.db (lettura acquisti, banca, finanza), admin_finance.sqlite3 (lettura vendite)
+DB: foodcost.db (lettura acquisti, banca), admin_finance.sqlite3 (lettura vendite)
 """
 
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from app.services.auth_service import get_current_user, is_admin
@@ -50,7 +50,7 @@ def dashboard(
 ):
     """
     Dashboard Controllo di Gestione.
-    Incrocia dati da Acquisti, Banca, Vendite e Scadenzario.
+    Incrocia dati da Acquisti, Banca e Vendite.
 
     Parametri:
     - anno: anno di riferimento (default: anno corrente)
@@ -175,50 +175,8 @@ def dashboard(
     b["saldo_conto"] = saldo_banca["saldo_totale"] if saldo_banca else 0
     result["banca"] = b
 
-    # ─── 4. SCADENZE (da foodcost.db — finanza_scadenze + rate) ───
-
-    oggi_str = oggi.strftime("%Y-%m-%d")
-    fra30gg = (oggi + timedelta(days=30)).strftime("%Y-%m-%d")
-
-    # Aggiorna rate scadute
-    fc.execute("""
-        UPDATE finanza_rate SET stato = 'SCADUTA'
-        WHERE stato = 'DA_PAGARE' AND data_scadenza < ?
-    """, (oggi_str,))
-    fc.commit()
-
-    scadute = fc.execute("""
-        SELECT COUNT(*) AS num, COALESCE(SUM(importo), 0) AS importo
-        FROM finanza_rate WHERE stato = 'SCADUTA'
-    """).fetchone()
-
-    prossime_30gg = fc.execute("""
-        SELECT COUNT(*) AS num, COALESCE(SUM(importo), 0) AS importo
-        FROM finanza_rate
-        WHERE stato = 'DA_PAGARE' AND data_scadenza BETWEEN ? AND ?
-    """, (oggi_str, fra30gg)).fetchone()
-
-    totale_residuo = fc.execute("""
-        SELECT COALESCE(SUM(importo - importo_pagato), 0) AS residuo
-        FROM finanza_rate WHERE stato IN ('DA_PAGARE', 'SCADUTA')
-    """).fetchone()
-
-    prossime_rate = fc.execute("""
-        SELECT r.id, r.data_scadenza, r.importo, r.stato,
-               s.titolo, s.tipo, s.ente
-        FROM finanza_rate r
-        JOIN finanza_scadenze s ON r.scadenza_id = s.id
-        WHERE r.stato IN ('DA_PAGARE', 'SCADUTA')
-        ORDER BY r.data_scadenza ASC
-        LIMIT 8
-    """).fetchall()
-
-    result["scadenze"] = {
-        "rate_scadute": {"num": scadute["num"], "importo": scadute["importo"]},
-        "prossime_30gg": {"num": prossime_30gg["num"], "importo": prossime_30gg["importo"]},
-        "totale_residuo": totale_residuo["residuo"],
-        "prossime_rate": [dict(r) for r in prossime_rate],
-    }
+    # ─── 4. SCADENZE / RATEIZZAZIONI — TODO (punti 6-7) ───
+    # Per ora non collegato. Sara' sviluppato in fase successiva.
 
     # ─── 5. MARGINE LORDO (vendite - acquisti) ───
 
