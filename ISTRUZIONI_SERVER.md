@@ -27,6 +27,10 @@ sudo systemctl restart trgb-frontend
 - Il push va fatto dal Mac di Marco (ha le chiavi SSH), NON dal sandbox Cowork
 - Remote `origin` → VPS bare repo `/home/marco/trgb/trgb.git`
 - Remote `github` → GitHub (backup)
+- push.sh usa `sqlite3 .backup` (atomico, gestisce WAL) per scaricare i DB — NON scp diretto
+- Prima di scaricare, salva la copia precedente come `*.prev` (1 rollback disponibile)
+- I file DB (*.db, *.sqlite3, *.prev, .fuse_hidden*) sono in .gitignore e NON tracciati in git
+- IMPORTANTE: mai aggiungere file DB al tracking git (`git add app/data/*.db` è VIETATO)
 
 ## Percorsi VPS
 - Repo: `/home/marco/trgb/trgb/`
@@ -45,8 +49,22 @@ sudo systemctl restart trgb-frontend
 - Eseguite automaticamente all'avvio di FastAPI
 - DB: `app/data/foodcost.db` (main), `app/data/admin_finance.sqlite3` (vendite)
 
+## Backup Database
+- Script: `scripts/backup_db.sh` — backup atomico con `sqlite3 .backup`
+- **Orario** (ogni ora): salva in `app/data/backups/hourly/`, rotazione 48h
+- **Giornaliero** (3:30): salva in `app/data/backups/daily/`, sync su Google Drive (`gdrive:TRGB-Backup/db-daily/`), rotazione 7gg
+- Cron attivi sul server:
+  - `0 * * * *` → backup orario
+  - `30 3 * * *` → backup giornaliero + Drive
+- Log: `/home/marco/trgb/backup.log`
+- DB backuppati: foodcost.db, admin_finance.sqlite3, vini.sqlite3, vini_magazzino.sqlite3, vini_settings.sqlite3, dipendenti.sqlite3
+- Backup precedente su Drive: `gdrive:TRGB-Backup/app-code/app/data/` (da push.sh -d)
+- Per ripristinare: `rclone copy gdrive:TRGB-Backup/db-daily/YYYYMMDD_HHMMSS/foodcost.db /tmp/ --config ~/.config/rclone/rclone.conf`
+
 ## Errori comuni
 - Se backend in `auto-restart`: controllare i log con `journalctl`
 - Import mancanti in router → crash all'avvio → 502 su nginx
-- `push.sh` scarica sempre i DB dal VPS prima di pushare
+- push.sh scarica i DB dal VPS con backup atomico prima di pushare
 - Il sandbox Cowork NON ha accesso SSH al VPS
+- MAI toccare il DB di produzione con .dump/.recover senza prima fare un backup atomico
+- MAI cancellare file -wal o -shm di SQLite mentre il DB è in uso

@@ -974,9 +974,9 @@ def segna_fatture_pagate(
     if metodo not in ("CONTO_CORRENTE", "CARTA", "CONTANTI"):
         metodo = "CONTO_CORRENTE"
 
-    data_pag = payload.get("data_pagamento") or datetime.now().strftime("%Y-%m-%d")
+    data_pag = payload.get("data_pagamento") or datetime.datetime.now().strftime("%Y-%m-%d")
     note = payload.get("note", "")
-    oggi = datetime.now().strftime("%Y-%m-%d")
+    oggi = datetime.datetime.now().strftime("%Y-%m-%d")
 
     aggiornate_fe = 0
     aggiornate_cg = 0
