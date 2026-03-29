@@ -973,6 +973,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                     <SortTh label="Imponibile" field="imponibile_totale" sort={fattSort} setSort={setFattSort} align="right" />
                     <SortTh label="IVA" field="iva_totale" sort={fattSort} setSort={setFattSort} align="right" />
                     <SortTh label="Totale" field="totale_fattura" sort={fattSort} setSort={setFattSort} align="right" />
+                    <SortTh label="Scadenza" field="data_scadenza" sort={fattSort} setSort={setFattSort} />
                     <SortTh label="Righe" field="n_righe" sort={fattSort} setSort={setFattSort} align="right" />
                     <SortTh label="Stato" field="pagato_sort" sort={fattSort} setSort={setFattSort} />
                     <th className="px-3 py-2 text-center">Fonte</th>
@@ -990,6 +991,11 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                       <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px]">€ {fmt(f.iva_totale)}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-900">€ {fmt(f.totale_fattura)}</td>
+                      <td className="px-3 py-2 tabular-nums text-[10px]">
+                        {f.data_scadenza
+                          ? <span className="text-emerald-700">{f.data_scadenza}</span>
+                          : <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-red-100 text-red-600">MANCA</span>}
+                      </td>
                       <td className="px-3 py-2 text-center">
                         {f.n_righe > 0 ? <span className="text-teal-700 font-medium">{f.n_righe}</span> : <span className="text-neutral-300">—</span>}
                       </td>
