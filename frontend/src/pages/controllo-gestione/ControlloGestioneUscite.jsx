@@ -56,13 +56,17 @@ export default function ControlloGestioneUscite() {
     setLoading(true);
     try {
       if (doImport) {
-        await apiFetch(`${API_BASE}/controllo-gestione/uscite/import`, { method: "POST" });
+        try {
+          await apiFetch(`${API_BASE}/controllo-gestione/uscite/import`, { method: "POST" });
+        } catch (importErr) {
+          console.warn("Import non riuscito (i dati esistenti verranno comunque caricati):", importErr);
+        }
       }
       const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite`);
       if (!res.ok) throw new Error("Errore API");
       setData(await res.json());
     } catch (e) {
-      console.error("Errore:", e);
+      console.error("Errore caricamento uscite:", e);
     } finally {
       setLoading(false);
     }
