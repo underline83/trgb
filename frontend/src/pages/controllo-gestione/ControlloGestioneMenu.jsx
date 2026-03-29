@@ -7,7 +7,7 @@ const CARDS = [
   { title: "Dashboard", desc: "Panorama completo: vendite, acquisti, banca, margine", icon: "📊", path: "/controllo-gestione/dashboard" },
   { title: "Tabellone Uscite", desc: "Fatture da pagare, arretrati, scadenze — importate da Acquisti", icon: "💸", path: "/controllo-gestione/uscite" },
   { title: "Confronto Periodi", desc: "Confronta due mesi o due anni — vendite, acquisti, margine", icon: "📈", path: "/controllo-gestione/confronto" },
-  { title: "Spese Fisse", desc: "Affitti, tasse, stipendi, prestiti, rateizzazioni", icon: "🏠", path: "/controllo-gestione/spese-fisse", disabled: true },
+  { title: "Spese Fisse", desc: "Affitti, tasse, stipendi, prestiti, rateizzazioni", icon: "🏠", path: "/controllo-gestione/spese-fisse" },
 ];
 
 export default function ControlloGestioneMenu() {

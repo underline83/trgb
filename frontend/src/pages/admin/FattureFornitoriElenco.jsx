@@ -505,6 +505,11 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
   const [fatturaDetLoading, setFatturaDetLoading] = useState(false);
   const [fattSort, setFattSort] = useState({ field: "data_fattura", dir: "desc" });
 
+  // ── Selezione fatture per pagamento ──
+  const [selFatt, setSelFatt] = useState(new Set());
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [metodoPag, setMetodoPag] = useState("CONTO_CORRENTE");
+
   // ── Esclusione acquisti ──
   const [togglingExcl, setTogglingExcl] = useState(false);
   const [localExcl, setLocalExcl] = useState(false);
@@ -544,7 +549,7 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     setSelected(new Set());
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
-    setOpenFatturaId(null); setFatturaDetail(null);
+    setOpenFatturaId(null); setFatturaDetail(null); setSelFatt(new Set());
     setPagMp(""); setPagGiorni(""); setPagNote(""); setPagPreset(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
     setLocalExcl(false);
   }, [openKey]);
@@ -627,6 +632,68 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
     } finally {
       setPagSaving(false);
     }
+  };
+
+  // ── Segna fatture come pagate ──
+  const handleMarkPaid = async () => {
+    if (selFatt.size === 0) return;
+    setMarkingPaid(true);
+    try {
+      const r = await apiFetch(`${FE}/fatture/segna-pagate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fattura_ids: [...selFatt], metodo_pagamento: metodoPag }),
+      });
+      if (r.ok) {
+        setSelFatt(new Set());
+        if (onReloadList) onReloadList();
+        // Ricarica fatture nel dettaglio
+        if (data?.fornPiva || data?.fornNome) {
+          const enc = encodeURIComponent(data.fornPiva || data.fornNome);
+          const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
+          if (res.ok) {
+            const d = await res.json();
+            // Aggiorna fatture nel data
+            data.fatture = d.fatture || [];
+          }
+        }
+      }
+    } catch (e) { console.error(e); }
+    setMarkingPaid(false);
+  };
+
+  const handleMarkUnpaid = async () => {
+    if (selFatt.size === 0) return;
+    setMarkingPaid(true);
+    try {
+      const r = await apiFetch(`${FE}/fatture/segna-non-pagate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fattura_ids: [...selFatt] }),
+      });
+      if (r.ok) {
+        setSelFatt(new Set());
+        if (onReloadList) onReloadList();
+        if (data?.fornPiva || data?.fornNome) {
+          const enc = encodeURIComponent(data.fornPiva || data.fornNome);
+          const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
+          if (res.ok) {
+            const d = await res.json();
+            data.fatture = d.fatture || [];
+          }
+        }
+      }
+    } catch (e) { console.error(e); }
+    setMarkingPaid(false);
+  };
+
+  const toggleFattSel = (id) => setSelFatt(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+  const toggleAllFatt = () => {
+    const nonPagate = fatture.filter(f => !f.pagato);
+    if (selFatt.size === nonPagate.length) setSelFatt(new Set());
+    else setSelFatt(new Set(nonPagate.map(f => f.id)));
   };
 
   // ── Apri dettaglio fattura inline ──
@@ -1027,10 +1094,46 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
           />
         ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            {/* Barra azioni selezione */}
+            {selFatt.size > 0 && (
+              <div className="bg-sky-50 border-b border-sky-200 px-4 py-2 flex flex-wrap items-center gap-3">
+                <span className="text-xs font-semibold text-sky-900">{selFatt.size} selezionate</span>
+                <span className="text-[10px] text-sky-600">
+                  Totale: € {fmt(fatture.filter(f => selFatt.has(f.id)).reduce((s, f) => s + (f.totale_fattura || 0), 0))}
+                </span>
+                {fatture.filter(f => selFatt.has(f.id)).some(f => !f.pagato) && (
+                  <>
+                    <select value={metodoPag} onChange={e => setMetodoPag(e.target.value)}
+                      className="px-2 py-1 rounded-lg text-[10px] border border-sky-200 bg-white text-sky-800 font-medium">
+                      <option value="CONTO_CORRENTE">Conto Corrente</option>
+                      <option value="CARTA">Carta di Credito</option>
+                      <option value="CONTANTI">Contanti</option>
+                    </select>
+                    <button onClick={handleMarkPaid} disabled={markingPaid}
+                      className="px-3 py-1 rounded-lg text-[10px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50">
+                      {markingPaid ? "..." : "Segna pagate"}
+                    </button>
+                  </>
+                )}
+                {fatture.filter(f => selFatt.has(f.id)).some(f => f.pagato) && (
+                  <button onClick={handleMarkUnpaid} disabled={markingPaid}
+                    className="px-3 py-1 rounded-lg text-[10px] font-semibold bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50">
+                    {markingPaid ? "..." : "Segna non pagate"}
+                  </button>
+                )}
+                <button onClick={() => setSelFatt(new Set())}
+                  className="px-2 py-1 rounded-lg text-[10px] text-neutral-500 hover:bg-neutral-100 transition ml-auto">Deseleziona</button>
+              </div>
+            )}
             <div className="max-h-[50vh] overflow-y-auto">
               <table className="min-w-full text-xs">
                 <thead className="bg-neutral-50 text-neutral-600 sticky top-0 text-[10px] uppercase tracking-wide">
                   <tr>
+                    <th className="px-2 py-2 w-8 text-center">
+                      <input type="checkbox"
+                        checked={selFatt.size > 0 && selFatt.size === fatture.filter(f => !f.pagato).length}
+                        onChange={toggleAllFatt} className="accent-sky-600" />
+                    </th>
                     <SortTh label="Data" field="data_fattura" sort={fattSort} setSort={setFattSort} />
                     <SortTh label="N. Fattura" field="numero_fattura" sort={fattSort} setSort={setFattSort} />
                     <SortTh label="Imponibile" field="imponibile_totale" sort={fattSort} setSort={setFattSort} align="right" />
@@ -1047,8 +1150,12 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                     <tr key={f.id}
                       onClick={() => openFattura(f.id)}
                       className={`border-t border-neutral-100 cursor-pointer transition ${
-                        openFatturaId === f.id ? "bg-teal-50" : "hover:bg-teal-50/30"
+                        selFatt.has(f.id) ? "bg-sky-50" : openFatturaId === f.id ? "bg-teal-50" : "hover:bg-teal-50/30"
                       }`}>
+                      <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selFatt.has(f.id)}
+                          onChange={() => toggleFattSel(f.id)} className="accent-sky-600" />
+                      </td>
                       <td className="px-3 py-2 tabular-nums text-neutral-700">{f.data_fattura || "—"}</td>
                       <td className="px-3 py-2 text-neutral-600 font-mono text-[10px] max-w-[140px] truncate">{f.numero_fattura || "—"}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
@@ -1058,7 +1165,6 @@ function FornitoreDetailView({ data, loading, categorie, openKey, onClose, onRef
                         {f.data_scadenza ? (
                           <span className="text-emerald-700">
                             {f.data_scadenza}
-                            {/* Segnala se la modalità pagamento è diversa dal default */}
                             {pagMp && f.modalita_pagamento && f.modalita_pagamento !== pagMp && (
                               <span title={`Modalità diversa: ${f.modalita_pagamento} (default: ${pagMp})`}
                                 className="ml-1 px-1 py-0.5 rounded text-[7px] font-bold bg-amber-100 text-amber-700">≠</span>

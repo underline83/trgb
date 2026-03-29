@@ -479,8 +479,8 @@ def import_uscite(
 
         if existing:
             ex = dict(existing)
-            # Se già PAGATA o PARZIALE, non toccare
-            if ex["stato"] in ("PAGATA", "PARZIALE"):
+            # Se già PAGATA, PAGATA_MANUALE o PARZIALE, non toccare
+            if ex["stato"] in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
                 saltate += 1
                 continue
             # Aggiorna stato e scadenza se cambiati
@@ -599,6 +599,9 @@ def get_uscite(
         mp = row.get("mp_xml") or row.get("mp_fornitore")
         row["modalita_pagamento_label"] = MP_LABELS.get(mp, mp) if mp else None
         row["modalita_pagamento_codice"] = mp
+        # Label metodo pagamento manuale
+        metodo_labels = {"CONTO_CORRENTE": "Conto Corrente", "CARTA": "Carta", "CONTANTI": "Contanti"}
+        row["metodo_pagamento_label"] = metodo_labels.get(row.get("metodo_pagamento")) if row.get("metodo_pagamento") else None
         # Sorgente scadenza
         if row.get("mp_xml") or (r["data_scadenza"] and not row.get("giorni_fornitore")):
             row["scadenza_fonte"] = "xml"
@@ -611,8 +614,10 @@ def get_uscite(
     # ── Riepilogo ──
     totale_da_pagare = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "DA_PAGARE")
     totale_scadute = sum(r["totale"] - r["importo_pagato"] for r in rows if r["stato"] == "SCADUTA")
-    totale_pagate = sum(r["importo_pagato"] for r in rows if r["stato"] in ("PAGATA", "PARZIALE"))
-    n_senza_scadenza = sum(1 for r in rows if r["data_scadenza"] is None and r["stato"] != "PAGATA")
+    stati_pagata = ("PAGATA", "PAGATA_MANUALE", "PARZIALE")
+    totale_pagate = sum(r["importo_pagato"] for r in rows if r["stato"] in stati_pagata)
+    n_senza_scadenza = sum(1 for r in rows if r["data_scadenza"] is None and r["stato"] not in stati_pagata)
+    n_pagata_manuale = sum(1 for r in rows if r["stato"] == "PAGATA_MANUALE")
 
     fc.close()
 
@@ -624,7 +629,8 @@ def get_uscite(
             "totale_pagate": round(totale_pagate, 2),
             "num_da_pagare": sum(1 for r in rows if r["stato"] == "DA_PAGARE"),
             "num_scadute": sum(1 for r in rows if r["stato"] == "SCADUTA"),
-            "num_pagate": sum(1 for r in rows if r["stato"] in ("PAGATA", "PARZIALE")),
+            "num_pagate": sum(1 for r in rows if r["stato"] in stati_pagata),
+            "num_pagata_manuale": n_pagata_manuale,
             "num_senza_scadenza": n_senza_scadenza,
         },
     }
@@ -894,6 +900,158 @@ def delete_preset_pagamento(
     """Elimina un preset."""
     fc = get_fc_db()
     fc.execute("DELETE FROM condizioni_pagamento_preset WHERE id = ?", (preset_id,))
+    fc.commit()
+    fc.close()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SPESE FISSE — Spese ricorrenti senza fattura
+# ═══════════════════════════════════════════════════════════════════
+
+TIPO_SPESA = ("AFFITTO", "TASSA", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ALTRO")
+FREQ_SPESA = ("MENSILE", "BIMESTRALE", "TRIMESTRALE", "SEMESTRALE", "ANNUALE", "UNA_TANTUM")
+
+
+@router.get("/spese-fisse")
+def list_spese_fisse(
+    solo_attive: bool = Query(True),
+    tipo: Optional[str] = Query(None),
+    current_user=Depends(get_current_user),
+):
+    """Lista tutte le spese fisse. Di default solo le attive."""
+    fc = get_fc_db()
+    where = []
+    params = []
+    if solo_attive:
+        where.append("attiva = 1")
+    if tipo:
+        where.append("tipo = ?")
+        params.append(tipo)
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+
+    rows = fc.execute(f"""
+        SELECT * FROM cg_spese_fisse {where_sql}
+        ORDER BY tipo, titolo
+    """, params).fetchall()
+
+    # Calcola riepilogo per tipo
+    all_active = fc.execute("""
+        SELECT tipo, COUNT(*) as n, SUM(importo) as totale
+        FROM cg_spese_fisse WHERE attiva = 1
+        GROUP BY tipo ORDER BY tipo
+    """).fetchall()
+
+    totale_mensile = 0.0
+    for r in fc.execute("SELECT importo, frequenza FROM cg_spese_fisse WHERE attiva = 1").fetchall():
+        freq_mult = {"MENSILE": 1, "BIMESTRALE": 0.5, "TRIMESTRALE": 1/3,
+                     "SEMESTRALE": 1/6, "ANNUALE": 1/12, "UNA_TANTUM": 0}
+        totale_mensile += r["importo"] * freq_mult.get(r["frequenza"], 1)
+
+    fc.close()
+
+    return {
+        "spese": [dict(r) for r in rows],
+        "count": len(rows),
+        "riepilogo_tipo": [dict(r) for r in all_active],
+        "totale_mensile_stimato": round(totale_mensile, 2),
+    }
+
+
+@router.get("/spese-fisse/{spesa_id}")
+def get_spesa_fissa(spesa_id: int, current_user=Depends(get_current_user)):
+    fc = get_fc_db()
+    row = fc.execute("SELECT * FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone()
+    fc.close()
+    if not row:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Spesa non trovata")
+    return dict(row)
+
+
+@router.post("/spese-fisse")
+def create_spesa_fissa(
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Crea una nuova spesa fissa.
+    Body: { tipo, titolo, descrizione?, importo, frequenza, giorno_scadenza?,
+            data_inizio?, data_fine?, note? }
+    """
+    tipo = payload.get("tipo", "ALTRO")
+    if tipo not in TIPO_SPESA:
+        tipo = "ALTRO"
+    freq = payload.get("frequenza", "MENSILE")
+    if freq not in FREQ_SPESA:
+        freq = "MENSILE"
+
+    fc = get_fc_db()
+    fc.execute("""
+        INSERT INTO cg_spese_fisse
+            (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
+             data_inizio, data_fine, note, attiva)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    """, (
+        tipo,
+        payload.get("titolo", "").strip(),
+        payload.get("descrizione", ""),
+        float(payload.get("importo", 0)),
+        freq,
+        payload.get("giorno_scadenza"),
+        payload.get("data_inizio"),
+        payload.get("data_fine"),
+        payload.get("note", ""),
+    ))
+    fc.commit()
+    new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
+    fc.close()
+    return {"ok": True, "id": new_id}
+
+
+@router.put("/spese-fisse/{spesa_id}")
+def update_spesa_fissa(
+    spesa_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Aggiorna una spesa fissa. Accetta update parziale."""
+    fc = get_fc_db()
+    existing = fc.execute("SELECT id FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone()
+    if not existing:
+        fc.close()
+        from fastapi import HTTPException
+        raise HTTPException(404, "Spesa non trovata")
+
+    allowed = ("tipo", "titolo", "descrizione", "importo", "frequenza",
+               "giorno_scadenza", "data_inizio", "data_fine", "note", "attiva")
+    sets = []
+    params = []
+    for field in allowed:
+        if field in payload:
+            sets.append(f"{field} = ?")
+            params.append(payload[field])
+    sets.append("updated_at = CURRENT_TIMESTAMP")
+
+    if not params:
+        fc.close()
+        return {"ok": False, "error": "Nessun campo da aggiornare"}
+
+    params.append(spesa_id)
+    fc.execute(f"UPDATE cg_spese_fisse SET {', '.join(sets)} WHERE id = ?", params)
+    fc.commit()
+    fc.close()
+    return {"ok": True}
+
+
+@router.delete("/spese-fisse/{spesa_id}")
+def delete_spesa_fissa(
+    spesa_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Elimina una spesa fissa."""
+    fc = get_fc_db()
+    fc.execute("DELETE FROM cg_spese_fisse WHERE id = ?", (spesa_id,))
     fc.commit()
     fc.close()
     return {"ok": True}

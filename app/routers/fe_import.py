@@ -945,6 +945,111 @@ def list_fatture(
     return {"fatture": rows, "total": summary["cnt"] or 0, "totale_importo": summary["tot"] or 0}
 
 
+@router.post(
+    "/fatture/segna-pagate",
+    summary="Segna una o più fatture come pagate (manuale, senza riconciliazione banca)",
+)
+def segna_fatture_pagate(
+    payload: Dict[str, Any] = Body(...),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Body: {
+        fattura_ids: [1, 2, 3],
+        metodo_pagamento: "CONTO_CORRENTE" | "CARTA" | "CONTANTI",
+        data_pagamento?: "2026-03-15",
+        note?: "..."
+    }
+    Aggiorna fe_fatture.pagato = 1 e cg_uscite.stato = 'PAGATA_MANUALE'.
+    """
+    conn = _get_conn()
+    _ensure_tables(conn)
+
+    ids = payload.get("fattura_ids", [])
+    if not ids:
+        conn.close()
+        return {"ok": False, "error": "Nessuna fattura selezionata"}
+
+    metodo = payload.get("metodo_pagamento", "CONTO_CORRENTE")
+    if metodo not in ("CONTO_CORRENTE", "CARTA", "CONTANTI"):
+        metodo = "CONTO_CORRENTE"
+
+    data_pag = payload.get("data_pagamento") or datetime.now().strftime("%Y-%m-%d")
+    note = payload.get("note", "")
+    oggi = datetime.now().strftime("%Y-%m-%d")
+
+    aggiornate_fe = 0
+    aggiornate_cg = 0
+
+    for fid in ids:
+        # Aggiorna fe_fatture
+        conn.execute("UPDATE fe_fatture SET pagato = 1 WHERE id = ?", (fid,))
+        aggiornate_fe += conn.total_changes
+
+        # Aggiorna cg_uscite se esiste
+        existing = conn.execute(
+            "SELECT id, stato FROM cg_uscite WHERE fattura_id = ?", (fid,)
+        ).fetchone()
+        if existing and existing["stato"] not in ("PAGATA",):
+            # PAGATA = riconciliata con banca (non toccare)
+            # PAGATA_MANUALE = segnata dall'utente senza riconciliazione
+            conn.execute("""
+                UPDATE cg_uscite
+                SET stato = 'PAGATA_MANUALE', data_pagamento = ?,
+                    importo_pagato = totale, metodo_pagamento = ?,
+                    note = CASE WHEN ? != '' THEN ? ELSE note END, updated_at = ?
+                WHERE fattura_id = ?
+            """, (data_pag, metodo, note, note, oggi, fid))
+            aggiornate_cg += 1
+
+    conn.commit()
+    conn.close()
+
+    return {"ok": True, "aggiornate_fe": aggiornate_fe, "aggiornate_cg": aggiornate_cg, "fatture": len(ids), "metodo": metodo}
+
+
+@router.post(
+    "/fatture/segna-non-pagate",
+    summary="Riporta fatture a non pagate",
+)
+def segna_fatture_non_pagate(
+    payload: Dict[str, Any] = Body(...),
+    current_user: Any = Depends(get_current_user),
+):
+    """Body: { fattura_ids: [1, 2, 3] }"""
+    conn = _get_conn()
+    _ensure_tables(conn)
+
+    ids = payload.get("fattura_ids", [])
+    if not ids:
+        conn.close()
+        return {"ok": False, "error": "Nessuna fattura selezionata"}
+
+    oggi = datetime.now().strftime("%Y-%m-%d")
+
+    for fid in ids:
+        conn.execute("UPDATE fe_fatture SET pagato = 0 WHERE id = ?", (fid,))
+
+        existing = conn.execute(
+            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?", (fid,)
+        ).fetchone()
+        if existing and existing["stato"] in ("PAGATA_MANUALE",):
+            # Ricalcola stato: se scadenza passata → SCADUTA, altrimenti DA_PAGARE
+            scad = existing["data_scadenza"]
+            nuovo_stato = "SCADUTA" if scad and scad < oggi else "DA_PAGARE"
+            conn.execute("""
+                UPDATE cg_uscite
+                SET stato = ?, data_pagamento = NULL, importo_pagato = 0,
+                    metodo_pagamento = NULL, updated_at = ?
+                WHERE fattura_id = ?
+            """, (nuovo_stato, oggi, fid))
+
+    conn.commit()
+    conn.close()
+
+    return {"ok": True, "fatture": len(ids)}
+
+
 @router.get(
     "/fatture/{fattura_id}",
     response_model=Dict[str, Any],

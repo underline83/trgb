@@ -96,6 +96,7 @@ import ControlloGestioneMenu from "./pages/controllo-gestione/ControlloGestioneM
 import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGestioneDashboard";
 import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
 import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
+import ControlloGestioneSpeseFisse from "./pages/controllo-gestione/ControlloGestioneSpeseFisse";
 
 // --- STATISTICHE ---
 import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
@@ -211,6 +212,7 @@ export default function App() {
         <Route path="/controllo-gestione/dashboard" element={<ControlloGestioneDashboard />} />
         <Route path="/controllo-gestione/confronto" element={<ControlloGestioneConfronto />} />
         <Route path="/controllo-gestione/uscite" element={<ControlloGestioneUscite />} />
+        <Route path="/controllo-gestione/spese-fisse" element={<ControlloGestioneSpeseFisse />} />
 
         {/* --- STATISTICHE --- */}
         <Route path="/statistiche" element={<StatisticheMenu />} />

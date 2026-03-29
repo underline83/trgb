@@ -7,10 +7,11 @@ import { API_BASE, apiFetch } from "../../config/api";
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 
 const STATO_STYLE = {
-  DA_PAGARE: { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Da pagare" },
-  SCADUTA:   { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduta" },
-  PAGATA:    { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagata" },
-  PARZIALE:  { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
+  DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Da pagare" },
+  SCADUTA:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduta" },
+  PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagata" },
+  PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagata *" },
+  PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
 };
 
 const FONTE_BADGE = {
@@ -248,7 +249,14 @@ export default function ControlloGestioneUscite() {
                           {u.modalita_pagamento_label || "—"}
                         </td>
                         <td className="px-4 py-2.5 text-right text-emerald-700">
-                          {u.importo_pagato > 0 ? `€ ${fmt(u.importo_pagato)}` : "—"}
+                          <div>{u.importo_pagato > 0 ? `€ ${fmt(u.importo_pagato)}` : "—"}</div>
+                          {u.metodo_pagamento_label && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              u.metodo_pagamento === "CONTANTI" ? "bg-orange-100 text-orange-700"
+                              : u.metodo_pagamento === "CARTA" ? "bg-purple-100 text-purple-700"
+                              : "bg-sky-100 text-sky-700"
+                            }`}>{u.metodo_pagamento_label}</span>
+                          )}
                         </td>
                         <td className={`px-4 py-2.5 text-right font-bold ${
                           residuo > 0 && u.stato === "SCADUTA" ? "text-red-700" : residuo > 0 ? "text-amber-700" : "text-emerald-600"
