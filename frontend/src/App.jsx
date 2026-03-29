@@ -205,6 +205,11 @@ export default function App() {
         <Route path="/finanza/impostazioni" element={<FinanzaImpostazioni />} />
         <Route path="/finanza/scadenzario" element={<FinanzaScadenzario />} />
 
+        {/* --- CONTROLLO DI GESTIONE --- */}
+        <Route path="/controllo-gestione" element={<ControlloGestioneMenu />} />
+        <Route path="/controllo-gestione/dashboard" element={<ControlloGestioneDashboard />} />
+        <Route path="/controllo-gestione/confronto" element={<ControlloGestioneConfronto />} />
+
         {/* --- STATISTICHE --- */}
         <Route path="/statistiche" element={<StatisticheMenu />} />
         <Route path="/statistiche/dashboard" element={<StatisticheDashboard />} />
