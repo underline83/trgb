@@ -254,7 +254,7 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         fornitore_piva = entity.get("vat_number", "") or ""
         doc_date = doc_data.get("date", "") or ""
 
-        # ── STATO PAGAMENTO ──────────────────────────────
+        # ── STATO PAGAMENTO + DATI SCADENZA ──────────────
         payments = doc_data.get("payments_list") or []
         if payments:
             all_paid = all(
@@ -264,6 +264,15 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
             pagato = 1 if all_paid else 0
         else:
             pagato = 0
+
+        # Estrai dati pagamento dalla prima rata (scadenza principale)
+        fic_data_scadenza = None
+        fic_importo_pagamento = None
+        if payments:
+            # Prendi la prima rata non pagata, oppure la prima in assoluto
+            pmt = next((p for p in payments if p.get("status") != "paid"), payments[0])
+            fic_data_scadenza = pmt.get("due_date") or None
+            fic_importo_pagamento = pmt.get("amount") or None
 
         # ── DEDUP CON XML (ora che abbiamo invoice_number) ───
         # Cerca se esiste un duplicato XML con stessa piva+numero+data
@@ -294,13 +303,15 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
                 conn.execute("DELETE FROM fe_fatture WHERE id = ?", (xml_id,))
                 result["merged"] = 1
 
-        # Aggiorna header con dati dal dettaglio
+        # Aggiorna header con dati dal dettaglio + pagamento
         conn.execute(
             """UPDATE fe_fatture SET
                 numero_fattura = ?,
-                pagato = ?
+                pagato = ?,
+                data_scadenza = COALESCE(data_scadenza, ?),
+                importo_pagamento = COALESCE(importo_pagamento, ?)
             WHERE id = ?""",
-            (invoice_number, pagato, fattura_db_id),
+            (invoice_number, pagato, fic_data_scadenza, fic_importo_pagamento, fattura_db_id),
         )
 
         # ── RIGHE / ITEMS ────────────────────────────────
@@ -565,10 +576,13 @@ def fic_sync(
                         # Ri-fetch dettaglio solo se mancano dati o force_detail
                         needs_detail = force_detail or not cur_row["numero_fattura"]
                         if not needs_detail:
-                            n_righe = conn.execute(
-                                "SELECT COUNT(*) FROM fe_righe WHERE fattura_id = ?", (db_id,)
-                            ).fetchone()[0]
-                            needs_detail = (n_righe == 0)
+                            # Controlla se mancano righe o dati pagamento
+                            extra = conn.execute(
+                                "SELECT (SELECT COUNT(*) FROM fe_righe WHERE fattura_id = ?) as n_righe, "
+                                "data_scadenza FROM fe_fatture WHERE id = ?",
+                                (db_id, db_id)
+                            ).fetchone()
+                            needs_detail = (extra["n_righe"] == 0) or (extra["data_scadenza"] is None)
 
                         if needs_detail:
                             docs_to_detail.append((fic_id, db_id))
