@@ -1177,6 +1177,27 @@ def update_spesa_fissa(
 
     params.append(spesa_id)
     fc.execute(f"UPDATE cg_spese_fisse SET {', '.join(sets)} WHERE id = ?", params)
+
+    # Propaga titolo e importo alle uscite già generate (solo quelle non pagate)
+    if "titolo" in payload or "importo" in payload:
+        # Rileggi i dati aggiornati
+        sf = dict(fc.execute("SELECT titolo, importo FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone())
+        upd_sets = []
+        upd_params = []
+        if "titolo" in payload:
+            upd_sets.append("fornitore_nome = ?")
+            upd_params.append(sf["titolo"])
+        if "importo" in payload:
+            upd_sets.append("totale = ?")
+            upd_params.append(sf["importo"])
+        upd_sets.append("updated_at = CURRENT_TIMESTAMP")
+        upd_params.append(spesa_id)
+        fc.execute(f"""
+            UPDATE cg_uscite SET {', '.join(upd_sets)}
+            WHERE spesa_fissa_id = ?
+              AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+        """, upd_params)
+
     fc.commit()
     fc.close()
     return {"ok": True}

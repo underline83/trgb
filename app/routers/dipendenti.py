@@ -1326,8 +1326,67 @@ async def test_lul_pdf(
 
 
 # ============================================================
-# UPLOAD PDF LUL — Import automatico cedolini
+# UPLOAD PDF LUL — Import 2-step: anteprima + conferma
 # ============================================================
+
+def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
+    """
+    Crea un nuovo dipendente in anagrafica partendo dai dati estratti dal cedolino PDF.
+    Ritorna il dict del dipendente appena creato.
+    """
+    cognome_nome = ced.get("cognome_nome", "")
+    if not cognome_nome:
+        return None
+
+    # Split: primo token = cognome, resto = nome (formato LUL: COGNOME NOME)
+    parts = cognome_nome.split()
+    if len(parts) >= 2:
+        cognome = parts[0].title()
+        nome = " ".join(parts[1:]).title()
+    else:
+        cognome = cognome_nome.title()
+        nome = ""
+
+    # Genera codice progressivo
+    last = conn.execute("SELECT codice FROM dipendenti ORDER BY id DESC LIMIT 1").fetchone()
+    if last and last["codice"]:
+        try:
+            num = int(last["codice"].replace("DIP", "")) + 1
+        except ValueError:
+            num = conn.execute("SELECT COUNT(*) FROM dipendenti").fetchone()[0] + 1
+    else:
+        num = 1
+    codice = f"DIP{num:03d}"
+
+    # Ruolo dal livello/qualifica del cedolino
+    qualifica = ced.get("qualifica", "")
+    ruolo = qualifica.lower() if qualifica else "dipendente"
+
+    conn.execute("""
+        INSERT INTO dipendenti
+        (codice, nome, cognome, ruolo, iban, codice_fiscale, data_nascita,
+         tipo_rapporto, livello, qualifica, attivo, giorno_paga)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 27)
+    """, [
+        codice, nome, cognome, ruolo,
+        ced.get("iban"),
+        ced.get("codice_fiscale"),
+        ced.get("data_nascita"),
+        ced.get("tipo_rapporto"),
+        ced.get("livello"),
+        qualifica,
+    ])
+    conn.commit()
+    new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    return {
+        "id": new_id,
+        "nome": nome,
+        "cognome": cognome,
+        "codice_fiscale": ced.get("codice_fiscale"),
+        "giorno_paga": 27,
+    }
+
 
 def _match_dipendente(conn, cedolino: dict) -> Optional[dict]:
     """
@@ -1375,20 +1434,45 @@ def _match_dipendente(conn, cedolino: dict) -> Optional[dict]:
     return None
 
 
-@router.post("/buste-paga/upload-pdf")
-async def upload_lul_pdf(
+def _detect_conflitti(dip: dict, ced: dict) -> list:
+    """
+    Confronta i dati del dipendente in anagrafica con quelli estratti dal cedolino PDF.
+    Ritorna lista di dict {campo, valore_attuale, valore_pdf} per ogni differenza.
+    """
+    conflitti = []
+    mappings = [
+        ("iban", "iban", "IBAN"),
+        ("codice_fiscale", "codice_fiscale", "Codice Fiscale"),
+        ("livello", "livello", "Livello"),
+        ("qualifica", "qualifica", "Qualifica"),
+        ("tipo_rapporto", "tipo_rapporto", "Tipo Rapporto"),
+    ]
+    for campo_dip, campo_ced, label in mappings:
+        val_dip = (dip.get(campo_dip) or "").strip()
+        val_ced = (ced.get(campo_ced) or "").strip()
+        if val_ced and val_dip and val_ced.upper() != val_dip.upper():
+            conflitti.append({
+                "campo": label,
+                "campo_db": campo_dip,
+                "valore_attuale": val_dip,
+                "valore_pdf": val_ced,
+            })
+    return conflitti
+
+
+@router.post("/buste-paga/anteprima-pdf")
+async def anteprima_lul_pdf(
     file: UploadFile = File(...),
-    genera_scadenze: bool = Query(True, description="Genera scadenze nello scadenzario"),
     current_user=Depends(get_current_user),
 ):
     """
-    Upload PDF LUL (Libro Unico Lavoro) dal consulente.
-    Parsa i cedolini ed importa automaticamente le buste paga.
+    Step 1 del flusso import PDF: analizza il PDF e restituisce un'anteprima
+    di cosa verra' importato, senza scrivere nulla nel DB.
 
     Returns:
-        importati: lista cedolini importati con successo
-        non_abbinati: lista cedolini senza corrispondenza in anagrafica
-        errori: lista errori durante l'import
+        abbinati:   cedolini con dipendente gia' in anagrafica (pronti per import)
+        nuovi:      cedolini per dipendenti non trovati (verranno creati in anagrafica)
+        conflitti presenti dentro abbinati: campi diversi tra anagrafica e PDF
     """
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Il file deve essere un PDF")
@@ -1411,127 +1495,284 @@ async def upload_lul_pdf(
         raise HTTPException(400, "Nessun cedolino trovato nel PDF")
 
     conn = get_dipendenti_conn()
-    importati = []
-    non_abbinati = []
-    errori = []
+    abbinati = []
+    nuovi = []
 
     try:
-        for ced in cedolini:
+        for idx, ced in enumerate(cedolini):
             # Salta cedolini senza netto (conguagli a zero)
             if not ced.get("netto"):
                 continue
 
-            # Abbina a dipendente
             dip = _match_dipendente(conn, ced)
-            if not dip:
-                non_abbinati.append({
-                    "cognome_nome": ced.get("cognome_nome", "?"),
-                    "codice_fiscale": ced.get("codice_fiscale"),
-                    "netto": ced.get("netto"),
-                    "mese": ced.get("mese"),
-                    "anno": ced.get("anno"),
-                })
-                continue
 
-            try:
-                # Prepara payload per crea_busta_paga logic
-                addizionali = (ced.get("addizionale_regionale_rata") or 0) + \
-                              (ced.get("addizionale_comunale_rata") or 0)
+            cedolino_preview = {
+                "idx": idx,
+                "cognome_nome": ced.get("cognome_nome", "?"),
+                "codice_fiscale": ced.get("codice_fiscale"),
+                "mese": ced.get("mese"),
+                "anno": ced.get("anno"),
+                "netto": ced.get("netto"),
+                "lordo": ced.get("lordo"),
+                "contributi_inps": ced.get("contributi_inps"),
+                "ritenute_irpef": ced.get("ritenute_irpef"),
+                "ore_lavorate": ced.get("ore_lavorate"),
+                "iban": ced.get("iban"),
+                "livello": ced.get("livello"),
+                "qualifica": ced.get("qualifica"),
+                "tipo_rapporto": ced.get("tipo_rapporto"),
+                "data_nascita": ced.get("data_nascita"),
+                "selezionato": True,
+            }
 
-                mese = ced.get("mese")
-                anno = ced.get("anno")
-                netto = ced.get("netto")
-
-                # Check se esiste già
+            if dip:
+                # Controlla se esiste gia' busta paga per stesso mese/anno
                 existing = conn.execute(
                     "SELECT id FROM buste_paga WHERE dipendente_id = ? AND mese = ? AND anno = ?",
-                    [dip["id"], mese, anno]
+                    [dip["id"], ced.get("mese"), ced.get("anno")]
                 ).fetchone()
 
-                if existing:
-                    conn.execute("""
-                        UPDATE buste_paga
-                        SET netto = ?, lordo = ?, contributi_inps = ?, irpef = ?,
-                            addizionali = ?, tfr_maturato = ?, ore_lavorate = ?,
-                            note = ?, fonte = 'PDF'
-                        WHERE id = ?
-                    """, [
-                        netto, ced.get("lordo"),
-                        ced.get("contributi_inps"), ced.get("ritenute_irpef"),
-                        addizionali if addizionali else None,
-                        ced.get("tfr_erogato"),
-                        ced.get("ore_lavorate"),
-                        f"Import PDF {file.filename}",
-                        existing["id"],
-                    ])
-                    bp_id = existing["id"]
-                    azione = "aggiornato"
+                # Fetch dati completi dipendente per confronto conflitti
+                dip_full = conn.execute(
+                    "SELECT * FROM dipendenti WHERE id = ?", [dip["id"]]
+                ).fetchone()
+                dip_full = dict(dip_full) if dip_full else dip
+
+                conflitti = _detect_conflitti(dip_full, ced)
+
+                cedolino_preview["dipendente_id"] = dip["id"]
+                cedolino_preview["dipendente_label"] = f"{dip['cognome']} {dip['nome']}"
+                cedolino_preview["azione"] = "aggiorna" if existing else "crea"
+                cedolino_preview["conflitti"] = conflitti
+                abbinati.append(cedolino_preview)
+            else:
+                # Dipendente non trovato: proponi creazione
+                parts = (ced.get("cognome_nome") or "").split()
+                if len(parts) >= 2:
+                    cedolino_preview["nuovo_cognome"] = parts[0].title()
+                    cedolino_preview["nuovo_nome"] = " ".join(parts[1:]).title()
                 else:
+                    cedolino_preview["nuovo_cognome"] = (ced.get("cognome_nome") or "").title()
+                    cedolino_preview["nuovo_nome"] = ""
+                nuovi.append(cedolino_preview)
+    finally:
+        conn.close()
+
+    return {
+        "ok": True,
+        "totale_cedolini": len(cedolini),
+        "abbinati": abbinati,
+        "nuovi": nuovi,
+    }
+
+
+class ConfermaCedolino(BaseModel):
+    idx: int
+    selezionato: bool = True
+    aggiorna_conflitti: bool = True  # se True, aggiorna anche i campi in conflitto
+
+
+class ConfermaImportPayload(BaseModel):
+    cedolini_raw: list  # lista completa dei cedolini dal parser (passati dall'anteprima)
+    abbinati: List[ConfermaCedolino] = []
+    nuovi: List[ConfermaCedolino] = []
+    genera_scadenze: bool = True
+    filename: str = "upload.pdf"
+
+
+@router.post("/buste-paga/conferma-import")
+async def conferma_import_pdf(
+    file: UploadFile = File(...),
+    selezione: str = Query(..., description="JSON con selezione abbinati e nuovi"),
+    genera_scadenze: bool = Query(True),
+    current_user=Depends(get_current_user),
+):
+    """
+    Step 2 del flusso import PDF: riceve il file + la selezione dell'utente
+    e scrive nel DB solo i cedolini confermati.
+    """
+    import json as _json
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Il file deve essere un PDF")
+
+    try:
+        from app.utils.parse_lul import parse_lul_pdf
+    except ImportError as e:
+        raise HTTPException(500, f"Parser PDF non disponibile: {e}")
+
+    file_bytes = await file.read()
+    try:
+        cedolini = parse_lul_pdf(file_bytes=file_bytes)
+    except Exception as e:
+        raise HTTPException(400, f"Errore parsing PDF: {e}")
+
+    try:
+        sel = _json.loads(selezione)
+    except Exception:
+        raise HTTPException(400, "Parametro selezione non valido")
+
+    # Mappa idx -> selezione utente
+    sel_abbinati = {s["idx"]: s for s in sel.get("abbinati", []) if s.get("selezionato", True)}
+    sel_nuovi = {s["idx"]: s for s in sel.get("nuovi", []) if s.get("selezionato", True)}
+
+    conn = get_dipendenti_conn()
+    importati = []
+    creati = []
+    errori = []
+
+    try:
+        for idx, ced in enumerate(cedolini):
+            if not ced.get("netto"):
+                continue
+
+            dip = _match_dipendente(conn, ced)
+
+            if dip and idx in sel_abbinati:
+                # Import cedolino per dipendente esistente
+                sel_info = sel_abbinati[idx]
+                try:
+                    addizionali = (ced.get("addizionale_regionale_rata") or 0) + \
+                                  (ced.get("addizionale_comunale_rata") or 0)
+                    mese = ced.get("mese")
+                    anno = ced.get("anno")
+                    netto = ced.get("netto")
+
+                    existing = conn.execute(
+                        "SELECT id FROM buste_paga WHERE dipendente_id = ? AND mese = ? AND anno = ?",
+                        [dip["id"], mese, anno]
+                    ).fetchone()
+
+                    if existing:
+                        conn.execute("""
+                            UPDATE buste_paga
+                            SET netto = ?, lordo = ?, contributi_inps = ?, irpef = ?,
+                                addizionali = ?, tfr_maturato = ?, ore_lavorate = ?,
+                                note = ?, fonte = 'PDF'
+                            WHERE id = ?
+                        """, [
+                            netto, ced.get("lordo"),
+                            ced.get("contributi_inps"), ced.get("ritenute_irpef"),
+                            addizionali if addizionali else None,
+                            ced.get("tfr_erogato"), ced.get("ore_lavorate"),
+                            f"Import PDF {file.filename}",
+                            existing["id"],
+                        ])
+                        bp_id = existing["id"]
+                        azione = "aggiornato"
+                    else:
+                        conn.execute("""
+                            INSERT INTO buste_paga
+                            (dipendente_id, mese, anno, netto, lordo, contributi_inps, irpef,
+                             addizionali, tfr_maturato, ore_lavorate, note, fonte)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PDF')
+                        """, [
+                            dip["id"], mese, anno,
+                            netto, ced.get("lordo"),
+                            ced.get("contributi_inps"), ced.get("ritenute_irpef"),
+                            addizionali if addizionali else None,
+                            ced.get("tfr_erogato"), ced.get("ore_lavorate"),
+                            f"Import PDF {file.filename}",
+                        ])
+                        bp_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                        azione = "creato"
+
+                    conn.commit()
+
+                    # Genera scadenza
+                    uscita_id = None
+                    if genera_scadenze:
+                        uscita_id = _genera_scadenza_stipendio(conn, bp_id, {
+                            "dipendente_id": dip["id"],
+                            "mese": mese, "anno": anno, "netto": netto,
+                        })
+
+                    # Aggiorna anagrafica se richiesto
+                    aggiorna_conflitti = sel_info.get("aggiorna_conflitti", True)
+                    updates = []
+                    params_upd = []
+                    if ced.get("codice_fiscale") and not dip.get("codice_fiscale"):
+                        updates.append("codice_fiscale = ?")
+                        params_upd.append(ced["codice_fiscale"])
+                    if aggiorna_conflitti:
+                        # Aggiorna IBAN e altri campi dal PDF
+                        if ced.get("iban"):
+                            updates.append("iban = ?")
+                            params_upd.append(ced["iban"])
+                        for campo in ["livello", "qualifica", "tipo_rapporto"]:
+                            if ced.get(campo):
+                                updates.append(f"{campo} = ?")
+                                params_upd.append(ced[campo])
+                    if updates:
+                        params_upd.append(dip["id"])
+                        conn.execute(
+                            f"UPDATE dipendenti SET {', '.join(updates)} WHERE id = ?",
+                            params_upd
+                        )
+                        conn.commit()
+
+                    importati.append({
+                        "dipendente_id": dip["id"],
+                        "cognome_nome": f"{dip['cognome']} {dip['nome']}",
+                        "mese": mese, "anno": anno,
+                        "netto": netto, "lordo": ced.get("lordo"),
+                        "azione": azione, "uscita_id": uscita_id,
+                    })
+                except Exception as e:
+                    errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})
+
+            elif not dip and idx in sel_nuovi:
+                # Crea dipendente + importa cedolino
+                try:
+                    new_dip = _crea_dipendente_da_cedolino(conn, ced)
+                    if not new_dip:
+                        errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": "Creazione dipendente fallita"})
+                        continue
+
+                    addizionali = (ced.get("addizionale_regionale_rata") or 0) + \
+                                  (ced.get("addizionale_comunale_rata") or 0)
+                    mese = ced.get("mese")
+                    anno = ced.get("anno")
+                    netto = ced.get("netto")
+
                     conn.execute("""
                         INSERT INTO buste_paga
                         (dipendente_id, mese, anno, netto, lordo, contributi_inps, irpef,
                          addizionali, tfr_maturato, ore_lavorate, note, fonte)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PDF')
                     """, [
-                        dip["id"], mese, anno,
+                        new_dip["id"], mese, anno,
                         netto, ced.get("lordo"),
                         ced.get("contributi_inps"), ced.get("ritenute_irpef"),
                         addizionali if addizionali else None,
-                        ced.get("tfr_erogato"),
-                        ced.get("ore_lavorate"),
+                        ced.get("tfr_erogato"), ced.get("ore_lavorate"),
                         f"Import PDF {file.filename}",
                     ])
                     bp_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    azione = "creato"
-
-                conn.commit()
-
-                # Genera scadenza stipendio nello scadenzario
-                uscita_id = None
-                if genera_scadenze:
-                    payload_sc = {
-                        "dipendente_id": dip["id"],
-                        "mese": mese,
-                        "anno": anno,
-                        "netto": netto,
-                    }
-                    uscita_id = _genera_scadenza_stipendio(conn, bp_id, payload_sc)
-
-                # Aggiorna codice_fiscale e IBAN se mancanti in anagrafica
-                updates = []
-                params_upd = []
-                if ced.get("codice_fiscale") and not dip.get("codice_fiscale"):
-                    updates.append("codice_fiscale = ?")
-                    params_upd.append(ced["codice_fiscale"])
-                if ced.get("iban"):
-                    # Aggiorna sempre l'IBAN (potrebbe cambiare)
-                    updates.append("iban = ?")
-                    params_upd.append(ced["iban"])
-                if updates:
-                    params_upd.append(dip["id"])
-                    conn.execute(
-                        f"UPDATE dipendenti SET {', '.join(updates)} WHERE id = ?",
-                        params_upd
-                    )
                     conn.commit()
 
-                importati.append({
-                    "dipendente_id": dip["id"],
-                    "cognome_nome": f"{dip['cognome']} {dip['nome']}",
-                    "mese": mese,
-                    "anno": anno,
-                    "netto": netto,
-                    "lordo": ced.get("lordo"),
-                    "azione": azione,
-                    "uscita_id": uscita_id,
-                })
+                    uscita_id = None
+                    if genera_scadenze:
+                        uscita_id = _genera_scadenza_stipendio(conn, bp_id, {
+                            "dipendente_id": new_dip["id"],
+                            "mese": mese, "anno": anno, "netto": netto,
+                        })
 
-            except Exception as e:
-                errori.append({
-                    "cognome_nome": ced.get("cognome_nome", "?"),
-                    "errore": str(e),
-                })
-
+                    creati.append({
+                        "dipendente_id": new_dip["id"],
+                        "cognome_nome": f"{new_dip['cognome']} {new_dip['nome']}",
+                        "mese": mese, "anno": anno,
+                        "netto": netto, "lordo": ced.get("lordo"),
+                    })
+                    importati.append({
+                        "dipendente_id": new_dip["id"],
+                        "cognome_nome": f"{new_dip['cognome']} {new_dip['nome']}",
+                        "mese": mese, "anno": anno,
+                        "netto": netto, "lordo": ced.get("lordo"),
+                        "azione": "nuovo + creato", "uscita_id": uscita_id,
+                    })
+                except Exception as e:
+                    errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})
     finally:
         conn.close()
 
@@ -1539,7 +1780,7 @@ async def upload_lul_pdf(
         "ok": True,
         "totale_cedolini": len(cedolini),
         "importati": importati,
-        "non_abbinati": non_abbinati,
+        "dipendenti_creati": creati,
         "errori": errori,
     }
 

@@ -1,5 +1,5 @@
-// @version: v2.0-buste-paga
-// Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL, integrazione scadenzario
+// @version: v2.1-buste-paga
+// Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL 2-step (anteprima + conferma)
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -15,14 +15,20 @@ export default function DipendentiBustePaga() {
   const [filtroAnno, setFiltroAnno] = useState(new Date().getFullYear());
   const [filtroDip, setFiltroDip] = useState("");
 
-  // Upload PDF
+  // Upload PDF — flusso 2-step
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState(null);
-  const [testResult, setTestResult] = useState(null);
+  const [pdfFile, setPdfFile] = useState(null);        // file selezionato (per re-invio conferma)
+  const [anteprima, setAnteprima] = useState(null);     // risultato anteprima
+  const [importResult, setImportResult] = useState(null); // risultato conferma finale
+  const [selAbbinati, setSelAbbinati] = useState({});   // idx -> {selezionato, aggiorna_conflitti}
+  const [selNuovi, setSelNuovi] = useState({});          // idx -> {selezionato}
   const fileInputRef = React.useRef(null);
+
+  // Debug test
+  const [testResult, setTestResult] = useState(null);
   const testInputRef = React.useRef(null);
 
-  // Form
+  // Form manuale
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -79,7 +85,6 @@ export default function DipendentiBustePaga() {
         netto: Number(form.netto),
         genera_scadenza: form.genera_scadenza,
       };
-      // Campi opzionali: aggiungi solo se compilati
       ["lordo", "contributi_inps", "irpef", "addizionali", "tfr_maturato", "ore_lavorate", "ore_straordinario"].forEach(k => {
         if (form[k] !== "" && form[k] != null) body[k] = Number(form[k]);
       });
@@ -108,6 +113,7 @@ export default function DipendentiBustePaga() {
     }
   };
 
+  // ── STEP 1: Upload → Anteprima ──
   const handleUploadPDF = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -116,23 +122,30 @@ export default function DipendentiBustePaga() {
       return;
     }
     setUploading(true);
-    setUploadResult(null);
+    setAnteprima(null);
+    setImportResult(null);
+    setPdfFile(file);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      // Usa token JWT dall'header standard
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API_BASE}/dipendenti/buste-paga/upload-pdf?genera_scadenze=true`, {
+      const res = await fetch(`${API_BASE}/dipendenti/buste-paga/anteprima-pdf`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       const json = await res.json();
       if (res.ok && json.ok) {
-        setUploadResult(json);
-        fetchData(); // Refresh lista
+        setAnteprima(json);
+        // Inizializza selezione: tutti selezionati
+        const selA = {};
+        (json.abbinati || []).forEach(c => { selA[c.idx] = { selezionato: true, aggiorna_conflitti: true }; });
+        setSelAbbinati(selA);
+        const selN = {};
+        (json.nuovi || []).forEach(c => { selN[c.idx] = { selezionato: true }; });
+        setSelNuovi(selN);
       } else {
-        alert(json.detail || json.error || "Errore upload");
+        alert(json.detail || json.error || "Errore analisi PDF");
       }
     } catch (err) {
       console.error(err);
@@ -140,6 +153,49 @@ export default function DipendentiBustePaga() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // ── STEP 2: Conferma Import ──
+  const handleConfermaImport = async () => {
+    if (!pdfFile) return;
+    setUploading(true);
+    try {
+      const selezione = {
+        abbinati: Object.entries(selAbbinati).map(([idx, s]) => ({
+          idx: Number(idx), selezionato: s.selezionato, aggiorna_conflitti: s.aggiorna_conflitti,
+        })),
+        nuovi: Object.entries(selNuovi).map(([idx, s]) => ({
+          idx: Number(idx), selezionato: s.selezionato,
+        })),
+      };
+
+      const formData = new FormData();
+      formData.append("file", pdfFile);
+      const token = localStorage.getItem("token");
+      const url = new URL(`${API_BASE}/dipendenti/buste-paga/conferma-import`);
+      url.searchParams.set("selezione", JSON.stringify(selezione));
+      url.searchParams.set("genera_scadenze", "true");
+
+      const res = await fetch(url.toString(), {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setImportResult(json);
+        setAnteprima(null);
+        setPdfFile(null);
+        fetchData();
+      } else {
+        alert(json.detail || json.error || "Errore import");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Errore di rete durante la conferma");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -174,11 +230,33 @@ export default function DipendentiBustePaga() {
     fetchData();
   };
 
+  // Helpers selezione
+  const toggleAbbinato = (idx) => {
+    setSelAbbinati(prev => ({
+      ...prev, [idx]: { ...prev[idx], selezionato: !prev[idx]?.selezionato },
+    }));
+  };
+  const toggleNuovo = (idx) => {
+    setSelNuovi(prev => ({
+      ...prev, [idx]: { ...prev[idx], selezionato: !prev[idx]?.selezionato },
+    }));
+  };
+  const toggleConflitti = (idx) => {
+    setSelAbbinati(prev => ({
+      ...prev, [idx]: { ...prev[idx], aggiorna_conflitti: !prev[idx]?.aggiorna_conflitti },
+    }));
+  };
+
+  // Conteggi per il bottone conferma
+  const countSelAbbinati = Object.values(selAbbinati).filter(s => s.selezionato).length;
+  const countSelNuovi = Object.values(selNuovi).filter(s => s.selezionato).length;
+  const countTotale = countSelAbbinati + countSelNuovi;
+
   // Anni disponibili
   const currentYear = new Date().getFullYear();
   const anni = [currentYear, currentYear - 1, currentYear - 2];
 
-  // Raggruppa per mese per la vista riepilogo
+  // Raggruppa per mese
   const perMese = useMemo(() => {
     const map = {};
     buste.forEach(b => {
@@ -193,7 +271,7 @@ export default function DipendentiBustePaga() {
 
   return (
     <div className="min-h-screen bg-neutral-100">
-      {/* HEADER — pattern standard sotto-modulo */}
+      {/* HEADER */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/dipendenti")}
@@ -207,7 +285,7 @@ export default function DipendentiBustePaga() {
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
             className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
             {uploading ? (
-              <><span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> Importando...</>
+              <><span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> Analizzando...</>
             ) : (
               <>{"\uD83D\uDCC4"} Import PDF LUL</>
             )}
@@ -216,7 +294,6 @@ export default function DipendentiBustePaga() {
             className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50">
             + Inserisci Manuale
           </button>
-          {/* Test debug (piccolo) */}
           <input ref={testInputRef} type="file" accept=".pdf" onChange={handleTestPDF} className="hidden" />
           <button onClick={() => testInputRef.current?.click()} disabled={uploading}
             className="px-2 py-1 rounded border border-neutral-300 text-neutral-500 text-[10px] hover:bg-neutral-100 disabled:opacity-50"
@@ -249,60 +326,197 @@ export default function DipendentiBustePaga() {
         </div>
       </div>
 
-      {/* RISULTATO UPLOAD PDF */}
-      {uploadResult && (
-        <div className="mx-4 mt-3 bg-white rounded-xl border border-violet-200 shadow-lg p-4">
+      {/* ════════════════════════════════════════════════════════════
+          ANTEPRIMA PDF — Step 1: mostra cosa verra' importato
+          ════════════════════════════════════════════════════════════ */}
+      {anteprima && (
+        <div className="mx-4 mt-3 bg-white rounded-xl border border-purple-200 shadow-lg p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-purple-900">{"\uD83D\uDCC4"} Anteprima Import PDF</h3>
+            <button onClick={() => { setAnteprima(null); setPdfFile(null); }}
+              className="text-neutral-400 hover:text-neutral-600 text-lg">{"\u00D7"}</button>
+          </div>
+
+          <div className="flex gap-4 text-xs mb-4">
+            <span className="text-neutral-500">Cedolini nel PDF: <strong>{anteprima.totale_cedolini}</strong></span>
+            <span className="text-emerald-700 font-medium">{"\u2713"} Abbinati: {anteprima.abbinati?.length || 0}</span>
+            <span className="text-purple-700 font-medium">{"\u2795"} Nuovi dipendenti: {anteprima.nuovi?.length || 0}</span>
+          </div>
+
+          {/* ABBINATI — dipendenti gia' in anagrafica */}
+          {anteprima.abbinati?.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-emerald-700 font-semibold uppercase mb-2">
+                {"\u2705"} Dipendenti trovati in anagrafica
+              </p>
+              <div className="space-y-1.5">
+                {anteprima.abbinati.map(c => {
+                  const sel = selAbbinati[c.idx];
+                  const hasConflitti = c.conflitti?.length > 0;
+                  return (
+                    <div key={c.idx} className={`rounded-lg border p-3 text-xs transition ${
+                      sel?.selezionato ? "bg-emerald-50 border-emerald-200" : "bg-neutral-50 border-neutral-200 opacity-60"
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={!!sel?.selezionato}
+                          onChange={() => toggleAbbinato(c.idx)}
+                          className="rounded border-neutral-300 text-purple-600" />
+                        <span className="font-medium text-neutral-800">{c.cognome_nome}</span>
+                        <span className="text-neutral-400">{MESI[c.mese]} {c.anno}</span>
+                        <span className="font-mono text-purple-700 font-semibold">{"\u20AC"} {fmt(c.netto)}</span>
+                        {c.lordo && <span className="text-neutral-500">lordo {"\u20AC"} {fmt(c.lordo)}</span>}
+                        <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          c.azione === "aggiorna"
+                            ? "bg-amber-100 text-amber-700 border border-amber-200"
+                            : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                        }`}>
+                          {c.azione === "aggiorna" ? "aggiorna esistente" : "nuovo cedolino"}
+                        </span>
+                      </div>
+
+                      {/* CONFLITTI */}
+                      {hasConflitti && sel?.selezionato && (
+                        <div className="mt-2 ml-6 bg-amber-50 rounded-lg border border-amber-200 p-2.5">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] text-amber-800 font-semibold uppercase">{"\u26A0\uFE0F"} Dati diversi tra anagrafica e PDF</span>
+                            <label className="flex items-center gap-1 text-[10px] text-amber-700 ml-auto">
+                              <input type="checkbox" checked={!!sel?.aggiorna_conflitti}
+                                onChange={() => toggleConflitti(c.idx)}
+                                className="rounded border-amber-300 text-amber-600 w-3 h-3" />
+                              Aggiorna anagrafica
+                            </label>
+                          </div>
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="text-[9px] text-amber-600 uppercase">
+                                <th className="text-left py-0.5 pr-3">Campo</th>
+                                <th className="text-left py-0.5 pr-3">Anagrafica attuale</th>
+                                <th className="text-left py-0.5">{"\u2192"} PDF</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {c.conflitti.map((cf, ci) => (
+                                <tr key={ci} className="border-t border-amber-100">
+                                  <td className="py-1 pr-3 font-medium text-amber-800">{cf.campo}</td>
+                                  <td className="py-1 pr-3 text-neutral-600 line-through">{cf.valore_attuale}</td>
+                                  <td className="py-1 font-medium text-amber-900">{cf.valore_pdf}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* NUOVI — dipendenti da creare */}
+          {anteprima.nuovi?.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-purple-700 font-semibold uppercase mb-2">
+                {"\u2795"} Nuovi dipendenti (verranno creati in Anagrafica)
+              </p>
+              <div className="space-y-1.5">
+                {anteprima.nuovi.map(c => {
+                  const sel = selNuovi[c.idx];
+                  return (
+                    <div key={c.idx} className={`rounded-lg border p-3 text-xs transition ${
+                      sel?.selezionato ? "bg-purple-50 border-purple-200" : "bg-neutral-50 border-neutral-200 opacity-60"
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={!!sel?.selezionato}
+                          onChange={() => toggleNuovo(c.idx)}
+                          className="rounded border-neutral-300 text-purple-600" />
+                        <span className="font-medium text-neutral-800">{c.cognome_nome}</span>
+                        <span className="text-neutral-400">{MESI[c.mese]} {c.anno}</span>
+                        <span className="font-mono text-purple-700 font-semibold">{"\u20AC"} {fmt(c.netto)}</span>
+                        {c.codice_fiscale && <span className="text-neutral-400 font-mono text-[10px]">{c.codice_fiscale}</span>}
+                        <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                          nuovo dipendente
+                        </span>
+                      </div>
+                      {sel?.selezionato && (
+                        <div className="mt-1.5 ml-6 text-[10px] text-neutral-500">
+                          Verrà creato: <strong>{c.nuovo_cognome} {c.nuovo_nome}</strong>
+                          {c.qualifica && <> — {c.qualifica}</>}
+                          {c.livello && <> — Liv. {c.livello}</>}
+                          {c.iban && <> — IBAN: ...{c.iban.slice(-4)}</>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* BOTTONI CONFERMA / ANNULLA */}
+          <div className="flex items-center gap-3 pt-3 border-t border-purple-100">
+            <button onClick={handleConfermaImport} disabled={uploading || countTotale === 0}
+              className="px-4 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 disabled:opacity-50 flex items-center gap-2">
+              {uploading ? (
+                <><span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span> Importando...</>
+              ) : (
+                <>{"\u2705"} Conferma Import ({countTotale} cedolini)</>
+              )}
+            </button>
+            <button onClick={() => { setAnteprima(null); setPdfFile(null); }}
+              className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100">
+              Annulla
+            </button>
+            <span className="text-[10px] text-neutral-400 ml-auto">
+              {countSelAbbinati} abbinati + {countSelNuovi} nuovi selezionati
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          RISULTATO IMPORT — dopo conferma
+          ════════════════════════════════════════════════════════════ */}
+      {importResult && (
+        <div className="mx-4 mt-3 bg-white rounded-xl border border-emerald-200 shadow-lg p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-violet-900">{"\uD83D\uDCC4"} Risultato Import PDF</h3>
-            <button onClick={() => setUploadResult(null)} className="text-neutral-400 hover:text-neutral-600 text-lg">{"\u00D7"}</button>
+            <h3 className="text-sm font-bold text-emerald-900">{"\u2705"} Import Completato</h3>
+            <button onClick={() => setImportResult(null)} className="text-neutral-400 hover:text-neutral-600 text-lg">{"\u00D7"}</button>
           </div>
           <div className="flex gap-4 text-xs mb-3">
-            <span className="text-neutral-500">Cedolini nel PDF: <strong>{uploadResult.totale_cedolini}</strong></span>
-            <span className="text-emerald-700 font-medium">{"\u2713"} Importati: {uploadResult.importati?.length || 0}</span>
-            {uploadResult.non_abbinati?.length > 0 && (
-              <span className="text-amber-700 font-medium">{"\u26A0"} Non abbinati: {uploadResult.non_abbinati.length}</span>
+            <span className="text-emerald-700 font-medium">{"\u2713"} Importati: {importResult.importati?.length || 0}</span>
+            {importResult.dipendenti_creati?.length > 0 && (
+              <span className="text-purple-700 font-medium">{"\u2795"} Dipendenti creati: {importResult.dipendenti_creati.length}</span>
             )}
-            {uploadResult.errori?.length > 0 && (
-              <span className="text-red-700 font-medium">{"\u2717"} Errori: {uploadResult.errori.length}</span>
+            {importResult.errori?.length > 0 && (
+              <span className="text-red-700 font-medium">{"\u2717"} Errori: {importResult.errori.length}</span>
             )}
           </div>
 
-          {/* Importati */}
-          {uploadResult.importati?.length > 0 && (
+          {importResult.importati?.length > 0 && (
             <div className="mb-2">
-              <p className="text-[10px] text-emerald-700 font-semibold uppercase mb-1">Importati con successo</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                {uploadResult.importati.map((r, i) => (
-                  <div key={i} className="text-xs bg-emerald-50 rounded px-2 py-1 flex justify-between">
+                {importResult.importati.map((r, i) => (
+                  <div key={i} className="text-xs bg-emerald-50 rounded px-2 py-1 flex justify-between items-center">
                     <span className="text-emerald-800">{r.cognome_nome}</span>
-                    <span className="font-mono text-emerald-700">{"\u20AC"} {fmt(r.netto)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-emerald-700">{"\u20AC"} {fmt(r.netto)}</span>
+                      {r.azione && (
+                        <span className={`text-[9px] px-1 rounded ${
+                          r.azione.includes("nuovo") ? "bg-purple-100 text-purple-600" : "bg-emerald-100 text-emerald-600"
+                        }`}>{r.azione}</span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Non abbinati */}
-          {uploadResult.non_abbinati?.length > 0 && (
-            <div className="mb-2">
-              <p className="text-[10px] text-amber-700 font-semibold uppercase mb-1">Non trovati in anagrafica</p>
-              <p className="text-[10px] text-neutral-500 mb-1">Aggiungi questi dipendenti all'Anagrafica con lo stesso codice fiscale per importarli automaticamente.</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
-                {uploadResult.non_abbinati.map((r, i) => (
-                  <div key={i} className="text-xs bg-amber-50 rounded px-2 py-1 flex justify-between">
-                    <span className="text-amber-800">{r.cognome_nome}</span>
-                    <span className="font-mono text-amber-700">{r.codice_fiscale || "—"}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Errori */}
-          {uploadResult.errori?.length > 0 && (
+          {importResult.errori?.length > 0 && (
             <div>
               <p className="text-[10px] text-red-700 font-semibold uppercase mb-1">Errori</p>
-              {uploadResult.errori.map((r, i) => (
+              {importResult.errori.map((r, i) => (
                 <div key={i} className="text-xs text-red-700 bg-red-50 rounded px-2 py-1 mb-1">
                   {r.cognome_nome}: {r.errore}
                 </div>
@@ -324,7 +538,6 @@ export default function DipendentiBustePaga() {
             <span>Pagine: <strong>{testResult.totale_pagine}</strong></span>
             <span>Cedolini trovati: <strong className={testResult.cedolini_trovati > 1 ? "text-emerald-700" : "text-red-700"}>{testResult.cedolini_trovati}</strong></span>
           </div>
-          {/* Pagine */}
           <div className="mb-3">
             <p className="font-bold text-neutral-600 uppercase text-[10px] mb-1">Analisi pagine</p>
             <div className="max-h-48 overflow-y-auto border border-neutral-200 rounded">
@@ -354,7 +567,6 @@ export default function DipendentiBustePaga() {
               </table>
             </div>
           </div>
-          {/* Cedolini */}
           {testResult.cedolini?.length > 0 && (
             <div>
               <p className="font-bold text-neutral-600 uppercase text-[10px] mb-1">Cedolini estratti</p>
@@ -363,7 +575,7 @@ export default function DipendentiBustePaga() {
                   <div key={i} className="bg-neutral-50 rounded px-2 py-1 border border-neutral-200">
                     <span className="font-medium">{c.cognome_nome}</span>
                     <span className="ml-1 text-neutral-500">{c.mese}/{c.anno}</span>
-                    <span className="ml-1 font-mono">{c.netto != null ? `\u20AC${c.netto}` : "—"}</span>
+                    <span className="ml-1 font-mono">{c.netto != null ? `\u20AC${c.netto}` : "\u2014"}</span>
                   </div>
                 ))}
               </div>
@@ -372,7 +584,7 @@ export default function DipendentiBustePaga() {
         </div>
       )}
 
-      {/* FORM INSERIMENTO */}
+      {/* FORM INSERIMENTO MANUALE */}
       {showForm && (
         <div className="mx-4 mt-3 bg-white rounded-xl border border-purple-200 shadow-lg p-5">
           <h3 className="text-sm font-bold text-purple-900 mb-3">Inserisci Cedolino</h3>
@@ -479,7 +691,6 @@ export default function DipendentiBustePaga() {
             {perMese.map(gruppo => (
               <div key={`${gruppo.anno}-${gruppo.mese}`}
                 className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-                {/* Header mese */}
                 <div className="px-4 py-2.5 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-purple-900">{gruppo.label} {gruppo.anno}</h3>
                   <div className="flex items-center gap-4 text-xs">
@@ -490,7 +701,6 @@ export default function DipendentiBustePaga() {
                     <span className="text-neutral-400">{gruppo.buste.length} cedolin{gruppo.buste.length === 1 ? "o" : "i"}</span>
                   </div>
                 </div>
-                {/* Righe cedolini */}
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[9px] text-neutral-500 uppercase border-b border-neutral-100">
