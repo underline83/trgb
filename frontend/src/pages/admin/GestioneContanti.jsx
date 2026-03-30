@@ -336,7 +336,7 @@ function SubPagamentiContanti() {
                       : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Fattura</span>
                     }
                   </td>
-                  <td className="border-b border-neutral-100 px-3 py-2 text-right font-bold text-orange-700">€ {fmt(m.importo)}</td>
+                  <td className="border-b border-neutral-100 px-3 py-2 text-right font-bold text-orange-700">€ {fmt(m.importo_pagato || m.importo)}</td>
                 </tr>
               ))}
             </tbody>

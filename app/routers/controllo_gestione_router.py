@@ -1383,8 +1383,11 @@ def segna_pagate_bulk(
     current_user=Depends(get_current_user),
 ):
     """
-    Segna più uscite come PAGATA_MANUALE in un colpo solo.
+    Segna più uscite come pagate in un colpo solo.
     Body: { ids: [int], metodo_pagamento: str, data_pagamento?: str }
+
+    - CONTANTI → stato = PAGATA (il modulo contanti è la riconciliazione)
+    - Altri metodi → stato = PAGATA_MANUALE (richiede riconciliazione banca)
     Non tocca righe già PAGATA (riconciliate via banca).
     """
     ids = payload.get("ids", [])
@@ -1398,19 +1401,23 @@ def segna_pagate_bulk(
     if metodo not in METODI_VALIDI:
         return {"ok": False, "error": f"Metodo pagamento non valido: {metodo}"}
 
+    # CONTANTI = riconciliato (il modulo contanti È la prova di pagamento)
+    # Altri metodi = manuale (serve riconciliazione con banca)
+    nuovo_stato = "PAGATA" if metodo == "CONTANTI" else "PAGATA_MANUALE"
+
     conn = get_fc_db()
     try:
         placeholders = ",".join("?" * len(ids))
         # Aggiorna solo righe DA_PAGARE, SCADUTA o PARZIALE (non toccare PAGATA già riconciliate)
         conn.execute(f"""
             UPDATE cg_uscite
-            SET stato = 'PAGATA_MANUALE',
+            SET stato = ?,
                 metodo_pagamento = ?,
                 data_pagamento = ?,
                 importo_pagato = totale
             WHERE id IN ({placeholders})
               AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE', 'PAGATA_MANUALE')
-        """, [metodo, data_pag] + ids)
+        """, [nuovo_stato, metodo, data_pag] + ids)
         aggiornate = conn.total_changes
         conn.commit()
         return {"ok": True, "aggiornate": aggiornate}

@@ -9,6 +9,7 @@ const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFracti
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
 const fmtDateFull = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : null;
 const giorniA = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : null;
+const cleanFatt = (s) => s && s !== "&mdash;" && s !== "—" && s.trim() ? s : null;
 
 const STATO_STYLE = {
   DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Da pagare" },
@@ -624,11 +625,11 @@ export default function ControlloGestioneUscite() {
                             </span>
                           ) : isStipendio ? (
                             <span className="text-violet-600 italic">
-                              {u.numero_fattura || u.periodo_riferimento || "Stipendio"}
+                              {cleanFatt(u.numero_fattura) || u.periodo_riferimento || "Stipendio"}
                             </span>
                           ) : (
                             <>
-                              <span className="text-neutral-700">{u.numero_fattura || "&mdash;"}</span>
+                              <span className="text-neutral-700">{cleanFatt(u.numero_fattura) || "—"}</span>
                               {u.data_fattura && (
                                 <span className="ml-1.5 text-[9px] text-neutral-400">{fmtDateFull(u.data_fattura)}</span>
                               )}
