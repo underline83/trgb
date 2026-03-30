@@ -57,6 +57,11 @@ export default function ControlloGestioneUscite() {
   const [bulkMetodo, setBulkMetodo] = useState("CONTO_CORRENTE");
   const [bulkSaving, setBulkSaving] = useState(false);
 
+  // ── Modale modifica scadenza ──
+  const [modaleScadenza, setModaleScadenza] = useState(null); // { id, fornitore_nome, totale, data_scadenza, data_scadenza_originale, stato }
+  const [nuovaScadenza, setNuovaScadenza] = useState("");
+  const [savingScadenza, setSavingScadenza] = useState(false);
+
   // ── Modale riconciliazione ──
   const [modaleBanca, setModaleBanca] = useState(null); // { uscita_id, fornitore, totale }
   const [candidati, setCandidati] = useState([]);
@@ -104,7 +109,12 @@ export default function ControlloGestioneUscite() {
       const s = search.toLowerCase();
       rows = rows.filter(u =>
         (u.fornitore_nome || "").toLowerCase().includes(s) ||
-        (u.numero_fattura || "").toLowerCase().includes(s)
+        (u.numero_fattura || "").toLowerCase().includes(s) ||
+        (u.note || "").toLowerCase().includes(s) ||
+        (u.periodo_riferimento || "").toLowerCase().includes(s) ||
+        (u.sf_tipo_label || "").toLowerCase().includes(s) ||
+        (u.data_scadenza || "").includes(s) ||
+        String(u.totale || "").includes(s)
       );
     }
     if (filtroStato) {
@@ -211,6 +221,38 @@ export default function ControlloGestioneUscite() {
     }
   };
 
+  // ── Modifica scadenza ──
+  const apriModaleScadenza = (u) => {
+    // Non aprire per righe riconciliate via banca
+    if (u.stato === "PAGATA") return;
+    setModaleScadenza(u);
+    setNuovaScadenza(u.data_scadenza || "");
+  };
+  const salvaScadenza = async () => {
+    if (!modaleScadenza || !nuovaScadenza) return;
+    setSavingScadenza(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/${modaleScadenza.id}/scadenza`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data_scadenza: nuovaScadenza }),
+      });
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      if (json.ok) {
+        setModaleScadenza(null);
+        fetchData(false);
+      } else {
+        alert(json.error || "Errore");
+      }
+    } catch (e) {
+      console.error("Errore modifica scadenza:", e);
+      alert("Errore di rete");
+    } finally {
+      setSavingScadenza(false);
+    }
+  };
+
   // ── Selezione multipla helpers ──
   const toggleSelect = (id) => {
     setSelected(prev => {
@@ -293,7 +335,7 @@ export default function ControlloGestioneUscite() {
             <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">
               <div className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mb-1.5">Ricerca</div>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Fornitore, n. fattura..." className={fInp} />
+                placeholder="Fornitore, fattura, importo, note..." className={fInp} />
             </div>
 
             {/* Stato */}
@@ -475,12 +517,14 @@ export default function ControlloGestioneUscite() {
                     const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
 
                     return (
-                      <tr key={u.id} className={`border-b border-neutral-100 hover:bg-sky-50/50 transition ${
+                      <tr key={u.id}
+                        onClick={() => apriModaleScadenza(u)}
+                        className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
                         u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}
-                        <td className="px-2 py-1.5 text-center">
+                        <td className="px-2 py-1.5 text-center" onClick={e => e.stopPropagation()}>
                           {puoSelezionare ? (
                             <input type="checkbox" checked={selected.has(u.id)}
                               onChange={() => toggleSelect(u.id)}
@@ -545,7 +589,7 @@ export default function ControlloGestioneUscite() {
                           )}
                         </td>
                         {/* BANCA (riconciliazione) */}
-                        <td className="px-3 py-1.5 text-center">
+                        <td className="px-3 py-1.5 text-center" onClick={e => e.stopPropagation()}>
                           {isRiconciliata ? (
                             <button onClick={() => scollegaMovimento(u.id)}
                               title="Riconciliata — click per scollegare"
@@ -574,6 +618,91 @@ export default function ControlloGestioneUscite() {
 
         </div>
       </div>
+
+      {/* ══════ MODALE MODIFICA SCADENZA ══════ */}
+      {modaleScadenza && (() => {
+        const orig = modaleScadenza.data_scadenza_originale || modaleScadenza.data_scadenza;
+        let deltaGG = 0;
+        if (orig && nuovaScadenza) {
+          try {
+            deltaGG = Math.round((new Date(nuovaScadenza) - new Date(orig)) / 86400000);
+          } catch (_) {}
+        }
+        const isArretrato = Math.abs(deltaGG) > 10;
+        const cambiata = nuovaScadenza !== (modaleScadenza.data_scadenza || "");
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+            onClick={() => setModaleScadenza(null)}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+              <div className="px-5 py-3 border-b border-neutral-200 bg-sky-50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-sky-900">Modifica Scadenza</h3>
+                    <p className="text-[11px] text-sky-600 mt-0.5">
+                      {modaleScadenza.fornitore_nome} — € {fmt(modaleScadenza.totale)}
+                    </p>
+                  </div>
+                  <button onClick={() => setModaleScadenza(null)}
+                    className="text-neutral-400 hover:text-neutral-600 text-lg leading-none">&times;</button>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                {/* Info attuale */}
+                <div className="flex items-center gap-4 text-xs">
+                  <div>
+                    <span className="text-neutral-500">Scadenza attuale: </span>
+                    <span className="font-semibold text-neutral-800">{fmtDateFull(modaleScadenza.data_scadenza) || "—"}</span>
+                  </div>
+                  {orig && orig !== modaleScadenza.data_scadenza && (
+                    <div>
+                      <span className="text-neutral-400">Originale: </span>
+                      <span className="text-neutral-600">{fmtDateFull(orig)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input nuova data */}
+                <div>
+                  <label className="text-xs font-semibold text-neutral-600 block mb-1">Nuova scadenza</label>
+                  <input type="date" value={nuovaScadenza} onChange={e => setNuovaScadenza(e.target.value)}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-sky-300 focus:outline-none" />
+                </div>
+
+                {/* Indicatore delta */}
+                {cambiata && nuovaScadenza && (
+                  <div className={`rounded-lg px-3 py-2 text-xs ${
+                    isArretrato
+                      ? "bg-amber-50 border border-amber-200 text-amber-800"
+                      : "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                  }`}>
+                    {deltaGG > 0 ? `+${deltaGG}` : deltaGG} giorni rispetto all'originale
+                    {isArretrato
+                      ? " — diventerà arretrato"
+                      : " — resta spesa corrente"}
+                  </div>
+                )}
+
+                {/* Stato uscita */}
+                <div className="text-[10px] text-neutral-400">
+                  Stato: <span className="font-medium text-neutral-600">{(STATO_STYLE[modaleScadenza.stato] || {}).label || modaleScadenza.stato}</span>
+                  {modaleScadenza.numero_fattura && <span className="ml-2">Fatt. {modaleScadenza.numero_fattura}</span>}
+                </div>
+              </div>
+              <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2">
+                <button onClick={() => setModaleScadenza(null)}
+                  className="px-4 py-1.5 rounded-lg border border-neutral-300 text-neutral-600 text-xs hover:bg-neutral-100">
+                  Annulla
+                </button>
+                <button onClick={salvaScadenza} disabled={savingScadenza || !cambiata || !nuovaScadenza}
+                  className="px-4 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 disabled:opacity-50">
+                  {savingScadenza ? "Salvataggio..." : "Salva"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══════ MODALE RICONCILIAZIONE ══════ */}
       {modaleBanca && (

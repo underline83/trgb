@@ -1270,6 +1270,77 @@ def get_candidati_banca(
     }
 
 
+# ── Modifica scadenza singola uscita ───────────────────────────
+@router.put("/uscite/{uscita_id}/scadenza")
+def modifica_scadenza(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Cambia la data_scadenza di un'uscita.
+    Body: { data_scadenza: "YYYY-MM-DD" }
+    Se lo spostamento rispetto a data_scadenza_originale è > 10 giorni,
+    il frontend lo mostrerà come 'arretrato'.
+    Restituisce anche il delta in giorni per decidere lato client.
+    """
+    nuova = payload.get("data_scadenza")
+    if not nuova:
+        return {"ok": False, "error": "data_scadenza obbligatoria"}
+
+    conn = get_fc_db()
+    try:
+        row = conn.execute(
+            "SELECT id, data_scadenza, data_scadenza_originale, stato FROM cg_uscite WHERE id = ?",
+            [uscita_id],
+        ).fetchone()
+        if not row:
+            return {"ok": False, "error": "Uscita non trovata"}
+
+        # Non permettere modifica se già pagata via banca
+        if row["stato"] == "PAGATA":
+            return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
+
+        originale = row["data_scadenza_originale"] or row["data_scadenza"]
+
+        conn.execute("""
+            UPDATE cg_uscite
+            SET data_scadenza = ?,
+                data_scadenza_originale = COALESCE(data_scadenza_originale, data_scadenza),
+                updated_at = datetime('now')
+            WHERE id = ?
+        """, [nuova, uscita_id])
+
+        # Ricalcola stato: se nuova scadenza < oggi e non pagata → SCADUTA
+        oggi = date.today().isoformat()
+        if nuova < oggi and row["stato"] in ("DA_PAGARE",):
+            conn.execute("UPDATE cg_uscite SET stato = 'SCADUTA' WHERE id = ?", [uscita_id])
+        elif nuova >= oggi and row["stato"] == "SCADUTA":
+            conn.execute("UPDATE cg_uscite SET stato = 'DA_PAGARE' WHERE id = ?", [uscita_id])
+
+        conn.commit()
+
+        # Calcola delta giorni dall'originale
+        delta_giorni = 0
+        if originale:
+            try:
+                d_orig = date.fromisoformat(originale)
+                d_nuova = date.fromisoformat(nuova)
+                delta_giorni = (d_nuova - d_orig).days
+            except ValueError:
+                pass
+
+        return {
+            "ok": True,
+            "data_scadenza": nuova,
+            "data_scadenza_originale": originale,
+            "delta_giorni": delta_giorni,
+            "is_arretrato": abs(delta_giorni) > 10,
+        }
+    finally:
+        conn.close()
+
+
 # ── Segna pagate bulk ──────────────────────────────────────────
 @router.post("/uscite/segna-pagate-bulk")
 def segna_pagate_bulk(
