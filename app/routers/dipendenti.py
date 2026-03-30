@@ -20,11 +20,13 @@ Autenticazione:
 
 from __future__ import annotations
 
+import os
+import re
 from typing import Any, Dict, List, Optional
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
@@ -1590,6 +1592,7 @@ async def conferma_import_pdf(
     """
     Step 2 del flusso import PDF: riceve il file + la selezione dell'utente
     e scrive nel DB solo i cedolini confermati.
+    Salva anche il PDF singolo per ogni cedolino nella cartella app/data/cedolini/.
     """
     import json as _json
 
@@ -1597,7 +1600,7 @@ async def conferma_import_pdf(
         raise HTTPException(400, "Il file deve essere un PDF")
 
     try:
-        from app.utils.parse_lul import parse_lul_pdf
+        from app.utils.parse_lul import parse_lul_pdf, estrai_pagine_pdf
     except ImportError as e:
         raise HTTPException(500, f"Parser PDF non disponibile: {e}")
 
@@ -1711,12 +1714,31 @@ async def conferma_import_pdf(
                         )
                         conn.commit()
 
+                    # Salva PDF singolo del cedolino
+                    pdf_rel = None
+                    if ced.get("pagine"):
+                        try:
+                            cognome_safe = re.sub(r"[^\w]", "_", dip["cognome"].upper())
+                            nome_safe = re.sub(r"[^\w]", "_", dip["nome"].upper())
+                            pdf_name = f"{cognome_safe}_{nome_safe}_{anno}_{mese:02d}.pdf"
+                            pdf_rel = f"cedolini/{anno}/{pdf_name}"
+                            pdf_abs = os.path.join("app", "data", pdf_rel)
+                            estrai_pagine_pdf(file_bytes, ced["pagine"], pdf_abs)
+                            conn.execute(
+                                "UPDATE buste_paga SET pdf_path = ? WHERE id = ?",
+                                [pdf_rel, bp_id]
+                            )
+                            conn.commit()
+                        except Exception:
+                            pdf_rel = None  # non bloccare l'import per un errore PDF
+
                     importati.append({
                         "dipendente_id": dip["id"],
                         "cognome_nome": f"{dip['cognome']} {dip['nome']}",
                         "mese": mese, "anno": anno,
                         "netto": netto, "lordo": ced.get("lordo"),
                         "azione": azione, "uscita_id": uscita_id,
+                        "pdf_path": pdf_rel,
                     })
                 except Exception as e:
                     errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})
@@ -1758,6 +1780,24 @@ async def conferma_import_pdf(
                             "mese": mese, "anno": anno, "netto": netto,
                         })
 
+                    # Salva PDF singolo del cedolino
+                    pdf_rel = None
+                    if ced.get("pagine"):
+                        try:
+                            cognome_safe = re.sub(r"[^\w]", "_", new_dip["cognome"].upper())
+                            nome_safe = re.sub(r"[^\w]", "_", new_dip["nome"].upper())
+                            pdf_name = f"{cognome_safe}_{nome_safe}_{anno}_{mese:02d}.pdf"
+                            pdf_rel = f"cedolini/{anno}/{pdf_name}"
+                            pdf_abs = os.path.join("app", "data", pdf_rel)
+                            estrai_pagine_pdf(file_bytes, ced["pagine"], pdf_abs)
+                            conn.execute(
+                                "UPDATE buste_paga SET pdf_path = ? WHERE id = ?",
+                                [pdf_rel, bp_id]
+                            )
+                            conn.commit()
+                        except Exception:
+                            pdf_rel = None
+
                     creati.append({
                         "dipendente_id": new_dip["id"],
                         "cognome_nome": f"{new_dip['cognome']} {new_dip['nome']}",
@@ -1770,6 +1810,7 @@ async def conferma_import_pdf(
                         "mese": mese, "anno": anno,
                         "netto": netto, "lordo": ced.get("lordo"),
                         "azione": "nuovo + creato", "uscita_id": uscita_id,
+                        "pdf_path": pdf_rel,
                     })
                 except Exception as e:
                     errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})
@@ -1783,6 +1824,35 @@ async def conferma_import_pdf(
         "dipendenti_creati": creati,
         "errori": errori,
     }
+
+
+# ============================================================
+# DOWNLOAD PDF CEDOLINO
+# ============================================================
+
+@router.get("/buste-paga/{bp_id}/pdf")
+def download_cedolino_pdf(
+    bp_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Scarica il PDF del singolo cedolino."""
+    conn = get_dipendenti_conn()
+    row = conn.execute(
+        "SELECT bp.pdf_path, d.cognome, d.nome, bp.mese, bp.anno "
+        "FROM buste_paga bp JOIN dipendenti d ON d.id = bp.dipendente_id "
+        "WHERE bp.id = ?", [bp_id]
+    ).fetchone()
+    conn.close()
+
+    if not row or not row["pdf_path"]:
+        raise HTTPException(404, "PDF non disponibile per questo cedolino")
+
+    pdf_abs = os.path.join("app", "data", row["pdf_path"])
+    if not os.path.isfile(pdf_abs):
+        raise HTTPException(404, "File PDF non trovato su disco")
+
+    filename = f"Cedolino_{row['cognome']}_{row['nome']}_{row['anno']}_{row['mese']:02d}.pdf"
+    return FileResponse(pdf_abs, filename=filename, media_type="application/pdf")
 
 
 # ============================================================

@@ -19,6 +19,7 @@ weasyprint
 
 # PDF reader/parser (LUL cedolini)
 pdfplumber
+pikepdf
 
 # HTML templating
 jinja2

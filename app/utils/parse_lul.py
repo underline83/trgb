@@ -6,6 +6,7 @@ Formato atteso: PDF generato da TeamSystem con una sezione per dipendente.
 Ogni sezione contiene header anagrafico, voci retributive, totali e NETTO BUSTA.
 """
 
+import os
 import re
 import pdfplumber
 from io import BytesIO
@@ -205,16 +206,19 @@ def _has_netto_busta(text: str) -> bool:
     return bool(re.search(r"NETTO\s+BUSTA", text)) or bool(re.search(r"T\s*O\s*T\s*A\s*L\s*I\s+[\d.,]+", text))
 
 
-def _split_into_cedolini(pages_text: list[str]) -> list[str]:
+def _split_into_cedolini(pages_text: list[str]) -> list[tuple[str, list[int]]]:
     """
     Dato il testo di ogni pagina, raggruppa le pagine in blocchi cedolino.
     Un nuovo cedolino inizia quando appare un header con MENSILITA e COGNOME E NOME.
     Pagine senza header si appendono al blocco corrente (continuazione).
+
+    Ritorna: lista di tuple (testo_blocco, [indici_pagine_0based])
     """
     blocks = []
     current_block = ""
+    current_pages = []
 
-    for page_text in pages_text:
+    for page_idx, page_text in enumerate(pages_text):
         if not page_text:
             continue
 
@@ -224,15 +228,17 @@ def _split_into_cedolini(pages_text: list[str]) -> list[str]:
         if is_new_cedolino and not is_presenze:
             # Salva il blocco precedente se aveva dati utili
             if current_block and (_has_netto_busta(current_block) or _has_cedolino_header(current_block)):
-                blocks.append(current_block)
+                blocks.append((current_block, current_pages))
             current_block = page_text
+            current_pages = [page_idx]
         else:
             # Pagina di continuazione
             current_block += "\n" + page_text
+            current_pages.append(page_idx)
 
     # Ultimo blocco
     if current_block:
-        blocks.append(current_block)
+        blocks.append((current_block, current_pages))
 
     return blocks
 
@@ -273,15 +279,52 @@ def parse_lul_pdf(file_path: str = None, file_bytes: bytes = None) -> list[dict]
     blocks = _split_into_cedolini(pages_text)
     cedolini = []
 
-    for block in blocks:
-        parsed = _parse_cedolino_block(block)
+    for block_text, block_pages in blocks:
+        parsed = _parse_cedolino_block(block_text)
         if parsed and "cognome_nome" in parsed:
+            parsed["pagine"] = block_pages  # indici 0-based delle pagine PDF
             cedolini.append(parsed)
 
     return cedolini
 
 
 # ── Utility: lordo approssimato ──────────────────────────────────────
+
+def estrai_pagine_pdf(file_bytes: bytes, pagine: list[int], output_path: str) -> str:
+    """
+    Estrae le pagine specificate (indici 0-based) dal PDF e le salva in un nuovo file.
+    Usa pikepdf per manipolare le pagine senza perdere qualità.
+
+    Args:
+        file_bytes: bytes del PDF originale
+        pagine: lista di indici pagina 0-based da estrarre
+        output_path: percorso dove salvare il PDF estratto
+
+    Returns:
+        Il percorso del file salvato
+    """
+    try:
+        import pikepdf
+    except ImportError:
+        # Fallback: salva tutto il PDF se pikepdf non è disponibile
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "wb") as f:
+            f.write(file_bytes)
+        return output_path
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    src = pikepdf.open(BytesIO(file_bytes))
+    dst = pikepdf.new()
+    for idx in sorted(pagine):
+        if idx < len(src.pages):
+            dst.pages.append(src.pages[idx])
+    dst.save(output_path)
+    dst.close()
+    src.close()
+
+    return output_path
+
 
 def calcola_lordo_approssimato(c: dict) -> float:
     """

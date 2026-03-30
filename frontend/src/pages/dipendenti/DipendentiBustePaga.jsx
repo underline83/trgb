@@ -722,7 +722,26 @@ export default function DipendentiBustePaga() {
                           <span className="font-medium text-neutral-800">{b.cognome} {b.nome}</span>
                           <span className="ml-1 text-[10px] text-neutral-400">{b.ruolo}</span>
                           {b.fonte === "PDF" && (
-                            <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono">PDF</span>
+                            b.pdf_path ? (
+                              <a href={`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`}
+                                target="_blank" rel="noopener noreferrer"
+                                onClick={e => {
+                                  e.preventDefault();
+                                  const token = localStorage.getItem("token");
+                                  fetch(`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`, {
+                                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                  }).then(r => r.blob()).then(blob => {
+                                    const url = URL.createObjectURL(blob);
+                                    window.open(url, "_blank");
+                                  });
+                                }}
+                                className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono hover:bg-violet-200 cursor-pointer"
+                                title="Apri PDF cedolino">
+                                {"\uD83D\uDCC4"} PDF
+                              </a>
+                            ) : (
+                              <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono">PDF</span>
+                            )
                           )}
                         </td>
                         <td className="px-4 py-2 text-right font-semibold text-purple-800">{"\u20AC"} {fmt(b.netto)}</td>
