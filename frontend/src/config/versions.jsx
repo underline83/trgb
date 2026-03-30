@@ -27,7 +27,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.1",
+    version: "1.2",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",

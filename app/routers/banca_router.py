@@ -64,7 +64,8 @@ class UpdateMovimentoCategoria(BaseModel):
 
 class CrossRefLinkRequest(BaseModel):
     movimento_id: int
-    fattura_id: int
+    fattura_id: Optional[int] = None
+    uscita_id: Optional[int] = None
     note: Optional[str] = None
 
 
@@ -503,18 +504,18 @@ def delete_categoria_map(map_id: int):
 
 
 # ═══════════════════════════════════════════════════════
-# 7-9. CROSS-REF FATTURE
+# 7-9. RICONCILIAZIONE SPESE (ex Cross-Ref Fatture)
+# Match movimenti bancari ↔ fatture + spese fisse
 # ═══════════════════════════════════════════════════════
 
 @router.get("/cross-ref")
 def get_cross_ref(
     data_da: Optional[str] = None,
     data_a: Optional[str] = None,
-    solo_non_collegati: bool = False,
 ):
     """
-    Movimenti con possibili fatture collegate.
-    Per uscite fornitori, cerca fatture con importo simile ±5 giorni.
+    Movimenti bancari (uscite) con possibili match.
+    Cerca in fe_fatture E in cg_uscite (spese fisse, affitti, tasse…).
     """
     conn = get_db()
     cur = conn.cursor()
@@ -528,15 +529,16 @@ def get_cross_ref(
         where.append("m.data_contabile <= ?")
         params.append(data_a)
 
-    # Movimenti con link esistenti
+    # ── Movimenti con eventuali link fattura ──
     cur.execute(f"""
         SELECT m.*,
-               bl.id as link_id,
+               bl.id       AS link_id,
                bl.fattura_id,
-               f.fornitore_nome,
-               f.numero_fattura,
-               f.data_fattura,
-               f.totale_fattura
+               f.fornitore_nome  AS link_fornitore,
+               f.numero_fattura  AS link_numero,
+               f.data_fattura    AS link_data,
+               f.totale_fattura  AS link_totale,
+               'FATTURA'         AS link_tipo
         FROM banca_movimenti m
         LEFT JOIN banca_fatture_link bl ON m.id = bl.movimento_id
         LEFT JOIN fe_fatture f ON bl.fattura_id = f.id
@@ -544,34 +546,97 @@ def get_cross_ref(
         ORDER BY m.data_contabile DESC
         LIMIT 500
     """, params)
+    raw = [dict(r) for r in cur.fetchall()]
+
+    # ── Anche movimenti collegati direttamente a cg_uscite (spese fisse) ──
+    cur.execute(f"""
+        SELECT m.id AS mov_id,
+               cu.id AS uscita_id,
+               cu.fornitore_nome AS link_fornitore,
+               cu.numero_fattura AS link_numero,
+               cu.data_scadenza  AS link_data,
+               cu.totale         AS link_totale,
+               COALESCE(cu.tipo_uscita, 'FATTURA') AS link_tipo
+        FROM banca_movimenti m
+        JOIN cg_uscite cu ON cu.banca_movimento_id = m.id
+        WHERE cu.fattura_id IS NULL
+          AND {" AND ".join(where)}
+    """, params)
+    uscite_links = {r["mov_id"]: dict(r) for r in cur.fetchall()}
 
     movimenti = []
-    for row in cur.fetchall():
-        mov = dict(row)
-        mov_id = mov["id"]
+    seen_ids = set()
+    for mov in raw:
+        mid = mov["id"]
+        if mid in seen_ids:
+            continue
+        seen_ids.add(mid)
 
-        if solo_non_collegati and mov.get("link_id"):
+        # Se ha link fattura, ok
+        if mov.get("link_id"):
+            movimenti.append(mov)
             continue
 
-        # Se non ha link, cerca possibili match
-        if not mov.get("link_id"):
-            abs_importo = abs(mov["importo"])
-            data_c = mov["data_contabile"]
-            # Cerca fatture con totale simile (±5%) entro ±10 giorni
-            cur2 = conn.cursor()
-            cur2.execute("""
-                SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
-                       data_fattura, totale_fattura
-                FROM fe_fatture
-                WHERE ABS(totale_fattura - ?) / MAX(?, 0.01) < 0.05
-                  AND data_fattura BETWEEN date(?, '-10 days') AND date(?, '+10 days')
-                ORDER BY ABS(totale_fattura - ?) ASC
-                LIMIT 5
-            """, (abs_importo, abs_importo, data_c, data_c, abs_importo))
-            mov["possibili_fatture"] = [dict(r) for r in cur2.fetchall()]
-        else:
-            mov["possibili_fatture"] = []
+        # Se ha link uscita diretta (spesa fissa)
+        if mid in uscite_links:
+            ul = uscite_links[mid]
+            mov["link_id"] = f"u{ul['uscita_id']}"  # prefisso u per distinguere
+            mov["link_fornitore"] = ul["link_fornitore"]
+            mov["link_numero"] = ul["link_numero"]
+            mov["link_data"] = ul["link_data"]
+            mov["link_totale"] = ul["link_totale"]
+            mov["link_tipo"] = ul["link_tipo"]
+            mov["uscita_id"] = ul["uscita_id"]
+            movimenti.append(mov)
+            continue
 
+        # ── Nessun link: cerca suggerimenti ──
+        abs_imp = abs(mov["importo"])
+        data_c = mov["data_contabile"]
+        suggestions = []
+
+        # 1) Fatture non collegate con importo simile (±5%) entro ±10 giorni
+        cur2 = conn.cursor()
+        cur2.execute("""
+            SELECT f.id, f.fornitore_nome, f.numero_fattura,
+                   f.data_fattura AS data_ref, f.totale_fattura AS totale,
+                   'FATTURA' AS tipo
+            FROM fe_fatture f
+            LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            WHERE bfl.id IS NULL
+              AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.05
+              AND f.data_fattura BETWEEN date(?, '-10 days') AND date(?, '+10 days')
+            ORDER BY ABS(f.totale_fattura - ?) ASC
+            LIMIT 5
+        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+        for r in cur2.fetchall():
+            d = dict(r)
+            d["source"] = "fattura"
+            d["source_id"] = d["id"]
+            suggestions.append(d)
+
+        # 2) Uscite CG non pagate (spese fisse, affitti, tasse…) con importo simile
+        cur3 = conn.cursor()
+        cur3.execute("""
+            SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
+                   cu.data_scadenza AS data_ref, cu.totale,
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+            FROM cg_uscite cu
+            WHERE cu.banca_movimento_id IS NULL
+              AND cu.fattura_id IS NULL
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.10
+              AND cu.data_scadenza BETWEEN date(?, '-20 days') AND date(?, '+20 days')
+            ORDER BY ABS(cu.totale - ?) ASC
+            LIMIT 5
+        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+        for r in cur3.fetchall():
+            d = dict(r)
+            d["source"] = "uscita"
+            d["source_id"] = d["id"]
+            suggestions.append(d)
+
+        mov["possibili_match"] = suggestions
         movimenti.append(mov)
 
     conn.close()
@@ -581,81 +646,118 @@ def get_cross_ref(
 @router.post("/cross-ref/link")
 def create_link(req: CrossRefLinkRequest):
     """
-    Collega un movimento bancario a una fattura.
-    Propaga il link anche a cg_uscite (se esiste la riga corrispondente)
-    per mantenere sincronizzato lo scadenzario.
+    Collega un movimento bancario a una fattura O a un'uscita CG.
+    - fattura_id: link via banca_fatture_link + propaga a cg_uscite
+    - uscita_id: link diretto su cg_uscite.banca_movimento_id
     """
+    if not req.fattura_id and not req.uscita_id:
+        raise HTTPException(400, "Specificare fattura_id o uscita_id")
+
     conn = get_db()
     cur = conn.cursor()
-    try:
-        cur.execute("""
-            INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
-            VALUES (?, ?, ?)
-        """, (req.movimento_id, req.fattura_id, req.note))
 
-        # Propaga a cg_uscite: se esiste un'uscita per questa fattura, collega e segna PAGATA
-        mov = cur.execute("SELECT data_contabile FROM banca_movimenti WHERE id = ?", (req.movimento_id,)).fetchone()
-        data_mov = dict(mov)["data_contabile"] if mov else None
-        cur.execute("""
-            UPDATE cg_uscite
-            SET banca_movimento_id = ?,
-                stato = 'PAGATA',
-                data_pagamento = COALESCE(data_pagamento, ?),
-                importo_pagato = totale,
-                updated_at = datetime('now')
-            WHERE fattura_id = ?
-              AND banca_movimento_id IS NULL
-        """, (req.movimento_id, data_mov, req.fattura_id))
+    mov = cur.execute("SELECT data_contabile FROM banca_movimenti WHERE id = ?", (req.movimento_id,)).fetchone()
+    data_mov = dict(mov)["data_contabile"] if mov else None
+
+    try:
+        if req.fattura_id:
+            # ── Link fattura (come prima) ──
+            cur.execute("""
+                INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
+                VALUES (?, ?, ?)
+            """, (req.movimento_id, req.fattura_id, req.note))
+            # Propaga a cg_uscite
+            cur.execute("""
+                UPDATE cg_uscite
+                SET banca_movimento_id = ?,
+                    stato = 'PAGATA',
+                    data_pagamento = COALESCE(data_pagamento, ?),
+                    importo_pagato = totale,
+                    updated_at = datetime('now')
+                WHERE fattura_id = ?
+                  AND banca_movimento_id IS NULL
+            """, (req.movimento_id, data_mov, req.fattura_id))
+        else:
+            # ── Link uscita diretta (spesa fissa, affitto, tassa…) ──
+            cur.execute("""
+                UPDATE cg_uscite
+                SET banca_movimento_id = ?,
+                    stato = 'PAGATA',
+                    data_pagamento = COALESCE(data_pagamento, ?),
+                    importo_pagato = totale,
+                    updated_at = datetime('now')
+                WHERE id = ?
+                  AND banca_movimento_id IS NULL
+            """, (req.movimento_id, data_mov, req.uscita_id))
+            if cur.rowcount == 0:
+                conn.close()
+                raise HTTPException(409, "Uscita già collegata o non trovata")
 
         conn.commit()
-        link_id = cur.lastrowid
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(409, "Collegamento già esistente")
     conn.close()
-    return {"ok": True, "id": link_id}
+    return {"ok": True}
 
 
 @router.delete("/cross-ref/link/{link_id}")
-def delete_link(link_id: int):
+def delete_link(link_id: str):
     """
-    Rimuove collegamento movimento ↔ fattura.
-    Propaga lo scollega anche a cg_uscite.
+    Rimuove collegamento. link_id può essere:
+    - numerico: banca_fatture_link.id (fattura)
+    - "uNNN": cg_uscite.id (uscita diretta)
     """
     conn = get_db()
     cur = conn.cursor()
 
-    # Recupera il link prima di cancellarlo per propagare a cg_uscite
-    link = cur.execute(
-        "SELECT movimento_id, fattura_id FROM banca_fatture_link WHERE id = ?", (link_id,)
-    ).fetchone()
-
-    cur.execute("DELETE FROM banca_fatture_link WHERE id = ?", (link_id,))
-    deleted = cur.rowcount
-
-    # Propaga: scollega cg_uscite se era collegata a questo movimento
-    if link:
-        l = dict(link)
+    if str(link_id).startswith("u"):
+        # ── Scollega uscita diretta ──
+        uscita_id = int(str(link_id)[1:])
         cur.execute("""
             UPDATE cg_uscite
             SET banca_movimento_id = NULL,
-                stato = 'PAGATA_MANUALE',
+                stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTA' ELSE 'DA_PAGARE' END,
+                importo_pagato = 0,
+                data_pagamento = NULL,
                 updated_at = datetime('now')
-            WHERE fattura_id = ? AND banca_movimento_id = ?
-        """, (l["fattura_id"], l["movimento_id"]))
+            WHERE id = ? AND banca_movimento_id IS NOT NULL
+        """, (uscita_id,))
+        if cur.rowcount == 0:
+            conn.close()
+            raise HTTPException(404, "Collegamento non trovato")
+    else:
+        # ── Scollega fattura ──
+        numeric_id = int(link_id)
+        link = cur.execute(
+            "SELECT movimento_id, fattura_id FROM banca_fatture_link WHERE id = ?", (numeric_id,)
+        ).fetchone()
+        cur.execute("DELETE FROM banca_fatture_link WHERE id = ?", (numeric_id,))
+        if cur.rowcount == 0:
+            conn.close()
+            raise HTTPException(404, "Collegamento non trovato")
+        if link:
+            l = dict(link)
+            cur.execute("""
+                UPDATE cg_uscite
+                SET banca_movimento_id = NULL,
+                    stato = CASE WHEN data_scadenza < date('now') THEN 'SCADUTA' ELSE 'DA_PAGARE' END,
+                    importo_pagato = 0,
+                    data_pagamento = NULL,
+                    updated_at = datetime('now')
+                WHERE fattura_id = ? AND banca_movimento_id = ?
+            """, (l["fattura_id"], l["movimento_id"]))
 
     conn.commit()
     conn.close()
-    if not deleted:
-        raise HTTPException(404, "Collegamento non trovato")
     return {"ok": True}
 
 
-@router.get("/cross-ref/search-fatture")
-def search_fatture_for_link(q: str = "", limit: int = 20):
+@router.get("/cross-ref/search")
+def search_uscite_for_link(q: str = "", limit: int = 20):
     """
-    Ricerca manuale fatture per collegamento cross-ref.
-    Cerca per fornitore, numero fattura o importo.
+    Ricerca manuale fatture + uscite CG per collegamento.
+    Cerca per fornitore, numero fattura, tipo spesa o importo.
     """
     conn = get_db()
     cur = conn.cursor()
@@ -663,6 +765,8 @@ def search_fatture_for_link(q: str = "", limit: int = 20):
     if not q.strip():
         conn.close()
         return []
+
+    results = []
 
     # Prova a interpretare come importo
     try:
@@ -673,9 +777,11 @@ def search_fatture_for_link(q: str = "", limit: int = 20):
         importo = 0.0
 
     if is_importo:
+        # Fatture per importo
         cur.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
-                   f.data_fattura, f.totale_fattura
+                   f.data_fattura AS data_ref, f.totale_fattura AS totale,
+                   'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
             WHERE bfl.id IS NULL
@@ -683,11 +789,32 @@ def search_fatture_for_link(q: str = "", limit: int = 20):
             ORDER BY ABS(f.totale_fattura - ?) ASC
             LIMIT ?
         """, (importo, importo, importo, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
+            results.append(d)
+
+        # Uscite CG per importo
+        cur.execute("""
+            SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
+                   cu.data_scadenza AS data_ref, cu.totale,
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+            FROM cg_uscite cu
+            WHERE cu.banca_movimento_id IS NULL
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND ABS(cu.totale - ?) < MAX(? * 0.1, 1.0)
+            ORDER BY ABS(cu.totale - ?) ASC
+            LIMIT ?
+        """, (importo, importo, importo, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "uscita"; d["source_id"] = d["id"]
+            results.append(d)
     else:
         term = f"%{q.strip()}%"
+        # Fatture per testo
         cur.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
-                   f.data_fattura, f.totale_fattura
+                   f.data_fattura AS data_ref, f.totale_fattura AS totale,
+                   'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
             WHERE bfl.id IS NULL
@@ -695,8 +822,26 @@ def search_fatture_for_link(q: str = "", limit: int = 20):
             ORDER BY f.data_fattura DESC
             LIMIT ?
         """, (term, term, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
+            results.append(d)
 
-    results = [dict(r) for r in cur.fetchall()]
+        # Uscite CG per testo
+        cur.execute("""
+            SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
+                   cu.data_scadenza AS data_ref, cu.totale,
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+            FROM cg_uscite cu
+            WHERE cu.banca_movimento_id IS NULL
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND (cu.fornitore_nome LIKE ? OR cu.numero_fattura LIKE ?)
+            ORDER BY cu.data_scadenza DESC
+            LIMIT ?
+        """, (term, term, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "uscita"; d["source_id"] = d["id"]
+            results.append(d)
+
     conn.close()
     return results
 

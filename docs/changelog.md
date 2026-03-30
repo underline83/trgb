@@ -3,18 +3,25 @@
 
 ---
 
-## 2026-03-30 — CG v1.3: riconciliazione cross-ref fatture
+## 2026-03-31 — Flussi di Cassa v1.2: Riconciliazione Spese
 
-#### Fixed — Import uscite riconcilia con cross-ref bancario
+#### New — Riconciliazione Spese (ex Cross-Ref Fatture)
+- Rinominato "Cross-Ref Fatture" → "Riconciliazione Spese"
+- Match movimenti bancari non solo con fatture ma anche con spese fisse, affitti, tasse, rate, assicurazioni
+- Tabella con colonne ordinabili (Data, Importo) al posto delle card
+- 3 tab: Suggerimenti (match automatici), Senza match (ricerca manuale), Collegati (riconciliati)
+- Filtro testo globale per descrizione/fornitore/importo
+- Ricerca manuale: cerca sia in fatture che in cg_uscite non collegate
+- Badge tipo spesa colorato (Fattura, Affitto, Tassa, Stipendio, Rata, Assicurazione…)
+- Nuovo endpoint `GET /banca/cross-ref/search` (unificato fatture + uscite)
+- `POST /banca/cross-ref/link` accetta sia `fattura_id` che `uscita_id`
+- `DELETE /banca/cross-ref/link/{id}` gestisce sia link fattura che uscita diretta (prefisso "u")
+
+#### Fixed — CG v1.3: Import uscite riconcilia con cross-ref bancario
 - L'import uscite ora fa LEFT JOIN con `banca_fatture_link` + `banca_movimenti`
 - Fatture già collegate a movimenti bancari via cross-ref vengono importate come PAGATA
 - Fatture esistenti DA_PAGARE/SCADUTA con cross-ref vengono aggiornate a PAGATA
 - Fatture PAGATA_MANUALE senza `banca_movimento_id` vengono arricchite se esiste cross-ref
-
-#### Fixed — Cross-Ref Fatture mancante da menu Flussi di Cassa
-- Aggiunta card "Cross-Ref Fatture" nel menu Flussi di Cassa
-- Aggiunto tab nel nav bar di Flussi di Cassa
-- Aggiunta voce nel flyout Header
 
 ---
 
