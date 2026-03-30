@@ -3,7 +3,18 @@
 
 ---
 
-## 2026-03-30 — Controllo Gestione: Riconciliazione Banca
+## 2026-03-30 — Controllo Gestione v1.1: Riconciliazione Banca + Spese Fisse v2.0
+
+### Spese Fisse (ControlloGestioneSpeseFisse.jsx v2.0)
+
+#### Added
+- **Pannello scelta creazione**: 6 modalita (Affitto, Prestito, Assicurazione, Tasse, Rateizzazione, Manuale)
+- **Wizard Affitto**: guidato con campi locale/indirizzo, proprietario, canone, giorno pagamento, periodo
+- **Wizard Prestito/Mutuo**: guidato con banca, rata, giorno addebito, prima/ultima rata
+- **Wizard Assicurazione**: nuova categoria con compagnia, polizza, premio, frequenza pagamento
+- **Template Tasse**: selezione multipla da 8 template (F24 IVA, IRPEF, INPS, TARI, IMU, ecc.) con importi personalizzabili
+- **Rateizzazione**: da fattura esistente o importo libero, calcolo automatico rata, preview, data fine
+- **Categoria ASSICURAZIONE**: aggiunta a backend (TIPO_SPESA, sf_tipo_labels) e frontend
 
 ### Scadenzario Uscite (ControlloGestioneUscite.jsx v3.0)
 

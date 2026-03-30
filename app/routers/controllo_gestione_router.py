@@ -732,7 +732,8 @@ def get_uscite(
         row["tipo_uscita"] = tipo_u
         if tipo_u == "SPESA_FISSA":
             _sf_tipo_labels = {"AFFITTO": "Affitto", "TASSA": "Tassa", "STIPENDIO": "Stipendio",
-                               "PRESTITO": "Prestito", "RATEIZZAZIONE": "Rateizzazione", "ALTRO": "Altro"}
+                               "PRESTITO": "Prestito", "RATEIZZAZIONE": "Rateizzazione",
+                               "ASSICURAZIONE": "Assicurazione", "ALTRO": "Altro"}
             row["sf_tipo_label"] = _sf_tipo_labels.get(row.get("sf_tipo"), row.get("sf_tipo"))
         # Sorgente scadenza
         if row.get("mp_xml") or (r["data_scadenza"] and not row.get("giorni_fornitore")):
@@ -1045,7 +1046,7 @@ def delete_preset_pagamento(
 # SPESE FISSE — Spese ricorrenti senza fattura
 # ═══════════════════════════════════════════════════════════════════
 
-TIPO_SPESA = ("AFFITTO", "TASSA", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ALTRO")
+TIPO_SPESA = ("AFFITTO", "TASSA", "STIPENDIO", "PRESTITO", "RATEIZZAZIONE", "ASSICURAZIONE", "ALTRO")
 FREQ_SPESA = ("MENSILE", "BIMESTRALE", "TRIMESTRALE", "SEMESTRALE", "ANNUALE", "UNA_TANTUM")
 
 
