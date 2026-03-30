@@ -59,6 +59,8 @@ Nuovi endpoint verranno aggiunti progressivamente:
 - Import (admin only)
 - Analisi (futuro)
 
+> **Nota (2026-03-30):** Le sezioni Gestione Contanti e Mance sono state spostate nel modulo Flussi di Cassa (`/flussi-cassa/contanti` e `/flussi-cassa/mance`). VenditeNav include redirect automatici per i vecchi URL.
+
 ---
 
 # 4. Fasi di Sviluppo

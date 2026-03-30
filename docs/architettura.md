@@ -36,7 +36,7 @@ app/
 │   ├── chiusure_turno.py           — Chiusure turno (/chiusure-turno/...)
 │   ├── fe_import.py                — Fatture XML (/contabilita/fe/...)
 │   ├── fe_categorie_router.py      — Categorie fatture
-│   ├── banca_router.py             — Banca (/banca/...)
+│   ├── banca_router.py             — Flussi di Cassa (ex Banca) (/banca/...)
 │   ├── controllo_gestione_router.py — Controllo Gestione (/controllo-gestione/...)
 │   ├── statistiche_router.py       — Statistiche iPratico (/statistiche/...)
 │   ├── ipratico_products_router.py — Sync prodotti iPratico (/vini/ipratico/...)
@@ -83,7 +83,7 @@ app/
 │   ├── vini.sqlite3            — ELIMINATO v3.0 (era Carta Vini legacy)
 │   ├── vini_magazzino.sqlite3  — Cantina (DB moderno, unico DB vini)
 │   ├── vini_settings.sqlite3   — Ordinamenti e filtri carta
-│   ├── foodcost.db             — FoodCost, Ricette, FE XML, Banca, Controllo Gestione
+│   ├── foodcost.db             — FoodCost, Ricette, FE XML, Flussi di Cassa (Banca), Controllo Gestione
 │   ├── admin_finance.sqlite3   — Vendite + Chiusure turno
 │   ├── users.json              — Store utenti (4 utenti con hash PIN)
 │   ├── modules.json            — Permessi moduli per ruolo
@@ -116,7 +116,7 @@ frontend/
 │       ├── Home.jsx, Login.jsx, CambioPIN.jsx
 │       ├── vini/           — Carta, Magazzino, Movimenti, Dashboard, iPratico Sync, Impostazioni
 │       ├── ricette/        — Archivio, Nuova, Dettaglio, Ingredienti, Matching, Dashboard, Settings
-│       ├── banca/          — Nav, Menu, Dashboard, Movimenti, Import, Categorie, CrossRef
+│       ├── banca/          — Flussi di Cassa: Nav, Menu, Dashboard, CC, Carta Credito, Contanti, Mance, Impostazioni
 │       ├── statistiche/    — Nav, Menu, Dashboard, Prodotti, Import iPratico
 │       └── admin/          — Corrispettivi, ChiusuraTurno, Fatture, Dipendenti, Impostazioni
 ├── .env.development        — VITE_API_BASE_URL=http://127.0.0.1:8000
@@ -133,7 +133,7 @@ frontend/
 | ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina | Magazzino moderno con movimenti, note, locazioni |
 | `vini_settings.sqlite3` | Settings Carta | tipologia_order, nazioni_order, regioni_order, filtri_carta |
-| `foodcost.db` | FoodCost, FE XML, Banca, Controllo Gestione, Statistiche | Gestito da migration_runner (001–032) |
+| `foodcost.db` | FoodCost, FE XML, Flussi di Cassa (Banca), Controllo Gestione, Statistiche | Gestito da migration_runner (001–032) |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | daily_closures, shift_closures, shift_preconti, shift_spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | Creato a runtime da `init_dipendenti_db()` |
 
@@ -192,6 +192,8 @@ Ruoli: `admin`, `chef`, `sommelier`, `sala`, `viewer`
 /vendite/dashboard          — Dashboard mensile
 /vendite/annual             — Confronto annuale
 /vendite/import             — Import Excel
+/vendite/contanti           — REDIRECT → /flussi-cassa/contanti
+/vendite/mance              — REDIRECT → /flussi-cassa/mance
 
 /acquisti                   — Menu Gestione Acquisti
 /acquisti/dashboard         — Dashboard acquisti
@@ -202,12 +204,15 @@ Ruoli: `admin`, `chef`, `sommelier`, `sala`, `viewer`
 /acquisti/import            — Import FE XML
 /acquisti/categorie         — Categorie fornitori
 
-/banca                      — Menu Banca
-/banca/dashboard            — Dashboard banca
-/banca/movimenti            — Movimenti bancari
-/banca/import               — Import CSV
-/banca/categorie            — Categorie custom
-/banca/crossref             — Cross-ref fatture
+/flussi-cassa               — Menu Flussi di Cassa (ex Banca)
+/flussi-cassa/dashboard     — Dashboard
+/flussi-cassa/cc            — Conti Correnti (movimenti bancari)
+/flussi-cassa/cc/crossref   — Cross-ref fatture
+/flussi-cassa/carta         — Carta di Credito (skeleton)
+/flussi-cassa/contanti      — Gestione Contanti (movimenti contanti, preconti, spese)
+/flussi-cassa/mance         — Mance (visibile anche a SALA)
+/flussi-cassa/impostazioni  — Import CSV + Categorie bancarie
+/banca/*                    — REDIRECT → /flussi-cassa/*
 
 /controllo-gestione         — Menu Controllo Gestione
 /controllo-gestione/dashboard — Dashboard unificata
@@ -270,7 +275,7 @@ Modulo Cantina & Vini ......... v4.0   — stabile
 Modulo Gestione Acquisti ....... v2.0   — stabile
 Modulo Ricette & Food Cost .... v3.0   — beta
 Modulo Gestione Vendite ........ v2.0   — stabile
-Modulo Banca ................... v1.0   — beta
+Modulo Flussi di Cassa ......... v1.0   — beta (ex Banca)
 Modulo Statistiche ............. v1.0   — beta
 Modulo Controllo Gestione ....... v1.0   — beta
 Modulo Dipendenti .............. v1.0   — stabile

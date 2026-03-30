@@ -157,11 +157,14 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 **Trigger per partire:** foodcost.db > 50 MB, oppure problemi di lock SQLite in concorrenza, oppure necessità di backup/restore granulare per modulo.
 
-## 28. Modulo Banca — evoluzione
+## 28. Modulo Flussi di Cassa (ex Banca) — evoluzione
 - [ ] Riconciliazione banca: match automatico movimenti → fatture (migliorare cross-ref)
 - [ ] Eliminare scadenza mista BPM
 - [ ] Migliorare categorizzazione scadenze
 - [ ] Dashboard con grafici Recharts (sostituire barre CSS)
+- [ ] Multi-conto corrente (struttura predisposta, UI da implementare)
+- [ ] Carta di Credito: import estratto conto, riconciliazione con CG uscite
+- [ ] Movimenti Contanti: annullamento pagamento, filtri avanzati
 
 ---
 
@@ -172,7 +175,7 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | **2025.12** | FE XML import + Magazzino base | Completato |
 | **2026.03.09** | Fix sicurezza + Auth reale + Dashboard Vini | Completato |
 | **2026.03.10** | Ricette v2 + Acquisti v2 + Vendite v2 | Completato |
-| **2026.03.13** | Banca v1.0 + Smart Create + Conversioni unita' | Completato |
+| **2026.03.13** | Banca v1.0 (ora Flussi di Cassa) + Smart Create + Conversioni unita' | Completato |
 | **2026.03.14** | Cantina v3.7 + Chiusure Turno + Cambio PIN | Completato |
 | **2026.03.15** | Statistiche v1.0 + unificazione loader carta + fix delete movimenti | Completato |
 | **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |

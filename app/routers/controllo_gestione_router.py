@@ -1582,8 +1582,8 @@ def get_uscite_da_pagare(
     fc = get_fc_db()
     sql = """
         SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
-               data_fattura, totale, data_scadenza, stato, tipo_uscita,
-               periodo_riferimento
+               data_fattura, totale AS importo, data_scadenza, stato, tipo_uscita,
+               periodo_riferimento, descrizione
         FROM cg_uscite
         WHERE stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
     """

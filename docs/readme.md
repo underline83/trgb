@@ -13,7 +13,7 @@ TRGB Gestionale e' un'applicazione web interna composta da:
 - **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
 - **Deploy automatico** via `git push` → post-receive hook su VPS
 
-Moduli attivi: Cantina & Vini (v4.0), Gestione Acquisti (v2.2), Ricette & Food Cost (v3.0), Gestione Vendite (v4.0), Banca (v1.0), Controllo Gestione (v1.0), Dipendenti & Turni (v1.0).
+Moduli attivi: Cantina & Vini (v4.0), Gestione Acquisti (v2.2), Ricette & Food Cost (v3.0), Gestione Vendite (v4.0), Flussi di Cassa (v1.0, ex Banca), Controllo Gestione (v1.0), Dipendenti & Turni (v1.0).
 
 ---
 
@@ -135,14 +135,15 @@ Ingredienti, fornitori, storico prezzi, ricette con sub-ricette, calcolo food co
 Docs: `docs/modulo_foodcost.md`
 
 ### Gestione Vendite (v2.0)
-Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa), pre-conti, spese dinamiche, fondo cassa, riepilogo mensile, dashboard, confronto annuale.
-Docs: `docs/modulo_corrispettivi.md`
+Import Excel corrispettivi, chiusure giornaliere, chiusure turno (pranzo/cena con logica cumulativa), pre-conti, spese dinamiche, fondo cassa, riepilogo mensile, dashboard, confronto annuale. Contanti e Mance spostati in Flussi di Cassa dalla v1.0.
+Docs: `docs/modulo_corrispettivi.md`, `docs/design_gestione_vendite.md`
 
-### Banca (v1.0)
-Import CSV Banco BPM, movimenti con categorie custom, dashboard, cross-reference con fatture XML, andamento temporale.
+### Flussi di Cassa (v1.0, ex Banca)
+Hub finanziario unificato: conti correnti (import CSV Banco BPM, movimenti, cross-ref fatture), carta di credito (skeleton), gestione contanti (movimenti contanti con pagamenti spese e versamenti in banca, pre-conti, spese turno, spese varie), mance (visibile anche a SALA). Route: `/flussi-cassa/*` con redirect da `/banca/*`.
+Docs: `docs/modulo_flussi_cassa.md`
 
 ### Controllo Gestione (v1.0)
-Dashboard unificata vendite/acquisti/banca/margine, tabellone uscite con scadenze, riconciliazione banca, spese fisse ricorrenti.
+Dashboard unificata vendite/acquisti/banca/margine, tabellone uscite con scadenze, riconciliazione banca, spese fisse ricorrenti, movimenti contanti.
 
 ### Dipendenti & Turni (v1.0)
 Anagrafica, tipologie turno, calendario. Allegati predisposti nel DB ma non ancora implementati.
@@ -170,7 +171,7 @@ Docs: `docs/modulo_dipendenti.md`
 | ~~`vini.sqlite3`~~ | **ELIMINATO v3.0** — carta ora da vini_magazzino.sqlite3 |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini moderno) |
 | `vini_settings.sqlite3` | Ordinamenti e filtri carta |
-| `foodcost.db` | FoodCost, Fatture XML, Ricette, Banca, Controllo Gestione (migrazioni 001–032) |
+| `foodcost.db` | FoodCost, Fatture XML, Ricette, Flussi di Cassa (Banca), Controllo Gestione (migrazioni 001–032) |
 | `admin_finance.sqlite3` | Vendite, Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti e turni (creato a runtime) |
 
@@ -202,7 +203,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Gestione Acquisti | v2.2 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v4.0 | stabile |
-| Banca | v1.0 | beta |
+| Flussi di Cassa (ex Banca) | v1.0 | beta |
 | Controllo Gestione | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
