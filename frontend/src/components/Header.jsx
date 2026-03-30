@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v3.1 — Dropdown navigazione moduli con sotto-menu
-import React, { useState, useEffect, useRef } from "react";
+// @version: v4.0 — Flyout menu: hover mostra sotto-menu laterale, click naviga
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULES_MENU from "../config/modulesMenu";
@@ -22,9 +22,10 @@ export default function Header({ onLogout }) {
   const isViewer = role === "viewer";
 
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState(null); // key del modulo espanso
+  const [hovered, setHovered] = useState(null);   // key del modulo in hover
   const [modules, setModules] = useState(null);
   const dropRef = useRef(null);
+  const hoverTimeout = useRef(null);
 
   // Carica moduli visibili
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function Header({ onLogout }) {
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) {
         setOpen(false);
-        setExpanded(null);
+        setHovered(null);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -50,7 +51,7 @@ export default function Header({ onLogout }) {
   }, [open]);
 
   // Chiudi su navigazione
-  useEffect(() => { setOpen(false); setExpanded(null); }, [location.pathname]);
+  useEffect(() => { setOpen(false); setHovered(null); }, [location.pathname, location.search]);
 
   // Filtra moduli visibili per ruolo
   const visibleKeys = modules
@@ -67,30 +68,22 @@ export default function Header({ onLogout }) {
   );
   const isHome = currentPath === "/" || currentPath === "";
 
-  // Auto-espandi il modulo corrente quando si apre il dropdown
   const handleOpen = () => {
-    if (open) {
-      setOpen(false);
-      setExpanded(null);
-    } else {
-      setOpen(true);
-      setExpanded(currentModule ? currentModule[0] : null);
-    }
+    if (open) { setOpen(false); setHovered(null); }
+    else { setOpen(true); }
   };
 
-  const handleModuleClick = (key, cfg) => {
-    if (expanded === key) {
-      // Già espanso: vai al menu principale del modulo
-      navigate(cfg.go);
-    } else {
-      // Espandi sotto-menu
-      setExpanded(key);
-    }
-  };
+  // Hover con piccolo delay per evitare flicker
+  const handleMouseEnter = useCallback((key) => {
+    clearTimeout(hoverTimeout.current);
+    setHovered(key);
+  }, []);
 
-  const handleSubClick = (path) => {
-    navigate(path);
-  };
+  const handleMouseLeave = useCallback(() => {
+    hoverTimeout.current = setTimeout(() => setHovered(null), 120);
+  }, []);
+
+  const goTo = (path) => { navigate(path); };
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm">
@@ -126,76 +119,106 @@ export default function Header({ onLogout }) {
             </div>
           </button>
 
-          {/* ── Dropdown ── */}
+          {/* ── Dropdown + Flyout ── */}
           {open && (
-            <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 z-[100] max-h-[calc(100vh-80px)] overflow-y-auto">
-              {/* Home */}
-              <button
-                onClick={() => navigate("/")}
-                className={`w-full flex items-center gap-3 px-4 py-2 text-left text-sm transition ${
-                  isHome ? "bg-neutral-100 font-semibold text-neutral-900" : "text-neutral-600 hover:bg-neutral-50"
-                }`}
-              >
-                <span className="text-base w-6 text-center">🏠</span>
-                <span>Home</span>
-              </button>
+            <div className="absolute top-full left-0 mt-2 flex z-[100]">
 
-              <div className="border-t border-neutral-100 my-1" />
+              {/* Colonna principale — lista moduli */}
+              <div className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100vh-80px)] overflow-y-auto">
+                {/* Home */}
+                <button
+                  onClick={() => goTo("/")}
+                  onMouseEnter={() => handleMouseEnter(null)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition rounded-lg mx-0 ${
+                    isHome ? "bg-neutral-100 font-semibold text-neutral-900" : "text-neutral-600 hover:bg-neutral-50"
+                  }`}
+                >
+                  <span className="text-base w-6 text-center">🏠</span>
+                  <span>Home</span>
+                </button>
 
-              {/* Moduli */}
-              {visibleKeys.map(key => {
-                const cfg = MODULES_MENU[key];
-                const isActive = currentModule && currentModule[0] === key;
-                const isExpanded = expanded === key;
+                <div className="border-t border-neutral-100 my-1 mx-2" />
+
+                {/* Moduli */}
+                {visibleKeys.map(key => {
+                  const cfg = MODULES_MENU[key];
+                  const isActive = currentModule && currentModule[0] === key;
+                  const isHov = hovered === key;
+                  const visibleSubs = (cfg.sub || []).filter(s => canSee(s.check, role));
+
+                  return (
+                    <div
+                      key={key}
+                      onMouseEnter={() => handleMouseEnter(key)}
+                      onMouseLeave={handleMouseLeave}
+                      className="relative"
+                    >
+                      <button
+                        onClick={() => goTo(cfg.go)}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
+                          isActive
+                            ? `font-semibold text-neutral-900 ${cfg.hoverBg}`
+                            : isHov
+                              ? `text-neutral-900 ${cfg.hoverBg}`
+                              : `text-neutral-700 hover:bg-neutral-50`
+                        }`}
+                      >
+                        <span className="text-base w-6 text-center">{cfg.icon}</span>
+                        <span className="flex-1">{cfg.title}</span>
+                        {visibleSubs.length > 0 && (
+                          <svg
+                            className={`w-3 h-3 transition-colors ${isHov ? "text-neutral-600" : "text-neutral-300"}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Colonna flyout — sotto-menu del modulo in hover */}
+              {hovered && (() => {
+                const cfg = MODULES_MENU[hovered];
+                if (!cfg) return null;
                 const visibleSubs = (cfg.sub || []).filter(s => canSee(s.check, role));
+                if (visibleSubs.length === 0) return null;
 
                 return (
-                  <div key={key}>
-                    {/* Riga modulo */}
-                    <button
-                      onClick={() => handleModuleClick(key, cfg)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
-                        isActive
-                          ? `font-semibold text-neutral-900 ${cfg.hoverBg}`
-                          : `text-neutral-700 ${cfg.hoverBg}`
-                      }`}
-                    >
-                      <span className="text-base w-6 text-center">{cfg.icon}</span>
-                      <span className="flex-1">{cfg.title}</span>
-                      {visibleSubs.length > 0 && (
-                        <svg
-                          className={`w-3 h-3 text-neutral-400 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                        </svg>
-                      )}
-                    </button>
+                  <div
+                    className="ml-1 w-52 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 self-start"
+                    onMouseEnter={() => handleMouseEnter(hovered)}
+                    onMouseLeave={handleMouseLeave}
+                  >
+                    {/* Titoletto */}
+                    <div className="px-4 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                      {cfg.title}
+                    </div>
+                    <div className="border-t border-neutral-100 mx-2 mb-1" />
 
-                    {/* Sotto-menu (espandibile) */}
-                    {isExpanded && visibleSubs.length > 0 && (
-                      <div className="ml-9 mr-3 mb-1 border-l-2 border-neutral-200 pl-3 py-0.5">
-                        {visibleSubs.map(s => {
-                          const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/");
-                          return (
-                            <button
-                              key={s.go}
-                              onClick={() => handleSubClick(s.go)}
-                              className={`w-full text-left px-3 py-1.5 rounded-lg text-[13px] transition ${
-                                subActive
-                                  ? "bg-neutral-100 font-semibold text-neutral-900"
-                                  : "text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50"
-                              }`}
-                            >
-                              {s.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {visibleSubs.map(s => {
+                      const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/")
+                        || (s.go.includes("?") && location.pathname + location.search === s.go);
+                      return (
+                        <button
+                          key={s.go}
+                          onClick={() => goTo(s.go)}
+                          className={`w-full text-left px-4 py-2 text-[13px] transition ${
+                            subActive
+                              ? "bg-neutral-100 font-semibold text-neutral-900"
+                              : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 );
-              })}
+              })()}
+
             </div>
           )}
         </div>
