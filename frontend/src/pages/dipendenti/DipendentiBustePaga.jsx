@@ -18,7 +18,9 @@ export default function DipendentiBustePaga() {
   // Upload PDF
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const [testResult, setTestResult] = useState(null);
   const fileInputRef = React.useRef(null);
+  const testInputRef = React.useRef(null);
 
   // Form
   const [showForm, setShowForm] = useState(false);
@@ -141,6 +143,31 @@ export default function DipendentiBustePaga() {
     }
   };
 
+  const handleTestPDF = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setTestResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/dipendenti/buste-paga/test-pdf`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const json = await res.json();
+      setTestResult(json);
+    } catch (err) {
+      console.error(err);
+      alert("Errore test PDF");
+    } finally {
+      setUploading(false);
+      if (testInputRef.current) testInputRef.current.value = "";
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!confirm("Eliminare questo cedolino?")) return;
     await apiFetch(`${API_BASE}/dipendenti/buste-paga/${id}`, { method: "DELETE" });
@@ -188,6 +215,13 @@ export default function DipendentiBustePaga() {
           <button onClick={() => { resetForm(); setShowForm(true); }}
             className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50">
             + Inserisci Manuale
+          </button>
+          {/* Test debug (piccolo) */}
+          <input ref={testInputRef} type="file" accept=".pdf" onChange={handleTestPDF} className="hidden" />
+          <button onClick={() => testInputRef.current?.click()} disabled={uploading}
+            className="px-2 py-1 rounded border border-neutral-300 text-neutral-500 text-[10px] hover:bg-neutral-100 disabled:opacity-50"
+            title="Debug: testa cosa estrae il parser dal PDF senza importare">
+            {"\uD83D\uDD0D"} Test PDF
           </button>
         </div>
       </div>
@@ -273,6 +307,66 @@ export default function DipendentiBustePaga() {
                   {r.cognome_nome}: {r.errore}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* DEBUG TEST PDF */}
+      {testResult && (
+        <div className="mx-4 mt-3 bg-white rounded-xl border border-neutral-300 shadow-lg p-4 text-xs">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-neutral-800">{"\uD83D\uDD0D"} Debug Parser PDF</h3>
+            <button onClick={() => setTestResult(null)} className="text-neutral-400 hover:text-neutral-600 text-lg">{"\u00D7"}</button>
+          </div>
+          <div className="flex gap-4 mb-3 text-xs">
+            <span>pdfplumber: <strong>{testResult.pdfplumber_version}</strong></span>
+            <span>Pagine: <strong>{testResult.totale_pagine}</strong></span>
+            <span>Cedolini trovati: <strong className={testResult.cedolini_trovati > 1 ? "text-emerald-700" : "text-red-700"}>{testResult.cedolini_trovati}</strong></span>
+          </div>
+          {/* Pagine */}
+          <div className="mb-3">
+            <p className="font-bold text-neutral-600 uppercase text-[10px] mb-1">Analisi pagine</p>
+            <div className="max-h-48 overflow-y-auto border border-neutral-200 rounded">
+              <table className="w-full text-[11px]">
+                <thead><tr className="bg-neutral-50 border-b">
+                  <th className="px-2 py-1 text-left">Pag</th>
+                  <th className="px-2 py-1 text-center">Chars</th>
+                  <th className="px-2 py-1 text-center">Mensilita</th>
+                  <th className="px-2 py-1 text-center">Cognome</th>
+                  <th className="px-2 py-1 text-center">Netto</th>
+                  <th className="px-2 py-1 text-center">Totali</th>
+                  <th className="px-2 py-1 text-left">Inizio testo</th>
+                </tr></thead>
+                <tbody>
+                  {testResult.pagine?.map(p => (
+                    <tr key={p.pagina} className="border-b border-neutral-100">
+                      <td className="px-2 py-1 font-mono">{p.pagina}</td>
+                      <td className="px-2 py-1 text-center font-mono">{p.chars}</td>
+                      <td className="px-2 py-1 text-center">{p.has_mensilita ? "\u2705" : "\u274C"}</td>
+                      <td className="px-2 py-1 text-center">{p.has_cognome_nome ? "\u2705" : "\u274C"}</td>
+                      <td className="px-2 py-1 text-center">{p.has_netto_busta ? "\u2705" : "\u274C"}</td>
+                      <td className="px-2 py-1 text-center">{p.has_totali ? "\u2705" : "\u274C"}</td>
+                      <td className="px-2 py-1 text-neutral-500 truncate max-w-[200px]">{p.first_100_chars}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* Cedolini */}
+          {testResult.cedolini?.length > 0 && (
+            <div>
+              <p className="font-bold text-neutral-600 uppercase text-[10px] mb-1">Cedolini estratti</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
+                {testResult.cedolini.map((c, i) => (
+                  <div key={i} className="bg-neutral-50 rounded px-2 py-1 border border-neutral-200">
+                    <span className="font-medium">{c.cognome_nome}</span>
+                    <span className="ml-1 text-neutral-500">{c.mese}/{c.anno}</span>
+                    <span className="ml-1 font-mono">{c.netto != null ? `\u20AC${c.netto}` : "—"}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
