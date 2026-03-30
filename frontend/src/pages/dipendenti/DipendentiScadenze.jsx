@@ -132,15 +132,15 @@ export default function DipendentiScadenze() {
 
   return (
     <div className="min-h-screen bg-neutral-100">
-      {/* HEADER */}
+      {/* HEADER — pattern standard sotto-modulo */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/dipendenti")}
             className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
-          <h1 className="text-lg font-bold text-amber-900 font-playfair">{"\uD83D\uDEA8"} Scadenze Documenti</h1>
+          <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDEA8"} Scadenze Documenti</h1>
         </div>
         <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700">
+          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700">
           + Nuova Scadenza
         </button>
       </div>
@@ -186,8 +186,8 @@ export default function DipendentiScadenze() {
 
       {/* FORM */}
       {showForm && (
-        <div className="mx-4 mt-3 bg-white rounded-xl border border-amber-200 shadow-lg p-5">
-          <h3 className="text-sm font-bold text-amber-900 mb-3">
+        <div className="mx-4 mt-3 bg-white rounded-xl border border-purple-200 shadow-lg p-5">
+          <h3 className="text-sm font-bold text-purple-900 mb-3">
             {editId ? "Modifica Scadenza" : "Nuova Scadenza"}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -239,7 +239,7 @@ export default function DipendentiScadenze() {
           </div>
           <div className="flex gap-2 mt-3">
             <button onClick={handleSave} disabled={saving || !form.dipendente_id || !form.data_scadenza}
-              className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
               {saving ? "Salvataggio..." : editId ? "Salva modifiche" : "Crea"}
             </button>
             <button onClick={() => { setShowForm(false); resetForm(); }}

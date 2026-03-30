@@ -1277,6 +1277,54 @@ def elimina_busta_paga(
     return {"ok": True}
 
 
+@router.post("/buste-paga/test-pdf")
+async def test_lul_pdf(
+    file: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Endpoint di DEBUG: parsa il PDF e mostra cosa trova senza importare nulla.
+    Utile per diagnosticare problemi col parser.
+    """
+    try:
+        from app.utils.parse_lul import parse_lul_pdf
+        import pdfplumber
+        from io import BytesIO
+    except ImportError as e:
+        raise HTTPException(500, f"Dipendenze mancanti: {e}")
+
+    file_bytes = await file.read()
+    # Debug: info base sul PDF
+    pdf = pdfplumber.open(BytesIO(file_bytes))
+    pages_info = []
+    for i, page in enumerate(pdf.pages):
+        text = page.extract_text() or ""
+        pages_info.append({
+            "pagina": i + 1,
+            "chars": len(text),
+            "has_mensilita": bool(__import__("re").search(r"MENSILIT", text)),
+            "has_cognome_nome": "COGNOME E NOME" in text,
+            "has_netto_busta": "NETTO BUSTA" in text,
+            "has_totali": "TOTALI" in text.replace(" ", ""),
+            "first_100_chars": text[:100].replace("\n", " | "),
+        })
+    pdf.close()
+
+    # Parsing completo
+    cedolini = parse_lul_pdf(file_bytes=file_bytes)
+
+    return {
+        "pdfplumber_version": pdfplumber.__version__,
+        "totale_pagine": len(pages_info),
+        "pagine": pages_info,
+        "cedolini_trovati": len(cedolini),
+        "cedolini": [
+            {k: v for k, v in c.items() if k in ("cognome_nome", "codice_fiscale", "mese", "anno", "netto", "lordo", "ore_lavorate")}
+            for c in cedolini
+        ],
+    }
+
+
 # ============================================================
 # UPLOAD PDF LUL — Import automatico cedolini
 # ============================================================

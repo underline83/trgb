@@ -1,14 +1,15 @@
-// @version: v2.0-dipendenti-hub
+// @version: v2.1-dipendenti-hub (allineato a Home.jsx)
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import MODULE_VERSIONS, { VersionBadge } from "../../config/versions";
 
 const SEZIONI = [
   {
     to: "/dipendenti/anagrafica",
     icon: "\uD83D\uDDC2\uFE0F",
     title: "Anagrafica",
-    desc: "Dati personali, ruoli, IBAN, documenti allegati",
+    subtitle: "Dati personali, ruoli, IBAN, documenti allegati",
     color: "bg-purple-50 border-purple-200 text-purple-900",
     ready: true,
   },
@@ -16,7 +17,7 @@ const SEZIONI = [
     to: "/dipendenti/buste-paga",
     icon: "\uD83D\uDCCB",
     title: "Buste Paga",
-    desc: "Import PDF cedolini, netti, contributi, scadenze stipendio",
+    subtitle: "Import PDF cedolini, netti, contributi, scadenze stipendio",
     color: "bg-sky-50 border-sky-200 text-sky-900",
     ready: true,
   },
@@ -24,7 +25,7 @@ const SEZIONI = [
     to: "/dipendenti/turni",
     icon: "\uD83D\uDCC5",
     title: "Turni",
-    desc: "Calendario turni settimanale e mensile del personale",
+    subtitle: "Calendario turni settimanale e mensile del personale",
     color: "bg-indigo-50 border-indigo-200 text-indigo-900",
     ready: true,
   },
@@ -32,7 +33,7 @@ const SEZIONI = [
     to: "/dipendenti/scadenze",
     icon: "\uD83D\uDEA8",
     title: "Scadenze Documenti",
-    desc: "HACCP, sicurezza, visite mediche, permessi — con alert",
+    subtitle: "HACCP, sicurezza, visite mediche, permessi — con alert",
     color: "bg-amber-50 border-amber-200 text-amber-900",
     ready: true,
   },
@@ -40,7 +41,7 @@ const SEZIONI = [
     to: "/dipendenti/costi",
     icon: "\uD83D\uDCB0",
     title: "Costi Personale",
-    desc: "Costo mensile, per ruolo, incidenza su ricavi, trend",
+    subtitle: "Costo mensile, per ruolo, incidenza su ricavi, trend",
     color: "bg-rose-50 border-rose-200 text-rose-900",
     ready: false,
   },
@@ -48,7 +49,7 @@ const SEZIONI = [
     to: "#",
     icon: "\uD83D\uDCDD",
     title: "Contratti",
-    desc: "Tipologia, scadenze, allegati PDF — prossimamente",
+    subtitle: "Tipologia, scadenze, allegati PDF — prossimamente",
     color: "bg-neutral-50 border-neutral-200 text-neutral-500",
     ready: false,
   },
@@ -69,56 +70,64 @@ export default function DipendentiMenu() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-purple-900 tracking-wide font-playfair flex items-center gap-3">
-              <span className="text-4xl">{"\uD83D\uDC65"}</span> Dipendenti
-            </h1>
-            <p className="text-neutral-600 mt-1">
-              Gestione completa del personale: anagrafica, buste paga, turni, scadenze, costi.
-            </p>
-            {stats && (
-              <p className="text-sm text-purple-600 mt-1 font-medium">
-                {stats.totale} dipendent{stats.totale === 1 ? "e" : "i"} attiv{stats.totale === 1 ? "o" : "i"}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={() => navigate("/")}
-            className="px-4 py-2 rounded-xl text-sm border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition self-start"
-          >
-            {"\u2190"} Home
+    <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
+        {/* HEADER — stesso pattern di Home.jsx */}
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-4xl font-bold text-center flex-1">
+            <span className="mr-2">{"\uD83D\uDC65"}</span> Dipendenti
+          </h1>
+        </div>
+        <p className="text-center text-neutral-600 mb-1">
+          Gestione completa del personale: anagrafica, buste paga, turni, scadenze, costi.
+        </p>
+        {stats && (
+          <p className="text-center text-sm text-purple-600 font-medium mb-2">
+            {stats.totale} dipendent{stats.totale === 1 ? "e" : "i"} attiv{stats.totale === 1 ? "o" : "i"}
+          </p>
+        )}
+        <div className="text-center mb-10">
+          <button onClick={() => navigate("/")}
+            className="text-sm text-neutral-500 hover:text-neutral-700 transition">
+            {"\u2190"} Torna alla Home
           </button>
         </div>
 
-        {/* GRID SEZIONI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {/* GRID — stesso layout tile di Home.jsx */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {SEZIONI.map((s) => {
             if (!s.ready) {
               return (
                 <div key={s.title}
-                  className={`rounded-2xl p-7 border shadow-sm opacity-50 cursor-default ${s.color}`}>
-                  <div className="text-4xl mb-2">{s.icon}</div>
-                  <h2 className="text-lg font-semibold font-playfair">{s.title}</h2>
-                  <p className="text-sm mt-1 opacity-70">{s.desc}</p>
-                  <span className="inline-block mt-2 text-[10px] bg-neutral-200 text-neutral-500 px-2 py-0.5 rounded-full font-medium">
-                    Prossimamente
-                  </span>
+                  className={`rounded-2xl border shadow-lg p-6 opacity-50 cursor-default ${s.color}`}>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="text-4xl">{s.icon}</div>
+                    <span className="inline-flex items-center text-[10px] bg-neutral-200 text-neutral-500 px-2 py-0.5 rounded-full font-medium">
+                      Prossimamente
+                    </span>
+                  </div>
+                  <div className="text-xl font-semibold">{s.title}</div>
+                  <div className="text-sm opacity-80">{s.subtitle}</div>
                 </div>
               );
             }
             return (
-              <Link key={s.title} to={s.to}
-                className={`rounded-2xl p-7 border shadow hover:shadow-xl hover:-translate-y-1 transition ${s.color}`}>
-                <div className="text-4xl mb-2">{s.icon}</div>
-                <h2 className="text-lg font-semibold font-playfair">{s.title}</h2>
-                <p className="text-neutral-700 text-sm mt-1">{s.desc}</p>
-              </Link>
+              <div key={s.title} onClick={() => navigate(s.to)}
+                className={`rounded-2xl border shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${s.color}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-4xl">{s.icon}</div>
+                  {s.title === "Anagrafica" && <VersionBadge modulo="dipendenti" />}
+                </div>
+                <div className="text-xl font-semibold">{s.title}</div>
+                <div className="text-sm opacity-80">{s.subtitle}</div>
+              </div>
             );
           })}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-12 text-center text-xs text-neutral-400">
+          Modulo Dipendenti v{MODULE_VERSIONS.dipendenti?.version} — Osteria Tre Gobbi
         </div>
       </div>
     </div>

@@ -48,7 +48,7 @@ def _parse_cedolino_block(text: str) -> Optional[dict]:
     result = {}
 
     # --- Mensilità e anno ---
-    m = re.search(r"MENSILITA'.*?\n\s*(\w+)\s+(\d{4})", text)
+    m = re.search(r"MENSILIT[AÀ\u2019'`].*?\n\s*(\w+)\s+(\d{4})", text)
     if m:
         mese_str = m.group(1).upper()
         result["mese"] = MESI_MAP.get(mese_str, 0)
@@ -65,7 +65,7 @@ def _parse_cedolino_block(text: str) -> Optional[dict]:
             result["anno"] = int(m_anno.group(1))
 
     # --- Cognome e Nome ---
-    # Riga header: MENSILITA' COD. AZIE COD. FIL MATRICOLA INPS POSIZIONE INAIL CODICE COGNOME E NOME DATA NASCITA
+    # Riga header: MENSILIT[AÀ\u2019'`] COD. AZIE COD. FIL MATRICOLA INPS POSIZIONE INAIL CODICE COGNOME E NOME DATA NASCITA
     # Riga dati:   GENNAIO 2026 78 1 1213048807 22420684 21 52 LENTINI SARA 01/10/2004
     # Pattern: mese anno cod_azie cod_fil matricola(10dig) posizione(7-8dig) sub_cod codice(2-3dig) NOME data
     # Il "21" fisso tra posizione e codice dipendente è un sotto-codice INAIL
@@ -192,11 +192,24 @@ def _parse_cedolino_block(text: str) -> Optional[dict]:
 
 # ── Splitter: divide il PDF in blocchi per dipendente ────────────────
 
+def _has_cedolino_header(text: str) -> bool:
+    """Verifica se il testo contiene un header cedolino (flessibile su apostrofi/encoding)."""
+    # MENSILITA con qualsiasi tipo di apostrofo/accento
+    has_mensilita = bool(re.search(r"MENSILIT[AÀ\u2019'`]", text))
+    has_cognome = bool(re.search(r"COGNOME\s+E\s+NOME", text))
+    return has_mensilita and has_cognome
+
+
+def _has_netto_busta(text: str) -> bool:
+    """Verifica se il testo contiene il netto busta (flessibile)."""
+    return bool(re.search(r"NETTO\s+BUSTA", text)) or bool(re.search(r"T\s*O\s*T\s*A\s*L\s*I\s+[\d.,]+", text))
+
+
 def _split_into_cedolini(pages_text: list[str]) -> list[str]:
     """
     Dato il testo di ogni pagina, raggruppa le pagine in blocchi cedolino.
-    Un nuovo cedolino inizia quando appare una nuova riga MENSILITA' con un COGNOME E NOME.
-    Alcune pagine (come riepilogo presenze) fanno parte del cedolino precedente.
+    Un nuovo cedolino inizia quando appare un header con MENSILITA e COGNOME E NOME.
+    Pagine senza header si appendono al blocco corrente (continuazione).
     """
     blocks = []
     current_block = ""
@@ -205,30 +218,20 @@ def _split_into_cedolini(pages_text: list[str]) -> list[str]:
         if not page_text:
             continue
 
-        # Verifica se questa pagina ha un header cedolino (nuovo dipendente)
-        has_header = bool(re.search(
-            r"MENSILITA'.*?COGNOME\s+E\s+NOME",
-            page_text, re.DOTALL
-        ))
-
-        # Verifica se è una pagina di riepilogo presenze (continua il cedolino)
+        is_new_cedolino = _has_cedolino_header(page_text)
         is_presenze = bool(re.search(r"RIEPILOGO\s+PRESENZE|CALENDARIO\s+PRESENZE", page_text))
 
-        if has_header and not is_presenze:
-            # Se c'era un blocco precedente con NETTO BUSTA, salvalo
-            if current_block and "NETTO BUSTA" in current_block:
+        if is_new_cedolino and not is_presenze:
+            # Salva il blocco precedente se aveva dati utili
+            if current_block and (_has_netto_busta(current_block) or _has_cedolino_header(current_block)):
                 blocks.append(current_block)
-            # Se c'era un blocco precedente senza NETTO, è una continuazione
-            if current_block and "NETTO BUSTA" not in current_block:
-                current_block += "\n" + page_text
-            else:
-                current_block = page_text
+            current_block = page_text
         else:
-            # Pagina di continuazione (presenze o altro)
+            # Pagina di continuazione
             current_block += "\n" + page_text
 
     # Ultimo blocco
-    if current_block and "NETTO BUSTA" in current_block:
+    if current_block:
         blocks.append(current_block)
 
     return blocks

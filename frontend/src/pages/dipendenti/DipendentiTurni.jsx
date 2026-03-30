@@ -360,28 +360,20 @@ const handleDeleteTurno = async (turnoId) => {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-wide font-playfair">
-              📅 Turni Dipendenti
+            <h1 className="text-3xl sm:text-4xl font-bold text-purple-900 tracking-wide font-playfair">
+              {"\uD83D\uDCC5"} Turni Dipendenti
             </h1>
             <p className="text-neutral-600 mt-1">
               Calendario turni settimanale e mensile del personale.
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <button
-              onClick={() => navigate("/dipendenti")}
-              className="px-4 py-2 rounded-xl text-sm border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 hover:-translate-y-0.5 shadow-sm transition"
-            >
-              ← Moduli Dipendenti
-            </button>
-            <button
-              onClick={() => navigate("/dipendenti")}
-              className="px-4 py-2 rounded-xl text-xs border border-neutral-200 text-neutral-600 bg-white hover:bg-neutral-50 transition"
-            >
-              ← Amministrazione
-            </button>
-          </div>
+          <button
+            onClick={() => navigate("/dipendenti")}
+            className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition self-start"
+          >
+            {"\u2190"} Dipendenti
+          </button>
         </div>
 
         {/* CONTROLLI PERIODO + VISTA */}

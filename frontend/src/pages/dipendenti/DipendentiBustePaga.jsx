@@ -166,19 +166,19 @@ export default function DipendentiBustePaga() {
 
   return (
     <div className="min-h-screen bg-neutral-100">
-      {/* HEADER */}
+      {/* HEADER — pattern standard sotto-modulo */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/dipendenti")}
             className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
-          <h1 className="text-lg font-bold text-sky-900 font-playfair">{"\uD83D\uDCCB"} Buste Paga</h1>
+          <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDCCB"} Buste Paga</h1>
           <span className="text-[10px] text-neutral-400">{buste.length} cedolini</span>
         </div>
         <div className="flex items-center gap-2">
           <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleUploadPDF}
             className="hidden" />
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 flex items-center gap-1.5">
+            className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
             {uploading ? (
               <><span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> Importando...</>
             ) : (
@@ -186,7 +186,7 @@ export default function DipendentiBustePaga() {
             )}
           </button>
           <button onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700">
+            className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50">
             + Inserisci Manuale
           </button>
         </div>
@@ -210,7 +210,7 @@ export default function DipendentiBustePaga() {
           </select>
         </div>
         <div className="ml-auto flex items-center gap-4 text-xs">
-          <span className="text-neutral-500">Netto tot: <span className="font-bold text-sky-800">{"\u20AC"} {fmt(rig.totale_netto)}</span></span>
+          <span className="text-neutral-500">Netto tot: <span className="font-bold text-purple-800">{"\u20AC"} {fmt(rig.totale_netto)}</span></span>
           <span className="text-neutral-500">Lordo tot: <span className="font-bold text-neutral-800">{"\u20AC"} {fmt(rig.totale_lordo)}</span></span>
         </div>
       </div>
@@ -280,8 +280,8 @@ export default function DipendentiBustePaga() {
 
       {/* FORM INSERIMENTO */}
       {showForm && (
-        <div className="mx-4 mt-3 bg-white rounded-xl border border-sky-200 shadow-lg p-5">
-          <h3 className="text-sm font-bold text-sky-900 mb-3">Inserisci Cedolino</h3>
+        <div className="mx-4 mt-3 bg-white rounded-xl border border-purple-200 shadow-lg p-5">
+          <h3 className="text-sm font-bold text-purple-900 mb-3">Inserisci Cedolino</h3>
           <p className="text-[10px] text-neutral-500 mb-3">
             Inserisci i dati manualmente oppure usa il pulsante "Import PDF LUL" per importare dal file del consulente.
           </p>
@@ -351,13 +351,13 @@ export default function DipendentiBustePaga() {
             <label className="flex items-center gap-2 text-xs text-neutral-700">
               <input type="checkbox" checked={form.genera_scadenza}
                 onChange={e => setForm({ ...form, genera_scadenza: e.target.checked })}
-                className="rounded border-neutral-300 text-sky-600" />
+                className="rounded border-neutral-300 text-purple-600" />
               Genera scadenza nello Scadenzario (netto da pagare al dipendente)
             </label>
           </div>
           <div className="flex gap-2 mt-3">
             <button onClick={handleSave} disabled={saving || !form.dipendente_id || !form.netto}
-              className="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
+              className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
               {saving ? "Salvataggio..." : "Salva cedolino"}
             </button>
             <button onClick={() => { setShowForm(false); resetForm(); }}
@@ -376,7 +376,7 @@ export default function DipendentiBustePaga() {
           <div className="text-center py-12">
             <p className="text-neutral-400 text-sm">Nessun cedolino per {filtroAnno}.</p>
             <button onClick={() => { resetForm(); setShowForm(true); }}
-              className="mt-3 px-4 py-2 rounded-lg bg-sky-100 text-sky-700 text-sm font-medium hover:bg-sky-200">
+              className="mt-3 px-4 py-2 rounded-lg bg-purple-100 text-purple-700 text-sm font-medium hover:bg-purple-200">
               + Inserisci il primo cedolino
             </button>
           </div>
@@ -386,10 +386,10 @@ export default function DipendentiBustePaga() {
               <div key={`${gruppo.anno}-${gruppo.mese}`}
                 className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
                 {/* Header mese */}
-                <div className="px-4 py-2.5 bg-sky-50 border-b border-sky-100 flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-sky-900">{gruppo.label} {gruppo.anno}</h3>
+                <div className="px-4 py-2.5 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-purple-900">{gruppo.label} {gruppo.anno}</h3>
                   <div className="flex items-center gap-4 text-xs">
-                    <span className="text-neutral-500">Netto: <span className="font-bold text-sky-700">{"\u20AC"} {fmt(gruppo.totNetto)}</span></span>
+                    <span className="text-neutral-500">Netto: <span className="font-bold text-purple-700">{"\u20AC"} {fmt(gruppo.totNetto)}</span></span>
                     {gruppo.totLordo > 0 && (
                       <span className="text-neutral-500">Lordo: <span className="font-semibold">{"\u20AC"} {fmt(gruppo.totLordo)}</span></span>
                     )}
@@ -421,7 +421,7 @@ export default function DipendentiBustePaga() {
                             <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono">PDF</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-right font-semibold text-sky-800">{"\u20AC"} {fmt(b.netto)}</td>
+                        <td className="px-4 py-2 text-right font-semibold text-purple-800">{"\u20AC"} {fmt(b.netto)}</td>
                         <td className="px-4 py-2 text-right text-neutral-600">{b.lordo ? `\u20AC ${fmt(b.lordo)}` : "\u2014"}</td>
                         <td className="px-4 py-2 text-right text-neutral-500 text-xs">{b.contributi_inps ? fmt(b.contributi_inps) : "\u2014"}</td>
                         <td className="px-4 py-2 text-right text-neutral-500 text-xs">{b.irpef ? fmt(b.irpef) : "\u2014"}</td>
@@ -433,7 +433,7 @@ export default function DipendentiBustePaga() {
                         <td className="px-4 py-2 text-center">
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                             b.stato === "PAGATO" ? "bg-emerald-100 text-emerald-700" :
-                            b.stato === "VERIFICATO" ? "bg-sky-100 text-sky-700" :
+                            b.stato === "VERIFICATO" ? "bg-purple-100 text-purple-700" :
                             "bg-neutral-100 text-neutral-600"
                           }`}>
                             {b.stato}

@@ -294,8 +294,8 @@ export default function DipendentiAnagrafica() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-neutral-900 tracking-wide font-playfair">
-              👥 Anagrafica Dipendenti
+            <h1 className="text-3xl sm:text-4xl font-bold text-purple-900 tracking-wide font-playfair">
+              {"\uD83D\uDC65"} Anagrafica Dipendenti
             </h1>
             <p className="text-neutral-600 mt-1">
               Gestisci anagrafiche, ruoli, IBAN, indirizzi e documenti per
@@ -305,13 +305,13 @@ export default function DipendentiAnagrafica() {
           <div className="flex flex-col items-end gap-2">
             <button
               onClick={() => navigate("/dipendenti")}
-              className="px-4 py-2 rounded-full border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
+              className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
             >
-              ← Torna al menu Amministrazione
+              {"\u2190"} Dipendenti
             </button>
             <button
               onClick={handleNewDipendente}
-              className="px-4 py-2 rounded-full bg-neutral-900 text-neutral-50 text-sm font-semibold shadow hover:bg-neutral-800 transition"
+              className="px-4 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold shadow hover:bg-purple-800 transition"
             >
               + Nuovo dipendente
             </button>
@@ -638,14 +638,14 @@ export default function DipendentiAnagrafica() {
                 <button
                   type="button"
                   onClick={handleNewDipendente}
-                  className="px-4 py-2 rounded-full border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
+                  className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
                 >
                   Annulla / Nuovo
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 rounded-full bg-neutral-900 text-neutral-50 text-sm font-semibold shadow hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="px-5 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold shadow hover:bg-purple-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 >
                   {saving
                     ? "Salvataggio..."
@@ -722,7 +722,7 @@ export default function DipendentiAnagrafica() {
                   <button
                     type="submit"
                     disabled={!form.id || docUploading}
-                    className="px-4 py-2 rounded-full bg-neutral-900 text-neutral-50 text-xs font-semibold shadow hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                    className="px-4 py-2 rounded-xl bg-purple-700 text-white text-xs font-semibold shadow hover:bg-purple-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
                   >
                     {docUploading ? "Caricamento..." : "Allega"}
                   </button>
