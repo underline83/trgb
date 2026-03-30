@@ -2,7 +2,7 @@
 Migration 037 — Storico adeguamenti spese fisse (ISTAT, variazioni canone, ecc.)
 """
 
-def run(conn):
+def upgrade(conn):
     cur = conn.cursor()
 
     cur.execute("""
