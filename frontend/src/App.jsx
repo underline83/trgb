@@ -49,7 +49,7 @@ import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
 // GestioneContanti e MancePage ora dentro Flussi di Cassa
 
 // --- AREA AMMINISTRAZIONE ---
-import AdminMenu from "./pages/admin/AdminMenu";
+// AdminMenu rimosso — /admin ora redirect a /impostazioni
 import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
@@ -155,8 +155,8 @@ export default function App() {
         <Route path="/ricette/settings" element={<RicetteSettings />} />
         <Route path="/ricette/import" element={<Navigate to="/ricette/settings" replace />} />
 
-        {/* --- AREA AMMINISTRAZIONE --- */}
-        <Route path="/admin" element={<AdminMenu />} />
+        {/* --- AREA AMMINISTRAZIONE (redirect legacy) --- */}
+        <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />
 
         {/* --- GESTIONE VENDITE --- */}
         <Route path="/vendite" element={<CorrispettiviMenu />} />

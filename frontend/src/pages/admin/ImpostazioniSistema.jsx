@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
 // ---------------------------------------------------------------------------
@@ -14,18 +14,28 @@ const ROLE_LABELS = {
   viewer:    { label: "Viewer",    icon: "👁" },
 };
 const ALL_ROLES = ["admin", "chef", "sommelier", "sala", "viewer"];
+const VALID_TABS = ["utenti", "moduli", "backup"];
 
 // ---------------------------------------------------------------------------
 // COMPONENTE PRINCIPALE
 // ---------------------------------------------------------------------------
 export default function ImpostazioniSistema() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const currentUsername = localStorage.getItem("username") || "";
   const role = localStorage.getItem("role");
-  const [tab, setTab] = useState("utenti");
+
+  // Leggi tab dal query param ?tab=utenti|moduli|backup
+  const tabParam = searchParams.get("tab");
+  const [tab, setTab] = useState(VALID_TABS.includes(tabParam) ? tabParam : "utenti");
+
+  // Sync tab con query param quando cambia
+  useEffect(() => {
+    if (VALID_TABS.includes(tabParam) && tabParam !== tab) setTab(tabParam);
+  }, [tabParam]);
 
   useEffect(() => {
-    if (role !== "admin") navigate("/admin");
+    if (role !== "admin" && role !== "superadmin") navigate("/");
   }, []);
 
   return (
@@ -38,9 +48,9 @@ export default function ImpostazioniSistema() {
             <h1 className="text-3xl font-bold text-neutral-800 mb-1">⚙️ Impostazioni Sistema</h1>
             <p className="text-neutral-500 text-sm">Gestione utenti e permessi moduli.</p>
           </div>
-          <button onClick={() => navigate("/admin")}
+          <button onClick={() => navigate("/")}
             className="self-start px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
-            ← Torna
+            ← Home
           </button>
         </div>
 

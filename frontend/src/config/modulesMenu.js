@@ -90,7 +90,11 @@ const MODULES_MENU = {
   impostazioni: {
     title: "Impostazioni", icon: "\u2699\uFE0F", go: "/impostazioni",
     color: "bg-neutral-50 border-neutral-300 text-neutral-800", hoverBg: "hover:bg-neutral-100",
-    sub: [],
+    sub: [
+      { label: "Utenti & Ruoli",     go: "/impostazioni?tab=utenti" },
+      { label: "Moduli & Permessi",  go: "/impostazioni?tab=moduli" },
+      { label: "Backup",             go: "/impostazioni?tab=backup" },
+    ],
   },
 };
 
