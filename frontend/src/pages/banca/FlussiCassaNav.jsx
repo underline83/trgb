@@ -1,28 +1,23 @@
 // src/pages/banca/FlussiCassaNav.jsx
-// @version: v1.0 — Tab navigation per Flussi di Cassa
-// Ingloba: Conti Correnti (ex Banca), Carta di Credito, Contanti, Mance
+// @version: v1.1 — Tab navigation con permessi granulari
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
+import useModuleAccess from "../../hooks/useModuleAccess";
 
 const TABS = [
-  { key: "dashboard",  label: "Dashboard",        path: "/flussi-cassa/dashboard",  icon: "📊", check: null },
-  { key: "cc",         label: "Conti Correnti",    path: "/flussi-cassa/cc",         icon: "🏦", check: null },
-  { key: "carta",      label: "Carta di Credito",  path: "/flussi-cassa/carta",      icon: "💳", check: null },
-  { key: "contanti",   label: "Contanti",          path: "/flussi-cassa/contanti",   icon: "💰", check: "superadmin" },
-  { key: "mance",      label: "Mance",             path: "/flussi-cassa/mance",      icon: "🎁", check: null },
-  { key: "impostazioni", label: "Impostazioni",    path: "/flussi-cassa/impostazioni", icon: "⚙️", check: "admin" },
+  { key: "dashboard",    label: "Dashboard",        path: "/flussi-cassa/dashboard",    icon: "📊" },
+  { key: "cc",           label: "Conti Correnti",    path: "/flussi-cassa/cc",           icon: "🏦" },
+  { key: "carta",        label: "Carta di Credito",  path: "/flussi-cassa/carta",        icon: "💳" },
+  { key: "contanti",     label: "Contanti",          path: "/flussi-cassa/contanti",     icon: "💰" },
+  { key: "mance",        label: "Mance",             path: "/flussi-cassa/mance",        icon: "🎁" },
+  { key: "impostazioni", label: "Impostazioni",      path: "/flussi-cassa/impostazioni", icon: "⚙️" },
 ];
 
 export default function FlussiCassaNav({ current }) {
   const navigate = useNavigate();
-  const role = localStorage.getItem("role") || "";
+  const { canAccessSub } = useModuleAccess();
 
-  const visibleTabs = TABS.filter(tab =>
-    tab.check === null
-    || (tab.check === "admin" && isAdminRole(role))
-    || (tab.check === "superadmin" && isSuperAdminRole(role))
-  );
+  const visibleTabs = TABS.filter(tab => canAccessSub("flussi-cassa", tab.key));
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">

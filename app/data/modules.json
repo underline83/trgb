@@ -4,42 +4,71 @@
     "label": "Gestione Vini",
     "description": "Carta vini, magazzino, vendite, impostazioni",
     "icon": "🍷",
-    "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"]
+    "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"],
+    "sub": [
+      { "key": "carta",     "label": "Carta dei Vini", "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"] },
+      { "key": "vendite",   "label": "Vendite",        "roles": ["superadmin", "admin", "sommelier", "sala"] },
+      { "key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier"] },
+      { "key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "viewer"] },
+      { "key": "ipratico",  "label": "iPratico Sync",  "roles": ["superadmin", "admin"] },
+      { "key": "settings",  "label": "Impostazioni",   "roles": ["superadmin", "admin"] }
+    ]
   },
   {
     "key": "acquisti",
     "label": "Gestione Acquisti",
     "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
     "icon": "📦",
-    "roles": ["superadmin", "admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"],
+    "sub": [
+      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
+    ]
   },
   {
     "key": "ricette",
     "label": "Gestione Ricette",
     "description": "Archivio ricette, costi, stampa PDF",
     "icon": "📘",
-    "roles": ["superadmin", "admin", "chef", "viewer"]
-  },
-  {
-    "key": "foodcost",
-    "label": "Food Cost",
-    "description": "Analisi costi, materie prime, porzioni",
-    "icon": "📊",
-    "roles": ["superadmin", "admin", "chef", "viewer"]
+    "roles": ["superadmin", "admin", "chef", "viewer"],
+    "sub": [
+      { "key": "archivio",    "label": "Archivio",    "roles": ["superadmin", "admin", "chef", "viewer"] },
+      { "key": "ingredienti", "label": "Ingredienti", "roles": ["superadmin", "admin", "chef"] },
+      { "key": "matching",    "label": "Matching",    "roles": ["superadmin", "admin"] },
+      { "key": "dashboard",   "label": "Dashboard",   "roles": ["superadmin", "admin", "chef", "viewer"] },
+      { "key": "settings",    "label": "Strumenti",   "roles": ["superadmin", "admin"] }
+    ]
   },
   {
     "key": "vendite",
     "label": "Gestione Vendite",
-    "description": "Corrispettivi, chiusure cassa, dashboard vendite, confronto annuale",
+    "description": "Corrispettivi, chiusure cassa, dashboard vendite",
     "icon": "💵",
-    "roles": ["superadmin", "admin", "sala", "viewer"]
+    "roles": ["superadmin", "admin", "sala", "viewer"],
+    "sub": [
+      { "key": "fine-turno",   "label": "Chiusura Turno", "roles": ["superadmin", "admin", "sala"] },
+      { "key": "chiusure",     "label": "Lista Chiusure", "roles": ["superadmin", "admin"] },
+      { "key": "riepilogo",    "label": "Riepilogo",      "roles": ["superadmin", "admin"] },
+      { "key": "dashboard",    "label": "Dashboard",      "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "impostazioni", "label": "Impostazioni",   "roles": ["superadmin", "admin"] }
+    ]
   },
   {
     "key": "flussi-cassa",
     "label": "Flussi di Cassa",
     "description": "Conti correnti, carta di credito, contanti, mance",
     "icon": "🏦",
-    "roles": ["superadmin", "admin", "sala", "viewer"]
+    "roles": ["superadmin", "admin", "sala", "viewer"],
+    "sub": [
+      { "key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin"] },
+      { "key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin"] },
+      { "key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin"] },
+      { "key": "contanti",     "label": "Contanti",         "roles": ["superadmin", "admin"] },
+      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "sala"] },
+      { "key": "impostazioni", "label": "Impostazioni",     "roles": ["superadmin", "admin"] }
+    ]
   },
   {
     "key": "controllo-gestione",
@@ -53,7 +82,11 @@
     "label": "Statistiche",
     "description": "Analisi vendite iPratico, categorie, prodotti, trend",
     "icon": "📈",
-    "roles": ["superadmin", "admin", "viewer"]
+    "roles": ["superadmin", "admin", "viewer"],
+    "sub": [
+      { "key": "dashboard", "label": "Cucina",            "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "coperti",   "label": "Coperti & Incassi", "roles": ["superadmin", "admin", "viewer"] }
+    ]
   },
   {
     "key": "dipendenti",

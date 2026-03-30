@@ -1,4 +1,4 @@
-// @version: v4.0-ipratico-sync
+// @version: v5.0-permessi-granulari
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 
 // --- GESTIONE VINI ---
@@ -125,76 +126,71 @@ export default function App() {
         <Route path="/" element={<Home />} />
 
         {/* --- GESTIONE VINI --- */}
-        <Route path="/vini" element={<ViniMenu />} />
-        <Route path="/vini/carta" element={<ViniCarta />} />
-        <Route path="/vini/vendite" element={<ViniVendite />} />
-        <Route path="/vini/settings" element={<ViniImpostazioni />} />
-
-        {/* --- MAGAZZINO VINI --- */}
-        <Route path="/vini/magazzino" element={<MagazzinoVini />} />
-        <Route path="/vini/magazzino/nuovo" element={<MagazzinoViniNuovo />} />
-        <Route path="/vini/magazzino/admin" element={<MagazzinoAdmin />} />
-        <Route path="/vini/magazzino/registro" element={<RegistroMovimenti />} />
+        <Route path="/vini" element={<ProtectedRoute module="vini"><ViniMenu /></ProtectedRoute>} />
+        <Route path="/vini/carta" element={<ProtectedRoute module="vini" sub="carta"><ViniCarta /></ProtectedRoute>} />
+        <Route path="/vini/vendite" element={<ProtectedRoute module="vini" sub="vendite"><ViniVendite /></ProtectedRoute>} />
+        <Route path="/vini/settings" element={<ProtectedRoute module="vini" sub="settings"><ViniImpostazioni /></ProtectedRoute>} />
+        <Route path="/vini/magazzino" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoVini /></ProtectedRoute>} />
+        <Route path="/vini/magazzino/nuovo" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniNuovo /></ProtectedRoute>} />
+        <Route path="/vini/magazzino/admin" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoAdmin /></ProtectedRoute>} />
+        <Route path="/vini/magazzino/registro" element={<ProtectedRoute module="vini" sub="magazzino"><RegistroMovimenti /></ProtectedRoute>} />
         <Route path="/vini/magazzino/tools" element={<Navigate to="/vini/settings" replace />} />
-        <Route path="/vini/magazzino/:id" element={<MagazzinoViniDettaglio />} />
-
-        {/* --- DASHBOARD VINI --- */}
-        <Route path="/vini/dashboard" element={<DashboardVini />} />
-        <Route path="/vini/ipratico" element={<IPraticoSync />} />
+        <Route path="/vini/magazzino/:id" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniDettaglio /></ProtectedRoute>} />
+        <Route path="/vini/dashboard" element={<ProtectedRoute module="vini" sub="dashboard"><DashboardVini /></ProtectedRoute>} />
+        <Route path="/vini/ipratico" element={<ProtectedRoute module="vini" sub="ipratico"><IPraticoSync /></ProtectedRoute>} />
 
         {/* --- GESTIONE RICETTE & FOOD COST --- */}
-        <Route path="/ricette" element={<RicetteMenu />} />
-        <Route path="/ricette/nuova" element={<RicetteNuova />} />
-        <Route path="/ricette/archivio" element={<RicetteArchivio />} />
-        <Route path="/ricette/:id" element={<RicetteDettaglio />} />
-        <Route path="/ricette/modifica/:id" element={<RicetteModifica />} />
-        <Route path="/ricette/ingredienti" element={<RicetteIngredienti />} />
-        <Route path="/ricette/ingredienti/:id/prezzi" element={<RicetteIngredientiPrezzi />} />
-        <Route path="/ricette/matching" element={<RicetteMatching />} />
-        <Route path="/ricette/dashboard" element={<RicetteDashboard />} />
-        <Route path="/ricette/settings" element={<RicetteSettings />} />
+        <Route path="/ricette" element={<ProtectedRoute module="ricette"><RicetteMenu /></ProtectedRoute>} />
+        <Route path="/ricette/nuova" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteNuova /></ProtectedRoute>} />
+        <Route path="/ricette/archivio" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteArchivio /></ProtectedRoute>} />
+        <Route path="/ricette/:id" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteDettaglio /></ProtectedRoute>} />
+        <Route path="/ricette/modifica/:id" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteModifica /></ProtectedRoute>} />
+        <Route path="/ricette/ingredienti" element={<ProtectedRoute module="ricette" sub="ingredienti"><RicetteIngredienti /></ProtectedRoute>} />
+        <Route path="/ricette/ingredienti/:id/prezzi" element={<ProtectedRoute module="ricette" sub="ingredienti"><RicetteIngredientiPrezzi /></ProtectedRoute>} />
+        <Route path="/ricette/matching" element={<ProtectedRoute module="ricette" sub="matching"><RicetteMatching /></ProtectedRoute>} />
+        <Route path="/ricette/dashboard" element={<ProtectedRoute module="ricette" sub="dashboard"><RicetteDashboard /></ProtectedRoute>} />
+        <Route path="/ricette/settings" element={<ProtectedRoute module="ricette" sub="settings"><RicetteSettings /></ProtectedRoute>} />
         <Route path="/ricette/import" element={<Navigate to="/ricette/settings" replace />} />
 
         {/* --- AREA AMMINISTRAZIONE (redirect legacy) --- */}
         <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />
 
         {/* --- GESTIONE VENDITE --- */}
-        <Route path="/vendite" element={<CorrispettiviMenu />} />
-        <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
-        <Route path="/vendite/chiusure" element={<ChiusureTurnoLista />} />
+        <Route path="/vendite" element={<ProtectedRoute module="vendite"><CorrispettiviMenu /></ProtectedRoute>} />
+        <Route path="/vendite/riepilogo" element={<ProtectedRoute module="vendite" sub="riepilogo"><CorrispettiviRiepilogo /></ProtectedRoute>} />
+        <Route path="/vendite/chiusure" element={<ProtectedRoute module="vendite" sub="chiusure"><ChiusureTurnoLista /></ProtectedRoute>} />
         <Route path="/vendite/mance" element={<Navigate to="/flussi-cassa/mance" replace />} />
         <Route path="/vendite/contanti" element={<Navigate to="/flussi-cassa/contanti" replace />} />
         <Route path="/vendite/preconti" element={<Navigate to="/flussi-cassa/contanti" replace />} />
-        <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
-        <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
+        <Route path="/vendite/chiusure-old" element={<ProtectedRoute module="vendite"><CorrispettiviGestione /></ProtectedRoute>} />
+        <Route path="/vendite/dashboard" element={<ProtectedRoute module="vendite" sub="dashboard"><CorrispettiviDashboard /></ProtectedRoute>} />
         <Route path="/vendite/annual" element={<Navigate to="/vendite/dashboard?mode=annuale" replace />} />
-        <Route path="/vendite/fine-turno" element={<ChiusuraTurno />} />
-        <Route path="/vendite/impostazioni" element={<CorrispettiviImport />} />
+        <Route path="/vendite/fine-turno" element={<ProtectedRoute module="vendite" sub="fine-turno"><ChiusuraTurno /></ProtectedRoute>} />
+        <Route path="/vendite/impostazioni" element={<ProtectedRoute module="vendite" sub="impostazioni"><CorrispettiviImport /></ProtectedRoute>} />
         <Route path="/vendite/import" element={<Navigate to="/vendite/impostazioni" replace />} />
 
         {/* --- GESTIONE ACQUISTI --- */}
-        <Route path="/acquisti" element={<Navigate to="/acquisti/dashboard" replace />} />
-        <Route path="/acquisti/dashboard" element={<FattureDashboard />} />
-        <Route path="/acquisti/fatture" element={<FattureElenco />} />
-        <Route path="/acquisti/dettaglio/:id" element={<FattureDettaglio />} />
-        <Route path="/acquisti/fornitori" element={<FattureFornitoriElenco />} />
+        <Route path="/acquisti" element={<ProtectedRoute module="acquisti"><Navigate to="/acquisti/dashboard" replace /></ProtectedRoute>} />
+        <Route path="/acquisti/dashboard" element={<ProtectedRoute module="acquisti" sub="dashboard"><FattureDashboard /></ProtectedRoute>} />
+        <Route path="/acquisti/fatture" element={<ProtectedRoute module="acquisti" sub="fatture"><FattureElenco /></ProtectedRoute>} />
+        <Route path="/acquisti/dettaglio/:id" element={<ProtectedRoute module="acquisti" sub="fatture"><FattureDettaglio /></ProtectedRoute>} />
+        <Route path="/acquisti/fornitori" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoriElenco /></ProtectedRoute>} />
         <Route path="/acquisti/categorie" element={<Navigate to="/acquisti/impostazioni" replace />} />
-        <Route path="/acquisti/impostazioni" element={<FattureImpostazioni />} />
-        <Route path="/acquisti/fornitore/:piva" element={<FattureFornitoreDettaglio />} />
-        {/* Redirect vecchie rotte */}
+        <Route path="/acquisti/impostazioni" element={<ProtectedRoute module="acquisti" sub="impostazioni"><FattureImpostazioni /></ProtectedRoute>} />
+        <Route path="/acquisti/fornitore/:piva" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoreDettaglio /></ProtectedRoute>} />
         <Route path="/acquisti/elenco" element={<Navigate to="/acquisti/fatture" replace />} />
         <Route path="/acquisti/import" element={<Navigate to="/acquisti/impostazioni" replace />} />
         <Route path="/acquisti/fic" element={<Navigate to="/acquisti/impostazioni" replace />} />
 
         {/* --- FLUSSI DI CASSA (ex Banca) --- */}
-        <Route path="/flussi-cassa" element={<FlussiCassaMenu />} />
-        <Route path="/flussi-cassa/dashboard" element={<BancaDashboard />} />
-        <Route path="/flussi-cassa/cc" element={<BancaMovimenti />} />
-        <Route path="/flussi-cassa/cc/crossref" element={<BancaCrossRef />} />
-        <Route path="/flussi-cassa/carta" element={<CartaCreditoPage />} />
-        <Route path="/flussi-cassa/contanti" element={<FlussiCassaContanti />} />
-        <Route path="/flussi-cassa/mance" element={<FlussiCassaMance />} />
-        <Route path="/flussi-cassa/impostazioni" element={<BancaImpostazioni />} />
+        <Route path="/flussi-cassa" element={<ProtectedRoute module="flussi-cassa"><FlussiCassaMenu /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/dashboard" element={<ProtectedRoute module="flussi-cassa" sub="dashboard"><BancaDashboard /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/cc" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaMovimenti /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/cc/crossref" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaCrossRef /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/carta" element={<ProtectedRoute module="flussi-cassa" sub="carta"><CartaCreditoPage /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/contanti" element={<ProtectedRoute module="flussi-cassa" sub="contanti"><FlussiCassaContanti /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/mance" element={<ProtectedRoute module="flussi-cassa" sub="mance"><FlussiCassaMance /></ProtectedRoute>} />
+        <Route path="/flussi-cassa/impostazioni" element={<ProtectedRoute module="flussi-cassa" sub="impostazioni"><BancaImpostazioni /></ProtectedRoute>} />
         {/* Redirect vecchie rotte /banca */}
         <Route path="/banca" element={<Navigate to="/flussi-cassa" replace />} />
         <Route path="/banca/dashboard" element={<Navigate to="/flussi-cassa/dashboard" replace />} />
@@ -205,26 +201,26 @@ export default function App() {
         <Route path="/banca/categorie" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
 
         {/* --- CONTROLLO DI GESTIONE --- */}
-        <Route path="/controllo-gestione" element={<ControlloGestioneMenu />} />
-        <Route path="/controllo-gestione/dashboard" element={<ControlloGestioneDashboard />} />
-        <Route path="/controllo-gestione/confronto" element={<ControlloGestioneConfronto />} />
-        <Route path="/controllo-gestione/uscite" element={<ControlloGestioneUscite />} />
-        <Route path="/controllo-gestione/spese-fisse" element={<ControlloGestioneSpeseFisse />} />
+        <Route path="/controllo-gestione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneMenu /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/dashboard" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneDashboard /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />
 
         {/* --- STATISTICHE --- */}
-        <Route path="/statistiche" element={<StatisticheMenu />} />
-        <Route path="/statistiche/dashboard" element={<StatisticheDashboard />} />
-        <Route path="/statistiche/prodotti" element={<StatisticheProdotti />} />
-        <Route path="/statistiche/import" element={<StatisticheImport />} />
-        <Route path="/statistiche/coperti" element={<StatisticheCoperti />} />
+        <Route path="/statistiche" element={<ProtectedRoute module="statistiche"><StatisticheMenu /></ProtectedRoute>} />
+        <Route path="/statistiche/dashboard" element={<ProtectedRoute module="statistiche" sub="dashboard"><StatisticheDashboard /></ProtectedRoute>} />
+        <Route path="/statistiche/prodotti" element={<ProtectedRoute module="statistiche"><StatisticheProdotti /></ProtectedRoute>} />
+        <Route path="/statistiche/import" element={<ProtectedRoute module="statistiche"><StatisticheImport /></ProtectedRoute>} />
+        <Route path="/statistiche/coperti" element={<ProtectedRoute module="statistiche" sub="coperti"><StatisticheCoperti /></ProtectedRoute>} />
 
         {/* --- DIPENDENTI (modulo top-level) --- */}
-        <Route path="/dipendenti" element={<DipendentiMenu />} />
-        <Route path="/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
-        <Route path="/dipendenti/turni" element={<DipendentiTurni />} />
-        <Route path="/dipendenti/costi" element={<DipendentiCosti />} />
-        <Route path="/dipendenti/buste-paga" element={<DipendentiBustePaga />} />
-        <Route path="/dipendenti/scadenze" element={<DipendentiScadenze />} />
+        <Route path="/dipendenti" element={<ProtectedRoute module="dipendenti"><DipendentiMenu /></ProtectedRoute>} />
+        <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti"><DipendentiAnagrafica /></ProtectedRoute>} />
+        <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti"><DipendentiTurni /></ProtectedRoute>} />
+        <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti"><DipendentiCosti /></ProtectedRoute>} />
+        <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti"><DipendentiBustePaga /></ProtectedRoute>} />
+        <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti"><DipendentiScadenze /></ProtectedRoute>} />
         {/* Redirect vecchi path admin */}
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
 
@@ -232,7 +228,7 @@ export default function App() {
         <Route path="/cambio-pin" element={<CambioPIN />} />
 
         {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
-        <Route path="/impostazioni" element={<ImpostazioniSistema />} />
+        <Route path="/impostazioni" element={<ProtectedRoute module="impostazioni"><ImpostazioniSistema /></ProtectedRoute>} />
         <Route path="/admin/impostazioni" element={<Navigate to="/impostazioni" replace />} />
 
         {/* CATCH-ALL */}

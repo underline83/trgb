@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap & TO-DO
-**Ultimo aggiornamento:** 2026-03-21
+**Ultimo aggiornamento:** 2026-03-30
 
 Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
@@ -93,9 +93,13 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Storico variazione costi ricette
 - [ ] Collegamento consumi → magazzino
 
-## 22. Dipendenti — allegati
-- [ ] Tabella `dipendenti_allegati` esiste ma senza endpoint ne' frontend
-- [ ] Decidere se implementare o rimuovere
+## 22. Dipendenti — allegati e buste paga
+- [x] Tab Documenti unificata: allegati manuali + cedolini PDF — 2026-03-30
+- [x] Endpoint documenti: GET/POST/DELETE per allegati + lista unificata — 2026-03-30
+- [x] Import buste paga PDF 2-step con anteprima — 2026-03-30
+- [x] Estrazione cedolini individuali con pikepdf — 2026-03-30
+- [x] Auto-creazione dipendenti da LUL — 2026-03-30
+- [x] Anagrafica layout riscritto: sidebar lista + area dettaglio con tab — 2026-03-30
 
 ## 25. Sistema permessi centralizzato
 - [ ] `app/core/permissions.py` con matrice permessi
@@ -158,6 +162,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 **Trigger per partire:** foodcost.db > 50 MB, oppure problemi di lock SQLite in concorrenza, oppure necessità di backup/restore granulare per modulo.
 
 ## 28. Modulo Flussi di Cassa (ex Banca) — evoluzione
+- [x] Rename Banca → Flussi di Cassa (routes, nav, modules.json) — 2026-03-30
+- [x] Contanti + Mance spostati da Vendite a Flussi di Cassa — 2026-03-30
+- [x] Movimenti Contanti: pagamento spese in contanti (sub-tab) — 2026-03-30
+- [x] Carta di Credito: scheletro UI pronto — 2026-03-30
 - [ ] Riconciliazione banca: match automatico movimenti → fatture (migliorare cross-ref)
 - [ ] Eliminare scadenza mista BPM
 - [ ] Migliorare categorizzazione scadenze
@@ -180,6 +188,7 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | **2026.03.15** | Statistiche v1.0 + unificazione loader carta + fix delete movimenti | Completato |
 | **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |
 | **2026.03.21** | iPratico Sync v2.0: import/export prodotti, match diretto, TRGB priority, default configurabili | Completato |
+| **2026.03.30** | Sessione 18: Dipendenti v2.1, CG v1.2, Flussi di Cassa v1.1, Sistema v5.0 (flyout header) | Completato |
 | **Prossimo** | Test e2e iPratico, checklist turno, carta vini pubblica, permessi centralizzati | Pianificato |
 
 ---
@@ -188,6 +197,10 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 | # | Task | Data |
 |---|------|------|
+| — | Sistema v5.0: Header flyout, Impostazioni standalone, modulesMenu.js | 2026-03-30 |
+| — | Flussi di Cassa v1.1: rename Banca, Contanti+Mance, Movimenti Contanti | 2026-03-30 |
+| — | CG v1.2: sync import, stato contanti PAGATA, cleanFatt, fix ricerca | 2026-03-30 |
+| 22 | Dipendenti v2.1: Buste Paga import PDF, Anagrafica v2.0, Tab Documenti | 2026-03-30 |
 | 30 | iPratico Sync v2.0: import/export, match diretto, TRGB priority, default config | 2026-03-21 |
 | 17 | Cantina v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar | 2026-03-16 |
 | — | Statistiche v1.0 + unificazione loader + fix delete movimenti | 2026-03-15 |

@@ -1,18 +1,9 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v4.1 — Flyout allineato alla riga + safe-zone diagonale
+// @version: v4.2 — Flyout con permessi granulari da useModuleAccess
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { API_BASE, apiFetch } from "../config/api";
 import MODULES_MENU from "../config/modulesMenu";
-
-const isAdminRole = (r) => ["admin", "superadmin"].includes(r);
-const isSuperAdmin = (r) => r === "superadmin";
-const canSee = (check, role) => {
-  if (!check) return true;
-  if (check === "admin") return isAdminRole(role);
-  if (check === "superadmin") return isSuperAdmin(role);
-  return true;
-};
+import useModuleAccess from "../hooks/useModuleAccess";
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
@@ -21,30 +12,17 @@ export default function Header({ onLogout }) {
   const role = localStorage.getItem("role") || "";
   const isViewer = role === "viewer";
 
+  const { visibleModules, canAccessSub, modules: modulesData } = useModuleAccess();
+
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(null);
   const [flyoutTop, setFlyoutTop] = useState(0);
-  const [modules, setModules] = useState(null);
   const dropRef = useRef(null);
   const listRef = useRef(null);
   const rowRefs = useRef({});
   const leaveTimer = useRef(null);
-  // Per "safe zone": traccia la posizione del mouse
-  const mousePos = useRef({ x: 0, y: 0 });
   const intentTimer = useRef(null);
   const pendingKey = useRef(null);
-
-  // Carica moduli visibili
-  useEffect(() => {
-    apiFetch(`${API_BASE}/settings/modules/`)
-      .then(r => r.json())
-      .then(setModules)
-      .catch(() => {
-        setModules(Object.keys(MODULES_MENU).map(key => ({
-          key, roles: ["superadmin", "admin", "chef", "sommelier", "sala", "viewer"]
-        })));
-      });
-  }, []);
 
   // Track mouse position dentro il dropdown (per intent detection)
   useEffect(() => {
@@ -69,12 +47,9 @@ export default function Header({ onLogout }) {
   // Chiudi su navigazione
   useEffect(() => { setOpen(false); setHovered(null); }, [location.pathname, location.search]);
 
-  // Filtra moduli visibili per ruolo
-  const visibleKeys = modules
-    ? modules
-        .filter(m => m.roles?.includes(role) || (role === "superadmin" && m.roles?.includes("admin")))
-        .map(m => m.key)
-        .filter(k => MODULES_MENU[k])
+  // Filtra moduli visibili per ruolo (da useModuleAccess)
+  const visibleKeys = visibleModules
+    ? visibleModules.filter(k => MODULES_MENU[k])
     : Object.keys(MODULES_MENU);
 
   // Rileva modulo corrente dal path
@@ -202,7 +177,13 @@ export default function Header({ onLogout }) {
                   const cfg = MODULES_MENU[key];
                   const isActive = currentModule && currentModule[0] === key;
                   const isHov = hovered === key;
-                  const visibleSubs = (cfg.sub || []).filter(s => canSee(s.check, role));
+                  // Filtra sotto-menu: usa permessi granulari da modules.json
+                  const visibleSubs = (cfg.sub || []).filter(s => {
+                    // Estrai sub key dal path (es. "/flussi-cassa/mance" → "mance")
+                    const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
+                    const subKey = pathParts.length > 1 ? pathParts[1] : null;
+                    return subKey ? canAccessSub(key, subKey) : true;
+                  });
 
                   return (
                     <div
@@ -241,7 +222,11 @@ export default function Header({ onLogout }) {
               {hovered && (() => {
                 const cfg = MODULES_MENU[hovered];
                 if (!cfg) return null;
-                const visibleSubs = (cfg.sub || []).filter(s => canSee(s.check, role));
+                const visibleSubs = (cfg.sub || []).filter(s => {
+                  const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
+                  const subKey = pathParts.length > 1 ? pathParts[1] : null;
+                  return subKey ? canAccessSub(hovered, subKey) : true;
+                });
                 if (visibleSubs.length === 0) return null;
 
                 return (

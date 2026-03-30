@@ -3,6 +3,39 @@
 
 ---
 
+## 2026-03-30 — Sistema v5.0: Header flyout, Impostazioni standalone
+
+#### Changed — Header v4.1: menu navigazione flyout
+- Click sul nome modulo in alto a sinistra → dropdown con lista moduli
+- Hover su un modulo → pannello flyout laterale con sotto-menu, allineato alla riga
+- Click su modulo → navigazione alla homepage; click su sotto-voce → navigazione diretta
+- Safe-zone invisibile + intent detection (stile Amazon) per evitare flicker diagonale
+- Configurazione moduli centralizzata in `modulesMenu.js` (usata da Home e Header)
+
+#### Changed — Impostazioni modulo standalone
+- Rimosso hub "Amministrazione" (AdminMenu.jsx non più referenziato)
+- `/admin` → redirect automatico a `/impostazioni`
+- Impostazioni con 3 tab: Utenti & Ruoli, Moduli & Permessi, Backup
+- Query param `?tab=utenti|moduli|backup` per link diretto ai tab
+- Accesso consentito a ruoli admin e superadmin
+- Pulsante "Torna" → Home (non più /admin)
+- `/admin/dipendenti/*` → redirect a `/dipendenti` (modulo top-level)
+
+#### Fixed — Controllo Gestione v1.2: sync import e stato contanti
+- Import uscite: sync completo di totale, numero_fattura, data_fattura, fornitore per righe non pagate
+- Pulizia fatture azzerate: se totale fattura scende a 0, uscita marcata PAGATA con nota
+- Pagamenti CONTANTI → stato PAGATA (non PAGATA_MANUALE), migrazione 040 retroattiva
+- `cleanFatt()` helper per &mdash; e stringhe vuote nel numero fattura
+- Ricerca uscite-da-pagare: COALESCE per ordinamento scadenze NULL, caricamento automatico
+
+#### Changed — Flussi di Cassa v1.1
+- Movimenti Contanti: sub-tab "Pagamenti spese" e "Versamenti in banca"
+- Pagamenti spese: ricerca uscite, selezione multipla, segna-pagate-bulk con CONTANTI
+- Backend: endpoint movimenti-contanti e uscite-da-pagare con alias `totale AS importo`
+- Frontend: fallback `importo_pagato || importo` per display corretto
+
+---
+
 ## 2026-03-30 — Movimenti Contanti: pagamento spese in contanti
 
 #### Changed — Sezione "Contanti da versare" → "Movimenti Contanti"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { invalidateModulesCache } from "../../hooks/useModuleAccess";
 
 // ---------------------------------------------------------------------------
 // COSTANTI
@@ -335,7 +336,7 @@ function TabUtenti({ currentUsername }) {
 }
 
 // ---------------------------------------------------------------------------
-// TAB MODULI
+// TAB MODULI — con sotto-moduli espandibili
 // ---------------------------------------------------------------------------
 function TabModuli() {
   const [modules, setModules] = useState([]);
@@ -343,6 +344,7 @@ function TabModuli() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [expanded, setExpanded] = useState({}); // { moduleKey: true/false }
 
   useEffect(() => {
     apiFetch(`${API_BASE}/settings/modules/`)
@@ -352,17 +354,62 @@ function TabModuli() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Toggle espansione sotto-moduli
+  function toggleExpand(key) {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  // Check se un ruolo è attivo per un modulo
   function hasRole(moduleKey, checkRole) {
     return modules.find((x) => x.key === moduleKey)?.roles?.includes(checkRole) ?? false;
   }
 
+  // Check se un ruolo è attivo per un sotto-modulo
+  function hasSubRole(moduleKey, subKey, checkRole) {
+    const mod = modules.find((x) => x.key === moduleKey);
+    if (!mod?.sub) return false;
+    const sub = mod.sub.find(s => s.key === subKey);
+    return sub?.roles?.includes(checkRole) ?? false;
+  }
+
+  // Toggle ruolo modulo — se si toglie un ruolo dal modulo padre, si toglie anche da tutti i sotto-moduli
   function toggleRole(moduleKey, checkRole) {
-    if (moduleKey === "admin" || checkRole === "admin") return;
+    if (moduleKey === "impostazioni" || checkRole === "admin") return;
     setModules((prev) =>
       prev.map((m) => {
         if (m.key !== moduleKey) return m;
         const has = m.roles.includes(checkRole);
-        return { ...m, roles: has ? m.roles.filter((r) => r !== checkRole) : [...m.roles, checkRole] };
+        const newRoles = has ? m.roles.filter((r) => r !== checkRole) : [...m.roles, checkRole];
+        // Se si toglie il ruolo dal modulo, toglilo anche da tutti i sotto-moduli
+        let newSub = m.sub;
+        if (has && m.sub) {
+          newSub = m.sub.map(s => ({
+            ...s,
+            roles: s.roles.filter(r => r !== checkRole),
+          }));
+        }
+        return { ...m, roles: newRoles, sub: newSub };
+      })
+    );
+    setSaved(false);
+  }
+
+  // Toggle ruolo sotto-modulo
+  function toggleSubRole(moduleKey, subKey, checkRole) {
+    if (checkRole === "admin") return;
+    // Il ruolo deve essere abilitato nel modulo padre
+    if (!hasRole(moduleKey, checkRole)) return;
+    setModules((prev) =>
+      prev.map((m) => {
+        if (m.key !== moduleKey || !m.sub) return m;
+        return {
+          ...m,
+          sub: m.sub.map(s => {
+            if (s.key !== subKey) return s;
+            const has = s.roles.includes(checkRole);
+            return { ...s, roles: has ? s.roles.filter(r => r !== checkRole) : [...s.roles, checkRole] };
+          }),
+        };
       })
     );
     setSaved(false);
@@ -371,12 +418,18 @@ function TabModuli() {
   async function handleSave() {
     setSaving(true); setError(""); setSaved(false);
     try {
+      const payload = modules.map(({ key, roles, sub }) => ({
+        key, roles,
+        ...(sub ? { sub: sub.map(s => ({ key: s.key, roles: s.roles })) } : {}),
+      }));
       const res = await apiFetch(`${API_BASE}/settings/modules/`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modules.map(({ key, roles }) => ({ key, roles }))),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
-      setModules(await res.json());
+      const updated = await res.json();
+      setModules(updated);
+      invalidateModulesCache(); // Forza ricaricamento della cache globale
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e) { setError(e.message); }
@@ -384,7 +437,26 @@ function TabModuli() {
   }
 
   if (loading) return <p className="text-center text-neutral-400 py-12">Caricamento...</p>;
-  if (error) return <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4">{error}</div>;
+  if (error && modules.length === 0) return <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4">{error}</div>;
+
+  // Componente checkbox riutilizzabile
+  const Chk = ({ checked, locked, dimmed, onClick }) => (
+    <div className="flex justify-center">
+      <button onClick={onClick} disabled={locked}
+        className={`w-5 h-5 rounded border-2 transition flex items-center justify-center
+          ${locked ? "cursor-not-allowed opacity-30 border-neutral-200 bg-neutral-100" : "cursor-pointer"}
+          ${dimmed && !locked ? "opacity-40" : ""}
+          ${!locked && checked ? "bg-teal-600 border-teal-600" : ""}
+          ${!locked && !checked ? "bg-white border-neutral-300 hover:border-neutral-400" : ""}
+        `}>
+        {checked && (
+          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+          </svg>
+        )}
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -392,77 +464,112 @@ function TabModuli() {
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 border-b border-neutral-200">
             <tr>
-              <th className="text-left px-5 py-4 font-semibold text-neutral-600">Modulo</th>
-              <th className="text-center px-4 py-4 font-semibold text-neutral-400">
+              <th className="text-left px-5 py-4 font-semibold text-neutral-600 min-w-[200px]">Modulo</th>
+              <th className="text-center px-3 py-4 font-semibold text-neutral-400">
                 <div>{ROLE_LABELS.admin.icon}</div>
-                <div className="text-xs">{ROLE_LABELS.admin.label}</div>
+                <div className="text-[10px]">{ROLE_LABELS.admin.label}</div>
               </th>
               {ROLES.map((r) => (
-                <th key={r} className="text-center px-4 py-4 font-semibold text-neutral-600">
+                <th key={r} className="text-center px-3 py-4 font-semibold text-neutral-600">
                   <div>{ROLE_LABELS[r].icon}</div>
-                  <div className="text-xs">{ROLE_LABELS[r].label}</div>
+                  <div className="text-[10px]">{ROLE_LABELS[r].label}</div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {modules.map((m, i) => (
-              <tr key={m.key} className={`border-b border-neutral-100 ${i % 2 === 0 ? "" : "bg-neutral-50/50"}`}>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{m.icon}</span>
-                    <div>
-                      <div className="font-medium text-neutral-800">{m.label}</div>
-                      <div className="text-xs text-neutral-400">{m.description}</div>
-                    </div>
-                  </div>
-                </td>
-                {/* Admin — sempre spuntato */}
-                <td className="text-center px-4 py-4">
-                  <div className="flex justify-center">
-                    <div className="w-5 h-5 rounded bg-neutral-200 flex items-center justify-center">
-                      <svg className="w-3 h-3 text-neutral-700" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                      </svg>
-                    </div>
-                  </div>
-                </td>
-                {ROLES.map((r) => {
-                  const locked = m.key === "admin";
-                  const checked = hasRole(m.key, r);
-                  return (
-                    <td key={r} className="text-center px-4 py-4">
-                      <div className="flex justify-center">
-                        <button onClick={() => toggleRole(m.key, r)} disabled={locked}
-                          className={`w-5 h-5 rounded border-2 transition flex items-center justify-center
-                            ${locked ? "cursor-not-allowed opacity-30 border-neutral-200 bg-neutral-100" : "cursor-pointer"}
-                            ${!locked && checked ? "bg-neutral-500 border-neutral-500" : ""}
-                            ${!locked && !checked ? "bg-white border-neutral-300 hover:border-neutral-400" : ""}
-                          `}>
-                          {checked && (
-                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+            {modules.map((m) => {
+              const hasSubs = m.sub && m.sub.length > 0;
+              const isExpanded = expanded[m.key];
+              const lockedModule = m.key === "impostazioni";
+
+              return (
+                <React.Fragment key={m.key}>
+                  {/* RIGA MODULO */}
+                  <tr className="border-b border-neutral-100 hover:bg-neutral-50/60">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        {hasSubs ? (
+                          <button onClick={() => toggleExpand(m.key)}
+                            className="w-5 h-5 flex items-center justify-center rounded hover:bg-neutral-200 transition text-neutral-400">
+                            <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}
+                              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>
+                          </button>
+                        ) : (
+                          <div className="w-5" />
+                        )}
+                        <span className="text-lg">{m.icon}</span>
+                        <div>
+                          <div className="font-semibold text-neutral-800">{m.label}</div>
+                          {hasSubs && (
+                            <div className="text-[11px] text-neutral-400">
+                              {m.sub.length} sotto-sezioni
+                            </div>
                           )}
-                        </button>
+                        </div>
                       </div>
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    {/* Admin — sempre spuntato */}
+                    <td className="text-center px-3 py-3.5">
+                      <Chk checked locked />
+                    </td>
+                    {ROLES.map((r) => (
+                      <td key={r} className="text-center px-3 py-3.5">
+                        <Chk
+                          checked={hasRole(m.key, r)}
+                          locked={lockedModule}
+                          onClick={() => toggleRole(m.key, r)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* RIGHE SOTTO-MODULI (espandibili) */}
+                  {isExpanded && hasSubs && m.sub.map((s) => (
+                    <tr key={`${m.key}-${s.key}`} className="border-b border-neutral-50 bg-neutral-50/30">
+                      <td className="pl-16 pr-5 py-2.5">
+                        <span className="text-[13px] text-neutral-600">{s.label}</span>
+                      </td>
+                      {/* Admin — sempre spuntato */}
+                      <td className="text-center px-3 py-2.5">
+                        <Chk checked locked />
+                      </td>
+                      {ROLES.map((r) => {
+                        const parentHas = hasRole(m.key, r);
+                        const subHas = hasSubRole(m.key, s.key, r);
+                        return (
+                          <td key={r} className="text-center px-3 py-2.5">
+                            <Chk
+                              checked={subHas}
+                              locked={!parentHas}
+                              dimmed={!parentHas}
+                              onClick={() => toggleSubRole(m.key, s.key, r)}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       <p className="text-xs text-neutral-400 mb-6">
-        Admin ha sempre accesso a tutto. I moduli non selezionati non vengono mostrati agli utenti con quel ruolo.
+        Admin e Superadmin hanno sempre accesso a tutto. Clicca la freccia per espandere i sotto-moduli.
+        Togliendo un ruolo dal modulo principale, viene rimosso anche da tutti i sotto-moduli.
       </p>
+
+      {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
       <div className="flex items-center gap-4">
         <button onClick={handleSave} disabled={saving}
-          className="px-6 py-2.5 bg-neutral-600 text-white rounded-xl text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 shadow transition">
-          {saving ? "Salvataggio..." : "Salva impostazioni"}
+          className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 disabled:opacity-50 shadow transition">
+          {saving ? "Salvataggio..." : "Salva permessi"}
         </button>
         {saved && <span className="text-green-600 text-sm font-medium">✓ Salvato</span>}
       </div>

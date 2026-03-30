@@ -1,40 +1,36 @@
 // src/pages/banca/FlussiCassaMenu.jsx
-// @version: v1.0 — Menu principale Flussi di Cassa
+// @version: v1.1 — Menu Flussi di Cassa con permessi granulari
 import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
-import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
+import useModuleAccess from "../../hooks/useModuleAccess";
 
 const CARDS = [
-  { to: "/flussi-cassa/dashboard", icon: "📊", title: "Dashboard",
+  { to: "/flussi-cassa/dashboard", sub: "dashboard", icon: "📊", title: "Dashboard",
     desc: "Panoramica saldo, entrate/uscite, andamento.",
-    bg: "bg-emerald-50 border-emerald-200 text-emerald-900", check: null },
-  { to: "/flussi-cassa/cc", icon: "🏦", title: "Conti Correnti",
+    bg: "bg-emerald-50 border-emerald-200 text-emerald-900" },
+  { to: "/flussi-cassa/cc", sub: "cc", icon: "🏦", title: "Conti Correnti",
     desc: "Movimenti bancari, categorie, cross-ref fatture.",
-    bg: "bg-blue-50 border-blue-200 text-blue-900", check: null },
-  { to: "/flussi-cassa/carta", icon: "💳", title: "Carta di Credito",
+    bg: "bg-blue-50 border-blue-200 text-blue-900" },
+  { to: "/flussi-cassa/carta", sub: "carta", icon: "💳", title: "Carta di Credito",
     desc: "Estratto conto carta, riconciliazione spese.",
-    bg: "bg-violet-50 border-violet-200 text-violet-900", check: null },
-  { to: "/flussi-cassa/contanti", icon: "💰", title: "Contanti",
+    bg: "bg-violet-50 border-violet-200 text-violet-900" },
+  { to: "/flussi-cassa/contanti", sub: "contanti", icon: "💰", title: "Contanti",
     desc: "Contanti da versare, pre-conti, spese turno e varie.",
-    bg: "bg-amber-50 border-amber-200 text-amber-900", check: "superadmin" },
-  { to: "/flussi-cassa/mance", icon: "🎁", title: "Mance",
+    bg: "bg-amber-50 border-amber-200 text-amber-900" },
+  { to: "/flussi-cassa/mance", sub: "mance", icon: "🎁", title: "Mance",
     desc: "Mance registrate dai turni — per distribuzione al personale.",
-    bg: "bg-rose-50 border-rose-200 text-rose-900", check: null },
-  { to: "/flussi-cassa/impostazioni", icon: "⚙️", title: "Impostazioni",
+    bg: "bg-rose-50 border-rose-200 text-rose-900" },
+  { to: "/flussi-cassa/impostazioni", sub: "impostazioni", icon: "⚙️", title: "Impostazioni",
     desc: "Import CSV, categorie bancarie, configurazione carte.",
-    bg: "bg-neutral-50 border-neutral-300 text-neutral-800", check: "admin" },
+    bg: "bg-neutral-50 border-neutral-300 text-neutral-800" },
 ];
 
 export default function FlussiCassaMenu() {
   const navigate = useNavigate();
-  const role = localStorage.getItem("role") || "";
+  const { canAccessSub, loading } = useModuleAccess();
 
-  const visible = CARDS.filter(c =>
-    c.check === null
-    || (c.check === "admin" && isAdminRole(role))
-    || (c.check === "superadmin" && isSuperAdminRole(role))
-  );
+  const visible = CARDS.filter(c => canAccessSub("flussi-cassa", c.sub));
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
