@@ -428,6 +428,20 @@ def import_uscite(
     fc = get_fc_db()
     oggi_str = date.today().isoformat()
 
+    # ── Fix-up stipendi: corregge tipo_uscita e fornitore_nome per righe create prima del fix ──
+    fc.execute("""
+        UPDATE cg_uscite SET tipo_uscita = 'STIPENDIO'
+        WHERE (tipo_uscita IS NULL OR tipo_uscita = '' OR tipo_uscita = 'FATTURA')
+          AND fornitore_nome LIKE 'Stipendio -%'
+    """)
+    # Fix righe con fornitore_nome vuoto ma collegate a stipendi (numero_fattura contiene 'Stipendio')
+    fc.execute("""
+        UPDATE cg_uscite SET tipo_uscita = 'STIPENDIO'
+        WHERE (tipo_uscita IS NULL OR tipo_uscita = '' OR tipo_uscita = 'FATTURA')
+          AND numero_fattura LIKE 'Stipendio%'
+    """)
+    fc.commit()
+
     # ── Fetch tutte le fatture non-auto, non-nota-credito ──
     fatture = fc.execute("""
         SELECT

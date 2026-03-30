@@ -579,6 +579,7 @@ export default function ControlloGestioneUscite() {
                     const st = STATO_STYLE[u.stato] || STATO_STYLE.DA_PAGARE;
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
+                    const isStipendio = u.tipo_uscita === "STIPENDIO";
                     const isRiconciliata = !!u.banca_movimento_id;
                     const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
                     const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
@@ -588,7 +589,7 @@ export default function ControlloGestioneUscite() {
                         onClick={() => apriModaleScadenza(u)}
                         className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
-                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : "bg-white"
+                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}
                         <td className="px-2 py-1.5 text-center" onClick={e => e.stopPropagation()}>
@@ -621,6 +622,10 @@ export default function ControlloGestioneUscite() {
                               {u.periodo_riferimento || "&mdash;"}
                               {u.sf_frequenza && <span className="ml-1 text-[9px] text-neutral-400">({u.sf_frequenza.toLowerCase()})</span>}
                             </span>
+                          ) : isStipendio ? (
+                            <span className="text-violet-600 italic">
+                              {u.numero_fattura || u.periodo_riferimento || "Stipendio"}
+                            </span>
                           ) : (
                             <>
                               <span className="text-neutral-700">{u.numero_fattura || "&mdash;"}</span>
@@ -648,6 +653,10 @@ export default function ControlloGestioneUscite() {
                           {isSF ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium">
                               {u.sf_tipo_label || "Spesa fissa"}
+                            </span>
+                          ) : isStipendio ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 font-medium">
+                              Stipendio
                             </span>
                           ) : (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">

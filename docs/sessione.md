@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-30 (sessione 18 — Fix scadenzario, DB recovery, backup system, riconciliazione banca)
+> Ultima sessione: 2026-03-30 (sessione 18 — Buste Paga v2.1, Anagrafica v2.0, Fix stipendi CG, Mance)
 
 ---
 
@@ -49,7 +49,31 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-29, sessione 17)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-30, sessione 18)
+
+### Buste Paga v2.1: Import PDF 2 step + salvataggio cedolini individuali
+1. **Import 2-step**: upload PDF → anteprima (abbinati/nuovi/conflitti) → conferma con checkbox → scrittura DB
+2. **Estrazione cedolini individuali**: pikepdf estrae le pagine di ogni dipendente e salva in `app/data/cedolini/{anno}/`
+3. **Conflitti anagrafica**: se i dati nel PDF differiscono dall'anagrafica (IBAN, CF, livello, qualifica), mostra warning e checkbox "Aggiorna anagrafica"
+4. **Auto-creazione dipendenti**: i nuovi dipendenti trovati nel LUL vengono creati automaticamente in anagrafica
+
+### Anagrafica Dipendenti v2.0: Layout e documenti
+5. **Layout riscritto**: header + sidebar lista (con ricerca) + area dettaglio con tab
+6. **Tab Documenti unificata**: allegati manuali + cedolini PDF (viola), upload con categoria, download
+7. **Endpoint documenti**: GET/POST/DELETE per allegati + lista unificata allegati+cedolini
+
+### Controllo Gestione: fix stipendi + propagazione spese fisse
+8. **Fix display stipendi**: aggiunto branch `isStipendio` nella tabella uscite — badge viola "Stipendio", descrizione con mese, riga sfondo viola
+9. **Fix-up DB**: query automatiche in import_uscite per patchare righe stipendio con tipo_uscita NULL
+10. **Propagazione titolo spese fisse**: quando si rinomina una spesa fissa, il titolo si propaga alle uscite non pagate
+
+### Gestione Contanti: pagina Mance
+11. **Nuova sezione Mance**: 5a voce nella sidebar, mostra mance registrate dalle chiusure turno
+12. **KPI + tabella**: totale mese, turni/giorni con mance, dettaglio per turno con €/coperto
+
+---
+
+## Cosa abbiamo fatto nella sessione 17 (2026-03-29)
 
 ### Controllo Gestione v1.0: Nuovo modulo, dashboard, tabellone uscite
 

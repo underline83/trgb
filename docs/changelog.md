@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-03-30 — Sessione 18b: Fix Stipendi CG + Mance
+
+#### Fixed — Scadenzario CG: display stipendi
+- Le righe stipendio nello scadenzario mostravano "Fattura" come categoria e "—" come descrizione
+- Aggiunto branch `isStipendio` nel rendering tabella: badge viola "Stipendio", descrizione con mese di riferimento, riga sfondo viola chiaro
+
+#### Added — Gestione Contanti: pagina Mance
+- Nuova sezione "Mance" nella sidebar Gestione Contanti (5a voce con icona 🎁)
+- Lista mance registrate dalle chiusure turno, filtrabili per mese/anno
+- KPI: totale mance mese, turni con mance, giorni con mance
+- Tabella con data, turno (pranzo/cena), importo, coperti, €/coperto, note
+- Footer con totali mensili — utile per distribuzione mance al personale
+
+---
+
 ## 2026-03-30 — Buste Paga v2.0: Import PDF LUL automatico
 
 #### Added — Parser PDF LUL (Libro Unico Lavoro)
