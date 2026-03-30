@@ -1,5 +1,5 @@
-// @version: v3.2-stipendio-display
-// Riconciliazione Spese — match movimenti bancari ↔ fatture + spese fisse
+// @version: v4.0-registra-movimenti
+// Riconciliazione — match movimenti bancari ↔ fatture, spese fisse, registrazione diretta
 // Tabella con colonne ordinabili, filtri, ricerca manuale
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -30,25 +30,70 @@ const TIPO_LABELS = {
   RATEIZZAZIONE: "Rata",
   ASSICURAZIONE: "Assicurazione",
   ALTRO: "Altro",
+  // Categorie registrazione uscite
+  SPESA_BANCARIA: "Spese bancarie",
+  COMMISSIONE_POS: "Comm. POS",
+  IMPOSTA_BOLLO: "Bollo",
+  CARTA_CREDITO: "Carta credito",
+  MUTUO: "Mutuo",
+  EFFETTI: "Effetti/RIBA",
+  SDD: "SDD",
+  ALTRO_USCITA: "Altra uscita",
+  // Categorie registrazione entrate
+  INCASSO_POS: "Incasso POS",
+  INCASSO_CONTANTI: "Contanti",
+  BONIFICO_ENTRATA: "Bonifico",
+  ALTRO_ENTRATA: "Altra entrata",
 };
 
-const tipoBadge = (tipo) => {
-  const colors = {
-    FATTURA: "bg-blue-100 text-blue-700 border-blue-200",
-    SPESA_FISSA: "bg-violet-100 text-violet-700 border-violet-200",
-    AFFITTO: "bg-amber-100 text-amber-700 border-amber-200",
-    TASSA: "bg-red-100 text-red-700 border-red-200",
-    STIPENDIO: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    PRESTITO: "bg-orange-100 text-orange-700 border-orange-200",
-    RATEIZZAZIONE: "bg-orange-100 text-orange-700 border-orange-200",
-    ASSICURAZIONE: "bg-sky-100 text-sky-700 border-sky-200",
-  };
-  return (
-    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${colors[tipo] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
-      {TIPO_LABELS[tipo] || tipo}
-    </span>
-  );
+const TIPO_COLORS = {
+  FATTURA: "bg-blue-100 text-blue-700 border-blue-200",
+  SPESA_FISSA: "bg-violet-100 text-violet-700 border-violet-200",
+  AFFITTO: "bg-amber-100 text-amber-700 border-amber-200",
+  TASSA: "bg-red-100 text-red-700 border-red-200",
+  STIPENDIO: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  PRESTITO: "bg-orange-100 text-orange-700 border-orange-200",
+  RATEIZZAZIONE: "bg-orange-100 text-orange-700 border-orange-200",
+  ASSICURAZIONE: "bg-sky-100 text-sky-700 border-sky-200",
+  // Registrazione uscite
+  SPESA_BANCARIA: "bg-slate-100 text-slate-700 border-slate-200",
+  COMMISSIONE_POS: "bg-slate-100 text-slate-700 border-slate-200",
+  IMPOSTA_BOLLO: "bg-slate-100 text-slate-700 border-slate-200",
+  CARTA_CREDITO: "bg-pink-100 text-pink-700 border-pink-200",
+  MUTUO: "bg-rose-100 text-rose-700 border-rose-200",
+  EFFETTI: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  SDD: "bg-purple-100 text-purple-700 border-purple-200",
+  ALTRO_USCITA: "bg-neutral-100 text-neutral-600 border-neutral-200",
+  // Registrazione entrate
+  INCASSO_POS: "bg-teal-100 text-teal-700 border-teal-200",
+  INCASSO_CONTANTI: "bg-lime-100 text-lime-700 border-lime-200",
+  BONIFICO_ENTRATA: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  ALTRO_ENTRATA: "bg-neutral-100 text-neutral-600 border-neutral-200",
 };
+
+const CAT_USCITA = [
+  { key: "SPESA_BANCARIA", label: "Spese bancarie" },
+  { key: "COMMISSIONE_POS", label: "Commissioni POS" },
+  { key: "IMPOSTA_BOLLO", label: "Imposta di bollo" },
+  { key: "CARTA_CREDITO", label: "Carta di credito" },
+  { key: "MUTUO", label: "Mutuo / Finanziamento" },
+  { key: "EFFETTI", label: "Effetti / RIBA" },
+  { key: "SDD", label: "Addebito SDD" },
+  { key: "ALTRO_USCITA", label: "Altra uscita" },
+];
+
+const CAT_ENTRATA = [
+  { key: "INCASSO_POS", label: "Incasso POS" },
+  { key: "INCASSO_CONTANTI", label: "Contanti" },
+  { key: "BONIFICO_ENTRATA", label: "Bonifico entrata" },
+  { key: "ALTRO_ENTRATA", label: "Altra entrata" },
+];
+
+const tipoBadge = (tipo) => (
+  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${TIPO_COLORS[tipo] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
+    {TIPO_LABELS[tipo] || tipo}
+  </span>
+);
 
 const TABS = [
   { key: "suggerimenti", label: "Suggerimenti",  icon: "💡", desc: "Match automatici" },
@@ -96,6 +141,9 @@ export default function BancaCrossRef() {
   const [filterText, setFilterText] = useState("");
   const [sort, setSort] = useState({ field: "data_contabile", dir: "desc" });
   const [dismissed, setDismissed] = useState(new Set()); // movimenti con suggerimenti scartati
+  const [registraId, setRegistraId] = useState(null);   // id movimento da registrare
+  const [registraCat, setRegistraCat] = useState("");    // categoria selezionata
+  const [registering, setRegistering] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
@@ -149,6 +197,31 @@ export default function BancaCrossRef() {
       await apiFetch(`${FC}/cross-ref/link/${linkId}`, { method: "DELETE" });
       await loadData();
     } catch (_) {}
+  };
+
+  // ── Registra spesa/entrata ──
+  const openRegistra = (movId) => {
+    const mov = movimenti.find(m => m.id === movId);
+    const autoCat = mov?.auto_categoria || (mov?.importo >= 0 ? "INCASSO_POS" : "SPESA_BANCARIA");
+    setRegistraId(movId);
+    setRegistraCat(autoCat);
+  };
+
+  const handleRegistra = async () => {
+    if (!registraId || !registraCat) return;
+    setRegistering(true);
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/registra`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimento_id: registraId, categoria: registraCat }),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.detail || "Errore"); }
+      setRegistraId(null);
+      setRegistraCat("");
+      await loadData();
+    } catch (err) { setError(err.message); }
+    finally { setRegistering(false); }
   };
 
   // Ricerca manuale
@@ -250,10 +323,10 @@ export default function BancaCrossRef() {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 mt-2">
         <div className="bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200">
           <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair mb-1">
-            Riconciliazione Spese
+            Riconciliazione
           </h1>
           <p className="text-neutral-500 text-sm mb-5">
-            Collega i movimenti bancari a fatture, affitti, tasse, rate e altre spese.
+            Collega o registra ogni movimento bancario — uscite e entrate — per un quadro completo.
           </p>
 
           {/* ── Tab ── */}
@@ -330,7 +403,9 @@ export default function BancaCrossRef() {
                           isExpanded || isSearching ? "bg-neutral-50" : ""
                         }`}>
                           <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">{fmtDate(m.data_contabile)}</td>
-                          <td className="px-3 py-2.5 text-right font-mono text-sm font-semibold text-red-600 whitespace-nowrap">
+                          <td className={`px-3 py-2.5 text-right font-mono text-sm font-semibold whitespace-nowrap ${
+                            m.importo >= 0 ? "text-emerald-600" : "text-red-600"
+                          }`}>
                             € {fmt(m.importo)}
                           </td>
                           <td className="px-3 py-2.5 max-w-xs">
@@ -376,18 +451,29 @@ export default function BancaCrossRef() {
                             </td>
                           )}
 
-                          {/* ── Tab senza match: pulsante cerca + ripristina suggerimenti ── */}
+                          {/* ── Tab senza match: pulsante cerca + registra + ripristina ── */}
                           {tab === "senza" && (
                             <td className="px-3 py-2.5 text-center">
-                              <div className="flex items-center gap-1.5 justify-center">
+                              <div className="flex items-center gap-1.5 justify-center flex-wrap">
+                                {m.importo < 0 && (
+                                  <button onClick={() => {
+                                    if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
+                                    else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); setRegistraId(null); }
+                                  }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                      isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                                    }`}>
+                                    {isSearching ? "Chiudi" : "🔍 Cerca"}
+                                  </button>
+                                )}
                                 <button onClick={() => {
-                                  if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
-                                  else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); }
+                                  if (registraId === m.id) { setRegistraId(null); }
+                                  else { openRegistra(m.id); setSearchId(null); }
                                 }}
                                   className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                                    isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                                    registraId === m.id ? "bg-indigo-100 border-indigo-300 text-indigo-800" : "border-indigo-200 text-indigo-600 hover:bg-indigo-50"
                                   }`}>
-                                  {isSearching ? "Chiudi" : "🔍 Cerca"}
+                                  {registraId === m.id ? "Annulla" : "📋 Registra"}
                                 </button>
                                 {dismissed.has(m.id) && (
                                   <button onClick={() => handleUndismiss(m.id)}
@@ -438,6 +524,39 @@ export default function BancaCrossRef() {
                               )}
                               <div className="space-y-1.5 max-h-60 overflow-y-auto">
                                 {searchResults.map(s => renderMatchOption(s, m.id))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* ── Riga espansa: registra spesa/entrata ── */}
+                        {registraId === m.id && (
+                          <tr>
+                            <td colSpan={tab === "collegati" ? 6 : 4} className="px-3 py-3 bg-indigo-50/30">
+                              <div className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide mb-2">
+                                {m.importo >= 0 ? "Registra entrata" : "Registra uscita"} — scegli categoria
+                              </div>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                {(m.importo >= 0 ? CAT_ENTRATA : CAT_USCITA).map(c => (
+                                  <button key={c.key} onClick={() => setRegistraCat(c.key)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                                      registraCat === c.key
+                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                        : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
+                                    }`}>
+                                    {c.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button onClick={handleRegistra} disabled={!registraCat || registering}
+                                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-40">
+                                  {registering ? "..." : `Registra come ${TIPO_LABELS[registraCat] || registraCat}`}
+                                </button>
+                                <button onClick={() => setRegistraId(null)}
+                                  className="px-3 py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-700">
+                                  Annulla
+                                </button>
                               </div>
                             </td>
                           </tr>

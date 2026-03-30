@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-03-31 — Flussi di Cassa v1.3: Riconciliazione Completa
+
+#### New — Registrazione diretta movimenti bancari
+- Bottone "Registra" nel tab Senza match per categorizzare movimenti senza fattura/spesa fissa
+- Supporto entrate (POS, contanti, bonifici) e uscite (commissioni, bollo, carta, RIBA, SDD)
+- Auto-detect categoria dalla descrizione bancaria
+- Tabella `cg_entrate` per tracciare entrate nel CG
+- Endpoint `POST /banca/cross-ref/registra` e `DELETE /banca/cross-ref/registra/{id}`
+- Badge colorati per tutte le categorie registrazione
+
+#### Fixed — Dedup aggressivo movimenti bancari (migrazione 042)
+- I due CSV importavano lo stesso movimento con descrizioni leggermente diverse (spazi, troncature)
+- Normalizzazione: lowercase + collasso spazi multipli + primi 50 char
+- Rimossi ~16 duplicati residui non catturati dalla migrazione 041
+- `_dedup_hash()` allineato alla nuova normalizzazione per prevenire futuri duplicati
+
+#### Fixed — Pulizia link orfani (migrazione 043)
+- Rimossi link in `banca_fatture_link` che puntavano a fatture cancellate
+- Eliminati link duplicati (stessa fattura collegata a più movimenti)
+- Discrepanza 46 collegati vs 43 scadenzario risolta
+
+#### Changed — Display stipendi nel cross-ref
+- Stipendi mostrano "Paga di [mese]" invece della data scadenza
+- Nome dipendente senza prefisso "Stipendio - "
+- Backend passa `periodo_riferimento` nelle query CG
+
+---
+
 ## 2026-03-31 — Flussi di Cassa v1.2: Riconciliazione Spese
 
 #### New — Riconciliazione Spese (ex Cross-Ref Fatture)

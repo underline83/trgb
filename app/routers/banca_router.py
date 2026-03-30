@@ -45,6 +45,64 @@ def get_db():
 
 
 # ═══════════════════════════════════════════════════════
+# CATEGORIE REGISTRAZIONE MOVIMENTI
+# ═══════════════════════════════════════════════════════
+
+CATEGORIE_USCITA = {
+    "SPESA_BANCARIA":    "Spese bancarie",
+    "COMMISSIONE_POS":   "Commissioni POS",
+    "IMPOSTA_BOLLO":     "Imposta di bollo",
+    "CARTA_CREDITO":     "Carta di credito",
+    "MUTUO":             "Mutuo / Finanziamento",
+    "EFFETTI":           "Effetti / RIBA",
+    "SDD":               "Addebito SDD",
+    "ALTRO_USCITA":      "Altra uscita",
+}
+
+CATEGORIE_ENTRATA = {
+    "INCASSO_POS":       "Incasso POS",
+    "INCASSO_CONTANTI":  "Contanti",
+    "BONIFICO_ENTRATA":  "Bonifico entrata",
+    "ALTRO_ENTRATA":     "Altra entrata",
+}
+
+
+def _auto_detect_categoria(descrizione: str, importo: float) -> str:
+    """Rileva automaticamente la categoria dalla descrizione del movimento."""
+    d = (descrizione or "").upper()
+    if importo > 0:
+        # Entrate
+        if "INCAS. TRAMITE P.O.S" in d or "INC.POS" in d:
+            return "INCASSO_POS"
+        if "VERS. CONTANTI" in d or "VERSAMENTO" in d:
+            return "INCASSO_CONTANTI"
+        if "BONIF. VS. FAVORE" in d or "BON.DA " in d:
+            return "BONIFICO_ENTRATA"
+        return "ALTRO_ENTRATA"
+    else:
+        # Uscite
+        if "COMM.SU BONIFICI" in d or "COMM.BON." in d:
+            return "SPESA_BANCARIA"
+        if "COMM/SPESE SU PORTAF" in d or "COMMISSIONI" in d:
+            return "SPESA_BANCARIA"
+        if "IMP. BOLLO" in d:
+            return "IMPOSTA_BOLLO"
+        if "CARTIMPRONTA" in d:
+            return "CARTA_CREDITO"
+        if "DEBIT PAGAMENTO" in d and abs(importo) < 50:
+            return "SPESA_BANCARIA"
+        if "DEBIT PAGAMENTO" in d:
+            return "CARTA_CREDITO"
+        if "RIMBORSO FINANZ" in d or "MUTUO" in d:
+            return "MUTUO"
+        if "EFFETTI RITIRATI" in d or "ADD.EFFETTO" in d:
+            return "EFFETTI"
+        if "ADDEBITO DIRETTO SDD" in d or "SDD CORE" in d:
+            return "SDD"
+        return "ALTRO_USCITA"
+
+
+# ═══════════════════════════════════════════════════════
 # MODELS
 # ═══════════════════════════════════════════════════════
 
@@ -66,6 +124,13 @@ class CrossRefLinkRequest(BaseModel):
     movimento_id: int
     fattura_id: Optional[int] = None
     uscita_id: Optional[int] = None
+    note: Optional[str] = None
+
+
+class RegistraMovimentoRequest(BaseModel):
+    movimento_id: int
+    categoria: str
+    descrizione: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -520,13 +585,14 @@ def get_cross_ref(
     data_a: Optional[str] = None,
 ):
     """
-    Movimenti bancari (uscite) con possibili match.
-    Cerca in fe_fatture E in cg_uscite (spese fisse, affitti, tasse…).
+    Tutti i movimenti bancari con possibili match e registrazioni.
+    Uscite: cerca in fe_fatture e cg_uscite.
+    Entrate: cerca in cg_entrate.
     """
     conn = get_db()
     cur = conn.cursor()
 
-    where = ["m.importo < 0"]
+    where = ["1=1"]
     params = []
     if data_da:
         where.append("m.data_contabile >= ?")
@@ -571,6 +637,20 @@ def get_cross_ref(
     """, params)
     uscite_links = {r["mov_id"]: dict(r) for r in cur.fetchall()}
 
+    # ── Entrate registrate (cg_entrate) ──
+    cur.execute(f"""
+        SELECT m.id AS mov_id,
+               ce.id AS entrata_id,
+               ce.descrizione AS link_fornitore,
+               ce.categoria   AS link_tipo,
+               ce.data_entrata AS link_data,
+               ce.importo      AS link_totale
+        FROM banca_movimenti m
+        JOIN cg_entrate ce ON ce.banca_movimento_id = m.id
+        WHERE {" AND ".join(where)}
+    """, params)
+    entrate_links = {r["mov_id"]: dict(r) for r in cur.fetchall()}
+
     movimenti = []
     seen_ids = set()
     for mov in raw:
@@ -584,12 +664,12 @@ def get_cross_ref(
             movimenti.append(mov)
             continue
 
-        # Se ha link uscita diretta (spesa fissa)
+        # Se ha link uscita diretta (spesa fissa / registrata)
         if mid in uscite_links:
             ul = uscite_links[mid]
             mov["link_id"] = f"u{ul['uscita_id']}"  # prefisso u per distinguere
             mov["link_fornitore"] = ul["link_fornitore"]
-            mov["link_numero"] = ul["link_numero"]
+            mov["link_numero"] = ul.get("link_numero")
             mov["link_data"] = ul["link_data"]
             mov["link_totale"] = ul["link_totale"]
             mov["link_tipo"] = ul["link_tipo"]
@@ -598,7 +678,29 @@ def get_cross_ref(
             movimenti.append(mov)
             continue
 
-        # ── Nessun link: cerca suggerimenti ──
+        # Se ha entrata registrata
+        if mid in entrate_links:
+            el = entrate_links[mid]
+            mov["link_id"] = f"e{el['entrata_id']}"  # prefisso e per entrate
+            mov["link_fornitore"] = el["link_fornitore"]
+            mov["link_numero"] = None
+            mov["link_data"] = el["link_data"]
+            mov["link_totale"] = el["link_totale"]
+            mov["link_tipo"] = el["link_tipo"]
+            mov["entrata_id"] = el["entrata_id"]
+            movimenti.append(mov)
+            continue
+
+        # ── Nessun link: cerca suggerimenti (solo per uscite) ──
+        if mov["importo"] >= 0:
+            # Entrata senza registrazione → nessun suggerimento, va registrata
+            mov["possibili_match"] = []
+            mov["auto_categoria"] = _auto_detect_categoria(
+                mov.get("descrizione", ""), mov["importo"]
+            )
+            movimenti.append(mov)
+            continue
+
         abs_imp = abs(mov["importo"])
         data_c = mov["data_contabile"]
         desc_lower = (mov.get("descrizione") or "").lower()
@@ -716,6 +818,11 @@ def get_cross_ref(
         for s in suggestions:
             s.pop("_score", None)
         mov["possibili_match"] = suggestions[:8]
+        # Se nessun suggerimento, proponi auto-categoria per registrazione diretta
+        if not suggestions:
+            mov["auto_categoria"] = _auto_detect_categoria(
+                mov.get("descrizione", ""), mov["importo"]
+            )
         movimenti.append(mov)
 
     conn.close()
@@ -786,9 +893,21 @@ def delete_link(link_id: str):
     Rimuove collegamento. link_id può essere:
     - numerico: banca_fatture_link.id (fattura)
     - "uNNN": cg_uscite.id (uscita diretta)
+    - "eNNN": cg_entrate.id (entrata registrata)
     """
     conn = get_db()
     cur = conn.cursor()
+
+    if str(link_id).startswith("e"):
+        # ── Scollega entrata registrata ──
+        entrata_id = int(str(link_id)[1:])
+        cur.execute("DELETE FROM cg_entrate WHERE id = ?", (entrata_id,))
+        if cur.rowcount == 0:
+            conn.close()
+            raise HTTPException(404, "Collegamento non trovato")
+        conn.commit()
+        conn.close()
+        return {"ok": True}
 
     if str(link_id).startswith("u"):
         # ── Scollega uscita diretta ──
@@ -927,6 +1046,138 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
 
     conn.close()
     return results
+
+
+# ═══════════════════════════════════════════════════════
+# 9b. REGISTRA SPESA/ENTRATA DA MOVIMENTO BANCARIO
+# ═══════════════════════════════════════════════════════
+
+@router.get("/cross-ref/categorie")
+def get_categorie_registrazione():
+    """Restituisce le categorie disponibili per registrazione movimenti."""
+    return {
+        "uscita": CATEGORIE_USCITA,
+        "entrata": CATEGORIE_ENTRATA,
+    }
+
+
+@router.get("/cross-ref/auto-categoria/{movimento_id}")
+def auto_categoria(movimento_id: int):
+    """Rileva automaticamente la categoria di un movimento."""
+    conn = get_db()
+    cur = conn.cursor()
+    mov = cur.execute(
+        "SELECT id, importo, descrizione, data_contabile FROM banca_movimenti WHERE id = ?",
+        (movimento_id,)
+    ).fetchone()
+    conn.close()
+    if not mov:
+        raise HTTPException(404, "Movimento non trovato")
+    cat = _auto_detect_categoria(mov["descrizione"], mov["importo"])
+    return {
+        "categoria": cat,
+        "tipo": "entrata" if mov["importo"] > 0 else "uscita",
+        "descrizione_suggerita": (mov["descrizione"] or "").strip()[:100],
+    }
+
+
+@router.post("/cross-ref/registra")
+def registra_movimento(req: RegistraMovimentoRequest):
+    """
+    Registra un movimento bancario come spesa (cg_uscite) o entrata (cg_entrate).
+    Crea il record e lo collega direttamente al movimento bancario.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Leggi il movimento
+    mov = cur.execute(
+        "SELECT id, importo, descrizione, data_contabile FROM banca_movimenti WHERE id = ?",
+        (req.movimento_id,)
+    ).fetchone()
+    if not mov:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+
+    importo = mov["importo"]
+    data = mov["data_contabile"]
+    desc = req.descrizione or (mov["descrizione"] or "").strip()[:100]
+
+    if importo < 0:
+        # ── USCITA ──
+        # Verifica non sia già collegato
+        existing = cur.execute(
+            "SELECT id FROM cg_uscite WHERE banca_movimento_id = ?",
+            (req.movimento_id,)
+        ).fetchone()
+        if existing:
+            conn.close()
+            raise HTTPException(409, "Movimento già collegato a un'uscita")
+
+        cur.execute("""
+            INSERT INTO cg_uscite (
+                fornitore_nome, totale, data_scadenza, stato,
+                banca_movimento_id, tipo_uscita, note,
+                importo_pagato, data_pagamento
+            ) VALUES (?, ?, ?, 'PAGATA', ?, ?, ?, ?, ?)
+        """, (
+            desc, abs(importo), data, req.movimento_id,
+            req.categoria, req.note,
+            abs(importo), data,
+        ))
+        new_id = cur.lastrowid
+        result_type = "uscita"
+
+    else:
+        # ── ENTRATA ──
+        existing = cur.execute(
+            "SELECT id FROM cg_entrate WHERE banca_movimento_id = ?",
+            (req.movimento_id,)
+        ).fetchone()
+        if existing:
+            conn.close()
+            raise HTTPException(409, "Movimento già collegato a un'entrata")
+
+        cur.execute("""
+            INSERT INTO cg_entrate (
+                descrizione, categoria, importo, data_entrata,
+                banca_movimento_id, note
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, (desc, req.categoria, importo, data, req.movimento_id, req.note))
+        new_id = cur.lastrowid
+        result_type = "entrata"
+
+    conn.commit()
+    conn.close()
+    return {"id": new_id, "tipo": result_type, "categoria": req.categoria}
+
+
+@router.delete("/cross-ref/registra/{movimento_id}")
+def annulla_registrazione(movimento_id: int):
+    """Annulla la registrazione di un movimento (scollega da cg_uscite o cg_entrate)."""
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Prova uscita
+    n = cur.execute(
+        "DELETE FROM cg_uscite WHERE banca_movimento_id = ? AND fattura_id IS NULL AND spesa_fissa_id IS NULL",
+        (movimento_id,)
+    ).rowcount
+
+    if n == 0:
+        # Prova entrata
+        n = cur.execute(
+            "DELETE FROM cg_entrate WHERE banca_movimento_id = ?",
+            (movimento_id,)
+        ).rowcount
+
+    if n == 0:
+        conn.close()
+        raise HTTPException(404, "Nessuna registrazione trovata per questo movimento")
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "deleted": n}
 
 
 # ═══════════════════════════════════════════════════════
