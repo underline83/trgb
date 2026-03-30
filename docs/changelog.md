@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-03-30 — Cantina v3.8: unificazione Carta Vini PDF/DOCX
+
+#### Changed — Carta Vini endpoint unificati
+- Tutti i bottoni "Carta PDF" e "Scarica Word" ora puntano a `/vini/carta/pdf` e `/vini/carta/docx`
+- Rimossi endpoint duplicati `/vini/cantina-tools/carta-cantina/pdf` e `/docx`
+- Nome file download unificato: `carta-vini.pdf` / `carta-vini.docx` (senza date nel nome)
+- Endpoint pubblici — non richiedono più token in query string
+
+---
+
 ## 2026-03-30 — Sistema v5.0: Header flyout, Impostazioni standalone
 
 #### Changed — Header v4.1: menu navigazione flyout

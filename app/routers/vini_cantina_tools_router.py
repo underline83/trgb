@@ -17,11 +17,9 @@ Strumenti:
      storico di lavoro.
 
 3. GET /vini/cantina-tools/carta-cantina
-   → Genera la carta vini HTML leggendo dal DB cantina
-4. GET /vini/cantina-tools/carta-cantina/pdf
-   → Genera il PDF della carta leggendo dal DB cantina
-5. GET /vini/cantina-tools/carta-cantina/docx
-   → Genera il DOCX della carta leggendo dal DB cantina
+   → Anteprima HTML della carta vini (dal DB cantina)
+
+NOTE: PDF e DOCX unificati in vini_router.py (/vini/carta/pdf e /vini/carta/docx)
 
 Tutti gli endpoint richiedono autenticazione; import solo admin.
 """
@@ -516,83 +514,9 @@ def carta_cantina_html():
 
 
 # =============================================================
-# 5. CARTA DA CANTINA — PDF
+# 5-6. CARTA PDF/DOCX — RIMOSSI (unificati in vini_router.py)
+# Usare /vini/carta/pdf e /vini/carta/docx
 # =============================================================
-@router.get("/carta-cantina/pdf", summary="Carta vini PDF da DB cantina")
-def carta_cantina_pdf(
-    current_user: Any = Depends(_get_user_from_query_token),
-):
-    """
-    Genera il PDF della carta vini dal DB cantina.
-    """
-    rows = load_vini_ordinati()
-    calici_rows = load_vini_calici()
-    data_oggi = datetime.now().strftime("%d/%m/%Y")
-
-    # Front page — identico al vecchio sistema (stesse classi CSS)
-    frontespizio = f"""
-    <div class="front-page">
-        <img src="file://{LOGO_PATH}" class="front-logo">
-        <div class="front-title">CARTA VINI</div>
-        <div class="front-subtitle">Aggiornata al {data_oggi}</div>
-    </div>
-    """
-
-    toc_html = build_carta_toc_html(rows)
-    calici_html = build_calici_section_html(calici_rows)
-    body_html = build_carta_body_html(rows)
-    carta = f"<div class='carta-body'>{calici_html}{body_html}</div>"
-
-    full_html = f"""
-    <html>
-    <head>
-        <meta charset='utf-8'>
-        <link rel='stylesheet' href='/static/css/carta_pdf.css'>
-    </head>
-    <body>
-        {frontespizio}
-        {toc_html}
-        {carta}
-    </body>
-    </html>
-    """
-
-    out_path = STATIC_DIR / "carta_vini_cantina.pdf"
-
-    HTML(string=full_html, base_url=str(BASE_DIR)).write_pdf(
-        str(out_path),
-        stylesheets=[CSS(filename=str(CSS_PDF))],
-    )
-
-    return FileResponse(
-        str(out_path),
-        filename=f"carta_vini_cantina_{datetime.now().strftime('%Y%m%d')}.pdf",
-        media_type="application/pdf",
-    )
-
-
-# =============================================================
-# 6. CARTA DA CANTINA — DOCX
-# =============================================================
-@router.get("/carta-cantina/docx", summary="Carta vini Word da DB cantina")
-def carta_cantina_docx(
-    current_user: Any = Depends(_get_user_from_query_token),
-):
-    """
-    Genera il DOCX della carta vini dal DB magazzino.
-    Usa build_carta_docx() condiviso con /vini/carta/docx.
-    """
-    rows = load_vini_ordinati()
-    doc = build_carta_docx(rows, logo_path=LOGO_PATH)
-
-    out_path = STATIC_DIR / "carta_vini_cantina.docx"
-    doc.save(str(out_path))
-
-    return FileResponse(
-        str(out_path),
-        filename=f"carta_vini_cantina_{datetime.now().strftime('%Y%m%d')}.docx",
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
 
 
 # =============================================================

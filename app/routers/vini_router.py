@@ -141,7 +141,7 @@ def genera_carta_vini_pdf():
         stylesheets=[CSS(filename=str(CSS_PDF))],
     )
 
-    return FileResponse(out, filename="carta_vini.pdf")
+    return FileResponse(out, filename="carta-vini.pdf")
 
 
 # ------------------------------------------------------------
@@ -206,7 +206,7 @@ def genera_carta_vini_docx():
     out = STATIC_DIR / "carta_vini.docx"
     doc.save(str(out))
 
-    return FileResponse(out, filename="carta_vini.docx")
+    return FileResponse(out, filename="carta-vini.docx")
 
 
 # ============================================================

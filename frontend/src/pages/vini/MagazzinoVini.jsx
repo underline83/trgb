@@ -1016,10 +1016,7 @@ export default function MagazzinoVini() {
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition">
               + Nuovo
             </button>
-            <button onClick={() => {
-                const token = localStorage.getItem("token");
-                window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/pdf?token=${token}`, "_blank");
-              }}
+            <button onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}
               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition">
               Carta PDF
             </button>

@@ -7,6 +7,7 @@ import useModuleAccess from "../../hooks/useModuleAccess";
 const TABS = [
   { key: "dashboard",    label: "Dashboard",        path: "/flussi-cassa/dashboard",    icon: "📊" },
   { key: "cc",           label: "Conti Correnti",    path: "/flussi-cassa/cc",           icon: "🏦" },
+  { key: "crossref",     label: "Cross-Ref Fatture", path: "/flussi-cassa/cc/crossref",  icon: "🔗", perm: "cc" },
   { key: "carta",        label: "Carta di Credito",  path: "/flussi-cassa/carta",        icon: "💳" },
   { key: "contanti",     label: "Contanti",          path: "/flussi-cassa/contanti",     icon: "💰" },
   { key: "mance",        label: "Mance",             path: "/flussi-cassa/mance",        icon: "🎁" },
@@ -17,7 +18,7 @@ export default function FlussiCassaNav({ current }) {
   const navigate = useNavigate();
   const { canAccessSub } = useModuleAccess();
 
-  const visibleTabs = TABS.filter(tab => canAccessSub("flussi-cassa", tab.key));
+  const visibleTabs = TABS.filter(tab => canAccessSub("flussi-cassa", tab.perm || tab.key));
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">

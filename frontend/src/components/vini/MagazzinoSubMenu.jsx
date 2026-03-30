@@ -35,10 +35,7 @@ export default function MagazzinoSubMenu() {
         </NavLink>
 
         <button
-          onClick={() => {
-            const token = localStorage.getItem("token");
-            window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/pdf?token=${token}`, "_blank");
-          }}
+          onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}
           className={`${base} ${inactive}`}
         >
           📄 Genera Carta PDF

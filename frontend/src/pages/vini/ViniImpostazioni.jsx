@@ -567,11 +567,11 @@ export default function ViniImpostazioni() {
           className="px-5 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition">
           {showCartaPreview ? "Chiudi anteprima" : "Anteprima HTML"}
         </button>
-        <button onClick={() => { const token = localStorage.getItem("token"); window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/pdf?token=${token}`, "_blank"); }}
+        <button onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}
           className="px-5 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition">
           Scarica PDF
         </button>
-        <button onClick={() => { const token = localStorage.getItem("token"); window.open(`${API_BASE}/vini/cantina-tools/carta-cantina/docx?token=${token}`, "_blank"); }}
+        <button onClick={() => window.open(`${API_BASE}/vini/carta/docx`, "_blank")}
           className="px-5 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition">
           Scarica Word
         </button>

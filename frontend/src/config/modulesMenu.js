@@ -53,6 +53,7 @@ const MODULES_MENU = {
     sub: [
       { label: "Dashboard",        go: "/flussi-cassa/dashboard" },
       { label: "Conti Correnti",   go: "/flussi-cassa/cc" },
+      { label: "Cross-Ref Fatture", go: "/flussi-cassa/cc/crossref" },
       { label: "Carta di Credito", go: "/flussi-cassa/carta" },
       { label: "Contanti",         go: "/flussi-cassa/contanti", check: "admin" },
       { label: "Mance",            go: "/flussi-cassa/mance" },
