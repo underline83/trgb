@@ -579,8 +579,8 @@ def get_cross_ref(
             continue
         seen_ids.add(mid)
 
-        # Se ha link fattura, ok
-        if mov.get("link_id"):
+        # Se ha link fattura valido (fattura esiste ancora)
+        if mov.get("link_id") and mov.get("link_fornitore"):
             movimenti.append(mov)
             continue
 
