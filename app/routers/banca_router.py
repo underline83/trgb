@@ -562,7 +562,8 @@ def get_cross_ref(
                cu.numero_fattura AS link_numero,
                cu.data_scadenza  AS link_data,
                cu.totale         AS link_totale,
-               COALESCE(cu.tipo_uscita, 'FATTURA') AS link_tipo
+               COALESCE(cu.tipo_uscita, 'FATTURA') AS link_tipo,
+               cu.periodo_riferimento AS link_periodo
         FROM banca_movimenti m
         JOIN cg_uscite cu ON cu.banca_movimento_id = m.id
         WHERE cu.fattura_id IS NULL
@@ -592,6 +593,7 @@ def get_cross_ref(
             mov["link_data"] = ul["link_data"]
             mov["link_totale"] = ul["link_totale"]
             mov["link_tipo"] = ul["link_tipo"]
+            mov["link_periodo"] = ul.get("link_periodo")
             mov["uscita_id"] = ul["uscita_id"]
             movimenti.append(mov)
             continue
@@ -670,7 +672,8 @@ def get_cross_ref(
         cur3.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
-                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+                   cu.periodo_riferimento
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
@@ -695,7 +698,8 @@ def get_cross_ref(
         cur3b.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
-                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+                   cu.periodo_riferimento
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
@@ -872,7 +876,8 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
-                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+                   cu.periodo_riferimento
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
@@ -906,7 +911,8 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
-                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+                   cu.periodo_riferimento
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL

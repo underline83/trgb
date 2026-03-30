@@ -1,4 +1,4 @@
-// @version: v3.1-riconciliazione-spese
+// @version: v3.2-stipendio-display
 // Riconciliazione Spese — match movimenti bancari ↔ fatture + spese fisse
 // Tabella con colonne ordinabili, filtri, ricerca manuale
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
@@ -198,15 +198,38 @@ export default function BancaCrossRef() {
   // Ordina
   const sorted = sortRows(currentList, sort);
 
+  // ── Helper: descrizione stipendio "Paga di [mese]" ──
+  const stipendioLabel = (s) => {
+    // periodo_riferimento è "Gennaio 2026", "Febbraio 2026" etc.
+    if (s.periodo_riferimento) {
+      const parts = s.periodo_riferimento.split(" ");
+      return `Paga di ${parts[0].toLowerCase()}`;
+    }
+    return "";
+  };
+
+  // ── Helper: nome dipendente senza prefisso "Stipendio - " ──
+  const stipendioNome = (fornitore) => {
+    if (!fornitore) return "";
+    return fornitore.replace(/^Stipendio\s*-\s*/i, "");
+  };
+
   // ── Render match option (fattura o uscita) ──
-  const renderMatchOption = (s, movId) => (
+  const renderMatchOption = (s, movId) => {
+    const isStipendio = s.tipo === "STIPENDIO";
+    const nome = isStipendio ? stipendioNome(s.fornitore_nome) : s.fornitore_nome;
+    const dettaglio = isStipendio
+      ? stipendioLabel(s)
+      : `${s.numero_fattura ? `${s.numero_fattura} ` : ""}${fmtDate(s.data_ref)}`;
+
+    return (
     <div key={`${s.source}-${s.source_id}`}
       className="flex items-center justify-between bg-white rounded-lg border border-neutral-200 px-3 py-2">
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {tipoBadge(s.tipo)}
-        <span className="text-sm font-medium text-neutral-800 truncate">{s.fornitore_nome}</span>
+        <span className="text-sm font-medium text-neutral-800 truncate">{nome}</span>
         <span className="text-xs text-neutral-400 whitespace-nowrap">
-          {s.numero_fattura ? `${s.numero_fattura} ` : ""}{fmtDate(s.data_ref)}
+          {dettaglio}
         </span>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0 ml-2">
@@ -219,6 +242,7 @@ export default function BancaCrossRef() {
       </div>
     </div>
   );
+  };
 
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
@@ -321,9 +345,14 @@ export default function BancaCrossRef() {
                             <>
                               <td className="px-3 py-2.5">{tipoBadge(m.link_tipo || "FATTURA")}</td>
                               <td className="px-3 py-2.5">
-                                <div className="text-xs text-neutral-800 font-medium">{m.link_fornitore}</div>
+                                <div className="text-xs text-neutral-800 font-medium">
+                                  {(m.link_tipo === "STIPENDIO") ? stipendioNome(m.link_fornitore) : m.link_fornitore}
+                                </div>
                                 <div className="text-[10px] text-neutral-500">
-                                  {m.link_numero || "—"} {m.link_data ? `· ${fmtDate(m.link_data)}` : ""} · € {fmt(m.link_totale)}
+                                  {(m.link_tipo === "STIPENDIO" && m.link_periodo)
+                                    ? `Paga di ${m.link_periodo.split(" ")[0].toLowerCase()} · € ${fmt(m.link_totale)}`
+                                    : `${m.link_numero || "—"} ${m.link_data ? `· ${fmtDate(m.link_data)}` : ""} · € ${fmt(m.link_totale)}`
+                                  }
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 text-center">
