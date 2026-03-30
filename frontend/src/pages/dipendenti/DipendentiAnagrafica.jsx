@@ -1,37 +1,29 @@
-// FILE: frontend/src/pages/admin/DipendentiAnagrafica.jsx
-// @version: v1.0-dipendenti-anagrafica
-import React, { useEffect, useState } from "react";
+// FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
+// @version: v2.0-dipendenti-anagrafica
+// Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const RUOLI = [
-  "Sala - Cameriere",
-  "Sala - Chef de Rang",
-  "Sala - Sommelier",
-  "Cucina - Chef",
-  "Cucina - Sous Chef",
-  "Cucina - Commis",
-  "Bar - Barista",
-  "Altro",
+  "Sala - Cameriere", "Sala - Chef de Rang", "Sala - Sommelier",
+  "Cucina - Chef", "Cucina - Sous Chef", "Cucina - Commis",
+  "Bar - Barista", "Altro",
 ];
 
-const DOC_CATEGORIE = ["CONTRATTO", "CORSO", "CERTIFICATO", "ALTRO"];
+const DOC_CATEGORIE = [
+  { value: "CONTRATTO", label: "Contratto", icon: "\uD83D\uDCDD" },
+  { value: "CORSO", label: "Corso/Formazione", icon: "\uD83C\uDF93" },
+  { value: "CERTIFICATO", label: "Certificato", icon: "\uD83D\uDCC3" },
+  { value: "CEDOLINO", label: "Cedolino", icon: "\uD83D\uDCCB" },
+  { value: "ALTRO", label: "Altro", icon: "\uD83D\uDCCE" },
+];
 
 const EMPTY_FORM = {
-  id: null,
-  codice: "",
-  nome: "",
-  cognome: "",
-  ruolo: "",
-  telefono: "",
-  email: "",
-  iban: "",
-  indirizzo_via: "",
-  indirizzo_cap: "",
-  indirizzo_citta: "",
-  indirizzo_provincia: "",
-  note: "",
-  attivo: true,
+  id: null, codice: "", nome: "", cognome: "", ruolo: "",
+  telefono: "", email: "", iban: "",
+  indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
+  note: "", attivo: true,
 };
 
 export default function DipendentiAnagrafica() {
@@ -39,13 +31,15 @@ export default function DipendentiAnagrafica() {
   const [dipendenti, setDipendenti] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState("dati"); // "dati" | "documenti"
 
+  // Documenti
   const [docs, setDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
-  const [docsError, setDocsError] = useState(null);
   const [docCategoria, setDocCategoria] = useState("CONTRATTO");
   const [docDescrizione, setDocDescrizione] = useState("");
   const [docFile, setDocFile] = useState(null);
@@ -53,728 +47,440 @@ export default function DipendentiAnagrafica() {
 
   const jsonHeaders = { "Content-Type": "application/json" };
 
-  // ---------------------------------
-  // FETCH DIPENDENTI
-  // ---------------------------------
-  const loadDipendenti = async () => {
-    setLoading(true);
-    setError(null);
+  // ── FETCH ──
+  const loadDipendenti = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/dipendenti`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nel caricamento dei dipendenti.");
-      }
+      const res = await apiFetch(`${API_BASE}/dipendenti?include_inactive=true`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Errore");
       const data = await res.json();
       setDipendenti(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDipendenti();
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   }, []);
 
-  // ---------------------------------
-  // SELEZIONE / RESET FORM
-  // ---------------------------------
-  const handleSelectDipendente = (d) => {
+  useEffect(() => { loadDipendenti(); }, [loadDipendenti]);
+
+  const loadDocumenti = async (dipId) => {
+    if (!dipId) return;
+    setDocsLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/dipendenti/${dipId}/documenti`);
+      if (res.ok) setDocs(await res.json());
+      else setDocs([]);
+    } catch { setDocs([]); }
+    finally { setDocsLoading(false); }
+  };
+
+  // ── SELECT / NEW ──
+  const handleSelect = (d) => {
     setForm({
-      id: d.id,
-      codice: d.codice || "",
-      nome: d.nome || "",
-      cognome: d.cognome || "",
-      ruolo: d.ruolo || "",
-      telefono: d.telefono || "",
-      email: d.email || "",
-      iban: d.iban || "",
-      indirizzo_via: d.indirizzo_via || "",
-      indirizzo_cap: d.indirizzo_cap || "",
-      indirizzo_citta: d.indirizzo_citta || "",
+      id: d.id, codice: d.codice || "", nome: d.nome || "", cognome: d.cognome || "",
+      ruolo: d.ruolo || "", telefono: d.telefono || "", email: d.email || "",
+      iban: d.iban || "", indirizzo_via: d.indirizzo_via || "",
+      indirizzo_cap: d.indirizzo_cap || "", indirizzo_citta: d.indirizzo_citta || "",
       indirizzo_provincia: d.indirizzo_provincia || "",
-      note: d.note || "",
-      attivo: d.attivo ?? true,
+      note: d.note || "", attivo: d.attivo ?? true,
     });
     loadDocumenti(d.id);
+    setTab("dati");
   };
 
-  const handleNewDipendente = () => {
+  const handleNew = () => {
     setForm(EMPTY_FORM);
     setDocs([]);
-    setDocsError(null);
+    setTab("dati");
   };
 
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
+  const handleChange = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
-  // ---------------------------------
-  // SALVA / UPDATE DIPENDENTE
-  // ---------------------------------
+  // ── SAVE ──
   const handleSave = async (e) => {
     e.preventDefault();
-    setSaving(true);
-    setError(null);
-
+    setSaving(true); setError(null);
     const payload = {
-      codice: form.codice,
-      nome: form.nome,
-      cognome: form.cognome,
-      ruolo: form.ruolo,
-      telefono: form.telefono || null,
-      email: form.email || null,
-      iban: form.iban || null,
+      codice: form.codice, nome: form.nome, cognome: form.cognome,
+      ruolo: form.ruolo, telefono: form.telefono || null,
+      email: form.email || null, iban: form.iban || null,
       indirizzo_via: form.indirizzo_via || null,
       indirizzo_cap: form.indirizzo_cap || null,
       indirizzo_citta: form.indirizzo_citta || null,
       indirizzo_provincia: form.indirizzo_provincia || null,
-      note: form.note || null,
-      attivo: !!form.attivo,
+      note: form.note || null, attivo: !!form.attivo,
     };
-
     const isEdit = !!form.id;
-    const url = isEdit
-      ? `${API_BASE}/dipendenti/${form.id}`
-      : `${API_BASE}/dipendenti`;
-    const method = isEdit ? "PUT" : "POST";
-
-    try {
-      const res = await apiFetch(url, {
-        method,
-        headers: jsonHeaders,
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nel salvataggio del dipendente.");
-      }
-      const saved = await res.json();
-
-      // aggiorno lista
-      if (isEdit) {
-        setDipendenti((prev) =>
-          prev.map((d) => (d.id === saved.id ? saved : d))
-        );
-      } else {
-        setDipendenti((prev) => [...prev, saved]);
-        setForm({
-          ...form,
-          id: saved.id,
-        });
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ---------------------------------
-  // SOFT DELETE (disattiva)
-  // ---------------------------------
-  const handleDisattiva = async (dipendenteId) => {
-    if (!window.confirm("Vuoi davvero disattivare questo dipendente?")) return;
-    try {
-      const res = await apiFetch(`${API_BASE}/dipendenti/${dipendenteId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nella disattivazione.");
-      }
-      setDipendenti((prev) =>
-        prev.map((d) =>
-          d.id === dipendenteId ? { ...d, attivo: false } : d
-        )
-      );
-      if (form.id === dipendenteId) {
-        setForm((prev) => ({ ...prev, attivo: false }));
-      }
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  // ---------------------------------
-  // DOCUMENTI — FETCH
-  // ---------------------------------
-  const loadDocumenti = async (dipendenteId) => {
-    if (!dipendenteId) return;
-    setDocsLoading(true);
-    setDocsError(null);
     try {
       const res = await apiFetch(
-        `${API_BASE}/dipendenti/${dipendenteId}/documenti`
+        isEdit ? `${API_BASE}/dipendenti/${form.id}` : `${API_BASE}/dipendenti`,
+        { method: isEdit ? "PUT" : "POST", headers: jsonHeaders, body: JSON.stringify(payload) }
       );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(
-          err.detail || "Errore nel caricamento dei documenti."
-        );
-      }
-      const data = await res.json();
-      setDocs(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setDocsError(e.message);
-    } finally {
-      setDocsLoading(false);
-    }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Errore");
+      const saved = await res.json();
+      if (isEdit) setDipendenti(p => p.map(d => d.id === saved.id ? saved : d));
+      else { setDipendenti(p => [...p, saved]); setForm(f => ({ ...f, id: saved.id })); }
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
   };
 
-  // ---------------------------------
-  // DOCUMENTI — UPLOAD
-  // ---------------------------------
+  // ── DISATTIVA ──
+  const handleDisattiva = async (id) => {
+    if (!confirm("Disattivare questo dipendente?")) return;
+    try {
+      await apiFetch(`${API_BASE}/dipendenti/${id}`, { method: "DELETE" });
+      setDipendenti(p => p.map(d => d.id === id ? { ...d, attivo: false } : d));
+      if (form.id === id) setForm(p => ({ ...p, attivo: false }));
+    } catch (e) { setError(e.message); }
+  };
+
+  // ── DOCUMENTI: Upload ──
   const handleUploadDoc = async (e) => {
     e.preventDefault();
-    if (!form.id) {
-      setDocsError("Salva prima il dipendente, poi allega i documenti.");
-      return;
-    }
-    if (!docFile) {
-      setDocsError("Seleziona un file da allegare.");
-      return;
-    }
-
+    if (!form.id || !docFile) return;
     setDocUploading(true);
-    setDocsError(null);
     try {
       const fd = new FormData();
-      fd.append("categoria", docCategoria);
-      if (docDescrizione) fd.append("descrizione", docDescrizione);
       fd.append("file", docFile);
-
+      const params = new URLSearchParams({ categoria: docCategoria });
+      if (docDescrizione) params.set("descrizione", docDescrizione);
       const res = await apiFetch(
-        `${API_BASE}/dipendenti/${form.id}/documenti`,
+        `${API_BASE}/dipendenti/${form.id}/documenti?${params}`,
         { method: "POST", body: fd }
       );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nell'upload del documento.");
+      if (res.ok) {
+        const nuovo = await res.json();
+        setDocs(p => [nuovo, ...p]);
+        setDocFile(null); setDocDescrizione("");
       }
-      const nuovo = await res.json();
-      setDocs((prev) => [nuovo, ...prev]);
-      setDocFile(null);
-      setDocDescrizione("");
-    } catch (e) {
-      setDocsError(e.message);
-    } finally {
-      setDocUploading(false);
-    }
+    } catch (e) { console.error(e); }
+    finally { setDocUploading(false); }
   };
 
-  // ---------------------------------
-  // DOCUMENTI — DELETE
-  // ---------------------------------
+  // ── DOCUMENTI: Delete ──
   const handleDeleteDoc = async (docId) => {
-    if (!window.confirm("Vuoi eliminare questo documento?")) return;
+    if (!confirm("Eliminare questo documento?")) return;
     try {
-      const res = await apiFetch(
-        `${API_BASE}/dipendenti/documenti/${docId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Errore nell'eliminazione del documento.");
-      }
-      setDocs((prev) => prev.filter((d) => d.id !== docId));
-    } catch (e) {
-      setDocsError(e.message);
-    }
+      await apiFetch(`${API_BASE}/dipendenti/documenti/${docId}`, { method: "DELETE" });
+      setDocs(p => p.filter(d => d.id !== docId));
+    } catch (e) { console.error(e); }
   };
 
-  // ---------------------------------
-  // RENDER
-  // ---------------------------------
+  // ── DOCUMENTI: Download cedolino PDF ──
+  const handleDownloadCedolino = (bpId) => {
+    const token = localStorage.getItem("token");
+    fetch(`${API_BASE}/dipendenti/buste-paga/${bpId}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).then(r => r.blob()).then(blob => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    });
+  };
+
+  // ── FILTRO LISTA ──
+  const filtered = dipendenti.filter(d => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return `${d.cognome} ${d.nome} ${d.ruolo} ${d.codice}`.toLowerCase().includes(s);
+  });
+
+  const docCategIcon = (cat) => DOC_CATEGORIE.find(c => c.value === cat)?.icon || "\uD83D\uDCCE";
+
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-8 border border-neutral-200">
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-purple-900 tracking-wide font-playfair">
-              {"\uD83D\uDC65"} Anagrafica Dipendenti
-            </h1>
-            <p className="text-neutral-600 mt-1">
-              Gestisci anagrafiche, ruoli, IBAN, indirizzi e documenti per
-              ogni dipendente.
-            </p>
+    <div className="min-h-screen bg-neutral-100">
+      {/* ── HEADER ── */}
+      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/dipendenti")}
+            className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
+          <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDC65"} Anagrafica Dipendenti</h1>
+          <span className="text-[10px] text-neutral-400">{dipendenti.filter(d => d.attivo).length} attivi</span>
+        </div>
+        <button onClick={handleNew}
+          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700">
+          + Nuovo dipendente
+        </button>
+      </div>
+
+      {error && (
+        <div className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          {error}
+          <button onClick={() => setError(null)} className="ml-2 text-red-500">{"\u00D7"}</button>
+        </div>
+      )}
+
+      <div className="flex" style={{ height: "calc(100vh - 49px)" }}>
+        {/* ── SIDEBAR LISTA ── */}
+        <div className="w-72 bg-white border-r border-neutral-200 flex flex-col">
+          <div className="p-3 border-b border-neutral-100">
+            <input type="text" placeholder="Cerca dipendente..." value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full px-3 py-1.5 border border-neutral-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-purple-300" />
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <button
-              onClick={() => navigate("/dipendenti")}
-              className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
-            >
-              {"\u2190"} Dipendenti
-            </button>
-            <button
-              onClick={handleNewDipendente}
-              className="px-4 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold shadow hover:bg-purple-800 transition"
-            >
-              + Nuovo dipendente
-            </button>
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="p-3 text-xs text-neutral-400">Caricamento...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-3 text-xs text-neutral-400">Nessun dipendente.</div>
+            ) : filtered.map(d => (
+              <div key={d.id}
+                onClick={() => handleSelect(d)}
+                className={`px-3 py-2.5 border-b border-neutral-50 cursor-pointer transition text-xs
+                  ${form.id === d.id ? "bg-purple-50 border-l-2 border-l-purple-500" : "hover:bg-neutral-50"}
+                  ${!d.attivo ? "opacity-50" : ""}`}>
+                <div className="font-medium text-neutral-800">{d.cognome} {d.nome}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-neutral-500">{d.ruolo}</span>
+                  <span className="text-neutral-300">{"\u00B7"}</span>
+                  <span className="text-neutral-400 font-mono">{d.codice}</span>
+                  {!d.attivo && (
+                    <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1 rounded">inattivo</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
-          </div>
-        )}
-
-        {/* CONTENUTO PRINCIPALE: LISTA + FORM */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* LISTA DIPENDENTI */}
-          <div>
-            <h2 className="text-xl font-semibold mb-3 font-playfair text-neutral-800">
-              Elenco dipendenti
-            </h2>
-
-            <div className="mb-3 text-sm text-neutral-600">
-              Clicca su un dipendente per modificarne i dati e gestire gli
-              allegati.
+        {/* ── AREA DETTAGLIO ── */}
+        <div className="flex-1 overflow-y-auto">
+          {!form.id && !form.codice ? (
+            <div className="flex items-center justify-center h-full text-neutral-400 text-sm">
+              Seleziona un dipendente dalla lista o creane uno nuovo
             </div>
-
-            <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-neutral-50">
-              {loading ? (
-                <div className="p-4 text-sm text-neutral-600">
-                  Caricamento in corso...
-                </div>
-              ) : dipendenti.length === 0 ? (
-                <div className="p-4 text-sm text-neutral-600">
-                  Nessun dipendente inserito.
-                </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-neutral-100 text-neutral-700">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Nome</th>
-                      <th className="px-3 py-2 text-left">Ruolo</th>
-                      <th className="px-3 py-2 text-left">Telefono</th>
-                      <th className="px-3 py-2 text-left">Email</th>
-                      <th className="px-3 py-2 text-center">Stato</th>
-                      <th className="px-3 py-2 text-right">Azioni</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dipendenti.map((d) => (
-                      <tr
-                        key={d.id}
-                        className={`border-t border-neutral-200 hover:bg-neutral-50 cursor-pointer ${
-                          !d.attivo ? "opacity-60" : ""
-                        }`}
-                        onClick={() => handleSelectDipendente(d)}
-                      >
-                        <td className="px-3 py-2">
-                          {d.cognome} {d.nome}
-                        </td>
-                        <td className="px-3 py-2">{d.ruolo}</td>
-                        <td className="px-3 py-2">{d.telefono}</td>
-                        <td className="px-3 py-2">{d.email}</td>
-                        <td className="px-3 py-2 text-center">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              d.attivo
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-neutral-200 text-neutral-700"
-                            }`}
-                          >
-                            {d.attivo ? "Attivo" : "Disattivo"}
-                          </span>
-                        </td>
-                        <td
-                          className="px-3 py-2 text-right"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {d.attivo && (
-                            <button
-                              onClick={() => handleDisattiva(d.id)}
-                              className="text-xs text-red-600 hover:text-red-800"
-                            >
-                              Disattiva
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          {/* FORM DETTAGLIO + DOCUMENTI */}
-          <div>
-            <h2 className="text-xl font-semibold mb-3 font-playfair text-neutral-800">
-              {form.id ? "Modifica dipendente" : "Nuovo dipendente"}
-            </h2>
-
-            <form
-              onSubmit={handleSave}
-              className="space-y-4 border border-neutral-200 rounded-2xl p-4 bg-neutral-50"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Codice interno
-                  </label>
-                  <input
-                    type="text"
-                    value={form.codice}
-                    onChange={(e) =>
-                      handleChange("codice", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="DIP001"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Ruolo
-                  </label>
-                  <select
-                    value={form.ruolo}
-                    onChange={(e) =>
-                      handleChange("ruolo", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    required
-                  >
-                    <option value="">Seleziona un ruolo…</option>
-                    {RUOLI.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Nome
-                  </label>
-                  <input
-                    type="text"
-                    value={form.nome}
-                    onChange={(e) =>
-                      handleChange("nome", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Cognome
-                  </label>
-                  <input
-                    type="text"
-                    value={form.cognome}
-                    onChange={(e) =>
-                      handleChange("cognome", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Telefono
-                  </label>
-                  <input
-                    type="tel"
-                    value={form.telefono}
-                    onChange={(e) =>
-                      handleChange("telefono", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="+39 …"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) =>
-                      handleChange("email", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="nome@esempio.it"
-                  />
-                </div>
-              </div>
-
-              {/* IBAN */}
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  IBAN
-                </label>
-                <input
-                  type="text"
-                  value={form.iban}
-                  onChange={(e) => handleChange("iban", e.target.value)}
-                  className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                  placeholder="IT00 X000 0000 0000 0000 0000 000"
-                />
-                <p className="text-[11px] text-neutral-500 mt-1">
-                  Solo memoria interna, nessun controllo automatico di
-                  validità lato server.
-                </p>
-              </div>
-
-              {/* INDIRIZZO */}
-              <div className="grid grid-cols-1 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Indirizzo (via e numero)
-                  </label>
-                  <input
-                    type="text"
-                    value={form.indirizzo_via}
-                    onChange={(e) =>
-                      handleChange("indirizzo_via", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="Via Roma 10"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      CAP
-                    </label>
-                    <input
-                      type="text"
-                      value={form.indirizzo_cap}
-                      onChange={(e) =>
-                        handleChange("indirizzo_cap", e.target.value)
-                      }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                      placeholder="24121"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Città
-                    </label>
-                    <input
-                      type="text"
-                      value={form.indirizzo_citta}
-                      onChange={(e) =>
-                        handleChange("indirizzo_citta", e.target.value)
-                      }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                      placeholder="Bergamo"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Provincia
-                    </label>
-                    <input
-                      type="text"
-                      value={form.indirizzo_provincia}
-                      onChange={(e) =>
-                        handleChange(
-                          "indirizzo_provincia",
-                          e.target.value
-                        )
-                      }
-                      className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                      placeholder="BG"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* NOTE + STATO */}
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Note interne
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={form.note}
-                    onChange={(e) =>
-                      handleChange("note", e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="Es. mansioni specifiche, allergie, note su contratto…"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="attivo"
-                    type="checkbox"
-                    checked={form.attivo}
-                    onChange={(e) =>
-                      handleChange("attivo", e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-500"
-                  />
-                  <label
-                    htmlFor="attivo"
-                    className="text-xs font-medium text-neutral-700"
-                  >
-                    Dipendente attivo
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleNewDipendente}
-                  className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition"
-                >
-                  Annulla / Nuovo
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold shadow hover:bg-purple-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                >
-                  {saving
-                    ? "Salvataggio..."
-                    : form.id
-                    ? "Salva modifiche"
-                    : "Crea dipendente"}
-                </button>
-              </div>
-            </form>
-
-            {/* DOCUMENTI */}
-            <div className="mt-6 border border-neutral-200 rounded-2xl p-4 bg-white">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-neutral-800 font-playfair">
-                  📎 Documenti dipendente
-                </h3>
-                {!form.id && (
-                  <span className="text-[11px] text-neutral-500">
-                    Salva il dipendente per abilitare gli allegati.
+          ) : (
+            <div className="p-5 max-w-3xl">
+              {/* Nome dipendente + badge */}
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-xl font-bold text-neutral-800 font-playfair">
+                  {form.id ? `${form.cognome} ${form.nome}` : "Nuovo dipendente"}
+                </h2>
+                {form.id && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                    form.attivo ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"
+                  }`}>
+                    {form.attivo ? "Attivo" : "Disattivo"}
                   </span>
                 )}
               </div>
 
-              {docsError && (
-                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
-                  {docsError}
-                </div>
+              {/* TABS */}
+              <div className="flex gap-1 mb-4 border-b border-neutral-200">
+                {[
+                  { key: "dati", label: "Dati anagrafici" },
+                  { key: "documenti", label: `Documenti (${docs.length})` },
+                ].map(t => (
+                  <button key={t.key} onClick={() => setTab(t.key)}
+                    className={`px-4 py-2 text-xs font-medium border-b-2 transition ${
+                      tab === t.key
+                        ? "border-purple-600 text-purple-700"
+                        : "border-transparent text-neutral-500 hover:text-neutral-700"
+                    }`}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* ════════════════════════════════════════
+                  TAB: DATI ANAGRAFICI
+                  ════════════════════════════════════════ */}
+              {tab === "dati" && (
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Codice" value={form.codice}
+                      onChange={v => handleChange("codice", v)} placeholder="DIP001" required />
+                    <div>
+                      <label className="block text-[10px] text-neutral-500 font-medium mb-1">Ruolo</label>
+                      <select value={form.ruolo} onChange={e => handleChange("ruolo", e.target.value)}
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white" required>
+                        <option value="">Seleziona...</option>
+                        {RUOLI.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Nome" value={form.nome} onChange={v => handleChange("nome", v)} required />
+                    <Field label="Cognome" value={form.cognome} onChange={v => handleChange("cognome", v)} required />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Telefono" value={form.telefono} onChange={v => handleChange("telefono", v)}
+                      placeholder="+39..." type="tel" />
+                    <Field label="Email" value={form.email} onChange={v => handleChange("email", v)}
+                      placeholder="nome@mail.it" type="email" />
+                  </div>
+
+                  <Field label="IBAN" value={form.iban} onChange={v => handleChange("iban", v)}
+                    placeholder="IT00 X000 0000 0000 0000 0000 000" mono />
+
+                  <div className="border-t border-neutral-100 pt-3">
+                    <p className="text-[10px] text-neutral-400 font-medium mb-2 uppercase">Indirizzo</p>
+                    <Field label="Via e numero" value={form.indirizzo_via}
+                      onChange={v => handleChange("indirizzo_via", v)} placeholder="Via Roma 10" />
+                    <div className="grid grid-cols-3 gap-3 mt-2">
+                      <Field label="CAP" value={form.indirizzo_cap} onChange={v => handleChange("indirizzo_cap", v)} placeholder="24121" />
+                      <Field label="Città" value={form.indirizzo_citta} onChange={v => handleChange("indirizzo_citta", v)} placeholder="Bergamo" />
+                      <Field label="Provincia" value={form.indirizzo_provincia} onChange={v => handleChange("indirizzo_provincia", v)} placeholder="BG" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-neutral-500 font-medium mb-1">Note interne</label>
+                    <textarea rows={2} value={form.note} onChange={e => handleChange("note", e.target.value)}
+                      className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm resize-none"
+                      placeholder="Mansioni, allergie, note contratto..." />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input id="attivo" type="checkbox" checked={form.attivo}
+                      onChange={e => handleChange("attivo", e.target.checked)}
+                      className="rounded border-neutral-300 text-purple-600" />
+                    <label htmlFor="attivo" className="text-xs text-neutral-700">Dipendente attivo</label>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button type="submit" disabled={saving}
+                      className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
+                      {saving ? "Salvataggio..." : form.id ? "Salva modifiche" : "Crea dipendente"}
+                    </button>
+                    {form.id && form.attivo && (
+                      <button type="button" onClick={() => handleDisattiva(form.id)}
+                        className="px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50">
+                        Disattiva
+                      </button>
+                    )}
+                  </div>
+                </form>
               )}
 
-              {/* Form upload */}
-              <form
-                onSubmit={handleUploadDoc}
-                className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-3 items-end mb-4"
-              >
+              {/* ════════════════════════════════════════
+                  TAB: DOCUMENTI
+                  ════════════════════════════════════════ */}
+              {tab === "documenti" && (
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Categoria
-                  </label>
-                  <select
-                    value={docCategoria}
-                    onChange={(e) => setDocCategoria(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    disabled={!form.id}
-                  >
-                    {DOC_CATEGORIE.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">
-                    Descrizione
-                  </label>
-                  <input
-                    type="text"
-                    value={docDescrizione}
-                    onChange={(e) =>
-                      setDocDescrizione(e.target.value)
-                    }
-                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500"
-                    placeholder="Es. Contratto a tempo indeterminato 2025"
-                    disabled={!form.id}
-                  />
-                </div>
-                <div className="flex flex-col md:flex-row gap-2">
-                  <input
-                    type="file"
-                    onChange={(e) => setDocFile(e.target.files[0])}
-                    className="text-xs"
-                    disabled={!form.id}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!form.id || docUploading}
-                    className="px-4 py-2 rounded-xl bg-purple-700 text-white text-xs font-semibold shadow hover:bg-purple-800 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                  >
-                    {docUploading ? "Caricamento..." : "Allega"}
-                  </button>
-                </div>
-              </form>
-
-              {/* Lista documenti */}
-              <div className="border border-neutral-200 rounded-xl bg-neutral-50 max-h-60 overflow-auto">
-                {docsLoading ? (
-                  <div className="p-3 text-xs text-neutral-600">
-                    Caricamento documenti...
-                  </div>
-                ) : docs.length === 0 ? (
-                  <div className="p-3 text-xs text-neutral-600">
-                    Nessun documento allegato.
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-neutral-200 text-xs">
-                    {docs.map((doc) => (
-                      <li
-                        key={doc.id}
-                        className="px-3 py-2 flex items-center justify-between gap-2"
-                      >
-                        <div>
-                          <div className="font-medium text-neutral-800">
-                            [{doc.categoria}] {doc.filename_originale}
+                  {!form.id ? (
+                    <p className="text-xs text-neutral-500">Salva prima il dipendente per gestire i documenti.</p>
+                  ) : (
+                    <>
+                      {/* Upload form */}
+                      <form onSubmit={handleUploadDoc}
+                        className="bg-purple-50 rounded-xl border border-purple-100 p-4 mb-4">
+                        <p className="text-[10px] text-purple-700 font-semibold uppercase mb-2">Carica documento</p>
+                        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                          <div>
+                            <label className="block text-[10px] text-neutral-500 mb-1">Categoria</label>
+                            <select value={docCategoria} onChange={e => setDocCategoria(e.target.value)}
+                              className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs bg-white">
+                              {DOC_CATEGORIE.filter(c => c.value !== "CEDOLINO").map(c => (
+                                <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+                              ))}
+                            </select>
                           </div>
-                          {doc.descrizione && (
-                            <div className="text-neutral-600">
-                              {doc.descrizione}
-                            </div>
-                          )}
-                          <div className="text-[10px] text-neutral-500">
-                            Caricato il{" "}
-                            {doc.uploaded_at?.replace("T", " ") || ""}
+                          <div>
+                            <label className="block text-[10px] text-neutral-500 mb-1">Descrizione</label>
+                            <input type="text" value={docDescrizione}
+                              onChange={e => setDocDescrizione(e.target.value)}
+                              className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-xs"
+                              placeholder="Es. Contratto 2025" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="file" onChange={e => setDocFile(e.target.files[0])}
+                              className="text-[10px] w-40" />
+                            <button type="submit" disabled={docUploading || !docFile}
+                              className="px-3 py-2 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap">
+                              {docUploading ? "..." : "Carica"}
+                            </button>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteDoc(doc.id)}
-                          className="text-[11px] text-red-600 hover:text-red-800"
-                        >
-                          Elimina
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                      </form>
+
+                      {/* Lista documenti */}
+                      {docsLoading ? (
+                        <div className="text-xs text-neutral-400 py-4">Caricamento...</div>
+                      ) : docs.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-neutral-400 text-sm">Nessun documento allegato.</p>
+                          <p className="text-neutral-400 text-xs mt-1">I cedolini PDF verranno mostrati qui dopo l'import dal LUL.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {docs.map(doc => (
+                            <div key={doc.id}
+                              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-xs transition ${
+                                doc.origine === "PDF_LUL"
+                                  ? "bg-violet-50 border-violet-200"
+                                  : "bg-white border-neutral-200 hover:bg-neutral-50"
+                              }`}>
+                              <span className="text-base">{docCategIcon(doc.categoria)}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-neutral-800 truncate">
+                                  {doc.descrizione || doc.filename_originale}
+                                </div>
+                                <div className="text-[10px] text-neutral-500 flex items-center gap-2 mt-0.5">
+                                  {doc.categoria && (
+                                    <span className={`px-1.5 py-0.5 rounded font-medium ${
+                                      doc.origine === "PDF_LUL"
+                                        ? "bg-violet-100 text-violet-600"
+                                        : "bg-neutral-100 text-neutral-600"
+                                    }`}>
+                                      {doc.categoria}
+                                    </span>
+                                  )}
+                                  {doc.uploaded_at && (
+                                    <span>{doc.uploaded_at.split("T")[0]}</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {doc.origine === "PDF_LUL" && doc.bp_id ? (
+                                  <button onClick={() => handleDownloadCedolino(doc.bp_id)}
+                                    className="px-2 py-1 rounded bg-violet-100 text-violet-700 text-[10px] font-medium hover:bg-violet-200">
+                                    {"\uD83D\uDCC4"} Apri PDF
+                                  </button>
+                                ) : (
+                                  <button onClick={() => {
+                                    const token = localStorage.getItem("token");
+                                    fetch(`${API_BASE}/dipendenti/documenti/${doc.id}/download`, {
+                                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                    }).then(r => r.blob()).then(blob => {
+                                      const url = URL.createObjectURL(blob);
+                                      window.open(url, "_blank");
+                                    });
+                                  }}
+                                    className="px-2 py-1 rounded bg-neutral-100 text-neutral-600 text-[10px] font-medium hover:bg-neutral-200">
+                                    Scarica
+                                  </button>
+                                )}
+                                {doc.origine !== "PDF_LUL" && (
+                                  <button onClick={() => handleDeleteDoc(doc.id)}
+                                    className="px-1.5 py-1 rounded bg-red-50 text-red-600 text-[10px] hover:bg-red-100">
+                                    {"\u2715"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Componente Field riusabile ──
+function Field({ label, value, onChange, placeholder, type = "text", required, mono }) {
+  return (
+    <div>
+      <label className="block text-[10px] text-neutral-500 font-medium mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)}
+        className={`w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-300 ${mono ? "font-mono" : ""}`}
+        placeholder={placeholder} required={required} />
     </div>
   );
 }

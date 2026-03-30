@@ -1235,23 +1235,27 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
             WHERE fornitore_nome = ? AND data_scadenza = ? AND tipo_uscita = 'STIPENDIO'
         """, [f"Stipendio - {nome_completo}", data_scadenza]).fetchone()
 
+        periodo_rif = f"{MESI_IT[mese]} {anno}"
+        num_fattura = f"Stipendio {MESI_IT[mese]} {anno}"
+
         if existing:
             fc_conn.execute("""
-                UPDATE cg_uscite SET totale = ?, importo_pagato = 0, stato = 'DA_PAGARE'
+                UPDATE cg_uscite SET totale = ?, importo_pagato = 0, stato = 'DA_PAGARE',
+                    tipo_uscita = 'STIPENDIO', numero_fattura = ?, periodo_riferimento = ?
                 WHERE id = ?
-            """, [netto, existing["id"]])
+            """, [netto, num_fattura, periodo_rif, existing["id"]])
             uscita_id = existing["id"]
         else:
             fc_conn.execute("""
                 INSERT INTO cg_uscite
                 (fornitore_nome, totale, data_scadenza, stato, tipo_uscita,
-                 periodo_riferimento, note)
-                VALUES (?, ?, ?, 'DA_PAGARE', 'STIPENDIO', ?, ?)
+                 numero_fattura, periodo_riferimento, note)
+                VALUES (?, ?, ?, 'DA_PAGARE', 'STIPENDIO', ?, ?, ?)
             """, [
                 f"Stipendio - {nome_completo}",
                 netto, data_scadenza,
-                f"{MESI_IT[mese]} {anno}",
-                f"Cedolino {MESI_IT[mese]} {anno}",
+                num_fattura, periodo_rif,
+                f"Cedolino {periodo_rif}",
             ])
             uscita_id = fc_conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -1853,6 +1857,152 @@ def download_cedolino_pdf(
 
     filename = f"Cedolino_{row['cognome']}_{row['nome']}_{row['anno']}_{row['mese']:02d}.pdf"
     return FileResponse(pdf_abs, filename=filename, media_type="application/pdf")
+
+
+# ============================================================
+# DOCUMENTI DIPENDENTE — CRUD allegati
+# ============================================================
+
+DOCS_BASE_DIR = os.path.join("app", "data", "documenti_dipendenti")
+
+
+@router.get("/{dipendente_id}/documenti")
+def lista_documenti(
+    dipendente_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Lista documenti allegati a un dipendente, inclusi i cedolini PDF."""
+    conn = get_dipendenti_conn()
+
+    # Allegati caricati manualmente
+    allegati = conn.execute("""
+        SELECT id, filename AS filename_originale, label AS descrizione,
+               'ALLEGATO' AS origine, note, uploaded_at,
+               NULL AS categoria
+        FROM dipendenti_allegati
+        WHERE dipendente_id = ?
+        ORDER BY uploaded_at DESC
+    """, [dipendente_id]).fetchall()
+    docs = [dict(r) for r in allegati]
+
+    # Cedolini PDF importati dal LUL
+    cedolini = conn.execute("""
+        SELECT id, pdf_path, mese, anno
+        FROM buste_paga
+        WHERE dipendente_id = ? AND pdf_path IS NOT NULL AND pdf_path != ''
+        ORDER BY anno DESC, mese DESC
+    """, [dipendente_id]).fetchall()
+
+    for c in cedolini:
+        c = dict(c)
+        mese_label = MESI_IT.get(c["mese"], str(c["mese"])) if c["mese"] else "?"
+        docs.append({
+            "id": f"bp_{c['id']}",
+            "filename_originale": f"Cedolino_{mese_label}_{c['anno']}.pdf",
+            "descrizione": f"Cedolino {mese_label} {c['anno']}",
+            "categoria": "CEDOLINO",
+            "origine": "PDF_LUL",
+            "note": None,
+            "uploaded_at": None,
+            "bp_id": c["id"],
+        })
+
+    conn.close()
+    return docs
+
+
+@router.post("/{dipendente_id}/documenti")
+async def upload_documento(
+    dipendente_id: int,
+    file: UploadFile = File(...),
+    categoria: str = Query("ALTRO"),
+    descrizione: str = Query(""),
+    current_user=Depends(get_current_user),
+):
+    """Carica un documento allegato a un dipendente."""
+    conn = get_dipendenti_conn()
+
+    # Verifica dipendente esiste
+    dip = conn.execute("SELECT id, cognome, nome FROM dipendenti WHERE id = ?", [dipendente_id]).fetchone()
+    if not dip:
+        conn.close()
+        raise HTTPException(404, "Dipendente non trovato")
+
+    # Salva file su disco
+    safe_name = re.sub(r"[^\w.\-]", "_", file.filename)
+    timestamp = date.today().isoformat().replace("-", "")
+    dest_dir = os.path.join(DOCS_BASE_DIR, str(dipendente_id))
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, f"{timestamp}_{safe_name}")
+
+    file_bytes = await file.read()
+    with open(dest_path, "wb") as f:
+        f.write(file_bytes)
+
+    # Salva in DB
+    label = descrizione or f"[{categoria}] {file.filename}"
+    conn.execute("""
+        INSERT INTO dipendenti_allegati (dipendente_id, filename, label, note)
+        VALUES (?, ?, ?, ?)
+    """, [dipendente_id, dest_path, label, categoria])
+    conn.commit()
+    new_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    row = conn.execute("""
+        SELECT id, filename AS filename_originale, label AS descrizione,
+               note AS categoria, uploaded_at
+        FROM dipendenti_allegati WHERE id = ?
+    """, [new_id]).fetchone()
+    conn.close()
+
+    result = dict(row)
+    result["origine"] = "ALLEGATO"
+    return result
+
+
+@router.delete("/documenti/{doc_id}")
+def elimina_documento(
+    doc_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Elimina un documento allegato."""
+    conn = get_dipendenti_conn()
+    row = conn.execute("SELECT filename FROM dipendenti_allegati WHERE id = ?", [doc_id]).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Documento non trovato")
+
+    # Elimina file da disco
+    if row["filename"] and os.path.isfile(row["filename"]):
+        try:
+            os.remove(row["filename"])
+        except OSError:
+            pass
+
+    conn.execute("DELETE FROM dipendenti_allegati WHERE id = ?", [doc_id])
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.get("/documenti/{doc_id}/download")
+def download_documento(
+    doc_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Scarica un documento allegato."""
+    conn = get_dipendenti_conn()
+    row = conn.execute("SELECT filename, label FROM dipendenti_allegati WHERE id = ?", [doc_id]).fetchone()
+    conn.close()
+
+    if not row or not row["filename"]:
+        raise HTTPException(404, "Documento non trovato")
+
+    if not os.path.isfile(row["filename"]):
+        raise HTTPException(404, "File non trovato su disco")
+
+    orig_name = os.path.basename(row["filename"])
+    return FileResponse(row["filename"], filename=orig_name)
 
 
 # ============================================================
