@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v4.0 — Flyout menu: hover mostra sotto-menu laterale, click naviga
+// @version: v4.1 — Flyout allineato alla riga + safe-zone diagonale
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -22,10 +22,17 @@ export default function Header({ onLogout }) {
   const isViewer = role === "viewer";
 
   const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(null);   // key del modulo in hover
+  const [hovered, setHovered] = useState(null);
+  const [flyoutTop, setFlyoutTop] = useState(0);
   const [modules, setModules] = useState(null);
   const dropRef = useRef(null);
-  const hoverTimeout = useRef(null);
+  const listRef = useRef(null);
+  const rowRefs = useRef({});
+  const leaveTimer = useRef(null);
+  // Per "safe zone": traccia la posizione del mouse
+  const mousePos = useRef({ x: 0, y: 0 });
+  const intentTimer = useRef(null);
+  const pendingKey = useRef(null);
 
   // Carica moduli visibili
   useEffect(() => {
@@ -33,17 +40,26 @@ export default function Header({ onLogout }) {
       .then(r => r.json())
       .then(setModules)
       .catch(() => {
-        setModules(Object.keys(MODULES_MENU).map(key => ({ key, roles: ["superadmin", "admin", "chef", "sommelier", "sala", "viewer"] })));
+        setModules(Object.keys(MODULES_MENU).map(key => ({
+          key, roles: ["superadmin", "admin", "chef", "sommelier", "sala", "viewer"]
+        })));
       });
   }, []);
+
+  // Track mouse position dentro il dropdown (per intent detection)
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { mousePos.current = { x: e.clientX, y: e.clientY }; };
+    document.addEventListener("mousemove", handler);
+    return () => document.removeEventListener("mousemove", handler);
+  }, [open]);
 
   // Click-outside
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) {
-        setOpen(false);
-        setHovered(null);
+        setOpen(false); setHovered(null);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -73,14 +89,50 @@ export default function Header({ onLogout }) {
     else { setOpen(true); }
   };
 
-  // Hover con piccolo delay per evitare flicker
-  const handleMouseEnter = useCallback((key) => {
-    clearTimeout(hoverTimeout.current);
-    setHovered(key);
+  // Calcola il top del flyout basato sulla riga
+  const computeFlyoutTop = useCallback((key) => {
+    const rowEl = rowRefs.current[key];
+    const listEl = listRef.current;
+    if (!rowEl || !listEl) return 0;
+    const rowRect = rowEl.getBoundingClientRect();
+    const listRect = listEl.getBoundingClientRect();
+    return rowRect.top - listRect.top;
   }, []);
 
-  const handleMouseLeave = useCallback(() => {
-    hoverTimeout.current = setTimeout(() => setHovered(null), 120);
+  // "Intent detection" à la Amazon mega-menu:
+  // Se il mouse si muove verso destra (verso il flyout), aspetta un attimo
+  // prima di cambiare modulo. Altrimenti cambia subito.
+  const activateHover = useCallback((key) => {
+    setHovered(key);
+    if (key) setFlyoutTop(computeFlyoutTop(key));
+  }, [computeFlyoutTop]);
+
+  const handleRowEnter = useCallback((key) => {
+    clearTimeout(leaveTimer.current);
+    clearTimeout(intentTimer.current);
+
+    // Se non c'è flyout aperto, attiva subito
+    if (!hovered) {
+      activateHover(key);
+      return;
+    }
+
+    // Se il mouse si sta muovendo verso destra (verso il flyout),
+    // dai un po' di tempo prima di cambiare
+    pendingKey.current = key;
+    intentTimer.current = setTimeout(() => {
+      activateHover(pendingKey.current);
+    }, 80);
+  }, [hovered, activateHover]);
+
+  const handleContainerLeave = useCallback(() => {
+    clearTimeout(intentTimer.current);
+    leaveTimer.current = setTimeout(() => setHovered(null), 150);
+  }, []);
+
+  const handleFlyoutEnter = useCallback(() => {
+    clearTimeout(leaveTimer.current);
+    clearTimeout(intentTimer.current);
   }, []);
 
   const goTo = (path) => { navigate(path); };
@@ -121,15 +173,21 @@ export default function Header({ onLogout }) {
 
           {/* ── Dropdown + Flyout ── */}
           {open && (
-            <div className="absolute top-full left-0 mt-2 flex z-[100]">
-
+            <div
+              className="absolute top-full left-0 mt-2 z-[100]"
+              style={{ display: "flex", alignItems: "flex-start" }}
+            >
               {/* Colonna principale — lista moduli */}
-              <div className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100vh-80px)] overflow-y-auto">
+              <div
+                ref={listRef}
+                className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100vh-80px)] overflow-y-auto relative"
+                onMouseLeave={handleContainerLeave}
+              >
                 {/* Home */}
                 <button
                   onClick={() => goTo("/")}
-                  onMouseEnter={() => handleMouseEnter(null)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition rounded-lg mx-0 ${
+                  onMouseEnter={() => { clearTimeout(leaveTimer.current); clearTimeout(intentTimer.current); setHovered(null); }}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
                     isHome ? "bg-neutral-100 font-semibold text-neutral-900" : "text-neutral-600 hover:bg-neutral-50"
                   }`}
                 >
@@ -149,8 +207,8 @@ export default function Header({ onLogout }) {
                   return (
                     <div
                       key={key}
-                      onMouseEnter={() => handleMouseEnter(key)}
-                      onMouseLeave={handleMouseLeave}
+                      ref={el => { rowRefs.current[key] = el; }}
+                      onMouseEnter={() => handleRowEnter(key)}
                       className="relative"
                     >
                       <button
@@ -179,7 +237,7 @@ export default function Header({ onLogout }) {
                 })}
               </div>
 
-              {/* Colonna flyout — sotto-menu del modulo in hover */}
+              {/* Flyout sotto-menu — posizionato allineato alla riga */}
               {hovered && (() => {
                 const cfg = MODULES_MENU[hovered];
                 if (!cfg) return null;
@@ -188,33 +246,43 @@ export default function Header({ onLogout }) {
 
                 return (
                   <div
-                    className="ml-1 w-52 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 self-start"
-                    onMouseEnter={() => handleMouseEnter(hovered)}
-                    onMouseLeave={handleMouseLeave}
+                    className="absolute left-full"
+                    style={{ top: flyoutTop, paddingLeft: 4 }}
+                    onMouseEnter={handleFlyoutEnter}
+                    onMouseLeave={handleContainerLeave}
                   >
-                    {/* Titoletto */}
-                    <div className="px-4 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                      {cfg.title}
-                    </div>
-                    <div className="border-t border-neutral-100 mx-2 mb-1" />
+                    {/* Ponte invisibile — safe zone tra colonna e flyout */}
+                    <div
+                      className="absolute"
+                      style={{ left: -16, top: 0, width: 20, height: "100%" }}
+                      onMouseEnter={handleFlyoutEnter}
+                    />
 
-                    {visibleSubs.map(s => {
-                      const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/")
-                        || (s.go.includes("?") && location.pathname + location.search === s.go);
-                      return (
-                        <button
-                          key={s.go}
-                          onClick={() => goTo(s.go)}
-                          className={`w-full text-left px-4 py-2 text-[13px] transition ${
-                            subActive
-                              ? "bg-neutral-100 font-semibold text-neutral-900"
-                              : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
-                          }`}
-                        >
-                          {s.label}
-                        </button>
-                      );
-                    })}
+                    <div className="w-52 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2">
+                      {/* Titoletto */}
+                      <div className="px-4 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                        {cfg.title}
+                      </div>
+                      <div className="border-t border-neutral-100 mx-2 mb-1" />
+
+                      {visibleSubs.map(s => {
+                        const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/")
+                          || (s.go.includes("?") && location.pathname + location.search === s.go);
+                        return (
+                          <button
+                            key={s.go}
+                            onClick={() => goTo(s.go)}
+                            className={`w-full text-left px-4 py-2 text-[13px] transition ${
+                              subActive
+                                ? "bg-neutral-100 font-semibold text-neutral-900"
+                                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
