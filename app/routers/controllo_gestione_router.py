@@ -1549,7 +1549,7 @@ def get_movimenti_contanti(
     fc = get_fc_db()
     sql = """
         SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
-               data_fattura, totale, data_scadenza, importo_pagato,
+               data_fattura, totale AS importo, data_scadenza, importo_pagato,
                data_pagamento, stato, tipo_uscita, note,
                periodo_riferimento, metodo_pagamento
         FROM cg_uscite
@@ -1565,7 +1565,7 @@ def get_movimenti_contanti(
     sql += " ORDER BY data_pagamento DESC, fornitore_nome"
     rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
 
-    totale = sum(r["importo_pagato"] or r["totale"] or 0 for r in rows)
+    totale = sum(r["importo_pagato"] or r["importo"] or 0 for r in rows)
     fc.close()
     return {"movimenti": rows, "count": len(rows), "totale": totale}
 
