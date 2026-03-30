@@ -47,6 +47,7 @@ import RicetteSettings from "./pages/ricette/RicetteSettings";
 import ChiusuraTurno from "./pages/admin/ChiusuraTurno";
 import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
 import GestioneContanti from "./pages/admin/GestioneContanti";
+import MancePage from "./pages/admin/MancePage";
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -159,6 +160,7 @@ export default function App() {
         <Route path="/vendite" element={<CorrispettiviMenu />} />
         <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
         <Route path="/vendite/chiusure" element={<ChiusureTurnoLista />} />
+        <Route path="/vendite/mance" element={<MancePage />} />
         <Route path="/vendite/contanti" element={<GestioneContanti />} />
         <Route path="/vendite/preconti" element={<Navigate to="/vendite/contanti" replace />} />
         <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
