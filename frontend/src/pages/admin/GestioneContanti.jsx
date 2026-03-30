@@ -21,7 +21,7 @@ function fmtDate(iso) {
 
 // ── SIDEBAR MENU (Mance ora ha tab dedicata in FlussiCassa) ──
 const MENU = [
-  { key: "contanti", label: "Contanti da versare", icon: "💰" },
+  { key: "movimenti", label: "Movimenti Contanti", icon: "💶" },
   { key: "preconti", label: "Pre-conti", icon: "🍽️" },
   { key: "spese", label: "Spese turno", icon: "🧾" },
   { key: "spese-varie", label: "Spese varie", icon: "💸" },
@@ -29,7 +29,7 @@ const MENU = [
 
 /** Contenuto senza nav esterna — usato da FlussiCassaContanti */
 export function GestioneContantiContent() {
-  const [activeSection, setActiveSection] = useState("contanti");
+  const [activeSection, setActiveSection] = useState("movimenti");
 
   return (
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -56,7 +56,7 @@ export function GestioneContantiContent() {
 
             {/* Content */}
             <div className="flex-1 p-5 md:p-6 overflow-auto">
-              {activeSection === "contanti" && <SezioneContanti />}
+              {activeSection === "movimenti" && <SezioneMovimentiContanti />}
               {activeSection === "preconti" && <SezionePreconti />}
               {activeSection === "spese" && <SezioneSpese />}
               {activeSection === "spese-varie" && <SezioneSpeseVarie />}
@@ -69,9 +69,284 @@ export function GestioneContantiContent() {
 
 
 // ═══════════════════════════════════════════
-// SEZIONE: CONTANTI DA VERSARE
+// SEZIONE: MOVIMENTI CONTANTI (wrapper 2 sub-tab)
 // ═══════════════════════════════════════════
-function SezioneContanti() {
+function SezioneMovimentiContanti() {
+  const [subTab, setSubTab] = useState("pagamenti");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-emerald-900 font-playfair">Movimenti Contanti</h1>
+        <p className="text-neutral-500 text-sm mt-1">
+          Pagamenti in contanti per fatture/spese tracciate e versamenti contanti in banca.
+        </p>
+      </div>
+
+      {/* Sub-tab switcher */}
+      <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setSubTab("pagamenti")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "pagamenti"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          💶 Pagamenti spese
+        </button>
+        <button
+          onClick={() => setSubTab("versamenti")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "versamenti"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          🏦 Versamenti in banca
+        </button>
+      </div>
+
+      {subTab === "pagamenti" && <SubPagamentiContanti />}
+      {subTab === "versamenti" && <SubVersamentiContanti />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// SUB: PAGAMENTI SPESE IN CONTANTI
+// ═══════════════════════════════════════════
+function SubPagamentiContanti() {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [movimenti, setMovimenti] = useState([]);
+  const [totale, setTotale] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // Form registrazione pagamento
+  const [showForm, setShowForm] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [uscite, setUscite] = useState([]);
+  const [loadingUscite, setLoadingUscite] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const fetchMovimenti = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/movimenti-contanti?anno=${year}&mese=${month}`);
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      const j = await res.json();
+      setMovimenti(j.movimenti || []);
+      setTotale(j.totale || 0);
+    } catch (_) {}
+    finally { setLoading(false); }
+  }, [year, month]);
+
+  useEffect(() => { fetchMovimenti(); }, [fetchMovimenti]);
+
+  // Ricerca uscite da pagare
+  const searchUscite = useCallback(async (q) => {
+    if (!q || q.length < 2) { setUscite([]); return; }
+    setLoadingUscite(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite-da-pagare?search=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const j = await res.json();
+        setUscite(j.uscite || []);
+      }
+    } catch (_) {}
+    finally { setLoadingUscite(false); }
+  }, []);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => searchUscite(searchText), 350);
+    return () => clearTimeout(timer);
+  }, [searchText, searchUscite]);
+
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handlePaga = async () => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/segna-pagate-bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: [...selected],
+          data_pagamento: new Date().toISOString().slice(0, 10),
+          metodo_pagamento: "CONTANTI",
+        }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      setShowForm(false);
+      setSelected(new Set());
+      setSearchText("");
+      setUscite([]);
+      fetchMovimenti();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const goBack = () => { const d = new Date(year, month - 2, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+  const goForward = () => { const d = new Date(year, month, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+
+  const tipoBadge = (u) => {
+    if (u.tipo_uscita === "STIPENDIO") return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">Stipendio</span>;
+    if (u.tipo_uscita === "SPESA_FISSA") return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Spesa fissa</span>;
+    return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Fattura</span>;
+  };
+
+  const totaleSelezionato = [...selected].reduce((s, id) => {
+    const u = uscite.find(x => x.id === id);
+    return s + (u ? Number(u.importo || 0) : 0);
+  }, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Nav mese */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={goBack} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">← Mese prec.</button>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))}
+          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm">
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+        </select>
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))}
+          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm" />
+        <button onClick={goForward} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">Mese succ. →</button>
+      </div>
+
+      {/* KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Pagamenti contanti del mese</p>
+          <p className="text-2xl font-bold text-orange-800 mt-1">€ {fmt(totale)}</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+          <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">N. operazioni</p>
+          <p className="text-2xl font-bold text-blue-800 mt-1">{movimenti.length}</p>
+        </div>
+      </div>
+
+      {/* Button */}
+      <div className="flex justify-end">
+        <button onClick={() => setShowForm(!showForm)}
+          className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition">
+          + Registra pagamento contanti
+        </button>
+      </div>
+
+      {/* Form registra pagamento */}
+      {showForm && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-4">
+          <h3 className="text-sm font-bold text-emerald-800">Seleziona spese da pagare in contanti</h3>
+          <input
+            type="text" value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Cerca per fornitore o n° fattura..."
+            className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
+          />
+          {loadingUscite && <p className="text-xs text-neutral-400 animate-pulse">Ricerca...</p>}
+          {uscite.length > 0 && (
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {uscite.map(u => {
+                const checked = selected.has(u.id);
+                return (
+                  <button key={u.id} type="button" onClick={() => toggleSelect(u.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition border ${
+                      checked
+                        ? "bg-emerald-100 border-emerald-400 ring-2 ring-emerald-300"
+                        : "bg-white border-neutral-200 hover:border-emerald-300 hover:bg-emerald-50"
+                    }`}>
+                    <input type="checkbox" checked={checked} readOnly className="accent-emerald-600" />
+                    {tipoBadge(u)}
+                    <span className="truncate text-neutral-700 flex-1">{u.fornitore_nome || "—"}</span>
+                    <span className="text-xs text-neutral-400">{u.numero_fattura || u.descrizione || ""}</span>
+                    <span className="font-bold text-neutral-800 whitespace-nowrap">€ {fmt(u.importo)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {searchText.length >= 2 && !loadingUscite && uscite.length === 0 && (
+            <p className="text-xs text-neutral-400 italic">Nessuna spesa da pagare trovata.</p>
+          )}
+          {selected.size > 0 && (
+            <div className="flex items-center justify-between bg-emerald-100 rounded-lg px-4 py-3">
+              <span className="text-sm font-medium text-emerald-800">
+                {selected.size} {selected.size === 1 ? "spesa selezionata" : "spese selezionate"} — Totale: <strong>€ {fmt(totaleSelezionato)}</strong>
+              </span>
+              <button onClick={handlePaga} disabled={saving}
+                className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition">
+                {saving ? "..." : "💶 Paga in contanti"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lista movimenti passati */}
+      {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
+      {!loading && movimenti.length === 0 && (
+        <div className="text-center text-neutral-400 py-8 text-sm">Nessun pagamento in contanti per questo mese.</div>
+      )}
+      {!loading && movimenti.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data pag.</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Fornitore</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Descrizione</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-center">Tipo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Importo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movimenti.map(m => (
+                <tr key={m.id} className="hover:bg-orange-50">
+                  <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">{fmtDate(m.data_pagamento)}</td>
+                  <td className="border-b border-neutral-100 px-3 py-2 font-medium text-neutral-700">{m.fornitore_nome || "—"}</td>
+                  <td className="border-b border-neutral-100 px-3 py-2 text-neutral-500 text-xs">{m.numero_fattura || m.descrizione || "—"}</td>
+                  <td className="border-b border-neutral-100 px-3 py-2 text-center">
+                    {m.tipo_uscita === "STIPENDIO"
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">Stipendio</span>
+                      : m.tipo_uscita === "SPESA_FISSA"
+                      ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">Spesa fissa</span>
+                      : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Fattura</span>
+                    }
+                  </td>
+                  <td className="border-b border-neutral-100 px-3 py-2 text-right font-bold text-orange-700">€ {fmt(m.importo)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td colSpan={4} className="px-3 py-2">Totale</td>
+                <td className="px-3 py-2 text-right text-orange-700">€ {fmt(totale)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// SUB: VERSAMENTI CONTANTI IN BANCA (ex SezioneContanti)
+// ═══════════════════════════════════════════
+function SubVersamentiContanti() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);

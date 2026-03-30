@@ -1533,6 +1533,71 @@ def scollega_uscita(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# MOVIMENTI CONTANTI — pagamenti cash collegati a uscite CG
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/movimenti-contanti")
+def get_movimenti_contanti(
+    anno: int = Query(None),
+    mese: int = Query(None),
+    current_user=Depends(get_current_user),
+):
+    """
+    Lista uscite pagate in contanti (metodo_pagamento = 'CONTANTI').
+    Filtrabili per anno/mese di data_pagamento.
+    """
+    fc = get_fc_db()
+    sql = """
+        SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
+               data_fattura, totale, data_scadenza, importo_pagato,
+               data_pagamento, stato, tipo_uscita, note,
+               periodo_riferimento, metodo_pagamento
+        FROM cg_uscite
+        WHERE metodo_pagamento = 'CONTANTI'
+    """
+    params = []
+    if anno:
+        sql += " AND strftime('%Y', data_pagamento) = ?"
+        params.append(str(anno))
+    if mese:
+        sql += " AND CAST(strftime('%m', data_pagamento) AS INTEGER) = ?"
+        params.append(mese)
+    sql += " ORDER BY data_pagamento DESC, fornitore_nome"
+    rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
+
+    totale = sum(r["importo_pagato"] or r["totale"] or 0 for r in rows)
+    fc.close()
+    return {"movimenti": rows, "count": len(rows), "totale": totale}
+
+
+@router.get("/uscite-da-pagare")
+def get_uscite_da_pagare(
+    search: str = Query(""),
+    current_user=Depends(get_current_user),
+):
+    """
+    Lista uscite non ancora pagate — per selettore pagamento contanti.
+    Filtro opzionale per nome fornitore o numero fattura.
+    """
+    fc = get_fc_db()
+    sql = """
+        SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
+               data_fattura, totale, data_scadenza, stato, tipo_uscita,
+               periodo_riferimento
+        FROM cg_uscite
+        WHERE stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+    """
+    params = []
+    if search:
+        sql += " AND (fornitore_nome LIKE ? OR numero_fattura LIKE ?)"
+        params += [f"%{search}%", f"%{search}%"]
+    sql += " ORDER BY data_scadenza ASC NULLS LAST, totale DESC LIMIT 50"
+    rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
+    fc.close()
+    return {"uscite": rows, "count": len(rows)}
+
+
+# ═══════════════════════════════════════════════════════════════════
 # ADEGUAMENTO SPESE FISSE (ISTAT, variazioni canone)
 # ═══════════════════════════════════════════════════════════════════
 

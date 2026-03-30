@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-03-30 — Movimenti Contanti: pagamento spese in contanti
+
+#### Changed — Sezione "Contanti da versare" → "Movimenti Contanti"
+- Sidebar Gestione Contanti: voce rinominata con icona 💶
+- Due sub-tab interni: **Pagamenti spese** e **Versamenti in banca**
+
+#### Added — Sub-tab "Pagamenti spese" (SubPagamentiContanti)
+- Lista pagamenti contanti del mese (da CG uscite con metodo_pagamento=CONTANTI)
+- Form di registrazione: ricerca uscite da pagare (fornitore/n° fattura), selezione multipla con checkbox
+- Chiamata a `segna-pagate-bulk` con `metodo_pagamento: "CONTANTI"`
+- KPI: totale pagamenti contanti del mese, n. operazioni
+- Badge tipo: Fattura (blue), Spesa fissa (amber), Stipendio (violet)
+
+#### Added — Backend endpoints per movimenti contanti
+- `GET /controllo-gestione/movimenti-contanti?anno=X&mese=Y` — lista uscite pagate in contanti
+- `GET /controllo-gestione/uscite-da-pagare?search=X` — uscite con stato DA_PAGARE/SCADUTA/PARZIALE (max 50)
+
+#### Unchanged — Sub-tab "Versamenti in banca"
+- Funzionalità identica alla vecchia "Contanti da versare" (tracking contanti fiscali + versamenti)
+
+---
+
 ## 2026-03-30 — Flussi di Cassa v1.0: Riorganizzazione modulo Banca
 
 #### Changed — Banca rinominato in "Flussi di Cassa"

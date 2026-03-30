@@ -79,6 +79,12 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 17. **Accesso SALA**: ruolo sala può accedere al modulo (per vedere Mance)
 18. **Nuovi file**: FlussiCassaNav.jsx, FlussiCassaMenu.jsx, FlussiCassaContanti.jsx, FlussiCassaMance.jsx, CartaCreditoPage.jsx
 
+### Movimenti Contanti: pagamento spese in contanti
+19. **Rename sezione**: "Contanti da versare" → "Movimenti Contanti" con 2 sub-tab
+20. **Sub-tab "Pagamenti spese"**: ricerca uscite da pagare, selezione multipla, paga in contanti (segna-pagate-bulk con CONTANTI)
+21. **Sub-tab "Versamenti in banca"**: funzionalità invariata dalla vecchia SezioneContanti
+22. **Backend**: endpoint `GET /controllo-gestione/movimenti-contanti` e `GET /controllo-gestione/uscite-da-pagare`
+
 ---
 
 ## Cosa abbiamo fatto nella sessione 17 (2026-03-29)
