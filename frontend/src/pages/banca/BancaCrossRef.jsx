@@ -1,4 +1,4 @@
-// @version: v3.0-riconciliazione-spese
+// @version: v3.1-riconciliazione-spese
 // Riconciliazione Spese — match movimenti bancari ↔ fatture + spese fisse
 // Tabella con colonne ordinabili, filtri, ricerca manuale
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
@@ -95,6 +95,7 @@ export default function BancaCrossRef() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [sort, setSort] = useState({ field: "data_contabile", dir: "desc" });
+  const [dismissed, setDismissed] = useState(new Set()); // movimenti con suggerimenti scartati
   const debounceRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
@@ -128,6 +129,21 @@ export default function BancaCrossRef() {
     finally { setLinking(null); }
   };
 
+  const handleDismiss = (movId) => {
+    setDismissed(prev => new Set(prev).add(movId));
+    setExpandedId(null);
+    // Passa al tab senza match e apri la ricerca per quel movimento
+    setTab("senza");
+    setSearchId(movId);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const handleUndismiss = (movId) => {
+    setDismissed(prev => { const s = new Set(prev); s.delete(movId); return s; });
+    setSearchId(null);
+  };
+
   const handleUnlink = async (linkId) => {
     try {
       await apiFetch(`${FC}/cross-ref/link/${linkId}`, { method: "DELETE" });
@@ -159,11 +175,11 @@ export default function BancaCrossRef() {
     );
   };
 
-  // ── Filtra per tab ──
+  // ── Filtra per tab (dismissed sposta da suggerimenti → senza match) ──
   const linked   = useMemo(() => movimenti.filter(m => m.link_id), [movimenti]);
   const unlinked = useMemo(() => movimenti.filter(m => !m.link_id), [movimenti]);
-  const withSugg = useMemo(() => unlinked.filter(m => m.possibili_match?.length > 0), [unlinked]);
-  const noMatch  = useMemo(() => unlinked.filter(m => !m.possibili_match?.length), [unlinked]);
+  const withSugg = useMemo(() => unlinked.filter(m => m.possibili_match?.length > 0 && !dismissed.has(m.id)), [unlinked, dismissed]);
+  const noMatch  = useMemo(() => unlinked.filter(m => !m.possibili_match?.length || dismissed.has(m.id)), [unlinked, dismissed]);
 
   const listMap = { collegati: linked, suggerimenti: withSugg, senza: noMatch };
   let currentList = listMap[tab] || [];
@@ -331,18 +347,27 @@ export default function BancaCrossRef() {
                             </td>
                           )}
 
-                          {/* ── Tab senza match: pulsante cerca ── */}
+                          {/* ── Tab senza match: pulsante cerca + ripristina suggerimenti ── */}
                           {tab === "senza" && (
                             <td className="px-3 py-2.5 text-center">
-                              <button onClick={() => {
-                                if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
-                                else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); }
-                              }}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                                  isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                                }`}>
-                                {isSearching ? "Chiudi" : "🔍 Cerca"}
-                              </button>
+                              <div className="flex items-center gap-1.5 justify-center">
+                                <button onClick={() => {
+                                  if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
+                                  else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); }
+                                }}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                    isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                                  }`}>
+                                  {isSearching ? "Chiudi" : "🔍 Cerca"}
+                                </button>
+                                {dismissed.has(m.id) && (
+                                  <button onClick={() => handleUndismiss(m.id)}
+                                    title="Torna ai suggerimenti automatici"
+                                    className="px-2 py-1 rounded-lg text-[10px] font-medium border border-amber-200 text-amber-600 hover:bg-amber-50 transition">
+                                    💡
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>
@@ -351,8 +376,14 @@ export default function BancaCrossRef() {
                         {isExpanded && hasSugg && (
                           <tr>
                             <td colSpan={tab === "collegati" ? 6 : 4} className="px-3 py-3 bg-amber-50/30">
-                              <div className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide mb-2">
-                                Possibili corrispondenze (importo ±5-10%, data ±10-20gg)
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">
+                                  Possibili corrispondenze (importo ±5-10%, data ±10-20gg)
+                                </span>
+                                <button onClick={() => handleDismiss(m.id)}
+                                  className="px-3 py-1 rounded-lg text-[11px] font-medium border border-neutral-300 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition">
+                                  Nessuno di questi → cerca manuale
+                                </button>
                               </div>
                               <div className="space-y-1.5">
                                 {m.possibili_match.map(s => renderMatchOption(s, m.id))}

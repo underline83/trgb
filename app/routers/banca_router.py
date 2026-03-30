@@ -97,8 +97,8 @@ def _parse_importo_it(s: str) -> float:
 
 
 def _dedup_hash(data_contabile: str, importo: float, descrizione: str) -> str:
-    """Genera hash per dedup: data + importo + descrizione."""
-    raw = f"{data_contabile}|{importo:.2f}|{(descrizione or '').strip()}"
+    """Genera hash per dedup: data + importo + descrizione (case-insensitive)."""
+    raw = f"{data_contabile}|{importo:.2f}|{(descrizione or '').strip().lower()}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 
