@@ -281,7 +281,7 @@ function SubPagamentiContanti() {
                     <input type="checkbox" checked={checked} readOnly className="accent-emerald-600" />
                     {tipoBadge(u)}
                     <span className="truncate text-neutral-700 flex-1">{u.fornitore_nome || "—"}</span>
-                    <span className="text-xs text-neutral-400">{u.numero_fattura || u.descrizione || ""}</span>
+                    <span className="text-xs text-neutral-400">{u.numero_fattura || u.note || ""}</span>
                     <span className="font-bold text-neutral-800 whitespace-nowrap">€ {fmt(u.importo)}</span>
                   </button>
                 );
@@ -327,7 +327,7 @@ function SubPagamentiContanti() {
                 <tr key={m.id} className="hover:bg-orange-50">
                   <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">{fmtDate(m.data_pagamento)}</td>
                   <td className="border-b border-neutral-100 px-3 py-2 font-medium text-neutral-700">{m.fornitore_nome || "—"}</td>
-                  <td className="border-b border-neutral-100 px-3 py-2 text-neutral-500 text-xs">{m.numero_fattura || m.descrizione || "—"}</td>
+                  <td className="border-b border-neutral-100 px-3 py-2 text-neutral-500 text-xs">{m.numero_fattura || m.note || "—"}</td>
                   <td className="border-b border-neutral-100 px-3 py-2 text-center">
                     {m.tipo_uscita === "STIPENDIO"
                       ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">Stipendio</span>

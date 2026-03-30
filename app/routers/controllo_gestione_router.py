@@ -1583,13 +1583,13 @@ def get_uscite_da_pagare(
     sql = """
         SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
                data_fattura, totale AS importo, data_scadenza, stato, tipo_uscita,
-               periodo_riferimento, descrizione
+               periodo_riferimento, note
         FROM cg_uscite
         WHERE stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
     """
     params = []
     if search:
-        sql += " AND (fornitore_nome LIKE ? OR numero_fattura LIKE ? OR descrizione LIKE ? OR periodo_riferimento LIKE ?)"
+        sql += " AND (fornitore_nome LIKE ? OR numero_fattura LIKE ? OR note LIKE ? OR periodo_riferimento LIKE ?)"
         params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"]
     sql += " ORDER BY COALESCE(data_scadenza, '9999-12-31') ASC, totale DESC LIMIT 50"
     rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
