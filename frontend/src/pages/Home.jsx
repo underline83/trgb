@@ -1,21 +1,28 @@
-// @version: v3.3-unified-colors
+// @version: v3.4-shared-menu-config
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
+import MODULES_MENU from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
 
-const MENU_CONFIG = {
-  vini:     { title: "Gestione Vini",         subtitle: "Carta, cantina, vendite, dashboard",              icon: "\uD83C\uDF77", go: "/vini",      color: "bg-amber-50 border-amber-200 text-amber-900",       vKey: "vini" },
-  acquisti: { title: "Gestione Acquisti",     subtitle: "Fatture XML, fornitori, dashboard, categorie",    icon: "\uD83D\uDCE6", go: "/acquisti",  color: "bg-teal-50 border-teal-200 text-teal-900",          vKey: "fatture" },
-  vendite:  { title: "Gestione Vendite",     subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale", icon: "\uD83D\uDCB5", go: "/vendite", color: "bg-indigo-50 border-indigo-200 text-indigo-900", vKey: "corrispettivi" },
-  ricette:  { title: "Ricette & Food Cost",   subtitle: "Ricette, ingredienti, costi, matching fatture",   icon: "\uD83D\uDCD8", go: "/ricette",   color: "bg-orange-50 border-orange-200 text-orange-900",    vKey: "ricette" },
-  "flussi-cassa": { title: "Flussi di Cassa", subtitle: "Conti correnti, carta di credito, contanti, mance", icon: "\uD83C\uDFE6", go: "/flussi-cassa", color: "bg-emerald-50 border-emerald-200 text-emerald-900", vKey: "flussiCassa" },
-  "controllo-gestione": { title: "Controllo di Gestione", subtitle: "Panorama finanziario — vendite, acquisti, banca, scadenze, margine", icon: "\uD83C\uDFAF", go: "/controllo-gestione", color: "bg-sky-50 border-sky-200 text-sky-900", vKey: "controlloGestione" },
-  statistiche: { title: "Statistiche",       subtitle: "Analisi vendite iPratico, categorie, prodotti, trend", icon: "\uD83D\uDCC8", go: "/statistiche", color: "bg-rose-50 border-rose-200 text-rose-900",    vKey: "statistiche" },
-  dipendenti: { title: "Dipendenti",           subtitle: "Personale, buste paga, turni, scadenze, costi",   icon: "\uD83D\uDC65", go: "/dipendenti", color: "bg-purple-50 border-purple-200 text-purple-900",   vKey: "dipendenti" },
-  impostazioni: { title: "Impostazioni",      subtitle: "Utenti, ruoli, configurazione sistema",           icon: "\u2699\uFE0F", go: "/impostazioni", color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
+// Estendi con subtitle e vKey per le card Home (il resto viene da modulesMenu)
+const HOME_EXTRA = {
+  vini:                { subtitle: "Carta, cantina, vendite, dashboard",                                   vKey: "vini" },
+  acquisti:            { subtitle: "Fatture XML, fornitori, dashboard, categorie",                         vKey: "fatture" },
+  vendite:             { subtitle: "Corrispettivi, chiusure cassa, dashboard, confronto annuale",          vKey: "corrispettivi" },
+  ricette:             { subtitle: "Ricette, ingredienti, costi, matching fatture",                        vKey: "ricette" },
+  "flussi-cassa":      { subtitle: "Conti correnti, carta di credito, contanti, mance",                   vKey: "flussiCassa" },
+  "controllo-gestione":{ subtitle: "Panorama finanziario — vendite, acquisti, banca, scadenze, margine",   vKey: "controlloGestione" },
+  statistiche:         { subtitle: "Analisi vendite iPratico, categorie, prodotti, trend",                 vKey: "statistiche" },
+  dipendenti:          { subtitle: "Personale, buste paga, turni, scadenze, costi",                        vKey: "dipendenti" },
+  impostazioni:        { subtitle: "Utenti, ruoli, configurazione sistema",                                vKey: "sistema" },
 };
+
+// Merge per backward compat
+const MENU_CONFIG = Object.fromEntries(
+  Object.entries(MODULES_MENU).map(([k, v]) => [k, { ...v, ...(HOME_EXTRA[k] || {}) }])
+);
 
 export default function Home() {
   const navigate = useNavigate();
