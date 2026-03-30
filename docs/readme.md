@@ -13,7 +13,7 @@ TRGB Gestionale e' un'applicazione web interna composta da:
 - **Deploy** VPS Ubuntu 22.04 (Aruba), Nginx, systemd, HTTPS Certbot
 - **Deploy automatico** via `git push` → post-receive hook su VPS
 
-Moduli attivi: Cantina & Vini (v3.7), Gestione Acquisti (v2.0), Ricette & Food Cost (v3.0), Gestione Vendite (v2.0) con Chiusure Turno, Banca (v1.0), Finanza (v1.0), Dipendenti & Turni (v1.0).
+Moduli attivi: Cantina & Vini (v4.0), Gestione Acquisti (v2.2), Ricette & Food Cost (v3.0), Gestione Vendite (v4.0), Banca (v1.0), Controllo Gestione (v1.0), Dipendenti & Turni (v1.0).
 
 ---
 
@@ -141,8 +141,8 @@ Docs: `docs/modulo_corrispettivi.md`
 ### Banca (v1.0)
 Import CSV Banco BPM, movimenti con categorie custom, dashboard, cross-reference con fatture XML, andamento temporale.
 
-### Finanza (v1.0)
-Import Excel movimenti finanziari, scadenzario pagamenti, categorie a doppia classificazione.
+### Controllo Gestione (v1.0)
+Dashboard unificata vendite/acquisti/banca/margine, tabellone uscite con scadenze, riconciliazione banca, spese fisse ricorrenti.
 
 ### Dipendenti & Turni (v1.0)
 Anagrafica, tipologie turno, calendario. Allegati predisposti nel DB ma non ancora implementati.
@@ -170,7 +170,7 @@ Docs: `docs/modulo_dipendenti.md`
 | ~~`vini.sqlite3`~~ | **ELIMINATO v3.0** — carta ora da vini_magazzino.sqlite3 |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini moderno) |
 | `vini_settings.sqlite3` | Ordinamenti e filtri carta |
-| `foodcost.db` | FoodCost, Fatture XML, Ricette, Banca, Finanza (migrazioni 001–017) |
+| `foodcost.db` | FoodCost, Fatture XML, Ricette, Banca, Controllo Gestione (migrazioni 001–032) |
 | `admin_finance.sqlite3` | Vendite, Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti e turni (creato a runtime) |
 
@@ -198,15 +198,15 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 
 | Modulo | Versione | Stato |
 |--------|----------|-------|
-| Cantina & Vini | v3.7 | stabile |
-| Gestione Acquisti | v2.0 | stabile |
+| Cantina & Vini | v4.0 | stabile |
+| Gestione Acquisti | v2.2 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
-| Gestione Vendite | v2.0 | stabile |
+| Gestione Vendite | v4.0 | stabile |
 | Banca | v1.0 | beta |
-| Finanza | v1.0 | beta |
+| Controllo Gestione | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v4.3 | stabile |
+| Sistema | v4.5 | stabile |
 
 ---
 

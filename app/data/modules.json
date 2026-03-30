@@ -42,13 +42,6 @@
     "roles": ["superadmin", "admin", "viewer"]
   },
   {
-    "key": "finanza",
-    "label": "Finanza",
-    "description": "Gestione finanziaria, vista analitica e di cassa, riconciliazione",
-    "icon": "💰",
-    "roles": ["superadmin", "admin", "viewer"]
-  },
-  {
     "key": "controllo-gestione",
     "label": "Controllo di Gestione",
     "description": "Panorama finanziario unificato — vendite, acquisti, banca, scadenze, margine",

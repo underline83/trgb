@@ -1127,8 +1127,8 @@ def create_spesa_fissa(
     fc.execute("""
         INSERT INTO cg_spese_fisse
             (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
-             data_inizio, data_fine, note, attiva)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+             data_inizio, data_fine, note, iban, attiva)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     """, (
         tipo,
         payload.get("titolo", "").strip(),
@@ -1139,6 +1139,7 @@ def create_spesa_fissa(
         payload.get("data_inizio"),
         payload.get("data_fine"),
         payload.get("note", ""),
+        payload.get("iban", ""),
     ))
     fc.commit()
     new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -1161,7 +1162,7 @@ def update_spesa_fissa(
         raise HTTPException(404, "Spesa non trovata")
 
     allowed = ("tipo", "titolo", "descrizione", "importo", "frequenza",
-               "giorno_scadenza", "data_inizio", "data_fine", "note", "attiva")
+               "giorno_scadenza", "data_inizio", "data_fine", "note", "iban", "attiva")
     sets = []
     params = []
     for field in allowed:
@@ -1267,6 +1268,48 @@ def get_candidati_banca(
         },
         "candidati": rows,
     }
+
+
+# ── Segna pagate bulk ──────────────────────────────────────────
+@router.post("/uscite/segna-pagate-bulk")
+def segna_pagate_bulk(
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Segna più uscite come PAGATA_MANUALE in un colpo solo.
+    Body: { ids: [int], metodo_pagamento: str, data_pagamento?: str }
+    Non tocca righe già PAGATA (riconciliate via banca).
+    """
+    ids = payload.get("ids", [])
+    metodo = payload.get("metodo_pagamento", "CONTO_CORRENTE")
+    data_pag = payload.get("data_pagamento") or date.today().isoformat()
+
+    if not ids:
+        return {"ok": False, "error": "Nessuna uscita selezionata"}
+
+    METODI_VALIDI = ["CONTO_CORRENTE", "CARTA", "CONTANTI", "ASSEGNO", "BONIFICO"]
+    if metodo not in METODI_VALIDI:
+        return {"ok": False, "error": f"Metodo pagamento non valido: {metodo}"}
+
+    conn = get_fc_db()
+    try:
+        placeholders = ",".join("?" * len(ids))
+        # Aggiorna solo righe DA_PAGARE, SCADUTA o PARZIALE (non toccare PAGATA già riconciliate)
+        conn.execute(f"""
+            UPDATE cg_uscite
+            SET stato = 'PAGATA_MANUALE',
+                metodo_pagamento = ?,
+                data_pagamento = ?,
+                importo_pagato = totale
+            WHERE id IN ({placeholders})
+              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE', 'PAGATA_MANUALE')
+        """, [metodo, data_pag] + ids)
+        aggiornate = conn.total_changes
+        conn.commit()
+        return {"ok": True, "aggiornate": aggiornate}
+    finally:
+        conn.close()
 
 
 @router.post("/uscite/{uscita_id}/riconcilia")
@@ -1381,3 +1424,110 @@ def scollega_uscita(
     fc.close()
 
     return {"ok": True, "nuovo_stato": "PAGATA_MANUALE"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ADEGUAMENTO SPESE FISSE (ISTAT, variazioni canone)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.post("/spese-fisse/{spesa_id}/adeguamento")
+def adeguamento_spesa(
+    spesa_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Applica un adeguamento (es. ISTAT) a una spesa fissa.
+    Body: {
+        "nuovo_importo": float,        # nuovo importo della rata/canone
+        "data_decorrenza": "YYYY-MM-DD", # da quando si applica
+        "motivo": "Adeguamento ISTAT 2026 +5.4%"  # opzionale
+    }
+    Effetto:
+    1. Aggiorna importo in cg_spese_fisse
+    2. Aggiorna tutte le cg_uscite future non pagate da data_decorrenza in poi
+    3. Salva lo storico in cg_spese_fisse_adeguamenti
+    """
+    fc = get_fc_db()
+
+    spesa = fc.execute("SELECT * FROM cg_spese_fisse WHERE id = ?", (spesa_id,)).fetchone()
+    if not spesa:
+        fc.close()
+        return {"ok": False, "error": "Spesa fissa non trovata"}
+
+    s = dict(spesa)
+    nuovo_importo = payload.get("nuovo_importo")
+    data_dec = payload.get("data_decorrenza")
+    motivo = payload.get("motivo", "")
+
+    if not nuovo_importo or not data_dec:
+        fc.close()
+        return {"ok": False, "error": "nuovo_importo e data_decorrenza sono obbligatori"}
+
+    nuovo_importo = float(nuovo_importo)
+    importo_vecchio = s["importo"]
+
+    if nuovo_importo == importo_vecchio:
+        fc.close()
+        return {"ok": False, "error": "Il nuovo importo è uguale a quello attuale"}
+
+    variazione_pct = round((nuovo_importo - importo_vecchio) / importo_vecchio * 100, 2) if importo_vecchio else 0
+
+    # 1. Aggiorna importo nella spesa fissa
+    oggi_str = date.today().isoformat()
+    fc.execute("""
+        UPDATE cg_spese_fisse SET importo = ?, updated_at = ? WHERE id = ?
+    """, (nuovo_importo, oggi_str, spesa_id))
+
+    # 2. Aggiorna uscite future non pagate (da data_decorrenza in poi)
+    cur = fc.execute("""
+        UPDATE cg_uscite
+        SET totale = ?, updated_at = ?
+        WHERE spesa_fissa_id = ?
+          AND data_scadenza >= ?
+          AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+    """, (nuovo_importo, oggi_str, spesa_id, data_dec))
+    n_aggiornate = cur.rowcount
+
+    # 3. Salva storico adeguamento
+    try:
+        fc.execute("""
+            INSERT INTO cg_spese_fisse_adeguamenti
+                (spesa_fissa_id, importo_vecchio, importo_nuovo, data_decorrenza,
+                 variazione_pct, motivo, uscite_aggiornate)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (spesa_id, importo_vecchio, nuovo_importo, data_dec,
+              variazione_pct, motivo, n_aggiornate))
+    except Exception:
+        pass  # Tabella potrebbe non esistere ancora se la migration non è stata eseguita
+
+    fc.commit()
+    fc.close()
+
+    return {
+        "ok": True,
+        "importo_vecchio": importo_vecchio,
+        "importo_nuovo": nuovo_importo,
+        "variazione_pct": variazione_pct,
+        "uscite_aggiornate": n_aggiornate,
+    }
+
+
+@router.get("/spese-fisse/{spesa_id}/adeguamenti")
+def storico_adeguamenti(
+    spesa_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Storico adeguamenti di una spesa fissa."""
+    fc = get_fc_db()
+    try:
+        rows = fc.execute("""
+            SELECT * FROM cg_spese_fisse_adeguamenti
+            WHERE spesa_fissa_id = ?
+            ORDER BY data_decorrenza DESC
+        """, (spesa_id,)).fetchall()
+        fc.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        fc.close()
+        return []

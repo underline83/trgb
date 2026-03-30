@@ -1,5 +1,5 @@
 # TRGB Gestionale — Architettura Tecnica
-**Ultimo aggiornamento:** 2026-03-16
+**Ultimo aggiornamento:** 2026-03-30
 
 ---
 
@@ -37,8 +37,7 @@ app/
 │   ├── fe_import.py                — Fatture XML (/contabilita/fe/...)
 │   ├── fe_categorie_router.py      — Categorie fatture
 │   ├── banca_router.py             — Banca (/banca/...)
-│   ├── finanza_router.py           — Finanza (/finanza/...)
-│   ├── finanza_scadenzario_router.py — Scadenzario
+│   ├── controllo_gestione_router.py — Controllo Gestione (/controllo-gestione/...)
 │   ├── statistiche_router.py       — Statistiche iPratico (/statistiche/...)
 │   ├── ipratico_products_router.py — Sync prodotti iPratico (/vini/ipratico/...)
 │   ├── dipendenti.py               — Dipendenti & turni (/dipendenti/...)
@@ -70,7 +69,7 @@ app/
 │   ├── 001_creare_ingredients.py
 │   ├── ...
 │   ├── 014_banca_movimenti.py
-│   ├── 015–019 (finanza, scadenzario, categorie albero)
+│   ├── 015-019 (legacy — finanza rimosso v1.0)
 │   ├── 020_ipratico_products.py    — Tabelle mapping prodotti iPratico
 │   ├── 021_ipratico_ignored_status.py — Aggiunge stato 'ignored'
 │   ├── 022_ipratico_export_defaults.py — Default export configurabili
@@ -84,7 +83,7 @@ app/
 │   ├── vini.sqlite3            — ELIMINATO v3.0 (era Carta Vini legacy)
 │   ├── vini_magazzino.sqlite3  — Cantina (DB moderno, unico DB vini)
 │   ├── vini_settings.sqlite3   — Ordinamenti e filtri carta
-│   ├── foodcost.db             — FoodCost, Ricette, FE XML, Banca, Finanza
+│   ├── foodcost.db             — FoodCost, Ricette, FE XML, Banca, Controllo Gestione
 │   ├── admin_finance.sqlite3   — Vendite + Chiusure turno
 │   ├── users.json              — Store utenti (4 utenti con hash PIN)
 │   ├── modules.json            — Permessi moduli per ruolo
@@ -134,7 +133,7 @@ frontend/
 | ~~`vini.sqlite3`~~ | ~~Carta Vini~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina | Magazzino moderno con movimenti, note, locazioni |
 | `vini_settings.sqlite3` | Settings Carta | tipologia_order, nazioni_order, regioni_order, filtri_carta |
-| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, Statistiche | Gestito da migration_runner (001–018) |
+| `foodcost.db` | FoodCost, FE XML, Banca, Controllo Gestione, Statistiche | Gestito da migration_runner (001–032) |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | daily_closures, shift_closures, shift_preconti, shift_spese |
 | `dipendenti.sqlite3` | Dipendenti & Turni | Creato a runtime da `init_dipendenti_db()` |
 
@@ -210,12 +209,11 @@ Ruoli: `admin`, `chef`, `sommelier`, `sala`, `viewer`
 /banca/categorie            — Categorie custom
 /banca/crossref             — Cross-ref fatture
 
-/finanza                    — Menu Finanza
-/finanza/dashboard          — Dashboard finanza
-/finanza/movimenti          — Movimenti finanziari
-/finanza/import             — Import Excel
-/finanza/categorie          — Categorie
-/finanza/scadenzario        — Scadenzario pagamenti
+/controllo-gestione         — Menu Controllo Gestione
+/controllo-gestione/dashboard — Dashboard unificata
+/controllo-gestione/uscite  — Tabellone uscite
+/controllo-gestione/confronto — Confronto periodi
+/controllo-gestione/spese-fisse — Spese fisse
 
 /statistiche                — Menu Statistiche
 /statistiche/dashboard      — Dashboard (categorie, top prodotti, trend)
@@ -274,7 +272,7 @@ Modulo Ricette & Food Cost .... v3.0   — beta
 Modulo Gestione Vendite ........ v2.0   — stabile
 Modulo Banca ................... v1.0   — beta
 Modulo Statistiche ............. v1.0   — beta
-Modulo Finanza ................. v1.0   — beta
+Modulo Controllo Gestione ....... v1.0   — beta
 Modulo Dipendenti .............. v1.0   — stabile
 Login & Ruoli .................. v2.0   — stabile
 Sistema ........................ v4.3   — stabile

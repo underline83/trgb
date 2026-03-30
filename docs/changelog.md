@@ -3,7 +3,22 @@
 
 ---
 
-## 2026-03-30 — Controllo Gestione v1.1: Riconciliazione Banca + Spese Fisse v2.0
+## 2026-03-30 — Controllo Gestione v1.1: Riconciliazione Banca + Spese Fisse v2.0 + Rimozione Finanza
+
+### Rimozione Modulo Finanza
+
+#### Removed
+- **Modulo Finanza v1.0**: completamente rimosso da codebase (router, frontend, config)
+- **Router**: `finanza_router.py` e `finanza_scadenzario_router.py` eliminati
+- **Frontend**: componenti Finanza eliminate da `src/pages/`
+- **Database**: tabelle finanza_movimenti, finanza_categorie, finanza_scadenzario (legacy, non più popola)
+- **Menu**: tile Finanza rimosso da home page
+- **Routing**: rotte `/finanza/*` eliminate
+
+#### Note
+- Le funzionalità di Finanza (scadenzario, categorie pagamenti) sono state integrate in Controllo Gestione
+- Le migrazioni 015-019 rimangono nel database per tracciabilità, ma non sono più utilizzate
+- Documentazione aggiornata (architettura.md, database.md, readme.md, roadmap.md)
 
 ### Spese Fisse (ControlloGestioneSpeseFisse.jsx v2.0)
 

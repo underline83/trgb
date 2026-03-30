@@ -7,7 +7,7 @@ Il progetto usa **SQLite** con un file per dominio funzionale. Tutti i file sono
 
 | File | Moduli | Schema |
 |------|--------|--------|
-| `foodcost.db` | FoodCost, FE XML, Banca, Finanza, iPratico, FIC | v4.0 — gestito da `migration_runner.py` (001–026) |
+| `foodcost.db` | FoodCost, FE XML, Banca, Controllo Gestione, iPratico, FIC | v5.0 — gestito da `migration_runner.py` (001–032) |
 | `vini_magazzino.sqlite3` | Cantina (magazzino vini) | v3.7 — creato da `vini_magazzino_db.py` |
 | `vini_settings.sqlite3` | Settings Carta Vini | v1.4 — creato da `vini_settings.py` |
 | `admin_finance.sqlite3` | Vendite, Chiusure Turno | v2.0 — chiusure turno con pre-conti e spese |
@@ -94,7 +94,7 @@ _Ordinamenti e filtri della carta vini._
 ---
 
 # 4. `foodcost.db`
-_FoodCost + Fatture XML + Banca + Finanza + iPratico Products. Gestito da `migration_runner.py` (001–022)._
+_FoodCost + Fatture XML + Banca + Controllo Gestione + iPratico Products. Gestito da `migration_runner.py` (001–032)._
 
 ## Tabelle FoodCost
 
@@ -163,16 +163,9 @@ Categorie a 2 livelli per classificazione fornitori.
 ### `banca_import_log`
 | id | filename | data_import | num_movimenti |
 
-## Tabelle Finanza (migrazioni 015–017)
+## Tabelle Finanza (RIMOSSO — v1.0 2026-03-30)
 
-### `finanza_movimenti`
-Movimenti finanziari importati da Excel.
-
-### `finanza_categorie`
-Classificazione a doppia categoria.
-
-### `finanza_scadenzario`
-Scadenze pagamenti.
+Modulo Finanza completamente rimosso. Le sue funzionalità sono state integrate in Controllo Gestione.
 
 ## Relazioni principali
 

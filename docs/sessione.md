@@ -54,7 +54,7 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 ### Controllo Gestione v1.0: Nuovo modulo, dashboard, tabellone uscite
 
 #### Nuovo modulo Controllo Gestione
-1. **Modulo top-level** separato da Finanza — colore sky/cyan, icona 🎯
+1. **Modulo top-level** integra Finanza (rimosso) — colore sky/cyan, icona 🎯
 2. **Dashboard unificata** — KPI vendite/acquisti/banca/margine, andamento annuale, top fornitori, categorie acquisti
 3. **Tabellone Uscite** — importa fatture da Acquisti, calcola scadenze, gestisce stati (DA_PAGARE, SCADUTA, PAGATA, PARZIALE)
 4. **Confronto Periodi** — placeholder per confronto mesi/anni
@@ -79,7 +79,7 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 - **Punto 5**: Cross-ref pagamenti con Banca (matching uscite ↔ movimenti)
 - **Spese Fisse**: sezione per affitti, tasse, stipendi, prestiti, rateizzazioni
 - **Gestione contanti**: matching pagamenti cash
-- Finanza: lasciato intatto, "in lavorazione" dove serve
+- Finanza: RIMOSSO in sessione 18
 
 ---
 
@@ -234,7 +234,6 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Gestione Vendite | v4.0 | stabile |
 | Statistiche | v1.0 | beta |
 | Banca | v1.0 | beta |
-| Finanza | v1.0 | beta |
 | Controllo Gestione | v1.0 | beta |
 | Dipendenti | v1.0 | stabile |
 | Login & Ruoli | v2.0 | stabile |
@@ -345,7 +344,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Finanza + Statistiche + Controllo Gestione (migraz. 001-032) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + Controllo Gestione (migraz. 001-032) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 

@@ -52,6 +52,11 @@ export default function ControlloGestioneUscite() {
   const [sortCol, setSortCol] = useState("data_scadenza");
   const [sortDir, setSortDir] = useState("asc");
 
+  // ── Selezione multipla + bulk payment ──
+  const [selected, setSelected] = useState(new Set());
+  const [bulkMetodo, setBulkMetodo] = useState("CONTO_CORRENTE");
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   // ── Modale riconciliazione ──
   const [modaleBanca, setModaleBanca] = useState(null); // { uscita_id, fornitore, totale }
   const [candidati, setCandidati] = useState([]);
@@ -144,7 +149,7 @@ export default function ControlloGestioneUscite() {
   };
 
   const SortIcon = ({ col }) => {
-    if (sortCol !== col) return <span className="text-neutral-300 ml-0.5">&updownarrow;</span>;
+    if (sortCol !== col) return <span className="text-neutral-300 ml-0.5">{"\u2195"}</span>;
     return <span className="text-sky-600 ml-0.5">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>;
   };
 
@@ -203,6 +208,54 @@ export default function ControlloGestioneUscite() {
     } catch (e) {
       console.error("Errore scollega:", e);
       alert("Errore di rete");
+    }
+  };
+
+  // ── Selezione multipla helpers ──
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const selezionabili = useMemo(() =>
+    sorted.filter(u => ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato)).map(u => u.id),
+    [sorted]
+  );
+  const allSelected = selezionabili.length > 0 && selezionabili.every(id => selected.has(id));
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(selezionabili));
+    }
+  };
+
+  // ── Bulk payment ──
+  const segnaPagateBulk = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Segnare ${selected.size} uscit${selected.size === 1 ? "a" : "e"} come pagate (${bulkMetodo.replace("_", " ")})?`)) return;
+    setBulkSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/segna-pagate-bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selected], metodo_pagamento: bulkMetodo }),
+      });
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      if (json.ok) {
+        setSelected(new Set());
+        fetchData(false);
+      } else {
+        alert(json.error || "Errore");
+      }
+    } catch (e) {
+      console.error("Errore bulk payment:", e);
+      alert("Errore di rete");
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -347,6 +400,31 @@ export default function ControlloGestioneUscite() {
             </span>
           </div>
 
+          {/* ── BARRA AZIONI BULK ── */}
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-teal-50 border-b border-teal-200 flex-shrink-0">
+              <span className="text-xs font-semibold text-teal-800">
+                {selected.size} selezionat{selected.size === 1 ? "a" : "e"}
+              </span>
+              <select value={bulkMetodo} onChange={e => setBulkMetodo(e.target.value)}
+                className="border border-teal-300 rounded-lg px-2 py-1 text-xs bg-white">
+                <option value="CONTO_CORRENTE">Conto corrente</option>
+                <option value="CARTA">Carta</option>
+                <option value="CONTANTI">Contanti</option>
+                <option value="ASSEGNO">Assegno</option>
+                <option value="BONIFICO">Bonifico</option>
+              </select>
+              <button onClick={segnaPagateBulk} disabled={bulkSaving}
+                className="px-3 py-1 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50">
+                {bulkSaving ? "Salvataggio..." : "Segna pagate"}
+              </button>
+              <button onClick={() => setSelected(new Set())}
+                className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+                Deseleziona
+              </button>
+            </div>
+          )}
+
           {/* TABELLA SCROLLABILE con STICKY HEADER */}
           <div className="flex-1 overflow-auto min-h-0">
             {loading ? (
@@ -359,6 +437,11 @@ export default function ControlloGestioneUscite() {
               <table className="w-full text-[11px]">
                 <thead className="bg-neutral-100 sticky top-0 z-10">
                   <tr className="text-[9px] text-neutral-600 uppercase tracking-wide select-none">
+                    <th className="px-2 py-2 text-center w-8">
+                      <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                        className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500"
+                        title="Seleziona/deseleziona tutte le non pagate" />
+                    </th>
                     <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("data_scadenza")}>
                       Scadenza <SortIcon col="data_scadenza" />
                     </th>
@@ -389,11 +472,23 @@ export default function ControlloGestioneUscite() {
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
                     const isRiconciliata = !!u.banca_movimento_id;
                     const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
+                    const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
 
                     return (
                       <tr key={u.id} className={`border-b border-neutral-100 hover:bg-sky-50/50 transition ${
+                        selected.has(u.id) ? "bg-teal-50/60" :
                         u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : "bg-white"
                       }`}>
+                        {/* CHECKBOX */}
+                        <td className="px-2 py-1.5 text-center">
+                          {puoSelezionare ? (
+                            <input type="checkbox" checked={selected.has(u.id)}
+                              onChange={() => toggleSelect(u.id)}
+                              className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
+                          ) : (
+                            <span className="text-neutral-200">{"\u00B7"}</span>
+                          )}
+                        </td>
                         {/* SCADENZA */}
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           {u.data_scadenza ? (

@@ -145,7 +145,7 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 **Obiettivo:** spezzare `foodcost.db` (37+ tabelle, 5 domini) in database separati per modulo.
 
 - [ ] **fatture.sqlite3** — fe_fatture, fe_righe, fe_categorie, fe_sottocategorie, fe_fornitore_categoria, fe_prodotto_categoria_map, matching_*, fic_config, fic_fatture, fic_sync_log
-- [ ] **finanza.sqlite3** — finanza_movimenti, finanza_cat, finanza_subcat, finanza_regole_cat, finanza_scadenze, finanza_rate, finanza_import_log, banca_movimenti, banca_import_log, banca_categorie_map, banca_fatture_link
+- [ ] **controllo-gestione.sqlite3** — cg_uscite, cg_spese_fisse, cg_uscite_log, banca_movimenti, banca_import_log, banca_categorie_map, banca_fatture_link
 - [ ] **ipratico.sqlite3** — ipratico_imports, ipratico_categorie, ipratico_prodotti, ipratico_product_map, ipratico_sync_log, ipratico_export_defaults
 - [ ] **foodcost.db** (ridotto) — ingredients, ingredient_categories, ingredient_prices, suppliers, ingredient_supplier_map, ingredient_unit_conversions, recipes, recipe_categories, recipe_items
 - [ ] Script migrazione dati con backup automatico pre-split
@@ -162,11 +162,6 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Eliminare scadenza mista BPM
 - [ ] Migliorare categorizzazione scadenze
 - [ ] Dashboard con grafici Recharts (sostituire barre CSS)
-
-## 29. Modulo Finanza — evoluzione
-- [ ] Scadenzario con notifiche/alert
-- [ ] Integrazione con banca per riconciliazione
-- [ ] Dashboard P&L semplificato
 
 ---
 

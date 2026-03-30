@@ -73,6 +73,12 @@ export default function ControlloGestioneSpeseFisse() {
   const [fattureDisponibili, setFattureDisponibili] = useState([]);
   const [loadingFatture, setLoadingFatture] = useState(false);
 
+  // Adeguamento ISTAT
+  const [adeguamento, setAdeguamento] = useState(null); // { id, titolo, importo }
+  const [adeguForm, setAdeguForm] = useState({ nuovo_importo: "", data_decorrenza: "", motivo: "" });
+  const [savingAdegu, setSavingAdegu] = useState(false);
+  const [storico, setStorico] = useState([]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -96,7 +102,7 @@ export default function ControlloGestioneSpeseFisse() {
 
   const resetForm = () => {
     setForm({ tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
-              frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "" });
+              frequenza: "MENSILE", giorno_scadenza: "", data_inizio: "", data_fine: "", note: "", iban: "" });
     setEditId(null);
   };
 
@@ -106,7 +112,7 @@ export default function ControlloGestioneSpeseFisse() {
       importo: String(s.importo), frequenza: s.frequenza,
       giorno_scadenza: s.giorno_scadenza ? String(s.giorno_scadenza) : "",
       data_inizio: s.data_inizio || "", data_fine: s.data_fine || "",
-      note: s.note || "",
+      note: s.note || "", iban: s.iban || "",
     });
     setEditId(s.id);
     setShowForm(true);
@@ -151,6 +157,7 @@ export default function ControlloGestioneSpeseFisse() {
         data_inizio: data.data_inizio || null,
         data_fine: data.data_fine || null,
         note: data.note || null,
+        iban: data.iban || null,
       };
       await apiFetch(`${CG}/spese-fisse`, {
         method: "POST",
@@ -203,6 +210,50 @@ export default function ControlloGestioneSpeseFisse() {
     await apiFetch(`${CG}/spese-fisse/${s.id}`, { method: "DELETE" });
     fetchData();
   };
+
+  // ── Adeguamento ISTAT ──
+  const openAdeguamento = async (s) => {
+    setAdeguamento({ id: s.id, titolo: s.titolo, importo: s.importo, tipo: s.tipo });
+    setAdeguForm({ nuovo_importo: "", data_decorrenza: "", motivo: "" });
+    // Carica storico
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/${s.id}/adeguamenti`);
+      if (res.ok) setStorico(await res.json());
+      else setStorico([]);
+    } catch { setStorico([]); }
+  };
+
+  const handleAdeguamento = async () => {
+    if (!adeguamento || !adeguForm.nuovo_importo || !adeguForm.data_decorrenza) return;
+    setSavingAdegu(true);
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/${adeguamento.id}/adeguamento`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nuovo_importo: parseFloat(adeguForm.nuovo_importo),
+          data_decorrenza: adeguForm.data_decorrenza,
+          motivo: adeguForm.motivo || `Adeguamento ${adeguamento.tipo === "AFFITTO" ? "ISTAT" : "importo"}`,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setAdeguamento(null);
+        fetchData();
+      } else {
+        alert(json.error || "Errore");
+      }
+    } catch (e) {
+      alert("Errore di rete");
+    } finally {
+      setSavingAdegu(false);
+    }
+  };
+
+  // Calcolo variazione % in tempo reale
+  const adeguVariazione = adeguamento && adeguForm.nuovo_importo
+    ? ((parseFloat(adeguForm.nuovo_importo) - adeguamento.importo) / adeguamento.importo * 100).toFixed(1)
+    : null;
 
   // ── Carica fatture per rateizzazione ──
   const loadFatture = async () => {
@@ -378,6 +429,9 @@ export default function ControlloGestioneSpeseFisse() {
                 value={wizData.data_inizio || ""} onChange={v => setWizData({ ...wizData, data_inizio: v })} />
               <WizField label="Fine contratto (opzionale)" type="date"
                 value={wizData.data_fine || ""} onChange={v => setWizData({ ...wizData, data_fine: v })} />
+              <WizField label="IBAN beneficiario"
+                value={wizData.iban || ""} onChange={v => setWizData({ ...wizData, iban: v })}
+                placeholder="IT60 X054 2811 1010 0000 0123 456" />
               <div className="md:col-span-2">
                 <WizField label="Note" value={wizData.note || ""} onChange={v => setWizData({ ...wizData, note: v })}
                   placeholder="Deposito cauzionale, clausole particolari..." />
@@ -413,6 +467,9 @@ export default function ControlloGestioneSpeseFisse() {
                 value={wizData.data_inizio || ""} onChange={v => setWizData({ ...wizData, data_inizio: v })} />
               <WizField label="Data ultima rata" type="date"
                 value={wizData.data_fine || ""} onChange={v => setWizData({ ...wizData, data_fine: v })} />
+              <WizField label="IBAN per addebito"
+                value={wizData.iban || ""} onChange={v => setWizData({ ...wizData, iban: v })}
+                placeholder="IT60 X054 2811 1010 0000 0123 456" />
               <div className="md:col-span-2">
                 <WizField label="Note" value={wizData.note || ""} onChange={v => setWizData({ ...wizData, note: v })}
                   placeholder="Tasso, importo totale finanziato, garanzie..." />
@@ -757,7 +814,12 @@ export default function ControlloGestioneSpeseFisse() {
                 <input type="text" value={form.descrizione} onChange={e => setForm({ ...form, descrizione: e.target.value })}
                   placeholder="Opzionale" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
               </div>
-              <div className="md:col-span-3">
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 block">IBAN</label>
+                <input type="text" value={form.iban} onChange={e => setForm({ ...form, iban: e.target.value })}
+                  placeholder="IT60X0542811101000000123456" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
+              </div>
+              <div className="md:col-span-2">
                 <label className="text-xs text-neutral-500 mb-1 block">Note</label>
                 <input type="text" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })}
                   placeholder="Note libere" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
@@ -843,7 +905,14 @@ export default function ControlloGestioneSpeseFisse() {
                           </button>
                         </td>
                         <td className="px-4 py-2.5 text-center">
-                          <div className="flex gap-1 justify-center">
+                          <div className="flex gap-1 justify-center flex-wrap">
+                            {s.attiva && ["AFFITTO", "PRESTITO", "ASSICURAZIONE", "RATEIZZAZIONE"].includes(s.tipo) && (
+                              <button onClick={() => openAdeguamento(s)}
+                                className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                                title="Adeguamento importo (ISTAT, variazione canone)">
+                                Adegua
+                              </button>
+                            )}
                             <button onClick={() => openEdit(s)}
                               className="px-2 py-0.5 rounded text-[10px] bg-sky-100 text-sky-700 hover:bg-sky-200">
                               Modifica
@@ -870,6 +939,110 @@ export default function ControlloGestioneSpeseFisse() {
           </div>
         )}
       </div>
+
+      {/* ═══════ MODALE ADEGUAMENTO ISTAT ═══════ */}
+      {adeguamento && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setAdeguamento(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+
+            <div className="px-5 py-3 border-b border-neutral-200 bg-amber-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-amber-900">
+                    {adeguamento.tipo === "AFFITTO" ? "Adeguamento ISTAT" : "Adeguamento Importo"}
+                  </h3>
+                  <p className="text-[11px] text-amber-600 mt-0.5">{adeguamento.titolo}</p>
+                </div>
+                <button onClick={() => setAdeguamento(null)}
+                  className="text-neutral-400 hover:text-neutral-600 text-lg">&times;</button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[65vh]">
+              {/* Importo attuale */}
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Importo attuale</div>
+                <div className="text-lg font-bold text-neutral-800">&euro; {fmt(adeguamento.importo)}</div>
+              </div>
+
+              {/* Form */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Nuovo importo *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">&euro;</span>
+                    <input type="number" step="0.01"
+                      value={adeguForm.nuovo_importo}
+                      onChange={e => setAdeguForm({ ...adeguForm, nuovo_importo: e.target.value })}
+                      placeholder={String(adeguamento.importo)}
+                      className="w-full pl-7 pr-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                  </div>
+                  {adeguVariazione && (
+                    <div className={`text-xs mt-1 font-medium ${parseFloat(adeguVariazione) > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      {parseFloat(adeguVariazione) > 0 ? "+" : ""}{adeguVariazione}%
+                      {" "}({parseFloat(adeguVariazione) > 0 ? "+" : ""}&euro; {fmt(parseFloat(adeguForm.nuovo_importo) - adeguamento.importo)})
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Decorrenza da *</label>
+                  <input type="date"
+                    value={adeguForm.data_decorrenza}
+                    onChange={e => setAdeguForm({ ...adeguForm, data_decorrenza: e.target.value })}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                  <div className="text-[10px] text-neutral-400 mt-0.5">
+                    Le uscite non pagate da questa data in poi verranno aggiornate
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Motivo</label>
+                  <input type="text"
+                    value={adeguForm.motivo}
+                    onChange={e => setAdeguForm({ ...adeguForm, motivo: e.target.value })}
+                    placeholder={adeguamento.tipo === "AFFITTO" ? "Es. Adeguamento ISTAT 2026 +5.4%" : "Es. Variazione rata"}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                </div>
+              </div>
+
+              {/* Storico adeguamenti */}
+              {storico.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wide mb-2">Storico adeguamenti</div>
+                  <div className="space-y-1.5">
+                    {storico.map(a => (
+                      <div key={a.id} className="flex items-center justify-between text-[10px] p-2 bg-neutral-50 rounded border border-neutral-100">
+                        <div>
+                          <span className="text-neutral-400">{new Date(a.data_decorrenza + "T00:00:00").toLocaleDateString("it-IT")}</span>
+                          {a.motivo && <span className="ml-2 text-neutral-600">{a.motivo}</span>}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-neutral-400">&euro; {fmt(a.importo_vecchio)}</span>
+                          <span className="mx-1">&rarr;</span>
+                          <span className="font-semibold text-neutral-700">&euro; {fmt(a.importo_nuovo)}</span>
+                          <span className={`ml-1 ${a.variazione_pct > 0 ? "text-red-500" : "text-emerald-500"}`}>
+                            ({a.variazione_pct > 0 ? "+" : ""}{a.variazione_pct}%)
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bottone */}
+              <button onClick={handleAdeguamento}
+                disabled={savingAdegu || !adeguForm.nuovo_importo || !adeguForm.data_decorrenza}
+                className="w-full px-4 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50">
+                {savingAdegu ? "Applicazione..." : "Applica adeguamento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

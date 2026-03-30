@@ -45,10 +45,6 @@ from app.routers.dipendenti import router as dipendenti_router
 # BANCA — movimenti bancari
 from app.routers import banca_router
 
-# FINANZA — gestione finanziaria completa
-from app.routers import finanza_router
-from app.routers import finanza_scadenzario_router
-
 # CONTROLLO DI GESTIONE — dashboard unificata cross-modulo
 from app.routers import controllo_gestione_router
 
@@ -194,10 +190,6 @@ app.include_router(dipendenti_router)
 
 # BANCA
 app.include_router(banca_router.router)
-
-# FINANZA
-app.include_router(finanza_router.router)
-app.include_router(finanza_scadenzario_router.router)
 
 # CONTROLLO DI GESTIONE
 app.include_router(controllo_gestione_router.router)

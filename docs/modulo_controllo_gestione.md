@@ -8,7 +8,7 @@
 
 # 1. Panoramica
 
-Il modulo **Controllo di Gestione** e' un modulo di primo livello del gestionale, separato dal modulo Finanza. Il suo scopo e' incrociare i dati provenienti da Acquisti, Banca e Vendite per dare una visione completa della situazione finanziaria del ristorante.
+Il modulo **Controllo di Gestione** e' un modulo di primo livello del gestionale, integra le funzionalità del modulo Finanza (rimosso v1.0). Il suo scopo e' incrociare i dati provenienti da Acquisti, Banca e Vendite per dare una visione completa della situazione finanziaria del ristorante.
 
 A differenza degli altri moduli che leggono ciascuno i propri dati, Controllo di Gestione **importa e popola** dati propri partendo dalle altre fonti, creando un layer autonomo che non dipende da query live.
 
@@ -300,10 +300,9 @@ Codici completi nel mapping `MP_LABELS` in `controllo_gestione_router.py`.
 | Acquisti | Condizioni pagamento fornitore | CG scrive in suppliers |
 | Banca | Matching pagamenti (futuro) | Banca → CG |
 | Vendite | Lettura corrispettivi per dashboard | Vendite → CG (read-only) |
-| Finanza | Nessuna relazione | Moduli separati |
 | Gestione Contanti | Matching pagamenti cash (futuro) | Contanti → CG |
 
-> **IMPORTANTE**: Il modulo Finanza e' completamente separato. Non ci sono link, import o dipendenze tra Finanza e Controllo di Gestione. Dove in futuro servira' un collegamento, per ora viene mostrato "In lavorazione".
+> **IMPORTANTE**: Finanza rimosso — le sue funzionalità sono state integrate in Controllo Gestione.
 
 ---
 
@@ -315,6 +314,7 @@ Codici completi nel mapping `MP_LABELS` in `controllo_gestione_router.py`.
 - Estrazione DatiPagamento da XML FatturaPA
 - Condizioni pagamento default per fornitore
 - Avviso fatture senza scadenza
+- Integrazione funzionalità precedentemente in Finanza (rimosso v1.0)
 
 ## v1.1 (pianificata)
 - Matching pagamenti con Banca (punto 5 piano originale)
