@@ -281,7 +281,10 @@ function SubPagamentiContanti() {
                     <input type="checkbox" checked={checked} readOnly className="accent-emerald-600" />
                     {tipoBadge(u)}
                     <span className="truncate text-neutral-700 flex-1">{u.fornitore_nome || "—"}</span>
-                    <span className="text-xs text-neutral-400">{u.numero_fattura || u.note || ""}</span>
+                    <span className="text-xs text-neutral-400 truncate max-w-[200px]">
+                      {u.numero_fattura || u.note || ""}
+                      {u.data_fattura && <span className="ml-1 text-neutral-300">({fmtDate(u.data_fattura)})</span>}
+                    </span>
                     <span className="font-bold text-neutral-800 whitespace-nowrap">€ {fmt(u.importo)}</span>
                   </button>
                 );

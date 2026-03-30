@@ -488,7 +488,7 @@ def import_uscite(
 
         # ── Controlla se già importata ──
         existing = fc.execute(
-            "SELECT id, stato, data_scadenza FROM cg_uscite WHERE fattura_id = ?",
+            "SELECT id, stato, data_scadenza, totale, numero_fattura FROM cg_uscite WHERE fattura_id = ?",
             (fattura_id,)
         ).fetchone()
 
@@ -498,13 +498,25 @@ def import_uscite(
             if ex["stato"] in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
                 saltate += 1
                 continue
-            # Aggiorna stato e scadenza se cambiati
-            if ex["stato"] != stato or ex["data_scadenza"] != data_scad:
+            # Aggiorna stato, scadenza, totale, numero_fattura e dati fornitore se cambiati
+            needs_update = (
+                ex["stato"] != stato
+                or ex["data_scadenza"] != data_scad
+                or abs((ex["totale"] or 0) - fat["totale_fattura"]) > 0.01
+                or (ex["numero_fattura"] or "") != (fat["numero_fattura"] or "")
+            )
+            if needs_update:
                 fc.execute("""
                     UPDATE cg_uscite
-                    SET stato = ?, data_scadenza = ?, updated_at = ?
+                    SET stato = ?, data_scadenza = ?, totale = ?,
+                        numero_fattura = ?, data_fattura = ?,
+                        fornitore_nome = ?, fornitore_piva = ?,
+                        updated_at = ?
                     WHERE id = ?
-                """, (stato, data_scad, oggi_str, ex["id"]))
+                """, (stato, data_scad, fat["totale_fattura"],
+                      fat["numero_fattura"], fat["data_fattura"],
+                      fat["fornitore_nome"], fat["fornitore_piva"],
+                      oggi_str, ex["id"]))
                 aggiornate += 1
             else:
                 saltate += 1
@@ -523,6 +535,23 @@ def import_uscite(
                 data_scad, stato, oggi_str, oggi_str,
             ))
             importate += 1
+
+    # ── Fix fatture azzerate: se totale_fattura ora è 0 ma cg_uscite ha ancora il vecchio importo ──
+    fatture_azzerate = fc.execute("""
+        SELECT cu.id, f.totale_fattura
+        FROM cg_uscite cu
+        JOIN fe_fatture f ON cu.fattura_id = f.id
+        WHERE cu.tipo_uscita IS NULL OR cu.tipo_uscita = 'FATTURA'
+        AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+        AND (f.totale_fattura <= 0 OR f.totale_fattura IS NULL)
+        AND cu.totale > 0
+    """).fetchall()
+    for az in fatture_azzerate:
+        fc.execute("""
+            UPDATE cg_uscite SET totale = 0, stato = 'PAGATA', note = 'Fattura azzerata/stornata', updated_at = ?
+            WHERE id = ?
+        """, (oggi_str, az["id"]))
+        aggiornate += 1
 
     # ═══════════════════════════════════════════════════════════════
     # PARTE 2: Genera righe dalle SPESE FISSE attive
