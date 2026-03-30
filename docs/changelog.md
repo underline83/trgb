@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-03-30 — CG v1.3: riconciliazione cross-ref fatture
+
+#### Fixed — Import uscite riconcilia con cross-ref bancario
+- L'import uscite ora fa LEFT JOIN con `banca_fatture_link` + `banca_movimenti`
+- Fatture già collegate a movimenti bancari via cross-ref vengono importate come PAGATA
+- Fatture esistenti DA_PAGARE/SCADUTA con cross-ref vengono aggiornate a PAGATA
+- Fatture PAGATA_MANUALE senza `banca_movimento_id` vengono arricchite se esiste cross-ref
+
+#### Fixed — Cross-Ref Fatture mancante da menu Flussi di Cassa
+- Aggiunta card "Cross-Ref Fatture" nel menu Flussi di Cassa
+- Aggiunto tab nel nav bar di Flussi di Cassa
+- Aggiunta voce nel flyout Header
+
+---
+
 ## 2026-03-30 — Cantina v3.8: unificazione Carta Vini PDF/DOCX
 
 #### Changed — Carta Vini endpoint unificati

@@ -443,6 +443,7 @@ def import_uscite(
     fc.commit()
 
     # ── Fetch tutte le fatture non-auto, non-nota-credito ──
+    # LEFT JOIN con banca_fatture_link per riconciliare cross-ref esistenti
     fatture = fc.execute("""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -450,9 +451,13 @@ def import_uscite(
             f.totale_fattura, f.data_scadenza,
             f.condizioni_pagamento, f.modalita_pagamento,
             s.giorni_pagamento AS fornitore_giorni,
-            s.modalita_pagamento_default AS fornitore_mp
+            s.modalita_pagamento_default AS fornitore_mp,
+            bfl.movimento_id AS linked_movimento_id,
+            bm.data_contabile  AS linked_data_mov
         FROM fe_fatture f
         LEFT JOIN suppliers s ON f.fornitore_piva = s.partita_iva
+        LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+        LEFT JOIN banca_movimenti bm ON bfl.movimento_id = bm.id
         WHERE f.is_autofattura = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
           AND f.totale_fattura > 0
@@ -480,23 +485,61 @@ def import_uscite(
         if not data_scad:
             senza_scadenza += 1
 
+        # ── Cross-ref: se c'è un link bancario, la fattura è PAGATA ──
+        linked_mov = fat.get("linked_movimento_id")
+        linked_data = fat.get("linked_data_mov")
+
         # ── Calcola stato ──
-        if data_scad and data_scad < oggi_str:
+        if linked_mov:
+            stato = "PAGATA"
+        elif data_scad and data_scad < oggi_str:
             stato = "SCADUTA"
         else:
             stato = "DA_PAGARE"
 
         # ── Controlla se già importata ──
         existing = fc.execute(
-            "SELECT id, stato, data_scadenza, totale, numero_fattura FROM cg_uscite WHERE fattura_id = ?",
+            "SELECT id, stato, data_scadenza, totale, numero_fattura, banca_movimento_id FROM cg_uscite WHERE fattura_id = ?",
             (fattura_id,)
         ).fetchone()
 
         if existing:
             ex = dict(existing)
             # Se già PAGATA, PAGATA_MANUALE o PARZIALE, non toccare
+            # ECCEZIONE: se c'è un cross-ref nuovo non ancora propagato, aggiorna
             if ex["stato"] in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
-                saltate += 1
+                if linked_mov and not ex.get("banca_movimento_id"):
+                    # Cross-ref esiste ma non era propagato — aggiorna
+                    fc.execute("""
+                        UPDATE cg_uscite
+                        SET banca_movimento_id = ?, stato = 'PAGATA',
+                            importo_pagato = totale,
+                            data_pagamento = COALESCE(data_pagamento, ?),
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (linked_mov, linked_data, oggi_str, ex["id"]))
+                    aggiornate += 1
+                else:
+                    saltate += 1
+                continue
+            # Se DA_PAGARE/SCADUTA ma ha cross-ref → marca PAGATA
+            if linked_mov:
+                fc.execute("""
+                    UPDATE cg_uscite
+                    SET stato = 'PAGATA', banca_movimento_id = ?,
+                        importo_pagato = totale,
+                        data_pagamento = COALESCE(data_pagamento, ?),
+                        data_scadenza = ?, totale = ?,
+                        numero_fattura = ?, data_fattura = ?,
+                        fornitore_nome = ?, fornitore_piva = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                """, (linked_mov, linked_data,
+                      data_scad, fat["totale_fattura"],
+                      fat["numero_fattura"], fat["data_fattura"],
+                      fat["fornitore_nome"], fat["fornitore_piva"],
+                      oggi_str, ex["id"]))
+                aggiornate += 1
                 continue
             # Aggiorna stato, scadenza, totale, numero_fattura e dati fornitore se cambiati
             needs_update = (
@@ -521,18 +564,24 @@ def import_uscite(
             else:
                 saltate += 1
         else:
-            # Nuova uscita
+            # Nuova uscita — se ha cross-ref, inserisci già come PAGATA
             fc.execute("""
                 INSERT INTO cg_uscite (
                     fattura_id, fornitore_nome, fornitore_piva,
                     numero_fattura, data_fattura, totale,
-                    data_scadenza, stato, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    data_scadenza, stato, banca_movimento_id,
+                    importo_pagato, data_pagamento,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 fattura_id, fat["fornitore_nome"], fat["fornitore_piva"],
                 fat["numero_fattura"], fat["data_fattura"],
                 fat["totale_fattura"],
-                data_scad, stato, oggi_str, oggi_str,
+                data_scad, stato,
+                linked_mov,
+                fat["totale_fattura"] if linked_mov else 0,
+                linked_data if linked_mov else None,
+                oggi_str, oggi_str,
             ))
             importate += 1
 
