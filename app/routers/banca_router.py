@@ -593,9 +593,30 @@ def get_cross_ref(
         # ── Nessun link: cerca suggerimenti ──
         abs_imp = abs(mov["importo"])
         data_c = mov["data_contabile"]
+        desc_lower = (mov.get("descrizione") or "").lower()
         suggestions = []
+        seen_keys = set()  # evita doppioni (source, id)
 
-        # 1) Fatture non collegate con importo simile (±5%) entro ±10 giorni
+        def _add(rows, source, score_base):
+            for r in rows:
+                d = dict(r)
+                d["source"] = source
+                d["source_id"] = d["id"]
+                key = (source, d["id"])
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                # Score: match nome nella descrizione bancaria → boost
+                nome = (d.get("fornitore_nome") or "").lower()
+                parole_nome = [p for p in nome.split() if len(p) > 3]
+                nome_match = any(p in desc_lower for p in parole_nome) if parole_nome else False
+                imp_diff = abs(abs_imp - (d.get("totale") or 0)) / max(abs_imp, 0.01)
+                # Score più basso = migliore
+                d["_score"] = score_base - (50 if nome_match else 0) - (30 if imp_diff < 0.01 else 0)
+                suggestions.append(d)
+
+        # 1) Fatture: match per NOME fornitore nella descrizione bancaria
+        #    (nessun vincolo importo/data — il nome è già molto specifico)
         cur2 = conn.cursor()
         cur2.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
@@ -604,18 +625,41 @@ def get_cross_ref(
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
             WHERE bfl.id IS NULL
-              AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.05
-              AND f.data_fattura BETWEEN date(?, '-10 days') AND date(?, '+10 days')
-            ORDER BY ABS(f.totale_fattura - ?) ASC
-            LIMIT 5
-        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+              AND f.totale_fattura > 0
+            ORDER BY f.data_fattura DESC
+            LIMIT 500
+        """)
         for r in cur2.fetchall():
-            d = dict(r)
-            d["source"] = "fattura"
-            d["source_id"] = d["id"]
-            suggestions.append(d)
+            nome = (r["fornitore_nome"] or "").lower()
+            parole = [p for p in nome.split() if len(p) > 3]
+            if parole and any(p in desc_lower for p in parole):
+                d = dict(r)
+                d["source"] = "fattura"
+                d["source_id"] = d["id"]
+                key = ("fattura", d["id"])
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    imp_diff = abs(abs_imp - d["totale"]) / max(abs_imp, 0.01)
+                    d["_score"] = 0 - (30 if imp_diff < 0.01 else 0) - (10 if imp_diff < 0.05 else 0)
+                    suggestions.append(d)
 
-        # 2) Uscite CG non pagate (spese fisse, affitti, tasse…) con importo simile
+        # 2) Fatture: match per importo simile (±5%) entro ±30 giorni
+        cur2b = conn.cursor()
+        cur2b.execute("""
+            SELECT f.id, f.fornitore_nome, f.numero_fattura,
+                   f.data_fattura AS data_ref, f.totale_fattura AS totale,
+                   'FATTURA' AS tipo
+            FROM fe_fatture f
+            LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            WHERE bfl.id IS NULL
+              AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.05
+              AND f.data_fattura BETWEEN date(?, '-30 days') AND date(?, '+30 days')
+            ORDER BY ABS(f.totale_fattura - ?) ASC
+            LIMIT 10
+        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+        _add(cur2b.fetchall(), "fattura", 50)
+
+        # 3) Uscite CG non pagate: match per nome nella descrizione
         cur3 = conn.cursor()
         cur3.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
@@ -625,18 +669,43 @@ def get_cross_ref(
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
               AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
-              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.10
-              AND cu.data_scadenza BETWEEN date(?, '-20 days') AND date(?, '+20 days')
-            ORDER BY ABS(cu.totale - ?) ASC
-            LIMIT 5
-        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+        """)
         for r in cur3.fetchall():
-            d = dict(r)
-            d["source"] = "uscita"
-            d["source_id"] = d["id"]
-            suggestions.append(d)
+            nome = (r["fornitore_nome"] or "").lower()
+            parole = [p for p in nome.split() if len(p) > 3]
+            if parole and any(p in desc_lower for p in parole):
+                d = dict(r)
+                d["source"] = "uscita"
+                d["source_id"] = d["id"]
+                key = ("uscita", d["id"])
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    imp_diff = abs(abs_imp - (d["totale"] or 0)) / max(abs_imp, 0.01)
+                    d["_score"] = 5 - (30 if imp_diff < 0.01 else 0) - (10 if imp_diff < 0.05 else 0)
+                    suggestions.append(d)
 
-        mov["possibili_match"] = suggestions
+        # 4) Uscite CG: match per importo simile (±10%) entro ±30 giorni
+        cur3b = conn.cursor()
+        cur3b.execute("""
+            SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
+                   cu.data_scadenza AS data_ref, cu.totale,
+                   COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
+            FROM cg_uscite cu
+            WHERE cu.banca_movimento_id IS NULL
+              AND cu.fattura_id IS NULL
+              AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.10
+              AND cu.data_scadenza BETWEEN date(?, '-30 days') AND date(?, '+30 days')
+            ORDER BY ABS(cu.totale - ?) ASC
+            LIMIT 10
+        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
+        _add(cur3b.fetchall(), "uscita", 50)
+
+        # Ordina per score (più basso = migliore) e limita a 8
+        suggestions.sort(key=lambda s: s.get("_score", 100))
+        for s in suggestions:
+            s.pop("_score", None)
+        mov["possibili_match"] = suggestions[:8]
         movimenti.append(mov)
 
     conn.close()
@@ -793,13 +862,14 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
             results.append(d)
 
-        # Uscite CG per importo
+        # Uscite CG per importo (solo non-fattura, le fatture sono già sopra)
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
+              AND cu.fattura_id IS NULL
               AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
               AND ABS(cu.totale - ?) < MAX(? * 0.1, 1.0)
             ORDER BY ABS(cu.totale - ?) ASC
@@ -826,13 +896,14 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
             results.append(d)
 
-        # Uscite CG per testo
+        # Uscite CG per testo (solo non-fattura, le fatture sono già sopra)
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
                    COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo
             FROM cg_uscite cu
             WHERE cu.banca_movimento_id IS NULL
+              AND cu.fattura_id IS NULL
               AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
               AND (cu.fornitore_nome LIKE ? OR cu.numero_fattura LIKE ?)
             ORDER BY cu.data_scadenza DESC
