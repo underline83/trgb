@@ -651,6 +651,56 @@ def delete_link(link_id: int):
     return {"ok": True}
 
 
+@router.get("/cross-ref/search-fatture")
+def search_fatture_for_link(q: str = "", limit: int = 20):
+    """
+    Ricerca manuale fatture per collegamento cross-ref.
+    Cerca per fornitore, numero fattura o importo.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    if not q.strip():
+        conn.close()
+        return []
+
+    # Prova a interpretare come importo
+    try:
+        importo = float(q.replace(",", ".").replace("€", "").strip())
+        is_importo = True
+    except (ValueError, AttributeError):
+        is_importo = False
+        importo = 0.0
+
+    if is_importo:
+        cur.execute("""
+            SELECT f.id, f.fornitore_nome, f.numero_fattura,
+                   f.data_fattura, f.totale_fattura
+            FROM fe_fatture f
+            LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            WHERE bfl.id IS NULL
+              AND ABS(f.totale_fattura - ?) < MAX(? * 0.1, 1.0)
+            ORDER BY ABS(f.totale_fattura - ?) ASC
+            LIMIT ?
+        """, (importo, importo, importo, limit))
+    else:
+        term = f"%{q.strip()}%"
+        cur.execute("""
+            SELECT f.id, f.fornitore_nome, f.numero_fattura,
+                   f.data_fattura, f.totale_fattura
+            FROM fe_fatture f
+            LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            WHERE bfl.id IS NULL
+              AND (f.fornitore_nome LIKE ? OR f.numero_fattura LIKE ?)
+            ORDER BY f.data_fattura DESC
+            LIMIT ?
+        """, (term, term, limit))
+
+    results = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return results
+
+
 # ═══════════════════════════════════════════════════════
 # 10. IMPORT LOG
 # ═══════════════════════════════════════════════════════
