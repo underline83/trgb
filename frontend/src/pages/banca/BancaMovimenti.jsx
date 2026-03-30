@@ -2,7 +2,7 @@
 // Lista movimenti bancari con filtri + modifica categoria inline
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
-import BancaNav from "./BancaNav";
+import FlussiCassaNav from "./FlussiCassaNav";
 
 const FC = `${API_BASE}/banca`;
 
@@ -140,7 +140,7 @@ export default function BancaMovimenti() {
 
   return (
     <div className="min-h-screen bg-neutral-100 p-6 font-sans">
-      <BancaNav current="movimenti" />
+      <FlussiCassaNav current="cc" />
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200 mt-4">
         <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair mb-1">
           Movimenti Bancari

@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-30 (sessione 18 — Buste Paga v2.1, Anagrafica v2.0, Fix stipendi CG, Mance)
+> Ultima sessione: 2026-03-30 (sessione 18 — Buste Paga v2.1, Anagrafica v2.0, Fix stipendi CG, Flussi di Cassa v1.0)
 
 ---
 
@@ -70,6 +70,14 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 ### Gestione Contanti: pagina Mance
 11. **Nuova sezione Mance**: 5a voce nella sidebar, mostra mance registrate dalle chiusure turno
 12. **KPI + tabella**: totale mese, turni/giorni con mance, dettaglio per turno con €/coperto
+
+### Flussi di Cassa v1.0: riorganizzazione modulo Banca
+13. **Rename**: "Banca" → "Flussi di Cassa" (home tile, nav, routes, modules.json)
+14. **Tab navigation**: Dashboard, Conti Correnti, Carta di Credito, Contanti, Mance, Impostazioni
+15. **Contanti + Mance**: spostati da Vendite a Flussi di Cassa (con redirect automatici)
+16. **Carta di Credito**: scheletro pronto con 4 card placeholder (import, movimenti, riconciliazione, riepilogo)
+17. **Accesso SALA**: ruolo sala può accedere al modulo (per vedere Mance)
+18. **Nuovi file**: FlussiCassaNav.jsx, FlussiCassaMenu.jsx, FlussiCassaContanti.jsx, FlussiCassaMance.jsx, CartaCreditoPage.jsx
 
 ---
 

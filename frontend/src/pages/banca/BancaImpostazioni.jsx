@@ -2,7 +2,7 @@
 // Impostazioni Banca: Import CSV + Categorie (unificati in un'unica pagina con tab)
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
-import BancaNav from "./BancaNav";
+import FlussiCassaNav from "./FlussiCassaNav";
 
 const FC = `${API_BASE}/banca`;
 
@@ -28,7 +28,7 @@ export default function BancaImpostazioni() {
 
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
-      <BancaNav current="impostazioni" />
+      <FlussiCassaNav current="impostazioni" />
       <div className="max-w-5xl mx-auto mt-4">
         <div className="bg-white shadow-2xl rounded-3xl border border-neutral-200 overflow-hidden">
           {/* Header */}

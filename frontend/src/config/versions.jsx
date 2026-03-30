@@ -26,9 +26,9 @@ const MODULE_VERSIONS = {
     status: "stabile",
     color: "green",
   },
-  banca: {
+  flussiCassa: {
     version: "1.0",
-    label: "Banca",
+    label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
   },

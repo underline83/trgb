@@ -46,8 +46,7 @@ import RicetteSettings from "./pages/ricette/RicetteSettings";
 // --- CHIUSURA TURNO ---
 import ChiusuraTurno from "./pages/admin/ChiusuraTurno";
 import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
-import GestioneContanti from "./pages/admin/GestioneContanti";
-import MancePage from "./pages/admin/MancePage";
+// GestioneContanti e MancePage ora dentro Flussi di Cassa
 
 // --- AREA AMMINISTRAZIONE ---
 import AdminMenu from "./pages/admin/AdminMenu";
@@ -76,14 +75,17 @@ import DipendentiScadenze from "./pages/dipendenti/DipendentiScadenze";
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
 
-// --- BANCA ---
-import BancaMenu from "./pages/banca/BancaMenu";
+// --- FLUSSI DI CASSA (ex Banca) ---
+import FlussiCassaMenu from "./pages/banca/FlussiCassaMenu";
 import BancaDashboard from "./pages/banca/BancaDashboard";
 import BancaMovimenti from "./pages/banca/BancaMovimenti";
 import BancaImport from "./pages/banca/BancaImport";
 import BancaCategorie from "./pages/banca/BancaCategorie";
 import BancaCrossRef from "./pages/banca/BancaCrossRef";
 import BancaImpostazioni from "./pages/banca/BancaImpostazioni";
+import CartaCreditoPage from "./pages/banca/CartaCreditoPage";
+import FlussiCassaContanti from "./pages/banca/FlussiCassaContanti";
+import FlussiCassaMance from "./pages/banca/FlussiCassaMance";
 
 // --- CONTROLLO DI GESTIONE ---
 import ControlloGestioneMenu from "./pages/controllo-gestione/ControlloGestioneMenu";
@@ -160,9 +162,9 @@ export default function App() {
         <Route path="/vendite" element={<CorrispettiviMenu />} />
         <Route path="/vendite/riepilogo" element={<CorrispettiviRiepilogo />} />
         <Route path="/vendite/chiusure" element={<ChiusureTurnoLista />} />
-        <Route path="/vendite/mance" element={<MancePage />} />
-        <Route path="/vendite/contanti" element={<GestioneContanti />} />
-        <Route path="/vendite/preconti" element={<Navigate to="/vendite/contanti" replace />} />
+        <Route path="/vendite/mance" element={<Navigate to="/flussi-cassa/mance" replace />} />
+        <Route path="/vendite/contanti" element={<Navigate to="/flussi-cassa/contanti" replace />} />
+        <Route path="/vendite/preconti" element={<Navigate to="/flussi-cassa/contanti" replace />} />
         <Route path="/vendite/chiusure-old" element={<CorrispettiviGestione />} />
         <Route path="/vendite/dashboard" element={<CorrispettiviDashboard />} />
         <Route path="/vendite/annual" element={<Navigate to="/vendite/dashboard?mode=annuale" replace />} />
@@ -184,14 +186,23 @@ export default function App() {
         <Route path="/acquisti/import" element={<Navigate to="/acquisti/impostazioni" replace />} />
         <Route path="/acquisti/fic" element={<Navigate to="/acquisti/impostazioni" replace />} />
 
-        {/* --- BANCA --- */}
-        <Route path="/banca" element={<BancaMenu />} />
-        <Route path="/banca/dashboard" element={<BancaDashboard />} />
-        <Route path="/banca/movimenti" element={<BancaMovimenti />} />
-        <Route path="/banca/import" element={<Navigate to="/banca/impostazioni" replace />} />
-        <Route path="/banca/categorie" element={<Navigate to="/banca/impostazioni" replace />} />
-        <Route path="/banca/crossref" element={<BancaCrossRef />} />
-        <Route path="/banca/impostazioni" element={<BancaImpostazioni />} />
+        {/* --- FLUSSI DI CASSA (ex Banca) --- */}
+        <Route path="/flussi-cassa" element={<FlussiCassaMenu />} />
+        <Route path="/flussi-cassa/dashboard" element={<BancaDashboard />} />
+        <Route path="/flussi-cassa/cc" element={<BancaMovimenti />} />
+        <Route path="/flussi-cassa/cc/crossref" element={<BancaCrossRef />} />
+        <Route path="/flussi-cassa/carta" element={<CartaCreditoPage />} />
+        <Route path="/flussi-cassa/contanti" element={<FlussiCassaContanti />} />
+        <Route path="/flussi-cassa/mance" element={<FlussiCassaMance />} />
+        <Route path="/flussi-cassa/impostazioni" element={<BancaImpostazioni />} />
+        {/* Redirect vecchie rotte /banca */}
+        <Route path="/banca" element={<Navigate to="/flussi-cassa" replace />} />
+        <Route path="/banca/dashboard" element={<Navigate to="/flussi-cassa/dashboard" replace />} />
+        <Route path="/banca/movimenti" element={<Navigate to="/flussi-cassa/cc" replace />} />
+        <Route path="/banca/crossref" element={<Navigate to="/flussi-cassa/cc/crossref" replace />} />
+        <Route path="/banca/impostazioni" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
+        <Route path="/banca/import" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
+        <Route path="/banca/categorie" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
 
         {/* --- CONTROLLO DI GESTIONE --- */}
         <Route path="/controllo-gestione" element={<ControlloGestioneMenu />} />

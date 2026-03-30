@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-03-30 — Flussi di Cassa v1.0: Riorganizzazione modulo Banca
+
+#### Changed — Banca rinominato in "Flussi di Cassa"
+- **Home tile**: "Banca" → "Flussi di Cassa" con nuova descrizione
+- **Tab navigation**: FlussiCassaNav sostituisce BancaNav su tutte le pagine
+- **Routes**: `/flussi-cassa/*` con redirect automatici da `/banca/*`
+- **Moduli visibilità**: ruolo SALA può accedere a Flussi di Cassa (per vedere Mance)
+
+#### Added — Nuova struttura tab
+- **Dashboard**: panoramica unificata (invariato, ex Banca Dashboard)
+- **Conti Correnti**: movimenti + cross-ref fatture (ex Banca Movimenti)
+- **Carta di Credito**: scheletro pronto (import estratto conto, riconciliazione CG) — prossimamente
+- **Contanti**: spostato da Vendite → include contanti da versare, pre-conti, spese turno, spese varie
+- **Mance**: spostato da Vendite → tab dedicata visibile a tutti i ruoli
+- **Impostazioni**: import CSV + categorie bancarie
+
+#### Changed — VenditeNav semplificato
+- Rimossi tab "Contanti" e "Mance" (ora in Flussi di Cassa)
+- Redirect automatici: `/vendite/contanti` → `/flussi-cassa/contanti`, `/vendite/mance` → `/flussi-cassa/mance`
+
+---
+
 ## 2026-03-30 — Sessione 18b: Fix Stipendi CG + Mance
 
 #### Fixed — Scadenzario CG: display stipendi
