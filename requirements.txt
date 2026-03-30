@@ -17,6 +17,9 @@ python-multipart
 # PDF generator
 weasyprint
 
+# PDF reader/parser (LUL cedolini)
+pdfplumber
+
 # HTML templating
 jinja2
 

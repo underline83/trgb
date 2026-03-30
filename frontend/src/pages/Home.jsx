@@ -13,7 +13,8 @@ const MENU_CONFIG = {
   banca:    { title: "Banca",                subtitle: "Movimenti bancari, categorie, pagamenti fornitori", icon: "\uD83C\uDFE6", go: "/banca",     color: "bg-emerald-50 border-emerald-200 text-emerald-900", vKey: "banca" },
   "controllo-gestione": { title: "Controllo di Gestione", subtitle: "Panorama finanziario — vendite, acquisti, banca, scadenze, margine", icon: "\uD83C\uDFAF", go: "/controllo-gestione", color: "bg-sky-50 border-sky-200 text-sky-900", vKey: "controlloGestione" },
   statistiche: { title: "Statistiche",       subtitle: "Analisi vendite iPratico, categorie, prodotti, trend", icon: "\uD83D\uDCC8", go: "/statistiche", color: "bg-rose-50 border-rose-200 text-rose-900",    vKey: "statistiche" },
-  admin:    { title: "Amministrazione",       subtitle: "Dipendenti, utenti, impostazioni",                icon: "\uD83E\uDDFE", go: "/admin",     color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
+  dipendenti: { title: "Dipendenti",           subtitle: "Personale, buste paga, turni, scadenze, costi",   icon: "\uD83D\uDC65", go: "/dipendenti", color: "bg-purple-50 border-purple-200 text-purple-900",   vKey: "dipendenti" },
+  impostazioni: { title: "Impostazioni",      subtitle: "Utenti, ruoli, configurazione sistema",           icon: "\u2699\uFE0F", go: "/impostazioni", color: "bg-neutral-50 border-neutral-300 text-neutral-800", vKey: "sistema" },
 };
 
 export default function Home() {

@@ -3,6 +3,60 @@
 
 ---
 
+## 2026-03-30 — Buste Paga v2.0: Import PDF LUL automatico
+
+#### Added — Parser PDF LUL (Libro Unico Lavoro)
+- **Upload PDF**: pulsante "Import PDF LUL" nella pagina Buste Paga
+- **Parser automatico**: estrae cedolini dal PDF del consulente (formato TeamSystem)
+- Dati estratti per dipendente: netto, lordo, INPS, IRPEF, addizionali, TFR, ore lavorate, IBAN, codice fiscale
+- **Abbinamento automatico**: match dipendente per codice fiscale o cognome+nome
+- **Report risultati**: mostra importati, non abbinati (da aggiungere in anagrafica), errori
+- **Auto-aggiornamento anagrafica**: aggiorna IBAN e codice fiscale se mancanti
+- Genera automaticamente scadenze stipendio nello Scadenzario CG
+- Nuovi campi anagrafica dipendenti: codice_fiscale, data_nascita, tipo_rapporto, livello, qualifica
+- Badge "PDF" sui cedolini importati da file (vs inseriti manualmente)
+- `pdfplumber` aggiunto a requirements.txt
+
+---
+
+## 2026-03-30 — Dipendenti v2.0: Modulo Top-Level + Buste Paga + Scadenze Documenti
+
+### Dipendenti promosso a modulo top-level
+
+#### Changed
+- **Dipendenti** non è più sotto Amministrazione: ha la sua tile nella Home
+- **Amministrazione** sostituita da due tile separate: "Dipendenti" e "Impostazioni"
+- Routes migrate da `/admin/dipendenti/*` a `/dipendenti/*` (redirect automatici)
+- File frontend spostati in `pages/dipendenti/` (directory dedicata)
+
+#### Added — Buste Paga (v1.0)
+- **Inserimento cedolini**: form completo con netto, lordo, INPS, IRPEF, addizionali, TFR, ore
+- **Integrazione Scadenzario**: ogni cedolino genera automaticamente una scadenza in Controllo Gestione (tipo STIPENDIO)
+- **Vista per mese**: cedolini raggruppati per mese con totali netto/lordo
+- **Endpoint backend**: `GET/POST/DELETE /dipendenti/buste-paga`
+- Import PDF dal consulente: predisposto (v1.1 dopo analisi del formato)
+
+#### Added — Scadenze Documenti (v1.0)
+- **Semaforo**: indicatori verde (valido), giallo (in scadenza), rosso (scaduto)
+- **Tipi predefiniti**: HACCP, Sicurezza generale/specifica, Antincendio, Primo soccorso, Visita medica, Permesso soggiorno
+- **Alert configurabile**: giorni di preavviso personalizzabili per tipo (default 30-90gg)
+- **CRUD completo**: crea, modifica, elimina scadenze con filtri per stato/tipo/dipendente
+- **Endpoint backend**: `GET/POST/PUT/DELETE /dipendenti/scadenze`
+
+#### Added — Database
+- Tabelle: `buste_paga`, `dipendenti_scadenze`, `dipendenti_presenze`, `dipendenti_contratti`
+- Colonne su `dipendenti`: `costo_orario`, `giorno_paga`
+- Tipo uscita STIPENDIO nel frontend Scadenzario (badge viola)
+
+#### Added — Scadenzario miglioramenti
+- **Filtri rapidi periodo**: mese corrente, prossimo, 7gg, 30gg, trimestre, anno
+- **Modifica scadenza su click**: modale con indicatore arretrato (>10gg)
+- **Selezione multipla + pagamento bulk**: checkbox, barra azioni, metodo pagamento
+- **Fix frecce ordinamento**: risolto testo "updownarrow" con carattere Unicode
+- **Ricerca ampliata**: note, periodo, tipo, importo, data
+
+---
+
 ## 2026-03-30 — Controllo Gestione v1.1: Riconciliazione Banca + Spese Fisse v2.0 + Rimozione Finanza
 
 ### Rimozione Modulo Finanza

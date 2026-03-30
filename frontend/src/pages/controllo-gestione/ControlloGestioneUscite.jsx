@@ -21,6 +21,7 @@ const STATO_STYLE = {
 const TIPO_USCITA_STYLE = {
   FATTURA:      { label: "Fattura", color: "bg-sky-50 text-sky-700 border-sky-200" },
   SPESA_FISSA:  { label: "Spesa fissa", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  STIPENDIO:    { label: "Stipendio", color: "bg-purple-50 text-purple-700 border-purple-200" },
 };
 
 // ── Sort helper ──
@@ -381,6 +382,66 @@ export default function ControlloGestioneUscite() {
             {/* Periodo */}
             <div className="bg-amber-50/40 rounded-lg p-2.5 border border-amber-100 shadow-sm">
               <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Periodo Scadenza</div>
+              {/* Pulsanti rapidi */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {(() => {
+                  const oggi = new Date();
+                  const y = oggi.getFullYear();
+                  const m = oggi.getMonth(); // 0-based
+                  const pad = (n) => String(n).padStart(2, "0");
+                  const primoMese = `${y}-${pad(m + 1)}-01`;
+                  const ultimoMese = `${y}-${pad(m + 1)}-${new Date(y, m + 1, 0).getDate()}`;
+                  const meseProssimo1 = m + 1 > 11 ? `${y + 1}-01-01` : `${y}-${pad(m + 2)}-01`;
+                  const meseProssimo2 = m + 1 > 11
+                    ? `${y + 1}-01-${new Date(y + 1, 1, 0).getDate()}`
+                    : `${y}-${pad(m + 2)}-${new Date(y, m + 2, 0).getDate()}`;
+                  const inizioTrim = `${y}-${pad(m - (m % 3) + 1)}-01`;
+                  const fineTrimM = m - (m % 3) + 3;
+                  const fineTrim = fineTrimM > 12
+                    ? `${y + 1}-01-${new Date(y + 1, 1, 0).getDate()}`
+                    : `${y}-${pad(fineTrimM)}-${new Date(y, fineTrimM, 0).getDate()}`;
+                  const oggiStr = oggi.toISOString().slice(0, 10);
+                  const fra7 = new Date(oggi.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+                  const fra30 = new Date(oggi.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+                  const MESI_IT = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+                  const isActive = (da, a) => filtroDa === da && filtroA === a;
+                  const toggle = (da, a) => {
+                    if (isActive(da, a)) { setFiltroDa(""); setFiltroA(""); }
+                    else { setFiltroDa(da); setFiltroA(a); }
+                  };
+                  const btn = "px-1.5 py-0.5 rounded text-[9px] font-medium border transition";
+                  const act = "bg-amber-200 text-amber-900 border-amber-300";
+                  const def = "bg-white text-neutral-600 border-neutral-200 hover:bg-amber-50";
+                  return (
+                    <>
+                      <button onClick={() => toggle(primoMese, ultimoMese)}
+                        className={`${btn} ${isActive(primoMese, ultimoMese) ? act : def}`}>
+                        {MESI_IT[m]}
+                      </button>
+                      <button onClick={() => toggle(meseProssimo1, meseProssimo2)}
+                        className={`${btn} ${isActive(meseProssimo1, meseProssimo2) ? act : def}`}>
+                        {MESI_IT[(m + 1) % 12]}
+                      </button>
+                      <button onClick={() => toggle(oggiStr, fra7)}
+                        className={`${btn} ${isActive(oggiStr, fra7) ? act : def}`}>
+                        7gg
+                      </button>
+                      <button onClick={() => toggle(oggiStr, fra30)}
+                        className={`${btn} ${isActive(oggiStr, fra30) ? act : def}`}>
+                        30gg
+                      </button>
+                      <button onClick={() => toggle(inizioTrim, fineTrim)}
+                        className={`${btn} ${isActive(inizioTrim, fineTrim) ? act : def}`}>
+                        Trim.
+                      </button>
+                      <button onClick={() => toggle(`${y}-01-01`, `${y}-12-31`)}
+                        className={`${btn} ${isActive(`${y}-01-01`, `${y}-12-31`) ? act : def}`}>
+                        {y}
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
               <div className="space-y-1.5">
                 <div>
                   <label className={fLbl}>Da</label>
@@ -390,6 +451,12 @@ export default function ControlloGestioneUscite() {
                   <label className={fLbl}>A</label>
                   <input type="date" value={filtroA} onChange={e => setFiltroA(e.target.value)} className={fInp} />
                 </div>
+                {(filtroDa || filtroA) && (
+                  <button onClick={() => { setFiltroDa(""); setFiltroA(""); }}
+                    className="w-full text-center text-[9px] text-amber-600 hover:text-amber-800 py-0.5">
+                    Rimuovi filtro periodo
+                  </button>
+                )}
               </div>
             </div>
 

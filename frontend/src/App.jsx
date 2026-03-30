@@ -65,10 +65,12 @@ import FattureDettaglio from "./pages/admin/FattureDettaglio";
 import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
 import FattureInCloud from "./pages/admin/FattureInCloud";
 import FattureImpostazioni from "./pages/admin/FattureImpostazioni";
-import DipendentiMenu from "./pages/admin/DipendentiMenu";
-import DipendentiAnagrafica from "./pages/admin/DipendentiAnagrafica";
-import DipendentiTurni from "./pages/admin/DipendentiTurni";
-import DipendentiCosti from "./pages/admin/DipendentiCosti";
+import DipendentiMenu from "./pages/dipendenti/DipendentiMenu";
+import DipendentiAnagrafica from "./pages/dipendenti/DipendentiAnagrafica";
+import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
+import DipendentiCosti from "./pages/dipendenti/DipendentiCosti";
+import DipendentiBustePaga from "./pages/dipendenti/DipendentiBustePaga";
+import DipendentiScadenze from "./pages/dipendenti/DipendentiScadenze";
 
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
@@ -203,16 +205,22 @@ export default function App() {
         <Route path="/statistiche/import" element={<StatisticheImport />} />
         <Route path="/statistiche/coperti" element={<StatisticheCoperti />} />
 
-        <Route path="/admin/dipendenti" element={<DipendentiMenu />} />
-        <Route path="/admin/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
-        <Route path="/admin/dipendenti/turni" element={<DipendentiTurni />} />
-        <Route path="/admin/dipendenti/costi" element={<DipendentiCosti />} />
+        {/* --- DIPENDENTI (modulo top-level) --- */}
+        <Route path="/dipendenti" element={<DipendentiMenu />} />
+        <Route path="/dipendenti/anagrafica" element={<DipendentiAnagrafica />} />
+        <Route path="/dipendenti/turni" element={<DipendentiTurni />} />
+        <Route path="/dipendenti/costi" element={<DipendentiCosti />} />
+        <Route path="/dipendenti/buste-paga" element={<DipendentiBustePaga />} />
+        <Route path="/dipendenti/scadenze" element={<DipendentiScadenze />} />
+        {/* Redirect vecchi path admin */}
+        <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
 
         {/* --- CAMBIO PIN --- */}
         <Route path="/cambio-pin" element={<CambioPIN />} />
 
         {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
-        <Route path="/admin/impostazioni" element={<ImpostazioniSistema />} />
+        <Route path="/impostazioni" element={<ImpostazioniSistema />} />
+        <Route path="/admin/impostazioni" element={<Navigate to="/impostazioni" replace />} />
 
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />

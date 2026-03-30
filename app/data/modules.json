@@ -56,10 +56,17 @@
     "roles": ["superadmin", "admin", "viewer"]
   },
   {
-    "key": "admin",
-    "label": "Amministrazione",
-    "description": "Dipendenti, utenti, impostazioni",
-    "icon": "🧾",
+    "key": "dipendenti",
+    "label": "Dipendenti",
+    "description": "Personale, buste paga, turni, scadenze documenti, costi",
+    "icon": "👥",
+    "roles": ["superadmin", "admin"]
+  },
+  {
+    "key": "impostazioni",
+    "label": "Impostazioni",
+    "description": "Utenti, ruoli, configurazione sistema",
+    "icon": "⚙️",
     "roles": ["superadmin", "admin"]
   }
 ]
