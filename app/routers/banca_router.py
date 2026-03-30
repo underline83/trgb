@@ -1152,6 +1152,69 @@ def registra_movimento(req: RegistraMovimentoRequest):
     return {"id": new_id, "tipo": result_type, "categoria": req.categoria}
 
 
+class RegistraBulkRequest(BaseModel):
+    movimento_ids: List[int]
+    categoria: str
+
+
+@router.post("/cross-ref/registra-bulk")
+def registra_bulk(req: RegistraBulkRequest):
+    """
+    Registra più movimenti bancari in un colpo solo con la stessa categoria.
+    Salta silenziosamente quelli già collegati.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    ok_count = 0
+    skip_count = 0
+
+    for mov_id in req.movimento_ids:
+        mov = cur.execute(
+            "SELECT id, importo, descrizione, data_contabile FROM banca_movimenti WHERE id = ?",
+            (mov_id,)
+        ).fetchone()
+        if not mov:
+            skip_count += 1
+            continue
+
+        importo = mov["importo"]
+        data = mov["data_contabile"]
+        desc = (mov["descrizione"] or "").strip()[:100]
+
+        if importo < 0:
+            existing = cur.execute(
+                "SELECT id FROM cg_uscite WHERE banca_movimento_id = ?", (mov_id,)
+            ).fetchone()
+            if existing:
+                skip_count += 1
+                continue
+            cur.execute("""
+                INSERT INTO cg_uscite (
+                    fornitore_nome, totale, data_scadenza, stato,
+                    banca_movimento_id, tipo_uscita, importo_pagato, data_pagamento
+                ) VALUES (?, ?, ?, 'PAGATA', ?, ?, ?, ?)
+            """, (desc, abs(importo), data, mov_id, req.categoria, abs(importo), data))
+            ok_count += 1
+        else:
+            existing = cur.execute(
+                "SELECT id FROM cg_entrate WHERE banca_movimento_id = ?", (mov_id,)
+            ).fetchone()
+            if existing:
+                skip_count += 1
+                continue
+            cur.execute("""
+                INSERT INTO cg_entrate (
+                    descrizione, categoria, importo, data_entrata, banca_movimento_id
+                ) VALUES (?, ?, ?, ?, ?)
+            """, (desc, req.categoria, importo, data, mov_id))
+            ok_count += 1
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "registrati": ok_count, "saltati": skip_count}
+
+
 @router.delete("/cross-ref/registra/{movimento_id}")
 def annulla_registrazione(movimento_id: int):
     """Annulla la registrazione di un movimento (scollega da cg_uscite o cg_entrate)."""

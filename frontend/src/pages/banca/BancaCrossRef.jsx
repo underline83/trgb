@@ -144,6 +144,10 @@ export default function BancaCrossRef() {
   const [registraId, setRegistraId] = useState(null);   // id movimento da registrare
   const [registraCat, setRegistraCat] = useState("");    // categoria selezionata
   const [registering, setRegistering] = useState(false);
+  // Selezione multipla (bulk)
+  const [bulkSelected, setBulkSelected] = useState(new Set());
+  const [bulkCat, setBulkCat] = useState("");
+  const [bulkRegistering, setBulkRegistering] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => { loadData(); }, []);
@@ -223,6 +227,52 @@ export default function BancaCrossRef() {
     } catch (err) { setError(err.message); }
     finally { setRegistering(false); }
   };
+
+  // ── Selezione multipla (bulk) ──
+  const toggleBulk = (movId) => {
+    setBulkSelected(prev => {
+      const s = new Set(prev);
+      s.has(movId) ? s.delete(movId) : s.add(movId);
+      return s;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const ids = sorted.map(m => m.id);
+    setBulkSelected(new Set(ids));
+  };
+
+  const deselectAll = () => setBulkSelected(new Set());
+
+  const handleBulkRegistra = async () => {
+    if (bulkSelected.size === 0 || !bulkCat) return;
+    setBulkRegistering(true);
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/registra-bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimento_ids: [...bulkSelected], categoria: bulkCat }),
+      });
+      if (!resp.ok) throw new Error("Errore registrazione bulk");
+      const data = await resp.json();
+      setBulkSelected(new Set());
+      setBulkCat("");
+      await loadData();
+      if (data.saltati > 0) setError(`Registrati ${data.registrati}, saltati ${data.saltati} (già collegati)`);
+    } catch (err) { setError(err.message); }
+    finally { setBulkRegistering(false); }
+  };
+
+  // Auto-detect bulk category dal primo selezionato
+  useEffect(() => {
+    if (bulkSelected.size > 0 && !bulkCat) {
+      const first = movimenti.find(m => bulkSelected.has(m.id));
+      if (first) {
+        setBulkCat(first.auto_categoria || (first.importo >= 0 ? "INCASSO_POS" : "SPESA_BANCARIA"));
+      }
+    }
+    if (bulkSelected.size === 0) setBulkCat("");
+  }, [bulkSelected]);
 
   // Ricerca manuale
   const doSearch = useCallback(async (q) => {
@@ -335,7 +385,7 @@ export default function BancaCrossRef() {
               const count = t.key === "collegati" ? linked.length : t.key === "suggerimenti" ? withSugg.length : noMatch.length;
               const active = tab === t.key;
               return (
-                <button key={t.key} onClick={() => { setTab(t.key); setExpandedId(null); setSearchId(null); }}
+                <button key={t.key} onClick={() => { setTab(t.key); setExpandedId(null); setSearchId(null); setRegistraId(null); setBulkSelected(new Set()); }}
                   className={`px-4 py-2 rounded-xl text-sm font-medium border transition flex items-center gap-2 ${
                     active ? "bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm" : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
                   }`}>
@@ -358,6 +408,47 @@ export default function BancaCrossRef() {
             <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
           )}
 
+          {/* ── Barra bulk (tab senza) ── */}
+          {tab === "senza" && bulkSelected.size > 0 && (
+            <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-semibold text-indigo-800">
+                  {bulkSelected.size} selezionati
+                  {(() => {
+                    const tot = [...bulkSelected].reduce((s, id) => {
+                      const m = movimenti.find(x => x.id === id);
+                      return s + Math.abs(m?.importo || 0);
+                    }, 0);
+                    return ` — € ${fmt(tot)}`;
+                  })()}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(() => {
+                    const firstMov = movimenti.find(m => bulkSelected.has(m.id));
+                    const cats = firstMov && firstMov.importo >= 0 ? CAT_ENTRATA : CAT_USCITA;
+                    return cats.map(c => (
+                      <button key={c.key} onClick={() => setBulkCat(c.key)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                          bulkCat === c.key
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50"
+                        }`}>
+                        {c.label}
+                      </button>
+                    ));
+                  })()}
+                </div>
+                <button onClick={handleBulkRegistra} disabled={!bulkCat || bulkRegistering}
+                  className="px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition ml-auto">
+                  {bulkRegistering ? "..." : `Registra ${bulkSelected.size}`}
+                </button>
+                <button onClick={deselectAll} className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-200">
+                  Deseleziona
+                </button>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="text-center py-12 text-neutral-500">Caricamento...</div>
           ) : sorted.length === 0 ? (
@@ -372,6 +463,14 @@ export default function BancaCrossRef() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200">
+                    {tab === "senza" && (
+                      <th className="px-2 py-2 w-8">
+                        <input type="checkbox"
+                          checked={sorted.length > 0 && sorted.every(m => bulkSelected.has(m.id))}
+                          onChange={() => sorted.every(m => bulkSelected.has(m.id)) ? deselectAll() : selectAllVisible()}
+                          className="accent-indigo-600" />
+                      </th>
+                    )}
                     <SortTh label="Data" field="data_contabile" sort={sort} onSort={onSort} />
                     <SortTh label="Importo" field="importo" sort={sort} onSort={onSort} className="text-right" />
                     <th className="px-3 py-2 text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Descrizione</th>
@@ -401,7 +500,13 @@ export default function BancaCrossRef() {
                       <React.Fragment key={m.id}>
                         <tr className={`border-b border-neutral-100 hover:bg-neutral-50 transition ${
                           isExpanded || isSearching ? "bg-neutral-50" : ""
-                        }`}>
+                        } ${bulkSelected.has(m.id) ? "bg-indigo-50/50" : ""}`}>
+                          {tab === "senza" && (
+                            <td className="px-2 py-2.5 w-8">
+                              <input type="checkbox" checked={bulkSelected.has(m.id)}
+                                onChange={() => toggleBulk(m.id)} className="accent-indigo-600" />
+                            </td>
+                          )}
                           <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">{fmtDate(m.data_contabile)}</td>
                           <td className={`px-3 py-2.5 text-right font-mono text-sm font-semibold whitespace-nowrap ${
                             m.importo >= 0 ? "text-emerald-600" : "text-red-600"
@@ -490,7 +595,7 @@ export default function BancaCrossRef() {
                         {/* ── Riga espansa: suggerimenti auto ── */}
                         {isExpanded && hasSugg && (
                           <tr>
-                            <td colSpan={tab === "collegati" ? 6 : 4} className="px-3 py-3 bg-amber-50/30">
+                            <td colSpan={tab === "collegati" ? 6 : tab === "senza" ? 5 : 4} className="px-3 py-3 bg-amber-50/30">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide">
                                   Possibili corrispondenze (importo ±5-10%, data ±10-20gg)
@@ -510,7 +615,7 @@ export default function BancaCrossRef() {
                         {/* ── Riga espansa: ricerca manuale ── */}
                         {isSearching && (
                           <tr>
-                            <td colSpan={tab === "collegati" ? 6 : 4} className="px-3 py-3 bg-teal-50/30">
+                            <td colSpan={tab === "collegati" ? 6 : tab === "senza" ? 5 : 4} className="px-3 py-3 bg-teal-50/30">
                               <div className="text-[10px] font-semibold text-teal-600 uppercase tracking-wide mb-2">
                                 Cerca fattura o spesa per fornitore, tipo o importo
                               </div>
@@ -532,7 +637,7 @@ export default function BancaCrossRef() {
                         {/* ── Riga espansa: registra spesa/entrata ── */}
                         {registraId === m.id && (
                           <tr>
-                            <td colSpan={tab === "collegati" ? 6 : 4} className="px-3 py-3 bg-indigo-50/30">
+                            <td colSpan={tab === "collegati" ? 6 : tab === "senza" ? 5 : 4} className="px-3 py-3 bg-indigo-50/30">
                               <div className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide mb-2">
                                 {m.importo >= 0 ? "Registra entrata" : "Registra uscita"} — scegli categoria
                               </div>
