@@ -145,21 +145,30 @@ function SubPagamentiContanti() {
   useEffect(() => { fetchMovimenti(); }, [fetchMovimenti]);
 
   // Ricerca uscite da pagare
+  const [errUscite, setErrUscite] = useState(null);
   const searchUscite = useCallback(async (q) => {
-    if (!q || q.length < 2) { setUscite([]); return; }
     setLoadingUscite(true);
+    setErrUscite(null);
     try {
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite-da-pagare?search=${encodeURIComponent(q)}`);
-      if (res.ok) {
-        const j = await res.json();
-        setUscite(j.uscite || []);
-      }
-    } catch (_) {}
+      const url = q && q.length >= 2
+        ? `${API_BASE}/controllo-gestione/uscite-da-pagare?search=${encodeURIComponent(q)}`
+        : `${API_BASE}/controllo-gestione/uscite-da-pagare`;
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      const j = await res.json();
+      setUscite(j.uscite || []);
+    } catch (e) { setErrUscite(e.message); setUscite([]); }
     finally { setLoadingUscite(false); }
   }, []);
 
+  // Carica uscite quando si apre il form
+  useEffect(() => {
+    if (showForm) searchUscite(searchText);
+  }, [showForm]);
+
   // Debounce search
   useEffect(() => {
+    if (!showForm) return;
     const timer = setTimeout(() => searchUscite(searchText), 350);
     return () => clearTimeout(timer);
   }, [searchText, searchUscite]);
@@ -257,6 +266,7 @@ function SubPagamentiContanti() {
             className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm"
           />
           {loadingUscite && <p className="text-xs text-neutral-400 animate-pulse">Ricerca...</p>}
+          {errUscite && <p className="text-xs text-red-600">Errore: {errUscite}</p>}
           {uscite.length > 0 && (
             <div className="max-h-64 overflow-y-auto space-y-1">
               {uscite.map(u => {
@@ -278,8 +288,8 @@ function SubPagamentiContanti() {
               })}
             </div>
           )}
-          {searchText.length >= 2 && !loadingUscite && uscite.length === 0 && (
-            <p className="text-xs text-neutral-400 italic">Nessuna spesa da pagare trovata.</p>
+          {!loadingUscite && !errUscite && uscite.length === 0 && (
+            <p className="text-xs text-neutral-400 italic">Nessuna spesa da pagare trovata{searchText ? ` per "${searchText}"` : ""}.</p>
           )}
           {selected.size > 0 && (
             <div className="flex items-center justify-between bg-emerald-100 rounded-lg px-4 py-3">

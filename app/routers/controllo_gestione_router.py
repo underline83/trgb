@@ -1589,9 +1589,9 @@ def get_uscite_da_pagare(
     """
     params = []
     if search:
-        sql += " AND (fornitore_nome LIKE ? OR numero_fattura LIKE ?)"
-        params += [f"%{search}%", f"%{search}%"]
-    sql += " ORDER BY data_scadenza ASC NULLS LAST, totale DESC LIMIT 50"
+        sql += " AND (fornitore_nome LIKE ? OR numero_fattura LIKE ? OR descrizione LIKE ? OR periodo_riferimento LIKE ?)"
+        params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"]
+    sql += " ORDER BY COALESCE(data_scadenza, '9999-12-31') ASC, totale DESC LIMIT 50"
     rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
     fc.close()
     return {"uscite": rows, "count": len(rows)}
