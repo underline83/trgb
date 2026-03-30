@@ -129,6 +129,7 @@ function SubPagamentiContanti() {
   const [loadingUscite, setLoadingUscite] = useState(false);
   const [selected, setSelected] = useState(new Set());
   const [saving, setSaving] = useState(false);
+  const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().slice(0, 10));
 
   const fetchMovimenti = useCallback(async () => {
     setLoading(true);
@@ -190,7 +191,7 @@ function SubPagamentiContanti() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ids: [...selected],
-          data_pagamento: new Date().toISOString().slice(0, 10),
+          data_pagamento: dataPagamento,
           metodo_pagamento: "CONTANTI",
         }),
       });
@@ -295,14 +296,22 @@ function SubPagamentiContanti() {
             <p className="text-xs text-neutral-400 italic">Nessuna spesa da pagare trovata{searchText ? ` per "${searchText}"` : ""}.</p>
           )}
           {selected.size > 0 && (
-            <div className="flex items-center justify-between bg-emerald-100 rounded-lg px-4 py-3">
-              <span className="text-sm font-medium text-emerald-800">
-                {selected.size} {selected.size === 1 ? "spesa selezionata" : "spese selezionate"} — Totale: <strong>€ {fmt(totaleSelezionato)}</strong>
-              </span>
-              <button onClick={handlePaga} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition">
-                {saving ? "..." : "💶 Paga in contanti"}
-              </button>
+            <div className="bg-emerald-100 rounded-lg px-4 py-3 space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="text-xs font-semibold text-emerald-700 whitespace-nowrap">Data pagamento:</label>
+                <input type="date" value={dataPagamento}
+                  onChange={e => setDataPagamento(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-white text-sm" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-emerald-800">
+                  {selected.size} {selected.size === 1 ? "spesa selezionata" : "spese selezionate"} — Totale: <strong>€ {fmt(totaleSelezionato)}</strong>
+                </span>
+                <button onClick={handlePaga} disabled={saving}
+                  className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 transition">
+                  {saving ? "..." : "💶 Paga in contanti"}
+                </button>
+              </div>
             </div>
           )}
         </div>
