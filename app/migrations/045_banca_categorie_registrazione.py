@@ -5,7 +5,7 @@ Seed con le categorie attuali + pattern di auto-detect.
 """
 
 
-def run(conn):
+def upgrade(conn):
     cur = conn.cursor()
 
     # Crea tabella
