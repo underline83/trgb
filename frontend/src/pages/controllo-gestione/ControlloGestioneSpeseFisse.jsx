@@ -709,7 +709,7 @@ export default function ControlloGestioneSpeseFisse() {
                   <WizField label="Giorno pagamento" type="number" min="1" max="31"
                     value={wizData.giorno_scadenza || ""} onChange={v => setWizData({ ...wizData, giorno_scadenza: v })}
                     placeholder="Es. 15" />
-                  <WizField label="Data prima rata" type="date"
+                  <WizField label="Data prima rata" type="date" required
                     value={wizData.data_inizio || ""} onChange={v => setWizData({ ...wizData, data_inizio: v })} />
                   <div className="md:col-span-2">
                     <WizField label="Note" value={wizData.note || ""} onChange={v => setWizData({ ...wizData, note: v })}
@@ -736,7 +736,21 @@ export default function ControlloGestioneSpeseFisse() {
                   );
                 })()}
 
-                <div className="flex gap-2 mt-5">
+                {/* Campi mancanti */}
+                {(() => {
+                  const mancanti = [];
+                  if (!wizData.titolo) mancanti.push("Descrizione");
+                  if (!wizData.importo_totale) mancanti.push("Importo fattura");
+                  if (!wizData.num_rate || parseInt(wizData.num_rate) < 2) mancanti.push("Numero rate (min 2)");
+                  if (!wizData.data_inizio) mancanti.push("Data prima rata");
+                  return mancanti.length > 0 ? (
+                    <div className="mt-3 text-[10px] text-amber-600 bg-amber-50 rounded-lg px-3 py-1.5 border border-amber-200">
+                      Compila: {mancanti.join(", ")}
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="flex gap-2 mt-3">
                   <button onClick={() => setWizStep(wizData.fonte === "fattura" ? 1 : 0)}
                     className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
                     &larr; Indietro
