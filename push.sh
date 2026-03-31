@@ -61,6 +61,13 @@ else
   echo "ℹ️  Nessuna modifica da committare."
 fi
 
+# ── Rimuovi users.json dal tracking se ancora tracciato ──
+if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
+  echo "🔒 Rimuovo users.json dal tracking git (dati runtime)..."
+  git rm --cached app/data/users.json app/data/modules.json 2>/dev/null || true
+  git commit -m "chore: rimuove users.json e modules.json dal tracking (dati runtime)"
+fi
+
 # ── Push al VPS (deploy) ────────────────────────────────
 echo ""
 echo "📤 Push al VPS (origin)..."
@@ -71,6 +78,30 @@ if git remote | grep -q github; then
   echo "📤 Push a GitHub (backup)..."
   git push github main 2>/dev/null || echo "⚠️  Push GitHub fallito (non bloccante)"
 fi
+
+# ── Proteggi files runtime sul VPS ──────────────────────
+echo "🔒 Protezione files runtime (users.json, modules.json)..."
+ssh -q "$VPS_HOST" "
+  cd $VPS_DIR/app/data
+  # Backup prima del checkout
+  for f in users.json modules.json; do
+    [ -f \"\$f\" ] && cp \"\$f\" \"\${f}.runtime\" 2>/dev/null || true
+  done
+" 2>/dev/null || true
+
+# Attendi che il post-receive hook completi il checkout
+sleep 2
+
+# Ripristina i files runtime se il checkout li ha sovrascritti/cancellati
+ssh -q "$VPS_HOST" "
+  cd $VPS_DIR/app/data
+  for f in users.json modules.json; do
+    if [ -f \"\${f}.runtime\" ]; then
+      cp \"\${f}.runtime\" \"\$f\"
+      rm -f \"\${f}.runtime\"
+    fi
+  done
+" 2>/dev/null || true
 
 # ── Deploy extra (solo se -f per pip/npm) ──────────────
 # Il deploy base (git checkout + restart) è gestito dal post-receive hook.

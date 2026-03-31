@@ -159,6 +159,10 @@ export default function ControlloGestioneSpeseFisse() {
         note: data.note || null,
         iban: data.iban || null,
       };
+      // Campi extra per rateizzazione con spese legali e rate variabili
+      if (data.importo_originale != null) body.importo_originale = parseFloat(data.importo_originale) || 0;
+      if (data.spese_legali != null) body.spese_legali = parseFloat(data.spese_legali) || 0;
+      if (data.piano_rate && data.piano_rate.length > 0) body.piano_rate = data.piano_rate;
       await apiFetch(`${CG}/spese-fisse`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -687,17 +691,22 @@ export default function ControlloGestioneSpeseFisse() {
                     Rateizzazione di: {wizData.fattura_rif}
                   </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <WizField label="Descrizione" required
-                    value={wizData.titolo || ""} onChange={v => setWizData({ ...wizData, titolo: v })}
-                    placeholder="Es. Rateizzazione Fornitore XYZ" />
-                  <WizField label="Importo totale" required type="number"
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2">
+                    <WizField label="Descrizione" required
+                      value={wizData.titolo || ""} onChange={v => setWizData({ ...wizData, titolo: v })}
+                      placeholder="Es. Rateizzazione Fornitore XYZ" />
+                  </div>
+                  <WizField label="Importo fattura" required type="number"
                     value={wizData.importo_totale || ""} onChange={v => setWizData({ ...wizData, importo_totale: v })}
                     placeholder="3000.00" prefix="&euro;" />
+                  <WizField label="Spese legali" type="number"
+                    value={wizData.spese_legali || ""} onChange={v => setWizData({ ...wizData, spese_legali: v })}
+                    placeholder="0.00" prefix="&euro;" />
                   <WizField label="Numero rate" required type="number"
                     value={wizData.num_rate || ""} onChange={v => setWizData({ ...wizData, num_rate: v })}
                     placeholder="Es. 6" min="2" max="120" />
-                  <WizField label="Giorno pagamento rata" type="number" min="1" max="31"
+                  <WizField label="Giorno pagamento" type="number" min="1" max="31"
                     value={wizData.giorno_scadenza || ""} onChange={v => setWizData({ ...wizData, giorno_scadenza: v })}
                     placeholder="Es. 15" />
                   <WizField label="Data prima rata" type="date"
@@ -708,57 +717,197 @@ export default function ControlloGestioneSpeseFisse() {
                   </div>
                 </div>
 
-                {/* Preview rate */}
-                {wizData.importo_totale && wizData.num_rate && parseInt(wizData.num_rate) >= 2 && (
-                  <div className="mt-4 p-3 bg-violet-50 rounded-lg border border-violet-200">
-                    <div className="text-xs font-semibold text-violet-700">
-                      {wizData.num_rate} rate da &euro; {fmt(parseFloat(wizData.importo_totale) / parseInt(wizData.num_rate))} / mese
+                {/* Preview totale */}
+                {wizData.importo_totale && wizData.num_rate && parseInt(wizData.num_rate) >= 2 && (() => {
+                  const imp = parseFloat(wizData.importo_totale) || 0;
+                  const spese = parseFloat(wizData.spese_legali) || 0;
+                  const tot = imp + spese;
+                  const nRate = parseInt(wizData.num_rate);
+                  return (
+                    <div className="mt-4 p-3 bg-violet-50 rounded-lg border border-violet-200">
+                      <div className="text-xs font-semibold text-violet-700">
+                        Totale da rateizzare: &euro; {fmt(tot)}
+                        {spese > 0 && <span className="text-violet-500 font-normal"> (fattura {fmt(imp)} + spese legali {fmt(spese)})</span>}
+                      </div>
+                      <div className="text-[10px] text-violet-500 mt-0.5">
+                        {nRate} rate da &euro; {fmt(tot / nRate)} / mese (media)
+                      </div>
                     </div>
-                    <div className="text-[10px] text-violet-500 mt-0.5">
-                      Totale: &euro; {fmt(parseFloat(wizData.importo_totale))}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 <div className="flex gap-2 mt-5">
                   <button onClick={() => setWizStep(wizData.fonte === "fattura" ? 1 : 0)}
                     className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
                     &larr; Indietro
                   </button>
-                  <button disabled={saving || !wizData.titolo || !wizData.importo_totale || !wizData.num_rate || parseInt(wizData.num_rate) < 2}
+                  <button disabled={!wizData.titolo || !wizData.importo_totale || !wizData.num_rate || parseInt(wizData.num_rate) < 2 || !wizData.data_inizio}
                     onClick={() => {
-                      const totale = parseFloat(wizData.importo_totale);
+                      // Genera tabella rate con importi uguali
+                      const imp = parseFloat(wizData.importo_totale) || 0;
+                      const spese = parseFloat(wizData.spese_legali) || 0;
+                      const totale = imp + spese;
                       const nRate = parseInt(wizData.num_rate);
-                      const rata = Math.round((totale / nRate) * 100) / 100;
-
-                      // Calcola data_fine: data_inizio + nRate mesi
-                      let dataFine = null;
-                      if (wizData.data_inizio) {
-                        const d = new Date(wizData.data_inizio + "T00:00:00");
-                        d.setMonth(d.getMonth() + nRate - 1);
-                        dataFine = d.toISOString().slice(0, 10);
+                      const rataBase = Math.round((totale / nRate) * 100) / 100;
+                      // L'ultima rata assorbe gli arrotondamenti
+                      const rateArr = [];
+                      const d = new Date(wizData.data_inizio + "T00:00:00");
+                      let sommaParziale = 0;
+                      for (let i = 0; i < nRate; i++) {
+                        const isLast = i === nRate - 1;
+                        const importoRata = isLast ? Math.round((totale - sommaParziale) * 100) / 100 : rataBase;
+                        sommaParziale += importoRata;
+                        const dd = new Date(d);
+                        dd.setMonth(d.getMonth() + i);
+                        rateArr.push({
+                          numero: i + 1,
+                          periodo: dd.toISOString().slice(0, 7),
+                          data: dd.toISOString().slice(0, 10),
+                          importo: importoRata,
+                        });
                       }
-
-                      saveFromWizard({
-                        tipo: "RATEIZZAZIONE",
-                        titolo: wizData.titolo,
-                        descrizione: wizData.fattura_rif || null,
-                        importo: rata,
-                        frequenza: "MENSILE",
-                        giorno_scadenza: wizData.giorno_scadenza || null,
-                        data_inizio: wizData.data_inizio || null,
-                        data_fine: dataFine,
-                        note: wizData.note
-                          ? `${wizData.note} | Totale: ${totale}, ${nRate} rate`
-                          : `Totale: ${totale}, ${nRate} rate`,
-                      });
+                      setWizData({ ...wizData, rate_tabella: rateArr, totale_rateizzazione: totale });
+                      setWizStep(3);
                     }}
                     className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-50">
-                    {saving ? "Salvataggio..." : "Crea Rateizzazione"}
+                    Configura rate &rarr;
                   </button>
                 </div>
               </>
             )}
+
+            {/* ═══ STEP 3: Tabella rate editabili ═══ */}
+            {wizStep === 3 && (() => {
+              const rate = wizData.rate_tabella || [];
+              const totaleRate = rate.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+              const totaleAtteso = wizData.totale_rateizzazione || 0;
+              const diff = Math.round((totaleRate - totaleAtteso) * 100) / 100;
+              const isValid = Math.abs(diff) < 0.02;
+
+              const updateRata = (idx, val) => {
+                const nuove = [...rate];
+                nuove[idx] = { ...nuove[idx], importo: val === "" ? "" : parseFloat(val) || 0 };
+                setWizData({ ...wizData, rate_tabella: nuove });
+              };
+
+              // Ricalcola: distribuisce equamente il residuo
+              const ricalcola = () => {
+                const n = rate.length;
+                const rataBase = Math.round((totaleAtteso / n) * 100) / 100;
+                const nuove = rate.map((r, i) => ({
+                  ...r,
+                  importo: i === n - 1 ? Math.round((totaleAtteso - rataBase * (n - 1)) * 100) / 100 : rataBase,
+                }));
+                setWizData({ ...wizData, rate_tabella: nuove });
+              };
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-neutral-500">Modifica gli importi delle singole rate. Il totale deve corrispondere.</p>
+                    </div>
+                    <button onClick={ricalcola}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border border-neutral-200">
+                      Ricalcola uguali
+                    </button>
+                  </div>
+
+                  {/* Riepilogo totali */}
+                  <div className={`p-3 rounded-lg border mb-3 ${isValid ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                    <div className="flex justify-between text-xs">
+                      <span className="font-medium text-neutral-700">Totale rate: &euro; {fmt(totaleRate)}</span>
+                      <span className="font-medium text-neutral-700">Atteso: &euro; {fmt(totaleAtteso)}</span>
+                    </div>
+                    {!isValid && (
+                      <div className="text-[10px] text-red-600 mt-1 font-semibold">
+                        Differenza: &euro; {diff > 0 ? "+" : ""}{fmt(diff)} — correggi gli importi
+                      </div>
+                    )}
+                    {isValid && (
+                      <div className="text-[10px] text-emerald-600 mt-1 font-semibold">Totale corretto</div>
+                    )}
+                  </div>
+
+                  {/* Tabella rate */}
+                  <div className="border border-neutral-200 rounded-xl overflow-hidden max-h-[350px] overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-neutral-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-neutral-500 font-medium">#</th>
+                          <th className="px-3 py-2 text-left text-neutral-500 font-medium">Scadenza</th>
+                          <th className="px-3 py-2 text-right text-neutral-500 font-medium">Importo &euro;</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rate.map((r, i) => (
+                          <tr key={i} className="border-t border-neutral-100 hover:bg-violet-50/30">
+                            <td className="px-3 py-1.5 text-neutral-400 font-mono">{r.numero}</td>
+                            <td className="px-3 py-1.5 text-neutral-700">{r.data}</td>
+                            <td className="px-3 py-1.5 text-right">
+                              <input type="number" step="0.01"
+                                value={r.importo} onChange={e => updateRata(i, e.target.value)}
+                                className="w-28 text-right px-2 py-1 rounded border border-neutral-200 focus:border-violet-400 focus:ring-1 focus:ring-violet-200 text-xs tabular-nums"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex gap-2 mt-5">
+                    <button onClick={() => setWizStep(2)}
+                      className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+                      &larr; Indietro
+                    </button>
+                    <button disabled={saving || !isValid}
+                      onClick={() => {
+                        const nRate = rate.length;
+                        const imp = parseFloat(wizData.importo_totale) || 0;
+                        const spese = parseFloat(wizData.spese_legali) || 0;
+                        const totale = imp + spese;
+
+                        let dataFine = null;
+                        if (rate.length > 0) {
+                          dataFine = rate[rate.length - 1].data;
+                        }
+
+                        // Prepara piano rate per il backend
+                        const pianoRate = rate.map(r => ({
+                          numero_rata: r.numero,
+                          periodo: r.periodo,
+                          importo: parseFloat(r.importo) || 0,
+                          note: `Rata ${r.numero}/${nRate}`,
+                        }));
+
+                        // Importo medio per la spesa fissa (riferimento)
+                        const rataMedia = Math.round((totale / nRate) * 100) / 100;
+
+                        saveFromWizard({
+                          tipo: "RATEIZZAZIONE",
+                          titolo: wizData.titolo,
+                          descrizione: wizData.fattura_rif || null,
+                          importo: rataMedia,
+                          importo_originale: imp,
+                          spese_legali: spese,
+                          frequenza: "MENSILE",
+                          giorno_scadenza: wizData.giorno_scadenza || null,
+                          data_inizio: wizData.data_inizio || null,
+                          data_fine: dataFine,
+                          note: wizData.note
+                            ? `${wizData.note} | Totale: ${fmt(totale)}, ${nRate} rate`
+                            : `Totale: ${fmt(totale)}, ${nRate} rate${spese > 0 ? ` (di cui spese legali ${fmt(spese)})` : ""}`,
+                          piano_rate: pianoRate,
+                        });
+                      }}
+                      className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-50">
+                      {saving ? "Salvataggio..." : "Crea Rateizzazione"}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </WizardPanel>
         )}
 

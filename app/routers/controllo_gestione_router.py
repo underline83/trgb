@@ -1220,7 +1220,9 @@ def create_spesa_fissa(
     """
     Crea una nuova spesa fissa.
     Body: { tipo, titolo, descrizione?, importo, frequenza, giorno_scadenza?,
-            data_inizio?, data_fine?, note? }
+            data_inizio?, data_fine?, note?, importo_originale?, spese_legali?,
+            piano_rate?: [{ numero_rata, periodo, importo }] }
+    Se piano_rate è presente, inserisce anche le rate in cg_piano_rate.
     """
     tipo = payload.get("tipo", "ALTRO")
     if tipo not in TIPO_SPESA:
@@ -1230,27 +1232,49 @@ def create_spesa_fissa(
         freq = "MENSILE"
 
     fc = get_fc_db()
-    fc.execute("""
-        INSERT INTO cg_spese_fisse
-            (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
-             data_inizio, data_fine, note, iban, attiva)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-    """, (
-        tipo,
-        payload.get("titolo", "").strip(),
-        payload.get("descrizione", ""),
-        float(payload.get("importo", 0)),
-        freq,
-        payload.get("giorno_scadenza"),
-        payload.get("data_inizio"),
-        payload.get("data_fine"),
-        payload.get("note", ""),
-        payload.get("iban", ""),
-    ))
-    fc.commit()
-    new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
-    fc.close()
-    return {"ok": True, "id": new_id}
+    try:
+        fc.execute("""
+            INSERT INTO cg_spese_fisse
+                (tipo, titolo, descrizione, importo, frequenza, giorno_scadenza,
+                 data_inizio, data_fine, note, iban, attiva,
+                 importo_originale, spese_legali)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        """, (
+            tipo,
+            payload.get("titolo", "").strip(),
+            payload.get("descrizione", ""),
+            float(payload.get("importo", 0)),
+            freq,
+            payload.get("giorno_scadenza"),
+            payload.get("data_inizio"),
+            payload.get("data_fine"),
+            payload.get("note", ""),
+            payload.get("iban", ""),
+            payload.get("importo_originale"),
+            float(payload.get("spese_legali", 0) or 0),
+        ))
+        new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Se c'è un piano rate, inseriscilo
+        piano_rate = payload.get("piano_rate", [])
+        if piano_rate and isinstance(piano_rate, list):
+            for r in piano_rate:
+                periodo = r.get("periodo")
+                importo_rata = r.get("importo")
+                if not periodo or importo_rata is None:
+                    continue
+                try:
+                    fc.execute("""
+                        INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (new_id, r.get("numero_rata", 0), periodo, float(importo_rata), r.get("note")))
+                except Exception:
+                    pass
+
+        fc.commit()
+        return {"ok": True, "id": new_id}
+    finally:
+        fc.close()
 
 
 @router.put("/spese-fisse/{spesa_id}")
