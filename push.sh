@@ -68,6 +68,15 @@ if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
   git commit -m "chore: rimuove users.json e modules.json dal tracking (dati runtime)"
 fi
 
+# ── Proteggi files runtime sul VPS (PRIMA del push) ─────
+echo "🔒 Backup files runtime (users.json, modules.json)..."
+ssh -q "$VPS_HOST" "
+  cd $VPS_DIR/app/data
+  for f in users.json modules.json; do
+    [ -f \"\$f\" ] && cp \"\$f\" \"/tmp/trgb_\${f}.runtime\" 2>/dev/null || true
+  done
+" 2>/dev/null || true
+
 # ── Push al VPS (deploy) ────────────────────────────────
 echo ""
 echo "📤 Push al VPS (origin)..."
@@ -79,26 +88,20 @@ if git remote | grep -q github; then
   git push github main 2>/dev/null || echo "⚠️  Push GitHub fallito (non bloccante)"
 fi
 
-# ── Proteggi files runtime sul VPS ──────────────────────
-echo "🔒 Protezione files runtime (users.json, modules.json)..."
-ssh -q "$VPS_HOST" "
-  cd $VPS_DIR/app/data
-  # Backup prima del checkout
-  for f in users.json modules.json; do
-    [ -f \"\$f\" ] && cp \"\$f\" \"\${f}.runtime\" 2>/dev/null || true
-  done
-" 2>/dev/null || true
-
 # Attendi che il post-receive hook completi il checkout
-sleep 2
+sleep 3
 
-# Ripristina i files runtime se il checkout li ha sovrascritti/cancellati
+# Ripristina i files runtime dopo il checkout
+echo "🔒 Ripristino files runtime..."
 ssh -q "$VPS_HOST" "
   cd $VPS_DIR/app/data
   for f in users.json modules.json; do
-    if [ -f \"\${f}.runtime\" ]; then
-      cp \"\${f}.runtime\" \"\$f\"
-      rm -f \"\${f}.runtime\"
+    if [ -f \"/tmp/trgb_\${f}.runtime\" ]; then
+      cp \"/tmp/trgb_\${f}.runtime\" \"\$f\"
+      rm -f \"/tmp/trgb_\${f}.runtime\"
+      echo \"  ✅ \$f ripristinato\"
+    else
+      echo \"  ⚠️  \$f — nessun backup trovato\"
     fi
   done
 " 2>/dev/null || true
