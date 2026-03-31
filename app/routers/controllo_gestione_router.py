@@ -590,10 +590,10 @@ def import_uscite(
         SELECT cu.id, f.totale_fattura
         FROM cg_uscite cu
         JOIN fe_fatture f ON cu.fattura_id = f.id
-        WHERE cu.tipo_uscita IS NULL OR cu.tipo_uscita = 'FATTURA'
-        AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
-        AND (f.totale_fattura <= 0 OR f.totale_fattura IS NULL)
-        AND cu.totale > 0
+        WHERE (cu.tipo_uscita IS NULL OR cu.tipo_uscita = 'FATTURA')
+          AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
+          AND (f.totale_fattura <= 0 OR f.totale_fattura IS NULL)
+          AND cu.totale > 0
     """).fetchall()
     for az in fatture_azzerate:
         fc.execute("""
