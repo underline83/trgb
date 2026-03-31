@@ -24,8 +24,8 @@ def upgrade(conn):
     """)
 
     # Verifica se già popolata
-    existing = cur.execute("SELECT COUNT(*) as c FROM banca_categorie_registrazione").fetchone()
-    if existing["c"] > 0:
+    existing = cur.execute("SELECT COUNT(*) FROM banca_categorie_registrazione").fetchone()
+    if existing[0] > 0:
         return
 
     # ── Seed categorie USCITA ──
