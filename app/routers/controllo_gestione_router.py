@@ -681,6 +681,20 @@ def import_uscite(
                 g = min(giorno, max_day)
                 data_scad = f"{current.year}-{current.month:02d}-{g:02d}"
 
+                # Importo: dal piano rate se esiste, altrimenti fisso dalla spesa
+                importo_rata = sf["importo"]
+                nota_rata = None
+                try:
+                    pr = fc.execute(
+                        "SELECT importo, note FROM cg_piano_rate WHERE spesa_fissa_id = ? AND periodo = ?",
+                        (sf["id"], periodo)
+                    ).fetchone()
+                    if pr:
+                        importo_rata = pr["importo"]
+                        nota_rata = pr["note"]
+                except Exception:
+                    pass  # Tabella non ancora creata
+
                 existing = fc.execute(
                     "SELECT id, stato FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
                     (sf["id"], periodo)
@@ -691,12 +705,12 @@ def import_uscite(
                         INSERT INTO cg_uscite (
                             spesa_fissa_id, tipo_uscita, fornitore_nome,
                             numero_fattura, totale, data_scadenza,
-                            stato, periodo_riferimento, created_at, updated_at
-                        ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?)
+                            stato, periodo_riferimento, note, created_at, updated_at
+                        ) VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         sf["id"], sf["titolo"],
-                        sf["tipo"], sf["importo"], data_scad,
-                        stato_sf, periodo, oggi_str, oggi_str,
+                        sf["tipo"], importo_rata, data_scad,
+                        stato_sf, periodo, nota_rata, oggi_str, oggi_str,
                     ))
                     sf_importate += 1
                 else:
@@ -707,7 +721,7 @@ def import_uscite(
                         fc.execute("""
                             UPDATE cg_uscite SET fornitore_nome = ?, totale = ?, stato = ?, updated_at = ?
                             WHERE id = ?
-                        """, (sf["titolo"], sf["importo"], new_stato, oggi_str, ex["id"]))
+                        """, (sf["titolo"], importo_rata, new_stato, oggi_str, ex["id"]))
                     sf_saltate += 1
 
             # Avanza di un mese
@@ -1303,6 +1317,84 @@ def delete_spesa_fissa(
     """Elimina una spesa fissa."""
     fc = get_fc_db()
     fc.execute("DELETE FROM cg_spese_fisse WHERE id = ?", (spesa_id,))
+    fc.commit()
+    fc.close()
+    return {"ok": True}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PIANO RATE — rate variabili per spese fisse (prestiti alla francese)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/spese-fisse/{spesa_id}/piano-rate")
+def get_piano_rate(
+    spesa_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Restituisce il piano rate di una spesa fissa."""
+    fc = get_fc_db()
+    try:
+        rows = fc.execute("""
+            SELECT id, numero_rata, periodo, importo, note
+            FROM cg_piano_rate
+            WHERE spesa_fissa_id = ?
+            ORDER BY periodo
+        """, (spesa_id,)).fetchall()
+        return {"ok": True, "rate": [dict(r) for r in rows]}
+    except Exception:
+        return {"ok": True, "rate": []}
+    finally:
+        fc.close()
+
+
+@router.post("/spese-fisse/{spesa_id}/piano-rate")
+def add_piano_rate(
+    spesa_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Aggiunge rate al piano. Accetta singola rata o lista.
+    Body: { rate: [{ numero_rata, periodo, importo, note? }] }
+    oppure: { numero_rata, periodo, importo, note? }
+    """
+    fc = get_fc_db()
+    try:
+        rate_input = payload.get("rate", [payload] if "periodo" in payload else [])
+        inserite = 0
+        for r in rate_input:
+            periodo = r.get("periodo")
+            importo = r.get("importo")
+            if not periodo or importo is None:
+                continue
+            try:
+                fc.execute("""
+                    INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (spesa_id, r.get("numero_rata", 0), periodo, importo, r.get("note")))
+                inserite += 1
+            except Exception:
+                # Duplicato (spesa_fissa_id + periodo) — aggiorna
+                fc.execute("""
+                    UPDATE cg_piano_rate SET importo = ?, numero_rata = ?, note = ?
+                    WHERE spesa_fissa_id = ? AND periodo = ?
+                """, (importo, r.get("numero_rata", 0), r.get("note"), spesa_id, periodo))
+                inserite += 1
+        fc.commit()
+        return {"ok": True, "inserite": inserite}
+    finally:
+        fc.close()
+
+
+@router.delete("/spese-fisse/{spesa_id}/piano-rate/{rata_id}")
+def delete_piano_rata(
+    spesa_id: int,
+    rata_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Elimina una singola rata dal piano."""
+    fc = get_fc_db()
+    fc.execute("DELETE FROM cg_piano_rate WHERE id = ? AND spesa_fissa_id = ?", (rata_id, spesa_id))
     fc.commit()
     fc.close()
     return {"ok": True}
