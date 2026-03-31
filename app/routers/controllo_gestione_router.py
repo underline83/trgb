@@ -1665,6 +1665,20 @@ def get_uscite_da_pagare(
     Filtro opzionale per nome fornitore o numero fattura.
     """
     fc = get_fc_db()
+
+    # Prima: pulizia inline — marca PAGATA le uscite la cui fattura sorgente è stata azzerata
+    fc.execute("""
+        UPDATE cg_uscite SET totale = 0, stato = 'PAGATA',
+            note = COALESCE(note, '') || ' [azzerata da sconto/storno]',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE fattura_id IS NOT NULL
+          AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+          AND fattura_id IN (
+              SELECT id FROM fe_fatture WHERE COALESCE(totale_fattura, 0) <= 0
+          )
+    """)
+    fc.commit()
+
     sql = """
         SELECT id, fornitore_nome, fornitore_piva, numero_fattura,
                data_fattura, totale AS importo, data_scadenza, stato, tipo_uscita,
