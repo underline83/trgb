@@ -1671,6 +1671,7 @@ def get_uscite_da_pagare(
                periodo_riferimento, note
         FROM cg_uscite
         WHERE stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+          AND COALESCE(totale, 0) > 0
     """
     params = []
     if search:
