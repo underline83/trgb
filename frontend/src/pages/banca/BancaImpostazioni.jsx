@@ -17,7 +17,7 @@ const COLORI_PRESET = [
 ];
 
 export default function BancaImpostazioni() {
-  const [tab, setTab] = useState("import"); // "import" | "categorie"
+  const [tab, setTab] = useState("import"); // "import" | "categorie" | "cat-registrazione"
 
   const tabCls = (t) =>
     `px-5 py-2.5 text-sm font-semibold border-b-2 transition ${
@@ -47,7 +47,10 @@ export default function BancaImpostazioni() {
               📥 Import CSV
             </button>
             <button className={tabCls("categorie")} onClick={() => setTab("categorie")}>
-              🏷️ Categorie
+              🏷️ Categorie Banca
+            </button>
+            <button className={tabCls("cat-registrazione")} onClick={() => setTab("cat-registrazione")}>
+              📋 Categorie Registrazione
             </button>
           </div>
 
@@ -55,6 +58,7 @@ export default function BancaImpostazioni() {
           <div className="p-6 sm:p-10">
             {tab === "import" && <TabImport />}
             {tab === "categorie" && <TabCategorie />}
+            {tab === "cat-registrazione" && <TabCategorieRegistrazione />}
           </div>
         </div>
       </div>
@@ -368,7 +372,7 @@ function TabCategorie() {
   return (
     <div>
       <p className="text-neutral-600 text-sm mb-4">
-        Mappa le categorie della banca alle tue. Clicca su una categoria per vedere i movimenti e riassegnarli.
+        Mappa le categorie importate dal CSV della banca alle tue categorie personalizzate. Clicca su una categoria per vedere i movimenti e riassegnarli.
       </p>
 
       {error && (
@@ -597,6 +601,230 @@ function TabCategorie() {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// TAB CATEGORIE REGISTRAZIONE (per riconciliazione)
+// ═══════════════════════════════════════════════════════
+const COLORI_REG = [
+  "#059669", "#ef4444", "#2563eb", "#f59e0b", "#8b5cf6",
+  "#ec4899", "#0ea5e9", "#14b8a6", "#65a30d", "#6b7280", "#9ca3af",
+];
+
+function TabCategorieRegistrazione() {
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [editId, setEditId] = useState(null);      // null = nessun edit, 0 = nuova
+  const [form, setForm] = useState({ codice: "", label: "", tipo: "uscita", pattern: "", colore: "#6b7280", ordine: 50 });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const resp = await apiFetch(`${FC}/categorie-registrazione`);
+      if (!resp.ok) throw new Error("Errore caricamento");
+      setCats(await resp.json());
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  const startNew = () => {
+    setEditId(0);
+    setForm({ codice: "", label: "", tipo: "uscita", pattern: "", colore: "#6b7280", ordine: 50 });
+  };
+
+  const startEdit = (c) => {
+    setEditId(c.id);
+    setForm({ codice: c.codice, label: c.label, tipo: c.tipo, pattern: c.pattern || "", colore: c.colore || "#6b7280", ordine: c.ordine });
+  };
+
+  const cancel = () => { setEditId(null); };
+
+  const save = async () => {
+    if (!form.label.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const url = editId === 0
+        ? `${FC}/categorie-registrazione`
+        : `${FC}/categorie-registrazione/${editId}`;
+      const method = editId === 0 ? "POST" : "PUT";
+      const body = editId === 0
+        ? { ...form, codice: form.codice || form.label.toUpperCase().replace(/[^A-Z0-9]/g, "_").replace(/_+/g, "_") }
+        : form;
+      const resp = await apiFetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.detail || "Errore salvataggio");
+      }
+      setEditId(null);
+      await load();
+    } catch (err) { setError(err.message); }
+    setSaving(false);
+  };
+
+  const toggle = async (id) => {
+    try {
+      await apiFetch(`${FC}/categorie-registrazione/${id}/toggle`, { method: "PATCH" });
+      await load();
+    } catch (_) {}
+  };
+
+  const uscite = cats.filter(c => c.tipo === "uscita");
+  const entrate = cats.filter(c => c.tipo === "entrata");
+
+  const renderRow = (c) => {
+    const isEdit = editId === c.id;
+    return (
+      <div key={c.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition ${
+        isEdit ? "bg-blue-50 border-blue-300" : !c.attiva ? "bg-neutral-50 border-neutral-200 opacity-60" : "bg-white border-neutral-200"
+      }`}>
+        {!isEdit ? (
+          <>
+            <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: c.colore || "#6b7280" }} />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-neutral-800">{c.label}</span>
+              <span className="ml-2 text-[10px] font-mono text-neutral-400">{c.codice}</span>
+              {c.pattern && (
+                <div className="text-[10px] text-neutral-400 truncate mt-0.5" title={c.pattern}>
+                  Pattern: {c.pattern}
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-neutral-400 w-8 text-center">{c.ordine}</span>
+            <button onClick={() => toggle(c.id)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition ${
+                c.attiva ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  : "border-neutral-300 text-neutral-500 bg-neutral-50 hover:bg-neutral-100"
+              }`}>
+              {c.attiva ? "Attiva" : "Off"}
+            </button>
+            <button onClick={() => startEdit(c)}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-medium border border-neutral-300 hover:bg-neutral-100 transition">
+              Modifica
+            </button>
+          </>
+        ) : (
+          <div className="flex-1 space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
+                placeholder="Nome categoria" className="border rounded-lg px-3 py-1.5 text-sm" />
+              <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}
+                className="border rounded-lg px-2 py-1.5 text-sm">
+                <option value="uscita">Uscita</option>
+                <option value="entrata">Entrata</option>
+              </select>
+              <input value={form.pattern} onChange={e => setForm({ ...form, pattern: e.target.value })}
+                placeholder="Pattern auto-detect (es. COMM.POS|COMMISSIONE)" className="border rounded-lg px-3 py-1.5 text-sm sm:col-span-2" />
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                {COLORI_REG.map(col => (
+                  <button key={col} onClick={() => setForm({ ...form, colore: col })}
+                    className={`w-5 h-5 rounded-full border-2 transition ${form.colore === col ? "border-neutral-800 scale-110" : "border-transparent"}`}
+                    style={{ backgroundColor: col }} />
+                ))}
+              </div>
+              <input type="number" value={form.ordine} onChange={e => setForm({ ...form, ordine: parseInt(e.target.value) || 0 })}
+                className="w-16 border rounded-lg px-2 py-1 text-sm text-center" title="Ordine" />
+              <div className="flex gap-2 ml-auto">
+                <button onClick={save} disabled={saving || !form.label.trim()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+                  {saving ? "..." : "Salva"}
+                </button>
+                <button onClick={cancel}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100">
+                  Annulla
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-neutral-600 text-sm">
+          Categorie usate nella Riconciliazione per registrare movimenti senza fattura. I pattern servono per l'auto-detect.
+        </p>
+        <button onClick={startNew}
+          className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition">
+          + Nuova
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
+      )}
+
+      {editId === 0 && (
+        <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-300 space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
+              placeholder="Nome categoria" className="border rounded-lg px-3 py-1.5 text-sm" />
+            <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })}
+              className="border rounded-lg px-2 py-1.5 text-sm">
+              <option value="uscita">Uscita</option>
+              <option value="entrata">Entrata</option>
+            </select>
+            <input value={form.pattern} onChange={e => setForm({ ...form, pattern: e.target.value })}
+              placeholder="Pattern auto-detect (es. COMM.POS|COMMISSIONE)" className="border rounded-lg px-3 py-1.5 text-sm sm:col-span-2" />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex gap-1">
+              {COLORI_REG.map(col => (
+                <button key={col} onClick={() => setForm({ ...form, colore: col })}
+                  className={`w-5 h-5 rounded-full border-2 transition ${form.colore === col ? "border-neutral-800 scale-110" : "border-transparent"}`}
+                  style={{ backgroundColor: col }} />
+              ))}
+            </div>
+            <input type="number" value={form.ordine} onChange={e => setForm({ ...form, ordine: parseInt(e.target.value) || 0 })}
+              className="w-16 border rounded-lg px-2 py-1 text-sm text-center" title="Ordine" />
+            <div className="flex gap-2 ml-auto">
+              <button onClick={save} disabled={saving || !form.label.trim()}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+                {saving ? "..." : "Crea"}
+              </button>
+              <button onClick={cancel}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100">
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-neutral-500">Caricamento...</div>
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Categorie Uscita ({uscite.length})
+            </h3>
+            <div className="space-y-2">{uscite.map(renderRow)}</div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-emerald-700 mb-2 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Categorie Entrata ({entrate.length})
+            </h3>
+            <div className="space-y-2">{entrate.map(renderRow)}</div>
+          </div>
         </div>
       )}
     </div>

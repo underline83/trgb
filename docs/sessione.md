@@ -49,50 +49,37 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-30, sessione 18)
+## Cosa abbiamo fatto nell'ultima sessione (2026-03-31, sessione 18 continuazione)
 
-### Buste Paga v2.1: Import PDF 2 step + salvataggio cedolini individuali
-1. **Import 2-step**: upload PDF → anteprima (abbinati/nuovi/conflitti) → conferma con checkbox → scrittura DB
-2. **Estrazione cedolini individuali**: pikepdf estrae le pagine di ogni dipendente e salva in `app/data/cedolini/{anno}/`
-3. **Conflitti anagrafica**: se i dati nel PDF differiscono dall'anagrafica (IBAN, CF, livello, qualifica), mostra warning e checkbox "Aggiorna anagrafica"
-4. **Auto-creazione dipendenti**: i nuovi dipendenti trovati nel LUL vengono creati automaticamente in anagrafica
+### Flussi di Cassa v1.3: Riconciliazione Completa
+1. **Riconciliazione Spese**: rinominato "Cross-Ref Fatture" → match con fatture + spese fisse + affitti + tasse + rate + assicurazioni + stipendi
+2. **Tabella ordinabile**: layout a tabella con SortTh/sortRows, 3 tab (Suggerimenti, Senza match, Collegati)
+3. **Display stipendi**: "Paga di [mese]" invece della data scadenza, nome senza prefisso "Stipendio - "
+4. **Dedup aggressivo** (migrazione 042): normalizzazione lowercase + collasso spazi + primi 50 char, ~16 duplicati rimossi
+5. **Pulizia link orfani** (migrazione 043): rimossi link a fatture cancellate, fix discrepanza 43 vs 46
+6. **Registrazione diretta movimenti**: categorizzazione movimenti senza fattura (commissioni, bollo, carta, RIBA, SDD, mutuo + POS, contanti, bonifici)
+7. **Tabella `cg_entrate`** (migrazione 044): traccia entrate collegate a movimenti bancari
+8. **Auto-detect categoria**: pattern matching su descrizione bancaria per suggerire la categoria
+9. **Selezione multipla + registrazione bulk**: checkbox, seleziona tutti, barra azioni, endpoint `registra-bulk`
+10. **Data pagamento contanti**: date picker per retrodatare pagamenti storici
 
-### Anagrafica Dipendenti v2.0: Layout e documenti
-5. **Layout riscritto**: header + sidebar lista (con ricerca) + area dettaglio con tab
-6. **Tab Documenti unificata**: allegati manuali + cedolini PDF (viola), upload con categoria, download
-7. **Endpoint documenti**: GET/POST/DELETE per allegati + lista unificata allegati+cedolini
+### Sessione 18 precedente (2026-03-30)
 
-### Controllo Gestione v1.2: fix stipendi, import sync, stato contanti
-8. **Fix display stipendi**: branch `isStipendio` nella tabella uscite — badge viola, descrizione con mese, riga sfondo viola
-9. **Fix-up DB**: query automatiche in import_uscite per patchare righe stipendio con tipo_uscita NULL
-10. **Propagazione titolo spese fisse**: rinomina spesa fissa → propaga alle uscite non pagate
-11. **Sync import completo**: import uscite aggiorna totale, numero_fattura, data_fattura, fornitore per righe non pagate
-12. **Pulizia fatture azzerate**: se totale fattura scende a 0, uscita marcata PAGATA con nota
-13. **Stato CONTANTI = PAGATA**: segna-pagate-bulk usa PAGATA per contanti; migrazione 040 retroattiva
-14. **cleanFatt() helper**: gestisce &mdash; e stringhe vuote nel numero fattura
-15. **Fix ricerca**: COALESCE per ordinamento scadenze NULL, caricamento automatico uscite
+#### Buste Paga v2.1 + Anagrafica v2.0
+11. **Import 2-step**: upload PDF → anteprima → conferma → DB
+12. **Cedolini individuali**: pikepdf estrae pagine per dipendente
+13. **Conflitti anagrafica**: warning + checkbox "Aggiorna anagrafica"
+14. **Layout anagrafica riscritto**: header + sidebar + tab Documenti unificata
 
-### Gestione Contanti: Mance + Movimenti Contanti
-16. **Nuova sezione Mance**: 5a voce nella sidebar, mance registrate dalle chiusure turno
-17. **Rename sezione**: "Contanti da versare" → "Movimenti Contanti" con 2 sub-tab
-18. **Sub-tab "Pagamenti spese"**: ricerca uscite da pagare, selezione multipla, paga in contanti
-19. **Sub-tab "Versamenti in banca"**: funzionalità invariata dalla vecchia SezioneContanti
-20. **Backend**: endpoint movimenti-contanti e uscite-da-pagare con alias `totale AS importo`
+#### Controllo Gestione v1.2
+15. **Fix stipendi**: badge viola, descrizione con mese, sync import, pulizia fatture azzerate
+16. **Stato CONTANTI = PAGATA**: migrazione 040 retroattiva
 
-### Flussi di Cassa v1.1: riorganizzazione modulo Banca
-21. **Rename**: "Banca" → "Flussi di Cassa" (home tile, nav, routes, modules.json)
-22. **Tab navigation**: Dashboard, Conti Correnti, Carta di Credito, Contanti, Mance, Impostazioni
-23. **Contanti + Mance**: spostati da Vendite a Flussi di Cassa (con redirect automatici)
-24. **Carta di Credito**: scheletro pronto con 4 card placeholder
-25. **Accesso SALA**: ruolo sala può accedere al modulo (per vedere Mance)
-
-### Sistema v5.0: Header flyout, Impostazioni standalone
-26. **Header v4.1**: menu navigazione flyout — hover mostra sotto-menu laterale allineato alla riga
-27. **Safe-zone + intent detection** stile Amazon per evitare flicker diagonale
-28. **modulesMenu.js**: configurazione centralizzata moduli/sotto-menu (usata da Home e Header)
-29. **Impostazioni standalone**: rimosso hub Amministrazione, /admin redirect a /impostazioni
-30. **3 tab Impostazioni**: Utenti & Ruoli, Moduli & Permessi, Backup — con query param ?tab=
-31. **Dipendenti**: modulo top-level autonomo (rimosso da sotto-voci Amministrazione)
+#### Gestione Contanti + Flussi v1.1 + Sistema v5.0
+17. **Mance + Movimenti Contanti**: 2 sub-tab, pagamenti spese + versamenti banca
+18. **Flussi di Cassa**: rename da Banca, tab navigation, contanti/mance spostati qui
+19. **Header flyout v4.1**: menu navigazione con safe-zone, modulesMenu.js centralizzato
+20. **Impostazioni standalone**: rimosso hub Amministrazione, 3 tab
 
 ---
 
@@ -280,8 +267,8 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v4.0 | stabile |
 | Statistiche | v1.0 | beta |
-| Flussi di Cassa | v1.1 | beta |
-| Controllo Gestione | v1.2 | beta |
+| Flussi di Cassa | v1.3 | beta |
+| Controllo Gestione | v1.3 | beta |
 | Dipendenti | v2.1 | stabile |
 | Login & Ruoli | v2.0 | stabile |
 | Sistema | v5.0 | stabile |
@@ -393,7 +380,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + Controllo Gestione (migraz. 001-032) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + CG (migraz. 001-044, include cg_entrate) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 

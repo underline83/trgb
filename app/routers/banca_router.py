@@ -48,58 +48,77 @@ def get_db():
 # CATEGORIE REGISTRAZIONE MOVIMENTI
 # ═══════════════════════════════════════════════════════
 
-CATEGORIE_USCITA = {
-    "SPESA_BANCARIA":    "Spese bancarie",
-    "COMMISSIONE_POS":   "Commissioni POS",
-    "IMPOSTA_BOLLO":     "Imposta di bollo",
-    "CARTA_CREDITO":     "Carta di credito",
-    "MUTUO":             "Mutuo / Finanziamento",
-    "EFFETTI":           "Effetti / RIBA",
-    "SDD":               "Addebito SDD",
-    "ALTRO_USCITA":      "Altra uscita",
-}
+def _load_categorie_registrazione(conn=None):
+    """Carica categorie registrazione da DB. Ritorna dict {codice: {label, tipo, pattern, colore, ordine}}."""
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT codice, label, tipo, pattern, colore, ordine FROM banca_categorie_registrazione WHERE attiva = 1 ORDER BY tipo, ordine"
+        ).fetchall()
+    except Exception:
+        # Tabella non ancora creata — fallback hardcoded
+        return {
+            "SPESA_BANCARIA": {"label": "Spese bancarie", "tipo": "uscita", "pattern": "", "colore": "#6b7280", "ordine": 1},
+            "ALTRO_USCITA": {"label": "Altra uscita", "tipo": "uscita", "pattern": "", "colore": "#9ca3af", "ordine": 99},
+            "INCASSO_POS": {"label": "Incasso POS", "tipo": "entrata", "pattern": "", "colore": "#059669", "ordine": 1},
+            "ALTRO_ENTRATA": {"label": "Altra entrata", "tipo": "entrata", "pattern": "", "colore": "#9ca3af", "ordine": 99},
+        }
+    finally:
+        if own_conn:
+            conn.close()
+    return {r["codice"]: dict(r) for r in rows}
 
-CATEGORIE_ENTRATA = {
-    "INCASSO_POS":       "Incasso POS",
-    "INCASSO_CONTANTI":  "Contanti",
-    "BONIFICO_ENTRATA":  "Bonifico entrata",
-    "ALTRO_ENTRATA":     "Altra entrata",
-}
+
+def _get_categorie_by_tipo(conn=None):
+    """Ritorna {uscita: {codice: label}, entrata: {codice: label}}."""
+    cats = _load_categorie_registrazione(conn)
+    result = {"uscita": {}, "entrata": {}}
+    for codice, info in cats.items():
+        result[info["tipo"]][codice] = info["label"]
+    return result
 
 
 def _auto_detect_categoria(descrizione: str, importo: float) -> str:
-    """Rileva automaticamente la categoria dalla descrizione del movimento."""
+    """Rileva automaticamente la categoria dalla descrizione del movimento usando i pattern da DB."""
     d = (descrizione or "").upper()
-    if importo > 0:
-        # Entrate
-        if "INCAS. TRAMITE P.O.S" in d or "INC.POS" in d:
-            return "INCASSO_POS"
-        if "VERS. CONTANTI" in d or "VERSAMENTO" in d:
-            return "INCASSO_CONTANTI"
-        if "BONIF. VS. FAVORE" in d or "BON.DA " in d:
-            return "BONIFICO_ENTRATA"
-        return "ALTRO_ENTRATA"
-    else:
-        # Uscite
-        if "COMM.SU BONIFICI" in d or "COMM.BON." in d:
-            return "SPESA_BANCARIA"
-        if "COMM/SPESE SU PORTAF" in d or "COMMISSIONI" in d:
-            return "SPESA_BANCARIA"
-        if "IMP. BOLLO" in d:
-            return "IMPOSTA_BOLLO"
-        if "CARTIMPRONTA" in d:
-            return "CARTA_CREDITO"
-        if "DEBIT PAGAMENTO" in d and abs(importo) < 50:
-            return "SPESA_BANCARIA"
-        if "DEBIT PAGAMENTO" in d:
-            return "CARTA_CREDITO"
-        if "RIMBORSO FINANZ" in d or "MUTUO" in d:
-            return "MUTUO"
-        if "EFFETTI RITIRATI" in d or "ADD.EFFETTO" in d:
-            return "EFFETTI"
-        if "ADDEBITO DIRETTO SDD" in d or "SDD CORE" in d:
-            return "SDD"
-        return "ALTRO_USCITA"
+    cats = _load_categorie_registrazione()
+    tipo_filtro = "entrata" if importo > 0 else "uscita"
+
+    # Ordina per ordine (le specifiche prima, ALTRO alla fine)
+    sorted_cats = sorted(
+        [(k, v) for k, v in cats.items() if v["tipo"] == tipo_filtro and v.get("pattern")],
+        key=lambda x: x[1].get("ordine", 50)
+    )
+
+    for codice, info in sorted_cats:
+        patterns = [p.strip() for p in (info.get("pattern") or "").split("|") if p.strip()]
+        for pat in patterns:
+            # Pattern speciale con soglia importo: "DEBIT PAGAMENTO<50" o ">=50"
+            if "<" in pat and not pat.startswith("<"):
+                text_part, threshold = pat.rsplit("<", 1)
+                try:
+                    threshold_val = float(threshold)
+                    if text_part.strip() in d and abs(importo) < threshold_val:
+                        return codice
+                except ValueError:
+                    if pat in d:
+                        return codice
+            elif ">=" in pat and not pat.startswith(">="):
+                text_part, threshold = pat.rsplit(">=", 1)
+                try:
+                    threshold_val = float(threshold)
+                    if text_part.strip() in d and abs(importo) >= threshold_val:
+                        return codice
+                except ValueError:
+                    if pat in d:
+                        return codice
+            elif pat in d:
+                return codice
+
+    # Fallback: ALTRO_USCITA o ALTRO_ENTRATA
+    return f"ALTRO_{tipo_filtro.upper()}"
 
 
 # ═══════════════════════════════════════════════════════
@@ -1055,10 +1074,79 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
 @router.get("/cross-ref/categorie")
 def get_categorie_registrazione():
     """Restituisce le categorie disponibili per registrazione movimenti."""
-    return {
-        "uscita": CATEGORIE_USCITA,
-        "entrata": CATEGORIE_ENTRATA,
-    }
+    return _get_categorie_by_tipo()
+
+
+# ═══════════════════════════════════════════════════════
+# 9c. CRUD CATEGORIE REGISTRAZIONE
+# ═══════════════════════════════════════════════════════
+
+class CategoriaRegistrazioneRequest(BaseModel):
+    codice: str
+    label: str
+    tipo: str  # uscita | entrata
+    pattern: str = ""
+    colore: str = ""
+    ordine: int = 50
+
+
+@router.get("/categorie-registrazione")
+def list_categorie_registrazione():
+    """Tutte le categorie registrazione (attive e non)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM banca_categorie_registrazione ORDER BY tipo, ordine, label"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/categorie-registrazione")
+def create_categoria_registrazione(req: CategoriaRegistrazioneRequest):
+    """Crea una nuova categoria registrazione."""
+    conn = get_db()
+    try:
+        conn.execute("""
+            INSERT INTO banca_categorie_registrazione (codice, label, tipo, pattern, colore, ordine)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (req.codice.upper().replace(" ", "_"), req.label, req.tipo, req.pattern, req.colore, req.ordine))
+        conn.commit()
+        new_id = conn.execute("SELECT last_insert_rowid() as id").fetchone()["id"]
+    except Exception as e:
+        conn.close()
+        raise HTTPException(409, f"Codice già esistente o errore: {e}")
+    conn.close()
+    return {"id": new_id, "codice": req.codice.upper().replace(" ", "_")}
+
+
+@router.put("/categorie-registrazione/{cat_id}")
+def update_categoria_registrazione(cat_id: int, req: CategoriaRegistrazioneRequest):
+    """Aggiorna una categoria registrazione."""
+    conn = get_db()
+    conn.execute("""
+        UPDATE banca_categorie_registrazione
+        SET label = ?, tipo = ?, pattern = ?, colore = ?, ordine = ?
+        WHERE id = ?
+    """, (req.label, req.tipo, req.pattern, req.colore, req.ordine, cat_id))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.patch("/categorie-registrazione/{cat_id}/toggle")
+def toggle_categoria_registrazione(cat_id: int):
+    """Attiva/disattiva una categoria registrazione."""
+    conn = get_db()
+    cur = conn.cursor()
+    row = cur.execute("SELECT attiva FROM banca_categorie_registrazione WHERE id = ?", (cat_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Categoria non trovata")
+    new_state = 0 if row["attiva"] else 1
+    cur.execute("UPDATE banca_categorie_registrazione SET attiva = ? WHERE id = ?", (new_state, cat_id))
+    conn.commit()
+    conn.close()
+    return {"attiva": bool(new_state)}
 
 
 @router.get("/cross-ref/auto-categoria/{movimento_id}")

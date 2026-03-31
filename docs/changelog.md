@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-03-31 — Flussi di Cassa v1.4: Categorie Registrazione Dinamiche
+
+#### New — Categorie registrazione configurabili
+- Tabella `banca_categorie_registrazione` con codice, label, tipo, pattern auto-detect, colore, ordine
+- Migrazione 045 con seed delle 12 categorie iniziali (8 uscita + 4 entrata)
+- Nuovo tab "Categorie Registrazione" nelle Impostazioni Flussi di Cassa
+- CRUD completo: crea, modifica, attiva/disattiva categorie
+- Pattern auto-detect configurabili (con supporto soglie importo)
+- Colore personalizzabile per ogni categoria
+- Frontend Riconciliazione carica categorie dinamicamente dall'API
+- Endpoint: GET/POST `/banca/categorie-registrazione`, PUT/PATCH per update/toggle
+
+---
+
 ## 2026-03-31 — Flussi di Cassa v1.3: Riconciliazione Completa
 
 #### New — Registrazione diretta movimenti bancari
@@ -18,6 +32,17 @@
 - Normalizzazione: lowercase + collasso spazi multipli + primi 50 char
 - Rimossi ~16 duplicati residui non catturati dalla migrazione 041
 - `_dedup_hash()` allineato alla nuova normalizzazione per prevenire futuri duplicati
+
+#### New — Selezione multipla e registrazione bulk
+- Checkbox su ogni movimento nel tab "Senza match" per selezione multipla
+- "Seleziona tutti" nell'header tabella (solo pagina visibile)
+- Barra azioni bulk: conteggio selezionati, totale importo, scelta categoria
+- Endpoint `POST /banca/cross-ref/registra-bulk` — registra N movimenti in una transazione
+- Reset selezione al cambio tab
+
+#### New — Data pagamento contanti personalizzabile
+- Date picker nel form di registrazione pagamento contanti (GestioneContanti)
+- Permette di retrodatare pagamenti storici (prima era sempre la data odierna)
 
 #### Fixed — Pulizia link orfani (migrazione 043)
 - Rimossi link in `banca_fatture_link` che puntavano a fatture cancellate

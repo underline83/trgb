@@ -71,21 +71,13 @@ const TIPO_COLORS = {
   ALTRO_ENTRATA: "bg-neutral-100 text-neutral-600 border-neutral-200",
 };
 
-const CAT_USCITA = [
+// Categorie caricate dal server (fallback hardcoded se API non ancora disponibile)
+const CAT_USCITA_DEFAULT = [
   { key: "SPESA_BANCARIA", label: "Spese bancarie" },
-  { key: "COMMISSIONE_POS", label: "Commissioni POS" },
-  { key: "IMPOSTA_BOLLO", label: "Imposta di bollo" },
-  { key: "CARTA_CREDITO", label: "Carta di credito" },
-  { key: "MUTUO", label: "Mutuo / Finanziamento" },
-  { key: "EFFETTI", label: "Effetti / RIBA" },
-  { key: "SDD", label: "Addebito SDD" },
   { key: "ALTRO_USCITA", label: "Altra uscita" },
 ];
-
-const CAT_ENTRATA = [
+const CAT_ENTRATA_DEFAULT = [
   { key: "INCASSO_POS", label: "Incasso POS" },
-  { key: "INCASSO_CONTANTI", label: "Contanti" },
-  { key: "BONIFICO_ENTRATA", label: "Bonifico entrata" },
   { key: "ALTRO_ENTRATA", label: "Altra entrata" },
 ];
 
@@ -148,9 +140,22 @@ export default function BancaCrossRef() {
   const [bulkSelected, setBulkSelected] = useState(new Set());
   const [bulkCat, setBulkCat] = useState("");
   const [bulkRegistering, setBulkRegistering] = useState(false);
+  // Categorie registrazione da API
+  const [catUscita, setCatUscita] = useState(CAT_USCITA_DEFAULT);
+  const [catEntrata, setCatEntrata] = useState(CAT_ENTRATA_DEFAULT);
   const debounceRef = useRef(null);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); loadCategorie(); }, []);
+
+  const loadCategorie = async () => {
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/categorie`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.uscita) setCatUscita(Object.entries(data.uscita).map(([key, label]) => ({ key, label })));
+      if (data.entrata) setCatEntrata(Object.entries(data.entrata).map(([key, label]) => ({ key, label })));
+    } catch (_) {}
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -425,7 +430,7 @@ export default function BancaCrossRef() {
                 <div className="flex flex-wrap gap-1.5">
                   {(() => {
                     const firstMov = movimenti.find(m => bulkSelected.has(m.id));
-                    const cats = firstMov && firstMov.importo >= 0 ? CAT_ENTRATA : CAT_USCITA;
+                    const cats = firstMov && firstMov.importo >= 0 ? catEntrata : catUscita;
                     return cats.map(c => (
                       <button key={c.key} onClick={() => setBulkCat(c.key)}
                         className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
@@ -642,7 +647,7 @@ export default function BancaCrossRef() {
                                 {m.importo >= 0 ? "Registra entrata" : "Registra uscita"} — scegli categoria
                               </div>
                               <div className="flex flex-wrap gap-2 mb-3">
-                                {(m.importo >= 0 ? CAT_ENTRATA : CAT_USCITA).map(c => (
+                                {(m.importo >= 0 ? catEntrata : catUscita).map(c => (
                                   <button key={c.key} onClick={() => setRegistraCat(c.key)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
                                       registraCat === c.key
