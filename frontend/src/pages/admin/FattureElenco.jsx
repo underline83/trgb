@@ -161,6 +161,23 @@ export default function FattureElenco() {
     }
   };
 
+  // ── Segna pagata manuale (CG) ──
+  const segnaPagata = async (id) => {
+    if (!window.confirm("Segnare questa fattura come pagata (in attesa di riconciliazione banca)?")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/fattura/${id}/segna-pagata-manuale`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metodo_pagamento: "CONTO_CORRENTE" }),
+      });
+      const data = await res.json();
+      if (!data.ok) { alert(data.error || "Errore"); return; }
+      // Aggiorna stato locale
+      setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 1 } : f));
+      if (dettaglio && dettaglio.id === id) setDettaglio(d => ({ ...d, pagato: 1 }));
+    } catch { alert("Errore di rete"); }
+  };
+
   // ── Sort helper ──
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -391,6 +408,7 @@ export default function FattureElenco() {
               fattura={dettaglio}
               loading={detLoading}
               onClose={() => { setOpenId(null); setDettaglio(null); }}
+              onSegnaPagata={segnaPagata}
             />
           ) : (
             /* ═══════ LISTA TABELLA ═══════ */
@@ -493,7 +511,7 @@ export default function FattureElenco() {
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FATTURA (inline, stile Cantina)
 // ═══════════════════════════════════════════════════════
-function DetailView({ fattura, loading, onClose }) {
+function DetailView({ fattura, loading, onClose, onSegnaPagata }) {
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio…</div>;
   if (!fattura) return <div className="text-center py-20 text-neutral-400">Fattura non trovata</div>;
 
@@ -538,6 +556,14 @@ function DetailView({ fattura, loading, onClose }) {
             }`}>
               {fattura.pagato ? "Pagata" : "Da pagare"}
             </span>
+            {!fattura.pagato && onSegnaPagata && (
+              <button
+                onClick={() => onSegnaPagata(fattura.id)}
+                className="mt-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+              >
+                ✓ Segna pagata
+              </button>
+            )}
           </div>
         </div>
 

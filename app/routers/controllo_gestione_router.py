@@ -1503,6 +1503,81 @@ def segna_pagate_bulk(
         conn.close()
 
 
+# ── Segna pagata singola fattura (da Acquisti) ───────────────────
+@router.post("/fattura/{fattura_id}/segna-pagata-manuale")
+def segna_pagata_manuale(
+    fattura_id: int,
+    payload: dict = Body(default={}),
+    current_user=Depends(get_current_user),
+):
+    """
+    Segna una fattura come PAGATA_MANUALE (in attesa di riconciliazione banca).
+    Usato dal modulo Acquisti per segnare pagamenti non ancora riconciliati.
+    Se esiste già una cg_uscite per questa fattura, aggiorna lo stato.
+    Se non esiste, la crea.
+    Aggiorna anche fe_fatture.pagato = 1.
+    """
+    metodo = payload.get("metodo_pagamento", "CONTO_CORRENTE")
+    data_pag = payload.get("data_pagamento") or date.today().isoformat()
+
+    METODI_VALIDI = ["CONTO_CORRENTE", "CARTA", "CONTANTI", "ASSEGNO", "BONIFICO"]
+    if metodo not in METODI_VALIDI:
+        return {"ok": False, "error": f"Metodo pagamento non valido: {metodo}"}
+
+    nuovo_stato = "PAGATA" if metodo == "CONTANTI" else "PAGATA_MANUALE"
+
+    fc = get_fc_db()
+    try:
+        # Verifica che la fattura esista
+        fat = fc.execute(
+            "SELECT id, fornitore_nome, fornitore_piva, numero_fattura, data_fattura, totale_fattura FROM fe_fatture WHERE id = ?",
+            (fattura_id,)
+        ).fetchone()
+        if not fat:
+            return {"ok": False, "error": "Fattura non trovata"}
+
+        # Controlla se esiste già un record cg_uscite per questa fattura
+        uscita = fc.execute(
+            "SELECT id, stato FROM cg_uscite WHERE fattura_id = ?", (fattura_id,)
+        ).fetchone()
+
+        if uscita:
+            # Già riconciliata via banca? Non toccare
+            if uscita["stato"] == "PAGATA":
+                return {"ok": False, "error": "Fattura già riconciliata via banca"}
+            # Aggiorna stato
+            fc.execute("""
+                UPDATE cg_uscite
+                SET stato = ?, metodo_pagamento = ?, data_pagamento = ?,
+                    importo_pagato = totale, updated_at = CURRENT_TIMESTAMP
+                WHERE fattura_id = ? AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE', 'PAGATA_MANUALE')
+            """, (nuovo_stato, metodo, data_pag, fattura_id))
+        else:
+            # Crea nuovo record cg_uscite
+            fc.execute("""
+                INSERT INTO cg_uscite
+                    (fattura_id, fornitore_nome, fornitore_piva, numero_fattura,
+                     data_fattura, totale, data_scadenza, importo_pagato,
+                     data_pagamento, stato, metodo_pagamento, tipo_uscita)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'FATTURA')
+            """, (
+                fattura_id, fat["fornitore_nome"], fat["fornitore_piva"],
+                fat["numero_fattura"], fat["data_fattura"],
+                fat["totale_fattura"] or 0,
+                fat["data_fattura"],  # scadenza = data fattura se non nota
+                fat["totale_fattura"] or 0,
+                data_pag, nuovo_stato, metodo
+            ))
+
+        # Aggiorna fe_fatture.pagato
+        fc.execute("UPDATE fe_fatture SET pagato = 1 WHERE id = ?", (fattura_id,))
+        fc.commit()
+
+        return {"ok": True, "stato": nuovo_stato, "fattura_id": fattura_id}
+    finally:
+        fc.close()
+
+
 @router.post("/uscite/{uscita_id}/riconcilia")
 def riconcilia_uscita(
     uscita_id: int,
@@ -1666,7 +1741,7 @@ def get_uscite_da_pagare(
     """
     fc = get_fc_db()
 
-    # Prima: pulizia inline — marca PAGATA le uscite la cui fattura sorgente è stata azzerata
+    # Pulizia 1: marca PAGATA le uscite la cui fattura sorgente è stata azzerata
     fc.execute("""
         UPDATE cg_uscite SET totale = 0, stato = 'PAGATA',
             note = COALESCE(note, '') || ' [azzerata da sconto/storno]',
@@ -1677,6 +1752,7 @@ def get_uscite_da_pagare(
               SELECT id FROM fe_fatture WHERE COALESCE(totale_fattura, 0) <= 0
           )
     """)
+
     fc.commit()
 
     sql = """

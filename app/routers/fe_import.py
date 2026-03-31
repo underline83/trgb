@@ -415,7 +415,7 @@ def _process_single_xml(
             )
             fic_existing = cur.fetchone()
 
-        # Fallback: match per piva + data + totale (FIC spesso non ha numero_fattura)
+        # Fallback 1: match per piva + data + totale (FIC spesso non ha numero_fattura)
         if not fic_existing and totale_fattura is not None:
             cur.execute(
                 """
@@ -428,6 +428,23 @@ def _process_single_xml(
                 (fornitore_piva, data_fattura_str, totale_fattura),
             )
             fic_existing = cur.fetchone()
+
+        # Fallback 2: match per piva + data sola se c'è esattamente 1 FIC senza numero
+        # (gestisce fatture con sconto/storno dove il totale XML ≠ totale FIC)
+        if not fic_existing:
+            cur.execute(
+                """
+                SELECT id FROM fe_fatture
+                WHERE fornitore_piva = ?
+                  AND data_fattura = ?
+                  AND (numero_fattura IS NULL OR numero_fattura = '')
+                  AND COALESCE(fonte, 'xml') = 'fic'
+                """,
+                (fornitore_piva, data_fattura_str),
+            )
+            candidates = cur.fetchall()
+            if len(candidates) == 1:
+                fic_existing = candidates[0]
         if fic_existing:
             fic_id = fic_existing["id"]
             # La fattura è già presente da FIC — arricchisci con dati XML

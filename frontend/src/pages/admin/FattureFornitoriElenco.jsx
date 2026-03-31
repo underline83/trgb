@@ -730,6 +730,24 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
     }
   };
 
+  // ── Segna pagata manuale (CG) ──
+  const segnaPagataManuale = async (id) => {
+    if (!window.confirm("Segnare questa fattura come pagata (in attesa di riconciliazione banca)?")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/fattura/${id}/segna-pagata-manuale`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metodo_pagamento: "CONTO_CORRENTE" }),
+      });
+      const d = await res.json();
+      if (!d.ok) { alert(d.error || "Errore"); return; }
+      // Aggiorna dettaglio locale
+      if (fatturaDetail && fatturaDetail.id === id) setFatturaDetail(prev => ({ ...prev, pagato: 1 }));
+      // Ricarica dati fornitore per aggiornare badge nella lista
+      if (onRefresh) onRefresh();
+    } catch { alert("Errore di rete"); }
+  };
+
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio...</div>;
   if (!data) return <div className="text-center py-20 text-neutral-400">Errore caricamento</div>;
 
@@ -1109,6 +1127,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
             fattura={fatturaDetail}
             loading={fatturaDetLoading}
             onClose={() => { setOpenFatturaId(null); setFatturaDetail(null); }}
+            onSegnaPagata={segnaPagataManuale}
           />
         ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -1347,7 +1366,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FATTURA INLINE (dentro tab Fatture)
 // ═══════════════════════════════════════════════════════
-function FatturaInlineDetail({ fattura, loading, onClose }) {
+function FatturaInlineDetail({ fattura, loading, onClose, onSegnaPagata }) {
   if (loading) return <div className="text-center py-8 text-neutral-400 text-sm">Caricamento dettaglio fattura...</div>;
   if (!fattura) return <div className="text-center py-8 text-neutral-400 text-sm">Fattura non trovata</div>;
 
@@ -1382,6 +1401,14 @@ function FatturaInlineDetail({ fattura, loading, onClose }) {
             }`}>
               {fattura.pagato ? "Pagata" : "Da pagare"}
             </span>
+            {!fattura.pagato && onSegnaPagata && (
+              <button
+                onClick={() => onSegnaPagata(fattura.id)}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+              >
+                ✓ Segna pagata
+              </button>
+            )}
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
               fattura.fonte === "fic" ? "bg-teal-50 text-teal-700" : "bg-neutral-100 text-neutral-600"
             }`}>
