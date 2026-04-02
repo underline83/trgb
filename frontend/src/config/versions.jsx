@@ -51,13 +51,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    version: "1.3",
+    version: "1.4",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
   },
   sistema: {
-    version: "5.0",
+    version: "5.1",
     label: "Sistema",
     status: "stabile",
     color: "green",

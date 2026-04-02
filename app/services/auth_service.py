@@ -22,11 +22,21 @@ USERS_FILE = Path(__file__).resolve().parent.parent / "data" / "users.json"
 # CARICA / SALVA UTENTI
 # ---------------------------------------------------------------------------
 def _load_users() -> dict:
-    """Legge users.json e restituisce un dict {username: {password_hash, role, display_name}}."""
+    """Legge users.json e restituisce un dict {username: {password_hash, role, display_name}}.
+    Se il file non esiste, crea un utente admin di default (PIN: 0000)."""
     if not USERS_FILE.exists():
-        return {}
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+        default_hash = security.get_password_hash("0000")
+        default_users = [
+            {"username": "admin", "display_name": "Admin", "password_hash": default_hash, "role": "superadmin"}
+        ]
+        USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(default_users, f, indent=2, ensure_ascii=False)
+        print("⚠️  users.json non trovato — creato utente admin di default (PIN: 0000). Cambialo subito!")
+        data = default_users
+    else:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
     return {
         u["username"]: {
             "password_hash": u["password_hash"],

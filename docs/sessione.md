@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-03-30 (sessione 18 — Buste Paga v2.1, Anagrafica v2.0, Flussi di Cassa v1.1, CG v1.2, Sistema v5.0)
+> Ultima sessione: 2026-04-01 (sessione 18 cont. — CG v1.4, Rate variabili, Prestiti BPM, Segna pagata, Sistema v5.1)
 
 ---
 
@@ -49,37 +49,30 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-03-31, sessione 18 continuazione)
+## Cosa abbiamo fatto nell'ultima sessione (2026-04-01, sessione 18 cont.)
 
-### Flussi di Cassa v1.3: Riconciliazione Completa
-1. **Riconciliazione Spese**: rinominato "Cross-Ref Fatture" → match con fatture + spese fisse + affitti + tasse + rate + assicurazioni + stipendi
-2. **Tabella ordinabile**: layout a tabella con SortTh/sortRows, 3 tab (Suggerimenti, Senza match, Collegati)
-3. **Display stipendi**: "Paga di [mese]" invece della data scadenza, nome senza prefisso "Stipendio - "
-4. **Dedup aggressivo** (migrazione 042): normalizzazione lowercase + collasso spazi + primi 50 char, ~16 duplicati rimossi
-5. **Pulizia link orfani** (migrazione 043): rimossi link a fatture cancellate, fix discrepanza 43 vs 46
-6. **Registrazione diretta movimenti**: categorizzazione movimenti senza fattura (commissioni, bollo, carta, RIBA, SDD, mutuo + POS, contanti, bonifici)
-7. **Tabella `cg_entrate`** (migrazione 044): traccia entrate collegate a movimenti bancari
-8. **Auto-detect categoria**: pattern matching su descrizione bancaria per suggerire la categoria
-9. **Selezione multipla + registrazione bulk**: checkbox, seleziona tutti, barra azioni, endpoint `registra-bulk`
-10. **Data pagamento contanti**: date picker per retrodatare pagamenti storici
+### Controllo Gestione v1.4: Rate Variabili, Prestiti, Segna Pagata
+1. **Segna pagata da Acquisti**: bottone su fatture non pagate (FattureElenco + FattureFornitoriElenco), endpoint PAGATA_MANUALE
+2. **Pulizia duplicati banca** (migrazione 046): 398 duplicati da reimport CSV, da 921 a 523 movimenti, preservati link CG
+3. **Prestiti BPM 1 e 2** (migrazione 047): 72 + 120 rate con importi esatti, pre-2026 PAGATA
+4. **Piano rate variabili** (migrazione 048): tabella `cg_piano_rate`, CRUD endpoints, generazione uscite con importo variabile
+5. **Spese legali** (migrazione 049): campi `importo_originale` e `spese_legali` su cg_spese_fisse
+6. **Wizard rateizzazione migliorato**: spese legali, tabella rate editabili, validazione totale, ricalcola uguali
+7. **Fix persistenza utenti**: users.json rimosso da git tracking, push.sh backup/restore in /tmp
 
-### Sessione 18 precedente (2026-03-30)
+### Sistema v5.1
+8. **push.sh corretto**: backup files runtime PRIMA del push (era dopo → files cancellati dal checkout)
+9. **users.json + modules.json in .gitignore**: non piu' sovrascritti al deploy
 
-#### Buste Paga v2.1 + Anagrafica v2.0
-11. **Import 2-step**: upload PDF → anteprima → conferma → DB
-12. **Cedolini individuali**: pikepdf estrae pagine per dipendente
-13. **Conflitti anagrafica**: warning + checkbox "Aggiorna anagrafica"
-14. **Layout anagrafica riscritto**: header + sidebar + tab Documenti unificata
+### Sessione 18 precedente (2026-03-31)
 
-#### Controllo Gestione v1.2
-15. **Fix stipendi**: badge viola, descrizione con mese, sync import, pulizia fatture azzerate
-16. **Stato CONTANTI = PAGATA**: migrazione 040 retroattiva
+#### Flussi di Cassa v1.3-1.4
+10. Riconciliazione spese + registrazione diretta + selezione bulk + categorie dinamiche
+11. Dedup aggressivo (migrazione 042) + pulizia link orfani (migrazione 043)
+12. Tabella cg_entrate (migrazione 044) + auto-detect categoria + data pagamento contanti
 
-#### Gestione Contanti + Flussi v1.1 + Sistema v5.0
-17. **Mance + Movimenti Contanti**: 2 sub-tab, pagamenti spese + versamenti banca
-18. **Flussi di Cassa**: rename da Banca, tab navigation, contanti/mance spostati qui
-19. **Header flyout v4.1**: menu navigazione con safe-zone, modulesMenu.js centralizzato
-20. **Impostazioni standalone**: rimosso hub Amministrazione, 3 tab
+#### Sessione 18 precedente (2026-03-30)
+13. Buste Paga v2.1 + Anagrafica v2.0 + CG v1.2 + Contanti + Flussi v1.1 + Sistema v5.0
 
 ---
 
@@ -267,11 +260,11 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Ricette & Food Cost | v3.0 | beta |
 | Gestione Vendite | v4.0 | stabile |
 | Statistiche | v1.0 | beta |
-| Flussi di Cassa | v1.3 | beta |
-| Controllo Gestione | v1.3 | beta |
+| Flussi di Cassa | v1.4 | beta |
+| Controllo Gestione | v1.4 | beta |
 | Dipendenti | v2.1 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v5.0 | stabile |
+| Sistema | v5.1 | stabile |
 
 ---
 
@@ -293,11 +286,12 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Configurare snapshot Aruba settimanale** dal pannello
-2. **DNS dinamico casa** (DDNS) — rimandato
-3. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-4. **Test dashboard 3 modalita'** — verificare trimestrale e annuale con dati reali
-5. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
+1. **Testare wizard rateizzazione** — creare una rateizzazione di prova con spese legali e rate variabili
+2. **Configurare snapshot Aruba settimanale** dal pannello
+3. **DNS dinamico casa** (DDNS) — rimandato
+4. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
+5. **Test dashboard 3 modalita'** — verificare trimestrale e annuale con dati reali
+6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---
 
@@ -380,7 +374,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | ~~`vini.sqlite3`~~ | ELIMINATO v3.0 — carta ora da magazzino |
 | `vini_magazzino.sqlite3` | Cantina moderna |
 | `vini_settings.sqlite3` | Settings carta |
-| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + CG (migraz. 001-044, include cg_entrate) |
+| `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + CG (migraz. 001-049, include cg_entrate, cg_piano_rate) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 

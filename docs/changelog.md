@@ -3,6 +3,46 @@
 
 ---
 
+## 2026-04-01 — Controllo Gestione v1.4: Rate Variabili, Prestiti, Segna Pagata
+
+#### New — Segna pagata da Acquisti
+- Bottone "Segna pagata" su fatture non pagate nell'elenco fatture e nel dettaglio fornitore
+- Endpoint `POST /fattura/{id}/segna-pagata-manuale`: crea/aggiorna cg_uscite con stato PAGATA_MANUALE
+- Se metodo_pagamento = CONTANTI marca direttamente PAGATA
+- Aggiorna anche `fe_fatture.pagato = 1`
+
+#### New — Piano rate variabili (prestiti alla francese)
+- Tabella `cg_piano_rate` (migrazione 048): spesa_fissa_id, numero_rata, periodo, importo, note
+- Generazione uscite usa piano_rate se esiste, altrimenti importo fisso dalla spesa
+- CRUD endpoints: GET/POST/DELETE `/spese-fisse/{id}/piano-rate`
+- Supporto `importo_originale` e `spese_legali` su cg_spese_fisse (migrazione 049)
+
+#### New — Wizard rateizzazione migliorato
+- Step 2: campo spese legali, preview totale (fattura + spese), griglia 3 colonne
+- Step 3: tabella rate editabili con importo modificabile per singola rata
+- Validazione totale (somma rate = importo fattura + spese legali)
+- Bottone "Ricalcola uguali" per ridistribuire equamente
+- Feedback campi mancanti con avviso ambra
+- Salvataggio invia piano_rate + importo_originale + spese_legali al backend
+
+#### New — Prestiti BPM (migrazione 047)
+- BPM 1: 72 rate mensili (mar 2021 - feb 2027), giorno 26
+- BPM 2: 120 rate mensili (apr 2021 - mar 2031), giorno 19
+- Rate pre-2026 marcate PAGATA, dal 2026 DA_PAGARE
+- Ogni rata con importo esatto dal piano di ammortamento
+
+#### Fixed — Pulizia duplicati banca (migrazione 046)
+- 398 movimenti duplicati da reimport CSV con formato diverso
+- Dedup basato su hash normalizzato (lowercase, spazi, primi 50 char)
+- Preservati tutti i link CG/banca esistenti (remapping su record keeper)
+- Da 921 a 523 movimenti
+
+#### Fixed — Persistenza privilegi utenti
+- users.json e modules.json rimossi dal tracking git (.gitignore)
+- push.sh: backup in /tmp prima del push, ripristino dopo checkout
+
+---
+
 ## 2026-03-31 — Flussi di Cassa v1.4: Categorie Registrazione Dinamiche
 
 #### New — Categorie registrazione configurabili
