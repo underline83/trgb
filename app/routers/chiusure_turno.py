@@ -1101,6 +1101,12 @@ async def upsert_shift_closure(
             detail="Invalid turno. Must be 'pranzo' or 'cena'.",
         )
 
+    if payload.date > date_type.today():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Non puoi inserire una chiusura in data futura.",
+        )
+
     date_str = payload.date.isoformat()
 
     # Calculate totale_incassi (solo metodi di incasso reali)
@@ -1420,3 +1426,46 @@ async def upsert_shift_closure(
         preconti=preconti_items,
         spese=spese_items,
     )
+
+
+# ---------------------------------------------------------
+# DELETE shift closure (solo admin)
+# ---------------------------------------------------------
+
+@router.delete("/{closure_id}")
+async def delete_shift_closure(
+    closure_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Delete a shift closure by ID. Only admin/superadmin.
+    Also deletes related checklist_responses, preconti, spese.
+    """
+    user_role = current_user.get("role")
+    if user_role not in ("superadmin", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo gli admin possono eliminare una chiusura.",
+        )
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, date, turno FROM shift_closures WHERE id = ?", (closure_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chiusura non trovata.",
+            )
+
+        # Elimina dati collegati
+        cur.execute("DELETE FROM checklist_responses WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_closure_preconti WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_closure_spese WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_closures WHERE id = ?", (closure_id,))
+        conn.commit()
+
+        return {"ok": True, "detail": f"Chiusura {row['turno']} del {row['date']} eliminata."}
+    finally:
+        conn.close()

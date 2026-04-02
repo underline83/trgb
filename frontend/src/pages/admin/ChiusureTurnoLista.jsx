@@ -41,6 +41,7 @@ export default function ChiusureTurnoLista() {
   const [closures, setClosures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState(null);
+  const [deletingId, setDeletingId] = useState(null); // id in fase di conferma
   const isSuperAdmin = isSuperAdminRole(role);
 
   // Filtro mese: default = mese corrente
@@ -124,6 +125,23 @@ export default function ChiusureTurnoLista() {
     else setMonth(m => m + 1);
   };
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+
+  // ── Elimina chiusura ──
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${API}/admin/finance/shift-closures/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Errore eliminazione");
+        return;
+      }
+      setClosures(prev => prev.filter(c => c.id !== id));
+      setDeletingId(null);
+    } catch { alert("Errore di rete"); }
+  };
 
   // ── Render sezione turno completa ──
   // day = { pranzo, cena }, turno = "pranzo"|"cena"
@@ -248,16 +266,38 @@ export default function ChiusureTurnoLista() {
           </div>
         )}
 
-        {/* Meta + Modifica */}
+        {/* Meta + Modifica + Elimina */}
         <div className="flex items-center justify-between pt-1">
           <span className="text-[10px] text-neutral-400">
             di {c.created_by || "—"}
             {c.updated_at && <> · agg. {c.updated_at.slice(0, 16).replace("T", " ")}</>}
           </span>
-          <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
-            className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
-            Modifica
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdminRole(role) && (
+              deletingId === c.id ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-red-600 font-semibold">Confermi?</span>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                    className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px] font-semibold hover:bg-red-700 transition">
+                    Elimina
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setDeletingId(null); }}
+                    className="px-2 py-1 bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-semibold hover:bg-neutral-300 transition">
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); setDeletingId(c.id); }}
+                  className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-100 transition border border-red-200">
+                  Elimina
+                </button>
+              )
+            )}
+            <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
+              className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
+              Modifica
+            </button>
+          </div>
         </div>
       </div>
     );

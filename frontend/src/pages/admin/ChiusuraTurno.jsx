@@ -34,8 +34,9 @@ export default function ChiusuraTurno() {
   const isSuperAdmin = isSuperAdminRole(localStorage.getItem("role") || "");
 
   // ── State ──
+  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })();
   const [date, setDate] = useState(() =>
-    searchParams.get("date") || new Date().toISOString().slice(0, 10)
+    searchParams.get("date") || todayStr
   );
   const [turno, setTurno] = useState(() =>
     searchParams.get("turno") || (new Date().getHours() < 16 ? "pranzo" : "cena")
@@ -350,6 +351,10 @@ export default function ChiusuraTurno() {
 
   // ── Save ──
   const handleSave = async () => {
+    if (date > todayStr) {
+      setMessage({ type: "error", text: "Non puoi inserire una chiusura in data futura." });
+      return;
+    }
     setSaving(true);
     setMessage(null);
 
@@ -445,7 +450,7 @@ export default function ChiusuraTurno() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-neutral-500 mb-1 uppercase tracking-wide">Data</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              <input type="date" value={date} max={todayStr} onChange={e => setDate(e.target.value)}
                 className="w-full border border-neutral-300 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200" />
             </div>
             <div>
