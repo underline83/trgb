@@ -69,10 +69,10 @@ if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
 fi
 
 # ── Proteggi files runtime sul VPS (PRIMA del push) ─────
-echo "🔒 Backup files runtime (users.json, modules.json)..."
+echo "🔒 Backup files runtime..."
 ssh -q "$VPS_HOST" "
   cd $VPS_DIR/app/data
-  for f in users.json modules.json; do
+  for f in users.json modules.json closures_config.json; do
     [ -f \"\$f\" ] && cp \"\$f\" \"/tmp/trgb_\${f}.runtime\" 2>/dev/null || true
   done
 " 2>/dev/null || true
@@ -95,7 +95,7 @@ sleep 3
 echo "🔒 Ripristino files runtime..."
 ssh -q "$VPS_HOST" "
   cd $VPS_DIR/app/data
-  for f in users.json modules.json; do
+  for f in users.json modules.json closures_config.json; do
     if [ -f \"/tmp/trgb_\${f}.runtime\" ]; then
       cp \"/tmp/trgb_\${f}.runtime\" \"\$f\"
       rm -f \"/tmp/trgb_\${f}.runtime\"
