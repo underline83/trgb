@@ -51,8 +51,8 @@ export default function ChiusureTurnoLista() {
   // Calcola range date dal mese selezionato
   const fromDate = useMemo(() => `${year}-${String(month).padStart(2, "0")}-01`, [year, month]);
   const toDate = useMemo(() => {
-    const last = new Date(year, month, 0); // ultimo giorno del mese
-    return last.toISOString().slice(0, 10);
+    const lastDay = new Date(year, month, 0).getDate(); // ultimo giorno del mese
+    return `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   }, [year, month]);
 
   useEffect(() => {
@@ -93,21 +93,25 @@ export default function ChiusureTurnoLista() {
 
   // ── Totali periodo ──
   const totals = useMemo(() => {
-    // Per i totali giornalieri, usa la cena se presente (è giornaliera), altrimenti pranzo
     let incassi = 0, copertiTot = 0, speseTot = 0, giorniCount = 0;
+    let chiusuraRTtot = 0, fattureTot = 0, precontiTot = 0;
     for (const day of days) {
       giorniCount++;
       const best = day.cena || day.pranzo;
-      if (best) incassi += best.totale_incassi || 0;
-      // Coperti: somma pranzo + cena separatamente
-      if (day.pranzo) copertiTot += day.pranzo.coperti || 0;
-      if (day.cena) copertiTot += day.cena.coperti || 0;
-      // Spese: somma pranzo + cena
+      if (best) {
+        incassi += best.totale_incassi || 0;
+        chiusuraRTtot += best.preconto || 0;
+      }
+      // Fatture: somma pranzo + cena
+      if (day.pranzo) { copertiTot += day.pranzo.coperti || 0; fattureTot += day.pranzo.fatture || 0; }
+      if (day.cena) { copertiTot += day.cena.coperti || 0; fattureTot += day.cena.fatture || 0; }
+      // Pre-conti: somma pranzo + cena
       for (const t of [day.pranzo, day.cena]) {
+        if (t && t.preconti) precontiTot += t.preconti.reduce((s, p) => s + p.importo, 0);
         if (t && t.spese) speseTot += t.spese.reduce((s, sp) => s + sp.importo, 0);
       }
     }
-    return { incassi, coperti: copertiTot, spese: speseTot, giorni: giorniCount };
+    return { incassi, chiusuraRT: chiusuraRTtot, fatture: fattureTot, preconti: precontiTot, coperti: copertiTot, spese: speseTot, giorni: giorniCount };
   }, [days]);
 
   // ── Nav mese ──
@@ -300,27 +304,53 @@ export default function ChiusureTurnoLista() {
 
         {/* TOTALI PERIODO */}
         {days.length > 0 && (
-          <div className={`grid grid-cols-2 ${isSuperAdmin ? "md:grid-cols-4" : "md:grid-cols-3"} gap-3`}>
-            <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
-              <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Giorni</div>
-              <div className="text-lg font-bold text-neutral-800">{totals.giorni}</div>
-            </div>
-            {isSuperAdmin && (
-              <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
-                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. incassi<SuperDot /></div>
-                <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.incassi)}</div>
+          <div className="bg-white rounded-2xl shadow p-4 border border-neutral-200">
+            <div className={`grid grid-cols-2 ${isSuperAdmin ? "md:grid-cols-5" : "md:grid-cols-4"} gap-3`}>
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Giorni</div>
+                <div className="text-lg font-bold text-neutral-800">{totals.giorni}</div>
               </div>
-            )}
-            <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
-              <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. coperti</div>
-              <div className="text-lg font-bold text-neutral-800">{totals.coperti}</div>
-            </div>
-            {totals.spese > 0 && (
-              <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
-                <div className="text-[10px] font-semibold text-red-400 uppercase mb-1">Tot. spese</div>
-                <div className="text-lg font-bold text-red-700">€ {fmt(totals.spese)}</div>
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Corrispettivi</div>
+                <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.chiusuraRT)}</div>
               </div>
-            )}
+              {totals.fatture > 0 && (
+                <div className="text-center">
+                  <div className="text-[10px] font-semibold text-blue-400 uppercase mb-1">Fatture</div>
+                  <div className="text-lg font-bold text-blue-600">€ {fmt(totals.fatture)}</div>
+                </div>
+              )}
+              {isSuperAdmin && totals.preconti > 0 && (
+                <div className="text-center">
+                  <div className="text-[10px] font-semibold text-orange-400 uppercase mb-1">Pre-conti<SuperDot /></div>
+                  <div className="text-lg font-bold text-orange-600">€ {fmt(totals.preconti)}</div>
+                </div>
+              )}
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">
+                  Totale {isSuperAdmin && totals.preconti > 0 ? "(RT+Fatt+PC)" : "(RT+Fatt)"}
+                </div>
+                <div className="text-lg font-bold text-neutral-900">
+                  € {fmt(totals.chiusuraRT + totals.fatture + (isSuperAdmin ? totals.preconti : 0))}
+                </div>
+              </div>
+              {isSuperAdmin && (
+                <div className="text-center">
+                  <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. incassi<SuperDot /></div>
+                  <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.incassi)}</div>
+                </div>
+              )}
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. coperti</div>
+                <div className="text-lg font-bold text-neutral-800">{totals.coperti}</div>
+              </div>
+              {totals.spese > 0 && (
+                <div className="text-center">
+                  <div className="text-[10px] font-semibold text-red-400 uppercase mb-1">Tot. spese</div>
+                  <div className="text-lg font-bold text-red-700">€ {fmt(totals.spese)}</div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -341,6 +371,10 @@ export default function ChiusureTurnoLista() {
               const best = cena || pranzo;
               const dayIncassi = best?.totale_incassi || 0;
               const dayChiusuraRT = best?.preconto || 0;
+              const dayFatture = (pranzo?.fatture || 0) + (cena?.fatture || 0);
+              const dayPreconti = (pranzo?.preconti || []).reduce((s, p) => s + p.importo, 0)
+                               + (cena?.preconti || []).reduce((s, p) => s + p.importo, 0);
+              const dayTotale = dayChiusuraRT + dayFatture + (isSuperAdmin ? dayPreconti : 0);
               const dayCopertiP = pranzo?.coperti || 0;
               const dayCopertiC = cena?.coperti || 0;
               const dayCoperti = dayCopertiP + dayCopertiC;
@@ -388,10 +422,34 @@ export default function ChiusureTurnoLista() {
                           <div className="text-[10px] text-neutral-400 uppercase">Chiusura RT</div>
                           <div className="text-sm font-bold text-neutral-800">€ {fmt(dayChiusuraRT)}</div>
                         </div>
+                        {dayFatture > 0 && (
+                          <div>
+                            <div className="text-[10px] text-neutral-400 uppercase">Fatture</div>
+                            <div className="text-sm font-bold text-blue-600">€ {fmt(dayFatture)}</div>
+                          </div>
+                        )}
+                        {isSuperAdmin && dayPreconti > 0 && (
+                          <div>
+                            <div className="text-[10px] text-orange-400 uppercase">Pre-conti<SuperDot /></div>
+                            <div className="text-sm font-bold text-orange-600">€ {fmt(dayPreconti)}</div>
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-[10px] text-neutral-400 uppercase font-semibold">Totale</div>
+                          <div className="text-sm font-bold text-neutral-900">€ {fmt(dayTotale)}</div>
+                        </div>
                         {isSuperAdmin && (
                           <div>
                             <div className="text-[10px] text-neutral-400 uppercase">Incassi<SuperDot /></div>
                             <div className="text-sm font-bold text-neutral-800">€ {fmt(dayIncassi)}</div>
+                          </div>
+                        )}
+                        {isSuperAdmin && (
+                          <div>
+                            <div className="text-[10px] text-neutral-400 uppercase">Diff.<SuperDot /></div>
+                            <div className={`text-sm font-bold ${Math.abs(dayTotale - dayIncassi) < 0.5 ? "text-emerald-600" : "text-red-600"}`}>
+                              {(dayTotale - dayIncassi) >= 0 ? "+" : ""}{fmt(dayTotale - dayIncassi)}
+                            </div>
                           </div>
                         )}
                         <div>
@@ -412,8 +470,11 @@ export default function ChiusureTurnoLista() {
                     </div>
 
                     {/* KPI mobile (sotto la riga) */}
-                    <div className="flex md:hidden items-center gap-3 mt-2 text-xs text-neutral-500">
+                    <div className="flex md:hidden flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-neutral-500">
                       <span>RT € {fmt(dayChiusuraRT)}</span>
+                      {dayFatture > 0 && <span className="text-blue-600">Fatt. € {fmt(dayFatture)}</span>}
+                      {isSuperAdmin && dayPreconti > 0 && <span className="text-orange-600">PC € {fmt(dayPreconti)}</span>}
+                      <span className="font-bold text-neutral-800">Tot. € {fmt(dayTotale)}</span>
                       {isSuperAdmin && <span>Inc. € {fmt(dayIncassi)}</span>}
                       <span>Cop. {dayCoperti}</span>
                       {isSuperAdmin && (

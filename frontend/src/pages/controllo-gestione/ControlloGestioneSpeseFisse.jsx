@@ -773,10 +773,13 @@ export default function ControlloGestioneSpeseFisse() {
                         sommaParziale += importoRata;
                         const dd = new Date(d);
                         dd.setMonth(d.getMonth() + i);
+                        const yyyy = dd.getFullYear();
+                        const mm = String(dd.getMonth() + 1).padStart(2, "0");
+                        const gg = String(dd.getDate()).padStart(2, "0");
                         rateArr.push({
                           numero: i + 1,
-                          periodo: dd.toISOString().slice(0, 7),
-                          data: dd.toISOString().slice(0, 10),
+                          periodo: `${yyyy}-${mm}`,
+                          data: `${yyyy}-${mm}-${gg}`,
                           importo: importoRata,
                         });
                       }
