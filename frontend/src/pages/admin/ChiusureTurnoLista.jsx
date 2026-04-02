@@ -314,12 +314,10 @@ export default function ChiusureTurnoLista() {
                 <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Corrispettivi</div>
                 <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.chiusuraRT)}</div>
               </div>
-              {totals.fatture > 0 && (
-                <div className="text-center">
-                  <div className="text-[10px] font-semibold text-blue-400 uppercase mb-1">Fatture</div>
-                  <div className="text-lg font-bold text-blue-600">€ {fmt(totals.fatture)}</div>
-                </div>
-              )}
+              <div className="text-center">
+                <div className="text-[10px] font-semibold text-blue-400 uppercase mb-1">Fatture</div>
+                <div className="text-lg font-bold text-blue-600">€ {fmt(totals.fatture)}</div>
+              </div>
               {isSuperAdmin && totals.preconti > 0 && (
                 <div className="text-center">
                   <div className="text-[10px] font-semibold text-orange-400 uppercase mb-1">Pre-conti<SuperDot /></div>
@@ -422,12 +420,10 @@ export default function ChiusureTurnoLista() {
                           <div className="text-[10px] text-neutral-400 uppercase">Chiusura RT</div>
                           <div className="text-sm font-bold text-neutral-800">€ {fmt(dayChiusuraRT)}</div>
                         </div>
-                        {dayFatture > 0 && (
-                          <div>
-                            <div className="text-[10px] text-neutral-400 uppercase">Fatture</div>
-                            <div className="text-sm font-bold text-blue-600">€ {fmt(dayFatture)}</div>
-                          </div>
-                        )}
+                        <div>
+                          <div className="text-[10px] text-neutral-400 uppercase">Fatture</div>
+                          <div className="text-sm font-bold text-blue-600">€ {fmt(dayFatture)}</div>
+                        </div>
                         {isSuperAdmin && dayPreconti > 0 && (
                           <div>
                             <div className="text-[10px] text-orange-400 uppercase">Pre-conti<SuperDot /></div>
@@ -472,7 +468,7 @@ export default function ChiusureTurnoLista() {
                     {/* KPI mobile (sotto la riga) */}
                     <div className="flex md:hidden flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-neutral-500">
                       <span>RT € {fmt(dayChiusuraRT)}</span>
-                      {dayFatture > 0 && <span className="text-blue-600">Fatt. € {fmt(dayFatture)}</span>}
+                      <span className="text-blue-600">Fatt. € {fmt(dayFatture)}</span>
                       {isSuperAdmin && dayPreconti > 0 && <span className="text-orange-600">PC € {fmt(dayPreconti)}</span>}
                       <span className="font-bold text-neutral-800">Tot. € {fmt(dayTotale)}</span>
                       {isSuperAdmin && <span>Inc. € {fmt(dayIncassi)}</span>}
