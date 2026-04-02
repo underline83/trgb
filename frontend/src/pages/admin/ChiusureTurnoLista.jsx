@@ -309,51 +309,43 @@ export default function ChiusureTurnoLista() {
 
         {/* TOTALI PERIODO */}
         {days.length > 0 && (
-          <div className="bg-white rounded-2xl shadow p-4 border border-neutral-200">
-            <div className={`grid grid-cols-2 ${isSuperAdmin ? "md:grid-cols-5" : "md:grid-cols-4"} gap-3`}>
-              <div className="text-center">
-                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Giorni</div>
-                <div className="text-lg font-bold text-neutral-800">{totals.giorni}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Corrispettivi</div>
-                <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.chiusuraRT)}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] font-semibold text-blue-400 uppercase mb-1">Fatture</div>
-                <div className="text-lg font-bold text-blue-600">€ {fmt(totals.fatture)}</div>
-              </div>
-              {isSuperAdmin && totals.preconti > 0 && (
-                <div className="text-center">
-                  <div className="text-[10px] font-semibold text-orange-400 uppercase mb-1">Pre-conti<SuperDot /></div>
-                  <div className="text-lg font-bold text-orange-600">€ {fmt(totals.preconti)}</div>
-                </div>
-              )}
-              <div className="text-center">
-                <div className="text-[10px] font-semibold text-neutral-500 uppercase mb-1">
-                  Totale {isSuperAdmin && totals.preconti > 0 ? "(RT+Fatt+PC)" : "(RT+Fatt)"}
-                </div>
-                <div className="text-lg font-bold text-neutral-900">
-                  € {fmt(totals.chiusuraRT + totals.fatture + (isSuperAdmin ? totals.preconti : 0))}
-                </div>
-              </div>
-              {isSuperAdmin && (
-                <div className="text-center">
-                  <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. incassi<SuperDot /></div>
-                  <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.incassi)}</div>
-                </div>
-              )}
-              <div className="text-center">
-                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. coperti</div>
-                <div className="text-lg font-bold text-neutral-800">{totals.coperti}</div>
-              </div>
-              {totals.spese > 0 && (
-                <div className="text-center">
-                  <div className="text-[10px] font-semibold text-red-400 uppercase mb-1">Tot. spese</div>
-                  <div className="text-lg font-bold text-red-700">€ {fmt(totals.spese)}</div>
-                </div>
-              )}
-            </div>
+          <div className="bg-white rounded-2xl shadow border border-neutral-200 overflow-hidden">
+            <table className="w-full text-center text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-3 py-2 text-[10px] font-semibold text-neutral-400 uppercase">Giorni</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold text-neutral-400 uppercase">Corrispettivi</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold text-blue-400 uppercase">Fatture</th>
+                  {isSuperAdmin && (
+                    <th className="px-3 py-2 text-[10px] font-semibold text-orange-400 uppercase">Pre-conti<SuperDot /></th>
+                  )}
+                  <th className="px-3 py-2 text-[10px] font-semibold text-neutral-500 uppercase">Totale</th>
+                  {isSuperAdmin && (
+                    <th className="px-3 py-2 text-[10px] font-semibold text-neutral-400 uppercase">Incassi<SuperDot /></th>
+                  )}
+                  <th className="px-3 py-2 text-[10px] font-semibold text-neutral-400 uppercase">Coperti</th>
+                  <th className="px-3 py-2 text-[10px] font-semibold text-red-400 uppercase">Spese</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-3 py-3 font-bold text-neutral-800">{totals.giorni}</td>
+                  <td className="px-3 py-3 font-bold text-neutral-800">€ {fmt(totals.chiusuraRT)}</td>
+                  <td className="px-3 py-3 font-bold text-blue-600">€ {fmt(totals.fatture)}</td>
+                  {isSuperAdmin && (
+                    <td className="px-3 py-3 font-bold text-orange-600">€ {fmt(totals.preconti)}</td>
+                  )}
+                  <td className="px-3 py-3 font-bold text-neutral-900">
+                    € {fmt(totals.chiusuraRT + totals.fatture + (isSuperAdmin ? totals.preconti : 0))}
+                  </td>
+                  {isSuperAdmin && (
+                    <td className="px-3 py-3 font-bold text-neutral-800">€ {fmt(totals.incassi)}</td>
+                  )}
+                  <td className="px-3 py-3 font-bold text-neutral-800">{totals.coperti}</td>
+                  <td className="px-3 py-3 font-bold text-red-700">€ {fmt(totals.spese)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
 
