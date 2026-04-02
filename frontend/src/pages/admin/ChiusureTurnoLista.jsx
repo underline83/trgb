@@ -300,15 +300,17 @@ export default function ChiusureTurnoLista() {
 
         {/* TOTALI PERIODO */}
         {days.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className={`grid grid-cols-2 ${isSuperAdmin ? "md:grid-cols-4" : "md:grid-cols-3"} gap-3`}>
             <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
               <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Giorni</div>
               <div className="text-lg font-bold text-neutral-800">{totals.giorni}</div>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
-              <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. incassi</div>
-              <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.incassi)}</div>
-            </div>
+            {isSuperAdmin && (
+              <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
+                <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. incassi<SuperDot /></div>
+                <div className="text-lg font-bold text-neutral-800">€ {fmt(totals.incassi)}</div>
+              </div>
+            )}
             <div className="bg-white rounded-xl p-4 border border-neutral-200 text-center">
               <div className="text-[10px] font-semibold text-neutral-400 uppercase mb-1">Tot. coperti</div>
               <div className="text-lg font-bold text-neutral-800">{totals.coperti}</div>
@@ -386,20 +388,24 @@ export default function ChiusureTurnoLista() {
                           <div className="text-[10px] text-neutral-400 uppercase">Chiusura RT</div>
                           <div className="text-sm font-bold text-neutral-800">€ {fmt(dayChiusuraRT)}</div>
                         </div>
-                        <div>
-                          <div className="text-[10px] text-neutral-400 uppercase">Incassi</div>
-                          <div className="text-sm font-bold text-neutral-800">€ {fmt(dayIncassi)}</div>
-                        </div>
+                        {isSuperAdmin && (
+                          <div>
+                            <div className="text-[10px] text-neutral-400 uppercase">Incassi<SuperDot /></div>
+                            <div className="text-sm font-bold text-neutral-800">€ {fmt(dayIncassi)}</div>
+                          </div>
+                        )}
                         <div>
                           <div className="text-[10px] text-neutral-400 uppercase">Coperti</div>
                           <div className="text-sm font-bold text-neutral-800">{dayCoperti}</div>
                         </div>
-                        <div>
-                          <div className="text-[10px] text-neutral-400 uppercase">Saldo</div>
-                          <div className={`text-sm font-bold ${dayQuadra ? "text-emerald-600" : "text-red-600"}`}>
-                            {daySaldo >= 0 ? "+" : ""}{fmt(daySaldo)}
+                        {isSuperAdmin && (
+                          <div>
+                            <div className="text-[10px] text-neutral-400 uppercase">Saldo<SuperDot /></div>
+                            <div className={`text-sm font-bold ${dayQuadra ? "text-emerald-600" : "text-red-600"}`}>
+                              {daySaldo >= 0 ? "+" : ""}{fmt(daySaldo)}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       <span className={`text-neutral-400 transition-transform ${isDayExpanded ? "rotate-180" : ""}`}>▼</span>
@@ -408,11 +414,13 @@ export default function ChiusureTurnoLista() {
                     {/* KPI mobile (sotto la riga) */}
                     <div className="flex md:hidden items-center gap-3 mt-2 text-xs text-neutral-500">
                       <span>RT € {fmt(dayChiusuraRT)}</span>
-                      <span>Inc. € {fmt(dayIncassi)}</span>
+                      {isSuperAdmin && <span>Inc. € {fmt(dayIncassi)}</span>}
                       <span>Cop. {dayCoperti}</span>
-                      <span className={dayQuadra ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>
-                        {daySaldo >= 0 ? "+" : ""}{fmt(daySaldo)}
-                      </span>
+                      {isSuperAdmin && (
+                        <span className={dayQuadra ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>
+                          {daySaldo >= 0 ? "+" : ""}{fmt(daySaldo)}
+                        </span>
+                      )}
                     </div>
                   </button>
 
