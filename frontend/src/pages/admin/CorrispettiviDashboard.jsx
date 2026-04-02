@@ -536,7 +536,7 @@ export default function CorrispettiviDashboard() {
               Vendite — Dashboard
             </h1>
             <p className="text-neutral-600">
-              Analisi corrispettivi e composizione pagamenti.
+              Analisi incassi e composizione pagamenti.
             </p>
           </div>
           {/* Mode switcher */}
@@ -610,7 +610,7 @@ export default function CorrispettiviDashboard() {
               return (
                 <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 shadow-sm">
-                    <p className="text-xs uppercase tracking-wide text-indigo-800">Totale Corrispettivi</p>
+                    <p className="text-xs uppercase tracking-wide text-indigo-800">Totale Incassi</p>
                     <p className="mt-2 text-2xl font-bold text-indigo-900">€ {formatCurrency(totalCorrispettivi)}</p>
                     <p className="text-xs text-indigo-900/70 mt-1">{periodLabel}</p>
                   </div>
@@ -673,7 +673,7 @@ export default function CorrispettiviDashboard() {
               <div className={`${mode === "mensile" ? "lg:col-span-2" : ""} bg-white border border-neutral-200 rounded-2xl p-4 shadow-sm`}>
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="text-lg font-semibold text-neutral-900 font-playfair">
-                    {mode === "annuale" ? "Corrispettivi mensili" : "Corrispettivi giornalieri"}
+                    {mode === "annuale" ? "Incassi mensili" : "Incassi giornalieri"}
                   </h2>
                   <p className="text-xs text-neutral-500">{mode !== "annuale" ? "Solo giorni aperti" : `${year} vs ${year - 1}`}</p>
                 </div>
@@ -738,7 +738,7 @@ export default function CorrispettiviDashboard() {
                       return (
                         <div key={idx}
                           className={`rounded-xl border border-neutral-200 px-1 py-1 cursor-pointer hover:border-indigo-400 transition ${bgClass} ${textClass}`}
-                          title={isClosed ? "Chiuso" : `Corrispettivi: € ${formatCurrency(corr)}`}
+                          title={isClosed ? "Chiuso" : `Incassi: € ${formatCurrency(corr)}`}
                           onClick={() => navigate(`/vendite/chiusure?date=${g.date}`)}>
                           <div className="flex justify-between items-center mb-0.5">
                             <span className="text-[11px] font-semibold">{dayNum}</span>
@@ -804,7 +804,7 @@ export default function CorrispettiviDashboard() {
                       </ResponsiveContainer>
                     </div>
                     <div className="mt-2 text-sm flex justify-between font-semibold text-neutral-900">
-                      <span>Totale corrispettivi</span>
+                      <span>Totale incassi</span>
                       <span>€ {formatCurrency(corrTot)}</span>
                     </div>
                   </div>
@@ -846,7 +846,7 @@ export default function CorrispettiviDashboard() {
                       <tr className="bg-neutral-50 text-neutral-700">
                         <th className="border border-neutral-200 px-2 py-1 text-left">Data</th>
                         <th className="border border-neutral-200 px-2 py-1 text-left">Giorno</th>
-                        <th className="border border-neutral-200 px-2 py-1 text-right">Corrispettivi</th>
+                        <th className="border border-neutral-200 px-2 py-1 text-right">Incassi</th>
                         <th className="border border-neutral-200 px-2 py-1 text-center">Stato</th>
                       </tr>
                     </thead>

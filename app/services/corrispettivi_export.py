@@ -107,6 +107,108 @@ def _auto_width(ws, ncols: int, nrows: int):
 # EXPORT DB → EXCEL
 # ══════════════════════════════════════════════
 
+def _merge_shift_and_daily(conn, where_sql: str, params: list, ym_prefix: str = None) -> list:
+    """
+    Merge shift_closures (primario) e daily_closures (fallback) in righe
+    compatibili con il formato export canonico.
+    """
+    from datetime import datetime as dt
+
+    WEEKDAY_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+
+    # 1. Leggi daily_closures
+    query = f"""
+        SELECT date, weekday,
+               corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
+               contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
+               bonifici, mance, note, COALESCE(is_closed, 0) as is_closed
+        FROM daily_closures
+        {where_sql}
+        ORDER BY date ASC
+    """
+    daily_rows = conn.execute(query, params).fetchall()
+    daily_map = {r["date"]: dict(r) for r in daily_rows}
+
+    # 2. Leggi shift_closures per lo stesso periodo
+    shift_where = where_sql.replace("daily_closures", "shift_closures") if "daily_closures" in where_sql else where_sql
+    shift_query = f"""
+        SELECT date, turno, preconto, fatture, contanti,
+               pos_bpm, pos_sella, theforkpay, other_e_payments,
+               bonifici, mance, note
+        FROM shift_closures
+        {where_sql}
+        ORDER BY date ASC
+    """
+    shift_rows = conn.execute(shift_query, params).fetchall()
+
+    # 3. Aggrega shift_closures per data
+    shift_by_date = {}
+    for r in shift_rows:
+        d = r["date"]
+        shift_by_date.setdefault(d, []).append(r)
+
+    shift_map = {}
+    for date_str, turni in shift_by_date.items():
+        pranzo = None
+        cena = None
+        for t in turni:
+            if t["turno"] == "pranzo":
+                pranzo = t
+            else:
+                cena = t
+
+        # Base giornaliera = cena se esiste, altrimenti pranzo
+        base = cena or pranzo
+        chiusura = base["preconto"] or 0
+        fatture_tot = (pranzo["fatture"] if pranzo else 0) + (cena["fatture"] if cena else 0)
+        contanti = base["contanti"] or 0
+        pos_bpm = base["pos_bpm"] or 0
+        pos_sella = base["pos_sella"] or 0
+        theforkpay = base["theforkpay"] or 0
+        other_e = base["other_e_payments"] or 0
+        bonifici = base["bonifici"] or 0
+        mance = base["mance"] or 0
+
+        note_parts = []
+        if pranzo and pranzo["note"]:
+            note_parts.append(f"P: {pranzo['note']}")
+        if cena and cena["note"]:
+            note_parts.append(f"C: {cena['note']}")
+
+        d = dt.strptime(date_str, "%Y-%m-%d").date()
+        weekday = WEEKDAY_IT[d.weekday()]
+
+        shift_map[date_str] = {
+            "date": date_str,
+            "weekday": weekday,
+            "corrispettivi": chiusura,
+            "iva_10": 0.0,
+            "iva_22": 0.0,
+            "fatture": fatture_tot,
+            "corrispettivi_tot": chiusura + fatture_tot,
+            "contanti_finali": contanti,
+            "pos_bpm": pos_bpm,
+            "pos_sella": pos_sella,
+            "theforkpay": theforkpay,
+            "other_e_payments": other_e,
+            "bonifici": bonifici,
+            "mance": mance,
+            "note": " | ".join(note_parts) if note_parts else "",
+            "is_closed": 0,
+        }
+
+    # 4. Merge: shift_closures è primario, daily_closures è fallback
+    all_dates = sorted(set(list(shift_map.keys()) + list(daily_map.keys())))
+    merged = []
+    for d in all_dates:
+        if d in shift_map:
+            merged.append(shift_map[d])
+        else:
+            merged.append(daily_map[d])
+
+    return merged
+
+
 def export_corrispettivi_to_excel(
     year: Optional[int] = None,
     month: Optional[int] = None,
@@ -121,31 +223,21 @@ def export_corrispettivi_to_excel(
     conn.row_factory = sqlite3.Row
 
     try:
-        # Build query
         where_clauses = []
         params = []
+        ym_prefix = None
 
         if year and month:
-            ym = f"{year:04d}-{month:02d}"
+            ym_prefix = f"{year:04d}-{month:02d}"
             where_clauses.append("substr(date, 1, 7) = ?")
-            params.append(ym)
+            params.append(ym_prefix)
         elif year:
             where_clauses.append("substr(date, 1, 4) = ?")
             params.append(str(year))
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
-        # Query daily_closures
-        query = f"""
-            SELECT date, weekday,
-                   corrispettivi, iva_10, iva_22, fatture, corrispettivi_tot,
-                   contanti_finali, pos_bpm, pos_sella, theforkpay, other_e_payments,
-                   bonifici, mance, note, COALESCE(is_closed, 0) as is_closed
-            FROM daily_closures
-            {where_sql}
-            ORDER BY date ASC
-        """
-        rows = conn.execute(query, params).fetchall()
+        rows = _merge_shift_and_daily(conn, where_sql, params, ym_prefix)
     finally:
         conn.close()
 
@@ -168,7 +260,7 @@ def export_corrispettivi_to_excel(
     # Data rows
     for row_idx, row in enumerate(rows, 2):
         for col_idx, col_def in enumerate(CANONICAL_COLUMNS, 1):
-            val = row[col_def["db"]]
+            val = row.get(col_def["db"]) if isinstance(row, dict) else row[col_def["db"]]
             cell = ws.cell(row=row_idx, column=col_idx)
 
             if col_def["type"] == "euro":
