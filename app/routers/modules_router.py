@@ -17,7 +17,7 @@ from app.services.auth_service import get_current_user, is_admin
 router = APIRouter(prefix="/settings/modules", tags=["modules"])
 
 MODULES_FILE = Path(__file__).resolve().parent.parent / "data" / "modules.json"
-VALID_ROLES = {"superadmin", "admin", "chef", "sommelier", "sala", "viewer"}
+VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sommelier", "sala", "viewer"}
 
 # Struttura default — usata se modules.json non esiste (es. primo deploy, file perso)
 DEFAULT_MODULES = [
@@ -37,11 +37,11 @@ DEFAULT_MODULES = [
     {
         "key": "acquisti", "label": "Gestione Acquisti", "icon": "\U0001f4e6",
         "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
-        "roles": ["superadmin", "admin", "viewer"],
+        "roles": ["superadmin", "admin", "contabile", "viewer"],
         "sub": [
-            {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "viewer"]},
-            {"key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "viewer"]},
-            {"key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "viewer"]},
+            {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "contabile", "viewer"]},
+            {"key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "contabile", "viewer"]},
+            {"key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "contabile", "viewer"]},
             {"key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"]},
         ],
     },

@@ -6,6 +6,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const ROLE_COLORS = {
   superadmin: "border-amber-500",
   admin:      "border-amber-500",
+  contabile:  "border-cyan-500",
   sommelier:  "border-purple-500",
   sala:       "border-rose-500",
   chef:       "border-emerald-500",
@@ -14,14 +15,16 @@ const ROLE_COLORS = {
 const ROLE_BG = {
   superadmin: "bg-amber-50",
   admin:      "bg-amber-50",
+  contabile:  "bg-cyan-50",
   sommelier:  "bg-purple-50",
   sala:       "bg-rose-50",
   chef:       "bg-emerald-50",
   viewer:     "bg-slate-50",
 };
 const ROLE_LABELS = {
-  superadmin: "Super Admin",
+  superadmin: "Admin",
   admin:      "Admin",
+  contabile:  "Contabile",
   sommelier:  "Sommelier",
   sala:       "Sala",
   chef:       "Chef",
@@ -160,6 +163,7 @@ export default function LoginForm({ setToken, setRole }) {
                 w-16 h-16 rounded-full flex items-center justify-center
                 text-white text-xl font-bold
                 ${u.role === "admin" || u.role === "superadmin" ? "bg-amber-500" :
+                  u.role === "contabile" ? "bg-cyan-500" :
                   u.role === "sommelier" ? "bg-purple-500" :
                   u.role === "sala" ? "bg-rose-500" :
                   u.role === "chef" ? "bg-emerald-500" : "bg-slate-400"}
@@ -213,6 +217,7 @@ export default function LoginForm({ setToken, setRole }) {
           w-20 h-20 rounded-full flex items-center justify-center
           text-white text-2xl font-bold
           ${selectedUser.role === "admin" || selectedUser.role === "superadmin" ? "bg-amber-500" :
+            selectedUser.role === "contabile" ? "bg-cyan-500" :
             selectedUser.role === "sommelier" ? "bg-purple-500" :
             selectedUser.role === "sala" ? "bg-rose-500" :
             selectedUser.role === "chef" ? "bg-emerald-500" : "bg-slate-400"}

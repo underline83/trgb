@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
+import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
@@ -278,10 +279,35 @@ export default function Header({ onLogout }) {
 
         {/* RIGHT — User info + logout */}
         <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-medium text-neutral-800 leading-tight">{username}</div>
+          <div className="text-right hidden sm:block select-none"
+            onDoubleClick={(e) => {
+              // Triplo click = doubleClick + click ravvicinato
+              if (!canActivateSuperMode(role)) return;
+              if (e.detail >= 2) {
+                // Attendi un terzo click entro 400ms
+                const handler = () => {
+                  const newState = toggleSuperMode();
+                  window.location.reload();
+                };
+                const el = e.currentTarget;
+                const tripleHandler = (ev) => {
+                  handler();
+                  el.removeEventListener("click", tripleHandler);
+                };
+                el.addEventListener("click", tripleHandler);
+                setTimeout(() => el.removeEventListener("click", tripleHandler), 400);
+              }
+            }}>
+            <div className="text-sm font-medium text-neutral-800 leading-tight">
+              {username}
+              {canActivateSuperMode(role) && isSuperModeActive() && (
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1.5 align-middle" title="Modalità gestione" />
+              )}
+            </div>
             {role && (
-              <div className="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">{role}</div>
+              <div className="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">
+                {role === "superadmin" ? "admin" : role}
+              </div>
             )}
           </div>
           <button

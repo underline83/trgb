@@ -6,15 +6,16 @@ import { invalidateModulesCache } from "../../hooks/useModuleAccess";
 // ---------------------------------------------------------------------------
 // COSTANTI
 // ---------------------------------------------------------------------------
-const ROLES = ["chef", "sommelier", "sala", "viewer"];
+const ROLES = ["contabile", "chef", "sommelier", "sala", "viewer"];
 const ROLE_LABELS = {
   admin:     { label: "Admin",     icon: "👑" },
+  contabile: { label: "Contabile", icon: "📊" },
   chef:      { label: "Chef",      icon: "👨‍🍳" },
   sommelier: { label: "Sommelier", icon: "🍷" },
   sala:      { label: "Sala",      icon: "🍽️" },
   viewer:    { label: "Viewer",    icon: "👁" },
 };
-const ALL_ROLES = ["admin", "chef", "sommelier", "sala", "viewer"];
+const ALL_ROLES = ["admin", "contabile", "chef", "sommelier", "sala", "viewer"];
 const VALID_TABS = ["utenti", "moduli", "backup"];
 
 // ---------------------------------------------------------------------------
