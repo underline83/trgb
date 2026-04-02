@@ -126,10 +126,15 @@ export default function ChiusureTurnoLista() {
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
   // ── Render sezione turno completa ──
-  const renderTurnoFull = (c) => {
+  // day = { pranzo, cena }, turno = "pranzo"|"cena"
+  const renderTurnoFull = (c, turno, day) => {
     if (!c) return null;
     const totSpese = (c.spese || []).reduce((s, sp) => s + sp.importo, 0);
     const totPreconti = (c.preconti || []).reduce((s, p) => s + p.importo, 0);
+    // RT specifico turno: cena.preconto è il totale giornaliero, quindi cena = totale - pranzo
+    const turnoRT = (turno === "cena" && day?.pranzo)
+      ? (c.preconto || 0) - (day.pranzo.preconto || 0)
+      : (c.preconto || 0);
     const saldo = c.saldo ?? 0;
     const diffGrezzo = c.diff_grezzo ?? 0;
     const speseGiorno = c.spese_giorno ?? 0;
@@ -151,7 +156,7 @@ export default function ChiusureTurnoLista() {
         <div className={`grid grid-cols-2 ${isSuperAdmin ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-2`}>
           <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
             <div className="text-[10px] text-neutral-400 font-semibold uppercase">Chiusura RT</div>
-            <div className="text-sm font-bold text-neutral-800">€ {fmt(c.preconto)}</div>
+            <div className="text-sm font-bold text-neutral-800">€ {fmt(turnoRT)}</div>
           </div>
           {isSuperAdmin && (
             <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
@@ -495,7 +500,7 @@ export default function ChiusureTurnoLista() {
                               <span className="font-semibold text-neutral-700 capitalize text-sm">{turno}</span>
                             </div>
                             {/* Dettaglio completo */}
-                            {renderTurnoFull(c)}
+                            {renderTurnoFull(c, turno, day)}
                           </div>
                         );
                       })}
