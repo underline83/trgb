@@ -3,6 +3,7 @@
 // Ora vive sotto Flussi di Cassa. Il contenuto è esportato come GestioneContantiContent.
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { isSuperAdminRole } from "../../utils/authHelpers";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -20,16 +21,19 @@ function fmtDate(iso) {
 }
 
 // ── SIDEBAR MENU (Mance ora ha tab dedicata in FlussiCassa) ──
-const MENU = [
+const MENU_BASE = [
   { key: "movimenti", label: "Movimenti Contanti", icon: "💶" },
-  { key: "preconti", label: "Pre-conti", icon: "🍽️" },
+  { key: "preconti", label: "Pre-conti", icon: "🍽️", superOnly: true },
   { key: "spese", label: "Spese turno", icon: "🧾" },
-  { key: "spese-varie", label: "Spese varie", icon: "💸" },
+  { key: "spese-varie", label: "Spese varie", icon: "💸", superOnly: true },
 ];
 
 /** Contenuto senza nav esterna — usato da FlussiCassaContanti */
 export function GestioneContantiContent() {
   const [activeSection, setActiveSection] = useState("movimenti");
+  const role = localStorage.getItem("role") || "";
+  const showSuper = isSuperAdminRole(role);
+  const MENU = MENU_BASE.filter(m => !m.superOnly || showSuper);
 
   return (
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -57,9 +61,9 @@ export function GestioneContantiContent() {
             {/* Content */}
             <div className="flex-1 p-5 md:p-6 overflow-auto">
               {activeSection === "movimenti" && <SezioneMovimentiContanti />}
-              {activeSection === "preconti" && <SezionePreconti />}
+              {activeSection === "preconti" && showSuper && <SezionePreconti />}
               {activeSection === "spese" && <SezioneSpese />}
-              {activeSection === "spese-varie" && <SezioneSpeseVarie />}
+              {activeSection === "spese-varie" && showSuper && <SezioneSpeseVarie />}
             </div>
           </div>
         </div>

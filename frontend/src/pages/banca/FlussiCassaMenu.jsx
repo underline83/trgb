@@ -19,7 +19,7 @@ const CARDS = [
     desc: "Estratto conto carta, riconciliazione spese.",
     bg: "bg-violet-50 border-violet-200 text-violet-900" },
   { to: "/flussi-cassa/contanti", sub: "contanti", icon: "💰", title: "Contanti",
-    desc: "Contanti da versare, pre-conti, spese turno e varie.",
+    desc: "Contanti da versare, spese turno e varie.",
     bg: "bg-amber-50 border-amber-200 text-amber-900" },
   { to: "/flussi-cassa/mance", sub: "mance", icon: "🎁", title: "Mance",
     desc: "Mance registrate dai turni — per distribuzione al personale.",
