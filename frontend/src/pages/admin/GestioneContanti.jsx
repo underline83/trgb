@@ -54,6 +54,7 @@ export function GestioneContantiContent() {
                   }`}>
                   <span>{item.icon}</span>
                   <span>{item.label}</span>
+                  {item.superOnly && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" title="Solo modalità gestione" />}
                 </button>
               ))}
             </div>

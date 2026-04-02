@@ -793,7 +793,7 @@ export default function ChiusuraTurno() {
                 )}
                 {isSuperAdmin && (totalePreconti + pranzoPrecontiTotale) > 0 && (
                   <div className="inline-flex items-center gap-1.5 bg-white/60 rounded-lg px-3 py-1.5 border border-orange-200 text-xs">
-                    <span className="text-orange-400">🍽️ Pre-conti:</span>
+                    <span className="text-orange-400">🍽️ Pre-conti<span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 align-middle" />:</span>
                     <span className="font-semibold text-orange-600">€ {fmt(totalePreconti + pranzoPrecontiTotale)}</span>
                   </div>
                 )}

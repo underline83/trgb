@@ -10,6 +10,9 @@ import VenditeNav from "./VenditeNav";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
+/** Pallino ambra che indica contenuto visibile solo in modalità gestione */
+const SuperDot = () => <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 align-middle" title="Solo modalità gestione" />;
+
 function fmt(n) {
   if (n == null) return "—";
   return Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -141,29 +144,33 @@ export default function ChiusureTurnoLista() {
     return (
       <div className="px-5 py-3 bg-neutral-50 space-y-2">
         {/* Riga 1: KPI principali */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className={`grid grid-cols-2 ${isSuperAdmin ? "sm:grid-cols-4" : "sm:grid-cols-3"} gap-2`}>
           <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
             <div className="text-[10px] text-neutral-400 font-semibold uppercase">Chiusura RT</div>
             <div className="text-sm font-bold text-neutral-800">€ {fmt(c.preconto)}</div>
           </div>
-          <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
-            <div className="text-[10px] text-neutral-400 font-semibold uppercase">Tot. incassi</div>
-            <div className="text-sm font-bold text-neutral-800">€ {fmt(c.totale_incassi)}</div>
-          </div>
+          {isSuperAdmin && (
+            <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
+              <div className="text-[10px] text-neutral-400 font-semibold uppercase">Tot. incassi<SuperDot /></div>
+              <div className="text-sm font-bold text-neutral-800">€ {fmt(c.totale_incassi)}</div>
+            </div>
+          )}
           <div className="bg-white rounded-lg px-3 py-2 border border-neutral-200">
             <div className="text-[10px] text-neutral-400 font-semibold uppercase">Coperti</div>
             <div className="text-sm font-bold text-neutral-800">{c.coperti || 0}</div>
           </div>
-          <div className={`rounded-lg px-3 py-2 border ${quadra ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
-            <div className={`text-[10px] font-semibold uppercase ${quadra ? "text-emerald-500" : "text-red-500"}`}>Saldo</div>
-            <div className={`text-sm font-bold ${quadra ? "text-emerald-700" : "text-red-700"}`}>
-              {saldo >= 0 ? "+" : ""}{fmt(saldo)}
+          {isSuperAdmin && (
+            <div className={`rounded-lg px-3 py-2 border ${quadra ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+              <div className={`text-[10px] font-semibold uppercase ${quadra ? "text-emerald-500" : "text-red-500"}`}>Saldo<SuperDot /></div>
+              <div className={`text-sm font-bold ${quadra ? "text-emerald-700" : "text-red-700"}`}>
+                {saldo >= 0 ? "+" : ""}{fmt(saldo)}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Riga 2: dettaglio incassi */}
-        {incassiFields.length > 0 && (
+        {/* Riga 2: dettaglio incassi (solo superadmin) */}
+        {isSuperAdmin && incassiFields.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
             {incassiFields.map(([label, val]) => (
               <span key={label}>{label}: <strong>€ {fmt(val)}</strong></span>
@@ -183,7 +190,7 @@ export default function ChiusureTurnoLista() {
         {/* Pre-conti (solo superadmin) */}
         {isSuperAdmin && c.preconti && c.preconti.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-orange-600 font-semibold uppercase">Pre-conti ({c.preconti.length}):</span>
+            <span className="text-orange-600 font-semibold uppercase">Pre-conti ({c.preconti.length})<SuperDot />:</span>
             {c.preconti.map((p, i) => (
               <span key={i} className="bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
                 {p.tavolo} <strong>€ {fmt(p.importo)}</strong>
