@@ -1448,7 +1448,8 @@ async def delete_shift_closure(
             detail="Solo gli admin possono eliminare una chiusura.",
         )
 
-    conn = get_db()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     try:
         cur = conn.cursor()
         cur.execute("SELECT id, date, turno FROM shift_closures WHERE id = ?", (closure_id,))
