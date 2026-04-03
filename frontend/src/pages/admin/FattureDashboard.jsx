@@ -49,7 +49,7 @@ export default function FattureDashboard() {
   // Drill-down state
   const [drill, setDrill] = useState(null);
 
-  const openDrill = useCallback(async ({ label, year: drillYear, month, categoria }) => {
+  const openDrill = useCallback(async ({ label, year: drillYear, month, categoria, sottocategoria }) => {
     setDrill({ label, fatture: [], n_fatture: 0, totale: 0, loading: true, error: null });
     try {
       const params = new URLSearchParams();
@@ -57,6 +57,7 @@ export default function FattureDashboard() {
       if (y) params.set("year", y);
       if (month) params.set("month", month);
       if (categoria) params.set("categoria", categoria);
+      if (sottocategoria) params.set("sottocategoria", sottocategoria);
       const res = await apiFetch(`${FE}/stats/drill?${params.toString()}`);
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const data = await res.json();
@@ -450,6 +451,29 @@ function ChartCategorie({ data, onDrill }) {
     onDrill({ label: `Cat: ${catName}`, categoria: catName });
   };
 
+  const handleOuterSliceClick = (entry) => {
+    if (!entry || entry.totale <= 0) return;
+    if (entry.isSub && entry.parentCat) {
+      onDrill({
+        label: `${entry.parentCat} › ${entry.name}`,
+        categoria: entry.parentCat,
+        sottocategoria: entry.name,
+      });
+    } else {
+      // Categoria senza sottocategorie — stessa logica del click interno
+      const catName = entry.parentCat || entry.name || "(Non categorizzato)";
+      onDrill({ label: `Cat: ${catName}`, categoria: catName });
+    }
+  };
+
+  const handleSubClick = (catName, subName) => {
+    onDrill({
+      label: `${catName} › ${subName}`,
+      categoria: catName,
+      sottocategoria: subName,
+    });
+  };
+
   const [expanded, setExpanded] = useState({});
   const toggleExpand = (cat) => setExpanded(prev => ({ ...prev, [cat]: !prev[cat] }));
 
@@ -497,7 +521,8 @@ function ChartCategorie({ data, onDrill }) {
                   innerRadius={84}
                   outerRadius={110}
                   paddingAngle={1}
-                  style={{ cursor: "default" }}
+                  onClick={handleOuterSliceClick}
+                  style={{ cursor: "pointer" }}
                 >
                   {outerData.map((item, i) => (
                     <Cell key={i} fill={outerColors[i]} stroke="#fff" strokeWidth={1} />
@@ -532,14 +557,21 @@ function ChartCategorie({ data, onDrill }) {
                 <div key={d.categoria}>
                   <div
                     className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5"
-                    onClick={() => hasSubs ? toggleExpand(d.categoria) : handleSliceClick(d)}
+                    onClick={() => handleSliceClick(d)}
                   >
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
                     />
+                    {hasSubs && (
+                      <span
+                        className="text-neutral-400 hover:text-neutral-600 text-xs leading-none select-none"
+                        onClick={(e) => { e.stopPropagation(); toggleExpand(d.categoria); }}
+                      >
+                        {isExpanded ? "▾" : "▸"}
+                      </span>
+                    )}
                     <span className="truncate flex-1 text-neutral-700">
-                      {hasSubs && <span className="text-neutral-400 mr-0.5">{isExpanded ? "▾" : "▸"}</span>}
                       {d.categoria}
                     </span>
                     <span className="font-medium text-neutral-900 tabular-nums whitespace-nowrap">
@@ -552,7 +584,10 @@ function ChartCategorie({ data, onDrill }) {
                   {hasSubs && isExpanded && (
                     <div className="ml-5 space-y-0.5">
                       {subs.map((sub, si) => (
-                        <div key={si} className="flex items-center gap-2 text-[10px] text-neutral-500 px-1 py-0.5">
+                        <div key={si}
+                          className="flex items-center gap-2 text-[10px] text-neutral-500 px-1 py-0.5 cursor-pointer hover:bg-neutral-50 rounded -mx-1"
+                          onClick={() => handleSubClick(d.categoria, sub.sottocategoria)}
+                        >
                           <span
                             className="w-1.5 h-1.5 rounded-full shrink-0"
                             style={{ backgroundColor: blendColor(CAT_COLORS[i % CAT_COLORS.length], 0.15 + si * 0.15) }}

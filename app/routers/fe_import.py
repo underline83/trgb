@@ -1393,65 +1393,130 @@ def stats_drill(
     year: int | None = Query(None),
     month: str | None = Query(None, description="Mese in formato 01-12"),
     categoria: str | None = Query(None, description="Nome categoria (Cat.1)"),
+    sottocategoria: str | None = Query(None, description="Nome sottocategoria"),
 ):
     """
-    Ritorna lista fatture filtrate per mese e/o categoria.
+    Ritorna lista fatture filtrate per mese e/o categoria/sottocategoria.
+    Filtra tramite fe_righe (categorie prodotto) per coerenza con il grafico categorie.
     Usato dal drill-down della dashboard quando si clicca su un mese o una fetta.
     """
     conn = _get_conn()
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    where_parts = [f"f.data_fattura IS NOT NULL", _EXCL_WHERE]
-    params: list = []
+    # Se filtra per categoria o sottocategoria, cerca nelle righe fattura
+    use_righe = categoria is not None or sottocategoria is not None
 
-    if year is not None:
-        where_parts.append("substr(f.data_fattura, 1, 4) = ?")
-        params.append(str(year))
+    if use_righe:
+        # Drill basato su righe fattura (coerente con grafico categorie)
+        excl_join = """LEFT JOIN fe_fornitore_categoria fc_excl
+            ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc_excl.fornitore_piva)
+            OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc_excl.fornitore_nome AND fc_excl.fornitore_piva IS NULL)"""
 
-    if month is not None:
-        where_parts.append("substr(f.data_fattura, 6, 2) = ?")
-        params.append(month.zfill(2))
+        where_parts = [
+            "f.data_fattura IS NOT NULL",
+            "COALESCE(f.is_autofattura, 0) = 0",
+            "COALESCE(fc_excl.escluso_acquisti, 0) = 0",
+            "r.descrizione IS NOT NULL",
+            "r.descrizione != ''",
+            "COALESCE(r.prezzo_totale, 0) != 0",
+        ]
+        params: list = []
 
-    if categoria is not None:
+        if year is not None:
+            where_parts.append("substr(f.data_fattura, 1, 4) = ?")
+            params.append(str(year))
+        if month is not None:
+            where_parts.append("substr(f.data_fattura, 6, 2) = ?")
+            params.append(month.zfill(2))
+
         if categoria == "(Non categorizzato)":
-            where_parts.append("fc.categoria_id IS NULL")
-        else:
-            where_parts.append("c.nome = ?")
+            where_parts.append("r.categoria_id IS NULL")
+        elif categoria is not None:
+            where_parts.append("cat.nome = ?")
             params.append(categoria)
 
-    where_sql = " AND ".join(where_parts)
+        if sottocategoria is not None:
+            where_parts.append("sub.nome = ?")
+            params.append(sottocategoria)
 
-    cur.execute(f"""
-        SELECT
-            f.id,
-            f.fornitore_nome,
-            f.fornitore_piva,
-            f.numero_fattura,
-            f.data_fattura,
-            ROUND(COALESCE(f.totale_fattura, 0), 2) AS totale_fattura,
-            COALESCE(c.nome, '') AS categoria
-        FROM fe_fatture f
-        {_CAT_JOIN}
-        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
-        WHERE {where_sql}
-        ORDER BY f.data_fattura DESC, f.totale_fattura DESC
-        LIMIT 200
-    """, params)
+        where_sql = " AND ".join(where_parts)
 
-    rows = [dict(r) for r in cur.fetchall()]
+        # Fatture con totale da righe (raggruppate per fattura)
+        cur.execute(f"""
+            SELECT
+                f.id,
+                f.fornitore_nome,
+                f.fornitore_piva,
+                f.numero_fattura,
+                f.data_fattura,
+                ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale_fattura,
+                COALESCE(cat.nome, '') AS categoria
+            FROM fe_righe r
+            JOIN fe_fatture f ON r.fattura_id = f.id
+            {excl_join}
+            LEFT JOIN fe_categorie cat ON r.categoria_id = cat.id
+            LEFT JOIN fe_sottocategorie sub ON r.sottocategoria_id = sub.id
+            WHERE {where_sql}
+            GROUP BY f.id
+            ORDER BY f.data_fattura DESC, totale_fattura DESC
+            LIMIT 200
+        """, params)
+        rows = [dict(r) for r in cur.fetchall()]
 
-    # Calcola totale e conteggio
-    cur.execute(f"""
-        SELECT
-            COUNT(*) AS n_fatture,
-            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale
-        FROM fe_fatture f
-        {_CAT_JOIN}
-        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
-        WHERE {where_sql}
-    """, params)
-    summary = dict(cur.fetchone())
+        cur.execute(f"""
+            SELECT
+                COUNT(DISTINCT f.id) AS n_fatture,
+                ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale
+            FROM fe_righe r
+            JOIN fe_fatture f ON r.fattura_id = f.id
+            {excl_join}
+            LEFT JOIN fe_categorie cat ON r.categoria_id = cat.id
+            LEFT JOIN fe_sottocategorie sub ON r.sottocategoria_id = sub.id
+            WHERE {where_sql}
+        """, params)
+        summary = dict(cur.fetchone())
+
+    else:
+        # Drill senza filtro categoria — usa fatture direttamente (più veloce)
+        where_parts = ["f.data_fattura IS NOT NULL", _EXCL_WHERE]
+        params = []
+
+        if year is not None:
+            where_parts.append("substr(f.data_fattura, 1, 4) = ?")
+            params.append(str(year))
+        if month is not None:
+            where_parts.append("substr(f.data_fattura, 6, 2) = ?")
+            params.append(month.zfill(2))
+
+        where_sql = " AND ".join(where_parts)
+
+        cur.execute(f"""
+            SELECT
+                f.id,
+                f.fornitore_nome,
+                f.fornitore_piva,
+                f.numero_fattura,
+                f.data_fattura,
+                ROUND(COALESCE(f.totale_fattura, 0), 2) AS totale_fattura,
+                '' AS categoria
+            FROM fe_fatture f
+            {_CAT_JOIN}
+            WHERE {where_sql}
+            ORDER BY f.data_fattura DESC, f.totale_fattura DESC
+            LIMIT 200
+        """, params)
+        rows = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(f"""
+            SELECT
+                COUNT(*) AS n_fatture,
+                ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale
+            FROM fe_fatture f
+            {_CAT_JOIN}
+            WHERE {where_sql}
+        """, params)
+        summary = dict(cur.fetchone())
 
     conn.close()
     return {"fatture": rows, "n_fatture": summary["n_fatture"], "totale": summary["totale"]}
