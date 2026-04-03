@@ -1535,45 +1535,58 @@ def stats_kpi(
 def stats_per_categoria_dashboard(
     year: int | None = Query(None),
 ):
-    """Totale spesa raggruppato per Cat.1, con dettaglio sottocategorie."""
+    """Totale spesa raggruppato per categoria prodotto (fe_righe), con dettaglio sottocategorie."""
     conn = _get_conn()
     _ensure_tables(conn)
     cur = conn.cursor()
 
-    where = f"f.data_fattura IS NOT NULL AND {_EXCL_WHERE}"
+    # Legge da fe_righe (categoria assegnata ai prodotti) — più granulare e aggiornato
+    # rispetto a fe_fornitore_categoria (categoria del fornitore)
+    where = "f.data_fattura IS NOT NULL AND COALESCE(f.is_autofattura, 0) = 0"
+    excl = """LEFT JOIN fe_fornitore_categoria fc_excl
+        ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc_excl.fornitore_piva)
+        OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc_excl.fornitore_nome AND fc_excl.fornitore_piva IS NULL)"""
+    where += " AND COALESCE(fc_excl.escluso_acquisti, 0) = 0"
+    # Escludi righe descrittive (prezzo_totale = 0)
+    where += " AND COALESCE(r.prezzo_totale, 0) != 0"
+
     params: list = []
     if year is not None:
         where += " AND substr(f.data_fattura, 1, 4) = ?"
         params.append(str(year))
 
-    # Categorie principali
+    # Categorie principali (da righe fattura)
     cur.execute(f"""
         SELECT
             COALESCE(c.nome, '(Non categorizzato)') AS categoria,
-            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
-            COUNT(*) AS n_fatture
-        FROM fe_fatture f
-        {_CAT_JOIN}
-        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
+            ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale,
+            COUNT(DISTINCT f.id) AS n_fatture
+        FROM fe_righe r
+        JOIN fe_fatture f ON r.fattura_id = f.id
+        {excl}
+        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
         WHERE {where}
+          AND r.descrizione IS NOT NULL AND r.descrizione != ''
         GROUP BY c.nome
         ORDER BY totale DESC
     """, params)
     rows = [dict(r) for r in cur.fetchall()]
 
-    # Sottocategorie (solo dove fc.sottocategoria_id IS NOT NULL)
+    # Sottocategorie (solo dove r.sottocategoria_id IS NOT NULL)
     cur.execute(f"""
         SELECT
             COALESCE(c.nome, '(Non categorizzato)') AS categoria,
             s.nome AS sottocategoria,
-            ROUND(SUM(COALESCE(f.totale_fattura, 0)), 2) AS totale,
-            COUNT(*) AS n_fatture
-        FROM fe_fatture f
-        {_CAT_JOIN}
-        LEFT JOIN fe_categorie c ON fc.categoria_id = c.id
-        LEFT JOIN fe_sottocategorie s ON fc.sottocategoria_id = s.id
+            ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale,
+            COUNT(DISTINCT f.id) AS n_fatture
+        FROM fe_righe r
+        JOIN fe_fatture f ON r.fattura_id = f.id
+        {excl}
+        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
+        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
         WHERE {where}
-          AND fc.sottocategoria_id IS NOT NULL
+          AND r.descrizione IS NOT NULL AND r.descrizione != ''
+          AND r.sottocategoria_id IS NOT NULL
         GROUP BY c.nome, s.nome
         ORDER BY c.nome, totale DESC
     """, params)

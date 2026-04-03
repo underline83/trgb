@@ -195,9 +195,9 @@ export default function FattureDashboard() {
           <>
             {kpi && <KpiCards kpi={kpi} />}
 
-            {/* ROW 1: Mensile + Categorie */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-              <div className="lg:col-span-2">
+            {/* ROW 1: Mensile + Categorie — 50/50 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+              <div>
                 <ChartMensile data={mensili} selectedYear={selectedYear} onDrill={openDrill} />
               </div>
               <div>
@@ -467,7 +467,7 @@ function ChartCategorie({ data, onDrill }) {
         </p>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={190}>
+          <ResponsiveContainer width="100%" height={280}>
             <PieChart>
               {/* Anello interno — Categorie */}
               <Pie
@@ -476,8 +476,8 @@ function ChartCategorie({ data, onDrill }) {
                 nameKey="categoria"
                 cx="50%"
                 cy="50%"
-                innerRadius={30}
-                outerRadius={55}
+                innerRadius={45}
+                outerRadius={80}
                 paddingAngle={2}
                 onClick={handleSliceClick}
                 style={{ cursor: "pointer" }}
@@ -494,8 +494,8 @@ function ChartCategorie({ data, onDrill }) {
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  innerRadius={58}
-                  outerRadius={78}
+                  innerRadius={84}
+                  outerRadius={110}
                   paddingAngle={1}
                   style={{ cursor: "default" }}
                 >
@@ -523,7 +523,7 @@ function ChartCategorie({ data, onDrill }) {
               />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-0.5 mt-1 max-h-40 overflow-y-auto">
+          <div className="space-y-0.5 mt-2 max-h-64 overflow-y-auto">
             {data.map((d, i) => {
               const subs = d.sottocategorie || [];
               const hasSubs = subs.length > 0;
