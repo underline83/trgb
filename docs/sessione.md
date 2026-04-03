@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-01 (sessione 18 cont. — CG v1.4, Rate variabili, Prestiti BPM, Segna pagata, Sistema v5.1)
+> Ultima sessione: 2026-04-02 (sessione 18 cont. — Vendite v4.1, DELETE chiusura, Incassi, Export fix, Sistema v5.2)
 
 ---
 
@@ -49,27 +49,29 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-04-01, sessione 18 cont.)
+## Cosa abbiamo fatto nell'ultima sessione (2026-04-02, sessione 18 cont.)
 
-### Controllo Gestione v1.4: Rate Variabili, Prestiti, Segna Pagata
-1. **Segna pagata da Acquisti**: bottone su fatture non pagate (FattureElenco + FattureFornitoriElenco), endpoint PAGATA_MANUALE
-2. **Pulizia duplicati banca** (migrazione 046): 398 duplicati da reimport CSV, da 921 a 523 movimenti, preservati link CG
-3. **Prestiti BPM 1 e 2** (migrazione 047): 72 + 120 rate con importi esatti, pre-2026 PAGATA
-4. **Piano rate variabili** (migrazione 048): tabella `cg_piano_rate`, CRUD endpoints, generazione uscite con importo variabile
-5. **Spese legali** (migrazione 049): campi `importo_originale` e `spese_legali` su cg_spese_fisse
-6. **Wizard rateizzazione migliorato**: spese legali, tabella rate editabili, validazione totale, ricalcola uguali
-7. **Fix persistenza utenti**: users.json rimosso da git tracking, push.sh backup/restore in /tmp
+### Vendite v4.1: Colonne Fatture/Totale, DELETE chiusura, Incassi
+1. **Colonne Fatture e Totale** in ChiusureTurnoLista: sempre visibili, riepilogo giorno + mobile + totali periodo
+2. **RT cena corretto**: calcolato come cena.preconto - pranzo.preconto (non piu' totale giornaliero)
+3. **Riepilogo periodo** convertito da griglia a `<table>` HTML
+4. **DELETE chiusura turno**: endpoint + pulsante con doppia conferma (solo admin)
+5. **Blocco date future**: backend 400 + frontend max/validazione
+6. **Dashboard rinominata**: "Corrispettivi" → "Incassi" (label, grafici, tooltip)
+7. **Export corrispettivi**: nuova `_merge_shift_and_daily()`, shift_closures primario + daily_closures fallback
+8. **Verifica dati AdE marzo 2026**: totale 65.275,80 quadra perfettamente
 
-### Sistema v5.1
-8. **push.sh corretto**: backup files runtime PRIMA del push (era dopo → files cancellati dal checkout)
-9. **users.json + modules.json in .gitignore**: non piu' sovrascritti al deploy
+### Sistema v5.2
+9. **closures_config.json** aggiunto a push.sh files runtime (backup/restore al deploy)
 
-### Sessione 18 precedente (2026-03-31)
+### Sessione 18 precedente (2026-04-01)
 
-#### Flussi di Cassa v1.3-1.4
-10. Riconciliazione spese + registrazione diretta + selezione bulk + categorie dinamiche
-11. Dedup aggressivo (migrazione 042) + pulizia link orfani (migrazione 043)
-12. Tabella cg_entrate (migrazione 044) + auto-detect categoria + data pagamento contanti
+#### Controllo Gestione v1.4
+10. Segna pagata da Acquisti, pulizia duplicati banca, prestiti BPM, piano rate variabili, wizard rateizzazione
+11. Fix persistenza utenti (users.json fuori da git), push.sh corretto
+
+#### Sessione 18 precedente (2026-03-31)
+12. Flussi di Cassa v1.3-1.4, riconciliazione, dedup, categorie dinamiche
 
 #### Sessione 18 precedente (2026-03-30)
 13. Buste Paga v2.1 + Anagrafica v2.0 + CG v1.2 + Contanti + Flussi v1.1 + Sistema v5.0
@@ -258,13 +260,13 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Cantina & Vini | v3.7 | stabile |
 | Gestione Acquisti | v2.0 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
-| Gestione Vendite | v4.0 | stabile |
+| Gestione Vendite | v4.1 | stabile |
 | Statistiche | v1.0 | beta |
 | Flussi di Cassa | v1.4 | beta |
 | Controllo Gestione | v1.4 | beta |
 | Dipendenti | v2.1 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v5.1 | stabile |
+| Sistema | v5.2 | stabile |
 
 ---
 

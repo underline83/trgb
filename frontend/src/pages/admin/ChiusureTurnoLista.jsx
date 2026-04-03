@@ -135,12 +135,15 @@ export default function ChiusureTurnoLista() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.detail || "Errore eliminazione");
+        alert(err.detail || `Errore ${res.status}`);
         return;
       }
       setClosures(prev => prev.filter(c => c.id !== id));
       setDeletingId(null);
-    } catch { alert("Errore di rete"); }
+    } catch (e) {
+      console.error("Delete error:", e);
+      alert("Errore di rete: " + e.message);
+    }
   };
 
   // ── Render sezione turno completa ──

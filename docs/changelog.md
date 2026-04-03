@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-04-02 — Vendite v4.1: Colonne Fatture/Totale, DELETE chiusura, Incassi, Export corretto
+
+#### New — Chiusure Turno Lista: colonne Fatture e Totale
+- Colonna Fatture sempre visibile (anche se 0) per allineamento tabella
+- Colonna Totale (RT + Fatture) nella riga riepilogo giorno, KPI mobile, e totali periodo
+- In modalità TEST: Pre-conti, Incassi, Differenza visibili
+- RT cena calcolato correttamente: cena.preconto - pranzo.preconto (era: usava il totale giornaliero)
+- Riepilogo periodo convertito da griglia a `<table>` HTML per allineamento consistente
+
+#### New — Elimina chiusura (admin)
+- Endpoint DELETE `/admin/finance/shift-closures/{id}` con cascata su checklist, preconti, spese
+- Pulsante Elimina con doppia conferma nella lista chiusure (solo admin)
+
+#### New — Blocco date future
+- Backend: rifiuta POST chiusura con data futura (HTTP 400)
+- Frontend: attributo `max={today}` su input data + validazione in handleSave
+
+#### Changed — Dashboard: Corrispettivi → Incassi
+- Rinominato "Totale Corrispettivi" → "Totale Incassi" in tutta la CorrispettiviDashboard
+- Label grafici, tooltip, header tabelle aggiornati
+
+#### Fixed — Export corrispettivi legge shift_closures
+- Nuova funzione `_merge_shift_and_daily()` in corrispettivi_export.py
+- Merge: shift_closures (primario) + daily_closures (fallback per date mancanti)
+- Prima leggeva solo daily_closures (dati stantii da import Excel)
+
+#### Fixed — closures_config.json protetto al deploy
+- Aggiunto a push.sh nella lista files runtime (backup pre-push + restore post-push)
+
+---
+
 ## 2026-04-01 — Controllo Gestione v1.4: Rate Variabili, Prestiti, Segna Pagata
 
 #### New — Segna pagata da Acquisti

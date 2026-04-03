@@ -572,23 +572,20 @@ def list_prodotti_fornitore(fornitore_piva: str):
 
     # Cerca per P.IVA o per nome (gestisce P.IVA NULL/vuota)
     forn_filter, forn_val = _forn_filter(fornitore_piva)
+    # Step 1: aggregazione base
     cur.execute(f"""
         SELECT
-            r.descrizione,
+            LOWER(TRIM(r.descrizione)) AS desc_key,
+            MAX(r.descrizione) AS descrizione,
             COUNT(*) AS n_righe,
             ROUND(SUM(COALESCE(r.prezzo_totale, 0)), 2) AS totale_spesa,
             ROUND(AVG(COALESCE(r.prezzo_unitario, 0)), 2) AS prezzo_medio,
             SUM(COALESCE(r.quantita, 0)) AS quantita_totale,
-            r.unita_misura,
-            r.categoria_id,
-            r.sottocategoria_id,
-            c.nome AS categoria_nome,
-            s.nome AS sottocategoria_nome,
-            MAX(COALESCE(r.categoria_auto, 0)) AS categoria_auto
+            MAX(r.unita_misura) AS unita_misura,
+            MAX(COALESCE(r.categoria_auto, 0)) AS categoria_auto,
+            MAX(r.id) AS last_row_id
         FROM fe_righe r
         JOIN fe_fatture f ON r.fattura_id = f.id
-        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
-        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
         WHERE {forn_filter}
           AND r.descrizione IS NOT NULL
           AND r.descrizione != ''
@@ -596,8 +593,44 @@ def list_prodotti_fornitore(fornitore_piva: str):
         HAVING totale_spesa != 0
         ORDER BY totale_spesa DESC
     """, (forn_val,))
+    agg_rows = [dict(r) for r in cur.fetchall()]
 
-    rows = [dict(r) for r in cur.fetchall()]
+    if not agg_rows:
+        conn.close()
+        return []
+
+    # Step 2: prendo categoria_id/sottocategoria_id dalla riga più recente (MAX id)
+    # per evitare valori arbitrari dal GROUP BY non aggregato di SQLite
+    last_ids = [row["last_row_id"] for row in agg_rows]
+    placeholders = ",".join("?" * len(last_ids))
+    cur.execute(f"""
+        SELECT r.id, r.categoria_id, r.sottocategoria_id,
+               c.nome AS categoria_nome, s.nome AS sottocategoria_nome
+        FROM fe_righe r
+        LEFT JOIN fe_categorie c ON r.categoria_id = c.id
+        LEFT JOIN fe_sottocategorie s ON r.sottocategoria_id = s.id
+        WHERE r.id IN ({placeholders})
+    """, last_ids)
+    cat_map = {row["id"]: dict(row) for row in cur.fetchall()}
+
+    # Step 3: merge
+    rows = []
+    for agg in agg_rows:
+        cat_info = cat_map.get(agg["last_row_id"], {})
+        rows.append({
+            "descrizione": agg["descrizione"],
+            "n_righe": agg["n_righe"],
+            "totale_spesa": agg["totale_spesa"],
+            "prezzo_medio": agg["prezzo_medio"],
+            "quantita_totale": agg["quantita_totale"],
+            "unita_misura": agg["unita_misura"],
+            "categoria_id": cat_info.get("categoria_id"),
+            "sottocategoria_id": cat_info.get("sottocategoria_id"),
+            "categoria_nome": cat_info.get("categoria_nome"),
+            "sottocategoria_nome": cat_info.get("sottocategoria_nome"),
+            "categoria_auto": agg["categoria_auto"],
+        })
+
     conn.close()
     return rows
 
@@ -615,6 +648,7 @@ def assegna_prodotto(body: ProdottoAssign):
     desc_norm = _normalize_desc(body.descrizione)
 
     # 1. Aggiorna tutte le righe esistenti per questo fornitore + descrizione (manuale → auto=0)
+    #    REPLACE + TRIM + LOWER per normalizzare spazi multipli come _normalize_desc
     forn_filter, forn_val = _forn_filter(body.fornitore_piva or body.fornitore_nome)
     cur.execute(f"""
         UPDATE fe_righe
@@ -623,7 +657,8 @@ def assegna_prodotto(body: ProdottoAssign):
             SELECT r.id FROM fe_righe r
             JOIN fe_fatture f ON r.fattura_id = f.id
             WHERE {forn_filter}
-              AND LOWER(TRIM(r.descrizione)) = ?
+              AND REPLACE(REPLACE(REPLACE(LOWER(TRIM(r.descrizione)),
+                  '  ', ' '), '  ', ' '), '  ', ' ') = ?
         )
     """, (body.categoria_id, body.sottocategoria_id,
           forn_val, desc_norm))
