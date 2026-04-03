@@ -555,26 +555,24 @@ function ChartCategorie({ data, onDrill }) {
               const isExpanded = expanded[d.categoria];
               return (
                 <div key={d.categoria}>
-                  <div
-                    className="flex items-center gap-2 text-[11px] cursor-pointer hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5"
-                    onClick={() => handleSliceClick(d)}
-                  >
+                  <div className="flex items-center gap-2 text-[11px] hover:bg-neutral-50 rounded px-1 -mx-1 py-0.5">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
                     />
-                    {hasSubs && (
-                      <span
-                        className="text-neutral-400 hover:text-neutral-600 text-xs leading-none select-none"
-                        onClick={(e) => { e.stopPropagation(); toggleExpand(d.categoria); }}
-                      >
-                        {isExpanded ? "▾" : "▸"}
-                      </span>
-                    )}
-                    <span className="truncate flex-1 text-neutral-700">
+                    {/* Nome categoria: se ha sottocategorie → espande, altrimenti → drill */}
+                    <span
+                      className="truncate flex-1 text-neutral-700 cursor-pointer"
+                      onClick={() => hasSubs ? toggleExpand(d.categoria) : handleSliceClick(d)}
+                    >
+                      {hasSubs && <span className="text-neutral-400 mr-0.5">{isExpanded ? "▾" : "▸"}</span>}
                       {d.categoria}
                     </span>
-                    <span className="font-medium text-neutral-900 tabular-nums whitespace-nowrap">
+                    {/* Importo: sempre drill-down */}
+                    <span
+                      className="font-medium text-neutral-900 tabular-nums whitespace-nowrap cursor-pointer hover:text-teal-700 hover:underline"
+                      onClick={() => handleSliceClick(d)}
+                    >
                       € {fmtK(d.totale)}
                     </span>
                     <span className="text-neutral-400 tabular-nums w-8 text-right">
