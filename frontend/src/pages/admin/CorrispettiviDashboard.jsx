@@ -78,6 +78,7 @@ export default function CorrispettiviDashboard() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [turniChiusi, setTurniChiusi] = useState([]);
 
   // ── Data fetching ──
   useEffect(() => {
@@ -142,6 +143,11 @@ export default function CorrispettiviDashboard() {
       }
     }
     loadData();
+    // Carica turni chiusi (indipendente dal mode)
+    apiFetch(`${API_BASE}/settings/closures-config/`)
+      .then(r => r.ok ? r.json() : { turni_chiusi: [] })
+      .then(data => { if (!cancelled) setTurniChiusi(data.turni_chiusi || []); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [mode, year, month, quarter]);
 
@@ -722,6 +728,7 @@ export default function CorrispettiviDashboard() {
                       const d = new Date(g.date);
                       const dayNum = d.getDate();
                       const isClosed = g.is_closed === true;
+                      const hasTurnoChiuso = !isClosed && turniChiusi.some(t => t.data === g.date);
                       const corr = g.corrispettivi ?? 0;
                       const weekdayIdx = d.getDay();
                       const avgForWeekday = weekdayAverages[weekdayIdx];
@@ -747,6 +754,7 @@ export default function CorrispettiviDashboard() {
                             )}
                           </div>
                           {isClosed && <div className="text-[9px] text-neutral-700">chiuso</div>}
+                          {hasTurnoChiuso && <div className="text-[9px] text-amber-600">parziale</div>}
                         </div>
                       );
                     })}
@@ -853,6 +861,9 @@ export default function CorrispettiviDashboard() {
                     <tbody>
                       {dailyRows.map(g => {
                         const closed = g.is_closed;
+                        const tcPranzo = turniChiusi.find(t => t.data === g.date && t.turno === "pranzo");
+                        const tcCena = turniChiusi.find(t => t.data === g.date && t.turno === "cena");
+                        const hasTurnoParziale = !closed && (tcPranzo || tcCena);
                         return (
                           <tr key={g.date} className={closed ? "bg-neutral-50 text-neutral-500" : "hover:bg-indigo-50"}>
                             <td className="border border-neutral-200 px-2 py-1 whitespace-nowrap">{formatShortDate(g.date)}</td>
@@ -861,6 +872,10 @@ export default function CorrispettiviDashboard() {
                             <td className="border border-neutral-200 px-2 py-1 text-center">
                               {closed ? (
                                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-neutral-200 text-neutral-700">chiuso</span>
+                              ) : hasTurnoParziale ? (
+                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                  solo {tcCena ? "pranzo" : "cena"}{(tcPranzo?.motivo || tcCena?.motivo) ? ` — ${tcPranzo?.motivo || tcCena?.motivo}` : ""}
+                                </span>
                               ) : (
                                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">aperto</span>
                               )}
