@@ -1461,9 +1461,9 @@ async def delete_shift_closure(
             )
 
         # Elimina dati collegati
-        cur.execute("DELETE FROM checklist_responses WHERE shift_closure_id = ?", (closure_id,))
-        cur.execute("DELETE FROM shift_closure_preconti WHERE shift_closure_id = ?", (closure_id,))
-        cur.execute("DELETE FROM shift_closure_spese WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_checklist_responses WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_preconti WHERE shift_closure_id = ?", (closure_id,))
+        cur.execute("DELETE FROM shift_spese WHERE shift_closure_id = ?", (closure_id,))
         cur.execute("DELETE FROM shift_closures WHERE id = ?", (closure_id,))
         conn.commit()
 
