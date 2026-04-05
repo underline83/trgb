@@ -24,9 +24,16 @@ CONFIG_FILE = Path(__file__).resolve().parent.parent / "data" / "closures_config
 GIORNI_SETTIMANA = {0: "Lunedì", 1: "Martedì", 2: "Mercoledì", 3: "Giovedì", 4: "Venerdì", 5: "Sabato", 6: "Domenica"}
 
 
+class TurnoChiuso(BaseModel):
+    data: str              # "2026-04-05"
+    turno: str             # "pranzo" | "cena"
+    motivo: str = ""       # "Pasqua", opzionale
+
+
 class ClosuresConfig(BaseModel):
     giorno_chiusura_settimanale: Optional[int] = None  # 0=Lun..6=Dom, None=nessun giorno fisso
     giorni_chiusi: List[str] = []  # ["2026-01-01", "2026-08-15", ...]
+    turni_chiusi: List[TurnoChiuso] = []  # chiusure parziali (solo un turno)
 
 
 def _load() -> dict:
@@ -68,12 +75,29 @@ def update_config(payload: ClosuresConfig, current_user: dict = Depends(get_curr
         if not date_re.match(d):
             raise HTTPException(status_code=400, detail=f"Data non valida: {d}")
 
+    # Valida turni chiusi
+    for tc in payload.turni_chiusi:
+        if not date_re.match(tc.data):
+            raise HTTPException(status_code=400, detail=f"Data turno chiuso non valida: {tc.data}")
+        if tc.turno not in ("pranzo", "cena"):
+            raise HTTPException(status_code=400, detail=f"Turno non valido: {tc.turno}")
+
     # Deduplica e ordina
     giorni = sorted(set(payload.giorni_chiusi))
+
+    # Deduplica turni chiusi per data+turno
+    seen = set()
+    turni_unici = []
+    for tc in sorted(payload.turni_chiusi, key=lambda t: (t.data, t.turno)):
+        key = (tc.data, tc.turno)
+        if key not in seen:
+            seen.add(key)
+            turni_unici.append(tc.model_dump())
 
     data = {
         "giorno_chiusura_settimanale": payload.giorno_chiusura_settimanale,
         "giorni_chiusi": giorni,
+        "turni_chiusi": turni_unici,
     }
     _save(data)
     return ClosuresConfig(**data)
