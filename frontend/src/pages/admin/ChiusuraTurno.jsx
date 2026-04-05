@@ -77,6 +77,20 @@ export default function ChiusuraTurno() {
   // Spese (scontrini, fatture, spese personale)
   const [spese, setSpese] = useState([]);
 
+  // Turni chiusi (da config)
+  const [turniChiusi, setTurniChiusi] = useState([]);
+  useEffect(() => {
+    fetch(`${API}/settings/closures-config/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { turni_chiusi: [] })
+      .then(data => setTurniChiusi(data.turni_chiusi || []))
+      .catch(() => {});
+  }, [token]);
+
+  const turnoChiusoInfo = useMemo(() => {
+    return turniChiusi.find(t => t.data === date && t.turno === turno);
+  }, [turniChiusi, date, turno]);
+  const isTurnoChiuso = !!turnoChiusoInfo;
+
   // Checklist
   const [checklistConfig, setChecklistConfig] = useState([]);
   const [checklistState, setChecklistState] = useState({});
@@ -476,6 +490,11 @@ export default function ChiusuraTurno() {
               Chiusura esistente — le modifiche sovrascriveranno i dati salvati.
             </div>
           )}
+          {isTurnoChiuso && (
+            <div className="mt-3 px-4 py-3 bg-neutral-100 border border-neutral-300 rounded-xl text-sm text-neutral-600">
+              <span className="font-semibold text-neutral-700">Turno chiuso</span>{turnoChiusoInfo.motivo ? ` — ${turnoChiusoInfo.motivo}` : ""}. I campi sono disabilitati.
+            </div>
+          )}
         </div>
 
         {/* BANNER CENA CUMULATIVA */}
@@ -507,7 +526,7 @@ export default function ChiusuraTurno() {
         {loading ? (
           <div className="bg-white rounded-2xl p-8 text-center text-neutral-400 animate-pulse">Caricamento...</div>
         ) : (
-          <>
+          <fieldset disabled={isTurnoChiuso} className={isTurnoChiuso ? "opacity-50 pointer-events-none" : ""}>
             {/* FONDO CASSA */}
             <div className="bg-white rounded-2xl shadow p-5 border border-neutral-200">
               <h2 className="text-sm font-semibold text-neutral-700 uppercase tracking-wide mb-4">💰 Fondo cassa</h2>
@@ -903,14 +922,14 @@ export default function ChiusuraTurno() {
             </div>
 
             {/* SALVA */}
-            <button type="button" onClick={handleSave} disabled={saving}
+            <button type="button" onClick={handleSave} disabled={saving || isTurnoChiuso}
               className={`w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-lg transition ${
-                saving ? "bg-neutral-400 cursor-not-allowed" :
+                saving || isTurnoChiuso ? "bg-neutral-400 cursor-not-allowed" :
                 turno === "pranzo"
                   ? "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
                   : "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
               }`}>
-              {saving ? "Salvataggio..." : `💾 Salva chiusura ${turno}`}
+              {isTurnoChiuso ? "Turno chiuso" : saving ? "Salvataggio..." : `💾 Salva chiusura ${turno}`}
             </button>
 
             {message && (
@@ -922,7 +941,7 @@ export default function ChiusuraTurno() {
                 {message.text}
               </div>
             )}
-          </>
+          </fieldset>
         )}
       </div>
     </div>
