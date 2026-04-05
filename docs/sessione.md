@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-02 (sessione 18 cont. — Vendite v4.1, DELETE chiusura, Incassi, Export fix, Sistema v5.2)
+> Ultima sessione: 2026-04-05 (sessione 19 — Vendite v4.2, turni chiusi parziali, refactoring logging/DB, Sistema v5.3)
 
 ---
 
@@ -49,32 +49,26 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-04-02, sessione 18 cont.)
+## Cosa abbiamo fatto nell'ultima sessione (2026-04-05, sessione 19)
 
-### Vendite v4.1: Colonne Fatture/Totale, DELETE chiusura, Incassi
-1. **Colonne Fatture e Totale** in ChiusureTurnoLista: sempre visibili, riepilogo giorno + mobile + totali periodo
-2. **RT cena corretto**: calcolato come cena.preconto - pranzo.preconto (non piu' totale giornaliero)
-3. **Riepilogo periodo** convertito da griglia a `<table>` HTML
-4. **DELETE chiusura turno**: endpoint + pulsante con doppia conferma (solo admin)
-5. **Blocco date future**: backend 400 + frontend max/validazione
-6. **Dashboard rinominata**: "Corrispettivi" → "Incassi" (label, grafici, tooltip)
-7. **Export corrispettivi**: nuova `_merge_shift_and_daily()`, shift_closures primario + daily_closures fallback
-8. **Verifica dati AdE marzo 2026**: totale 65.275,80 quadra perfettamente
+### Vendite v4.2: Turni chiusi parziali + fix DELETE chiusura
+1. **Turni chiusi parziali** — nuovo campo `turni_chiusi` in closures_config.json per chiusure di singoli turni (es. Pasqua solo pranzo)
+2. **Sezione UI CalendarioChiusure** — form (data + turno + motivo) + tabella + indicatore ambra nel calendario
+3. **Badge lista chiusure** — grigio "cena chiusa — motivo" in ChiusureTurnoLista.jsx
+4. **Badge dashboard** — ambra "solo pranzo/cena" nella tabella dettaglio giornaliero + "parziale" nel calendario heatmap
+5. **Form chiusura bloccato** — fieldset disabled + banner "Turno chiuso" se il turno e' segnato come chiuso
+6. **Fix DELETE chiusura** — nomi tabelle errati corretti (shift_closure_preconti → shift_preconti, ecc.)
 
-### Sistema v5.2
-9. **closures_config.json** aggiunto a push.sh files runtime (backup/restore al deploy)
+### Sistema v5.3: Refactoring tecnico (eseguito con Code)
+7. **Logging strutturato** — logging.basicConfig + print→logger in 20 file + logger.exception() in 25+ except silenti
+8. **Centralizzazione DB** — get_db(name) in app/core/database.py, migrati 11 router da sqlite3.connect() inline
+9. **Error handler globale** — @app.exception_handler(Exception) in main.py
 
-### Sessione 18 precedente (2026-04-01)
-
-#### Controllo Gestione v1.4
-10. Segna pagata da Acquisti, pulizia duplicati banca, prestiti BPM, piano rate variabili, wizard rateizzazione
-11. Fix persistenza utenti (users.json fuori da git), push.sh corretto
-
-#### Sessione 18 precedente (2026-03-31)
-12. Flussi di Cassa v1.3-1.4, riconciliazione, dedup, categorie dinamiche
-
-#### Sessione 18 precedente (2026-03-30)
-13. Buste Paga v2.1 + Anagrafica v2.0 + CG v1.2 + Contanti + Flussi v1.1 + Sistema v5.0
+### Sessione 18 (2026-04-01/02)
+10. Vendite v4.1: colonne Fatture/Totale, DELETE chiusura, Incassi, Export fix
+11. Controllo Gestione v1.4: segna pagata, prestiti, rate variabili
+12. Flussi di Cassa v1.3-1.4, riconciliazione, dedup
+13. Buste Paga v2.1, Anagrafica v2.0, Sistema v5.0-5.2
 
 ---
 
@@ -260,13 +254,13 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Cantina & Vini | v3.7 | stabile |
 | Gestione Acquisti | v2.0 | stabile |
 | Ricette & Food Cost | v3.0 | beta |
-| Gestione Vendite | v4.1 | stabile |
+| Gestione Vendite | v4.2 | stabile |
 | Statistiche | v1.0 | beta |
 | Flussi di Cassa | v1.4 | beta |
 | Controllo Gestione | v1.4 | beta |
 | Dipendenti | v2.1 | stabile |
 | Login & Ruoli | v2.0 | stabile |
-| Sistema | v5.2 | stabile |
+| Sistema | v5.3 | stabile |
 
 ---
 
@@ -288,11 +282,11 @@ Vai su `docs/roadmap.md` per la lista completa.
 
 ## Prossima sessione — TODO
 
-1. **Testare wizard rateizzazione** — creare una rateizzazione di prova con spese legali e rate variabili
-2. **Configurare snapshot Aruba settimanale** dal pannello
-3. **DNS dinamico casa** (DDNS) — rimandato
-4. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
-5. **Test dashboard 3 modalita'** — verificare trimestrale e annuale con dati reali
+1. **Completare refactoring DB** — Code ha saltato ipratico_products_router (2 conn), corrispettivi_export (1 conn), dipendenti (1 conn)
+2. **Testare wizard rateizzazione** — creare una rateizzazione di prova con spese legali e rate variabili
+3. **Configurare snapshot Aruba settimanale** dal pannello
+4. **DNS dinamico casa** (DDNS) — rimandato
+5. **Checklist fine turno** — seed dati default pranzo/cena, UI configurazione
 6. **Flag DISCONTINUATO** — UI edit + filtro in dashboard vini
 
 ---

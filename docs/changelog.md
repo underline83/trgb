@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-04-05 — Vendite v4.2 + Sistema v5.3: Turni chiusi parziali, refactoring logging/DB
+
+#### New — Turni chiusi parziali
+- Nuovo campo `turni_chiusi` in closures_config.json per chiusure di singoli turni (es. Pasqua solo pranzo)
+- Modello Pydantic `TurnoChiuso` (data, turno, motivo) con validazione nel PUT
+- Sezione "Turni singoli chiusi" in CalendarioChiusure.jsx (form + tabella + indicatore calendario)
+- Badge grigio "cena chiusa — motivo" nella lista chiusure turno (ChiusureTurnoLista.jsx)
+- Badge ambra "solo pranzo/cena" nella dashboard corrispettivi (tabella dettaglio + calendario heatmap)
+- Form ChiusuraTurno.jsx: campi disabilitati + banner avviso se turno chiuso
+
+#### Fixed — DELETE chiusura turno
+- Nomi tabelle errati nel DELETE: checklist_responses → shift_checklist_responses, shift_closure_preconti → shift_preconti, shift_closure_spese → shift_spese
+
+#### Refactor — Logging strutturato (Sistema v5.3)
+- logging.basicConfig in main.py, print() → logger.info/warning/error in 20 file
+- logger.exception() in 25+ except silenti (admin_finance, banca, ipratico, carta_vini, ecc.)
+- Rimossi console.log debug dal frontend
+
+#### Refactor — Centralizzazione connessioni DB
+- Nuova funzione get_db(name) in app/core/database.py con context manager (WAL + FK + busy_timeout)
+- Migrati 11 router/service da sqlite3.connect() inline a get_db()
+
+#### Refactor — Error handler globale
+- @app.exception_handler(Exception) in main.py: log + risposta JSON uniforme 500
+
+---
+
 ## 2026-04-02 — Vendite v4.1: Colonne Fatture/Totale, DELETE chiusura, Incassi, Export corretto
 
 #### New — Chiusure Turno Lista: colonne Fatture e Totale
