@@ -42,6 +42,7 @@ export default function ChiusureTurnoLista() {
   const [loading, setLoading] = useState(true);
   const [expandedDay, setExpandedDay] = useState(null);
   const [deletingId, setDeletingId] = useState(null); // id in fase di conferma
+  const [turniChiusi, setTurniChiusi] = useState([]); // turni parzialmente chiusi
   const isSuperAdmin = isSuperAdminRole(role);
 
   // Filtro mese: default = mese corrente
@@ -61,9 +62,18 @@ export default function ChiusureTurnoLista() {
     setLoading(true);
     const url = `${API}/admin/finance/shift-closures?from_date=${fromDate}&to_date=${toDate}`;
 
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.ok ? res.json() : [])
-      .then(data => { setClosures(data); setExpandedDay(null); })
+    // Carica chiusure + turni chiusi in parallelo
+    Promise.all([
+      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : []),
+      fetch(`${API}/settings/closures-config/`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : { turni_chiusi: [] }),
+    ])
+      .then(([closuresData, configData]) => {
+        setClosures(closuresData);
+        setTurniChiusi(configData.turni_chiusi || []);
+        setExpandedDay(null);
+      })
       .catch(() => setClosures([]))
       .finally(() => setLoading(false));
   }, [fromDate, toDate, token, role]);
@@ -421,6 +431,12 @@ export default function ChiusureTurnoLista() {
               const daySaldo = cena?.saldo ?? pranzo?.saldo ?? 0;
               const dayQuadra = Math.abs(daySaldo) < 0.5;
 
+              // Turni chiusi per questa data
+              const pranzoChiuso = turniChiusi.some(t => t.data === day.date && t.turno === "pranzo");
+              const cenaChiusa = turniChiusi.some(t => t.data === day.date && t.turno === "cena");
+              const motivoPranzo = turniChiusi.find(t => t.data === day.date && t.turno === "pranzo")?.motivo;
+              const motivoCena = turniChiusi.find(t => t.data === day.date && t.turno === "cena")?.motivo;
+
               // Turni presenti
               const hasBoth = pranzo && cena;
               const onlyPranzo = pranzo && !cena;
@@ -444,8 +460,10 @@ export default function ChiusureTurnoLista() {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-neutral-800 capitalize">{fmtDate(day.date)}</span>
                           {pranzo && <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">pranzo</span>}
+                          {pranzoChiuso && !pranzo && <span className="text-xs px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-500 font-medium">pranzo chiuso{motivoPranzo ? ` — ${motivoPranzo}` : ""}</span>}
                           {cena && <span className="text-xs px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">cena</span>}
-                          {(onlyPranzo || onlyCena) && (
+                          {cenaChiusa && !cena && <span className="text-xs px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-500 font-medium">cena chiusa{motivoCena ? ` — ${motivoCena}` : ""}</span>}
+                          {(onlyPranzo || onlyCena) && !pranzoChiuso && !cenaChiusa && (
                             <span className="text-[10px] text-neutral-400">(solo {onlyPranzo ? "pranzo" : "cena"})</span>
                           )}
                         </div>
