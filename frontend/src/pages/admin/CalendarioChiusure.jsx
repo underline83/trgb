@@ -1,6 +1,6 @@
 // src/pages/admin/CalendarioChiusure.jsx
-// @version: v1.0
-// Configurazione giorni di chiusura: giorno settimanale + ferie/festivi
+// @version: v2.0-turni-chiusi
+// Configurazione giorni di chiusura: giorno settimanale + ferie/festivi + turni chiusi
 // Incluso dentro la pagina Impostazioni Vendite
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -16,10 +16,15 @@ function fmtDateIT(iso) {
 }
 
 export default function CalendarioChiusure() {
-  const [config, setConfig] = useState({ giorno_chiusura_settimanale: null, giorni_chiusi: [] });
+  const [config, setConfig] = useState({ giorno_chiusura_settimanale: null, giorni_chiusi: [], turni_chiusi: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+
+  // Form nuovo turno chiuso
+  const [nuovoData, setNuovoData] = useState("");
+  const [nuovoTurno, setNuovoTurno] = useState("cena");
+  const [nuovoMotivo, setNuovoMotivo] = useState("");
 
   // Calendario navigazione
   const now = new Date();
@@ -30,7 +35,7 @@ export default function CalendarioChiusure() {
   useEffect(() => {
     apiFetch(`${API_BASE}/settings/closures-config/`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setConfig(data); })
+      .then(data => { if (data) setConfig({ ...data, turni_chiusi: data.turni_chiusi || [] }); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -47,7 +52,7 @@ export default function CalendarioChiusure() {
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig(data);
+        setConfig({ ...data, turni_chiusi: data.turni_chiusi || [] });
         setMsg({ type: "ok", text: "Salvato" });
         setTimeout(() => setMsg(null), 2000);
       } else {
@@ -86,6 +91,31 @@ export default function CalendarioChiusure() {
     save(newConfig);
   };
 
+  // ── Turni chiusi ──
+  const addTurnoChiuso = () => {
+    if (!nuovoData) return;
+    const exists = (config.turni_chiusi || []).some(t => t.data === nuovoData && t.turno === nuovoTurno);
+    if (exists) {
+      setMsg({ type: "err", text: "Questo turno chiuso esiste già" });
+      setTimeout(() => setMsg(null), 2000);
+      return;
+    }
+    const nuovi = [...(config.turni_chiusi || []), { data: nuovoData, turno: nuovoTurno, motivo: nuovoMotivo }];
+    nuovi.sort((a, b) => a.data.localeCompare(b.data) || a.turno.localeCompare(b.turno));
+    const newConfig = { ...config, turni_chiusi: nuovi };
+    setConfig(newConfig);
+    save(newConfig);
+    setNuovoData("");
+    setNuovoMotivo("");
+  };
+
+  const removeTurnoChiuso = (data, turno) => {
+    const nuovi = (config.turni_chiusi || []).filter(t => !(t.data === data && t.turno === turno));
+    const newConfig = { ...config, turni_chiusi: nuovi };
+    setConfig(newConfig);
+    save(newConfig);
+  };
+
   // Calendario griglia
   const calendarDays = useMemo(() => {
     const firstDay = new Date(calYear, calMonth, 1);
@@ -103,6 +133,16 @@ export default function CalendarioChiusure() {
   }, [calYear, calMonth]);
 
   const giornoChiusuraSet = useMemo(() => new Set(config.giorni_chiusi), [config.giorni_chiusi]);
+
+  // Set turni chiusi per lookup veloce nel calendario
+  const turniChiusiMap = useMemo(() => {
+    const m = {};
+    for (const tc of (config.turni_chiusi || [])) {
+      if (!m[tc.data]) m[tc.data] = new Set();
+      m[tc.data].add(tc.turno);
+    }
+    return m;
+  }, [config.turni_chiusi]);
 
   const prevMonth = () => {
     if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
@@ -180,28 +220,35 @@ export default function CalendarioChiusure() {
 
             const isChiuso = giornoChiusuraSet.has(cell.iso);
             const isGiornoSettimanale = config.giorno_chiusura_settimanale === cell.weekdayIdx;
+            const hasTurnoChiuso = !!turniChiusiMap[cell.iso];
             const isPast = new Date(cell.iso + "T00:00:00") < new Date(new Date().toISOString().slice(0, 10) + "T00:00:00");
 
             return (
               <button
                 key={idx}
                 onClick={() => toggleGiornoChiuso(cell.iso)}
-                className={`rounded-lg border text-xs h-9 font-medium transition ${
+                className={`relative rounded-lg border text-xs h-9 font-medium transition ${
                   isChiuso
                     ? "bg-red-500 border-red-600 text-white"
                     : isGiornoSettimanale
                       ? "bg-red-50 border-red-200 text-red-400"
-                      : isPast
-                        ? "bg-neutral-50 border-neutral-100 text-neutral-400"
-                        : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
+                      : hasTurnoChiuso
+                        ? "bg-amber-50 border-amber-300 text-amber-700"
+                        : isPast
+                          ? "bg-neutral-50 border-neutral-100 text-neutral-400"
+                          : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
                 }`}
                 title={
                   isChiuso ? `${cell.iso} — CHIUSO (clicca per rimuovere)`
                   : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale`
+                  : hasTurnoChiuso ? `${cell.iso} — Turno parziale chiuso`
                   : `${cell.iso} — Clicca per chiudere`
                 }
               >
                 {cell.day}
+                {hasTurnoChiuso && !isChiuso && (
+                  <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                )}
               </button>
             );
           })}
@@ -216,6 +263,10 @@ export default function CalendarioChiusure() {
           <div className="flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded bg-red-50 border border-red-200" />
             <span>Giorno chiusura settimanale</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded bg-amber-50 border border-amber-300" />
+            <span>Turno parziale chiuso</span>
           </div>
         </div>
       </div>
@@ -236,6 +287,100 @@ export default function CalendarioChiusure() {
           </div>
         </div>
       )}
+
+      {/* TURNI SINGOLI CHIUSI */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-neutral-700 uppercase tracking-wider mb-1">
+          Turni singoli chiusi
+        </h3>
+        <p className="text-xs text-neutral-500 mb-4">
+          Per chiusure parziali: es. Pasqua aperto solo a pranzo, vigilia solo a cena.
+        </p>
+
+        {/* Form aggiunta */}
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <div>
+            <label className="block text-[10px] font-semibold text-neutral-400 uppercase mb-1">Data</label>
+            <input
+              type="date"
+              value={nuovoData}
+              onChange={e => setNuovoData(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-200 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-neutral-400 uppercase mb-1">Turno</label>
+            <select
+              value={nuovoTurno}
+              onChange={e => setNuovoTurno(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-200 outline-none"
+            >
+              <option value="pranzo">Pranzo</option>
+              <option value="cena">Cena</option>
+            </select>
+          </div>
+          <div className="flex-1 min-w-[120px]">
+            <label className="block text-[10px] font-semibold text-neutral-400 uppercase mb-1">Motivo (opzionale)</label>
+            <input
+              type="text"
+              value={nuovoMotivo}
+              onChange={e => setNuovoMotivo(e.target.value)}
+              placeholder="es. Pasqua, evento privato..."
+              className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-200 outline-none"
+            />
+          </div>
+          <button
+            onClick={addTurnoChiuso}
+            disabled={!nuovoData || saving}
+            className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Aggiungi
+          </button>
+        </div>
+
+        {/* Tabella turni chiusi */}
+        {(config.turni_chiusi || []).length > 0 ? (
+          <div className="overflow-hidden rounded-xl border border-neutral-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-200">
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-neutral-400 uppercase">Data</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-neutral-400 uppercase">Turno</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-neutral-400 uppercase">Motivo</th>
+                  <th className="px-3 py-2 w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(config.turni_chiusi || []).map((tc, i) => (
+                  <tr key={`${tc.data}-${tc.turno}`} className={i % 2 === 0 ? "bg-white" : "bg-neutral-50"}>
+                    <td className="px-3 py-2 font-medium text-neutral-800">{fmtDateIT(tc.data)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        tc.turno === "pranzo"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-indigo-100 text-indigo-700"
+                      }`}>
+                        {tc.turno}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-neutral-600">{tc.motivo || "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        onClick={() => removeTurnoChiuso(tc.data, tc.turno)}
+                        className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-100 transition border border-red-200"
+                      >
+                        Elimina
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-xs text-neutral-400 italic">Nessun turno chiuso configurato.</p>
+        )}
+      </div>
 
       {/* Feedback */}
       {msg && (
