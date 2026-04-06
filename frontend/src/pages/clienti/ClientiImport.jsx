@@ -115,13 +115,54 @@ function ImportSection({ title, icon, instructions, endpoint, color, note }) {
   );
 }
 
+function ExportSection() {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/export/google-csv`);
+      if (!res.ok) throw new Error("Errore export");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trgb_clienti_google_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="mb-8">
+      <h2 className="text-lg font-bold text-neutral-900 mb-3">Export Contatti</h2>
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
+        <p className="text-sm text-neutral-600 mb-3">
+          Esporta i clienti in formato CSV compatibile con Google Contacts / Gmail.
+          Include nome, email, telefono, compleanni, allergie, tag come gruppi.
+        </p>
+        <button onClick={handleExport} disabled={exporting}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            exporting ? "bg-neutral-200 text-neutral-400" : "bg-emerald-600 text-white hover:bg-emerald-700"
+          }`}>
+          {exporting ? "Esportazione..." : "Scarica CSV per Google Contacts"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientiImport() {
   return (
     <>
       <ClientiNav current="import" />
       <div className="min-h-screen bg-neutral-50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <h1 className="text-2xl font-bold text-neutral-900 mb-2">📥 Import TheFork</h1>
+          <h1 className="text-2xl font-bold text-neutral-900 mb-2">Import / Export</h1>
           <p className="text-sm text-neutral-500 mb-6">
             Importa prima i clienti, poi le prenotazioni. L'ordine è importante per collegare le prenotazioni ai clienti.
           </p>
@@ -136,7 +177,7 @@ export default function ClientiImport() {
               "Scarica il file XLSX",
               "Caricalo qui sotto",
             ]}
-            note="L'import usa il TheFork ID come chiave: i clienti già presenti vengono aggiornati. I VIP ricevono automaticamente il tag."
+            note="L'import usa il TheFork ID come chiave: i clienti già presenti vengono aggiornati (quelli protetti solo nei campi vuoti). I VIP ricevono automaticamente il tag."
           />
 
           <ImportSection
@@ -151,6 +192,8 @@ export default function ClientiImport() {
             ]}
             note="Le prenotazioni vengono collegate ai clienti tramite Customer ID. Importa PRIMA i clienti per ottenere il collegamento."
           />
+
+          <ExportSection />
         </div>
       </div>
     </>

@@ -302,10 +302,14 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
                     )}
                   </td>
                   <td className={`px-4 py-2.5 font-medium ${isPrinc ? "text-teal-800" : isSelected ? "text-red-700 line-through" : "text-neutral-800"}`}>
-                    {c.cognome || "\u2014"}
+                    <span onClick={() => onNavigate(c.id)} className="cursor-pointer hover:underline">
+                      {c.cognome || "\u2014"}
+                    </span>
                   </td>
                   <td className={`px-4 py-2.5 ${isPrinc ? "text-teal-700" : isSelected ? "text-red-600 line-through" : "text-neutral-600"}`}>
-                    {c.nome || "\u2014"}
+                    <span onClick={() => onNavigate(c.id)} className="cursor-pointer hover:underline">
+                      {c.nome || "\u2014"}
+                    </span>
                   </td>
                   <td className="px-4 py-2.5 text-neutral-500 text-xs">{c.telefono || "\u2014"}</td>
                   <td className="px-4 py-2.5 text-neutral-500 text-xs truncate max-w-[180px]">{c.email || "\u2014"}</td>

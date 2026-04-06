@@ -210,6 +210,113 @@ def elimina_tag(tag_id: int, current_user: Dict[str, Any] = Depends(get_current_
 
 
 # ============================================================
+# ENDPOINT: EXPORT CSV (Google Contacts / Gmail compatibile)
+# ============================================================
+@router.get("/export/google-csv")
+def export_google_csv(
+    solo_attivi: bool = Query(True),
+    solo_con_contatto: bool = Query(True),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Esporta i clienti in formato CSV compatibile con Google Contacts.
+    Colonne: Name, Given Name, Family Name, E-mail 1 - Value,
+             Phone 1 - Value, Phone 2 - Value, Birthday, Notes,
+             Group Membership
+    """
+    import csv
+    from io import StringIO
+    from fastapi.responses import StreamingResponse
+
+    conn = get_clienti_conn()
+    try:
+        where = []
+        if solo_attivi:
+            where.append("c.attivo = 1")
+        if solo_con_contatto:
+            where.append("(c.email IS NOT NULL AND c.email != '' OR c.telefono IS NOT NULL AND c.telefono != '')")
+
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+
+        rows = conn.execute(f"""
+            SELECT c.*,
+                   GROUP_CONCAT(t.nome, ' ::: ') as tag_nomi
+            FROM clienti c
+            LEFT JOIN clienti_tag_assoc ta ON ta.cliente_id = c.id
+            LEFT JOIN clienti_tag t ON t.id = ta.tag_id
+            {where_sql}
+            GROUP BY c.id
+            ORDER BY c.cognome, c.nome
+        """).fetchall()
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        # Header Google Contacts
+        writer.writerow([
+            "Name", "Given Name", "Family Name",
+            "E-mail 1 - Type", "E-mail 1 - Value",
+            "Phone 1 - Type", "Phone 1 - Value",
+            "Phone 2 - Type", "Phone 2 - Value",
+            "Birthday", "Notes",
+            "Group Membership",
+        ])
+
+        for r in rows:
+            nome = r["nome"] or ""
+            cognome = r["cognome"] or ""
+            full_name = f"{nome} {cognome}".strip()
+
+            # Tag → Google Groups (es. "* TRGB ::: VIP ::: Abituale")
+            tags = r["tag_nomi"].split(" ::: ") if r["tag_nomi"] else []
+            groups = " ::: ".join(["* TRGB"] + tags) if tags else "* TRGB"
+
+            # Note combinate
+            note_parts = []
+            if r["allergie"]:
+                note_parts.append(f"Allergie: {r['allergie']}")
+            if r["pref_cibo"]:
+                note_parts.append(f"Cibo: {r['pref_cibo']}")
+            if r["pref_bevande"]:
+                note_parts.append(f"Bevande: {r['pref_bevande']}")
+            if r["restrizioni_dietetiche"]:
+                note_parts.append(f"Dieta: {r['restrizioni_dietetiche']}")
+            if r["note_thefork"]:
+                note_parts.append(r["note_thefork"])
+            notes = " | ".join(note_parts) if note_parts else ""
+
+            # Birthday: TheFork usa dd/mm/yyyy, Google usa yyyy-mm-dd
+            bday = ""
+            if r["data_nascita"]:
+                try:
+                    parts = str(r["data_nascita"]).split("/")
+                    if len(parts) == 3:
+                        bday = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                except Exception:
+                    bday = str(r["data_nascita"])
+
+            writer.writerow([
+                full_name, nome, cognome,
+                "* Other", r["email"] or "",
+                "* Mobile", r["telefono"] or "",
+                "Other", r["telefono2"] or "",
+                bday, notes,
+                groups,
+            ])
+
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=trgb_clienti_google_{date.today().isoformat()}.csv"
+            },
+        )
+    finally:
+        conn.close()
+
+
+# ============================================================
 # ENDPOINT: IMPORT THEFORK XLSX (DEVE stare PRIMA di /{cliente_id})
 # ============================================================
 @router.post("/import/thefork")
@@ -335,22 +442,40 @@ async def import_thefork(
                             ).fetchone()
 
                 if existing:
-                    # Se il cliente è protetto (editato manualmente nel CRM),
-                    # NON sovrascriviamo i campi anagrafica — aggiorniamo solo
-                    # i campi TheFork-specifici (date, rank, spending, ecc.)
                     if existing["protetto"]:
-                        safe_fields = {
+                        # Cliente protetto: aggiorna sempre i campi TheFork-specifici
+                        # + riempi i campi vuoti dal TheFork (senza sovrascrivere i pieni)
+                        always_update = {
                             "rank": record["rank"],
                             "risk_level": record["risk_level"],
                             "spending_behaviour": record["spending_behaviour"],
                             "thefork_updated": record["thefork_updated"],
                         }
-                        set_clause = ", ".join(f"{k}=?" for k in safe_fields)
+                        # Campi che riempiamo SOLO se vuoti nel DB
+                        fillable = [
+                            "email", "telefono", "telefono2", "data_nascita",
+                            "indirizzo", "cap", "citta", "paese",
+                            "pref_cibo", "pref_bevande", "pref_posto",
+                            "restrizioni_dietetiche", "allergie", "note_thefork",
+                        ]
+                        # Leggi il record corrente per sapere cosa è vuoto
+                        current = conn.execute(
+                            f"SELECT {', '.join(fillable)} FROM clienti WHERE id = ?",
+                            (existing["id"],),
+                        ).fetchone()
+                        for field in fillable:
+                            cur_val = current[field] if current else None
+                            new_val = record.get(field)
+                            if (not cur_val or str(cur_val).strip() == "") and new_val and str(new_val).strip() != "":
+                                always_update[field] = new_val
+
+                        set_clause = ", ".join(f"{k}=?" for k in always_update)
                         conn.execute(
                             f"UPDATE clienti SET {set_clause} WHERE id = ?",
-                            list(safe_fields.values()) + [existing["id"]],
+                            list(always_update.values()) + [existing["id"]],
                         )
                     else:
+                        # Cliente non protetto: TheFork sovrascrive tutto
                         skip = {"thefork_id", "protetto"}
                         set_clause = ", ".join(f"{k}=?" for k in record if k not in skip)
                         values = [v for k, v in record.items() if k not in skip]

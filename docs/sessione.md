@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-06 (sessione 20 — Gestione Clienti v1.0, CRM completo con import TheFork)
+> Ultima sessione: 2026-04-06 (sessione 21 — Gestione Clienti v1.1, merge duplicati, protezione dati, export)
 
 ---
 
@@ -49,15 +49,23 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-04-06, sessione 20)
+## Cosa abbiamo fatto nell'ultima sessione (2026-04-06, sessione 21)
 
-### Gestione Clienti v1.0: Nuovo modulo CRM completo
-1. **DB dedicato** `clienti.sqlite3` — 5 tabelle (clienti, tag, tag_assoc, note, prenotazioni) con trigger e indici
-2. **Backend completo** `clienti_router.py` (~900 righe) — CRUD clienti, tag, note, import TheFork clienti+prenotazioni, dashboard stats, prenotazioni stats
-3. **Import TheFork clienti** — mappa 30 colonne XLSX, upsert su thefork_id, pulizia telefoni, auto-tag VIP
-4. **Import TheFork prenotazioni** — mappa 37 colonne XLSX (incluse form response lunghe), upsert su booking_id, link automatico a clienti
-5. **Anagrafica (Lista)** — tabella ordinabile, sidebar filtri (ricerca, VIP, rank, tag, attivi), paginazione 50/pagina
-6. **Scheda cliente** — layout 3 colonne, edit inline, tag toggle, diario note tipizzate, storico prenotazioni con stats
+### Gestione Clienti v1.1: Merge duplicati, protezione dati, export
+1. **Merge duplicati** — UI 3-step (principale → secondari → conferma), batch merge, trasferimento prenotazioni/note/tag/alias
+2. **Filtri duplicati** — 3 modalità: telefono, email, nome+cognome; esclusione "non sono duplicati"
+3. **Protezione dati CRM** — campo `protetto`, tag `auto/manual`, alias merge per import sicuro
+4. **Import intelligente** — protetti: riempimento campi vuoti + aggiornamento rank/spending; non protetti: sovrascrittura completa
+5. **Export Google Contacts** — CSV per Gmail con nome, email, telefoni, compleanno, allergie, tag come gruppi
+6. **push.sh refactoring** — flag -f/-m/-d, aggiunto clienti.sqlite3 a sync DB
+
+### Sessione 20: Gestione Clienti v1.0 (CRM completo)
+1. **DB dedicato** `clienti.sqlite3` — 7 tabelle con trigger e indici
+2. **Backend completo** `clienti_router.py` (~1200 righe) — tutti gli endpoint CRM
+3. **Import TheFork** — clienti (30 colonne XLSX) + prenotazioni (37 colonne XLSX)
+4. **Anagrafica (Lista)** — tabella ordinabile, sidebar filtri, paginazione
+5. **Scheda cliente** — layout 3 colonne, edit inline, tag toggle, diario note, storico prenotazioni
+6. **Dashboard CRM** — KPI, compleanni, top clienti, distribuzione, andamento mensile
 7. **Dashboard CRM** — 8 KPI card, compleanni 7gg, top 20 clienti, rank/tag/canale distribution, andamento mensile 12 mesi, copertura contatti
 8. **Vista Prenotazioni** — tabella globale con filtri (stato, canale, date), badge colorati, paginazione
 9. **Import UI** — due sezioni (clienti + prenotazioni) con istruzioni step-by-step, drag & drop XLSX

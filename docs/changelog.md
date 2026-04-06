@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-04-06 — Gestione Clienti v1.1: Protezione dati, merge duplicati, export
+
+#### New — Merge e Deduplicazione
+- **Merge duplicati** — UI 3 step (seleziona principale → spunta secondari → conferma), merge batch, trasferimento prenotazioni/note/tag/alias
+- **Filtri duplicati** — 3 modalità ricerca: telefono, email, nome e cognome
+- **"Non sono duplicati"** — esclusione coppie da suggerimenti (es. marito/moglie stesso telefono), tabella `clienti_no_duplicato`
+- **Export Google Contacts** — CSV compatibile Gmail/Google Contacts con nome, email, telefoni, compleanno, allergie, tag come gruppi
+
+#### New — Protezione dati CRM vs TheFork
+- **Campo `protetto`** — clienti modificati manualmente o mergati vengono protetti dall'import TheFork
+- **Import intelligente** — clienti protetti: solo riempimento campi vuoti + aggiornamento rank/spending/date; clienti non protetti: sovrascrittura completa
+- **Tag auto/manual** — `auto=1` per tag da import (es. VIP), `auto=0` per tag CRM manuali (intoccabili dall'import)
+- **Alias merge** — tabella `clienti_alias` per mappare thefork_id secondari al principale, riconoscimento automatico in import clienti e prenotazioni
+
+#### Changed
+- DB schema: 7 tabelle (aggiunte `clienti_alias`, `clienti_no_duplicato`, colonne `protetto` e `auto`)
+- `clienti_router.py` ~1200 righe (+merge, duplicati/suggerimenti, duplicati/escludi, export/google-csv)
+- `ClientiDuplicati.jsx` — riscritta completamente con flow 3-step
+- `ClientiImport.jsx` — aggiunta sezione Export con download CSV
+- `push.sh` — refactoring flag (-f, -m, -d), aggiunto `clienti.sqlite3` a sync DB
+
+---
+
 ## 2026-04-06 — Gestione Clienti v1.0: Nuovo modulo CRM completo
 
 #### New — Modulo Gestione Clienti CRM
