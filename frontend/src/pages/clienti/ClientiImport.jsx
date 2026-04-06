@@ -334,15 +334,12 @@ function ExportSection() {
   );
 }
 
-export default function ClientiImport() {
+export default function ClientiImport({ embedded = false }) {
   const [diffCount, setDiffCount] = useState(0);
 
-  return (
+  const content = (
     <>
-      <ClientiNav current="import" diffCount={diffCount} />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <h1 className="text-2xl font-bold text-neutral-900 mb-2">Import / Export</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Import / Export</h1>
           <p className="text-sm text-neutral-500 mb-6">
             Importa prima i clienti, poi le prenotazioni. L'ordine è importante per collegare le prenotazioni ai clienti.
           </p>
@@ -373,9 +370,20 @@ export default function ClientiImport() {
             note="Le prenotazioni vengono collegate ai clienti tramite Customer ID. Importa PRIMA i clienti per ottenere il collegamento."
           />
 
-          <DiffReviewSection onCountChange={setDiffCount} />
+      <DiffReviewSection onCountChange={setDiffCount} />
 
-          <ExportSection />
+      <ExportSection />
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <>
+      <ClientiNav current="impostazioni" diffCount={diffCount} />
+      <div className="min-h-screen bg-neutral-50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+          {content}
         </div>
       </div>
     </>

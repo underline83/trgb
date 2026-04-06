@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 
-export default function ClientiMailchimp() {
+export default function ClientiMailchimp({ embedded = false }) {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -44,12 +44,9 @@ export default function ClientiMailchimp() {
     }
   };
 
-  return (
+  const content = (
     <>
-      <ClientiNav current="mailchimp" />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-          <h1 className="text-2xl font-bold text-neutral-900 mb-6">📬 Integrazione Mailchimp</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-6">Integrazione Mailchimp</h1>
 
           {/* Stato connessione */}
           <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm mb-6">
@@ -223,8 +220,6 @@ MAILCHIMP_LIST_ID=il-tuo-audience-id`}
               </div>
             </div>
           )}
-        </div>
-      </div>
 
       {toast && (
         <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
@@ -233,6 +228,19 @@ MAILCHIMP_LIST_ID=il-tuo-audience-id`}
           {toast.message}
         </div>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <>
+      <ClientiNav current="impostazioni" />
+      <div className="min-h-screen bg-neutral-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+          {content}
+        </div>
+      </div>
     </>
   );
 }

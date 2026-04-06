@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 
-export default function ClientiDuplicati() {
+export default function ClientiDuplicati({ embedded = false }) {
   const navigate = useNavigate();
   const [duplicati, setDuplicati] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,13 +137,10 @@ export default function ClientiDuplicati() {
     }
   };
 
-  return (
+  const content = (
     <>
-      <ClientiNav current="duplicati" />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
               <h1 className="text-2xl font-bold text-neutral-900">Gestione Duplicati</h1>
               <p className="text-sm text-neutral-500 mt-1">
                 Clienti con stesso nome o telefono. Per ogni gruppo: scegli il principale, spunta chi assorbire, conferma.
@@ -281,8 +278,6 @@ export default function ClientiDuplicati() {
               ))}
             </div>
           )}
-        </div>
-      </div>
 
       {toast.show && (
         <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
@@ -291,6 +286,19 @@ export default function ClientiDuplicati() {
           {toast.message}
         </div>
       )}
+    </>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <>
+      <ClientiNav current="impostazioni" />
+      <div className="min-h-screen bg-neutral-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+          {content}
+        </div>
+      </div>
     </>
   );
 }

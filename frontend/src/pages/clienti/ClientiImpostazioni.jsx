@@ -1,75 +1,110 @@
-// @version: v1.0-clienti-impostazioni
-// Impostazioni CRM: soglie segmenti marketing configurabili
+// @version: v2.0-clienti-impostazioni
+// Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import ClientiImport from "./ClientiImport";
+import ClientiDuplicati from "./ClientiDuplicati";
+import ClientiMailchimp from "./ClientiMailchimp";
 
+// ── Sidebar items ──
+const SECTIONS = [
+  { key: "segmenti", label: "Segmenti", icon: "📊", desc: "Soglie segmentazione clienti" },
+  { key: "import", label: "Import / Export", icon: "📥", desc: "TheFork, CSV, revisione diff" },
+  { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
+  { key: "mailchimp", label: "Mailchimp", icon: "📬", desc: "Sync contatti e campagne" },
+];
+
+// ── Configurazione soglie segmenti ──
 const SEGMENTI_CONFIG = [
-  {
-    chiave: "seg_abituale_min",
-    label: "Abituale — visite minime",
-    desc: "Quante visite nella finestra per essere considerato abituale",
-    type: "number",
-    min: 1,
-    max: 50,
-  },
-  {
-    chiave: "seg_occasionale_min",
-    label: "Occasionale — visite minime",
-    desc: "Quante visite nella finestra per essere considerato occasionale (sotto la soglia abituale)",
-    type: "number",
-    min: 1,
-    max: 50,
-  },
-  {
-    chiave: "seg_finestra_mesi",
-    label: "Finestra di osservazione (mesi)",
-    desc: "Quanti mesi guardare indietro per contare le visite (abituale/occasionale)",
-    type: "number",
-    min: 1,
-    max: 36,
-  },
-  {
-    chiave: "seg_nuovo_giorni",
-    label: "Nuovo — entro quanti giorni",
-    desc: "Giorni dalla prima visita per considerare un cliente come nuovo",
-    type: "number",
-    min: 7,
-    max: 365,
-  },
-  {
-    chiave: "seg_nuovo_max_visite",
-    label: "Nuovo — max visite",
-    desc: "Numero massimo di visite per restare nel segmento nuovo",
-    type: "number",
-    min: 1,
-    max: 20,
-  },
-  {
-    chiave: "seg_perso_giorni",
-    label: "Perso — dopo quanti giorni",
-    desc: "Giorni senza visite per considerare un cliente come perso",
-    type: "number",
-    min: 30,
-    max: 730,
-  },
+  { chiave: "seg_abituale_min", label: "Abituale — visite minime", desc: "Quante visite nella finestra per essere considerato abituale", type: "number", min: 1, max: 50 },
+  { chiave: "seg_occasionale_min", label: "Occasionale — visite minime", desc: "Quante visite nella finestra per essere considerato occasionale (sotto la soglia abituale)", type: "number", min: 1, max: 50 },
+  { chiave: "seg_finestra_mesi", label: "Finestra di osservazione (mesi)", desc: "Quanti mesi guardare indietro per contare le visite (abituale/occasionale)", type: "number", min: 1, max: 36 },
+  { chiave: "seg_nuovo_giorni", label: "Nuovo — entro quanti giorni", desc: "Giorni dalla prima visita per considerare un cliente come nuovo", type: "number", min: 7, max: 365 },
+  { chiave: "seg_nuovo_max_visite", label: "Nuovo — max visite", desc: "Numero massimo di visite per restare nel segmento nuovo", type: "number", min: 1, max: 20 },
+  { chiave: "seg_perso_giorni", label: "Perso — dopo quanti giorni", desc: "Giorni senza visite per considerare un cliente come perso", type: "number", min: 30, max: 730 },
 ];
 
 export default function ClientiImpostazioni() {
+  const { section: urlSection } = useParams();
+  const navigate = useNavigate();
+  const [section, setSection] = useState(urlSection || "segmenti");
+
+  // Sync con URL
+  useEffect(() => {
+    if (urlSection && urlSection !== section) setSection(urlSection);
+  }, [urlSection]);
+
+  const goTo = (key) => {
+    setSection(key);
+    navigate(`/clienti/impostazioni/${key}`, { replace: true });
+  };
+
+  return (
+    <>
+      <ClientiNav current="impostazioni" />
+      <div className="min-h-screen bg-neutral-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex gap-6">
+            {/* ── Sidebar ── */}
+            <div className="w-56 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni
+              </h2>
+              <nav className="space-y-0.5">
+                {SECTIONS.map((s) => {
+                  const active = section === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => goTo(s.key)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-teal-50 text-teal-900 shadow-sm border border-teal-200"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}
+                    >
+                      <span className="text-sm mt-0.5">{s.icon}</span>
+                      <div>
+                        <div className={`text-sm font-medium ${active ? "text-teal-900" : ""}`}>{s.label}</div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{s.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* ── Content ── */}
+            <div className="flex-1 min-w-0">
+              {section === "segmenti" && <SegmentiSection />}
+              {section === "import" && <ClientiImport embedded />}
+              {section === "duplicati" && <ClientiDuplicati embedded />}
+              {section === "mailchimp" && <ClientiMailchimp embedded />}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+// ── Sezione Segmenti (ex contenuto ClientiImpostazioni v1) ──
+function SegmentiSection() {
   const [impostazioni, setImpostazioni] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+  const [toast, setToast] = useState(null);
   const [dirty, setDirty] = useState(false);
 
   const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 4000);
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
   };
 
-  useEffect(() => {
-    fetchImpostazioni();
-  }, []);
+  useEffect(() => { fetchImpostazioni(); }, []);
 
   const fetchImpostazioni = async () => {
     setLoading(true);
@@ -78,9 +113,7 @@ export default function ClientiImpostazioni() {
       if (!res.ok) throw new Error("Errore caricamento");
       const data = await res.json();
       const map = {};
-      (data.impostazioni || []).forEach((i) => {
-        map[i.chiave] = i.valore;
-      });
+      (data.impostazioni || []).forEach((i) => { map[i.chiave] = i.valore; });
       setImpostazioni(map);
       setDirty(false);
     } catch (err) {
@@ -96,22 +129,17 @@ export default function ClientiImpostazioni() {
   };
 
   const handleSave = async () => {
-    // Validazione: occasionale_min deve essere < abituale_min
     const abMin = parseInt(impostazioni.seg_abituale_min || "5");
     const ocMin = parseInt(impostazioni.seg_occasionale_min || "1");
     if (ocMin >= abMin) {
       showToast(`La soglia occasionale (${ocMin}) deve essere inferiore a quella abituale (${abMin})`, "error");
       return;
     }
-
     setSaving(true);
     try {
-      // Manda solo le chiavi seg_*
       const body = {};
       SEGMENTI_CONFIG.forEach((c) => {
-        if (impostazioni[c.chiave] !== undefined) {
-          body[c.chiave] = impostazioni[c.chiave];
-        }
+        if (impostazioni[c.chiave] !== undefined) body[c.chiave] = impostazioni[c.chiave];
       });
       const res = await apiFetch(`${API_BASE}/clienti/impostazioni`, {
         method: "PUT",
@@ -131,17 +159,12 @@ export default function ClientiImpostazioni() {
   const handleReset = () => {
     if (!window.confirm("Ripristinare i valori di default?")) return;
     setImpostazioni({
-      seg_abituale_min: "5",
-      seg_occasionale_min: "1",
-      seg_nuovo_giorni: "90",
-      seg_nuovo_max_visite: "2",
-      seg_perso_giorni: "365",
-      seg_finestra_mesi: "12",
+      seg_abituale_min: "5", seg_occasionale_min: "1", seg_nuovo_giorni: "90",
+      seg_nuovo_max_visite: "2", seg_perso_giorni: "365", seg_finestra_mesi: "12",
     });
     setDirty(true);
   };
 
-  // Calcola un esempio per ogni segmento basato sui valori attuali
   const esempio = () => {
     const fm = impostazioni.seg_finestra_mesi || "12";
     const ab = impostazioni.seg_abituale_min || "5";
@@ -158,102 +181,72 @@ export default function ClientiImpostazioni() {
     ];
   };
 
+  if (loading) return <div className="text-center py-12 text-neutral-400">Caricamento...</div>;
+
   return (
     <>
-      <ClientiNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-neutral-900">Impostazioni CRM</h1>
-              <p className="text-sm text-neutral-500 mt-1">
-                Configura le soglie per la segmentazione automatica dei clienti
-              </p>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Segmenti Marketing</h1>
+      <p className="text-sm text-neutral-500 mb-6">
+        Configura le soglie per la segmentazione automatica dei clienti. I segmenti vengono ricalcolati in tempo reale.
+      </p>
+
+      {/* Soglie */}
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="p-5 space-y-5">
+          {SEGMENTI_CONFIG.map((cfg) => (
+            <div key={cfg.chiave} className="flex items-start gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-neutral-800">{cfg.label}</label>
+                <p className="text-xs text-neutral-500 mt-0.5">{cfg.desc}</p>
+              </div>
+              <input
+                type={cfg.type}
+                min={cfg.min}
+                max={cfg.max}
+                value={impostazioni[cfg.chiave] || ""}
+                onChange={(e) => handleChange(cfg.chiave, e.target.value)}
+                className="w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm text-center
+                  focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
+              />
             </div>
+          ))}
+        </div>
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between">
+          <button onClick={handleReset} className="text-xs text-neutral-500 hover:text-red-600 transition">
+            Ripristina default
+          </button>
+          <div className="flex items-center gap-3">
+            {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
+            <button
+              onClick={handleSave}
+              disabled={!dirty || saving}
+              className="px-5 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
+            >
+              {saving ? "Salvataggio..." : "Salva"}
+            </button>
           </div>
-
-          {loading ? (
-            <div className="text-center py-12 text-neutral-400">Caricamento...</div>
-          ) : (
-            <>
-              {/* Soglie segmenti */}
-              <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
-                <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
-                  <h2 className="text-sm font-semibold text-neutral-800">Soglie segmenti marketing</h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    I segmenti vengono ricalcolati in tempo reale ad ogni caricamento della lista clienti
-                  </p>
-                </div>
-                <div className="p-5 space-y-5">
-                  {SEGMENTI_CONFIG.map((cfg) => (
-                    <div key={cfg.chiave} className="flex items-start gap-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-neutral-800">{cfg.label}</label>
-                        <p className="text-xs text-neutral-500 mt-0.5">{cfg.desc}</p>
-                      </div>
-                      <input
-                        type={cfg.type}
-                        min={cfg.min}
-                        max={cfg.max}
-                        value={impostazioni[cfg.chiave] || ""}
-                        onChange={(e) => handleChange(cfg.chiave, e.target.value)}
-                        className="w-20 px-3 py-1.5 border border-neutral-300 rounded-lg text-sm text-center
-                          focus:outline-none focus:ring-2 focus:ring-teal-300 focus:border-teal-400"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between">
-                  <button
-                    onClick={handleReset}
-                    className="text-xs text-neutral-500 hover:text-red-600 transition"
-                  >
-                    Ripristina default
-                  </button>
-                  <div className="flex items-center gap-3">
-                    {dirty && (
-                      <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>
-                    )}
-                    <button
-                      onClick={handleSave}
-                      disabled={!dirty || saving}
-                      className="px-5 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white
-                        hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
-                    >
-                      {saving ? "Salvataggio..." : "Salva"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Preview regole attuali */}
-              <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
-                  <h2 className="text-sm font-semibold text-neutral-800">Preview regole attuali</h2>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Come vengono classificati i clienti con le soglie impostate
-                  </p>
-                </div>
-                <div className="p-5">
-                  <div className="space-y-2">
-                    {esempio().map((e) => (
-                      <div key={e.segmento} className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${e.color}`}>
-                        <span className="text-sm font-semibold">{e.segmento}</span>
-                        <span className="text-xs">{e.regola}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
-      {toast.show && (
+      {/* Preview */}
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
+          <h2 className="text-sm font-semibold text-neutral-800">Preview regole attuali</h2>
+        </div>
+        <div className="p-5 space-y-2">
+          {esempio().map((e) => (
+            <div key={e.segmento} className={`flex items-center justify-between px-4 py-2.5 rounded-lg ${e.color}`}>
+              <span className="text-sm font-semibold">{e.segmento}</span>
+              <span className="text-xs">{e.regola}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {toast && (
         <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
           toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
-        }`} onClick={() => setToast({ ...toast, show: false })}>
+        }`} onClick={() => setToast(null)}>
           {toast.message}
         </div>
       )}

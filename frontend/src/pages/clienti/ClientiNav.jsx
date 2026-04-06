@@ -1,21 +1,20 @@
-// @version: v1.1-clienti-nav
+// @version: v1.2-clienti-nav
 // Tab navigation per il modulo Clienti CRM
+// Import, Duplicati, Mailchimp spostati dentro Impostazioni (sidebar)
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const TABS = [
   { key: "lista", label: "Anagrafica", path: "/clienti/lista", icon: "📇" },
   { key: "prenotazioni", label: "Prenotazioni", path: "/clienti/prenotazioni", icon: "📅" },
   { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
-  { key: "import", label: "Import", path: "/clienti/import", icon: "📥", roles: ["superadmin", "admin"] },
-  { key: "duplicati", label: "Duplicati", path: "/clienti/duplicati", icon: "🔄", roles: ["superadmin", "admin"] },
-  { key: "mailchimp", label: "Mailchimp", path: "/clienti/mailchimp", icon: "📬", roles: ["superadmin", "admin"] },
   { key: "impostazioni", label: "Impostazioni", path: "/clienti/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];
 
 export default function ClientiNav({ current, diffCount: externalDiffCount }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const role = localStorage.getItem("role");
   const [diffCount, setDiffCount] = useState(0);
 
@@ -24,7 +23,6 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
       setDiffCount(externalDiffCount);
       return;
     }
-    // Fetch diff count autonomamente se non passato come prop
     apiFetch(`${API_BASE}/clienti/import/diff/count`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setDiffCount(d.pending || 0); })
@@ -32,6 +30,12 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
   }, [externalDiffCount]);
 
   const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
+
+  // Impostazioni attivo anche per sotto-path
+  const isActive = (tab) => {
+    if (tab.key === "impostazioni") return location.pathname.startsWith("/clienti/impostazioni");
+    return current === tab.key;
+  };
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">
@@ -46,7 +50,7 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
             </button>
             <div className="flex gap-0.5">
               {visibleTabs.map((tab) => {
-                const active = current === tab.key;
+                const active = isActive(tab);
                 return (
                   <button
                     key={tab.key}
@@ -59,7 +63,7 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
                   >
                     <span className="mr-1">{tab.icon}</span>
                     {tab.label}
-                    {tab.key === "import" && diffCount > 0 && (
+                    {tab.key === "impostazioni" && diffCount > 0 && (
                       <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full leading-none">
                         {diffCount}
                       </span>

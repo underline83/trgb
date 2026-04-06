@@ -240,10 +240,8 @@ export default function App() {
         <Route path="/clienti/lista" element={<ProtectedRoute module="clienti" sub="lista"><ClientiLista /></ProtectedRoute>} />
         <Route path="/clienti/prenotazioni" element={<ProtectedRoute module="clienti"><ClientiPrenotazioni /></ProtectedRoute>} />
         <Route path="/clienti/dashboard" element={<ProtectedRoute module="clienti" sub="dashboard"><ClientiDashboard /></ProtectedRoute>} />
-        <Route path="/clienti/import" element={<ProtectedRoute module="clienti" sub="import"><ClientiImport /></ProtectedRoute>} />
-        <Route path="/clienti/duplicati" element={<ProtectedRoute module="clienti" sub="import"><ClientiDuplicati /></ProtectedRoute>} />
-        <Route path="/clienti/mailchimp" element={<ProtectedRoute module="clienti" sub="import"><ClientiMailchimp /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
+        <Route path="/clienti/impostazioni/:section" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/:id" element={<ProtectedRoute module="clienti" sub="lista"><ClientiScheda /></ProtectedRoute>} />
 
         {/* --- CAMBIO PIN --- */}
