@@ -79,7 +79,8 @@ export default function ClientiDuplicati() {
   };
 
   // Merge sequenziale: per ogni secondario selezionato, chiama l'endpoint
-  const handleMergeBatch = async (principale_id, secondari_ids, idx) => {
+  // secData: se presente, dopo il merge salva nome2/cognome2 come coppia
+  const handleMergeBatch = async (principale_id, secondari_ids, idx, secData) => {
     setMerging(idx);
     let count = 0;
     try {
@@ -95,7 +96,19 @@ export default function ClientiDuplicati() {
         }
         count++;
       }
-      showToast(`Merge completato: ${count} clienti unificati`);
+      // Se coppia: salva nome2/cognome2 dal secondario al principale
+      if (secData) {
+        const princRes = await apiFetch(`${API_BASE}/clienti/${principale_id}`);
+        if (princRes.ok) {
+          const princData = await princRes.json();
+          await apiFetch(`${API_BASE}/clienti/${principale_id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...princData, nome2: secData.nome, cognome2: secData.cognome }),
+          });
+        }
+      }
+      showToast(`Merge completato: ${count} clienti unificati${secData ? " (coppia salvata)" : ""}`);
       setMerged((p) => p + count);
       setDuplicati((prev) => prev.filter((_, i) => i !== idx));
     } catch (err) {
@@ -322,9 +335,14 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
       .map((c) => `${c.cognome} ${c.nome}`.trim())
       .join(", ");
     const princNome = clienti.find((c) => c.id === principale);
-    const msg = `Unire ${nomi} dentro "${princNome?.cognome} ${princNome?.nome}"?\n\nPrenotazioni e note verranno trasferite. L'operazione non è reversibile.`;
+    const coppiaMsg = comeCoppia ? "\n\nNome e cognome del secondario verranno salvati come coppia." : "";
+    const msg = `Unire ${nomi} dentro "${princNome?.cognome} ${princNome?.nome}"?\n\nPrenotazioni e note verranno trasferite. L'operazione non è reversibile.${coppiaMsg}`;
     if (!window.confirm(msg)) return;
-    onMergeBatch(principale, [...selezionati], idx);
+    // Passa i dati del secondario per la coppia
+    const secData = comeCoppia && selezionati.size === 1
+      ? clienti.find((c) => selezionati.has(c.id))
+      : null;
+    onMergeBatch(principale, [...selezionati], idx, secData);
   };
 
   return (
@@ -457,13 +475,23 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
             {" \u2014 "}
             {clienti.filter((c) => selezionati.has(c.id)).reduce((s, c) => s + c.prenotazioni, 0)} prenotazioni verranno trasferite
           </div>
-          <button
-            onClick={handleConfirm}
-            disabled={isMerging}
-            className="px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50 shadow-sm"
-          >
-            {isMerging ? "Unione in corso..." : "Conferma Merge"}
-          </button>
+          <div className="flex items-center gap-3">
+            {selezionati.size === 1 && (
+              <label className="inline-flex items-center gap-1.5 text-xs cursor-pointer">
+                <input type="checkbox" checked={comeCoppia}
+                  onChange={(e) => setComeCoppia(e.target.checked)}
+                  className="rounded border-neutral-300 text-teal-600 accent-teal-600" />
+                <span className="text-neutral-600">Salva come coppia</span>
+              </label>
+            )}
+            <button
+              onClick={handleConfirm}
+              disabled={isMerging}
+              className="px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50 shadow-sm"
+            >
+              {isMerging ? "Unione in corso..." : "Conferma Merge"}
+            </button>
+          </div>
         </div>
       )}
     </div>
