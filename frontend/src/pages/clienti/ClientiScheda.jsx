@@ -1,5 +1,5 @@
-// @version: v2.0-clienti-scheda
-// Scheda dettaglio cliente — layout ispirato a SchedaVino (sidebar + sezioni + tabs)
+// @version: v2.1-clienti-scheda
+// Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -180,10 +180,57 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
   const onChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
+  // Reset stati quando cambia id (per embedded mode)
+  useEffect(() => {
+    setEditMode(false);
+    setTab("anagrafica");
+    setShowMerge(false);
+    setMergeTarget(null);
+    setMergeQuery("");
+    setMergeResults([]);
+  }, [id]);
+
+  // ── Merge manuale: ricerca ──
+  const searchMergeTarget = async (query) => {
+    setMergeQuery(query);
+    if (query.length < 2) { setMergeResults([]); return; }
+    setMergeSearching(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/?q=${encodeURIComponent(query)}&limit=10`);
+      const data = await res.json();
+      // Escludi il cliente corrente dalla lista
+      setMergeResults((data.clienti || []).filter(c => c.id !== Number(id)));
+    } catch { setMergeResults([]); }
+    finally { setMergeSearching(false); }
+  };
+
+  const executeMerge = async () => {
+    if (!mergeTarget) return;
+    const msg = `Unire "${mergeTarget.cognome} ${mergeTarget.nome}" dentro "${cliente.cognome} ${cliente.nome}"?\n\nPrenotazioni e note verranno trasferite. L'operazione NON è reversibile.`;
+    if (!window.confirm(msg)) return;
+    setMerging(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/merge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ principale_id: Number(id), secondario_id: mergeTarget.id }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Errore merge"); }
+      showToast("Merge completato!");
+      setShowMerge(false);
+      setMergeTarget(null);
+      setMergeQuery("");
+      setMergeResults([]);
+      fetchCliente();
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally { setMerging(false); }
+  };
+
   if (loading) return (
     <>
-      <ClientiNav current="lista" />
-      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+      {!embedded && <ClientiNav current="lista" />}
+      <div className={`${embedded ? "py-12" : "min-h-screen bg-neutral-100"} flex items-center justify-center`}>
         <div className="text-sm text-neutral-400">Caricamento...</div>
       </div>
     </>
@@ -191,8 +238,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
   if (!cliente) return (
     <>
-      <ClientiNav current="lista" />
-      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+      {!embedded && <ClientiNav current="lista" />}
+      <div className={`${embedded ? "py-12" : "min-h-screen bg-neutral-100"} flex items-center justify-center`}>
         <div className="text-sm text-neutral-400">Cliente non trovato</div>
       </div>
     </>
@@ -210,9 +257,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
   return (
     <>
-      <ClientiNav current="lista" />
-      <div className="min-h-screen bg-neutral-100 font-sans">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6">
+      {!embedded && <ClientiNav current="lista" />}
+      <div className={`${embedded ? "" : "min-h-screen bg-neutral-100"} font-sans`}>
+        <div className={embedded ? "" : "max-w-4xl mx-auto p-4 sm:p-6"}>
 
           {/* ── CARD PRINCIPALE con sidebar colorata ── */}
           <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
@@ -226,7 +273,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                 <div className="flex items-start justify-between">
                   <div>
                     {/* Torna alla lista */}
-                    <button onClick={() => navigate("/clienti/lista")}
+                    <button onClick={handleBack}
                       className="text-xs text-neutral-400 hover:text-neutral-600 transition mb-1 inline-block">
                       ← Anagrafica
                     </button>
@@ -272,13 +319,81 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                         </button>
                       </>
                     ) : (
-                      <button onClick={() => setEditMode(true)}
-                        className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
-                        Modifica
-                      </button>
+                      <>
+                        <button onClick={() => setShowMerge(!showMerge)}
+                          className={`px-3 py-1.5 text-xs font-medium border rounded-lg transition ${
+                            showMerge ? "bg-amber-100 border-amber-300 text-amber-700" : "border-neutral-300 text-neutral-600 hover:bg-neutral-100"
+                          }`}>
+                          {showMerge ? "Chiudi merge" : "Unisci con..."}
+                        </button>
+                        <button onClick={() => setEditMode(true)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+                          Modifica
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
+
+                {/* ── PANNELLO MERGE MANUALE ── */}
+                {showMerge && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="text-xs font-semibold text-amber-800 mb-2">
+                      Cerca il cliente da assorbire in questo:
+                    </div>
+                    <input
+                      type="text"
+                      value={mergeQuery}
+                      onChange={(e) => searchMergeTarget(e.target.value)}
+                      placeholder="Nome, cognome, telefono, email..."
+                      className="w-full border border-amber-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 mb-2"
+                      autoFocus
+                    />
+                    {mergeSearching && <div className="text-xs text-neutral-400 py-1">Cerco...</div>}
+                    {mergeResults.length > 0 && !mergeTarget && (
+                      <div className="max-h-40 overflow-y-auto border border-amber-200 rounded-lg bg-white divide-y divide-amber-100">
+                        {mergeResults.map((c) => (
+                          <button key={c.id} onClick={() => setMergeTarget(c)}
+                            className="w-full text-left px-3 py-2 hover:bg-amber-50 transition text-sm flex items-center justify-between">
+                            <span>
+                              <span className="font-medium text-neutral-800">{c.cognome} {c.nome}</span>
+                              <span className="text-neutral-400 ml-2 text-xs">{c.telefono || c.email || ""}</span>
+                            </span>
+                            <span className="text-xs text-neutral-400">{c.n_prenotazioni || 0} pren.</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {mergeTarget && (
+                      <div className="border border-amber-300 rounded-lg bg-white p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm">
+                            <span className="font-bold text-red-600">{mergeTarget.cognome} {mergeTarget.nome}</span>
+                            <span className="text-xs text-neutral-500 ml-2">
+                              ({mergeTarget.n_prenotazioni || 0} pren.) {mergeTarget.telefono || ""} {mergeTarget.email || ""}
+                            </span>
+                          </div>
+                          <button onClick={() => setMergeTarget(null)}
+                            className="text-xs text-neutral-400 hover:text-neutral-600">Cambia</button>
+                        </div>
+                        <div className="text-xs text-amber-700 mb-2">
+                          Le prenotazioni, note e tag di <strong>{mergeTarget.cognome}</strong> verranno trasferite a <strong>{cliente.cognome} {cliente.nome}</strong>.
+                          Il record di {mergeTarget.cognome} verrà eliminato.
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={executeMerge} disabled={merging}
+                            className="px-4 py-1.5 text-xs font-bold bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50">
+                            {merging ? "Merge in corso..." : "Conferma Merge"}
+                          </button>
+                          <button onClick={() => { setMergeTarget(null); setShowMerge(false); }}
+                            className="px-3 py-1.5 text-xs border border-neutral-300 rounded-lg hover:bg-neutral-50 transition">
+                            Annulla
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ── KPI rapidi (come stats in SchedaVino) ── */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">

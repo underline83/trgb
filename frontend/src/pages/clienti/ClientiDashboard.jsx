@@ -1,4 +1,4 @@
-// @version: v1.1-clienti-dashboard
+// @version: v1.2-clienti-dashboard
 // Dashboard CRM — statistiche clienti + prenotazioni, compleanni, top clienti
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -84,16 +84,40 @@ export default function ClientiDashboard() {
                 <p className="text-sm text-neutral-400">Nessun compleanno in arrivo</p>
               ) : (
                 <div className="space-y-2">
-                  {stats.compleanni_prossimi?.map((c) => (
-                    <div key={c.id} onClick={() => navigate(`/clienti/${c.id}`)}
-                      className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-amber-50 cursor-pointer transition">
-                      <div>
-                        <span className="text-sm font-medium text-neutral-800">{c.nome} {c.cognome}</span>
-                        <span className="text-xs text-neutral-500 ml-2">{c.data_nascita}</span>
+                  {stats.compleanni_prossimi?.map((c) => {
+                    const tel = (c.telefono || "").replace(/[\s\-().]/g, "");
+                    const waLink = tel ? `https://wa.me/${tel.startsWith("+") ? tel.slice(1) : "39" + tel}?text=${encodeURIComponent(`Buon compleanno ${c.nome}! Da parte di tutto lo staff dell'Osteria Tre Gobbi, tanti auguri! 🎂`)}` : null;
+                    const mailLink = c.email ? `mailto:${c.email}?subject=${encodeURIComponent("Buon Compleanno!")}&body=${encodeURIComponent(`Caro/a ${c.nome},\n\ntanti auguri di buon compleanno da parte di tutto lo staff dell'Osteria Tre Gobbi!\n\nSperiamo di rivederti presto.\n\nUn caro saluto`)}` : null;
+                    return (
+                      <div key={c.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-amber-50 transition">
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate(`/clienti/${c.id}`)}>
+                          <span className="text-sm font-medium text-neutral-800">{c.nome} {c.cognome}</span>
+                          <span className="text-xs text-neutral-500">{c.data_nascita}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {waLink && (
+                            <a href={waLink} target="_blank" rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition border border-emerald-200"
+                              title={`WhatsApp a ${tel}`}>
+                              WA
+                            </a>
+                          )}
+                          {mailLink && (
+                            <a href={mailLink}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition border border-sky-200"
+                              title={`Email a ${c.email}`}>
+                              Email
+                            </a>
+                          )}
+                          {!waLink && !mailLink && (
+                            <span className="text-[10px] text-neutral-400">No contatti</span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-xs text-neutral-500">{c.telefono || c.email || ""}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

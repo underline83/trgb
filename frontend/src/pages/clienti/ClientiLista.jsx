@@ -1,9 +1,10 @@
-// @version: v3.1-clienti-lista
-// Lista clienti — sidebar filtri a sinistra (stile Cantina), segmenti marketing, sort server-side
+// @version: v3.2-clienti-lista
+// Lista clienti — sidebar filtri, dettaglio inline (embedded ClientiScheda), segmenti marketing
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import ClientiScheda from "./ClientiScheda";
 
 // ── Colori rank ──────────────────────────────────────────
 const RANK_COLORS = {
@@ -49,6 +50,9 @@ export default function ClientiLista() {
   const [conTelefono, setConTelefono] = useState(false);
   const [mostraInattivi, setMostraInattivi] = useState(false);
   const [offset, setOffset] = useState(0);
+
+  // Dettaglio inline
+  const [selectedId, setSelectedId] = useState(null);
 
   // Ordinamento — server-side
   const [sortKey, setSortKey] = useState("cognome");
@@ -251,9 +255,19 @@ export default function ClientiLista() {
             </div>
 
             {/* ══════════════════════════════════════════
-                TABELLA PRINCIPALE
+                CONTENUTO PRINCIPALE — tabella o dettaglio inline
                ══════════════════════════════════════════ */}
             <div className="flex-1 min-w-0">
+
+              {/* ── DETTAGLIO INLINE (quando selezionato) ── */}
+              {selectedId ? (
+                <ClientiScheda
+                  clienteId={selectedId}
+                  onClose={() => { setSelectedId(null); fetchClienti(); }}
+                  embedded
+                />
+              ) : (
+              <>
               {/* Filtri mobile */}
               <div className="lg:hidden mb-3">
                 <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
@@ -292,7 +306,7 @@ export default function ClientiLista() {
                           const seg = SEGMENTO_CONFIG[c.segmento] || SEGMENTO_CONFIG.mai_venuto;
                           return (
                             <tr key={c.id}
-                              onClick={() => navigate(`/clienti/${c.id}`)}
+                              onClick={() => setSelectedId(c.id)}
                               className={`cursor-pointer hover:bg-teal-50/80 transition ${rowColor} ${!c.attivo ? "opacity-40" : ""}`}>
                               <td className="px-3 py-2.5">
                                 <div className="flex items-center gap-1.5">
@@ -365,6 +379,8 @@ export default function ClientiLista() {
                   </div>
                 )}
               </div>
+              </>
+              )}
             </div>
           </div>
         </div>
