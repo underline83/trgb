@@ -708,84 +708,89 @@ def merge_clienti(
 
 @router.get("/duplicati/suggerimenti")
 def suggerisci_duplicati(
-    limit: int = Query(50, ge=1, le=200),
+    tipo: Optional[str] = Query(None, description="telefono, email, nome — se vuoto ritorna tutti"),
+    limit: int = Query(100, ge=1, le=500),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Suggerisce possibili duplicati basandosi su:
-    - Stesso cognome+nome (case insensitive)
-    - Stesso telefono
-    - Stessa email
+    Suggerisce possibili duplicati.
+    tipo: 'telefono' | 'email' | 'nome' | None (tutti)
     """
     conn = get_clienti_conn()
     try:
         duplicati = []
+        seen_id_sets = set()  # evita gruppi doppi tra criteri diversi
 
-        # Per cognome+nome
-        rows = conn.execute("""
-            SELECT LOWER(cognome) as lcog, LOWER(nome) as lnom,
-                   GROUP_CONCAT(id) as ids, COUNT(*) as cnt
-            FROM clienti
-            WHERE cognome != '' AND nome != ''
-            GROUP BY lcog, lnom
-            HAVING cnt > 1
-            ORDER BY cnt DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-
-        for r in rows:
-            ids = [int(x) for x in r["ids"].split(",")]
-            clienti_detail = []
-            for cid in ids:
+        def _build_detail(ids_list):
+            """Costruisce il dettaglio clienti per un gruppo di ID."""
+            detail = []
+            for cid in ids_list:
                 c = conn.execute(
                     "SELECT id, cognome, nome, telefono, email, thefork_id FROM clienti WHERE id = ?",
                     (cid,),
                 ).fetchone()
+                if not c:
+                    continue
                 pren_count = conn.execute(
                     "SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = ?",
                     (cid,),
                 ).fetchone()[0]
-                if c:
-                    clienti_detail.append({**dict(c), "prenotazioni": pren_count})
-            duplicati.append({
-                "tipo": "nome",
-                "match": f"{r['lcog']} {r['lnom']}",
-                "clienti": clienti_detail,
-            })
+                detail.append({**dict(c), "prenotazioni": pren_count})
+            return detail
 
-        # Per telefono
-        rows_tel = conn.execute("""
-            SELECT telefono, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
-            FROM clienti
-            WHERE telefono IS NOT NULL AND telefono != ''
-            GROUP BY telefono
-            HAVING cnt > 1
-            ORDER BY cnt DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
+        def _add_groups(query, params, tipo_label):
+            """Esegue una query di grouping e aggiunge i risultati."""
+            rows = conn.execute(query, params).fetchall()
+            for r in rows:
+                ids = [int(x) for x in r["ids"].split(",")]
+                id_key = frozenset(ids)
+                if id_key in seen_id_sets:
+                    continue
+                seen_id_sets.add(id_key)
+                detail = _build_detail(ids)
+                if len(detail) >= 2:
+                    duplicati.append({
+                        "tipo": tipo_label,
+                        "match": r["match_val"],
+                        "clienti": detail,
+                    })
 
-        existing_pairs = {frozenset(c["id"] for c in d["clienti"]) for d in duplicati if d.get("clienti")}
-        for r in rows_tel:
-            ids = [int(x) for x in r["ids"].split(",")]
-            if frozenset(ids) in existing_pairs:
-                continue
-            clienti_detail = []
-            for cid in ids:
-                c = conn.execute(
-                    "SELECT id, cognome, nome, telefono, email, thefork_id FROM clienti WHERE id = ?",
-                    (cid,),
-                ).fetchone()
-                pren_count = conn.execute(
-                    "SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = ?",
-                    (cid,),
-                ).fetchone()[0]
-                if c:
-                    clienti_detail.append({**dict(c), "prenotazioni": pren_count})
-            duplicati.append({
-                "tipo": "telefono",
-                "match": r["telefono"],
-                "clienti": clienti_detail,
-            })
+        # --- TELEFONO ---
+        if not tipo or tipo == "telefono":
+            _add_groups("""
+                SELECT telefono as match_val, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+                FROM clienti
+                WHERE telefono IS NOT NULL AND telefono != ''
+                GROUP BY telefono
+                HAVING cnt > 1
+                ORDER BY cnt DESC
+                LIMIT ?
+            """, (limit,), "telefono")
+
+        # --- EMAIL ---
+        if not tipo or tipo == "email":
+            _add_groups("""
+                SELECT LOWER(email) as match_val, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+                FROM clienti
+                WHERE email IS NOT NULL AND email != ''
+                GROUP BY LOWER(email)
+                HAVING cnt > 1
+                ORDER BY cnt DESC
+                LIMIT ?
+            """, (limit,), "email")
+
+        # --- NOME + COGNOME ---
+        if not tipo or tipo == "nome":
+            _add_groups("""
+                SELECT LOWER(cognome) || ' ' || LOWER(nome) as match_val,
+                       GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+                FROM clienti
+                WHERE cognome != '' AND nome != ''
+                GROUP BY LOWER(cognome), LOWER(nome)
+                HAVING cnt > 1
+                ORDER BY cnt DESC
+                LIMIT ?
+            """, (limit,), "nome")
 
         return JSONResponse({"duplicati": duplicati, "totale": len(duplicati)})
     finally:

@@ -13,6 +13,7 @@ export default function ClientiDuplicati() {
   const [merging, setMerging] = useState(null);
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   const [merged, setMerged] = useState(0);
+  const [filtro, setFiltro] = useState("telefono"); // default: telefono (più affidabile)
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -22,7 +23,8 @@ export default function ClientiDuplicati() {
   const fetchDuplicati = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/clienti/duplicati/suggerimenti?limit=100`);
+      const tipoParam = filtro ? `&tipo=${filtro}` : "";
+      const res = await apiFetch(`${API_BASE}/clienti/duplicati/suggerimenti?limit=100${tipoParam}`);
       if (!res.ok) throw new Error("Errore caricamento");
       const data = await res.json();
       setDuplicati(data.duplicati || []);
@@ -31,7 +33,7 @@ export default function ClientiDuplicati() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filtro]);
 
   useEffect(() => { fetchDuplicati(); }, [fetchDuplicati]);
 
@@ -86,6 +88,30 @@ export default function ClientiDuplicati() {
                 {loading ? "Caricamento..." : "Aggiorna"}
               </button>
             </div>
+          </div>
+
+          {/* Filtri priorità */}
+          <div className="flex items-center gap-2 mb-5">
+            <span className="text-xs text-neutral-500 font-medium mr-1">Cerca per:</span>
+            {[
+              { key: "telefono", label: "Telefono", icon: "1", desc: "Stesso numero" },
+              { key: "email", label: "Email", icon: "2", desc: "Stessa email" },
+              { key: "nome", label: "Nome e Cognome", icon: "3", desc: "Stesso nome" },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFiltro(f.key)}
+                className={`px-3 py-2 rounded-lg text-xs font-medium transition border ${
+                  filtro === f.key
+                    ? "bg-teal-600 text-white border-teal-600 shadow-sm"
+                    : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300"
+                }`}
+              >
+                <span className="font-bold mr-1">{f.icon}.</span>
+                {f.label}
+                <span className="ml-1 opacity-60">— {f.desc}</span>
+              </button>
+            ))}
           </div>
 
           {loading ? (
