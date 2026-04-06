@@ -221,6 +221,23 @@ def init_clienti_db() -> None:
         )
     """)
 
+    # ── CODA REVISIONE IMPORT (diff tra CRM e TheFork) ──
+    # Quando un campo è diverso tra CRM (protetto) e TheFork, la differenza
+    # viene salvata qui. Marco la revisiona dalla UI e decide se applicarla o ignorarla.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_import_diff (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id      INTEGER NOT NULL REFERENCES clienti(id) ON DELETE CASCADE,
+            campo           TEXT NOT NULL,
+            valore_crm      TEXT,
+            valore_thefork  TEXT,
+            data_import     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            stato           TEXT NOT NULL DEFAULT 'pending',
+            risolto_at      TEXT,
+            UNIQUE(cliente_id, campo, stato)
+        )
+    """)
+
     # ── ALTER TABLE sicuri per DB esistenti ──
 
     # Campo 'protetto' su clienti: se 1, l'import TheFork NON sovrascrive i campi anagrafica
@@ -253,6 +270,8 @@ def init_clienti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_thefork_book ON clienti_prenotazioni(thefork_booking_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_cliente ON clienti_alias(cliente_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_thefork ON clienti_alias(thefork_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_diff_cliente ON clienti_import_diff(cliente_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_diff_stato ON clienti_import_diff(stato)")
 
     conn.commit()
     conn.close()

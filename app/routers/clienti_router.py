@@ -380,6 +380,7 @@ async def import_thefork(
     inseriti = 0
     aggiornati = 0
     errori = 0
+    diff_trovati = 0
 
     try:
         for row in data_rows:
@@ -444,30 +445,47 @@ async def import_thefork(
                 if existing:
                     if existing["protetto"]:
                         # Cliente protetto: aggiorna sempre i campi TheFork-specifici
-                        # + riempi i campi vuoti dal TheFork (senza sovrascrivere i pieni)
+                        # + riempi campi vuoti + salva DIFFERENZE nella coda revisione
                         always_update = {
                             "rank": record["rank"],
                             "risk_level": record["risk_level"],
                             "spending_behaviour": record["spending_behaviour"],
                             "thefork_updated": record["thefork_updated"],
                         }
-                        # Campi che riempiamo SOLO se vuoti nel DB
-                        fillable = [
+                        # Campi confrontabili: vuoto→riempi, diverso→salva diff
+                        diffable = [
                             "email", "telefono", "telefono2", "data_nascita",
                             "indirizzo", "cap", "citta", "paese",
                             "pref_cibo", "pref_bevande", "pref_posto",
                             "restrizioni_dietetiche", "allergie", "note_thefork",
+                            "nome", "cognome", "titolo", "lingua",
                         ]
-                        # Leggi il record corrente per sapere cosa è vuoto
                         current = conn.execute(
-                            f"SELECT {', '.join(fillable)} FROM clienti WHERE id = ?",
+                            f"SELECT {', '.join(diffable)} FROM clienti WHERE id = ?",
                             (existing["id"],),
                         ).fetchone()
-                        for field in fillable:
+                        for field in diffable:
                             cur_val = current[field] if current else None
                             new_val = record.get(field)
-                            if (not cur_val or str(cur_val).strip() == "") and new_val and str(new_val).strip() != "":
+                            cur_str = str(cur_val).strip() if cur_val else ""
+                            new_str = str(new_val).strip() if new_val else ""
+
+                            if not cur_str and new_str:
+                                # Campo vuoto nel DB, pieno in TheFork → riempi
                                 always_update[field] = new_val
+                            elif cur_str and new_str and cur_str != new_str:
+                                # Campo diverso → salva diff per revisione Marco
+                                conn.execute(
+                                    "DELETE FROM clienti_import_diff WHERE cliente_id = ? AND campo = ? AND stato = 'pending'",
+                                    (existing["id"], field),
+                                )
+                                conn.execute(
+                                    """INSERT INTO clienti_import_diff
+                                       (cliente_id, campo, valore_crm, valore_thefork)
+                                       VALUES (?, ?, ?, ?)""",
+                                    (existing["id"], field, cur_str, new_str),
+                                )
+                                diff_trovati += 1
 
                         set_clause = ", ".join(f"{k}=?" for k in always_update)
                         conn.execute(
@@ -521,6 +539,7 @@ async def import_thefork(
             "inseriti": inseriti,
             "aggiornati": aggiornati,
             "errori": errori,
+            "diff_trovati": diff_trovati,
             "totale_righe": len(data_rows),
         })
     except Exception as e:
@@ -999,6 +1018,149 @@ def escludi_duplicato(
             count += 1
         conn.commit()
         return JSONResponse({"status": "ok", "coppie_escluse": count})
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: CODA REVISIONE IMPORT DIFF
+# ============================================================
+@router.get("/import/diff")
+def lista_import_diff(
+    stato: str = Query("pending"),
+    limit: int = Query(200, ge=1, le=1000),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Ritorna le differenze trovate tra CRM e TheFork durante l'import.
+    Raggruppate per cliente, con nome/cognome per la UI.
+    """
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute("""
+            SELECT d.*, c.nome, c.cognome, c.telefono, c.email
+            FROM clienti_import_diff d
+            JOIN clienti c ON c.id = d.cliente_id
+            WHERE d.stato = ?
+            ORDER BY d.data_import DESC
+            LIMIT ?
+        """, (stato, limit)).fetchall()
+
+        # Raggruppa per cliente
+        grouped = {}
+        for r in rows:
+            cid = r["cliente_id"]
+            if cid not in grouped:
+                grouped[cid] = {
+                    "cliente_id": cid,
+                    "nome": r["nome"],
+                    "cognome": r["cognome"],
+                    "telefono": r["telefono"],
+                    "email": r["email"],
+                    "diff": [],
+                }
+            grouped[cid]["diff"].append({
+                "id": r["id"],
+                "campo": r["campo"],
+                "valore_crm": r["valore_crm"],
+                "valore_thefork": r["valore_thefork"],
+                "data_import": r["data_import"],
+            })
+
+        result = list(grouped.values())
+        totale_diff = sum(len(g["diff"]) for g in result)
+
+        return JSONResponse({
+            "clienti": result,
+            "totale_clienti": len(result),
+            "totale_diff": totale_diff,
+        })
+    finally:
+        conn.close()
+
+
+@router.get("/import/diff/count")
+def count_import_diff(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Conteggio rapido delle differenze pending (per badge UI)."""
+    conn = get_clienti_conn()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) as n FROM clienti_import_diff WHERE stato = 'pending'"
+        ).fetchone()
+        return JSONResponse({"pending": row["n"]})
+    finally:
+        conn.close()
+
+
+class DiffActionRequest(BaseModel):
+    ids: List[int] = Field(..., description="ID delle righe clienti_import_diff")
+    azione: str = Field(..., description="'applica' o 'ignora'")
+
+
+@router.post("/import/diff/risolvi")
+def risolvi_import_diff(
+    req: DiffActionRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Applica o ignora una o più differenze import.
+    - applica: aggiorna il campo nel DB clienti con il valore TheFork
+    - ignora: segna la differenza come risolta senza modificare nulla
+    """
+    if req.azione not in ("applica", "ignora"):
+        raise HTTPException(400, "Azione deve essere 'applica' o 'ignora'")
+
+    conn = get_clienti_conn()
+    try:
+        applicati = 0
+        ignorati = 0
+
+        for diff_id in req.ids:
+            diff_row = conn.execute(
+                "SELECT * FROM clienti_import_diff WHERE id = ? AND stato = 'pending'",
+                (diff_id,),
+            ).fetchone()
+            if not diff_row:
+                continue
+
+            if req.azione == "applica":
+                # Aggiorna il campo nel cliente con il valore TheFork
+                campo = diff_row["campo"]
+                # Validazione: solo campi conosciuti (anti-injection)
+                campi_validi = {
+                    "email", "telefono", "telefono2", "data_nascita",
+                    "indirizzo", "cap", "citta", "paese",
+                    "pref_cibo", "pref_bevande", "pref_posto",
+                    "restrizioni_dietetiche", "allergie", "note_thefork",
+                    "nome", "cognome", "titolo", "lingua",
+                }
+                if campo not in campi_validi:
+                    continue
+                conn.execute(
+                    f"UPDATE clienti SET {campo} = ? WHERE id = ?",
+                    (diff_row["valore_thefork"], diff_row["cliente_id"]),
+                )
+                applicati += 1
+            else:
+                ignorati += 1
+
+            # Segna come risolto
+            conn.execute(
+                "UPDATE clienti_import_diff SET stato = ?, risolto_at = datetime('now','localtime') WHERE id = ?",
+                (req.azione, diff_id),
+            )
+
+        conn.commit()
+        return JSONResponse({
+            "status": "ok",
+            "applicati": applicati,
+            "ignorati": ignorati,
+        })
+    except Exception as e:
+        logger.exception("Errore risoluzione diff import")
+        raise HTTPException(500, str(e))
     finally:
         conn.close()
 

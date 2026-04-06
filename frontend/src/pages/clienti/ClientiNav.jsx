@@ -1,7 +1,8 @@
-// @version: v1.0-clienti-nav
+// @version: v1.1-clienti-nav
 // Tab navigation per il modulo Clienti CRM
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_BASE, apiFetch } from "../../config/api";
 
 const TABS = [
   { key: "lista", label: "Anagrafica", path: "/clienti/lista", icon: "📇" },
@@ -11,9 +12,22 @@ const TABS = [
   { key: "duplicati", label: "Duplicati", path: "/clienti/duplicati", icon: "🔄", roles: ["superadmin", "admin"] },
 ];
 
-export default function ClientiNav({ current }) {
+export default function ClientiNav({ current, diffCount: externalDiffCount }) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
+  const [diffCount, setDiffCount] = useState(0);
+
+  useEffect(() => {
+    if (externalDiffCount !== undefined) {
+      setDiffCount(externalDiffCount);
+      return;
+    }
+    // Fetch diff count autonomamente se non passato come prop
+    apiFetch(`${API_BASE}/clienti/import/diff/count`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setDiffCount(d.pending || 0); })
+      .catch(() => {});
+  }, [externalDiffCount]);
 
   const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
 
@@ -43,6 +57,11 @@ export default function ClientiNav({ current }) {
                   >
                     <span className="mr-1">{tab.icon}</span>
                     {tab.label}
+                    {tab.key === "import" && diffCount > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full leading-none">
+                        {diffCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}

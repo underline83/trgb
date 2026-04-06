@@ -17,11 +17,19 @@
 - **Tag auto/manual** — `auto=1` per tag da import (es. VIP), `auto=0` per tag CRM manuali (intoccabili dall'import)
 - **Alias merge** — tabella `clienti_alias` per mappare thefork_id secondari al principale, riconoscimento automatico in import clienti e prenotazioni
 
+#### New — Revisione Diff Import
+- **Coda revisione** — tabella `clienti_import_diff` salva le differenze tra CRM e TheFork per clienti protetti
+- **UI revisione** — sezione nella pagina Import con diff campo per campo (valore CRM → valore TheFork)
+- **Azioni per diff** — Applica singolo, Ignora singolo, Applica/Ignora tutto per cliente, Applica/Ignora globale
+- **Badge notifica** — tab Import nella Nav mostra badge amber con conteggio diff pending
+- **Risultato import** — dopo l'import mostra quante differenze sono state trovate
+
 #### Changed
-- DB schema: 7 tabelle (aggiunte `clienti_alias`, `clienti_no_duplicato`, colonne `protetto` e `auto`)
-- `clienti_router.py` ~1200 righe (+merge, duplicati/suggerimenti, duplicati/escludi, export/google-csv)
+- DB schema: 8 tabelle (aggiunte `clienti_alias`, `clienti_no_duplicato`, `clienti_import_diff`, colonne `protetto` e `auto`)
+- `clienti_router.py` ~1350 righe (+merge, duplicati, export, diff/risolvi)
 - `ClientiDuplicati.jsx` — riscritta completamente con flow 3-step
-- `ClientiImport.jsx` — aggiunta sezione Export con download CSV
+- `ClientiImport.jsx` — sezioni Export + DiffReview con azioni batch
+- `ClientiNav.jsx` — badge diff count su tab Import
 - `push.sh` — refactoring flag (-f, -m, -d), aggiunto `clienti.sqlite3` a sync DB
 
 ---
