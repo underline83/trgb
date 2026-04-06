@@ -1345,6 +1345,83 @@ def prenotazioni_stats(
 
 
 # ============================================================
+# ENDPOINT: CONTEGGIO SEGMENTI MARKETING
+# ============================================================
+@router.get("/segmenti/conteggi")
+def segmenti_conteggi(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Conteggio rapido di ogni segmento marketing per badge/riepilogo UI.
+    """
+    conn = get_clienti_conn()
+    try:
+        STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+        totale_attivi = conn.execute("SELECT COUNT(*) FROM clienti WHERE attivo = 1").fetchone()[0]
+
+        # Clienti con almeno 1 prenotazione completata
+        con_visite = conn.execute(f"""
+            SELECT p.cliente_id,
+                COUNT(*) as tot,
+                SUM(CASE WHEN p.data_pasto >= date('now','-12 months') THEN 1 ELSE 0 END) as anno,
+                MAX(p.data_pasto) as ultima,
+                MIN(p.data_pasto) as prima
+            FROM clienti_prenotazioni p
+            JOIN clienti c ON c.id = p.cliente_id AND c.attivo = 1
+            WHERE p.stato IN {STATI_OK} AND p.cliente_id IS NOT NULL
+            GROUP BY p.cliente_id
+        """).fetchall()
+
+        counts = {"abituale": 0, "occasionale": 0, "nuovo": 0, "in_calo": 0, "perso": 0, "mai_venuto": 0}
+        oggi = str(date.today())
+        soglia_anno = str(date.today() - timedelta(days=365))
+        soglia_3mesi = str(date.today() - timedelta(days=90))
+
+        clienti_con_visite = set()
+        for r in con_visite:
+            clienti_con_visite.add(r["cliente_id"])
+            anno = r["anno"] or 0
+            ultima = r["ultima"] or ""
+            prima = r["prima"] or ""
+
+            if ultima < soglia_anno:
+                counts["perso"] += 1
+            elif prima >= soglia_3mesi and anno <= 2:
+                counts["nuovo"] += 1
+            elif anno >= 5:
+                counts["abituale"] += 1
+            elif anno >= 1:
+                counts["occasionale"] += 1
+            else:
+                counts["perso"] += 1
+
+        counts["mai_venuto"] = totale_attivi - len(clienti_con_visite)
+
+        # In calo: query dedicata più precisa
+        in_calo_rows = conn.execute(f"""
+            SELECT COUNT(DISTINCT p.cliente_id) FROM clienti_prenotazioni p
+            JOIN clienti c ON c.id = p.cliente_id AND c.attivo = 1
+            WHERE p.stato IN {STATI_OK}
+            GROUP BY p.cliente_id
+            HAVING SUM(CASE WHEN p.data_pasto BETWEEN date('now','-18 months') AND date('now','-6 months') THEN 1 ELSE 0 END) >= 3
+            AND SUM(CASE WHEN p.data_pasto >= date('now','-6 months') THEN 1 ELSE 0 END) <= 1
+        """).fetchall()
+        counts["in_calo"] = len(in_calo_rows)
+
+        counts["totale_attivi"] = totale_attivi
+        counts["con_email"] = conn.execute(
+            "SELECT COUNT(*) FROM clienti WHERE attivo = 1 AND email IS NOT NULL AND email != ''"
+        ).fetchone()[0]
+        counts["con_telefono"] = conn.execute(
+            "SELECT COUNT(*) FROM clienti WHERE attivo = 1 AND telefono IS NOT NULL AND telefono != ''"
+        ).fetchone()[0]
+
+        return JSONResponse(counts)
+    finally:
+        conn.close()
+
+
+# ============================================================
 # ENDPOINT: LISTA CLIENTI (con ricerca e filtri)
 # ============================================================
 @router.get("/")
@@ -1353,13 +1430,20 @@ def lista_clienti(
     vip: Optional[bool] = None,
     tag_id: Optional[int] = None,
     rank: Optional[str] = None,
+    segmento: Optional[str] = None,
     attivo: Optional[bool] = True,
     compleanno_entro_giorni: Optional[int] = None,
+    con_email: Optional[bool] = None,
+    con_telefono: Optional[bool] = None,
     limit: int = Query(100, ge=1, le=5000),
     offset: int = Query(0, ge=0),
     ordine: str = Query("cognome_asc"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
+    """
+    Lista clienti con filtri marketing.
+    segmento: abituale | occasionale | nuovo | in_calo | perso | mai_venuto
+    """
     conn = get_clienti_conn()
     try:
         where = []
@@ -1379,17 +1463,22 @@ def lista_clienti(
 
         if q:
             where.append(
-                "(c.nome LIKE ? OR c.cognome LIKE ? OR c.email LIKE ? OR c.telefono LIKE ? OR c.note_thefork LIKE ?)"
+                "(c.nome LIKE ? OR c.cognome LIKE ? OR c.email LIKE ? OR c.telefono LIKE ?"
+                " OR c.note_thefork LIKE ? OR c.allergie LIKE ? OR c.pref_cibo LIKE ? OR c.pref_bevande LIKE ?)"
             )
             like = f"%{q}%"
-            params.extend([like, like, like, like, like])
+            params.extend([like] * 8)
 
         if tag_id:
             where.append("c.id IN (SELECT cliente_id FROM clienti_tag_assoc WHERE tag_id = ?)")
             params.append(tag_id)
 
+        if con_email:
+            where.append("c.email IS NOT NULL AND c.email != ''")
+        if con_telefono:
+            where.append("c.telefono IS NOT NULL AND c.telefono != ''")
+
         if compleanno_entro_giorni:
-            # Filtra clienti con compleanno nei prossimi N giorni
             today = date.today()
             where.append("c.data_nascita IS NOT NULL")
             date_conditions = []
@@ -1398,6 +1487,58 @@ def lista_clienti(
                 date_conditions.append(f"substr(c.data_nascita, 1, 5) = '{d.strftime('%d/%m')}'")
             if date_conditions:
                 where.append(f"({' OR '.join(date_conditions)})")
+
+        # ── Segmenti marketing (calcolati da prenotazioni completate) ──
+        # visite_anno = completate nell'ultimo anno
+        # visite_semestre = completate negli ultimi 6 mesi
+        # visite_anno_prec = completate tra -24 e -12 mesi
+        # prima_visita_recente = prima visita completata negli ultimi 90 giorni
+        STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+        if segmento:
+            seg_map = {
+                "abituale": f"""c.id IN (
+                    SELECT p.cliente_id FROM clienti_prenotazioni p
+                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-12 months')
+                    GROUP BY p.cliente_id HAVING COUNT(*) >= 5
+                )""",
+                "occasionale": f"""c.id IN (
+                    SELECT p.cliente_id FROM clienti_prenotazioni p
+                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-12 months')
+                    GROUP BY p.cliente_id HAVING COUNT(*) BETWEEN 1 AND 4
+                )""",
+                "nuovo": f"""c.id IN (
+                    SELECT p.cliente_id FROM clienti_prenotazioni p
+                    WHERE p.stato IN {STATI_OK}
+                    GROUP BY p.cliente_id
+                    HAVING MIN(p.data_pasto) >= date('now','-3 months')
+                )""",
+                "in_calo": f"""c.id IN (
+                    SELECT sub.cid FROM (
+                        SELECT p.cliente_id as cid,
+                            SUM(CASE WHEN p.data_pasto >= date('now','-6 months') THEN 1 ELSE 0 END) as recenti,
+                            SUM(CASE WHEN p.data_pasto BETWEEN date('now','-18 months') AND date('now','-6 months') THEN 1 ELSE 0 END) as precedenti
+                        FROM clienti_prenotazioni p
+                        WHERE p.stato IN {STATI_OK}
+                        GROUP BY p.cliente_id
+                        HAVING precedenti >= 3 AND recenti <= 1
+                    ) sub
+                )""",
+                "perso": f"""c.id IN (
+                    SELECT p.cliente_id FROM clienti_prenotazioni p
+                    WHERE p.stato IN {STATI_OK}
+                    GROUP BY p.cliente_id
+                    HAVING MAX(p.data_pasto) < date('now','-12 months')
+                ) AND c.id IN (
+                    SELECT DISTINCT p2.cliente_id FROM clienti_prenotazioni p2
+                    WHERE p2.stato IN {STATI_OK}
+                )""",
+                "mai_venuto": f"""c.id NOT IN (
+                    SELECT DISTINCT p.cliente_id FROM clienti_prenotazioni p
+                    WHERE p.stato IN {STATI_OK} AND p.cliente_id IS NOT NULL
+                )""",
+            }
+            if segmento in seg_map:
+                where.append(seg_map[segmento])
 
         where_sql = " AND ".join(where) if where else "1=1"
 
@@ -1408,6 +1549,10 @@ def lista_clienti(
             "recente": "c.created_at DESC",
             "ultima_modifica": "c.updated_at DESC",
             "vip_first": "c.vip DESC, c.cognome ASC",
+            "n_prenotazioni_desc": "n_prenotazioni DESC, c.cognome ASC",
+            "n_prenotazioni_asc": "n_prenotazioni ASC, c.cognome ASC",
+            "ultima_visita_desc": "ultima_visita DESC",
+            "ultima_visita_asc": "ultima_visita ASC",
         }
         order_sql = order_map.get(ordine, "c.cognome ASC, c.nome ASC")
 
@@ -1417,14 +1562,20 @@ def lista_clienti(
         ).fetchone()
         totale = count_row["tot"]
 
-        # Fetch pagina
+        # Fetch pagina con subquery per prenotazioni + segmento calcolato
         rows = conn.execute(
             f"""
             SELECT c.*,
                    GROUP_CONCAT(t.nome, ', ') as tags,
-                   (SELECT COUNT(*) FROM clienti_prenotazioni p WHERE p.cliente_id = c.id) as n_prenotazioni,
-                   (SELECT MAX(p.data_pasto) FROM clienti_prenotazioni p WHERE p.cliente_id = c.id
-                    AND p.stato IN ('SEATED','ARRIVED','BILL','LEFT')) as ultima_visita
+                   (SELECT COUNT(*) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as n_prenotazioni,
+                   (SELECT MAX(p.data_pasto) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as ultima_visita,
+                   (SELECT COUNT(*) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}
+                    AND p.data_pasto >= date('now','-12 months')) as visite_anno,
+                   (SELECT MIN(p.data_pasto) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as prima_visita
             FROM clienti c
             LEFT JOIN clienti_tag_assoc ta ON ta.cliente_id = c.id
             LEFT JOIN clienti_tag t ON t.id = ta.tag_id
@@ -1436,8 +1587,32 @@ def lista_clienti(
             params + [limit, offset],
         ).fetchall()
 
+        # Calcola segmento per ogni riga
+        risultati = []
+        for r in rows:
+            d = dict(r)
+            # Determina segmento marketing
+            n_pren = d.get("n_prenotazioni") or 0
+            visite_anno = d.get("visite_anno") or 0
+            ultima = d.get("ultima_visita")
+            prima = d.get("prima_visita")
+
+            if n_pren == 0:
+                d["segmento"] = "mai_venuto"
+            elif ultima and ultima < str(date.today() - timedelta(days=365)):
+                d["segmento"] = "perso"
+            elif prima and prima >= str(date.today() - timedelta(days=90)) and visite_anno <= 2:
+                d["segmento"] = "nuovo"
+            elif visite_anno >= 5:
+                d["segmento"] = "abituale"
+            elif visite_anno >= 1:
+                d["segmento"] = "occasionale"
+            else:
+                d["segmento"] = "perso"
+            risultati.append(d)
+
         return JSONResponse({
-            "clienti": [dict(r) for r in rows],
+            "clienti": risultati,
             "totale": totale,
             "limit": limit,
             "offset": offset,
