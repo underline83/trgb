@@ -395,6 +395,11 @@ async def import_thefork(
 
                 telefono = clean_phone(val(row, "Phone number"))
                 telefono2 = clean_phone(val(row, "Secondary phone number"))
+                # Scarta telefoni placeholder TheFork (+39 + soli zeri)
+                if telefono and not _is_valid_tel(telefono):
+                    telefono = None
+                if telefono2 and not _is_valid_tel(telefono2):
+                    telefono2 = None
 
                 record = {
                     "thefork_id": tf_id,
@@ -883,6 +888,17 @@ def merge_clienti(
 # ============================================================
 # AUTO-MERGE DUPLICATI OVVI
 # ============================================================
+_TEL_PLACEHOLDER = re.compile(r"^\+?3?9?0+$")
+
+
+def _is_valid_tel(tel):
+    """Filtra telefoni placeholder di TheFork (+39 + soli zeri) e numeri troppo corti."""
+    if not tel:
+        return False
+    digits = re.sub(r"[^\d]", "", tel)
+    return len(digits) >= 10 and not _TEL_PLACEHOLDER.match(tel.replace(" ", "").replace("-", ""))
+
+
 def _find_obvious_duplicates(conn):
     """
     Trova gruppi di duplicati "ovvi" — stessa email+cognome oppure stesso telefono+cognome.
@@ -922,6 +938,7 @@ def _find_obvious_duplicates(conn):
     seen = set()
 
     # Gruppo 1: stesso telefono + stesso cognome (case-insensitive)
+    # Esclude telefoni placeholder TheFork (+39 + soli zeri) e numeri troppo corti
     tel_groups = conn.execute("""
         SELECT GROUP_CONCAT(id) as ids, telefono, LOWER(cognome) as lcog
         FROM clienti
@@ -930,6 +947,7 @@ def _find_obvious_duplicates(conn):
         GROUP BY telefono, LOWER(cognome)
         HAVING COUNT(*) > 1
     """).fetchall()
+    tel_groups = [r for r in tel_groups if _is_valid_tel(r["telefono"])]
     for row in tel_groups:
         ids = [int(x) for x in row["ids"].split(",")]
         key = frozenset(ids)
@@ -1133,6 +1151,9 @@ def suggerisci_duplicati(
             """Esegue una query di grouping e aggiunge i risultati."""
             rows = conn.execute(query, params).fetchall()
             for r in rows:
+                # Filtra telefoni placeholder TheFork
+                if tipo_label == "telefono" and not _is_valid_tel(r["match_val"]):
+                    continue
                 ids = [int(x) for x in r["ids"].split(",")]
                 id_key = frozenset(ids)
                 if id_key in seen_id_sets:
@@ -1548,6 +1569,97 @@ def prenotazioni_stats(
 
 
 # ============================================================
+# ============================================================
+# ENDPOINT: PULIZIA TELEFONI PLACEHOLDER
+# ============================================================
+@router.post("/pulizia/telefoni-placeholder")
+def pulizia_telefoni_placeholder(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Svuota i campi telefono che contengono numeri finti/placeholder di TheFork
+    (es. +39000000000, +390000, +3900 ecc.)
+    """
+    conn = get_clienti_conn()
+    try:
+        # Trova tutti i telefoni placeholder
+        rows = conn.execute(
+            "SELECT id, telefono FROM clienti WHERE telefono IS NOT NULL AND telefono != ''"
+        ).fetchall()
+        cleaned = 0
+        for r in rows:
+            if not _is_valid_tel(r["telefono"]):
+                conn.execute("UPDATE clienti SET telefono = NULL WHERE id = ?", (r["id"],))
+                cleaned += 1
+        conn.commit()
+        return JSONResponse({"status": "ok", "cleaned": cleaned})
+    except Exception as e:
+        logger.exception("Errore pulizia telefoni")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: NORMALIZZA TESTI (Title Case)
+# ============================================================
+def _title_case(s):
+    """Converte in Title Case intelligente: 'MARIO ROSSI' → 'Mario Rossi'."""
+    if not s or not isinstance(s, str):
+        return s
+    # Se è già mixed case ragionevole, non toccare
+    if s != s.upper() and s != s.lower():
+        return s
+    # Gestisci nomi composti con apostrofo/trattino: "D'AMICO" → "D'Amico", "DE LUCA" → "De Luca"
+    parts = []
+    for word in s.split():
+        if "'" in word:
+            idx = word.index("'")
+            parts.append(word[:idx+1].capitalize() + word[idx+1:].capitalize())
+        elif "-" in word:
+            parts.append("-".join(p.capitalize() for p in word.split("-")))
+        else:
+            parts.append(word.capitalize())
+    return " ".join(parts)
+
+
+@router.post("/pulizia/normalizza-testi")
+def pulizia_normalizza_testi(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Normalizza nome, cognome, nome2, cognome2 e città in Title Case.
+    'MARIO ROSSI' → 'Mario Rossi', 'mario rossi' → 'Mario Rossi'.
+    Non tocca i nomi già in mixed case (es. 'McDonald').
+    """
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute(
+            "SELECT id, nome, cognome, nome2, cognome2, citta FROM clienti WHERE attivo = 1"
+        ).fetchall()
+        updated = 0
+        for r in rows:
+            changes = {}
+            for campo in ["nome", "cognome", "nome2", "cognome2", "citta"]:
+                val = r[campo]
+                if val:
+                    new_val = _title_case(val)
+                    if new_val != val:
+                        changes[campo] = new_val
+            if changes:
+                sets = ", ".join(f"{k} = ?" for k in changes)
+                vals = list(changes.values()) + [r["id"]]
+                conn.execute(f"UPDATE clienti SET {sets} WHERE id = ?", vals)
+                updated += 1
+        conn.commit()
+        return JSONResponse({"status": "ok", "updated": updated})
+    except Exception as e:
+        logger.exception("Errore normalizzazione testi")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
 # ENDPOINT: IMPOSTAZIONI CRM (soglie segmenti, configurazioni)
 # ============================================================
 def _get_impostazioni(conn) -> dict:

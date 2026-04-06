@@ -42,6 +42,34 @@ export default function ClientiDuplicati({ embedded = false }) {
 
   useEffect(() => { fetchDuplicati(); }, [fetchDuplicati]);
 
+  // Pulizia telefoni placeholder
+  const handlePuliziaTel = async () => {
+    if (!window.confirm("Cancellare tutti i numeri di telefono finti/placeholder dal database?\n\n(Numeri tipo +39000000000 importati da TheFork)")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/pulizia/telefoni-placeholder`, { method: "POST" });
+      if (!res.ok) throw new Error("Errore pulizia");
+      const data = await res.json();
+      showToast(`Puliti ${data.cleaned} telefoni placeholder`);
+      fetchDuplicati();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  // Normalizza testi (Title Case)
+  const handleNormalizzaTesti = async () => {
+    if (!window.confirm("Normalizzare nomi, cognomi e città?\n\nEs: 'MARIO ROSSI' → 'Mario Rossi'\nI nomi già in formato misto (es. McDonald) non vengono toccati.")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/pulizia/normalizza-testi`, { method: "POST" });
+      if (!res.ok) throw new Error("Errore normalizzazione");
+      const data = await res.json();
+      showToast(`Normalizzati ${data.updated} clienti`);
+      fetchDuplicati();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   // Auto-merge: preview
   const handleAutoPreview = async () => {
     setAutoLoading(true);
@@ -152,6 +180,14 @@ export default function ClientiDuplicati({ embedded = false }) {
                   {merged} merge completati
                 </span>
               )}
+              <button onClick={handleNormalizzaTesti}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500 text-white hover:bg-sky-600 transition">
+                Normalizza testi
+              </button>
+              <button onClick={handlePuliziaTel}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600 transition">
+                Pulisci tel. finti
+              </button>
               <button onClick={fetchDuplicati} disabled={loading}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
                 {loading ? "Caricamento..." : "Aggiorna"}

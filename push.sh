@@ -6,7 +6,7 @@
 #   ./push.sh "messaggio commit" -f   → deploy + pip install + npm install
 #   ./push.sh "messaggio commit" -m   → deploy + sync modules.json locale → VPS
 #   ./push.sh "messaggio commit" -d   → deploy + sync codice su Google Drive
-#   ./push.sh "messaggio commit" -v   → output verbose (dettaglio per ogni DB, log completo push)
+#   ./push.sh "messaggio commit" -q   → output compatto (default: verbose)
 #
 # Remote:
 #   origin → VPS bare repo (deploy)
@@ -39,7 +39,7 @@ MSG="${1:-}"
 SYNC_FULL=false
 SYNC_MODULES=false
 SYNC_DRIVE=false
-VERBOSE=false
+VERBOSE=true
 shift || true
 for arg in "$@"; do
   case "$arg" in
@@ -47,6 +47,7 @@ for arg in "$@"; do
     -m) SYNC_MODULES=true ;;
     -d) SYNC_DRIVE=true ;;
     -v) VERBOSE=true ;;
+    -q) VERBOSE=false ;;
   esac
 done
 
