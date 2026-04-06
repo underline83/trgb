@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-04-06 — Gestione Clienti v1.0: Nuovo modulo CRM completo
+
+#### New — Modulo Gestione Clienti CRM
+- **Anagrafica clienti** — lista con filtri (ricerca, VIP, rank, tag, attivi/inattivi), paginazione, ordinamento colonne
+- **Scheda cliente** — layout 3 colonne: anagrafica + preferenze + diario note + storico prenotazioni, edit inline, gestione tag
+- **Import TheFork clienti** — import XLSX con upsert su thefork_id (27k+ clienti), pulizia numeri telefono, auto-tag VIP
+- **Import TheFork prenotazioni** — import XLSX con upsert su booking_id (31k+ prenotazioni), collegamento automatico a clienti via Customer ID
+- **Storico Prenotazioni** — vista globale con filtri (stato, canale, date), badge colorati per stato, paginazione
+- **Dashboard CRM** — KPI clienti + prenotazioni, compleanni 7gg, top 20 clienti per visite, distribuzione rank/tag/canale, andamento mensile 12 mesi, copertura contatti
+- **Diario note** — note tipizzate (nota/telefonata/evento/reclamo/preferenza) per ogni cliente
+- **Tag system** — 7 tag predefiniti + CRUD, toggle rapido nella scheda cliente
+- **DB dedicato** `clienti.sqlite3` con 5 tabelle: clienti, clienti_tag, clienti_tag_assoc, clienti_note, clienti_prenotazioni
+
+#### Files
+- `app/models/clienti_db.py` — init DB + schema + trigger + indici
+- `app/routers/clienti_router.py` — ~900 righe, tutti gli endpoint CRM + import
+- `frontend/src/pages/clienti/` — 7 componenti (Menu, Nav, Lista, Scheda, Dashboard, Import, Prenotazioni)
+- Modificati: main.py, modules.json, versions.jsx, modulesMenu.js, Home.jsx, App.jsx
+
+---
+
 ## 2026-04-05 — Vendite v4.2 + Sistema v5.3: Turni chiusi parziali, refactoring logging/DB
 
 #### New — Turni chiusi parziali

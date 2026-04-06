@@ -60,6 +60,9 @@ from app.routers import vini_pricing_router
 # IPRATICO PRODUCTS — sync prodotti iPratico ↔ vini TRGB
 from app.routers import ipratico_products_router
 
+# CLIENTI CRM
+from app.routers.clienti_router import router as clienti_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -207,6 +210,10 @@ app.include_router(menu_router.router, prefix="/menu", tags=["menu"])
 app.include_router(backup_router.router)
 app.include_router(vini_pricing_router.router)
 app.include_router(ipratico_products_router.router)
+
+# CLIENTI CRM
+# (usa DB dedicato app/data/clienti.sqlite3, inizializzato in clienti_db.init_clienti_db)
+app.include_router(clienti_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)

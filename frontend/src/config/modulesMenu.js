@@ -78,6 +78,16 @@ const MODULES_MENU = {
       { label: "Coperti & Incassi", go: "/statistiche/coperti" },
     ],
   },
+  clienti: {
+    title: "Gestione Clienti", icon: "\uD83E\uDD1D", go: "/clienti",
+    color: "bg-teal-50 border-teal-200 text-teal-900", hoverBg: "hover:bg-teal-50",
+    sub: [
+      { label: "Anagrafica",    go: "/clienti/lista" },
+      { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
+      { label: "Dashboard",     go: "/clienti/dashboard" },
+      { label: "Import",        go: "/clienti/import", check: "admin" },
+    ],
+  },
   dipendenti: {
     title: "Dipendenti", icon: "\uD83D\uDC65", go: "/dipendenti",
     color: "bg-purple-50 border-purple-200 text-purple-900", hoverBg: "hover:bg-purple-50",

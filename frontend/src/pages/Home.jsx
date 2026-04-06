@@ -15,6 +15,7 @@ const HOME_EXTRA = {
   "flussi-cassa":      { subtitle: "Conti correnti, carta di credito, contanti, mance",                   vKey: "flussiCassa" },
   "controllo-gestione":{ subtitle: "Panorama finanziario — vendite, acquisti, banca, scadenze, margine",   vKey: "controlloGestione" },
   statistiche:         { subtitle: "Analisi vendite iPratico, categorie, prodotti, trend",                 vKey: "statistiche" },
+  clienti:             { subtitle: "CRM ristorante: anagrafica, tag, note, preferenze",                    vKey: "clienti" },
   dipendenti:          { subtitle: "Personale, buste paga, turni, scadenze, costi",                        vKey: "dipendenti" },
   impostazioni:        { subtitle: "Utenti, ruoli, configurazione sistema",                                vKey: "sistema" },
 };

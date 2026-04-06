@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-05 (sessione 19 — Vendite v4.2, turni chiusi parziali, refactoring logging/DB, Sistema v5.3)
+> Ultima sessione: 2026-04-06 (sessione 20 — Gestione Clienti v1.0, CRM completo con import TheFork)
 
 ---
 
@@ -49,26 +49,25 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-04-05, sessione 19)
+## Cosa abbiamo fatto nell'ultima sessione (2026-04-06, sessione 20)
 
-### Vendite v4.2: Turni chiusi parziali + fix DELETE chiusura
-1. **Turni chiusi parziali** — nuovo campo `turni_chiusi` in closures_config.json per chiusure di singoli turni (es. Pasqua solo pranzo)
-2. **Sezione UI CalendarioChiusure** — form (data + turno + motivo) + tabella + indicatore ambra nel calendario
-3. **Badge lista chiusure** — grigio "cena chiusa — motivo" in ChiusureTurnoLista.jsx
-4. **Badge dashboard** — ambra "solo pranzo/cena" nella tabella dettaglio giornaliero + "parziale" nel calendario heatmap
-5. **Form chiusura bloccato** — fieldset disabled + banner "Turno chiuso" se il turno e' segnato come chiuso
-6. **Fix DELETE chiusura** — nomi tabelle errati corretti (shift_closure_preconti → shift_preconti, ecc.)
+### Gestione Clienti v1.0: Nuovo modulo CRM completo
+1. **DB dedicato** `clienti.sqlite3` — 5 tabelle (clienti, tag, tag_assoc, note, prenotazioni) con trigger e indici
+2. **Backend completo** `clienti_router.py` (~900 righe) — CRUD clienti, tag, note, import TheFork clienti+prenotazioni, dashboard stats, prenotazioni stats
+3. **Import TheFork clienti** — mappa 30 colonne XLSX, upsert su thefork_id, pulizia telefoni, auto-tag VIP
+4. **Import TheFork prenotazioni** — mappa 37 colonne XLSX (incluse form response lunghe), upsert su booking_id, link automatico a clienti
+5. **Anagrafica (Lista)** — tabella ordinabile, sidebar filtri (ricerca, VIP, rank, tag, attivi), paginazione 50/pagina
+6. **Scheda cliente** — layout 3 colonne, edit inline, tag toggle, diario note tipizzate, storico prenotazioni con stats
+7. **Dashboard CRM** — 8 KPI card, compleanni 7gg, top 20 clienti, rank/tag/canale distribution, andamento mensile 12 mesi, copertura contatti
+8. **Vista Prenotazioni** — tabella globale con filtri (stato, canale, date), badge colorati, paginazione
+9. **Import UI** — due sezioni (clienti + prenotazioni) con istruzioni step-by-step, drag & drop XLSX
 
-### Sistema v5.3: Refactoring tecnico (eseguito con Code)
-7. **Logging strutturato** — logging.basicConfig + print→logger in 20 file + logger.exception() in 25+ except silenti
-8. **Centralizzazione DB** — get_db(name) in app/core/database.py, migrati 11 router da sqlite3.connect() inline
-9. **Error handler globale** — @app.exception_handler(Exception) in main.py
+### Sessione 19 (2026-04-05)
+10. Vendite v4.2: turni chiusi parziali, fix DELETE chiusura
+11. Sistema v5.3: logging strutturato, centralizzazione DB, error handler globale
 
 ### Sessione 18 (2026-04-01/02)
-10. Vendite v4.1: colonne Fatture/Totale, DELETE chiusura, Incassi, Export fix
-11. Controllo Gestione v1.4: segna pagata, prestiti, rate variabili
-12. Flussi di Cassa v1.3-1.4, riconciliazione, dedup
-13. Buste Paga v2.1, Anagrafica v2.0, Sistema v5.0-5.2
+12. Vendite v4.1, Controllo Gestione v1.4, Flussi di Cassa v1.3-1.4, Dipendenti v2.1
 
 ---
 
@@ -258,6 +257,7 @@ Fonte di verita': `frontend/src/config/versions.jsx`
 | Statistiche | v1.0 | beta |
 | Flussi di Cassa | v1.4 | beta |
 | Controllo Gestione | v1.4 | beta |
+| Gestione Clienti | v1.0 | beta |
 | Dipendenti | v2.1 | stabile |
 | Login & Ruoli | v2.0 | stabile |
 | Sistema | v5.3 | stabile |
@@ -351,6 +351,11 @@ app/routers/banca_router.py              — movimenti, dashboard, categorie, cr
 # --- IMPOSTAZIONI ---
 frontend/src/pages/admin/ImpostazioniSistema.jsx — tab Utenti + Moduli + Backup (standalone, /impostazioni)
 
+# --- CLIENTI CRM ---
+app/models/clienti_db.py                 — init DB clienti.sqlite3 (5 tabelle, trigger, indici)
+app/routers/clienti_router.py            — CRUD + import TheFork + dashboard + prenotazioni (~900 righe)
+frontend/src/pages/clienti/              — Menu, Nav, Lista, Scheda, Dashboard, Import, Prenotazioni
+
 # --- FRONTEND ---
 frontend/src/App.jsx                   — tutte le route (50+), /admin redirect a /impostazioni
 frontend/src/config/api.js             — API_BASE + apiFetch()
@@ -372,6 +377,7 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | `vini_settings.sqlite3` | Settings carta |
 | `foodcost.db` | FoodCost + FE XML + Ricette + Banca + Statistiche + CG (migraz. 001-049, include cg_entrate, cg_piano_rate) |
 | `admin_finance.sqlite3` | Vendite + Chiusure turno |
+| `clienti.sqlite3` | Clienti CRM (anagrafica, tag, note, prenotazioni) |
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 
 ### Backup database
