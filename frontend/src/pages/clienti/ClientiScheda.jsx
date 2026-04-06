@@ -94,6 +94,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const [mergeSearching, setMergeSearching] = useState(false);
   const [mergeTarget, setMergeTarget] = useState(null); // dati completi del target
   const [merging, setMerging] = useState(false);
+  const [mergeAsCoppia, setMergeAsCoppia] = useState(false);
 
   // Campi da confrontare nel side-by-side
   const MERGE_FIELDS = [
@@ -217,7 +218,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
 
   const executeMerge = async () => {
     if (!mergeTarget) return;
-    const msg = `Unire "${mergeTarget.cognome} ${mergeTarget.nome}" dentro "${cliente.cognome} ${cliente.nome}"?\n\nPrenotazioni e note verranno trasferite. L'operazione NON è reversibile.`;
+    const coppiaNote = mergeAsCoppia ? `\n\nIl nome "${mergeTarget.nome} ${mergeTarget.cognome}" verrà salvato come secondo intestatario.` : "";
+    const msg = `Unire "${mergeTarget.cognome} ${mergeTarget.nome}" dentro "${cliente.cognome} ${cliente.nome}"?\n\nPrenotazioni e note verranno trasferite. L'operazione NON è reversibile.${coppiaNote}`;
     if (!window.confirm(msg)) return;
     setMerging(true);
     try {
@@ -227,7 +229,15 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
         body: JSON.stringify({ principale_id: Number(id), secondario_id: mergeTarget.id }),
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Errore merge"); }
-      showToast("Merge completato!");
+      // Se merge come coppia, salva nome2/cognome2 del secondario sul principale
+      if (mergeAsCoppia && mergeTarget.nome) {
+        await apiFetch(`${API_BASE}/clienti/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...cliente, nome2: mergeTarget.nome, cognome2: mergeTarget.cognome || cliente.cognome }),
+        }).catch(() => {});
+      }
+      showToast(mergeAsCoppia ? "Merge completato — coppia salvata!" : "Merge completato!");
       setShowMerge(false);
       setMergeTarget(null);
       setMergeQuery("");
@@ -289,7 +299,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                       ← Anagrafica
                     </button>
                     <h1 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
-                      {cliente.vip ? "⭐ " : ""}{cliente.nome} {cliente.cognome}
+                      {cliente.vip ? "⭐ " : ""}{cliente.nome}{cliente.nome2 ? ` & ${cliente.nome2}` : ""} {cliente.cognome2 && cliente.cognome2 !== cliente.cognome ? `${cliente.cognome} / ${cliente.cognome2}` : cliente.cognome}
                       {cliente.protetto === 1 && (
                         <span className="text-xs text-teal-500" title="Protetto da import TheFork">🛡</span>
                       )}
@@ -444,6 +454,14 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                           I campi vuoti del principale vengono riempiti dal secondario. Le prenotazioni, note e tag vengono trasferiti.
                           Il record di <strong>{mergeTarget.cognome}</strong> verrà eliminato.
                         </div>
+                        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                          <input type="checkbox" checked={mergeAsCoppia}
+                            onChange={(e) => setMergeAsCoppia(e.target.checked)}
+                            className="rounded border-neutral-300 text-teal-600 focus:ring-teal-500" />
+                          <span className="text-xs text-neutral-700 font-medium">
+                            Salva come coppia (moglie/marito) — "{mergeTarget.nome} {mergeTarget.cognome}" diventa secondo intestatario
+                          </span>
+                        </label>
                         <div className="flex gap-2">
                           <button onClick={executeMerge} disabled={merging}
                             className="px-4 py-1.5 text-xs font-bold bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50">
@@ -528,6 +546,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                         <Input label="Nome" name="nome" value={form.nome} onChange={onChange} />
                         <Input label="Cognome" name="cognome" value={form.cognome} onChange={onChange} />
                         <Input label="Titolo" name="titolo" value={form.titolo} onChange={onChange} />
+                        <Input label="Nome 2 (coppia)" name="nome2" value={form.nome2} onChange={onChange} />
+                        <Input label="Cognome 2 (coppia)" name="cognome2" value={form.cognome2} onChange={onChange} />
                         <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} />
                         <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} />
                         <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
@@ -567,6 +587,8 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                         <Field label="Nome" value={cliente.nome} />
                         <Field label="Cognome" value={cliente.cognome} />
                         <Field label="Titolo" value={cliente.titolo} />
+                        {(cliente.nome2 || cliente.cognome2) && <Field label="Nome 2 (coppia)" value={cliente.nome2} />}
+                        {(cliente.nome2 || cliente.cognome2) && <Field label="Cognome 2 (coppia)" value={cliente.cognome2} />}
                         <Field label="Telefono" value={cliente.telefono} />
                         <Field label="Telefono 2" value={cliente.telefono2} />
                         <Field label="Email" value={cliente.email} />

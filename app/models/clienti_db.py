@@ -253,6 +253,16 @@ def init_clienti_db() -> None:
     except sqlite3.OperationalError:
         pass  # colonna già esistente
 
+    # Campi nome2/cognome2 per coppie (moglie/marito sullo stesso contatto)
+    try:
+        cur.execute("ALTER TABLE clienti ADD COLUMN nome2 TEXT")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cur.execute("ALTER TABLE clienti ADD COLUMN cognome2 TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_cognome ON clienti(cognome)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_telefono ON clienti(telefono)")

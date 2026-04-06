@@ -72,6 +72,8 @@ class ClienteBase(BaseModel):
     note_thefork: Optional[str] = None
     attivo: bool = True
     origine: Optional[str] = "manuale"
+    nome2: Optional[str] = None
+    cognome2: Optional[str] = None
 
 
 class ClienteCreate(ClienteBase):
@@ -1401,10 +1403,10 @@ def lista_prenotazioni(
             params.append(cliente_id)
         if q:
             where.append(
-                "(c.nome LIKE ? OR c.cognome LIKE ? OR p.nota_ristorante LIKE ? OR p.nota_cliente LIKE ?)"
+                "(c.nome LIKE ? OR c.cognome LIKE ? OR c.nome2 LIKE ? OR c.cognome2 LIKE ? OR p.nota_ristorante LIKE ? OR p.nota_cliente LIKE ?)"
             )
             like = f"%{q}%"
-            params.extend([like, like, like, like])
+            params.extend([like] * 6)
 
         where_sql = " AND ".join(where) if where else "1=1"
 
@@ -1663,10 +1665,11 @@ def lista_clienti(
         if q:
             where.append(
                 "(c.nome LIKE ? OR c.cognome LIKE ? OR c.email LIKE ? OR c.telefono LIKE ?"
-                " OR c.note_thefork LIKE ? OR c.allergie LIKE ? OR c.pref_cibo LIKE ? OR c.pref_bevande LIKE ?)"
+                " OR c.note_thefork LIKE ? OR c.allergie LIKE ? OR c.pref_cibo LIKE ? OR c.pref_bevande LIKE ?"
+                " OR c.nome2 LIKE ? OR c.cognome2 LIKE ?)"
             )
             like = f"%{q}%"
-            params.extend([like] * 8)
+            params.extend([like] * 10)
 
         if tag_id:
             where.append("c.id IN (SELECT cliente_id FROM clienti_tag_assoc WHERE tag_id = ?)")
@@ -1957,6 +1960,7 @@ def modifica_cliente(
                 vip=?, rank=?, promoter=?, newsletter=?, risk_level=?,
                 pref_cibo=?, pref_bevande=?, pref_posto=?, restrizioni_dietetiche=?, allergie=?,
                 note_thefork=?, attivo=?, origine=?,
+                nome2=?, cognome2=?,
                 protetto=1
             WHERE id=?
             """,
@@ -1970,6 +1974,7 @@ def modifica_cliente(
                 body.pref_cibo, body.pref_bevande, body.pref_posto,
                 body.restrizioni_dietetiche, body.allergie,
                 body.note_thefork, 1 if body.attivo else 0, body.origine,
+                body.nome2, body.cognome2,
                 cliente_id,
             ),
         )
@@ -2088,5 +2093,116 @@ def elimina_nota(
         )
         conn.commit()
         return JSONResponse({"status": "ok"})
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: MAILCHIMP INTEGRATION
+# ============================================================
+@router.get("/mailchimp/status")
+def mailchimp_status(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Verifica connessione Mailchimp e ritorna info account+audience."""
+    try:
+        from app.services.mailchimp_service import check_connection
+        return JSONResponse(check_connection())
+    except Exception as e:
+        return JSONResponse({"connected": False, "error": str(e)})
+
+
+@router.post("/mailchimp/sync")
+def mailchimp_sync(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Sincronizza tutti i clienti con email+newsletter=true verso Mailchimp.
+    Include: merge fields custom, tags CRM, segmenti marketing.
+    """
+    from app.services.mailchimp_service import sync_contacts
+
+    conn = get_clienti_conn()
+    try:
+        STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+
+        # Fetch clienti con email e newsletter attiva
+        rows = conn.execute(f"""
+            SELECT c.*,
+                   GROUP_CONCAT(DISTINCT t.nome) as tags_str,
+                   (SELECT COUNT(*) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as n_prenotazioni,
+                   (SELECT MAX(p.data_pasto) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as ultima_visita,
+                   (SELECT COUNT(*) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}
+                    AND p.data_pasto >= date('now','-12 months')) as visite_anno,
+                   (SELECT MIN(p.data_pasto) FROM clienti_prenotazioni p
+                    WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as prima_visita
+            FROM clienti c
+            LEFT JOIN clienti_tag_assoc ta ON ta.cliente_id = c.id
+            LEFT JOIN clienti_tag t ON t.id = ta.tag_id
+            WHERE c.email IS NOT NULL AND c.email != ''
+              AND c.newsletter = 1 AND c.attivo = 1
+            GROUP BY c.id
+        """).fetchall()
+
+        # Calcola segmento per ogni cliente
+        clients_data = []
+        for r in rows:
+            d = dict(r)
+            n_pren = d.get("n_prenotazioni") or 0
+            visite_anno = d.get("visite_anno") or 0
+            ultima = d.get("ultima_visita")
+            prima = d.get("prima_visita")
+
+            if n_pren == 0:
+                segmento = "mai_venuto"
+            elif ultima and ultima < str(date.today() - timedelta(days=365)):
+                segmento = "perso"
+            elif prima and prima >= str(date.today() - timedelta(days=90)) and visite_anno <= 2:
+                segmento = "nuovo"
+            elif visite_anno >= 5:
+                segmento = "abituale"
+            elif visite_anno >= 1:
+                segmento = "occasionale"
+            else:
+                segmento = "perso"
+
+            tags_list = [t.strip() for t in (d.get("tags_str") or "").split(",") if t.strip()]
+
+            clients_data.append({
+                "email": d["email"],
+                "nome": d["nome"],
+                "cognome": d["cognome"],
+                "telefono": d.get("telefono"),
+                "data_nascita": d.get("data_nascita"),
+                "citta": d.get("citta"),
+                "rank": d.get("rank"),
+                "segmento": segmento,
+                "allergie": d.get("allergie"),
+                "pref_cibo": d.get("pref_cibo"),
+                "vip": d.get("vip"),
+                "tags_list": tags_list,
+            })
+
+        if not clients_data:
+            return JSONResponse({
+                "status": "ok",
+                "message": "Nessun cliente da sincronizzare (controlla che abbiano email + newsletter attiva)",
+                "synced": 0, "errors": 0, "skipped": 0, "totale_candidati": 0,
+            })
+
+        result = sync_contacts(clients_data)
+        result["totale_candidati"] = len(clients_data)
+        result["status"] = "ok"
+        return JSONResponse(result)
+
+    except ValueError as ve:
+        # Errore configurazione (API key mancante etc.)
+        return JSONResponse({"status": "error", "error": str(ve)}, status_code=400)
+    except Exception as e:
+        logger.exception("Errore sync Mailchimp")
+        raise HTTPException(500, str(e))
     finally:
         conn.close()

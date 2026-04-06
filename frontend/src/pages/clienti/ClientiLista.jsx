@@ -60,6 +60,12 @@ export default function ClientiLista() {
   const [notaSaving, setNotaSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // WhatsApp broadcast panel
+  const [showWaPanel, setShowWaPanel] = useState(false);
+  const [waClients, setWaClients] = useState([]);
+  const [waTemplate, setWaTemplate] = useState("Ciao {nome}, ti aspettiamo all'Osteria Tre Gobbi! A presto.");
+  const [waLoading, setWaLoading] = useState(false);
+
   const salvaNotaRapida = async () => {
     if (!notaTesto.trim() || !notaClienteId) return;
     setNotaSaving(true);
@@ -221,6 +227,25 @@ export default function ClientiLista() {
     } catch { setToast("Errore export"); setTimeout(() => setToast(null), 2500); }
   };
 
+  const apriWaPanel = async () => {
+    if (showWaPanel) { setShowWaPanel(false); return; }
+    setWaLoading(true);
+    try {
+      const all = await fetchAllFiltered();
+      const withPhone = all.filter(c => c.telefono && c.telefono.trim());
+      setWaClients(withPhone);
+      setShowWaPanel(true);
+    } catch { setToast("Errore caricamento"); }
+    finally { setWaLoading(false); }
+  };
+
+  const buildWaLink = (client) => {
+    const tel = (client.telefono || "").replace(/[\s\-().]/g, "");
+    const num = tel.startsWith("+") ? tel.slice(1) : "39" + tel;
+    const msg = waTemplate.replace(/\{nome\}/g, client.nome || "").replace(/\{cognome\}/g, client.cognome || "").replace(/\{nome2\}/g, client.nome2 || "");
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+  };
+
   const sel = "w-full border border-neutral-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
   const lbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
 
@@ -260,12 +285,61 @@ export default function ClientiLista() {
               className="px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-200 transition">
               Esporta CSV
             </button>
+            <button onClick={apriWaPanel} disabled={waLoading}
+              className={`px-3 py-1.5 text-xs font-medium border rounded-lg transition ${
+                showWaPanel ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200"
+              }`}>
+              {waLoading ? "..." : "WhatsApp lista"}
+            </button>
             {filtriAttivi > 0 && (
               <span className="text-[10px] text-neutral-400 ml-2">
                 Filtri attivi: {filtriAttivi} — esporta solo i {totale.toLocaleString("it-IT")} risultati filtrati
               </span>
             )}
           </div>
+
+          {/* ── PANNELLO WHATSAPP BROADCAST ── */}
+          {showWaPanel && (
+            <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-emerald-800">
+                  WhatsApp — {waClients.length} clienti con telefono
+                </h3>
+                <button onClick={() => setShowWaPanel(false)} className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
+              </div>
+              <div className="mb-3">
+                <label className="block text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">
+                  Template messaggio (usa {"{nome}"} e {"{cognome}"} per personalizzare)
+                </label>
+                <textarea
+                  value={waTemplate}
+                  onChange={(e) => setWaTemplate(e.target.value)}
+                  rows={2}
+                  className="w-full border border-emerald-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                />
+                <p className="text-[10px] text-emerald-600 mt-1">
+                  Anteprima: "{waTemplate.replace(/\{nome\}/g, "Mario").replace(/\{cognome\}/g, "Rossi")}"
+                </p>
+              </div>
+              <div className="max-h-64 overflow-y-auto border border-emerald-200 rounded-lg bg-white divide-y divide-emerald-100">
+                {waClients.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2 hover:bg-emerald-50/50">
+                    <div className="text-sm">
+                      <span className="font-medium text-neutral-800">{c.cognome} {c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
+                      <span className="text-xs text-neutral-400 ml-2">{c.telefono}</span>
+                    </div>
+                    <a href={buildWaLink(c)} target="_blank" rel="noopener noreferrer"
+                      className="px-3 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition shadow-sm">
+                      Invia WA
+                    </a>
+                  </div>
+                ))}
+              </div>
+              {waClients.length === 0 && (
+                <p className="text-sm text-neutral-400 text-center py-4">Nessun cliente con telefono nei risultati filtrati</p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-5">
             {/* ══════════════════════════════════════════
@@ -431,8 +505,8 @@ export default function ClientiLista() {
                               <td className="px-3 py-2.5">
                                 <div className="flex items-center gap-1.5">
                                   <div>
-                                    <span className="font-semibold text-neutral-900">{c.cognome}</span>
-                                    <span className="text-neutral-600 ml-1">{c.nome}</span>
+                                    <span className="font-semibold text-neutral-900">{c.cognome}{c.cognome2 && c.cognome2 !== c.cognome ? ` / ${c.cognome2}` : ""}</span>
+                                    <span className="text-neutral-600 ml-1">{c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
                                   </div>
                                   {c.vip ? <span className="text-xs">⭐</span> : null}
                                   {c.rank && (

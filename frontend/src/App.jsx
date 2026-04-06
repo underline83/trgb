@@ -81,6 +81,7 @@ import ClientiDashboard from "./pages/clienti/ClientiDashboard";
 import ClientiPrenotazioni from "./pages/clienti/ClientiPrenotazioni";
 import ClientiImport from "./pages/clienti/ClientiImport";
 import ClientiDuplicati from "./pages/clienti/ClientiDuplicati";
+import ClientiMailchimp from "./pages/clienti/ClientiMailchimp";
 
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
@@ -240,6 +241,7 @@ export default function App() {
         <Route path="/clienti/dashboard" element={<ProtectedRoute module="clienti" sub="dashboard"><ClientiDashboard /></ProtectedRoute>} />
         <Route path="/clienti/import" element={<ProtectedRoute module="clienti" sub="import"><ClientiImport /></ProtectedRoute>} />
         <Route path="/clienti/duplicati" element={<ProtectedRoute module="clienti" sub="import"><ClientiDuplicati /></ProtectedRoute>} />
+        <Route path="/clienti/mailchimp" element={<ProtectedRoute module="clienti" sub="import"><ClientiMailchimp /></ProtectedRoute>} />
         <Route path="/clienti/:id" element={<ProtectedRoute module="clienti" sub="lista"><ClientiScheda /></ProtectedRoute>} />
 
         {/* --- CAMBIO PIN --- */}

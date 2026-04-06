@@ -10,6 +10,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
   { key: "import", label: "Import", path: "/clienti/import", icon: "📥", roles: ["superadmin", "admin"] },
   { key: "duplicati", label: "Duplicati", path: "/clienti/duplicati", icon: "🔄", roles: ["superadmin", "admin"] },
+  { key: "mailchimp", label: "Mailchimp", path: "/clienti/mailchimp", icon: "📬", roles: ["superadmin", "admin"] },
 ];
 
 export default function ClientiNav({ current, diffCount: externalDiffCount }) {
