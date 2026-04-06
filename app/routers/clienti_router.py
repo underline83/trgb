@@ -764,7 +764,7 @@ def suggerisci_duplicati(
             LIMIT ?
         """, (limit,)).fetchall()
 
-        existing_pairs = {frozenset(int(x) for x in d["clienti"]) for d in duplicati if d.get("clienti")}
+        existing_pairs = {frozenset(c["id"] for c in d["clienti"]) for d in duplicati if d.get("clienti")}
         for r in rows_tel:
             ids = [int(x) for x in r["ids"].split(",")]
             if frozenset(ids) in existing_pairs:
