@@ -317,20 +317,47 @@ async def import_thefork(
                     "thefork_updated": val(row, "Last update date"),
                 }
 
-                # Upsert: se thefork_id esiste → aggiorna, altrimenti inserisci
+                # Upsert: cerca per thefork_id diretto O tramite alias (merge)
                 existing = None
                 if tf_id:
+                    # 1. Cerca nel campo thefork_id principale
                     existing = conn.execute(
-                        "SELECT id FROM clienti WHERE thefork_id = ?", (tf_id,)
+                        "SELECT id, protetto FROM clienti WHERE thefork_id = ?", (tf_id,)
                     ).fetchone()
+                    # 2. Se non trovato, cerca negli alias (clienti mergati)
+                    if not existing:
+                        alias_row = conn.execute(
+                            "SELECT cliente_id FROM clienti_alias WHERE thefork_id = ?", (tf_id,)
+                        ).fetchone()
+                        if alias_row:
+                            existing = conn.execute(
+                                "SELECT id, protetto FROM clienti WHERE id = ?", (alias_row["cliente_id"],)
+                            ).fetchone()
 
                 if existing:
-                    set_clause = ", ".join(f"{k}=?" for k in record if k != "thefork_id")
-                    values = [v for k, v in record.items() if k != "thefork_id"]
-                    conn.execute(
-                        f"UPDATE clienti SET {set_clause} WHERE thefork_id = ?",
-                        values + [tf_id],
-                    )
+                    # Se il cliente è protetto (editato manualmente nel CRM),
+                    # NON sovrascriviamo i campi anagrafica — aggiorniamo solo
+                    # i campi TheFork-specifici (date, rank, spending, ecc.)
+                    if existing["protetto"]:
+                        safe_fields = {
+                            "rank": record["rank"],
+                            "risk_level": record["risk_level"],
+                            "spending_behaviour": record["spending_behaviour"],
+                            "thefork_updated": record["thefork_updated"],
+                        }
+                        set_clause = ", ".join(f"{k}=?" for k in safe_fields)
+                        conn.execute(
+                            f"UPDATE clienti SET {set_clause} WHERE id = ?",
+                            list(safe_fields.values()) + [existing["id"]],
+                        )
+                    else:
+                        skip = {"thefork_id", "protetto"}
+                        set_clause = ", ".join(f"{k}=?" for k in record if k not in skip)
+                        values = [v for k, v in record.items() if k not in skip]
+                        conn.execute(
+                            f"UPDATE clienti SET {set_clause} WHERE id = ?",
+                            values + [existing["id"]],
+                        )
                     aggiornati += 1
                 else:
                     cols = ", ".join(record.keys())
@@ -347,12 +374,20 @@ async def import_thefork(
 
         conn.commit()
 
-        # Auto-tag VIP
+        # Auto-tag VIP (auto=1 → tag automatico, rimovibile dall'import successivo)
+        # Non tocca i tag manuali (auto=0) assegnati nel CRM
         conn.execute("""
-            INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id)
-            SELECT c.id, t.id
+            INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto)
+            SELECT c.id, t.id, 1
             FROM clienti c, clienti_tag t
             WHERE c.vip = 1 AND t.nome = 'VIP'
+        """)
+        # Rimuovi auto-tag VIP da chi non è più VIP in TheFork
+        # (solo se il tag era automatico, non se aggiunto manualmente)
+        conn.execute("""
+            DELETE FROM clienti_tag_assoc
+            WHERE auto = 1 AND tag_id = (SELECT id FROM clienti_tag WHERE nome = 'VIP')
+            AND cliente_id NOT IN (SELECT id FROM clienti WHERE vip = 1)
         """)
         conn.commit()
 
@@ -478,12 +513,21 @@ async def import_prenotazioni(
                 segg_raw = safe_col(row, col_seggioloni)
                 segg = str(segg_raw).strip() if segg_raw else None
 
-                # Trova cliente_id interno dal thefork_id
+                # Trova cliente_id interno dal thefork_id (o alias se mergato)
                 cliente_id = None
                 if customer_id:
                     cli_row = conn.execute(
                         "SELECT id FROM clienti WHERE thefork_id = ?", (customer_id,)
                     ).fetchone()
+                    if not cli_row:
+                        # Cerca negli alias (clienti mergati)
+                        alias_row = conn.execute(
+                            "SELECT cliente_id FROM clienti_alias WHERE thefork_id = ?", (customer_id,)
+                        ).fetchone()
+                        if alias_row:
+                            cli_row = conn.execute(
+                                "SELECT id FROM clienti WHERE id = ?", (alias_row["cliente_id"],)
+                            ).fetchone()
                     if cli_row:
                         cliente_id = cli_row["id"]
                         collegati += 1
@@ -562,6 +606,190 @@ async def import_prenotazioni(
     finally:
         conn.close()
         wb.close()
+
+
+# ============================================================
+# ENDPOINT: MERGE DUPLICATI
+# ============================================================
+class MergeRequest(BaseModel):
+    principale_id: int = Field(..., description="ID del cliente da mantenere come principale")
+    secondario_id: int = Field(..., description="ID del cliente duplicato da assorbire")
+
+
+@router.post("/merge")
+def merge_clienti(
+    req: MergeRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Unisce due clienti: il secondario viene assorbito dal principale.
+
+    Cosa succede:
+    1. Le prenotazioni del secondario passano al principale
+    2. Le note del secondario passano al principale
+    3. I tag del secondario vengono copiati al principale (se non già presenti)
+    4. Il thefork_id del secondario va in clienti_alias (così i futuri import lo riconoscono)
+    5. Il secondario viene eliminato
+    6. Il principale diventa "protetto" (l'import TheFork non lo sovrascrive)
+    """
+    if req.principale_id == req.secondario_id:
+        raise HTTPException(400, "Non puoi unire un cliente con se stesso")
+
+    conn = get_clienti_conn()
+    try:
+        # Verifica che entrambi esistano
+        princ = conn.execute("SELECT * FROM clienti WHERE id = ?", (req.principale_id,)).fetchone()
+        sec = conn.execute("SELECT * FROM clienti WHERE id = ?", (req.secondario_id,)).fetchone()
+        if not princ:
+            raise HTTPException(404, f"Cliente principale {req.principale_id} non trovato")
+        if not sec:
+            raise HTTPException(404, f"Cliente secondario {req.secondario_id} non trovato")
+
+        # 1. Sposta prenotazioni
+        conn.execute(
+            "UPDATE clienti_prenotazioni SET cliente_id = ? WHERE cliente_id = ?",
+            (req.principale_id, req.secondario_id),
+        )
+
+        # 2. Sposta note
+        conn.execute(
+            "UPDATE clienti_note SET cliente_id = ? WHERE cliente_id = ?",
+            (req.principale_id, req.secondario_id),
+        )
+
+        # 3. Copia tag (solo quelli che il principale non ha già)
+        conn.execute("""
+            INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto)
+            SELECT ?, tag_id, auto FROM clienti_tag_assoc WHERE cliente_id = ?
+        """, (req.principale_id, req.secondario_id))
+
+        # 4. Salva thefork_id del secondario come alias
+        if sec["thefork_id"]:
+            conn.execute("""
+                INSERT OR IGNORE INTO clienti_alias (cliente_id, thefork_id, merged_from_id)
+                VALUES (?, ?, ?)
+            """, (req.principale_id, sec["thefork_id"], req.secondario_id))
+
+        # Salva anche eventuali alias che il secondario aveva
+        conn.execute(
+            "UPDATE clienti_alias SET cliente_id = ? WHERE cliente_id = ?",
+            (req.principale_id, req.secondario_id),
+        )
+
+        # 5. Elimina il secondario
+        conn.execute("DELETE FROM clienti WHERE id = ?", (req.secondario_id,))
+
+        # 6. Segna il principale come protetto
+        conn.execute("UPDATE clienti SET protetto = 1 WHERE id = ?", (req.principale_id,))
+
+        conn.commit()
+
+        # Conta prenotazioni totali del principale dopo il merge
+        tot_pren = conn.execute(
+            "SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = ?",
+            (req.principale_id,),
+        ).fetchone()[0]
+
+        return JSONResponse({
+            "status": "ok",
+            "message": f"Merge completato: {sec['cognome']} {sec['nome']} → {princ['cognome']} {princ['nome']}",
+            "principale_id": req.principale_id,
+            "prenotazioni_totali": tot_pren,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Errore merge clienti")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+@router.get("/duplicati/suggerimenti")
+def suggerisci_duplicati(
+    limit: int = Query(50, ge=1, le=200),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Suggerisce possibili duplicati basandosi su:
+    - Stesso cognome+nome (case insensitive)
+    - Stesso telefono
+    - Stessa email
+    """
+    conn = get_clienti_conn()
+    try:
+        duplicati = []
+
+        # Per cognome+nome
+        rows = conn.execute("""
+            SELECT LOWER(cognome) as lcog, LOWER(nome) as lnom,
+                   GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+            FROM clienti
+            WHERE cognome != '' AND nome != ''
+            GROUP BY lcog, lnom
+            HAVING cnt > 1
+            ORDER BY cnt DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+
+        for r in rows:
+            ids = [int(x) for x in r["ids"].split(",")]
+            clienti_detail = []
+            for cid in ids:
+                c = conn.execute(
+                    "SELECT id, cognome, nome, telefono, email, thefork_id FROM clienti WHERE id = ?",
+                    (cid,),
+                ).fetchone()
+                pren_count = conn.execute(
+                    "SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = ?",
+                    (cid,),
+                ).fetchone()[0]
+                if c:
+                    clienti_detail.append({**dict(c), "prenotazioni": pren_count})
+            duplicati.append({
+                "tipo": "nome",
+                "match": f"{r['lcog']} {r['lnom']}",
+                "clienti": clienti_detail,
+            })
+
+        # Per telefono
+        rows_tel = conn.execute("""
+            SELECT telefono, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+            FROM clienti
+            WHERE telefono IS NOT NULL AND telefono != ''
+            GROUP BY telefono
+            HAVING cnt > 1
+            ORDER BY cnt DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+
+        existing_pairs = {frozenset(int(x) for x in d["clienti"]) for d in duplicati if d.get("clienti")}
+        for r in rows_tel:
+            ids = [int(x) for x in r["ids"].split(",")]
+            if frozenset(ids) in existing_pairs:
+                continue
+            clienti_detail = []
+            for cid in ids:
+                c = conn.execute(
+                    "SELECT id, cognome, nome, telefono, email, thefork_id FROM clienti WHERE id = ?",
+                    (cid,),
+                ).fetchone()
+                pren_count = conn.execute(
+                    "SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = ?",
+                    (cid,),
+                ).fetchone()[0]
+                if c:
+                    clienti_detail.append({**dict(c), "prenotazioni": pren_count})
+            duplicati.append({
+                "tipo": "telefono",
+                "match": r["telefono"],
+                "clienti": clienti_detail,
+            })
+
+        return JSONResponse({"duplicati": duplicati, "totale": len(duplicati)})
+    finally:
+        conn.close()
 
 
 # ============================================================
@@ -978,7 +1206,8 @@ def modifica_cliente(
                 data_nascita=?, lingua=?, indirizzo=?, cap=?, citta=?, paese=?,
                 vip=?, rank=?, promoter=?, newsletter=?, risk_level=?,
                 pref_cibo=?, pref_bevande=?, pref_posto=?, restrizioni_dietetiche=?, allergie=?,
-                note_thefork=?, attivo=?, origine=?
+                note_thefork=?, attivo=?, origine=?,
+                protetto=1
             WHERE id=?
             """,
             (
@@ -1037,7 +1266,12 @@ def associa_tag(
     conn = get_clienti_conn()
     try:
         conn.execute(
-            "INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id) VALUES (?,?)",
+            "INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto) VALUES (?,?,0)",
+            (cliente_id, tag_id),
+        )
+        # Se il tag era automatico, convertilo in manuale (non verrà rimosso dall'import)
+        conn.execute(
+            "UPDATE clienti_tag_assoc SET auto = 0 WHERE cliente_id = ? AND tag_id = ?",
             (cliente_id, tag_id),
         )
         conn.commit()

@@ -1,4 +1,4 @@
-# @version: v1.1-clienti-db
+# @version: v1.2-clienti-db
 # -*- coding: utf-8 -*-
 """
 Database Clienti — TRGB Gestionale (modulo CRM)
@@ -6,9 +6,10 @@ Database Clienti — TRGB Gestionale (modulo CRM)
 Contiene:
 - Tabella clienti (anagrafica importata da TheFork + campi extra CRM)
 - Tabella clienti_tag (categorie personalizzabili: VIP, abituale, ecc.)
-- Tabella clienti_tag_assoc (associazione many-to-many cliente ↔ tag)
+- Tabella clienti_tag_assoc (associazione many-to-many cliente ↔ tag, con flag auto/manuale)
 - Tabella clienti_note (diario interazioni: telefonate, preferenze, eventi)
 - Tabella clienti_prenotazioni (storico prenotazioni da TheFork)
+- Tabella clienti_alias (merge duplicati: mappa thefork_id secondari al cliente principale)
 """
 
 import sqlite3
@@ -193,6 +194,34 @@ def init_clienti_db() -> None:
         )
     """)
 
+    # ── ALIAS per merge duplicati ──
+    # Quando mergiamo due clienti, il thefork_id del "secondario" finisce qui
+    # così l'import TheFork continua a riconoscere entrambi gli ID
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_alias (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id      INTEGER NOT NULL REFERENCES clienti(id) ON DELETE CASCADE,
+            thefork_id      TEXT NOT NULL UNIQUE,
+            merged_from_id  INTEGER,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # ── ALTER TABLE sicuri per DB esistenti ──
+
+    # Campo 'protetto' su clienti: se 1, l'import TheFork NON sovrascrive i campi anagrafica
+    try:
+        cur.execute("ALTER TABLE clienti ADD COLUMN protetto INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # colonna già esistente
+
+    # Campo 'auto' su clienti_tag_assoc: 0=manuale (CRM), 1=automatico (import)
+    # I tag manuali NON vengono toccati dall'import
+    try:
+        cur.execute("ALTER TABLE clienti_tag_assoc ADD COLUMN auto INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # colonna già esistente
+
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_cognome ON clienti(cognome)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_telefono ON clienti(telefono)")
@@ -208,6 +237,8 @@ def init_clienti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_stato ON clienti_prenotazioni(stato)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_thefork_cust ON clienti_prenotazioni(thefork_customer_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_thefork_book ON clienti_prenotazioni(thefork_booking_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_cliente ON clienti_alias(cliente_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_thefork ON clienti_alias(thefork_id)")
 
     conn.commit()
     conn.close()
