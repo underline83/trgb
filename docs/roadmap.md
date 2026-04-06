@@ -161,6 +161,25 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 **Trigger per partire:** foodcost.db > 50 MB, oppure problemi di lock SQLite in concorrenza, oppure necessità di backup/restore granulare per modulo.
 
+## 32. Modulo Prenotazioni (NUOVO — 2026-04-06)
+> Specifica completa: `docs/modulo_prenotazioni.md`
+> Checklist operativa: `docs/prenotazioni_todo.md`
+
+**Obiettivo:** sostituire TheFork Manager, gestire prenotazioni dirette + widget pubblico.
+
+- [ ] **Fase 1 — Agenda Prenotazioni** (2 sessioni): planning giornaliero, form prenotazione con autocomplete CRM, gestione stati, mini-calendario, vista settimanale
+- [ ] **Fase 2 — Mappa Tavoli** (2 sessioni): editor piantina drag & drop, layout salvabili, assegnazione visuale, combinazioni tavoli, responsive tablet
+- [ ] **Fase 3 — Widget Pubblico** (1-2 sessioni): pagina `tregobbi.it/prenota`, calcolo disponibilita', CAPTCHA, prenotazione online, conferma email
+- [ ] **Fase 4 — Conferme e Notifiche** (1 sessione): email transazionali (conferma/reminder/cancellazione), link WhatsApp precompilati, template configurabili
+- [ ] **Fase 5 — Distacco TheFork Manager** (1 sessione): import automatico TF, periodo parallelo, sostituzione widget TF con widget TRGB
+
+**Decisioni chiave (2026-04-06):**
+- DB: tutto in `clienti.sqlite3`, stessa tabella `clienti_prenotazioni`
+- 14 tavoli interni + 20 esterni, ~20 combinazioni, layout cambia spesso
+- Widget: slot precisi cena, fascia generica pranzo
+- Conferme: email + link WA manuale (poi eventuale WA Business API)
+- Colore tema: indigo
+
 ## 28. Modulo Flussi di Cassa (ex Banca) — evoluzione
 - [x] Rename Banca → Flussi di Cassa (routes, nav, modules.json) — 2026-03-30
 - [x] Contanti + Mance spostati da Vendite a Flussi di Cassa — 2026-03-30
@@ -189,7 +208,8 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 | **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |
 | **2026.03.21** | iPratico Sync v2.0: import/export prodotti, match diretto, TRGB priority, default configurabili | Completato |
 | **2026.03.30** | Sessione 18: Dipendenti v2.1, CG v1.2, Flussi di Cassa v1.1, Sistema v5.0 (flyout header) | Completato |
-| **Prossimo** | Test e2e iPratico, checklist turno, carta vini pubblica, permessi centralizzati | Pianificato |
+| **2026.04.06** | Sessione 22: Clienti CRM v2.0 (coppie, duplicati, segmenti, impostazioni, pulizia dati) | Completato |
+| **Prossimo** | Modulo Prenotazioni v1.0 (Agenda), poi Tavoli, Widget, Notifiche | Pianificato |
 
 ---
 

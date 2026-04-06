@@ -88,19 +88,29 @@ def parse_ipratico_html(file_path: str) -> Tuple[List[Dict], List[Dict]]:
             col_map_1[c] = "barcode"
     t1 = t1.rename(columns=col_map_1)
 
-    prodotti = []
+    # iPratico può esportare lo stesso prodotto più volte nella stessa categoria
+    # (es. "Vino" con prezzi diversi). Aggreghiamo quantità e totale per evitare
+    # conflitti col vincolo UNIQUE(anno, mese, categoria, prodotto).
+    prodotti_map: Dict[Tuple[str, str], Dict] = {}
     for _, r in t1.iterrows():
         cat = str(r.get("categoria", "")).strip()
         prod = str(r.get("prodotto", "")).strip()
         if not cat or not prod:
             continue
-        prodotti.append({
-            "categoria": cat,
-            "prodotto": prod,
-            "quantita": _safe_int(r.get("quantita", 0)),
-            "totale_cent": _safe_int(r.get("totale", 0)),
-            "plu": str(r.get("plu", "")).strip() if pd.notna(r.get("plu")) else None,
-            "barcode": str(r.get("barcode", "")).strip() if pd.notna(r.get("barcode")) else None,
-        })
+        key = (cat, prod)
+        if key in prodotti_map:
+            prodotti_map[key]["quantita"] += _safe_int(r.get("quantita", 0))
+            prodotti_map[key]["totale_cent"] += _safe_int(r.get("totale", 0))
+        else:
+            prodotti_map[key] = {
+                "categoria": cat,
+                "prodotto": prod,
+                "quantita": _safe_int(r.get("quantita", 0)),
+                "totale_cent": _safe_int(r.get("totale", 0)),
+                "plu": str(r.get("plu", "")).strip() if pd.notna(r.get("plu")) else None,
+                "barcode": str(r.get("barcode", "")).strip() if pd.notna(r.get("barcode")) else None,
+            }
+
+    prodotti = list(prodotti_map.values())
 
     return categorie, prodotti
