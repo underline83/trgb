@@ -70,9 +70,12 @@ const STATUS_COLORS = {
   NO_SHOW: "bg-amber-100 text-amber-700", REFUSED: "bg-red-100 text-red-600",
 };
 
-export default function ClientiScheda() {
-  const { id } = useParams();
+export default function ClientiScheda({ clienteId: propId, onClose, embedded = false }) {
+  const params = useParams();
   const navigate = useNavigate();
+  const id = propId || params.id;
+  const handleBack = onClose || (() => navigate("/clienti/lista"));
+
   const [cliente, setCliente] = useState(null);
   const [loading, setLoading] = useState(true);
   const [allTags, setAllTags] = useState([]);
@@ -83,6 +86,14 @@ export default function ClientiScheda() {
   const [tab, setTab] = useState("anagrafica"); // anagrafica | preferenze | note | prenotazioni
 
   const [nuovaNota, setNuovaNota] = useState({ tipo: "nota", testo: "" });
+
+  // ── Merge manuale ──
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState("");
+  const [mergeResults, setMergeResults] = useState([]);
+  const [mergeSearching, setMergeSearching] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState(null);
+  const [merging, setMerging] = useState(false);
 
   const showToast = (message, type = "ok") => {
     setToast({ message, type });

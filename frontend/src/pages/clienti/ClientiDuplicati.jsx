@@ -1,5 +1,5 @@
-// @version: v1.1-clienti-duplicati
-// Gestione duplicati: suggerimenti automatici + merge manuale
+// @version: v1.2-clienti-duplicati
+// Gestione duplicati: suggerimenti automatici + merge manuale + auto-merge ovvi
 // Flow: 1) seleziona principale (radio) → 2) spunta secondari da assorbire → 3) conferma
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,11 @@ export default function ClientiDuplicati() {
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   const [merged, setMerged] = useState(0);
   const [filtro, setFiltro] = useState("telefono"); // default: telefono (più affidabile)
+
+  // Auto-merge state
+  const [autoPreview, setAutoPreview] = useState(null);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoMerging, setAutoMerging] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -36,6 +41,42 @@ export default function ClientiDuplicati() {
   }, [filtro]);
 
   useEffect(() => { fetchDuplicati(); }, [fetchDuplicati]);
+
+  // Auto-merge: preview
+  const handleAutoPreview = async () => {
+    setAutoLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/merge/auto-preview`);
+      if (!res.ok) throw new Error("Errore preview");
+      const data = await res.json();
+      setAutoPreview(data);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setAutoLoading(false);
+    }
+  };
+
+  // Auto-merge: esegui
+  const handleAutoMerge = async () => {
+    if (!autoPreview || autoPreview.totale_gruppi === 0) return;
+    const msg = `Unire automaticamente ${autoPreview.totale_secondari} duplicati in ${autoPreview.totale_gruppi} gruppi?\n\nIl cliente con più prenotazioni viene mantenuto. L'operazione NON è reversibile.`;
+    if (!window.confirm(msg)) return;
+    setAutoMerging(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/merge/auto`, { method: "POST" });
+      if (!res.ok) throw new Error("Errore auto-merge");
+      const data = await res.json();
+      showToast(`Auto-merge completato: ${data.merged} clienti unificati${data.errors.length ? ` (${data.errors.length} errori)` : ""}`);
+      setMerged((p) => p + data.merged);
+      setAutoPreview(null);
+      fetchDuplicati(); // ricarica lista
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setAutoMerging(false);
+    }
+  };
 
   // Merge sequenziale: per ogni secondario selezionato, chiama l'endpoint
   const handleMergeBatch = async (principale_id, secondari_ids, idx) => {
@@ -130,6 +171,74 @@ export default function ClientiDuplicati() {
                 <span className="ml-1 opacity-60">— {f.desc}</span>
               </button>
             ))}
+          </div>
+
+          {/* ── AUTO-MERGE OVVI ── */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-800">Auto-merge duplicati ovvi</h3>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Unisce automaticamente i record con stesso telefono+cognome o stessa email+cognome.
+                  Il cliente con più prenotazioni viene mantenuto come principale.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                {!autoPreview ? (
+                  <button onClick={handleAutoPreview} disabled={autoLoading}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50 shadow-sm">
+                    {autoLoading ? "Analisi..." : "Analizza"}
+                  </button>
+                ) : autoPreview.totale_gruppi === 0 ? (
+                  <span className="text-xs text-emerald-700 font-medium bg-emerald-100 px-3 py-1.5 rounded-lg">
+                    Nessun duplicato ovvio trovato
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-xs text-amber-800 font-medium">
+                      {autoPreview.totale_gruppi} gruppi, {autoPreview.totale_secondari} da eliminare
+                    </span>
+                    <button onClick={handleAutoMerge} disabled={autoMerging}
+                      className="px-4 py-2 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50 shadow-sm">
+                      {autoMerging ? "Merge in corso..." : "Conferma Auto-Merge"}
+                    </button>
+                    <button onClick={() => setAutoPreview(null)}
+                      className="px-3 py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-300 bg-white transition">
+                      Annulla
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Preview dettaglio */}
+            {autoPreview && autoPreview.totale_gruppi > 0 && (
+              <div className="mt-3 max-h-60 overflow-y-auto border border-amber-200 rounded-lg bg-white">
+                <table className="w-full text-xs">
+                  <thead className="bg-amber-50 sticky top-0">
+                    <tr className="text-[10px] uppercase text-amber-700 tracking-wide">
+                      <th className="px-3 py-1.5 text-left">Motivo</th>
+                      <th className="px-3 py-1.5 text-left">Mantiene (principale)</th>
+                      <th className="px-3 py-1.5 text-right">Pren.</th>
+                      <th className="px-3 py-1.5 text-left">Elimina (secondari)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-100">
+                    {autoPreview.gruppi.map((g, i) => (
+                      <tr key={i} className="hover:bg-amber-50/50">
+                        <td className="px-3 py-1.5 text-amber-700">{g.motivo}</td>
+                        <td className="px-3 py-1.5 font-medium text-teal-800">
+                          {g.principale.cognome} {g.principale.nome}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-bold text-teal-700">{g.principale.prenotazioni}</td>
+                        <td className="px-3 py-1.5 text-red-600">
+                          {g.secondari.map(s => `${s.cognome} ${s.nome} (${s.prenotazioni} pren.)`).join(", ")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {loading ? (

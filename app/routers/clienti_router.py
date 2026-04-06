@@ -878,6 +878,205 @@ def merge_clienti(
         conn.close()
 
 
+# ============================================================
+# AUTO-MERGE DUPLICATI OVVI
+# ============================================================
+def _find_obvious_duplicates(conn):
+    """
+    Trova gruppi di duplicati "ovvi" — stessa email+cognome oppure stesso telefono+cognome.
+    Restituisce lista di dict: { principale, secondari, motivo, dettagli }.
+    Rispetta le esclusioni in clienti_no_duplicato.
+    """
+    from itertools import combinations
+
+    # Carica coppie escluse
+    excl_rows = conn.execute("SELECT cliente_a, cliente_b FROM clienti_no_duplicato").fetchall()
+    excluded = set(frozenset([r["cliente_a"], r["cliente_b"]]) for r in excl_rows)
+
+    def is_excluded(ids):
+        if len(ids) == 2:
+            return frozenset(ids) in excluded
+        return all(frozenset(p) in excluded for p in combinations(ids, 2))
+
+    def pick_principale(ids):
+        """Sceglie il principale: piu prenotazioni > protetto > ID piu basso."""
+        rows = []
+        for cid in ids:
+            c = conn.execute("""
+                SELECT c.id, c.cognome, c.nome, c.telefono, c.email, c.protetto,
+                       (SELECT COUNT(*) FROM clienti_prenotazioni WHERE cliente_id = c.id) as n_pren
+                FROM clienti c WHERE c.id = ?
+            """, (cid,)).fetchone()
+            if c:
+                rows.append(dict(c))
+        if not rows:
+            return None, [], []
+        rows.sort(key=lambda r: (-r["n_pren"], -(r["protetto"] or 0), r["id"]))
+        princ = rows[0]
+        secondari = [r for r in rows[1:]]
+        return princ, secondari, rows
+
+    groups = []
+    seen = set()
+
+    # Gruppo 1: stesso telefono + stesso cognome (case-insensitive)
+    tel_groups = conn.execute("""
+        SELECT GROUP_CONCAT(id) as ids, telefono, LOWER(cognome) as lcog
+        FROM clienti
+        WHERE telefono IS NOT NULL AND telefono != '' AND cognome IS NOT NULL AND cognome != ''
+        GROUP BY telefono, LOWER(cognome)
+        HAVING COUNT(*) > 1
+    """).fetchall()
+    for row in tel_groups:
+        ids = [int(x) for x in row["ids"].split(",")]
+        key = frozenset(ids)
+        if key in seen or is_excluded(ids):
+            continue
+        seen.add(key)
+        princ, secondari, dettagli = pick_principale(ids)
+        if princ and secondari:
+            groups.append({
+                "principale": princ,
+                "secondari": secondari,
+                "dettagli": dettagli,
+                "motivo": f"telefono ({row['telefono']}) + cognome",
+            })
+
+    # Gruppo 2: stessa email + stesso cognome (case-insensitive)
+    email_groups = conn.execute("""
+        SELECT GROUP_CONCAT(id) as ids, LOWER(email) as lemail, LOWER(cognome) as lcog
+        FROM clienti
+        WHERE email IS NOT NULL AND email != '' AND cognome IS NOT NULL AND cognome != ''
+        GROUP BY LOWER(email), LOWER(cognome)
+        HAVING COUNT(*) > 1
+    """).fetchall()
+    for row in email_groups:
+        ids = [int(x) for x in row["ids"].split(",")]
+        key = frozenset(ids)
+        if key in seen or is_excluded(ids):
+            continue
+        seen.add(key)
+        princ, secondari, dettagli = pick_principale(ids)
+        if princ and secondari:
+            groups.append({
+                "principale": princ,
+                "secondari": secondari,
+                "dettagli": dettagli,
+                "motivo": f"email ({row['lemail']}) + cognome",
+            })
+
+    return groups
+
+
+@router.get("/merge/auto-preview")
+def auto_merge_preview(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Preview dei duplicati ovvi che verrebbero auto-uniti."""
+    conn = get_clienti_conn()
+    try:
+        groups = _find_obvious_duplicates(conn)
+        result = []
+        for g in groups:
+            result.append({
+                "motivo": g["motivo"],
+                "principale": {
+                    "id": g["principale"]["id"],
+                    "cognome": g["principale"]["cognome"],
+                    "nome": g["principale"]["nome"],
+                    "prenotazioni": g["principale"]["n_pren"],
+                },
+                "secondari": [{
+                    "id": s["id"],
+                    "cognome": s["cognome"],
+                    "nome": s["nome"],
+                    "prenotazioni": s["n_pren"],
+                } for s in g["secondari"]],
+            })
+        return JSONResponse({
+            "gruppi": result,
+            "totale_gruppi": len(result),
+            "totale_secondari": sum(len(g["secondari"]) for g in result),
+        })
+    finally:
+        conn.close()
+
+
+@router.post("/merge/auto")
+def auto_merge_execute(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Esegue l'auto-merge di tutti i duplicati ovvi.
+    Per ogni gruppo: il principale assorbe i secondari (stessa logica di /merge).
+    """
+    conn = get_clienti_conn()
+    try:
+        groups = _find_obvious_duplicates(conn)
+        merged_count = 0
+        errors = []
+
+        fill_fields = [
+            "email", "telefono", "telefono2", "data_nascita",
+            "indirizzo", "cap", "citta", "paese",
+            "pref_cibo", "pref_bevande", "pref_posto",
+            "restrizioni_dietetiche", "allergie", "note_thefork",
+        ]
+
+        for g in groups:
+            pid = g["principale"]["id"]
+            for sec in g["secondari"]:
+                sid = sec["id"]
+                try:
+                    # Verifica che entrambi esistano ancora
+                    princ_row = conn.execute("SELECT * FROM clienti WHERE id = ?", (pid,)).fetchone()
+                    sec_row = conn.execute("SELECT * FROM clienti WHERE id = ?", (sid,)).fetchone()
+                    if not princ_row or not sec_row:
+                        continue
+
+                    conn.execute("UPDATE clienti_prenotazioni SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
+                    conn.execute("UPDATE clienti_note SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
+                    conn.execute("""
+                        INSERT OR IGNORE INTO clienti_tag_assoc (cliente_id, tag_id, auto)
+                        SELECT ?, tag_id, auto FROM clienti_tag_assoc WHERE cliente_id = ?
+                    """, (pid, sid))
+                    if sec_row["thefork_id"]:
+                        conn.execute("""
+                            INSERT OR IGNORE INTO clienti_alias (cliente_id, thefork_id, merged_from_id)
+                            VALUES (?, ?, ?)
+                        """, (pid, sec_row["thefork_id"], sid))
+                    conn.execute("UPDATE clienti_alias SET cliente_id = ? WHERE cliente_id = ?", (pid, sid))
+                    # Campi complementari
+                    updates, values = [], []
+                    for field in fill_fields:
+                        pv = princ_row[field]
+                        sv = sec_row[field]
+                        if (not pv or str(pv).strip() == "") and sv and str(sv).strip() != "":
+                            updates.append(f"{field} = ?")
+                            values.append(sv)
+                    if updates:
+                        conn.execute(f"UPDATE clienti SET {', '.join(updates)} WHERE id = ?", values + [pid])
+                    conn.execute("DELETE FROM clienti_no_duplicato WHERE cliente_a = ? OR cliente_b = ?", (sid, sid))
+                    conn.execute("DELETE FROM clienti WHERE id = ?", (sid,))
+                    conn.execute("UPDATE clienti SET protetto = 1 WHERE id = ?", (pid,))
+                    merged_count += 1
+                except Exception as ex:
+                    errors.append(f"Errore {sid}->{pid}: {str(ex)}")
+
+        conn.commit()
+        return JSONResponse({
+            "status": "ok",
+            "merged": merged_count,
+            "gruppi": len(groups),
+            "errors": errors,
+        })
+    except Exception as e:
+        logger.exception("Errore auto-merge")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
 @router.get("/duplicati/suggerimenti")
 def suggerisci_duplicati(
     tipo: Optional[str] = Query(None, description="telefono, email, nome — se vuoto ritorna tutti"),
