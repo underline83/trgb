@@ -1,9 +1,74 @@
-// @version: v1.1-clienti-scheda
-// Scheda dettaglio cliente con tag, note/diario, preferenze, storico prenotazioni
-import React, { useState, useEffect } from "react";
+// @version: v2.0-clienti-scheda
+// Scheda dettaglio cliente — layout ispirato a SchedaVino (sidebar + sezioni + tabs)
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+
+// ── Colori sidebar per rank ──────────────────────────────
+const RANK_SIDEBAR = {
+  Gold:    { bg: "bg-gradient-to-b from-yellow-600 to-yellow-800", text: "text-yellow-100" },
+  Silver:  { bg: "bg-gradient-to-b from-neutral-500 to-neutral-700", text: "text-neutral-100" },
+  Bronze:  { bg: "bg-gradient-to-b from-orange-600 to-orange-800", text: "text-orange-100" },
+  Caution: { bg: "bg-gradient-to-b from-red-600 to-red-800", text: "text-red-100" },
+};
+
+function getSidebarColors(rank) {
+  return RANK_SIDEBAR[rank] || { bg: "bg-gradient-to-b from-teal-700 to-teal-900", text: "text-teal-100" };
+}
+
+function SectionHeader({ title, children }) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+      <h2 className="text-sm font-semibold text-neutral-800 uppercase tracking-wide">{title}</h2>
+      <div className="flex gap-2 items-center">{children}</div>
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</div>
+      <div className="text-sm text-neutral-800">{value || "—"}</div>
+    </div>
+  );
+}
+
+function Input({ label, name, value, onChange, type = "text" }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</label>
+      <input type={type} name={name} value={value ?? ""} onChange={onChange}
+        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300" />
+    </div>
+  );
+}
+
+function TextArea({ label, name, value, onChange, rows = 2 }) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5">{label}</label>
+      <textarea name={name} value={value ?? ""} onChange={onChange} rows={rows}
+        className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-300" />
+    </div>
+  );
+}
+
+const TIPI_NOTA = [
+  { value: "nota", label: "Nota", icon: "📝" },
+  { value: "telefonata", label: "Telefonata", icon: "📞" },
+  { value: "evento", label: "Evento", icon: "🎉" },
+  { value: "reclamo", label: "Reclamo", icon: "⚠️" },
+  { value: "preferenza", label: "Preferenza", icon: "🍽️" },
+];
+
+const STATUS_COLORS = {
+  SEATED: "bg-emerald-100 text-emerald-700", ARRIVED: "bg-emerald-100 text-emerald-700",
+  BILL: "bg-emerald-100 text-emerald-700", LEFT: "bg-neutral-100 text-neutral-600",
+  RECORDED: "bg-sky-100 text-sky-700", CANCELED: "bg-red-100 text-red-600",
+  NO_SHOW: "bg-amber-100 text-amber-700", REFUSED: "bg-red-100 text-red-600",
+};
 
 export default function ClientiScheda() {
   const { id } = useParams();
@@ -13,17 +78,18 @@ export default function ClientiScheda() {
   const [allTags, setAllTags] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState({});
-  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [tab, setTab] = useState("anagrafica"); // anagrafica | preferenze | note | prenotazioni
 
-  // Nuova nota
   const [nuovaNota, setNuovaNota] = useState({ tipo: "nota", testo: "" });
 
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: "", type: "success" }), 3000);
+  const showToast = (message, type = "ok") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchCliente = async () => {
+  const fetchCliente = useCallback(async () => {
     setLoading(true);
     try {
       const res = await apiFetch(`${API_BASE}/clienti/${id}`);
@@ -32,11 +98,11 @@ export default function ClientiScheda() {
       setCliente(data);
       setForm(data);
     } catch (err) {
-      showToast("Errore caricamento cliente", "error");
+      showToast("Errore caricamento", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     fetchCliente();
@@ -44,9 +110,10 @@ export default function ClientiScheda() {
       .then((r) => r.json())
       .then((data) => setAllTags(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [id]);
+  }, [fetchCliente]);
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       const res = await apiFetch(`${API_BASE}/clienti/${id}`, {
         method: "PUT",
@@ -54,20 +121,20 @@ export default function ClientiScheda() {
         body: JSON.stringify(form),
       });
       if (!res.ok) throw new Error("Errore salvataggio");
-      showToast("Cliente aggiornato");
+      showToast("Salvato");
       setEditMode(false);
       fetchCliente();
     } catch (err) {
       showToast(err.message, "error");
+    } finally {
+      setSaving(false);
     }
   };
 
   const toggleTag = async (tagId) => {
     const hasTag = cliente.tags?.some((t) => t.id === tagId);
     try {
-      await apiFetch(`${API_BASE}/clienti/${id}/tag/${tagId}`, {
-        method: hasTag ? "DELETE" : "POST",
-      });
+      await apiFetch(`${API_BASE}/clienti/${id}/tag/${tagId}`, { method: hasTag ? "DELETE" : "POST" });
       fetchCliente();
     } catch (err) {
       showToast("Errore tag", "error");
@@ -100,371 +167,385 @@ export default function ClientiScheda() {
     }
   };
 
+  const onChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
   if (loading) return (
     <>
       <ClientiNav current="lista" />
-      <div className="p-12 text-center text-neutral-400">Caricamento...</div>
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+        <div className="text-sm text-neutral-400">Caricamento...</div>
+      </div>
     </>
   );
 
   if (!cliente) return (
     <>
       <ClientiNav current="lista" />
-      <div className="p-12 text-center text-neutral-400">Cliente non trovato</div>
+      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+        <div className="text-sm text-neutral-400">Cliente non trovato</div>
+      </div>
     </>
   );
 
-  const fmt = (v) => (v != null && v !== "" && v !== "None" ? v : "—");
+  const sidebar = getSidebarColors(cliente.rank);
+  const stats = cliente.prenotazioni_stats || {};
 
-  const Field = ({ label, field, type = "text", textarea = false }) => (
-    <div>
-      <label className="text-xs text-neutral-500 font-medium">{label}</label>
-      {editMode ? (
-        textarea ? (
-          <textarea
-            value={form[field] || ""}
-            onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-            className="w-full mt-0.5 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
-            rows={3}
-          />
-        ) : (
-          <input
-            type={type}
-            value={form[field] || ""}
-            onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-            className="w-full mt-0.5 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
-          />
-        )
-      ) : (
-        <p className="text-sm text-neutral-800 mt-0.5">{fmt(cliente[field])}</p>
-      )}
-    </div>
-  );
-
-  const TIPI_NOTA = [
-    { value: "nota", label: "📝 Nota" },
-    { value: "telefonata", label: "📞 Telefonata" },
-    { value: "evento", label: "🎉 Evento" },
-    { value: "reclamo", label: "⚠️ Reclamo" },
-    { value: "preferenza", label: "🍽️ Preferenza" },
+  const TABS = [
+    { key: "anagrafica", label: "Anagrafica" },
+    { key: "preferenze", label: "Preferenze" },
+    { key: "note", label: `Note (${cliente.note?.length || 0})` },
+    { key: "prenotazioni", label: `Prenotazioni (${stats.totale || 0})` },
   ];
 
   return (
     <>
       <ClientiNav current="lista" />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate("/clienti/lista")}
-                className="text-sm text-neutral-500 hover:text-neutral-700"
-              >
-                ← Lista
-              </button>
-              <h1 className="text-2xl font-bold text-neutral-900">
-                {cliente.vip ? "⭐ " : ""}{cliente.nome} {cliente.cognome}
-                {cliente.rank && (
-                  <span className={`ml-2 text-sm px-2 py-0.5 rounded-full ${
-                    cliente.rank === "Gold" ? "bg-yellow-100 text-yellow-700" :
-                    cliente.rank === "Silver" ? "bg-neutral-200 text-neutral-600" :
-                    cliente.rank === "Bronze" ? "bg-orange-100 text-orange-700" :
-                    "bg-red-100 text-red-600"
-                  }`}>
-                    {cliente.rank}
-                  </span>
-                )}
-              </h1>
-            </div>
-            <div className="flex gap-2">
-              {editMode ? (
-                <>
-                  <button onClick={() => { setEditMode(false); setForm(cliente); }}
-                    className="px-3 py-1.5 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-100 transition">
-                    Annulla
-                  </button>
-                  <button onClick={handleSave}
-                    className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
-                    Salva
-                  </button>
-                </>
-              ) : (
-                <button onClick={() => setEditMode(true)}
-                  className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
-                  Modifica
-                </button>
-              )}
-            </div>
-          </div>
+      <div className="min-h-screen bg-neutral-100 font-sans">
+        <div className="max-w-4xl mx-auto p-4 sm:p-6">
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* COLONNA SINISTRA: Anagrafica + Contatti */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Anagrafica */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-4">📋 Anagrafica</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Nome" field="nome" />
-                  <Field label="Cognome" field="cognome" />
-                  <Field label="Telefono" field="telefono" />
-                  <Field label="Telefono 2" field="telefono2" />
-                  <Field label="Email" field="email" type="email" />
-                  <Field label="Data di nascita" field="data_nascita" />
-                  <Field label="Città" field="citta" />
-                  <Field label="Paese" field="paese" />
-                </div>
-              </div>
+          {/* ── CARD PRINCIPALE con sidebar colorata ── */}
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
 
-              {/* Preferenze ristorante */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-4">🍽️ Preferenze & Allergie</h2>
-                <div className="grid grid-cols-1 gap-4">
-                  <Field label="Preferenze cibo" field="pref_cibo" textarea />
-                  <Field label="Preferenze bevande" field="pref_bevande" textarea />
-                  <Field label="Restrizioni dietetiche" field="restrizioni_dietetiche" />
-                  <Field label="Allergie e intolleranze" field="allergie" />
-                  <Field label="Note TheFork" field="note_thefork" textarea />
-                </div>
-              </div>
+            {/* ── HEADER: sidebar + info + azioni ── */}
+            <div className="flex">
+              {/* Sidebar colorata */}
+              <div className={`w-2 sm:w-3 flex-shrink-0 ${sidebar.bg}`} />
 
-              {/* DIARIO NOTE */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-4">📖 Diario & Note</h2>
-
-                {/* Form nuova nota */}
-                <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
-                  <div className="flex gap-2 mb-2">
-                    <select
-                      value={nuovaNota.tipo}
-                      onChange={(e) => setNuovaNota({ ...nuovaNota, tipo: e.target.value })}
-                      className="border border-neutral-300 rounded-lg px-2 py-1 text-sm"
-                    >
-                      {TIPI_NOTA.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={nuovaNota.testo}
-                      onChange={(e) => setNuovaNota({ ...nuovaNota, testo: e.target.value })}
-                      placeholder="Scrivi una nota..."
-                      className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
-                      onKeyDown={(e) => e.key === "Enter" && aggiungiNota()}
-                    />
-                    <button
-                      onClick={aggiungiNota}
-                      className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700 transition"
-                    >
-                      Aggiungi
+              <div className="flex-1 px-5 py-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    {/* Torna alla lista */}
+                    <button onClick={() => navigate("/clienti/lista")}
+                      className="text-xs text-neutral-400 hover:text-neutral-600 transition mb-1 inline-block">
+                      ← Anagrafica
                     </button>
+                    <h1 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
+                      {cliente.vip ? "⭐ " : ""}{cliente.nome} {cliente.cognome}
+                      {cliente.protetto === 1 && (
+                        <span className="text-xs text-teal-500" title="Protetto da import TheFork">🛡</span>
+                      )}
+                    </h1>
+                    <div className="flex items-center gap-2 mt-1">
+                      {cliente.rank && (
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${
+                          RANK_SIDEBAR[cliente.rank] ? {
+                            Gold: "bg-yellow-100 text-yellow-700 border-yellow-300",
+                            Silver: "bg-neutral-200 text-neutral-600 border-neutral-300",
+                            Bronze: "bg-orange-100 text-orange-700 border-orange-300",
+                            Caution: "bg-red-100 text-red-600 border-red-300",
+                          }[cliente.rank] : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                        }`}>
+                          {cliente.rank}
+                        </span>
+                      )}
+                      {cliente.origine && (
+                        <span className="text-[11px] text-neutral-400">{cliente.origine}</span>
+                      )}
+                      {cliente.lingua && cliente.lingua !== "it_IT" && (
+                        <span className="text-[11px] bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded">{cliente.lingua}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Lista note */}
-                {cliente.note?.length === 0 && (
-                  <p className="text-sm text-neutral-400 text-center py-4">Nessuna nota</p>
-                )}
-                <div className="space-y-2">
-                  {cliente.note?.map((n) => (
-                    <div key={n.id} className="flex items-start gap-3 py-2 border-b border-neutral-100 last:border-0">
-                      <span className="text-lg">
-                        {TIPI_NOTA.find((t) => t.value === n.tipo)?.label?.split(" ")[0] || "📝"}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-neutral-800">{n.testo}</p>
-                        <p className="text-[11px] text-neutral-400 mt-0.5">
-                          {n.data} · {n.autore || "sistema"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => eliminaNota(n.id)}
-                        className="text-xs text-neutral-400 hover:text-red-500 transition"
-                      >
-                        ✕
+                  {/* Pulsanti azione */}
+                  <div className="flex gap-2">
+                    {editMode ? (
+                      <>
+                        <button onClick={() => { setEditMode(false); setForm(cliente); }}
+                          className="px-3 py-1.5 text-xs font-medium border border-neutral-300 rounded-lg hover:bg-neutral-100 transition">
+                          Annulla
+                        </button>
+                        <button onClick={handleSave} disabled={saving}
+                          className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition disabled:opacity-50">
+                          {saving ? "Salvo..." : "Salva"}
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => setEditMode(true)}
+                        className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+                        Modifica
                       </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* STORICO PRENOTAZIONI */}
-              {cliente.prenotazioni_stats?.totale > 0 && (
-                <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-semibold text-neutral-700">📅 Storico Prenotazioni</h2>
-                    <div className="flex gap-3 text-xs">
-                      <span className="text-emerald-600 font-medium">
-                        {cliente.prenotazioni_stats.completate} completate
-                      </span>
-                      {cliente.prenotazioni_stats.no_show > 0 && (
-                        <span className="text-amber-600 font-medium">
-                          {cliente.prenotazioni_stats.no_show} no-show
-                        </span>
-                      )}
-                      {cliente.prenotazioni_stats.cancellate > 0 && (
-                        <span className="text-red-500 font-medium">
-                          {cliente.prenotazioni_stats.cancellate} cancellate
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats rapide */}
-                  <div className="grid grid-cols-4 gap-3 mb-4 text-center">
-                    <div className="bg-neutral-50 rounded-lg p-2">
-                      <div className="text-lg font-bold text-neutral-800">{cliente.prenotazioni_stats.totale}</div>
-                      <div className="text-[10px] text-neutral-500">Totale</div>
-                    </div>
-                    <div className="bg-neutral-50 rounded-lg p-2">
-                      <div className="text-lg font-bold text-teal-700">{cliente.prenotazioni_stats.pax_medio || "—"}</div>
-                      <div className="text-[10px] text-neutral-500">Pax medio</div>
-                    </div>
-                    <div className="bg-neutral-50 rounded-lg p-2">
-                      <div className="text-xs font-medium text-neutral-800 mt-1">{cliente.prenotazioni_stats.prima_visita || "—"}</div>
-                      <div className="text-[10px] text-neutral-500">Prima visita</div>
-                    </div>
-                    <div className="bg-neutral-50 rounded-lg p-2">
-                      <div className="text-xs font-medium text-neutral-800 mt-1">{cliente.prenotazioni_stats.ultima_visita || "—"}</div>
-                      <div className="text-[10px] text-neutral-500">Ultima visita</div>
-                    </div>
-                  </div>
-
-                  {/* Lista ultime prenotazioni */}
-                  <div className="max-h-80 overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-neutral-50 sticky top-0">
-                        <tr>
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-500">Data</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-500">Ora</th>
-                          <th className="px-2 py-1.5 text-center font-medium text-neutral-500">Pax</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-500">Stato</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-500">Canale</th>
-                          <th className="px-2 py-1.5 text-left font-medium text-neutral-500">Note</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {cliente.prenotazioni?.map((p) => {
-                          const statusColor = {
-                            SEATED: "text-emerald-600", ARRIVED: "text-emerald-600", BILL: "text-emerald-600",
-                            LEFT: "text-neutral-500", RECORDED: "text-sky-600",
-                            CANCELED: "text-red-500", NO_SHOW: "text-amber-600", REFUSED: "text-red-500",
-                          };
-                          return (
-                            <tr key={p.id} className="hover:bg-neutral-50">
-                              <td className="px-2 py-1.5 font-medium">{p.data_pasto}</td>
-                              <td className="px-2 py-1.5 text-neutral-600">{p.ora_pasto ? p.ora_pasto.substring(0, 5) : "—"}</td>
-                              <td className="px-2 py-1.5 text-center font-medium">{p.pax}</td>
-                              <td className={`px-2 py-1.5 font-medium ${statusColor[p.stato] || "text-neutral-600"}`}>
-                                {p.stato}
-                              </td>
-                              <td className="px-2 py-1.5 text-neutral-500">{p.canale || "—"}</td>
-                              <td className="px-2 py-1.5 text-neutral-500 max-w-[150px] truncate">
-                                {p.nota_ristorante || p.nota_cliente || ""}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    )}
                   </div>
                 </div>
-              )}
 
-            {/* COLONNA DESTRA: Tag + Info rapide */}
-            <div className="space-y-6">
-              {/* Tag */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-3">🏷️ Tag</h2>
-                <div className="flex flex-wrap gap-2">
+                {/* ── KPI rapidi (come stats in SchedaVino) ── */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">
+                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-lg font-bold text-neutral-800">{stats.totale || 0}</div>
+                    <div className="text-[10px] text-neutral-500 uppercase">Prenotazioni</div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-lg font-bold text-teal-700">{stats.completate || 0}</div>
+                    <div className="text-[10px] text-neutral-500 uppercase">Completate</div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-lg font-bold text-neutral-600">{stats.pax_medio || "—"}</div>
+                    <div className="text-[10px] text-neutral-500 uppercase">Pax medio</div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-xs font-medium text-neutral-700 mt-0.5">{stats.prima_visita || "—"}</div>
+                    <div className="text-[10px] text-neutral-500 uppercase">Prima visita</div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg px-3 py-2 text-center">
+                    <div className="text-xs font-medium text-neutral-700 mt-0.5">{stats.ultima_visita || "—"}</div>
+                    <div className="text-[10px] text-neutral-500 uppercase">Ultima visita</div>
+                  </div>
+                </div>
+
+                {/* ── Tag (toggle rapido) ── */}
+                <div className="flex flex-wrap gap-1.5 mt-3">
                   {allTags.map((tag) => {
                     const active = cliente.tags?.some((t) => t.id === tag.id);
                     return (
-                      <button
-                        key={tag.id}
-                        onClick={() => toggleTag(tag.id)}
-                        className={`text-xs px-2.5 py-1 rounded-full border transition font-medium ${
+                      <button key={tag.id} onClick={() => toggleTag(tag.id)}
+                        className={`text-[11px] px-2 py-0.5 rounded-full border transition font-medium ${
                           active
                             ? "border-teal-400 bg-teal-100 text-teal-800"
-                            : "border-neutral-300 bg-white text-neutral-500 hover:border-teal-300"
-                        }`}
-                      >
+                            : "border-neutral-300 bg-white text-neutral-400 hover:border-teal-300 hover:text-neutral-600"
+                        }`}>
                         {active ? "✓ " : ""}{tag.nome}
                       </button>
                     );
                   })}
                 </div>
               </div>
+            </div>
 
-              {/* Info rapide */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-3">📌 Info Rapide</h2>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Origine</span>
-                    <span className="text-neutral-800 font-medium">{cliente.origine || "thefork"}</span>
+            {/* ── TABS ── */}
+            <div className="flex border-t border-neutral-200 bg-neutral-50">
+              {TABS.map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`flex-1 text-center py-2.5 text-xs font-semibold uppercase tracking-wide transition border-b-2 ${
+                    tab === t.key
+                      ? "border-teal-600 text-teal-700 bg-white"
+                      : "border-transparent text-neutral-500 hover:text-neutral-700 hover:bg-white/60"
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── TAB CONTENT ── */}
+            <div className="px-5 py-5">
+
+              {/* ANAGRAFICA */}
+              {tab === "anagrafica" && (
+                <div className="space-y-5">
+                  {editMode ? (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <Input label="Nome" name="nome" value={form.nome} onChange={onChange} />
+                        <Input label="Cognome" name="cognome" value={form.cognome} onChange={onChange} />
+                        <Input label="Titolo" name="titolo" value={form.titolo} onChange={onChange} />
+                        <Input label="Telefono" name="telefono" value={form.telefono} onChange={onChange} />
+                        <Input label="Telefono 2" name="telefono2" value={form.telefono2} onChange={onChange} />
+                        <Input label="Email" name="email" value={form.email} onChange={onChange} type="email" />
+                        <Input label="Data di nascita" name="data_nascita" value={form.data_nascita} onChange={onChange} />
+                        <Input label="Lingua" name="lingua" value={form.lingua} onChange={onChange} />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <Input label="Indirizzo" name="indirizzo" value={form.indirizzo} onChange={onChange} />
+                        <Input label="CAP" name="cap" value={form.cap} onChange={onChange} />
+                        <Input label="Città" name="citta" value={form.citta} onChange={onChange} />
+                        <Input label="Paese" name="paese" value={form.paese} onChange={onChange} />
+                      </div>
+                      <div className="flex items-center gap-4 pt-2">
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.vip}
+                            onChange={(e) => setForm(prev => ({ ...prev, vip: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          VIP
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.newsletter}
+                            onChange={(e) => setForm(prev => ({ ...prev, newsletter: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          Newsletter
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={!!form.attivo}
+                            onChange={(e) => setForm(prev => ({ ...prev, attivo: e.target.checked }))}
+                            className="rounded border-neutral-300 text-teal-600" />
+                          Attivo
+                        </label>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        <Field label="Nome" value={cliente.nome} />
+                        <Field label="Cognome" value={cliente.cognome} />
+                        <Field label="Titolo" value={cliente.titolo} />
+                        <Field label="Telefono" value={cliente.telefono} />
+                        <Field label="Telefono 2" value={cliente.telefono2} />
+                        <Field label="Email" value={cliente.email} />
+                        <Field label="Data di nascita" value={cliente.data_nascita} />
+                        <Field label="Lingua" value={cliente.lingua} />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <Field label="Indirizzo" value={cliente.indirizzo} />
+                        <Field label="CAP" value={cliente.cap} />
+                        <Field label="Città" value={cliente.citta} />
+                        <Field label="Paese" value={cliente.paese} />
+                      </div>
+                      <div className="flex gap-4 text-sm text-neutral-600 pt-2">
+                        <span>{cliente.vip ? "⭐ VIP" : ""}</span>
+                        <span>{cliente.newsletter ? "📧 Newsletter" : ""}</span>
+                        <span>{cliente.attivo ? "🟢 Attivo" : "🔴 Inattivo"}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Info sistema */}
+                  <div className="border-t border-neutral-100 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-neutral-400">
+                    <div>Origine: <span className="text-neutral-600">{cliente.origine}</span></div>
+                    <div>Risk: <span className="text-neutral-600">{cliente.risk_level || "—"}</span></div>
+                    <div>Creato TF: <span className="text-neutral-600">{cliente.thefork_created || "—"}</span></div>
+                    <div>Aggiornato: <span className="text-neutral-600">{cliente.updated_at || "—"}</span></div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Lingua</span>
-                    <span className="text-neutral-800">{fmt(cliente.lingua)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Newsletter</span>
-                    <span className="text-neutral-800">{cliente.newsletter ? "Sì" : "No"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Promoter</span>
-                    <span className="text-neutral-800">{cliente.promoter ? "Sì" : "No"}</span>
-                  </div>
-                  {cliente.thefork_created && (
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Creato TF</span>
-                      <span className="text-neutral-800 text-xs">{cliente.thefork_created}</span>
+                </div>
+              )}
+
+              {/* PREFERENZE */}
+              {tab === "preferenze" && (
+                <div className="space-y-4">
+                  {editMode ? (
+                    <>
+                      <TextArea label="Preferenze cibo" name="pref_cibo" value={form.pref_cibo} onChange={onChange} />
+                      <TextArea label="Preferenze bevande" name="pref_bevande" value={form.pref_bevande} onChange={onChange} />
+                      <Input label="Posto preferito" name="pref_posto" value={form.pref_posto} onChange={onChange} />
+                      <Input label="Restrizioni dietetiche" name="restrizioni_dietetiche" value={form.restrizioni_dietetiche} onChange={onChange} />
+                      <Input label="Allergie e intolleranze" name="allergie" value={form.allergie} onChange={onChange} />
+                      <TextArea label="Note TheFork" name="note_thefork" value={form.note_thefork} onChange={onChange} rows={3} />
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Field label="Preferenze cibo" value={cliente.pref_cibo} />
+                      <Field label="Preferenze bevande" value={cliente.pref_bevande} />
+                      <Field label="Posto preferito" value={cliente.pref_posto} />
+                      <Field label="Restrizioni dietetiche" value={cliente.restrizioni_dietetiche} />
+                      <Field label="Allergie e intolleranze" value={cliente.allergie} />
+                      <Field label="Note TheFork" value={cliente.note_thefork} />
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-neutral-500">Aggiornato</span>
-                    <span className="text-neutral-800 text-xs">{cliente.updated_at}</span>
+                </div>
+              )}
+
+              {/* NOTE / DIARIO */}
+              {tab === "note" && (
+                <div>
+                  {/* Form nuova nota */}
+                  <div className="bg-neutral-50 rounded-lg p-3 mb-4 border border-neutral-200">
+                    <div className="flex gap-2 mb-2">
+                      <select value={nuovaNota.tipo}
+                        onChange={(e) => setNuovaNota(prev => ({ ...prev, tipo: e.target.value }))}
+                        className="border border-neutral-300 rounded-lg px-2 py-1 text-sm bg-white">
+                        {TIPI_NOTA.map((t) => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={nuovaNota.testo}
+                        onChange={(e) => setNuovaNota(prev => ({ ...prev, testo: e.target.value }))}
+                        placeholder="Scrivi una nota..."
+                        className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
+                        onKeyDown={(e) => e.key === "Enter" && aggiungiNota()} />
+                      <button onClick={aggiungiNota}
+                        className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition">
+                        Aggiungi
+                      </button>
+                    </div>
+                  </div>
+
+                  {cliente.note?.length === 0 && (
+                    <p className="text-sm text-neutral-400 text-center py-8">Nessuna nota</p>
+                  )}
+                  <div className="space-y-1">
+                    {cliente.note?.map((n) => (
+                      <div key={n.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-neutral-50 transition">
+                        <span className="text-base mt-0.5">
+                          {TIPI_NOTA.find((t) => t.value === n.tipo)?.icon || "📝"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-neutral-800">{n.testo}</p>
+                          <p className="text-[11px] text-neutral-400 mt-0.5">{n.data} · {n.autore || "sistema"}</p>
+                        </div>
+                        <button onClick={() => eliminaNota(n.id)}
+                          className="text-xs text-neutral-300 hover:text-red-500 transition">✕</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Stato */}
-              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
-                <h2 className="text-sm font-semibold text-neutral-700 mb-3">⚙️ Stato</h2>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-neutral-600">
-                    {cliente.attivo ? "🟢 Attivo" : "🔴 Inattivo"}
-                  </span>
-                  {editMode && (
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!form.attivo}
-                        onChange={(e) => setForm({ ...form, attivo: e.target.checked })}
-                        className="rounded border-neutral-300 text-teal-600"
-                      />
-                      Attivo
-                    </label>
+              {/* PRENOTAZIONI */}
+              {tab === "prenotazioni" && (
+                <div>
+                  {stats.totale > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                      {stats.no_show > 0 && (
+                        <div className="bg-amber-50 rounded-lg px-3 py-2 text-center border border-amber-200">
+                          <div className="text-lg font-bold text-amber-700">{stats.no_show}</div>
+                          <div className="text-[10px] text-amber-600 uppercase">No-show</div>
+                        </div>
+                      )}
+                      {stats.cancellate > 0 && (
+                        <div className="bg-red-50 rounded-lg px-3 py-2 text-center border border-red-200">
+                          <div className="text-lg font-bold text-red-600">{stats.cancellate}</div>
+                          <div className="text-[10px] text-red-500 uppercase">Cancellate</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!cliente.prenotazioni?.length ? (
+                    <p className="text-sm text-neutral-400 text-center py-8">Nessuna prenotazione</p>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead className="bg-neutral-50 sticky top-0 text-[10px] font-semibold text-neutral-500 uppercase">
+                          <tr>
+                            <th className="px-2 py-2 text-left">Data</th>
+                            <th className="px-2 py-2 text-left">Ora</th>
+                            <th className="px-2 py-2 text-center">Pax</th>
+                            <th className="px-2 py-2 text-left">Stato</th>
+                            <th className="px-2 py-2 text-left">Canale</th>
+                            <th className="px-2 py-2 text-left">Note</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {cliente.prenotazioni.map((p) => (
+                            <tr key={p.id} className="hover:bg-neutral-50">
+                              <td className="px-2 py-1.5 font-medium text-neutral-800">{p.data_pasto}</td>
+                              <td className="px-2 py-1.5 text-neutral-600">{p.ora_pasto ? p.ora_pasto.substring(0, 5) : "—"}</td>
+                              <td className="px-2 py-1.5 text-center font-medium">{p.pax}</td>
+                              <td className="px-2 py-1.5">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.stato] || "bg-neutral-100 text-neutral-600"}`}>
+                                  {p.stato}
+                                </span>
+                              </td>
+                              <td className="px-2 py-1.5 text-neutral-500">{p.canale || "—"}</td>
+                              <td className="px-2 py-1.5 text-neutral-500 max-w-[200px] truncate">
+                                {p.nota_ristorante || p.nota_cliente || ""}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       {/* Toast */}
-      {toast.show && (
-        <div
-          className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
-            toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
-          }`}
-          onClick={() => setToast({ ...toast, show: false })}
-        >
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
+          toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
+        }`} onClick={() => setToast(null)}>
           {toast.message}
         </div>
       )}

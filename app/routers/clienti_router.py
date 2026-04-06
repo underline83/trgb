@@ -1421,7 +1421,10 @@ def lista_clienti(
         rows = conn.execute(
             f"""
             SELECT c.*,
-                   GROUP_CONCAT(t.nome, ', ') as tags
+                   GROUP_CONCAT(t.nome, ', ') as tags,
+                   (SELECT COUNT(*) FROM clienti_prenotazioni p WHERE p.cliente_id = c.id) as n_prenotazioni,
+                   (SELECT MAX(p.data_pasto) FROM clienti_prenotazioni p WHERE p.cliente_id = c.id
+                    AND p.stato IN ('SEATED','ARRIVED','BILL','LEFT')) as ultima_visita
             FROM clienti c
             LEFT JOIN clienti_tag_assoc ta ON ta.cliente_id = c.id
             LEFT JOIN clienti_tag t ON t.id = ta.tag_id
