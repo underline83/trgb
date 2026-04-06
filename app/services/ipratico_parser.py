@@ -13,6 +13,14 @@ from typing import List, Dict, Any, Tuple
 import pandas as pd
 
 
+def _safe_int(val, default=0) -> int:
+    """Converte a int gestendo NaN, None, stringhe vuote."""
+    n = pd.to_numeric(val, errors="coerce")
+    if pd.isna(n):
+        return default
+    return int(n)
+
+
 def parse_ipratico_html(file_path: str) -> Tuple[List[Dict], List[Dict]]:
     """
     Parsa un file export iPratico e ritorna:
@@ -54,8 +62,8 @@ def parse_ipratico_html(file_path: str) -> Tuple[List[Dict], List[Dict]]:
             continue
         categorie.append({
             "categoria": cat,
-            "quantita": int(pd.to_numeric(r.get("quantita", 0), errors="coerce") or 0),
-            "totale_cent": int(pd.to_numeric(r.get("totale", 0), errors="coerce") or 0),
+            "quantita": _safe_int(r.get("quantita", 0)),
+            "totale_cent": _safe_int(r.get("totale", 0)),
         })
 
     # --- Tabella 1: prodotti ---
@@ -89,8 +97,8 @@ def parse_ipratico_html(file_path: str) -> Tuple[List[Dict], List[Dict]]:
         prodotti.append({
             "categoria": cat,
             "prodotto": prod,
-            "quantita": int(pd.to_numeric(r.get("quantita", 0), errors="coerce") or 0),
-            "totale_cent": int(pd.to_numeric(r.get("totale", 0), errors="coerce") or 0),
+            "quantita": _safe_int(r.get("quantita", 0)),
+            "totale_cent": _safe_int(r.get("totale", 0)),
             "plu": str(r.get("plu", "")).strip() if pd.notna(r.get("plu")) else None,
             "barcode": str(r.get("barcode", "")).strip() if pd.notna(r.get("barcode")) else None,
         })
