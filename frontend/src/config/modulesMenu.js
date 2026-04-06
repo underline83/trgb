@@ -79,6 +79,15 @@ const MODULES_MENU = {
       { label: "Import iPratico",   go: "/statistiche/import", check: "admin" },
     ],
   },
+  prenotazioni: {
+    title: "Prenotazioni", icon: "\uD83D\uDCC5", go: "/prenotazioni",
+    color: "bg-indigo-50 border-indigo-200 text-indigo-900", hoverBg: "hover:bg-indigo-50",
+    sub: [
+      { label: "Planning",     go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
+      { label: "Settimana",    go: "/prenotazioni/settimana/" + new Date().toISOString().slice(0, 10) },
+      { label: "Impostazioni", go: "/prenotazioni/impostazioni", check: "admin" },
+    ],
+  },
   clienti: {
     title: "Gestione Clienti", icon: "\uD83E\uDD1D", go: "/clienti",
     color: "bg-teal-50 border-teal-200 text-teal-900", hoverBg: "hover:bg-teal-50",

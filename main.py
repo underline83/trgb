@@ -63,6 +63,9 @@ from app.routers import ipratico_products_router
 # CLIENTI CRM
 from app.routers.clienti_router import router as clienti_router
 
+# PRENOTAZIONI
+from app.routers.prenotazioni_router import router as prenotazioni_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -222,6 +225,9 @@ app.include_router(ipratico_products_router.router)
 # CLIENTI CRM
 # (usa DB dedicato app/data/clienti.sqlite3, inizializzato in clienti_db.init_clienti_db)
 app.include_router(clienti_router)
+
+# PRENOTAZIONI
+app.include_router(prenotazioni_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)

@@ -84,6 +84,12 @@ import ClientiDuplicati from "./pages/clienti/ClientiDuplicati";
 import ClientiMailchimp from "./pages/clienti/ClientiMailchimp";
 import ClientiImpostazioni from "./pages/clienti/ClientiImpostazioni";
 
+// --- PRENOTAZIONI ---
+import PrenotazioniMenu from "./pages/prenotazioni/PrenotazioniMenu";
+import PrenotazioniPlanning from "./pages/prenotazioni/PrenotazioniPlanning";
+import PrenotazioniSettimana from "./pages/prenotazioni/PrenotazioniSettimana";
+import PrenotazioniImpostazioni from "./pages/prenotazioni/PrenotazioniImpostazioni";
+
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
 
@@ -243,6 +249,12 @@ export default function App() {
         <Route path="/clienti/impostazioni" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni/:section" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/:id" element={<ProtectedRoute module="clienti" sub="lista"><ClientiScheda /></ProtectedRoute>} />
+
+        {/* --- PRENOTAZIONI --- */}
+        <Route path="/prenotazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMenu /></ProtectedRoute>} />
+        <Route path="/prenotazioni/planning/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
+        <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
+        <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
 
         {/* --- CAMBIO PIN --- */}
         <Route path="/cambio-pin" element={<CambioPIN />} />

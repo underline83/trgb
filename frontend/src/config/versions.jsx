@@ -57,8 +57,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "1.0",
+    version: "2.0",
     label: "Gestione Clienti",
+    status: "beta",
+    color: "blue",
+  },
+  prenotazioni: {
+    version: "1.0",
+    label: "Prenotazioni",
     status: "beta",
     color: "blue",
   },

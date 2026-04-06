@@ -282,6 +282,107 @@ def init_clienti_db() -> None:
     except sqlite3.OperationalError:
         pass
 
+    # ── PRENOTAZIONI: colonne aggiuntive per modulo Prenotazioni ──
+    pren_cols = [
+        ("turno", "TEXT"),                       # 'pranzo' / 'cena'
+        ("fonte", "TEXT"),                       # 'manuale' / 'thefork' / 'widget'
+        ("creato_da", "TEXT"),                   # username TRGB
+        ("conferma_inviata", "INTEGER DEFAULT 0"),
+        ("reminder_inviato", "INTEGER DEFAULT 0"),
+        ("token_cancellazione", "TEXT"),
+        ("updated_at", "TEXT"),
+    ]
+    existing_pren = [r[1] for r in cur.execute("PRAGMA table_info(clienti_prenotazioni)").fetchall()]
+    for col_name, col_type in pren_cols:
+        if col_name not in existing_pren:
+            try:
+                cur.execute(f"ALTER TABLE clienti_prenotazioni ADD COLUMN {col_name} {col_type}")
+            except sqlite3.OperationalError:
+                pass
+
+    # ── TABELLA TAVOLI ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tavoli (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome            TEXT NOT NULL UNIQUE,
+            zona            TEXT NOT NULL DEFAULT 'sala',
+            posti_min       INTEGER NOT NULL DEFAULT 2,
+            posti_max       INTEGER NOT NULL DEFAULT 4,
+            combinabile     INTEGER NOT NULL DEFAULT 1,
+            posizione_x     REAL DEFAULT 0,
+            posizione_y     REAL DEFAULT 0,
+            larghezza       REAL DEFAULT 60,
+            altezza         REAL DEFAULT 60,
+            forma           TEXT DEFAULT 'rect',
+            attivo          INTEGER NOT NULL DEFAULT 1,
+            note            TEXT,
+            ordine          INTEGER DEFAULT 0
+        )
+    """)
+
+    # ── COMBINAZIONI TAVOLI ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tavoli_combinazioni (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome            TEXT NOT NULL,
+            tavoli_ids      TEXT NOT NULL,
+            posti           INTEGER NOT NULL,
+            uso_frequente   INTEGER DEFAULT 0,
+            note            TEXT
+        )
+    """)
+
+    # ── LAYOUT TAVOLI ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tavoli_layout (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome            TEXT NOT NULL UNIQUE,
+            descrizione     TEXT,
+            tavoli_attivi   TEXT NOT NULL,
+            posizioni       TEXT,
+            attivo          INTEGER DEFAULT 0,
+            created_at      TEXT DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # ── CONFIGURAZIONE PRENOTAZIONI ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS prenotazioni_config (
+            chiave      TEXT PRIMARY KEY,
+            valore      TEXT NOT NULL,
+            descrizione TEXT
+        )
+    """)
+    cur.execute("""
+        INSERT OR IGNORE INTO prenotazioni_config (chiave, valore, descrizione) VALUES
+        ('capienza_pranzo',         '35',    'Coperti massimi pranzo'),
+        ('capienza_cena',           '50',    'Coperti massimi cena'),
+        ('slot_pranzo',             '["12:00","12:15","12:30","12:45","13:00","13:15","13:30","14:00"]', 'Slot orari pranzo'),
+        ('slot_cena',               '["19:00","19:30","19:45","20:00","20:15","20:30","21:00","21:30"]', 'Slot orari cena'),
+        ('soglia_pranzo_cena',      '15:00', 'Ora che separa pranzo da cena'),
+        ('giorni_anticipo_max',     '60',    'Max giorni in avanti per widget'),
+        ('giorni_anticipo_min_ore', '2',     'Min ore prima per widget'),
+        ('giorno_chiusura',         '3',     'Giorno chiuso (0=dom, 3=mer)'),
+        ('durata_media_tavolo_min', '90',    'Durata media permanenza minuti'),
+        ('widget_attivo',           '0',     'Widget pubblico attivo (0/1)'),
+        ('widget_messaggio_pieno',  'Siamo al completo per questa data. Contattaci telefonicamente per verificare disponibilita.', 'Messaggio widget pieno'),
+        ('template_wa_conferma',    'Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}. Vi aspettiamo! - Osteria Tre Gobbi', 'Template WA conferma'),
+        ('template_wa_reminder',    'Ciao {nome}, vi ricordiamo la prenotazione per domani alle {ora} ({pax} persone). A presto! - Osteria Tre Gobbi', 'Template WA reminder')
+    """)
+
+    # ── LOG EMAIL PRENOTAZIONI ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS prenotazioni_email_log (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            prenotazione_id     INTEGER NOT NULL,
+            tipo                TEXT NOT NULL,
+            destinatario        TEXT,
+            inviata_at          TEXT,
+            errore              TEXT,
+            FOREIGN KEY (prenotazione_id) REFERENCES clienti_prenotazioni(id)
+        )
+    """)
+
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_cognome ON clienti(cognome)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_clienti_telefono ON clienti(telefono)")
@@ -301,6 +402,13 @@ def init_clienti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_alias_thefork ON clienti_alias(thefork_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_diff_cliente ON clienti_import_diff(cliente_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_diff_stato ON clienti_import_diff(stato)")
+
+    # Indici prenotazioni aggiuntivi
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_turno ON clienti_prenotazioni(turno)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_fonte ON clienti_prenotazioni(fonte)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pren_token ON clienti_prenotazioni(token_cancellazione)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tavoli_zona ON tavoli(zona)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tavoli_attivo ON tavoli(attivo)")
 
     conn.commit()
     conn.close()
