@@ -676,6 +676,34 @@ def merge_clienti(
             (req.principale_id, req.secondario_id),
         )
 
+        # 4b. Unisci campi complementari: se il principale ha un campo vuoto
+        #     e il secondario ce l'ha, copialo nel principale
+        fill_fields = [
+            "email", "telefono", "telefono2", "data_nascita",
+            "indirizzo", "cap", "citta", "paese",
+            "pref_cibo", "pref_bevande", "pref_posto",
+            "restrizioni_dietetiche", "allergie", "note_thefork",
+        ]
+        updates = []
+        values = []
+        for field in fill_fields:
+            princ_val = princ[field]
+            sec_val = sec[field]
+            if (not princ_val or str(princ_val).strip() == "") and sec_val and str(sec_val).strip() != "":
+                updates.append(f"{field} = ?")
+                values.append(sec_val)
+        if updates:
+            conn.execute(
+                f"UPDATE clienti SET {', '.join(updates)} WHERE id = ?",
+                values + [req.principale_id],
+            )
+
+        # Rimuovi eventuali esclusioni duplicati che coinvolgono il secondario
+        conn.execute(
+            "DELETE FROM clienti_no_duplicato WHERE cliente_a = ? OR cliente_b = ?",
+            (req.secondario_id, req.secondario_id),
+        )
+
         # 5. Elimina il secondario
         conn.execute("DELETE FROM clienti WHERE id = ?", (req.secondario_id,))
 
@@ -721,6 +749,22 @@ def suggerisci_duplicati(
         duplicati = []
         seen_id_sets = set()  # evita gruppi doppi tra criteri diversi
 
+        # Carica le coppie escluse (marcate "non è un duplicato")
+        excl_rows = conn.execute(
+            "SELECT cliente_a, cliente_b FROM clienti_no_duplicato"
+        ).fetchall()
+        excluded_pairs = set()
+        for er in excl_rows:
+            excluded_pairs.add(frozenset([er["cliente_a"], er["cliente_b"]]))
+
+        def _is_excluded(ids_list):
+            """Controlla se TUTTE le coppie nel gruppo sono escluse."""
+            if len(ids_list) == 2:
+                return frozenset(ids_list) in excluded_pairs
+            # Per gruppi > 2: escludi solo se tutte le coppie possibili sono escluse
+            from itertools import combinations
+            return all(frozenset(pair) in excluded_pairs for pair in combinations(ids_list, 2))
+
         def _build_detail(ids_list):
             """Costruisce il dettaglio clienti per un gruppo di ID."""
             detail = []
@@ -745,6 +789,8 @@ def suggerisci_duplicati(
                 ids = [int(x) for x in r["ids"].split(",")]
                 id_key = frozenset(ids)
                 if id_key in seen_id_sets:
+                    continue
+                if _is_excluded(ids):
                     continue
                 seen_id_sets.add(id_key)
                 detail = _build_detail(ids)
@@ -793,6 +839,41 @@ def suggerisci_duplicati(
             """, (limit,), "nome")
 
         return JSONResponse({"duplicati": duplicati, "totale": len(duplicati)})
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: ESCLUDI COPPIA DA DUPLICATI ("Non è un duplicato")
+# ============================================================
+class NoDuplicatoRequest(BaseModel):
+    ids: List[int] = Field(..., description="Lista degli ID clienti da escludere come gruppo")
+
+
+@router.post("/duplicati/escludi")
+def escludi_duplicato(
+    req: NoDuplicatoRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Segna un gruppo di clienti come 'non duplicati'.
+    Alla prossima ricerca duplicati, questo gruppo non verrà più suggerito.
+    """
+    if len(req.ids) < 2:
+        raise HTTPException(400, "Servono almeno 2 ID")
+
+    conn = get_clienti_conn()
+    try:
+        from itertools import combinations
+        count = 0
+        for a, b in combinations(sorted(req.ids), 2):
+            conn.execute(
+                "INSERT OR IGNORE INTO clienti_no_duplicato (cliente_a, cliente_b) VALUES (?, ?)",
+                (a, b),
+            )
+            count += 1
+        conn.commit()
+        return JSONResponse({"status": "ok", "coppie_escluse": count})
     finally:
         conn.close()
 

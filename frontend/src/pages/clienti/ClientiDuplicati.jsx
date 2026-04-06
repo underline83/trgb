@@ -65,6 +65,24 @@ export default function ClientiDuplicati() {
     }
   };
 
+  const handleIgnore = async (ids, idx) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/duplicati/escludi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Errore");
+      }
+      showToast("Gruppo escluso dai duplicati");
+      setDuplicati((prev) => prev.filter((_, i) => i !== idx));
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
   return (
     <>
       <ClientiNav current="duplicati" />
@@ -135,6 +153,7 @@ export default function ClientiDuplicati() {
                   idx={idx}
                   merging={merging}
                   onMergeBatch={handleMergeBatch}
+                  onIgnore={handleIgnore}
                   onNavigate={(id) => navigate(`/clienti/${id}`)}
                 />
               ))}
@@ -154,7 +173,7 @@ export default function ClientiDuplicati() {
   );
 }
 
-function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onNavigate }) {
+function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigate }) {
   const clienti = gruppo.clienti || [];
   const isMerging = merging === idx;
 
@@ -210,15 +229,24 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onNavigate }) {
           <span className="text-sm font-medium text-neutral-700">{gruppo.match}</span>
           <span className="text-xs text-neutral-400">({clienti.length} record)</span>
         </div>
-        {!principale && (
-          <span className="text-xs text-amber-600 font-medium">1. Scegli il principale</span>
-        )}
-        {principale && selezionati.size === 0 && (
-          <span className="text-xs text-amber-600 font-medium">2. Spunta chi assorbire</span>
-        )}
-        {principale && selezionati.size > 0 && (
-          <span className="text-xs text-emerald-600 font-medium">3. Conferma il merge</span>
-        )}
+        <div className="flex items-center gap-2">
+          {!principale && (
+            <span className="text-xs text-amber-600 font-medium">1. Scegli il principale</span>
+          )}
+          {principale && selezionati.size === 0 && (
+            <span className="text-xs text-amber-600 font-medium">2. Spunta chi assorbire</span>
+          )}
+          {principale && selezionati.size > 0 && (
+            <span className="text-xs text-emerald-600 font-medium">3. Conferma il merge</span>
+          )}
+          <button
+            onClick={() => onIgnore(clienti.map((c) => c.id), idx)}
+            className="text-[11px] text-neutral-400 hover:text-red-500 transition ml-2"
+            title="Non sono duplicati (es. marito e moglie)"
+          >
+            Non sono duplicati
+          </button>
+        </div>
       </div>
 
       {/* Tabella clienti */}

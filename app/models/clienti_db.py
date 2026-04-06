@@ -207,6 +207,20 @@ def init_clienti_db() -> None:
         )
     """)
 
+    # ── ESCLUSIONI DUPLICATI ──
+    # Coppie di clienti che l'utente ha esplicitamente marcato come "non duplicati"
+    # (es. marito e moglie con stesso telefono)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_no_duplicato (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_a   INTEGER NOT NULL REFERENCES clienti(id) ON DELETE CASCADE,
+            cliente_b   INTEGER NOT NULL REFERENCES clienti(id) ON DELETE CASCADE,
+            motivo      TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            UNIQUE(cliente_a, cliente_b)
+        )
+    """)
+
     # ── ALTER TABLE sicuri per DB esistenti ──
 
     # Campo 'protetto' su clienti: se 1, l'import TheFork NON sovrascrive i campi anagrafica
