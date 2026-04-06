@@ -74,8 +74,9 @@ const MODULES_MENU = {
     title: "Statistiche", icon: "\uD83D\uDCC8", go: "/statistiche",
     color: "bg-rose-50 border-rose-200 text-rose-900", hoverBg: "hover:bg-rose-50",
     sub: [
-      { label: "Cucina",          go: "/statistiche/dashboard" },
+      { label: "Cucina",            go: "/statistiche/dashboard" },
       { label: "Coperti & Incassi", go: "/statistiche/coperti" },
+      { label: "Import iPratico",   go: "/statistiche/import", check: "admin" },
     ],
   },
   clienti: {

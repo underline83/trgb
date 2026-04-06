@@ -69,6 +69,22 @@ export default function StatisticheMenu() {
             </div>
           </Link>
 
+          {/* IMPORT iPRATICO */}
+          <Link
+            to="/statistiche/import"
+            className="bg-rose-50 border border-rose-200 text-rose-900 rounded-2xl p-8 shadow hover:shadow-xl hover:-translate-y-1 transition transform"
+          >
+            <div className="text-5xl mb-3 text-center">📥</div>
+            <h2 className="text-xl font-semibold font-playfair text-center">Import iPratico</h2>
+            <p className="text-neutral-700 text-sm mt-2 text-center">
+              Carica le totalizzazioni mensili esportate da iPratico (.xls).
+            </p>
+            <div className="flex justify-center gap-2 mt-4">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Upload</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">Storico</span>
+            </div>
+          </Link>
+
           {/* CANTINA — placeholder futuro */}
           <div className="bg-neutral-50 border border-dashed border-neutral-300 text-neutral-400 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center">
             <div className="text-5xl mb-3 opacity-40">🍷</div>
