@@ -926,6 +926,7 @@ def _find_obvious_duplicates(conn):
         SELECT GROUP_CONCAT(id) as ids, telefono, LOWER(cognome) as lcog
         FROM clienti
         WHERE telefono IS NOT NULL AND telefono != '' AND cognome IS NOT NULL AND cognome != ''
+          AND attivo = 1
         GROUP BY telefono, LOWER(cognome)
         HAVING COUNT(*) > 1
     """).fetchall()
@@ -949,6 +950,7 @@ def _find_obvious_duplicates(conn):
         SELECT GROUP_CONCAT(id) as ids, LOWER(email) as lemail, LOWER(cognome) as lcog
         FROM clienti
         WHERE email IS NOT NULL AND email != '' AND cognome IS NOT NULL AND cognome != ''
+          AND attivo = 1
         GROUP BY LOWER(email), LOWER(cognome)
         HAVING COUNT(*) > 1
     """).fetchall()
@@ -1151,7 +1153,7 @@ def suggerisci_duplicati(
             _add_groups("""
                 SELECT telefono as match_val, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
                 FROM clienti
-                WHERE telefono IS NOT NULL AND telefono != ''
+                WHERE telefono IS NOT NULL AND telefono != '' AND attivo = 1
                 GROUP BY telefono
                 HAVING cnt > 1
                 ORDER BY cnt DESC
@@ -1163,7 +1165,7 @@ def suggerisci_duplicati(
             _add_groups("""
                 SELECT LOWER(email) as match_val, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
                 FROM clienti
-                WHERE email IS NOT NULL AND email != ''
+                WHERE email IS NOT NULL AND email != '' AND attivo = 1
                 GROUP BY LOWER(email)
                 HAVING cnt > 1
                 ORDER BY cnt DESC
@@ -1176,7 +1178,7 @@ def suggerisci_duplicati(
                 SELECT LOWER(cognome) || ' ' || LOWER(nome) as match_val,
                        GROUP_CONCAT(id) as ids, COUNT(*) as cnt
                 FROM clienti
-                WHERE cognome != '' AND nome != ''
+                WHERE cognome != '' AND nome != '' AND attivo = 1
                 GROUP BY LOWER(cognome), LOWER(nome)
                 HAVING cnt > 1
                 ORDER BY cnt DESC

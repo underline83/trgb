@@ -290,6 +290,8 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
   const [principale, setPrincipale] = useState(null);
   // Step 2: spunta i secondari da assorbire (checkbox)
   const [selezionati, setSelezionati] = useState(new Set());
+  // Opzione coppia: salva nome2/cognome2 dal secondario
+  const [comeCoppia, setComeCoppia] = useState(false);
 
   // Auto-seleziona il cliente con più prenotazioni come default
   useEffect(() => {
