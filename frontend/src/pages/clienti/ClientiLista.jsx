@@ -1,5 +1,5 @@
-// @version: v3.2-clienti-lista
-// Lista clienti — sidebar filtri, dettaglio inline (embedded ClientiScheda), segmenti marketing
+// @version: v3.3-clienti-lista
+// Lista clienti — sidebar filtri, dettaglio inline, note rapide, barra marketing (copia email/tel, export CSV)
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -151,6 +151,76 @@ export default function ClientiLista() {
   const filtriAttivi = [q, vipOnly, tagFiltro, rankFiltro, segmentoFiltro, conEmail, conTelefono, mostraInattivi]
     .filter(v => v && v !== "").length;
 
+  // ── Funzioni marketing: copia/export ──
+  const buildFilterParams = () => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (vipOnly) p.set("vip", "true");
+    if (tagFiltro) p.set("tag_id", tagFiltro);
+    if (rankFiltro) p.set("rank", rankFiltro);
+    if (segmentoFiltro) p.set("segmento", segmentoFiltro);
+    if (conEmail) p.set("con_email", "true");
+    if (conTelefono) p.set("con_telefono", "true");
+    if (!mostraInattivi) p.set("attivo", "true");
+    p.set("limit", "5000");
+    p.set("offset", "0");
+    return p;
+  };
+
+  const fetchAllFiltered = async () => {
+    const res = await apiFetch(`${API_BASE}/clienti/?${buildFilterParams()}`);
+    const data = await res.json();
+    return data.clienti || [];
+  };
+
+  const copiaEmail = async () => {
+    try {
+      const all = await fetchAllFiltered();
+      const emails = all.map(c => c.email).filter(Boolean);
+      if (!emails.length) { setToast("Nessuna email trovata"); return; }
+      await navigator.clipboard.writeText(emails.join("\n"));
+      setToast(`${emails.length} email copiate`);
+      setTimeout(() => setToast(null), 2500);
+    } catch { setToast("Errore copia"); setTimeout(() => setToast(null), 2500); }
+  };
+
+  const copiaTelefoni = async () => {
+    try {
+      const all = await fetchAllFiltered();
+      const tels = all.map(c => c.telefono).filter(Boolean);
+      if (!tels.length) { setToast("Nessun telefono trovato"); return; }
+      await navigator.clipboard.writeText(tels.join("\n"));
+      setToast(`${tels.length} telefoni copiati`);
+      setTimeout(() => setToast(null), 2500);
+    } catch { setToast("Errore copia"); setTimeout(() => setToast(null), 2500); }
+  };
+
+  const esportaCsv = async () => {
+    try {
+      const all = await fetchAllFiltered();
+      if (!all.length) { setToast("Nessun dato da esportare"); return; }
+      const headers = ["cognome", "nome", "email", "telefono", "telefono2", "rank", "vip", "data_nascita", "citta", "allergie", "pref_cibo", "pref_bevande", "tags", "segmento", "n_prenotazioni", "ultima_visita"];
+      const csvRows = [headers.join(";")];
+      for (const c of all) {
+        csvRows.push(headers.map(h => {
+          let v = c[h] ?? "";
+          if (typeof v === "string" && (v.includes(";") || v.includes('"') || v.includes("\n")))
+            v = `"${v.replace(/"/g, '""')}"`;
+          return v;
+        }).join(";"));
+      }
+      const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clienti_export_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast(`${all.length} clienti esportati`);
+      setTimeout(() => setToast(null), 2500);
+    } catch { setToast("Errore export"); setTimeout(() => setToast(null), 2500); }
+  };
+
   const sel = "w-full border border-neutral-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
   const lbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
 
@@ -173,6 +243,28 @@ export default function ClientiLista() {
               className="bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-teal-800 shadow-sm transition">
               + Nuovo Cliente
             </button>
+          </div>
+
+          {/* ── BARRA AZIONI MARKETING ── */}
+          <div className="flex items-center gap-2 mb-4 bg-white border border-neutral-200 rounded-xl px-4 py-2.5 shadow-sm">
+            <span className="text-xs text-neutral-500 font-medium mr-1">Azioni:</span>
+            <button onClick={copiaEmail}
+              className="px-3 py-1.5 text-xs font-medium bg-sky-100 text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-200 transition">
+              Copia email ({totale})
+            </button>
+            <button onClick={copiaTelefoni}
+              className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-200 transition">
+              Copia telefoni ({totale})
+            </button>
+            <button onClick={esportaCsv}
+              className="px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-200 transition">
+              Esporta CSV
+            </button>
+            {filtriAttivi > 0 && (
+              <span className="text-[10px] text-neutral-400 ml-2">
+                Filtri attivi: {filtriAttivi} — esporta solo i {totale.toLocaleString("it-IT")} risultati filtrati
+              </span>
+            )}
           </div>
 
           <div className="flex gap-5">
