@@ -93,6 +93,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "Content-Disposition",
+        "X-Updated-Qty",
+        "X-Updated-Price",
+        "X-Updated-Name",
+        "X-Total-Matched",
+        "X-Added-Missing",
+    ],
 )
 
 
