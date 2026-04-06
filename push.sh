@@ -4,6 +4,7 @@
 # Uso:
 #   ./push.sh "messaggio commit"      → deploy (via post-receive hook)
 #   ./push.sh "messaggio commit" -f   → deploy + pip install + npm install
+#   ./push.sh "messaggio commit" -m   → deploy + sync modules.json locale → VPS
 #   ./push.sh "messaggio commit" -d   → deploy + sync codice su Google Drive
 #
 # Remote:
@@ -18,9 +19,19 @@ VENV="/home/marco/trgb/venv-trgb"
 DB_LOCAL="app/data"
 DB_REMOTE="$VPS_DIR/app/data"
 
-# ── Argomenti ────────────────────────────────────────────
+# ── Argomenti (supporta flags combinati: -f -m -d in qualsiasi ordine) ──
 MSG="${1:-}"
-MODE="${2:-}"
+SYNC_FULL=false
+SYNC_MODULES=false
+SYNC_DRIVE=false
+shift || true
+for arg in "$@"; do
+  case "$arg" in
+    -f) SYNC_FULL=true ;;
+    -m) SYNC_MODULES=true ;;
+    -d) SYNC_DRIVE=true ;;
+  esac
+done
 
 # ── Sync DB dal VPS (backup atomico con .backup) ────────
 echo "📦 Scarico database dal VPS (backup atomico)..."
@@ -91,25 +102,62 @@ fi
 # Attendi che il post-receive hook completi il checkout
 sleep 3
 
+# ── Sync modules.json locale → VPS (solo con -m) ───────
+if $SYNC_MODULES; then
+  echo ""
+  echo "📋 Sync modules.json locale → VPS..."
+  scp -q "$DB_LOCAL/modules.json" "$VPS_HOST:$DB_REMOTE/modules.json" \
+    && echo "  ✅ modules.json copiato sul VPS" \
+    || echo "  ⚠️  Copia modules.json fallita"
+fi
+
 # Ripristina i files runtime dopo il checkout
+# Se -m è attivo, modules.json NON viene ripristinato (usa la versione locale)
 echo "🔒 Ripristino files runtime..."
-ssh -q "$VPS_HOST" "
-  cd $VPS_DIR/app/data
-  for f in users.json modules.json closures_config.json; do
-    if [ -f \"/tmp/trgb_\${f}.runtime\" ]; then
-      cp \"/tmp/trgb_\${f}.runtime\" \"\$f\"
-      rm -f \"/tmp/trgb_\${f}.runtime\"
-      echo \"  ✅ \$f ripristinato\"
-    else
-      echo \"  ⚠️  \$f — nessun backup trovato\"
-    fi
-  done
-" 2>/dev/null || true
+if $SYNC_MODULES; then
+  # Con -m: ripristina solo users.json e closures_config.json, modules.json resta quello nuovo dal push
+  ssh -q "$VPS_HOST" "
+    cd $VPS_DIR/app/data
+    for f in users.json closures_config.json; do
+      if [ -f \"/tmp/trgb_\${f}.runtime\" ]; then
+        cp \"/tmp/trgb_\${f}.runtime\" \"\$f\"
+        rm -f \"/tmp/trgb_\${f}.runtime\"
+        echo \"  ✅ \$f ripristinato\"
+      else
+        echo \"  ⚠️  \$f — nessun backup trovato\"
+      fi
+    done
+    rm -f /tmp/trgb_modules.json.runtime
+    echo \"  📋 modules.json aggiornato dal repo (flag -m)\"
+  " 2>/dev/null || true
+else
+  ssh -q "$VPS_HOST" "
+    cd $VPS_DIR/app/data
+    for f in users.json modules.json closures_config.json; do
+      if [ -f \"/tmp/trgb_\${f}.runtime\" ]; then
+        cp \"/tmp/trgb_\${f}.runtime\" \"\$f\"
+        rm -f \"/tmp/trgb_\${f}.runtime\"
+        echo \"  ✅ \$f ripristinato\"
+      else
+        echo \"  ⚠️  \$f — nessun backup trovato\"
+      fi
+    done
+  " 2>/dev/null || true
+fi
+
+# ── Restart backend se modules.json aggiornato ─────────
+if $SYNC_MODULES; then
+  echo ""
+  echo "🔄 Restart backend (modules.json aggiornato)..."
+  ssh -q "$VPS_HOST" "sudo /bin/systemctl restart trgb-backend" \
+    && echo "  ✅ trgb-backend riavviato" \
+    || echo "  ⚠️  Restart fallito"
+fi
 
 # ── Deploy extra (solo se -f per pip/npm) ──────────────
 # Il deploy base (git checkout + restart) è gestito dal post-receive hook.
 # Qui facciamo solo pip/npm se richiesto con -f.
-if [[ "$MODE" == "-f" ]]; then
+if $SYNC_FULL; then
   echo ""
   echo "🚀 Deploy FULL (pip + npm)..."
   ssh "$VPS_HOST" "
@@ -124,7 +172,7 @@ if [[ "$MODE" == "-f" ]]; then
 fi
 
 # ── Sync su Google Drive (opzionale con -d) ────────────
-if [[ "$MODE" == "-d" ]] || [[ "${3:-}" == "-d" ]]; then
+if $SYNC_DRIVE; then
   echo ""
   echo "☁️ Sync codice su Google Drive..."
   ssh "$VPS_HOST" "

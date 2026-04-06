@@ -460,12 +460,23 @@ async def import_prenotazioni(
                 bill = val(row, "Bill amount")
                 imprint_amt = val(row, "Imprint amount")
 
-                # Risposte form
-                degust = str(row[col_degustazione]).strip() if col_degustazione and row[col_degustazione] else None
-                allergie_form = str(row[col_allergie_form]).strip() if col_allergie_form and row[col_allergie_form] else None
-                tav_est_raw = row[col_tavolo_esterno] if col_tavolo_esterno else None
-                tav_est = 1 if tav_est_raw and float(tav_est_raw) == 1 else 0
-                segg = str(row[col_seggioloni]).strip() if col_seggioloni and row[col_seggioloni] else None
+                # Risposte form (accesso sicuro: le tuple openpyxl possono essere più corte)
+                def safe_col(r, idx):
+                    if idx is None or idx >= len(r):
+                        return None
+                    return r[idx]
+
+                degust_raw = safe_col(row, col_degustazione)
+                degust = str(degust_raw).strip() if degust_raw else None
+                allergie_raw = safe_col(row, col_allergie_form)
+                allergie_form = str(allergie_raw).strip() if allergie_raw else None
+                tav_est_raw = safe_col(row, col_tavolo_esterno)
+                try:
+                    tav_est = 1 if tav_est_raw and float(tav_est_raw) == 1 else 0
+                except (ValueError, TypeError):
+                    tav_est = 0
+                segg_raw = safe_col(row, col_seggioloni)
+                segg = str(segg_raw).strip() if segg_raw else None
 
                 # Trova cliente_id interno dal thefork_id
                 cliente_id = None
