@@ -37,14 +37,14 @@ done
 echo "📦 Scarico database dal VPS (backup atomico)..."
 
 # Prima: ruota la copia precedente (tiene 1 storico)
-for db in vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3; do
+for db in vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3; do
   if [ -f "$DB_LOCAL/$db" ]; then
     cp "$DB_LOCAL/$db" "$DB_LOCAL/${db}.prev" 2>/dev/null || true
   fi
 done
 
 # Poi: scarica con .backup atomico (gestisce WAL correttamente)
-for db in vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3; do
+for db in vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3; do
   ssh -q "$VPS_HOST" "sqlite3 '$DB_REMOTE/$db' \".backup '/tmp/trgb_$db'\"" 2>/dev/null \
     && scp -q "$VPS_HOST:/tmp/trgb_$db" "$DB_LOCAL/$db" 2>/dev/null \
     && ssh -q "$VPS_HOST" "rm -f '/tmp/trgb_$db'" 2>/dev/null \
