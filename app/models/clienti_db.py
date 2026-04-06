@@ -238,6 +238,25 @@ def init_clienti_db() -> None:
         )
     """)
 
+    # ── IMPOSTAZIONI CRM (soglie segmenti, configurazioni varie) ──
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_impostazioni (
+            chiave      TEXT PRIMARY KEY,
+            valore      TEXT NOT NULL,
+            descrizione TEXT
+        )
+    """)
+    # Valori di default per le soglie dei segmenti marketing
+    cur.execute("""
+        INSERT OR IGNORE INTO clienti_impostazioni (chiave, valore, descrizione) VALUES
+        ('seg_abituale_min',       '5',   'Visite minime negli ultimi N mesi per essere "abituale"'),
+        ('seg_occasionale_min',    '1',   'Visite minime negli ultimi N mesi per essere "occasionale"'),
+        ('seg_nuovo_giorni',       '90',  'Giorni dalla prima visita per essere "nuovo"'),
+        ('seg_nuovo_max_visite',   '2',   'Max visite per restare "nuovo"'),
+        ('seg_perso_giorni',       '365', 'Giorni senza visite per essere "perso"'),
+        ('seg_finestra_mesi',      '12',  'Finestra in mesi per contare le visite (abituale/occasionale)')
+    """)
+
     # ── ALTER TABLE sicuri per DB esistenti ──
 
     # Campo 'protetto' su clienti: se 1, l'import TheFork NON sovrascrive i campi anagrafica

@@ -93,7 +93,7 @@ if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --por
   git add -A
   COMMIT_OUT=$(git commit -m "$MSG" 2>&1)
   # Estrai solo hash abbreviato e stats
-  HASH=$(echo "$COMMIT_OUT" | head -1 | grep -oP '[a-f0-9]{7}' | head -1)
+  HASH=$(echo "$COMMIT_OUT" | head -1 | sed -n 's/.*\([a-f0-9]\{7\}\).*/\1/p' | head -1)
   STATS=$(echo "$COMMIT_OUT" | tail -1)
   ok "${HASH:-commit} — ${STATS}"
 else
@@ -133,7 +133,7 @@ if $VERBOSE; then
     echo -e "  ${DIM}${line}${NC}"
   done
 else
-  echo "$PUSH_OUT" | grep -oP '(?<=remote: )▶.*' | while read -r line; do
+  echo "$PUSH_OUT" | grep "remote:.*▶" | sed 's/.*remote: //' | while read -r line; do
     echo -e "  ${DIM}${line}${NC}"
   done
 fi

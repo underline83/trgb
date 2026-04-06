@@ -1548,6 +1548,66 @@ def prenotazioni_stats(
 
 
 # ============================================================
+# ENDPOINT: IMPOSTAZIONI CRM (soglie segmenti, configurazioni)
+# ============================================================
+def _get_impostazioni(conn) -> dict:
+    """Legge tutte le impostazioni CRM come dict chiave→valore."""
+    rows = conn.execute("SELECT chiave, valore FROM clienti_impostazioni").fetchall()
+    return {r["chiave"]: r["valore"] for r in rows}
+
+
+def _get_soglie_segmenti(conn) -> dict:
+    """Ritorna le soglie segmenti come numeri pronti all'uso."""
+    imp = _get_impostazioni(conn)
+    return {
+        "abituale_min": int(imp.get("seg_abituale_min", "5")),
+        "occasionale_min": int(imp.get("seg_occasionale_min", "1")),
+        "nuovo_giorni": int(imp.get("seg_nuovo_giorni", "90")),
+        "nuovo_max_visite": int(imp.get("seg_nuovo_max_visite", "2")),
+        "perso_giorni": int(imp.get("seg_perso_giorni", "365")),
+        "finestra_mesi": int(imp.get("seg_finestra_mesi", "12")),
+    }
+
+
+@router.get("/impostazioni")
+def get_impostazioni_endpoint(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute(
+            "SELECT chiave, valore, descrizione FROM clienti_impostazioni ORDER BY chiave"
+        ).fetchall()
+        return JSONResponse({"impostazioni": [dict(r) for r in rows]})
+    finally:
+        conn.close()
+
+
+@router.put("/impostazioni")
+def update_impostazioni_endpoint(
+    body: dict,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Aggiorna una o più impostazioni. Body: { "chiave1": "valore1", ... }"""
+    conn = get_clienti_conn()
+    try:
+        updated = 0
+        for chiave, valore in body.items():
+            res = conn.execute(
+                "UPDATE clienti_impostazioni SET valore = ? WHERE chiave = ?",
+                (str(valore), chiave),
+            )
+            updated += res.rowcount
+        conn.commit()
+        return JSONResponse({"status": "ok", "updated": updated})
+    except Exception as e:
+        logger.exception("Errore aggiornamento impostazioni")
+        raise HTTPException(500, str(e))
+    finally:
+        conn.close()
+
+
+# ============================================================
 # ENDPOINT: CONTEGGIO SEGMENTI MARKETING
 # ============================================================
 @router.get("/segmenti/conteggi")
@@ -1560,13 +1620,14 @@ def segmenti_conteggi(
     conn = get_clienti_conn()
     try:
         STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+        soglie = _get_soglie_segmenti(conn)
         totale_attivi = conn.execute("SELECT COUNT(*) FROM clienti WHERE attivo = 1").fetchone()[0]
 
-        # Clienti con almeno 1 prenotazione completata
+        # Clienti con almeno 1 prenotazione completata (finestra dinamica)
         con_visite = conn.execute(f"""
             SELECT p.cliente_id,
                 COUNT(*) as tot,
-                SUM(CASE WHEN p.data_pasto >= date('now','-12 months') THEN 1 ELSE 0 END) as anno,
+                SUM(CASE WHEN p.data_pasto >= date('now','-{soglie["finestra_mesi"]} months') THEN 1 ELSE 0 END) as periodo,
                 MAX(p.data_pasto) as ultima,
                 MIN(p.data_pasto) as prima
             FROM clienti_prenotazioni p
@@ -1576,24 +1637,23 @@ def segmenti_conteggi(
         """).fetchall()
 
         counts = {"abituale": 0, "occasionale": 0, "nuovo": 0, "in_calo": 0, "perso": 0, "mai_venuto": 0}
-        oggi = str(date.today())
-        soglia_anno = str(date.today() - timedelta(days=365))
-        soglia_3mesi = str(date.today() - timedelta(days=90))
+        soglia_perso = str(date.today() - timedelta(days=soglie["perso_giorni"]))
+        soglia_nuovo = str(date.today() - timedelta(days=soglie["nuovo_giorni"]))
 
         clienti_con_visite = set()
         for r in con_visite:
             clienti_con_visite.add(r["cliente_id"])
-            anno = r["anno"] or 0
+            periodo = r["periodo"] or 0
             ultima = r["ultima"] or ""
             prima = r["prima"] or ""
 
-            if ultima < soglia_anno:
+            if ultima < soglia_perso:
                 counts["perso"] += 1
-            elif prima >= soglia_3mesi and anno <= 2:
+            elif prima >= soglia_nuovo and periodo <= soglie["nuovo_max_visite"]:
                 counts["nuovo"] += 1
-            elif anno >= 5:
+            elif periodo >= soglie["abituale_min"]:
                 counts["abituale"] += 1
-            elif anno >= 1:
+            elif periodo >= soglie["occasionale_min"]:
                 counts["occasionale"] += 1
             else:
                 counts["perso"] += 1
@@ -1649,6 +1709,8 @@ def lista_clienti(
     """
     conn = get_clienti_conn()
     try:
+        soglie = _get_soglie_segmenti(conn)
+        STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
         where = []
         params = []
 
@@ -1692,29 +1754,26 @@ def lista_clienti(
             if date_conditions:
                 where.append(f"({' OR '.join(date_conditions)})")
 
-        # ── Segmenti marketing (calcolati da prenotazioni completate) ──
-        # visite_anno = completate nell'ultimo anno
-        # visite_semestre = completate negli ultimi 6 mesi
-        # visite_anno_prec = completate tra -24 e -12 mesi
-        # prima_visita_recente = prima visita completata negli ultimi 90 giorni
-        STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+        # ── Segmenti marketing (soglie da impostazioni) ──
         if segmento:
+            fm = soglie["finestra_mesi"]
             seg_map = {
                 "abituale": f"""c.id IN (
                     SELECT p.cliente_id FROM clienti_prenotazioni p
-                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-12 months')
-                    GROUP BY p.cliente_id HAVING COUNT(*) >= 5
+                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-{fm} months')
+                    GROUP BY p.cliente_id HAVING COUNT(*) >= {soglie["abituale_min"]}
                 )""",
                 "occasionale": f"""c.id IN (
                     SELECT p.cliente_id FROM clienti_prenotazioni p
-                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-12 months')
-                    GROUP BY p.cliente_id HAVING COUNT(*) BETWEEN 1 AND 4
+                    WHERE p.stato IN {STATI_OK} AND p.data_pasto >= date('now','-{fm} months')
+                    GROUP BY p.cliente_id HAVING COUNT(*) BETWEEN {soglie["occasionale_min"]} AND {soglie["abituale_min"] - 1}
                 )""",
                 "nuovo": f"""c.id IN (
                     SELECT p.cliente_id FROM clienti_prenotazioni p
                     WHERE p.stato IN {STATI_OK}
                     GROUP BY p.cliente_id
-                    HAVING MIN(p.data_pasto) >= date('now','-3 months')
+                    HAVING MIN(p.data_pasto) >= date('now','-{soglie["nuovo_giorni"]} days')
+                    AND COUNT(*) <= {soglie["nuovo_max_visite"]}
                 )""",
                 "in_calo": f"""c.id IN (
                     SELECT sub.cid FROM (
@@ -1731,7 +1790,7 @@ def lista_clienti(
                     SELECT p.cliente_id FROM clienti_prenotazioni p
                     WHERE p.stato IN {STATI_OK}
                     GROUP BY p.cliente_id
-                    HAVING MAX(p.data_pasto) < date('now','-12 months')
+                    HAVING MAX(p.data_pasto) < date('now','-{soglie["perso_giorni"]} days')
                 ) AND c.id IN (
                     SELECT DISTINCT p2.cliente_id FROM clienti_prenotazioni p2
                     WHERE p2.stato IN {STATI_OK}
@@ -1777,7 +1836,7 @@ def lista_clienti(
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as ultima_visita,
                    (SELECT COUNT(*) FROM clienti_prenotazioni p
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}
-                    AND p.data_pasto >= date('now','-12 months')) as visite_anno,
+                    AND p.data_pasto >= date('now','-{soglie["finestra_mesi"]} months')) as visite_periodo,
                    (SELECT MIN(p.data_pasto) FROM clienti_prenotazioni p
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as prima_visita
             FROM clienti c
@@ -1791,25 +1850,26 @@ def lista_clienti(
             params + [limit, offset],
         ).fetchall()
 
-        # Calcola segmento per ogni riga
+        # Calcola segmento per ogni riga (soglie da impostazioni)
+        soglia_perso = str(date.today() - timedelta(days=soglie["perso_giorni"]))
+        soglia_nuovo = str(date.today() - timedelta(days=soglie["nuovo_giorni"]))
         risultati = []
         for r in rows:
             d = dict(r)
-            # Determina segmento marketing
             n_pren = d.get("n_prenotazioni") or 0
-            visite_anno = d.get("visite_anno") or 0
+            visite = d.get("visite_periodo") or 0
             ultima = d.get("ultima_visita")
             prima = d.get("prima_visita")
 
             if n_pren == 0:
                 d["segmento"] = "mai_venuto"
-            elif ultima and ultima < str(date.today() - timedelta(days=365)):
+            elif ultima and ultima < soglia_perso:
                 d["segmento"] = "perso"
-            elif prima and prima >= str(date.today() - timedelta(days=90)) and visite_anno <= 2:
+            elif prima and prima >= soglia_nuovo and visite <= soglie["nuovo_max_visite"]:
                 d["segmento"] = "nuovo"
-            elif visite_anno >= 5:
+            elif visite >= soglie["abituale_min"]:
                 d["segmento"] = "abituale"
-            elif visite_anno >= 1:
+            elif visite >= soglie["occasionale_min"]:
                 d["segmento"] = "occasionale"
             else:
                 d["segmento"] = "perso"
@@ -2127,6 +2187,7 @@ def mailchimp_sync(
     conn = get_clienti_conn()
     try:
         STATI_OK = "('SEATED','ARRIVED','BILL','LEFT')"
+        soglie = _get_soglie_segmenti(conn)
 
         # Fetch clienti con email e newsletter attiva
         rows = conn.execute(f"""
@@ -2138,7 +2199,7 @@ def mailchimp_sync(
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as ultima_visita,
                    (SELECT COUNT(*) FROM clienti_prenotazioni p
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}
-                    AND p.data_pasto >= date('now','-12 months')) as visite_anno,
+                    AND p.data_pasto >= date('now','-{soglie["finestra_mesi"]} months')) as visite_periodo,
                    (SELECT MIN(p.data_pasto) FROM clienti_prenotazioni p
                     WHERE p.cliente_id = c.id AND p.stato IN {STATI_OK}) as prima_visita
             FROM clienti c
@@ -2149,24 +2210,26 @@ def mailchimp_sync(
             GROUP BY c.id
         """).fetchall()
 
-        # Calcola segmento per ogni cliente
+        # Calcola segmento per ogni cliente (soglie da impostazioni)
+        soglia_perso = str(date.today() - timedelta(days=soglie["perso_giorni"]))
+        soglia_nuovo = str(date.today() - timedelta(days=soglie["nuovo_giorni"]))
         clients_data = []
         for r in rows:
             d = dict(r)
             n_pren = d.get("n_prenotazioni") or 0
-            visite_anno = d.get("visite_anno") or 0
+            visite = d.get("visite_periodo") or 0
             ultima = d.get("ultima_visita")
             prima = d.get("prima_visita")
 
             if n_pren == 0:
                 segmento = "mai_venuto"
-            elif ultima and ultima < str(date.today() - timedelta(days=365)):
+            elif ultima and ultima < soglia_perso:
                 segmento = "perso"
-            elif prima and prima >= str(date.today() - timedelta(days=90)) and visite_anno <= 2:
+            elif prima and prima >= soglia_nuovo and visite <= soglie["nuovo_max_visite"]:
                 segmento = "nuovo"
-            elif visite_anno >= 5:
+            elif visite >= soglie["abituale_min"]:
                 segmento = "abituale"
-            elif visite_anno >= 1:
+            elif visite >= soglie["occasionale_min"]:
                 segmento = "occasionale"
             else:
                 segmento = "perso"
