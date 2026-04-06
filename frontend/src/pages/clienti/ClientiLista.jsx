@@ -3,8 +3,29 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import { SortTh, sortRows } from "../../utils/sortUtils";
 import ClientiNav from "./ClientiNav";
+
+function SortTh({ label, sort, setSort, col, align }) {
+  const active = sort.field === col;
+  const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
+  return (
+    <th className={`px-3 py-2 cursor-pointer select-none hover:text-teal-800 transition ${align === "right" ? "text-right" : "text-left"}`}
+      onClick={() => setSort(prev => ({ field: col, dir: prev.field === col && prev.dir === "asc" ? "desc" : "asc" }))}>
+      {label}{arrow}
+    </th>
+  );
+}
+
+function sortRows(rows, sort) {
+  if (!sort.field) return rows;
+  return [...rows].sort((a, b) => {
+    let va = a[sort.field], vb = b[sort.field];
+    if (va == null) va = "";
+    if (vb == null) vb = "";
+    if (typeof va === "number" && typeof vb === "number") return sort.dir === "asc" ? va - vb : vb - va;
+    return sort.dir === "asc" ? String(va).localeCompare(String(vb), "it") : String(vb).localeCompare(String(va), "it");
+  });
+}
 
 const PAGE_SIZE = 50;
 
