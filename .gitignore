@@ -33,7 +33,7 @@ app/data/*.prev
 app/data/.fuse_hidden*
 app/data/backups/
 app/data/users.json
-app/data/modules.json
+# modules.json è tracciato in git (non contiene dati sensibili, solo config moduli)
 *.backup
 
 # =====================
