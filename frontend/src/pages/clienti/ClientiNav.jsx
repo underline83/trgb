@@ -8,6 +8,7 @@ const TABS = [
   { key: "prenotazioni", label: "Prenotazioni", path: "/clienti/prenotazioni", icon: "📅" },
   { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
   { key: "import", label: "Import", path: "/clienti/import", icon: "📥", roles: ["superadmin", "admin"] },
+  { key: "duplicati", label: "Duplicati", path: "/clienti/duplicati", icon: "🔄", roles: ["superadmin", "admin"] },
 ];
 
 export default function ClientiNav({ current }) {
