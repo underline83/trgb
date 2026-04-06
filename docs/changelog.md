@@ -3,6 +3,60 @@
 
 ---
 
+## 2026-04-06 — Gestione Clienti v2.0: CRM completo con marketing, coppie, impostazioni
+
+#### New — Segmenti marketing configurabili
+- **Soglie dinamiche** — abituale/occasionale/nuovo/perso configurabili da UI (tabella `clienti_impostazioni`)
+- **Pagina Impostazioni** — nuova sezione con sidebar: Segmenti, Import/Export, Duplicati, Mailchimp
+- **Preview regole** — visualizzazione in tempo reale delle regole segmento con le soglie impostate
+
+#### New — Coppie (nome2/cognome2)
+- **Campi coppia** — `nome2`, `cognome2` in DB, modello Pydantic, PUT endpoint, tab Anagrafica
+- **Header coppia** — mostra "Marco & Laura Rossi" o "Marco & Laura Rossi / Bianchi" in scheda e lista
+- **Merge come coppia** — checkbox "Salva come coppia" sia nella scheda (merge manuale) che nella pagina duplicati
+- **Ricerca** — nome2/cognome2 inclusi nella ricerca fulltext clienti e prenotazioni
+- **Template WA** — supporto variabile `{nome2}` nei messaggi WhatsApp personalizzati
+
+#### New — WhatsApp Opzione A
+- **Broadcast personalizzato** — pannello WA nella lista con template `{nome}/{cognome}/{nome2}`, link wa.me individuali
+- **Filtro destinatari** — solo clienti filtrati con telefono valido
+
+#### New — Integrazione Mailchimp (Fase 1+2)
+- **Backend** — `mailchimp_service.py` con stdlib urllib, merge fields custom (PHONE, BIRTHDAY, CITTA, RANK, SEGMENTO, ALLERGIE, PREFCIBO)
+- **Sync contatti** — upsert con tags CRM + segmento + VIP + rank
+- **Pagina Mailchimp** — stato connessione, pulsante sync, KPI risultati, guida configurazione
+
+#### New — Pulizia dati
+- **Filtro telefoni placeholder** — numeri finti TheFork (`+39000...`) esclusi automaticamente da duplicati e import
+- **Endpoint pulizia telefoni** — `POST /pulizia/telefoni-placeholder` svuota numeri finti dal DB
+- **Normalizzazione testi** — `POST /pulizia/normalizza-testi` converte CAPS/minuscolo in Title Case (nomi, cognomi, città)
+- **Pulsanti UI** — "Pulisci tel. finti" e "Normalizza testi" nella pagina Duplicati
+
+#### New — Auto-merge duplicati ovvi
+- **Preview** — analisi automatica gruppi con stesso telefono+cognome o email+cognome
+- **Batch merge** — conferma unica per tutti i gruppi ovvi, scelta principale automatica (più prenotazioni > protetto > ID basso)
+
+#### New — Marketing toolbar
+- **Copia email/telefoni** — bulk copy negli appunti dalla lista filtrata
+- **Export CSV** — esportazione con BOM UTF-8, separatore `;` per Excel italiano
+- **Note rapide** — aggiunta nota dal list view senza aprire la scheda
+
+#### New — Compleanni
+- **Azioni rapide** — pulsanti WhatsApp e email per auguri direttamente dalla dashboard
+
+#### Changed — Riorganizzazione UI
+- **Sidebar impostazioni** — Import, Duplicati, Mailchimp spostati dentro Impostazioni con sidebar laterale
+- **ClientiNav** — semplificata a 4 tab: Anagrafica, Prenotazioni, Dashboard, Impostazioni
+- **Scheda inline** — apertura cliente nella lista senza navigazione (pattern embedded come SchedaVino)
+- **Fix duplicati** — aggiunto filtro `attivo = 1` su tutte le query duplicati (clienti mergiati non riappaiono)
+
+#### Changed — push.sh
+- **Output pulito** — colori, sezioni con icone, rumore git nascosto
+- **Verbose di default** — dettaglio per ogni DB e log deploy, `-q` per silenzioso
+- **Fix macOS** — rimosso `grep -P` (non disponibile su Mac)
+
+---
+
 ## 2026-04-06 — Gestione Clienti v1.1: Protezione dati, merge duplicati, export
 
 #### New — Merge e Deduplicazione
