@@ -54,6 +54,32 @@ export default function ClientiLista() {
   // Dettaglio inline
   const [selectedId, setSelectedId] = useState(null);
 
+  // Nota rapida
+  const [notaClienteId, setNotaClienteId] = useState(null);
+  const [notaTesto, setNotaTesto] = useState("");
+  const [notaSaving, setNotaSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const salvaNotaRapida = async () => {
+    if (!notaTesto.trim() || !notaClienteId) return;
+    setNotaSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/${notaClienteId}/note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "nota", testo: notaTesto.trim() }),
+      });
+      if (!res.ok) throw new Error("Errore");
+      setToast("Nota salvata");
+      setTimeout(() => setToast(null), 2500);
+      setNotaClienteId(null);
+      setNotaTesto("");
+    } catch {
+      setToast("Errore salvataggio nota");
+      setTimeout(() => setToast(null), 2500);
+    } finally { setNotaSaving(false); }
+  };
+
   // Ordinamento — server-side
   const [sortKey, setSortKey] = useState("cognome");
   const [sortDir, setSortDir] = useState("asc");
@@ -298,6 +324,7 @@ export default function ClientiLista() {
                           <th className="px-3 py-2.5 text-left hidden xl:table-cell cursor-pointer select-none hover:text-teal-700" onClick={() => handleSort("ultima_visita")}>
                             Ultima <SortIcon col="ultima_visita" sortKey={sortKey} sortDir={sortDir} />
                           </th>
+                          <th className="px-3 py-2.5 text-center w-10"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
@@ -305,7 +332,8 @@ export default function ClientiLista() {
                           const rowColor = c.rank ? (RANK_COLORS[c.rank]?.row || "") : "";
                           const seg = SEGMENTO_CONFIG[c.segmento] || SEGMENTO_CONFIG.mai_venuto;
                           return (
-                            <tr key={c.id}
+                            <React.Fragment key={c.id}>
+                            <tr
                               onClick={() => setSelectedId(c.id)}
                               className={`cursor-pointer hover:bg-teal-50/80 transition ${rowColor} ${!c.attivo ? "opacity-40" : ""}`}>
                               <td className="px-3 py-2.5">
@@ -354,7 +382,42 @@ export default function ClientiLista() {
                               <td className="px-3 py-2.5 text-xs text-neutral-500 hidden xl:table-cell whitespace-nowrap">
                                 {c.ultima_visita || "—"}
                               </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setNotaClienteId(notaClienteId === c.id ? null : c.id); setNotaTesto(""); }}
+                                  className={`text-sm hover:scale-110 transition ${notaClienteId === c.id ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
+                                  title="Nota rapida">
+                                  📝
+                                </button>
+                              </td>
                             </tr>
+                            {notaClienteId === c.id && (
+                              <tr className="bg-amber-50/80">
+                                <td colSpan={8} className="px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-amber-700 font-medium whitespace-nowrap">Nota per {c.cognome}:</span>
+                                    <input
+                                      type="text"
+                                      value={notaTesto}
+                                      onChange={(e) => setNotaTesto(e.target.value)}
+                                      onKeyDown={(e) => e.key === "Enter" && salvaNotaRapida()}
+                                      onClick={(e) => e.stopPropagation()}
+                                      placeholder="Scrivi e premi Invio..."
+                                      className="flex-1 border border-amber-300 rounded-lg px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                                      autoFocus
+                                    />
+                                    <button onClick={(e) => { e.stopPropagation(); salvaNotaRapida(); }}
+                                      disabled={notaSaving || !notaTesto.trim()}
+                                      className="px-3 py-1 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition disabled:opacity-40">
+                                      {notaSaving ? "..." : "Salva"}
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); setNotaClienteId(null); }}
+                                      className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                           );
                         })}
                       </tbody>
@@ -385,6 +448,14 @@ export default function ClientiLista() {
           </div>
         </div>
       </div>
+
+      {/* Toast nota rapida */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 bg-emerald-600 text-white"
+          onClick={() => setToast(null)}>
+          {toast}
+        </div>
+      )}
     </>
   );
 }

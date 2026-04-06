@@ -92,8 +92,19 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   const [mergeQuery, setMergeQuery] = useState("");
   const [mergeResults, setMergeResults] = useState([]);
   const [mergeSearching, setMergeSearching] = useState(false);
-  const [mergeTarget, setMergeTarget] = useState(null);
+  const [mergeTarget, setMergeTarget] = useState(null); // dati completi del target
   const [merging, setMerging] = useState(false);
+
+  // Campi da confrontare nel side-by-side
+  const MERGE_FIELDS = [
+    { key: "telefono", label: "Telefono" }, { key: "telefono2", label: "Telefono 2" },
+    { key: "email", label: "Email" }, { key: "data_nascita", label: "Data nascita" },
+    { key: "indirizzo", label: "Indirizzo" }, { key: "cap", label: "CAP" },
+    { key: "citta", label: "Città" }, { key: "paese", label: "Paese" },
+    { key: "pref_cibo", label: "Pref. cibo" }, { key: "pref_bevande", label: "Pref. bevande" },
+    { key: "pref_posto", label: "Posto pref." }, { key: "allergie", label: "Allergie" },
+    { key: "restrizioni_dietetiche", label: "Restrizioni" }, { key: "note_thefork", label: "Note TF" },
+  ];
 
   const showToast = (message, type = "ok") => {
     setToast({ message, type });
@@ -353,7 +364,14 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     {mergeResults.length > 0 && !mergeTarget && (
                       <div className="max-h-40 overflow-y-auto border border-amber-200 rounded-lg bg-white divide-y divide-amber-100">
                         {mergeResults.map((c) => (
-                          <button key={c.id} onClick={() => setMergeTarget(c)}
+                          <button key={c.id} onClick={async () => {
+                            // Carica dati completi del target per il side-by-side
+                            try {
+                              const res = await apiFetch(`${API_BASE}/clienti/${c.id}`);
+                              if (res.ok) { const full = await res.json(); setMergeTarget(full); }
+                              else setMergeTarget(c);
+                            } catch { setMergeTarget(c); }
+                          }}
                             className="w-full text-left px-3 py-2 hover:bg-amber-50 transition text-sm flex items-center justify-between">
                             <span>
                               <span className="font-medium text-neutral-800">{c.cognome} {c.nome}</span>
@@ -366,19 +384,65 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     )}
                     {mergeTarget && (
                       <div className="border border-amber-300 rounded-lg bg-white p-3">
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center justify-between mb-3">
                           <div className="text-sm">
-                            <span className="font-bold text-red-600">{mergeTarget.cognome} {mergeTarget.nome}</span>
-                            <span className="text-xs text-neutral-500 ml-2">
-                              ({mergeTarget.n_prenotazioni || 0} pren.) {mergeTarget.telefono || ""} {mergeTarget.email || ""}
-                            </span>
+                            <span className="font-semibold text-teal-700">{cliente.cognome} {cliente.nome}</span>
+                            <span className="mx-2 text-neutral-400">←</span>
+                            <span className="font-semibold text-red-600">{mergeTarget.cognome} {mergeTarget.nome}</span>
                           </div>
                           <button onClick={() => setMergeTarget(null)}
                             className="text-xs text-neutral-400 hover:text-neutral-600">Cambia</button>
                         </div>
+
+                        {/* ── CONFRONTO SIDE-BY-SIDE ── */}
+                        <div className="border border-neutral-200 rounded-lg overflow-hidden mb-3">
+                          <table className="w-full text-xs">
+                            <thead className="bg-neutral-50">
+                              <tr>
+                                <th className="px-2 py-1.5 text-left text-neutral-500 font-medium w-28">Campo</th>
+                                <th className="px-2 py-1.5 text-left text-teal-700 font-medium">Principale (mantiene)</th>
+                                <th className="px-2 py-1.5 text-left text-red-600 font-medium">Secondario (elimina)</th>
+                                <th className="px-2 py-1.5 text-center text-neutral-500 font-medium w-20">Risultato</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-neutral-100">
+                              {MERGE_FIELDS.map(({ key, label }) => {
+                                const pVal = cliente[key] || "";
+                                const sVal = mergeTarget[key] || "";
+                                const isDiff = pVal !== sVal && sVal;
+                                const willFill = !pVal && sVal;
+                                return (
+                                  <tr key={key} className={isDiff ? "bg-amber-50/50" : ""}>
+                                    <td className="px-2 py-1 text-neutral-500 font-medium">{label}</td>
+                                    <td className="px-2 py-1 text-neutral-800">{pVal || <span className="text-neutral-300">—</span>}</td>
+                                    <td className={`px-2 py-1 ${isDiff ? "text-red-600 font-medium" : "text-neutral-400"}`}>{sVal || "—"}</td>
+                                    <td className="px-2 py-1 text-center">
+                                      {willFill ? (
+                                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">auto-fill</span>
+                                      ) : isDiff ? (
+                                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">ignora</span>
+                                      ) : (
+                                        <span className="text-neutral-300">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              <tr className="bg-neutral-50">
+                                <td className="px-2 py-1 font-medium text-neutral-500">Prenotazioni</td>
+                                <td className="px-2 py-1 font-bold text-teal-700">{cliente.prenotazioni_stats?.totale || 0}</td>
+                                <td className="px-2 py-1 font-bold text-red-600">{mergeTarget.prenotazioni_stats?.totale || mergeTarget.n_prenotazioni || 0}</td>
+                                <td className="px-2 py-1 text-center">
+                                  <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full">trasferisce</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
                         <div className="text-xs text-amber-700 mb-2">
-                          Le prenotazioni, note e tag di <strong>{mergeTarget.cognome}</strong> verranno trasferite a <strong>{cliente.cognome} {cliente.nome}</strong>.
-                          Il record di {mergeTarget.cognome} verrà eliminato.
+                          I campi vuoti del principale vengono riempiti dal secondario. Le prenotazioni, note e tag vengono trasferiti.
+                          Il record di <strong>{mergeTarget.cognome}</strong> verrà eliminato.
                         </div>
                         <div className="flex gap-2">
                           <button onClick={executeMerge} disabled={merging}
