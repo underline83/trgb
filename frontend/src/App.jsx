@@ -89,6 +89,8 @@ import PrenotazioniMenu from "./pages/prenotazioni/PrenotazioniMenu";
 import PrenotazioniPlanning from "./pages/prenotazioni/PrenotazioniPlanning";
 import PrenotazioniSettimana from "./pages/prenotazioni/PrenotazioniSettimana";
 import PrenotazioniImpostazioni from "./pages/prenotazioni/PrenotazioniImpostazioni";
+import TavoliEditor from "./pages/prenotazioni/TavoliEditor";
+import TavoliMappa from "./pages/prenotazioni/TavoliMappa";
 
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
@@ -255,6 +257,9 @@ export default function App() {
         <Route path="/prenotazioni/planning/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
         <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
+        <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
+        <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
+        <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
 
         {/* --- CAMBIO PIN --- */}
         <Route path="/cambio-pin" element={<CambioPIN />} />

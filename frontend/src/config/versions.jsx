@@ -63,7 +63,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
-    version: "1.0",
+    version: "2.0",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

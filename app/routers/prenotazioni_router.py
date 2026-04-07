@@ -600,6 +600,444 @@ def get_tavoli_disponibili(
 
 
 # ============================================================
+# ENDPOINT: CRUD TAVOLI (Fase 2)
+# ============================================================
+
+class TavoloCreate(BaseModel):
+    nome: str
+    zona: str = "sala"
+    posti_min: int = 2
+    posti_max: int = 4
+    combinabile: int = 1
+    posizione_x: float = 0
+    posizione_y: float = 0
+    larghezza: float = 60
+    altezza: float = 60
+    forma: str = "rect"
+    note: Optional[str] = None
+    ordine: int = 0
+
+
+class TavoloUpdate(BaseModel):
+    nome: Optional[str] = None
+    zona: Optional[str] = None
+    posti_min: Optional[int] = None
+    posti_max: Optional[int] = None
+    combinabile: Optional[int] = None
+    posizione_x: Optional[float] = None
+    posizione_y: Optional[float] = None
+    larghezza: Optional[float] = None
+    altezza: Optional[float] = None
+    forma: Optional[str] = None
+    attivo: Optional[int] = None
+    note: Optional[str] = None
+    ordine: Optional[int] = None
+
+
+class CombinazioneCreate(BaseModel):
+    nome: str
+    tavoli_ids: str          # JSON array di id, es. "[4,5]"
+    posti: int
+    uso_frequente: int = 0
+    note: Optional[str] = None
+
+
+class LayoutSave(BaseModel):
+    nome: str
+    descrizione: Optional[str] = None
+    tavoli_attivi: str       # JSON array di id tavoli attivi
+    posizioni: Optional[str] = None  # JSON dict {id: {x,y,w,h}}
+
+
+@router.post("/tavoli")
+def crea_tavolo(
+    req: TavoloCreate,
+    user: dict = Depends(get_current_user),
+):
+    """Crea un nuovo tavolo."""
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute("""
+            INSERT INTO tavoli (nome, zona, posti_min, posti_max, combinabile,
+                                posizione_x, posizione_y, larghezza, altezza,
+                                forma, note, ordine)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            req.nome, req.zona, req.posti_min, req.posti_max, req.combinabile,
+            req.posizione_x, req.posizione_y, req.larghezza, req.altezza,
+            req.forma, req.note, req.ordine,
+        ))
+        conn.commit()
+        return {"id": cur.lastrowid, "message": f"Tavolo '{req.nome}' creato"}
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            raise HTTPException(status_code=400, detail=f"Tavolo '{req.nome}' esiste gia'")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/{tavolo_id}")
+def modifica_tavolo(
+    tavolo_id: int,
+    req: TavoloUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """Modifica un tavolo esistente."""
+    conn = get_clienti_conn()
+    try:
+        existing = conn.execute("SELECT id FROM tavoli WHERE id = ?", (tavolo_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tavolo non trovato")
+
+        updates = []
+        values = []
+        for field, value in req.dict(exclude_none=True).items():
+            updates.append(f"{field} = ?")
+            values.append(value)
+
+        if not updates:
+            return {"message": "Nessuna modifica"}
+
+        values.append(tavolo_id)
+        conn.execute(f"UPDATE tavoli SET {', '.join(updates)} WHERE id = ?", values)
+        conn.commit()
+        return {"message": "Tavolo aggiornato", "id": tavolo_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/batch/posizioni")
+async def aggiorna_posizioni_batch(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Aggiorna posizioni di piu' tavoli in un colpo (drag & drop editor)."""
+    data = await request.json()
+    # data = { "tavoli": [ {"id": 1, "posizione_x": 100, "posizione_y": 200, ...}, ... ] }
+    conn = get_clienti_conn()
+    try:
+        count = 0
+        for t in data.get("tavoli", []):
+            tid = t.get("id")
+            if not tid:
+                continue
+            conn.execute("""
+                UPDATE tavoli SET posizione_x = ?, posizione_y = ?,
+                    larghezza = ?, altezza = ?
+                WHERE id = ?
+            """, (
+                t.get("posizione_x", 0), t.get("posizione_y", 0),
+                t.get("larghezza", 60), t.get("altezza", 60),
+                tid,
+            ))
+            count += 1
+        conn.commit()
+        return {"message": f"{count} tavoli aggiornati"}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/{tavolo_id}")
+def disattiva_tavolo(
+    tavolo_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Disattiva un tavolo (non lo cancella, lo rende inattivo)."""
+    conn = get_clienti_conn()
+    try:
+        conn.execute("UPDATE tavoli SET attivo = 0 WHERE id = ?", (tavolo_id,))
+        conn.commit()
+        return {"message": "Tavolo disattivato", "id": tavolo_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: LAYOUT TAVOLI (Fase 2)
+# ============================================================
+
+@router.get("/tavoli/layout")
+def get_layouts(user: dict = Depends(get_current_user)):
+    """Lista layout salvati."""
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tavoli_layout ORDER BY attivo DESC, nome"
+        ).fetchall()
+        return {"layout": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.post("/tavoli/layout")
+def crea_layout(
+    req: LayoutSave,
+    user: dict = Depends(get_current_user),
+):
+    """Salva un nuovo layout."""
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute("""
+            INSERT INTO tavoli_layout (nome, descrizione, tavoli_attivi, posizioni)
+            VALUES (?, ?, ?, ?)
+        """, (req.nome, req.descrizione, req.tavoli_attivi, req.posizioni))
+        conn.commit()
+        return {"id": cur.lastrowid, "message": f"Layout '{req.nome}' salvato"}
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            raise HTTPException(status_code=400, detail=f"Layout '{req.nome}' esiste gia'")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/layout/{layout_id}")
+def aggiorna_layout(
+    layout_id: int,
+    req: LayoutSave,
+    user: dict = Depends(get_current_user),
+):
+    """Aggiorna un layout esistente."""
+    conn = get_clienti_conn()
+    try:
+        conn.execute("""
+            UPDATE tavoli_layout SET nome = ?, descrizione = ?,
+                tavoli_attivi = ?, posizioni = ?
+            WHERE id = ?
+        """, (req.nome, req.descrizione, req.tavoli_attivi, req.posizioni, layout_id))
+        conn.commit()
+        return {"message": f"Layout '{req.nome}' aggiornato"}
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/layout/{layout_id}/attiva")
+def attiva_layout(
+    layout_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Attiva un layout (disattiva tutti gli altri)."""
+    conn = get_clienti_conn()
+    try:
+        conn.execute("UPDATE tavoli_layout SET attivo = 0")
+        conn.execute("UPDATE tavoli_layout SET attivo = 1 WHERE id = ?", (layout_id,))
+
+        # Carica le posizioni del layout e applicale ai tavoli
+        layout = conn.execute(
+            "SELECT tavoli_attivi, posizioni FROM tavoli_layout WHERE id = ?", (layout_id,)
+        ).fetchone()
+        if layout:
+            tavoli_attivi = json.loads(layout["tavoli_attivi"] or "[]")
+            # Disattiva tutti, riattiva solo quelli nel layout
+            conn.execute("UPDATE tavoli SET attivo = 0")
+            if tavoli_attivi:
+                placeholders = ",".join("?" * len(tavoli_attivi))
+                conn.execute(f"UPDATE tavoli SET attivo = 1 WHERE id IN ({placeholders})", tavoli_attivi)
+
+            # Applica posizioni se salvate
+            posizioni = json.loads(layout["posizioni"] or "{}")
+            for tid_str, pos in posizioni.items():
+                conn.execute("""
+                    UPDATE tavoli SET posizione_x = ?, posizione_y = ?,
+                        larghezza = ?, altezza = ?
+                    WHERE id = ?
+                """, (
+                    pos.get("x", 0), pos.get("y", 0),
+                    pos.get("w", 60), pos.get("h", 60),
+                    int(tid_str),
+                ))
+
+        conn.commit()
+        return {"message": "Layout attivato", "id": layout_id}
+    except Exception as e:
+        logger.exception("Errore attivazione layout")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/layout/{layout_id}")
+def elimina_layout(
+    layout_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Elimina un layout."""
+    conn = get_clienti_conn()
+    try:
+        conn.execute("DELETE FROM tavoli_layout WHERE id = ?", (layout_id,))
+        conn.commit()
+        return {"message": "Layout eliminato"}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: COMBINAZIONI TAVOLI (Fase 2)
+# ============================================================
+
+@router.get("/tavoli/combinazioni")
+def get_combinazioni(user: dict = Depends(get_current_user)):
+    """Lista combinazioni tavoli."""
+    conn = get_clienti_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tavoli_combinazioni ORDER BY uso_frequente DESC, nome"
+        ).fetchall()
+        return {"combinazioni": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.post("/tavoli/combinazioni")
+def crea_combinazione(
+    req: CombinazioneCreate,
+    user: dict = Depends(get_current_user),
+):
+    """Crea una nuova combinazione di tavoli."""
+    conn = get_clienti_conn()
+    try:
+        cur = conn.execute("""
+            INSERT INTO tavoli_combinazioni (nome, tavoli_ids, posti, uso_frequente, note)
+            VALUES (?, ?, ?, ?, ?)
+        """, (req.nome, req.tavoli_ids, req.posti, req.uso_frequente, req.note))
+        conn.commit()
+        return {"id": cur.lastrowid, "message": f"Combinazione '{req.nome}' creata"}
+    finally:
+        conn.close()
+
+
+@router.delete("/tavoli/combinazioni/{combo_id}")
+def elimina_combinazione(
+    combo_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Elimina una combinazione."""
+    conn = get_clienti_conn()
+    try:
+        conn.execute("DELETE FROM tavoli_combinazioni WHERE id = ?", (combo_id,))
+        conn.commit()
+        return {"message": "Combinazione eliminata"}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: MAPPA TAVOLI per data/turno (Fase 2)
+# ============================================================
+
+@router.get("/tavoli/mappa/{data}/{turno}")
+def get_mappa_tavoli(
+    data: str,
+    turno: str,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Stato completo dei tavoli per la mappa serale.
+    Ritorna tavoli con prenotazione assegnata e lista prenotazioni senza tavolo.
+    """
+    conn = get_clienti_conn()
+    try:
+        # Tutti i tavoli attivi con posizioni
+        tavoli = conn.execute("""
+            SELECT id, nome, zona, posti_min, posti_max, combinabile,
+                   posizione_x, posizione_y, larghezza, altezza, forma, ordine
+            FROM tavoli WHERE attivo = 1
+            ORDER BY ordine, zona, nome
+        """).fetchall()
+
+        # Prenotazioni del turno (non cancellate)
+        prenotazioni = conn.execute("""
+            SELECT
+                p.id, p.cliente_id, p.ora_pasto, p.stato, p.pax,
+                p.tavolo, p.nota_ristorante, p.allergie_segnalate,
+                p.turno, p.occasione, p.seggioloni,
+                c.nome, c.cognome, c.telefono, c.vip, c.allergie
+            FROM clienti_prenotazioni p
+            LEFT JOIN clienti c ON p.cliente_id = c.id
+            WHERE p.data_pasto = ? AND p.turno = ?
+              AND p.stato NOT IN ('CANCELED', 'NO_SHOW', 'REFUSED')
+            ORDER BY p.ora_pasto
+        """, (data, turno)).fetchall()
+
+        # Mappa tavolo_nome → prenotazione
+        tavolo_pren = {}
+        senza_tavolo = []
+        for p in prenotazioni:
+            pdict = dict(p)
+            if pdict.get("tavolo"):
+                # Gestisci combinazioni "4+5" o "4,5"
+                nomi_tavoli = []
+                for sep in ["+", ","]:
+                    if sep in pdict["tavolo"]:
+                        nomi_tavoli = [t.strip() for t in pdict["tavolo"].split(sep)]
+                        break
+                if not nomi_tavoli:
+                    nomi_tavoli = [pdict["tavolo"].strip()]
+
+                for nome_t in nomi_tavoli:
+                    tavolo_pren[nome_t] = pdict
+            else:
+                senza_tavolo.append(pdict)
+
+        # Arricchisci tavoli con info prenotazione
+        tavoli_result = []
+        for t in tavoli:
+            td = dict(t)
+            pren = tavolo_pren.get(td["nome"])
+            td["prenotazione"] = pren
+            td["occupato"] = pren is not None
+            td["stato_tavolo"] = pren["stato"] if pren else "LIBERO"
+            tavoli_result.append(td)
+
+        # Combinazioni attive
+        combinazioni = conn.execute(
+            "SELECT * FROM tavoli_combinazioni ORDER BY uso_frequente DESC, nome"
+        ).fetchall()
+
+        # Layout attivo
+        layout_attivo = conn.execute(
+            "SELECT id, nome FROM tavoli_layout WHERE attivo = 1"
+        ).fetchone()
+
+        return {
+            "data": data,
+            "turno": turno,
+            "tavoli": tavoli_result,
+            "senza_tavolo": senza_tavolo,
+            "combinazioni": [dict(c) for c in combinazioni],
+            "layout_attivo": dict(layout_attivo) if layout_attivo else None,
+        }
+    finally:
+        conn.close()
+
+
+@router.put("/tavoli/assegna/{pren_id}")
+async def assegna_tavolo(
+    pren_id: int,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Assegna (o rimuovi) un tavolo a una prenotazione."""
+    data = await request.json()
+    tavolo = data.get("tavolo", "")
+    conn = get_clienti_conn()
+    try:
+        conn.execute(
+            "UPDATE clienti_prenotazioni SET tavolo = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            (tavolo, pren_id),
+        )
+        conn.commit()
+        return {"message": f"Tavolo assegnato: '{tavolo}'" if tavolo else "Tavolo rimosso", "id": pren_id}
+    finally:
+        conn.close()
+
+
+# ============================================================
 # ENDPOINT: MODIFICA PRENOTAZIONE
 # (Route con {pren_id} DOPO quelle con path fissi!)
 # ============================================================

@@ -83,9 +83,11 @@ const MODULES_MENU = {
     title: "Prenotazioni", icon: "\uD83D\uDCC5", go: "/prenotazioni",
     color: "bg-indigo-50 border-indigo-200 text-indigo-900", hoverBg: "hover:bg-indigo-50",
     sub: [
-      { label: "Planning",     go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
-      { label: "Settimana",    go: "/prenotazioni/settimana/" + new Date().toISOString().slice(0, 10) },
-      { label: "Impostazioni", go: "/prenotazioni/impostazioni", check: "admin" },
+      { label: "Planning",      go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
+      { label: "Mappa Tavoli",  go: "/prenotazioni/mappa" },
+      { label: "Settimana",     go: "/prenotazioni/settimana/" + new Date().toISOString().slice(0, 10) },
+      { label: "Editor Tavoli", go: "/prenotazioni/tavoli", check: "admin" },
+      { label: "Impostazioni",  go: "/prenotazioni/impostazioni", check: "admin" },
     ],
   },
   clienti: {
