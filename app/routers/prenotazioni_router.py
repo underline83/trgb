@@ -440,152 +440,8 @@ def crea_prenotazione(
 
 
 # ============================================================
-# ENDPOINT: MODIFICA PRENOTAZIONE
-# ============================================================
-
-@router.put("/{pren_id}")
-def modifica_prenotazione(
-    pren_id: int,
-    req: PrenotazioneUpdate,
-    user: dict = Depends(get_current_user),
-):
-    """Modifica una prenotazione esistente."""
-    conn = get_clienti_conn()
-    try:
-        existing = conn.execute(
-            "SELECT * FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
-        ).fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
-
-        config = _get_config(conn)
-        soglia = config.get("soglia_pranzo_cena", "15:00")
-
-        updates = []
-        values = []
-
-        fields = {
-            "data_pasto": req.data_pasto,
-            "ora_pasto": req.ora_pasto,
-            "pax": req.pax,
-            "tavolo": req.tavolo,
-            "canale": req.canale,
-            "nota_ristorante": req.nota_ristorante,
-            "nota_cliente": req.nota_cliente,
-            "occasione": req.occasione,
-            "allergie_segnalate": req.allergie_segnalate,
-            "tavolo_esterno": req.tavolo_esterno,
-            "seggioloni": req.seggioloni,
-            "stato": req.stato,
-        }
-
-        for field, value in fields.items():
-            if value is not None:
-                updates.append(f"{field} = ?")
-                values.append(value)
-
-        # Ricalcola turno se cambia l'ora
-        if req.ora_pasto is not None:
-            updates.append("turno = ?")
-            values.append(_calcola_turno(req.ora_pasto, soglia))
-
-        updates.append("updated_at = datetime('now','localtime')")
-        values.append(pren_id)
-
-        conn.execute(
-            f"UPDATE clienti_prenotazioni SET {', '.join(updates)} WHERE id = ?",
-            values,
-        )
-        conn.commit()
-
-        return {"message": "Prenotazione aggiornata", "id": pren_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Errore modifica prenotazione")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
-
-
-# ============================================================
-# ENDPOINT: CAMBIO STATO RAPIDO
-# ============================================================
-
-@router.patch("/{pren_id}/stato")
-def cambio_stato(
-    pren_id: int,
-    req: StatoUpdate,
-    user: dict = Depends(get_current_user),
-):
-    """Cambio stato rapido con validazione transizioni."""
-    if req.stato not in STATI_VALIDI:
-        raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
-
-    conn = get_clienti_conn()
-    try:
-        existing = conn.execute(
-            "SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
-        ).fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
-
-        stato_attuale = existing["stato"]
-        transizioni_ok = TRANSIZIONI.get(stato_attuale, [])
-        if req.stato not in transizioni_ok:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Transizione non permessa: {stato_attuale} → {req.stato}. "
-                       f"Transizioni possibili: {transizioni_ok}",
-            )
-
-        conn.execute(
-            "UPDATE clienti_prenotazioni SET stato = ?, updated_at = datetime('now','localtime') WHERE id = ?",
-            (req.stato, pren_id),
-        )
-        conn.commit()
-
-        return {"message": f"Stato aggiornato: {stato_attuale} → {req.stato}", "id": pren_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Errore cambio stato")
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
-
-
-# ============================================================
-# ENDPOINT: CANCELLA PRENOTAZIONE (soft delete → CANCELED)
-# ============================================================
-
-@router.delete("/{pren_id}")
-def cancella_prenotazione(
-    pren_id: int,
-    user: dict = Depends(get_current_user),
-):
-    """Cancella una prenotazione (soft: stato → CANCELED)."""
-    conn = get_clienti_conn()
-    try:
-        existing = conn.execute(
-            "SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
-        ).fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
-
-        conn.execute(
-            "UPDATE clienti_prenotazioni SET stato = 'CANCELED', updated_at = datetime('now','localtime') WHERE id = ?",
-            (pren_id,),
-        )
-        conn.commit()
-
-        return {"message": "Prenotazione cancellata", "id": pren_id}
-    finally:
-        conn.close()
-
-
-# ============================================================
 # ENDPOINT: CONFIGURAZIONE
+# (PRIMA delle route con {pren_id} per evitare conflitti!)
 # ============================================================
 
 @router.get("/config")
@@ -739,6 +595,152 @@ def get_tavoli_disponibili(
             })
 
         return {"tavoli": result, "data": data, "turno": turno}
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: MODIFICA PRENOTAZIONE
+# (Route con {pren_id} DOPO quelle con path fissi!)
+# ============================================================
+
+@router.put("/{pren_id}")
+def modifica_prenotazione(
+    pren_id: int,
+    req: PrenotazioneUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """Modifica una prenotazione esistente."""
+    conn = get_clienti_conn()
+    try:
+        existing = conn.execute(
+            "SELECT * FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+
+        config = _get_config(conn)
+        soglia = config.get("soglia_pranzo_cena", "15:00")
+
+        updates = []
+        values = []
+
+        fields = {
+            "data_pasto": req.data_pasto,
+            "ora_pasto": req.ora_pasto,
+            "pax": req.pax,
+            "tavolo": req.tavolo,
+            "canale": req.canale,
+            "nota_ristorante": req.nota_ristorante,
+            "nota_cliente": req.nota_cliente,
+            "occasione": req.occasione,
+            "allergie_segnalate": req.allergie_segnalate,
+            "tavolo_esterno": req.tavolo_esterno,
+            "seggioloni": req.seggioloni,
+            "stato": req.stato,
+        }
+
+        for field, value in fields.items():
+            if value is not None:
+                updates.append(f"{field} = ?")
+                values.append(value)
+
+        # Ricalcola turno se cambia l'ora
+        if req.ora_pasto is not None:
+            updates.append("turno = ?")
+            values.append(_calcola_turno(req.ora_pasto, soglia))
+
+        updates.append("updated_at = datetime('now','localtime')")
+        values.append(pren_id)
+
+        conn.execute(
+            f"UPDATE clienti_prenotazioni SET {', '.join(updates)} WHERE id = ?",
+            values,
+        )
+        conn.commit()
+
+        return {"message": "Prenotazione aggiornata", "id": pren_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Errore modifica prenotazione")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: CAMBIO STATO RAPIDO
+# ============================================================
+
+@router.patch("/{pren_id}/stato")
+def cambio_stato(
+    pren_id: int,
+    req: StatoUpdate,
+    user: dict = Depends(get_current_user),
+):
+    """Cambio stato rapido con validazione transizioni."""
+    if req.stato not in STATI_VALIDI:
+        raise HTTPException(status_code=400, detail=f"Stato non valido: {req.stato}")
+
+    conn = get_clienti_conn()
+    try:
+        existing = conn.execute(
+            "SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+
+        stato_attuale = existing["stato"]
+        transizioni_ok = TRANSIZIONI.get(stato_attuale, [])
+        if req.stato not in transizioni_ok:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Transizione non permessa: {stato_attuale} → {req.stato}. "
+                       f"Transizioni possibili: {transizioni_ok}",
+            )
+
+        conn.execute(
+            "UPDATE clienti_prenotazioni SET stato = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            (req.stato, pren_id),
+        )
+        conn.commit()
+
+        return {"message": f"Stato aggiornato: {stato_attuale} → {req.stato}", "id": pren_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Errore cambio stato")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+# ============================================================
+# ENDPOINT: CANCELLA PRENOTAZIONE (soft delete → CANCELED)
+# ============================================================
+
+@router.delete("/{pren_id}")
+def cancella_prenotazione(
+    pren_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Cancella una prenotazione (soft: stato → CANCELED)."""
+    conn = get_clienti_conn()
+    try:
+        existing = conn.execute(
+            "SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+
+        conn.execute(
+            "UPDATE clienti_prenotazioni SET stato = 'CANCELED', updated_at = datetime('now','localtime') WHERE id = ?",
+            (pren_id,),
+        )
+        conn.commit()
+
+        return {"message": "Prenotazione cancellata", "id": pren_id}
     finally:
         conn.close()
 
