@@ -603,16 +603,16 @@ def get_config(user: dict = Depends(get_current_user)):
 
 @router.put("/config")
 def update_config(
-    data: Dict[str, str],
+    data: Dict[str, Any],
     user: dict = Depends(get_current_user),
 ):
-    """Aggiorna valori di configurazione."""
+    """Aggiorna valori di configurazione. Accetta qualsiasi tipo, converte a stringa."""
     conn = get_clienti_conn()
     try:
         for chiave, valore in data.items():
             conn.execute(
                 "UPDATE prenotazioni_config SET valore = ? WHERE chiave = ?",
-                (valore, chiave),
+                (str(valore), chiave),
             )
         conn.commit()
         return {"message": f"{len(data)} configurazioni aggiornate"}
