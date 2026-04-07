@@ -29,7 +29,7 @@ import secrets
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -602,11 +602,12 @@ def get_config(user: dict = Depends(get_current_user)):
 
 
 @router.put("/config")
-def update_config(
-    data: Dict[str, Any],
+async def update_config(
+    request: Request,
     user: dict = Depends(get_current_user),
 ):
-    """Aggiorna valori di configurazione. Accetta qualsiasi tipo, converte a stringa."""
+    """Aggiorna valori di configurazione. Legge il body raw per evitare problemi di validazione."""
+    data = await request.json()
     conn = get_clienti_conn()
     try:
         for chiave, valore in data.items():
