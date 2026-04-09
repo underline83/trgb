@@ -90,9 +90,11 @@ static/carta_vini.docx
 static/carta_vini_staff.pdf
 
 # =====================
-#  LEGACY SCRIPTS DA NON VERSIONARE
+#  LEGACY / JUNK — NON VERSIONARE
 # =====================
 run_server_vps.sh
 run_frontend_vps.sh
+*.bak
+scripts_backup_*/
 # Claude Code worktrees
 .claude/

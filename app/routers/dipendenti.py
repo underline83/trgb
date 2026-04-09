@@ -1720,6 +1720,7 @@ async def conferma_import_pdf(
 
                     # Salva PDF singolo del cedolino
                     pdf_rel = None
+                    pdf_errore = None
                     if ced.get("pagine"):
                         try:
                             cognome_safe = re.sub(r"[^\w]", "_", dip["cognome"].upper())
@@ -1733,7 +1734,12 @@ async def conferma_import_pdf(
                                 [pdf_rel, bp_id]
                             )
                             conn.commit()
-                        except Exception:
+                        except Exception as pdf_err:
+                            import logging
+                            logging.getLogger("trgb").error(
+                                f"Errore salvataggio PDF cedolino {dip['cognome']} {mese}/{anno}: {pdf_err}"
+                            )
+                            pdf_errore = str(pdf_err)
                             pdf_rel = None  # non bloccare l'import per un errore PDF
 
                     importati.append({
@@ -1743,6 +1749,7 @@ async def conferma_import_pdf(
                         "netto": netto, "lordo": ced.get("lordo"),
                         "azione": azione, "uscita_id": uscita_id,
                         "pdf_path": pdf_rel,
+                        "pdf_errore": pdf_errore,
                     })
                 except Exception as e:
                     errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})
@@ -1786,6 +1793,7 @@ async def conferma_import_pdf(
 
                     # Salva PDF singolo del cedolino
                     pdf_rel = None
+                    pdf_errore = None
                     if ced.get("pagine"):
                         try:
                             cognome_safe = re.sub(r"[^\w]", "_", new_dip["cognome"].upper())
@@ -1799,7 +1807,12 @@ async def conferma_import_pdf(
                                 [pdf_rel, bp_id]
                             )
                             conn.commit()
-                        except Exception:
+                        except Exception as pdf_err:
+                            import logging
+                            logging.getLogger("trgb").error(
+                                f"Errore salvataggio PDF cedolino {new_dip['cognome']} {mese}/{anno}: {pdf_err}"
+                            )
+                            pdf_errore = str(pdf_err)
                             pdf_rel = None
 
                     creati.append({
@@ -1815,6 +1828,7 @@ async def conferma_import_pdf(
                         "netto": netto, "lordo": ced.get("lordo"),
                         "azione": "nuovo + creato", "uscita_id": uscita_id,
                         "pdf_path": pdf_rel,
+                        "pdf_errore": pdf_errore,
                     })
                 except Exception as e:
                     errori.append({"cognome_nome": ced.get("cognome_nome", "?"), "errore": str(e)})

@@ -54,7 +54,7 @@ done
 # ── Sync DB dal VPS ────────────────────────────────────────
 step "Sync database dal VPS"
 
-DBS="vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3"
+DBS="vini_magazzino.sqlite3 vini.sqlite3 vini_settings.sqlite3 foodcost.db admin_finance.sqlite3 clienti.sqlite3 dipendenti.sqlite3"
 DB_OK=0
 DB_FAIL=0
 
