@@ -36,7 +36,7 @@ def _hash_v2(data_contabile: str, importo: float, descrizione: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
-def run(conn):
+def upgrade(conn):
     cur = conn.cursor()
 
     # 1. Calcola hash per tutti i movimenti
