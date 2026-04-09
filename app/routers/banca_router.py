@@ -143,6 +143,7 @@ class CrossRefLinkRequest(BaseModel):
     movimento_id: int
     fattura_id: Optional[int] = None
     uscita_id: Optional[int] = None
+    entrata_id: Optional[int] = None  # per collegare storni/note di credito
     note: Optional[str] = None
 
 
@@ -598,15 +599,76 @@ def delete_categoria_map(map_id: int):
 # Match movimenti bancari ↔ fatture + spese fisse
 # ═══════════════════════════════════════════════════════
 
+_MATCH_STOPWORDS = frozenset({
+    "srl", "spa", "snc", "sas", "srls", "ltd", "soc", "coop",
+    "del", "dei", "delle", "della", "degli", "per", "con", "dal",
+    "alla", "alle", "allo", "the", "and", "group", "italia",
+})
+
+
+def _nome_parole(nome: str) -> list:
+    """Estrae parole significative (>3 char, no stopwords) da un nome fornitore."""
+    return [p for p in nome.lower().split() if len(p) > 3 and p not in _MATCH_STOPWORDS]
+
+
+def _nome_match(nome: str, desc_lower: str) -> bool:
+    """Ritorna True se almeno una parola significativa del nome è nella descrizione."""
+    parole = _nome_parole(nome)
+    return bool(parole) and any(p in desc_lower for p in parole)
+
+
+def _score_match(nome: str, totale_match: float, data_ref, target: float,
+                 data_c: str, desc_lower: str, score_base: int):
+    """Calcola score per un suggerimento. Ritorna None se da scartare.
+    Score più basso = match migliore."""
+    has_nome = _nome_match(nome, desc_lower)
+    imp_diff_abs = abs(target - (totale_match or 0))
+    imp_diff_pct = imp_diff_abs / max(target, 0.01)
+
+    # ── Filtro qualità: scarta match con importi troppo diversi ──
+    if has_nome:
+        # Anche con nome, scarta se diff > 50%
+        if imp_diff_pct > 0.50:
+            return None
+    else:
+        # Senza nome, già filtrato dalla query (±15%), ma conferma
+        if imp_diff_pct > 0.20:
+            return None
+
+    score = score_base
+    if has_nome:
+        score -= 50
+    if imp_diff_pct < 0.01:
+        score -= 30
+    elif imp_diff_pct < 0.05:
+        score -= 15
+    elif imp_diff_pct < 0.10:
+        score -= 5
+
+    # Bonus prossimità data
+    if data_ref and data_c:
+        try:
+            d1 = datetime.strptime(data_c[:10], "%Y-%m-%d")
+            d2 = datetime.strptime(str(data_ref)[:10], "%Y-%m-%d")
+            days = abs((d1 - d2).days)
+            if days <= 5:
+                score -= 10
+            elif days <= 15:
+                score -= 5
+        except Exception:
+            pass
+
+    return score
+
+
 @router.get("/cross-ref")
 def get_cross_ref(
     data_da: Optional[str] = None,
     data_a: Optional[str] = None,
 ):
     """
-    Tutti i movimenti bancari con possibili match e registrazioni.
-    Uscite: cerca in fe_fatture e cg_uscite.
-    Entrate: cerca in cg_entrate.
+    Tutti i movimenti bancari con link multipli e suggerimenti.
+    Supporta multi-link (bonifici che pagano più fatture) e residuo.
     """
     conn = get_db()
     cur = conn.cursor()
@@ -620,99 +682,124 @@ def get_cross_ref(
         where.append("m.data_contabile <= ?")
         params.append(data_a)
 
-    # ── Movimenti con eventuali link fattura ──
+    # ── 1. Carica movimenti ──
     cur.execute(f"""
-        SELECT m.*,
-               bl.id       AS link_id,
-               bl.fattura_id,
-               f.fornitore_nome  AS link_fornitore,
-               f.numero_fattura  AS link_numero,
-               f.data_fattura    AS link_data,
-               f.totale_fattura  AS link_totale,
-               'FATTURA'         AS link_tipo
-        FROM banca_movimenti m
-        LEFT JOIN banca_fatture_link bl ON m.id = bl.movimento_id
-        LEFT JOIN fe_fatture f ON bl.fattura_id = f.id
+        SELECT m.* FROM banca_movimenti m
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC
         LIMIT 500
     """, params)
-    raw = [dict(r) for r in cur.fetchall()]
+    raw_movimenti = [dict(r) for r in cur.fetchall()]
 
-    # ── Anche movimenti collegati direttamente a cg_uscite (spese fisse) ──
+    if not raw_movimenti:
+        conn.close()
+        return []
+
+    mov_ids = [m["id"] for m in raw_movimenti]
+    ph = ",".join("?" * len(mov_ids))
+
+    # ── 2. Carica TUTTI i link fattura (multipli per movimento) ──
     cur.execute(f"""
-        SELECT m.id AS mov_id,
-               cu.id AS uscita_id,
-               cu.fornitore_nome AS link_fornitore,
-               cu.numero_fattura AS link_numero,
-               cu.data_scadenza  AS link_data,
-               cu.totale         AS link_totale,
-               COALESCE(cu.tipo_uscita, 'FATTURA') AS link_tipo,
-               cu.periodo_riferimento AS link_periodo
-        FROM banca_movimenti m
-        JOIN cg_uscite cu ON cu.banca_movimento_id = m.id
-        WHERE cu.fattura_id IS NULL
-          AND {" AND ".join(where)}
-    """, params)
-    uscite_links = {r["mov_id"]: dict(r) for r in cur.fetchall()}
+        SELECT bl.id AS link_id, bl.movimento_id,
+               f.id AS fattura_id, f.fornitore_nome, f.numero_fattura,
+               f.data_fattura, f.totale_fattura AS totale
+        FROM banca_fatture_link bl
+        JOIN fe_fatture f ON bl.fattura_id = f.id
+        WHERE bl.movimento_id IN ({ph})
+    """, mov_ids)
+    lk_fattura = {}
+    all_linked_fatt_ids = set()
+    for r in cur.fetchall():
+        d = dict(r)
+        all_linked_fatt_ids.add(d["fattura_id"])
+        lk_fattura.setdefault(d["movimento_id"], []).append({
+            "link_id": d["link_id"], "tipo": "FATTURA",
+            "fornitore_nome": d["fornitore_nome"],
+            "numero_fattura": d["numero_fattura"],
+            "data": d["data_fattura"], "totale": d["totale"],
+            "source": "fattura", "source_id": d["fattura_id"],
+        })
 
-    # ── Entrate registrate (cg_entrate) ──
+    # ── 3. Carica link uscite dirette (non-fattura) ──
     cur.execute(f"""
-        SELECT m.id AS mov_id,
-               ce.id AS entrata_id,
-               ce.descrizione AS link_fornitore,
-               ce.categoria   AS link_tipo,
-               ce.data_entrata AS link_data,
-               ce.importo      AS link_totale
-        FROM banca_movimenti m
-        JOIN cg_entrate ce ON ce.banca_movimento_id = m.id
-        WHERE {" AND ".join(where)}
-    """, params)
-    entrate_links = {r["mov_id"]: dict(r) for r in cur.fetchall()}
+        SELECT cu.id, cu.banca_movimento_id AS mov_id,
+               cu.fornitore_nome, cu.numero_fattura,
+               cu.data_scadenza, cu.totale,
+               COALESCE(cu.tipo_uscita, 'FATTURA') AS tipo,
+               cu.periodo_riferimento
+        FROM cg_uscite cu
+        WHERE cu.banca_movimento_id IN ({ph})
+          AND cu.fattura_id IS NULL
+    """, mov_ids)
+    lk_uscita = {}
+    for r in cur.fetchall():
+        d = dict(r)
+        lk_uscita.setdefault(d["mov_id"], []).append({
+            "link_id": f"u{d['id']}", "tipo": d["tipo"],
+            "fornitore_nome": d["fornitore_nome"],
+            "numero_fattura": d.get("numero_fattura"),
+            "data": d["data_scadenza"], "totale": d["totale"],
+            "source": "uscita", "source_id": d["id"],
+            "periodo_riferimento": d.get("periodo_riferimento"),
+        })
 
+    # ── 4. Carica link entrate registrate ──
+    cur.execute(f"""
+        SELECT ce.id, ce.banca_movimento_id AS mov_id,
+               ce.descrizione, ce.categoria,
+               ce.data_entrata, ce.importo
+        FROM cg_entrate ce
+        WHERE ce.banca_movimento_id IN ({ph})
+    """, mov_ids)
+    lk_entrata = {}
+    for r in cur.fetchall():
+        d = dict(r)
+        lk_entrata.setdefault(d["mov_id"], []).append({
+            "link_id": f"e{d['id']}", "tipo": d["categoria"],
+            "fornitore_nome": d["descrizione"],
+            "numero_fattura": None,
+            "data": d["data_entrata"], "totale": d["importo"],
+            "source": "entrata", "source_id": d["id"],
+        })
+
+    # ── 5. Assembla risultato per ogni movimento ──
     movimenti = []
-    seen_ids = set()
-    for mov in raw:
+    for mov in raw_movimenti:
         mid = mov["id"]
-        if mid in seen_ids:
-            continue
-        seen_ids.add(mid)
+        abs_imp = abs(mov["importo"])
 
-        # Se ha link fattura valido (fattura esiste ancora)
-        if mov.get("link_id") and mov.get("link_fornitore"):
+        # Assembla tutti i link
+        links = []
+        links.extend(lk_fattura.get(mid, []))
+        links.extend(lk_uscita.get(mid, []))
+        links.extend(lk_entrata.get(mid, []))
+
+        mov["links"] = links
+        totale_coll = sum(abs(l.get("totale") or 0) for l in links)
+        mov["totale_collegato"] = round(totale_coll, 2)
+        residuo = round(abs_imp - totale_coll, 2)
+        mov["residuo"] = residuo
+
+        # Backward compat: flat link fields dal primo link
+        if links:
+            f0 = links[0]
+            mov["link_id"] = f0["link_id"]
+            mov["link_fornitore"] = f0["fornitore_nome"]
+            mov["link_numero"] = f0.get("numero_fattura")
+            mov["link_data"] = f0["data"]
+            mov["link_totale"] = f0["totale"]
+            mov["link_tipo"] = f0["tipo"]
+            if f0.get("periodo_riferimento"):
+                mov["link_periodo"] = f0["periodo_riferimento"]
+
+        # Completamente collegato (residuo < 1€) → nessun suggerimento
+        if links and abs(residuo) < 1.0:
+            mov["possibili_match"] = []
             movimenti.append(mov)
             continue
 
-        # Se ha link uscita diretta (spesa fissa / registrata)
-        if mid in uscite_links:
-            ul = uscite_links[mid]
-            mov["link_id"] = f"u{ul['uscita_id']}"  # prefisso u per distinguere
-            mov["link_fornitore"] = ul["link_fornitore"]
-            mov["link_numero"] = ul.get("link_numero")
-            mov["link_data"] = ul["link_data"]
-            mov["link_totale"] = ul["link_totale"]
-            mov["link_tipo"] = ul["link_tipo"]
-            mov["link_periodo"] = ul.get("link_periodo")
-            mov["uscita_id"] = ul["uscita_id"]
-            movimenti.append(mov)
-            continue
-
-        # Se ha entrata registrata
-        if mid in entrate_links:
-            el = entrate_links[mid]
-            mov["link_id"] = f"e{el['entrata_id']}"  # prefisso e per entrate
-            mov["link_fornitore"] = el["link_fornitore"]
-            mov["link_numero"] = None
-            mov["link_data"] = el["link_data"]
-            mov["link_totale"] = el["link_totale"]
-            mov["link_tipo"] = el["link_tipo"]
-            mov["entrata_id"] = el["entrata_id"]
-            movimenti.append(mov)
-            continue
-
-        # ── Nessun link: cerca suggerimenti (solo per uscite) ──
-        if mov["importo"] >= 0:
-            # Entrata senza registrazione → nessun suggerimento, va registrata
+        # Entrata senza link → auto-categoria per registrazione
+        if mov["importo"] >= 0 and not links:
             mov["possibili_match"] = []
             mov["auto_categoria"] = _auto_detect_categoria(
                 mov.get("descrizione", ""), mov["importo"]
@@ -720,32 +807,27 @@ def get_cross_ref(
             movimenti.append(mov)
             continue
 
-        abs_imp = abs(mov["importo"])
+        # ── Cerca suggerimenti per uscite (o parzialmente collegate) ──
+        target = residuo if (links and residuo > 0.5) else abs_imp
+        if target <= 0.5:
+            mov["possibili_match"] = []
+            if not links:
+                mov["auto_categoria"] = _auto_detect_categoria(
+                    mov.get("descrizione", ""), mov["importo"]
+                )
+            movimenti.append(mov)
+            continue
+
         data_c = mov["data_contabile"]
         desc_lower = (mov.get("descrizione") or "").lower()
         suggestions = []
-        seen_keys = set()  # evita doppioni (source, id)
+        seen_keys = set()
 
-        def _add(rows, source, score_base):
-            for r in rows:
-                d = dict(r)
-                d["source"] = source
-                d["source_id"] = d["id"]
-                key = (source, d["id"])
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-                # Score: match nome nella descrizione bancaria → boost
-                nome = (d.get("fornitore_nome") or "").lower()
-                parole_nome = [p for p in nome.split() if len(p) > 3]
-                nome_match = any(p in desc_lower for p in parole_nome) if parole_nome else False
-                imp_diff = abs(abs_imp - (d.get("totale") or 0)) / max(abs_imp, 0.01)
-                # Score più basso = migliore
-                d["_score"] = score_base - (50 if nome_match else 0) - (30 if imp_diff < 0.01 else 0)
-                suggestions.append(d)
+        # Fatture già collegate a questo movimento (da escludere)
+        my_linked = {l["source_id"] for l in links if l["source"] == "fattura"}
 
         # 1) Fatture: match per NOME fornitore nella descrizione bancaria
-        #    (nessun vincolo importo/data — il nome è già molto specifico)
+        #    Con filtro importo max ±50%
         cur2 = conn.cursor()
         cur2.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
@@ -759,20 +841,25 @@ def get_cross_ref(
             LIMIT 500
         """)
         for r in cur2.fetchall():
-            nome = (r["fornitore_nome"] or "").lower()
-            parole = [p for p in nome.split() if len(p) > 3]
-            if parole and any(p in desc_lower for p in parole):
+            fid = r["id"]
+            if fid in my_linked or fid in all_linked_fatt_ids:
+                continue
+            if not _nome_match(r["fornitore_nome"] or "", desc_lower):
+                continue
+            score = _score_match(
+                r["fornitore_nome"] or "", r["totale"], r["data_ref"],
+                target, data_c, desc_lower, 10
+            )
+            if score is None:
+                continue
+            key = ("fattura", fid)
+            if key not in seen_keys:
+                seen_keys.add(key)
                 d = dict(r)
-                d["source"] = "fattura"
-                d["source_id"] = d["id"]
-                key = ("fattura", d["id"])
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    imp_diff = abs(abs_imp - d["totale"]) / max(abs_imp, 0.01)
-                    d["_score"] = 0 - (30 if imp_diff < 0.01 else 0) - (10 if imp_diff < 0.05 else 0)
-                    suggestions.append(d)
+                d["source"] = "fattura"; d["source_id"] = fid; d["_score"] = score
+                suggestions.append(d)
 
-        # 2) Fatture: match per importo simile (±5%) entro ±30 giorni
+        # 2) Fatture: match per importo simile (±15%) entro ±30 giorni
         cur2b = conn.cursor()
         cur2b.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
@@ -781,12 +868,28 @@ def get_cross_ref(
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
             WHERE bfl.id IS NULL
-              AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.05
+              AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.15
               AND f.data_fattura BETWEEN date(?, '-30 days') AND date(?, '+30 days')
             ORDER BY ABS(f.totale_fattura - ?) ASC
             LIMIT 10
-        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
-        _add(cur2b.fetchall(), "fattura", 50)
+        """, (target, target, data_c, data_c, target))
+        for r in cur2b.fetchall():
+            fid = r["id"]
+            if fid in my_linked or fid in all_linked_fatt_ids:
+                continue
+            key = ("fattura", fid)
+            if key in seen_keys:
+                continue
+            score = _score_match(
+                r["fornitore_nome"] or "", r["totale"], r["data_ref"],
+                target, data_c, desc_lower, 40
+            )
+            if score is None:
+                continue
+            seen_keys.add(key)
+            d = dict(r)
+            d["source"] = "fattura"; d["source_id"] = fid; d["_score"] = score
+            suggestions.append(d)
 
         # 3) Uscite CG non pagate: match per nome nella descrizione
         cur3 = conn.cursor()
@@ -801,20 +904,22 @@ def get_cross_ref(
               AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
         """)
         for r in cur3.fetchall():
-            nome = (r["fornitore_nome"] or "").lower()
-            parole = [p for p in nome.split() if len(p) > 3]
-            if parole and any(p in desc_lower for p in parole):
+            if not _nome_match(r["fornitore_nome"] or "", desc_lower):
+                continue
+            score = _score_match(
+                r["fornitore_nome"] or "", r["totale"], r["data_ref"],
+                target, data_c, desc_lower, 15
+            )
+            if score is None:
+                continue
+            key = ("uscita", r["id"])
+            if key not in seen_keys:
+                seen_keys.add(key)
                 d = dict(r)
-                d["source"] = "uscita"
-                d["source_id"] = d["id"]
-                key = ("uscita", d["id"])
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    imp_diff = abs(abs_imp - (d["totale"] or 0)) / max(abs_imp, 0.01)
-                    d["_score"] = 5 - (30 if imp_diff < 0.01 else 0) - (10 if imp_diff < 0.05 else 0)
-                    suggestions.append(d)
+                d["source"] = "uscita"; d["source_id"] = d["id"]; d["_score"] = score
+                suggestions.append(d)
 
-        # 4) Uscite CG: match per importo simile (±10%) entro ±30 giorni
+        # 4) Uscite CG: match per importo simile (±15%) entro ±30 giorni
         cur3b = conn.cursor()
         cur3b.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
@@ -825,20 +930,33 @@ def get_cross_ref(
             WHERE cu.banca_movimento_id IS NULL
               AND cu.fattura_id IS NULL
               AND cu.stato IN ('DA_PAGARE', 'SCADUTA')
-              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.10
+              AND ABS(cu.totale - ?) / MAX(?, 0.01) < 0.15
               AND cu.data_scadenza BETWEEN date(?, '-30 days') AND date(?, '+30 days')
             ORDER BY ABS(cu.totale - ?) ASC
             LIMIT 10
-        """, (abs_imp, abs_imp, data_c, data_c, abs_imp))
-        _add(cur3b.fetchall(), "uscita", 50)
+        """, (target, target, data_c, data_c, target))
+        for r in cur3b.fetchall():
+            key = ("uscita", r["id"])
+            if key in seen_keys:
+                continue
+            score = _score_match(
+                r["fornitore_nome"] or "", r["totale"], r["data_ref"],
+                target, data_c, desc_lower, 40
+            )
+            if score is None:
+                continue
+            seen_keys.add(key)
+            d = dict(r)
+            d["source"] = "uscita"; d["source_id"] = d["id"]; d["_score"] = score
+            suggestions.append(d)
 
         # Ordina per score (più basso = migliore) e limita a 8
         suggestions.sort(key=lambda s: s.get("_score", 100))
         for s in suggestions:
             s.pop("_score", None)
         mov["possibili_match"] = suggestions[:8]
-        # Se nessun suggerimento, proponi auto-categoria per registrazione diretta
-        if not suggestions:
+
+        if not suggestions and not links:
             mov["auto_categoria"] = _auto_detect_categoria(
                 mov.get("descrizione", ""), mov["importo"]
             )
@@ -855,8 +973,8 @@ def create_link(req: CrossRefLinkRequest):
     - fattura_id: link via banca_fatture_link + propaga a cg_uscite
     - uscita_id: link diretto su cg_uscite.banca_movimento_id
     """
-    if not req.fattura_id and not req.uscita_id:
-        raise HTTPException(400, "Specificare fattura_id o uscita_id")
+    if not req.fattura_id and not req.uscita_id and not req.entrata_id:
+        raise HTTPException(400, "Specificare fattura_id, uscita_id o entrata_id")
 
     conn = get_db()
     cur = conn.cursor()
@@ -866,7 +984,7 @@ def create_link(req: CrossRefLinkRequest):
 
     try:
         if req.fattura_id:
-            # ── Link fattura (come prima) ──
+            # ── Link fattura ──
             cur.execute("""
                 INSERT INTO banca_fatture_link (movimento_id, fattura_id, note)
                 VALUES (?, ?, ?)
@@ -882,6 +1000,17 @@ def create_link(req: CrossRefLinkRequest):
                 WHERE fattura_id = ?
                   AND banca_movimento_id IS NULL
             """, (req.movimento_id, data_mov, req.fattura_id))
+        elif req.entrata_id:
+            # ── Link entrata esistente (storno / nota di credito) ──
+            cur.execute("""
+                UPDATE cg_entrate
+                SET banca_movimento_id = ?
+                WHERE id = ?
+                  AND banca_movimento_id IS NULL
+            """, (req.movimento_id, req.entrata_id))
+            if cur.rowcount == 0:
+                conn.close()
+                raise HTTPException(409, "Entrata già collegata o non trovata")
         else:
             # ── Link uscita diretta (spesa fissa, affitto, tassa…) ──
             cur.execute("""
@@ -973,8 +1102,9 @@ def delete_link(link_id: str):
 @router.get("/cross-ref/search")
 def search_uscite_for_link(q: str = "", limit: int = 20):
     """
-    Ricerca manuale fatture + uscite CG per collegamento.
+    Ricerca manuale fatture + uscite CG + entrate per collegamento.
     Cerca per fornitore, numero fattura, tipo spesa o importo.
+    Include entrate per gestire storni e note di credito.
     """
     conn = get_db()
     cur = conn.cursor()
@@ -994,7 +1124,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         importo = 0.0
 
     if is_importo:
-        # Fatture per importo
+        # Fatture per importo (uscite)
         cur.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
@@ -1010,7 +1140,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
             results.append(d)
 
-        # Uscite CG per importo (solo non-fattura, le fatture sono già sopra)
+        # Uscite CG per importo (solo non-fattura)
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1027,6 +1157,23 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         for r in cur.fetchall():
             d = dict(r); d["source"] = "uscita"; d["source_id"] = d["id"]
             results.append(d)
+
+        # ── ENTRATE per importo (storni, note di credito) ──
+        cur.execute("""
+            SELECT ce.id, ce.descrizione AS fornitore_nome,
+                   NULL AS numero_fattura,
+                   ce.data_entrata AS data_ref, ce.importo AS totale,
+                   ce.categoria AS tipo
+            FROM cg_entrate ce
+            WHERE ce.banca_movimento_id IS NULL
+              AND ABS(ce.importo - ?) < MAX(? * 0.1, 1.0)
+            ORDER BY ABS(ce.importo - ?) ASC
+            LIMIT ?
+        """, (importo, importo, importo, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "entrata"; d["source_id"] = d["id"]
+            results.append(d)
+
     else:
         term = f"%{q.strip()}%"
         # Fatture per testo
@@ -1045,7 +1192,7 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
             d = dict(r); d["source"] = "fattura"; d["source_id"] = d["id"]
             results.append(d)
 
-        # Uscite CG per testo (solo non-fattura, le fatture sono già sopra)
+        # Uscite CG per testo (solo non-fattura)
         cur.execute("""
             SELECT cu.id, cu.fornitore_nome, cu.numero_fattura,
                    cu.data_scadenza AS data_ref, cu.totale,
@@ -1061,6 +1208,22 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         """, (term, term, limit))
         for r in cur.fetchall():
             d = dict(r); d["source"] = "uscita"; d["source_id"] = d["id"]
+            results.append(d)
+
+        # ── ENTRATE per testo (storni, note di credito) ──
+        cur.execute("""
+            SELECT ce.id, ce.descrizione AS fornitore_nome,
+                   NULL AS numero_fattura,
+                   ce.data_entrata AS data_ref, ce.importo AS totale,
+                   ce.categoria AS tipo
+            FROM cg_entrate ce
+            WHERE ce.banca_movimento_id IS NULL
+              AND ce.descrizione LIKE ?
+            ORDER BY ce.data_entrata DESC
+            LIMIT ?
+        """, (term, limit))
+        for r in cur.fetchall():
+            d = dict(r); d["source"] = "entrata"; d["source_id"] = d["id"]
             results.append(d)
 
     conn.close()
@@ -1329,6 +1492,129 @@ def annulla_registrazione(movimento_id: int):
     conn.commit()
     conn.close()
     return {"ok": True, "deleted": n}
+
+
+# ═══════════════════════════════════════════════════════
+# 9e. DUPLICATI — rilevamento e pulizia
+# ═══════════════════════════════════════════════════════
+
+@router.get("/duplicati")
+def get_duplicati():
+    """
+    Rileva potenziali movimenti duplicati: stessa data + stesso importo.
+    Ritorna gruppi di movimenti sospetti.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Trova gruppi con stessa data + stesso importo (almeno 2 movimenti)
+    cur.execute("""
+        SELECT data_contabile, importo, COUNT(*) AS cnt,
+               GROUP_CONCAT(id) AS ids
+        FROM banca_movimenti
+        GROUP BY data_contabile, importo
+        HAVING cnt > 1
+        ORDER BY data_contabile DESC
+    """)
+    groups = []
+    for row in cur.fetchall():
+        ids = [int(x) for x in row["ids"].split(",")]
+        # Carica dettagli movimenti del gruppo
+        ph = ",".join("?" * len(ids))
+        cur2 = conn.cursor()
+        cur2.execute(f"""
+            SELECT m.*,
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM banca_fatture_link WHERE movimento_id = m.id
+                   ) THEN 1
+                   WHEN EXISTS (
+                       SELECT 1 FROM cg_uscite WHERE banca_movimento_id = m.id
+                   ) THEN 1
+                   WHEN EXISTS (
+                       SELECT 1 FROM cg_entrate WHERE banca_movimento_id = m.id
+                   ) THEN 1
+                   ELSE 0 END AS has_links
+            FROM banca_movimenti m
+            WHERE m.id IN ({ph})
+            ORDER BY m.id ASC
+        """, ids)
+        movimenti = [dict(r) for r in cur2.fetchall()]
+        groups.append({
+            "data": row["data_contabile"],
+            "importo": row["importo"],
+            "count": row["cnt"],
+            "movimenti": movimenti,
+        })
+
+    conn.close()
+    return groups
+
+
+@router.delete("/duplicati/{keep_id}")
+def delete_duplicato(keep_id: int, delete_ids: str = ""):
+    """
+    Elimina movimenti duplicati, mantenendo keep_id.
+    delete_ids: comma-separated IDs da eliminare.
+    Migra eventuali link al movimento mantenuto.
+    """
+    if not delete_ids:
+        raise HTTPException(400, "Specificare delete_ids (IDs separati da virgola)")
+
+    to_delete = [int(x.strip()) for x in delete_ids.split(",") if x.strip()]
+    if not to_delete:
+        raise HTTPException(400, "Nessun ID da eliminare")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Verifica che keep_id esista
+    keep = cur.execute("SELECT id FROM banca_movimenti WHERE id = ?", (keep_id,)).fetchone()
+    if not keep:
+        conn.close()
+        raise HTTPException(404, "Movimento da mantenere non trovato")
+
+    deleted = 0
+    migrated = 0
+    for did in to_delete:
+        if did == keep_id:
+            continue
+
+        # Migra link fattura
+        cur.execute("""
+            UPDATE banca_fatture_link SET movimento_id = ?
+            WHERE movimento_id = ?
+              AND fattura_id NOT IN (SELECT fattura_id FROM banca_fatture_link WHERE movimento_id = ?)
+        """, (keep_id, did, keep_id))
+        migrated += cur.rowcount
+
+        # Migra link uscite
+        cur.execute("""
+            UPDATE cg_uscite SET banca_movimento_id = ?
+            WHERE banca_movimento_id = ?
+              AND NOT EXISTS (SELECT 1 FROM cg_uscite u2 WHERE u2.banca_movimento_id = ? AND u2.id != cg_uscite.id)
+        """, (keep_id, did, keep_id))
+        migrated += cur.rowcount
+
+        # Migra link entrate
+        cur.execute("""
+            UPDATE cg_entrate SET banca_movimento_id = ?
+            WHERE banca_movimento_id = ?
+              AND NOT EXISTS (SELECT 1 FROM cg_entrate e2 WHERE e2.banca_movimento_id = ? AND e2.id != cg_entrate.id)
+        """, (keep_id, did, keep_id))
+        migrated += cur.rowcount
+
+        # Elimina link orfani rimasti
+        cur.execute("DELETE FROM banca_fatture_link WHERE movimento_id = ?", (did,))
+        cur.execute("UPDATE cg_uscite SET banca_movimento_id = NULL WHERE banca_movimento_id = ?", (did,))
+        cur.execute("UPDATE cg_entrate SET banca_movimento_id = NULL WHERE banca_movimento_id = ?", (did,))
+
+        # Elimina il duplicato
+        cur.execute("DELETE FROM banca_movimenti WHERE id = ?", (did,))
+        deleted += cur.rowcount
+
+    conn.commit()
+    conn.close()
+    return {"ok": True, "deleted": deleted, "migrated": migrated}
 
 
 # ═══════════════════════════════════════════════════════
