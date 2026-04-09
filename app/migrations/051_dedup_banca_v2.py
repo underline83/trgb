@@ -71,19 +71,33 @@ def upgrade(conn):
             """, (keeper, did, keeper))
             total_migrated += cur.rowcount
 
-            # Migra cg_uscite
-            cur.execute("""
-                UPDATE cg_uscite SET banca_movimento_id = ?
-                WHERE banca_movimento_id = ?
-            """, (keeper, did))
-            total_migrated += cur.rowcount
+            # Migra cg_uscite (solo se keeper non ha già un link)
+            has_keeper_uscita = cur.execute(
+                "SELECT 1 FROM cg_uscite WHERE banca_movimento_id = ?", (keeper,)
+            ).fetchone()
+            if has_keeper_uscita:
+                cur.execute(
+                    "UPDATE cg_uscite SET banca_movimento_id = NULL WHERE banca_movimento_id = ?",
+                    (did,))
+            else:
+                cur.execute(
+                    "UPDATE cg_uscite SET banca_movimento_id = ? WHERE banca_movimento_id = ?",
+                    (keeper, did))
+                total_migrated += cur.rowcount
 
-            # Migra cg_entrate
-            cur.execute("""
-                UPDATE cg_entrate SET banca_movimento_id = ?
-                WHERE banca_movimento_id = ?
-            """, (keeper, did))
-            total_migrated += cur.rowcount
+            # Migra cg_entrate (solo se keeper non ha già un link)
+            has_keeper_entrata = cur.execute(
+                "SELECT 1 FROM cg_entrate WHERE banca_movimento_id = ?", (keeper,)
+            ).fetchone()
+            if has_keeper_entrata:
+                cur.execute(
+                    "UPDATE cg_entrate SET banca_movimento_id = NULL WHERE banca_movimento_id = ?",
+                    (did,))
+            else:
+                cur.execute(
+                    "UPDATE cg_entrate SET banca_movimento_id = ? WHERE banca_movimento_id = ?",
+                    (keeper, did))
+                total_migrated += cur.rowcount
 
             # Elimina link orfani rimasti
             cur.execute("DELETE FROM banca_fatture_link WHERE movimento_id = ?", (did,))
