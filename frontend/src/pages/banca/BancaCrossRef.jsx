@@ -665,20 +665,41 @@ export default function BancaCrossRef() {
                             </td>
                           )}
 
-                          {/* ── Tab senza match: pulsante cerca + registra ── */}
+                          {/* ── Tab senza match: pulsante cerca + storno + registra ── */}
                           {tab === "senza" && (
                             <td className="px-3 py-2.5 text-center">
                               <div className="flex items-center gap-1.5 justify-center flex-wrap">
-                                {/* Cerca disponibile per TUTTI i movimenti (non solo uscite) — storni */}
-                                <button onClick={() => {
-                                  if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
-                                  else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); setRegistraId(null); }
-                                }}
-                                  className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                                    isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                                  }`}>
-                                  {isSearching ? "Chiudi" : "🔍 Cerca"}
-                                </button>
+                                {/* Per uscite: cerca fattura/spesa */}
+                                {m.importo < 0 && (
+                                  <button onClick={() => {
+                                    if (isSearching) { setSearchId(null); setSearchQuery(""); setSearchResults([]); }
+                                    else { setSearchId(m.id); setExpandedId(null); setSearchQuery(""); setSearchResults([]); setRegistraId(null); }
+                                  }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                      isSearching ? "bg-teal-100 border-teal-300 text-teal-800" : "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                                    }`}>
+                                    {isSearching ? "Chiudi" : "🔍 Cerca"}
+                                  </button>
+                                )}
+                                {/* Per entrate: "Storno" apre ricerca con importo pre-compilato */}
+                                {m.importo > 0 && (
+                                  <button onClick={() => {
+                                    if (isSearching) {
+                                      setSearchId(null); setSearchQuery(""); setSearchResults([]);
+                                    } else {
+                                      setSearchId(m.id); setExpandedId(null); setRegistraId(null);
+                                      // Pre-compila con l'importo per trovare la fattura/uscita originale
+                                      const impStr = Math.abs(m.importo).toFixed(2).replace(".", ",");
+                                      setSearchQuery(impStr);
+                                      doSearch(impStr);
+                                    }
+                                  }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                      isSearching ? "bg-cyan-100 border-cyan-300 text-cyan-800" : "border-cyan-300 text-cyan-700 hover:bg-cyan-50"
+                                    }`}>
+                                    {isSearching ? "Chiudi" : "↩ Storno"}
+                                  </button>
+                                )}
                                 <button onClick={() => {
                                   if (registraId === m.id) { setRegistraId(null); }
                                   else { openRegistra(m.id); setSearchId(null); }
@@ -738,11 +759,18 @@ export default function BancaCrossRef() {
                         {isSearching && (
                           <tr>
                             <td colSpan={colSpan} className="px-3 py-3 bg-teal-50/30">
-                              <div className="text-[10px] font-semibold text-teal-600 uppercase tracking-wide mb-2">
-                                Cerca fattura, spesa o entrata (storno) per fornitore, tipo o importo
+                              <div className="text-[10px] font-semibold text-teal-600 uppercase tracking-wide mb-1">
+                                {m.importo > 0
+                                  ? "Storno — cerca la fattura o spesa originale da chiudere"
+                                  : "Cerca fattura, spesa o entrata per fornitore, tipo o importo"}
                               </div>
+                              {m.importo > 0 && (
+                                <div className="text-[10px] text-teal-500 mb-2">
+                                  Collega questo accredito (€ {fmt(m.importo)}) alla fattura/spesa che ha generato lo storno
+                                </div>
+                              )}
                               <input type="text" value={searchQuery} onChange={(e) => onSearchChange(e.target.value)}
-                                placeholder="es. Compagnia del Vino, affitto, 1077, storno..."
+                                placeholder={m.importo > 0 ? "Cerca per importo, fornitore o numero fattura..." : "es. Compagnia del Vino, affitto, 1077..."}
                                 autoFocus
                                 className="w-full sm:w-96 px-3 py-2 rounded-lg border border-teal-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 mb-2" />
                               {searchLoading && <div className="text-xs text-neutral-500 py-1">Ricerca...</div>}

@@ -181,14 +181,24 @@ def _parse_importo_it(s: str) -> float:
         return 0.0
 
 
+def _normalize_desc(descrizione: str) -> str:
+    """Normalizza descrizione per confronto/dedup.
+    Rimuove punteggiatura, lowercase, collassa spazi, primi 40 char.
+    Due formati CSV diversi della stessa banca producono lo stesso risultato."""
+    d = (descrizione or "").strip().lower()
+    # Rimuovi tutta la punteggiatura e trattini
+    d = re.sub(r"[^\w\s]", " ", d)
+    d = re.sub(r"\s+", " ", d).strip()
+    return d[:40]
+
+
 def _dedup_hash(data_contabile: str, importo: float, descrizione: str) -> str:
     """Genera hash per dedup: data + importo + descrizione normalizzata.
 
-    Normalizza: lowercase, collasso spazi multipli, primi 50 char.
-    Allineato a migrazione 042.
+    v2: normalizzazione aggressiva — rimuove punteggiatura per evitare
+    duplicati da formati CSV diversi (uppercase vs lowercase, trattini vs spazi).
     """
-    d = (descrizione or "").strip().lower()
-    d = re.sub(r"\s+", " ", d)[:50]
+    d = _normalize_desc(descrizione)
     raw = f"{data_contabile}|{importo:.2f}|{d}"
     return hashlib.md5(raw.encode()).hexdigest()
 
@@ -1501,8 +1511,9 @@ def annulla_registrazione(movimento_id: int):
 @router.get("/duplicati")
 def get_duplicati():
     """
-    Rileva potenziali movimenti duplicati: stessa data + stesso importo.
-    Ritorna gruppi di movimenti sospetti.
+    Rileva movimenti duplicati: stessa data + stesso importo + descrizione simile.
+    NON segnala come duplicati movimenti con descrizione diversa (es. commissioni
+    bonifici diversi nello stesso giorno).
     """
     conn = get_db()
     cur = conn.cursor()
@@ -1516,10 +1527,10 @@ def get_duplicati():
         HAVING cnt > 1
         ORDER BY data_contabile DESC
     """)
+
     groups = []
     for row in cur.fetchall():
         ids = [int(x) for x in row["ids"].split(",")]
-        # Carica dettagli movimenti del gruppo
         ph = ",".join("?" * len(ids))
         cur2 = conn.cursor()
         cur2.execute(f"""
@@ -1539,12 +1550,23 @@ def get_duplicati():
             ORDER BY m.id ASC
         """, ids)
         movimenti = [dict(r) for r in cur2.fetchall()]
-        groups.append({
-            "data": row["data_contabile"],
-            "importo": row["importo"],
-            "count": row["cnt"],
-            "movimenti": movimenti,
-        })
+
+        # Raggruppa per descrizione normalizzata — solo gruppi con desc simile
+        # sono veri duplicati (commissioni diverse non lo sono)
+        by_desc = {}
+        for m in movimenti:
+            norm = _normalize_desc(m["descrizione"])
+            by_desc.setdefault(norm, []).append(m)
+
+        for norm_desc, mlist in by_desc.items():
+            if len(mlist) < 2:
+                continue
+            groups.append({
+                "data": row["data_contabile"],
+                "importo": row["importo"],
+                "count": len(mlist),
+                "movimenti": mlist,
+            })
 
     conn.close()
     return groups
