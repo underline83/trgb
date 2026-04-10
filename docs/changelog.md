@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-04-10 (sera) — Controllo Gestione v2.1b: Dettaglio fattura inline nello Scadenzario con estetica uniforme
+
+#### UX — Fase G (refactor "in-page" + layout uniformato a SchedaVino)
+- **`FattureDettaglio.jsx` completamente ridisegnato sul pattern `SchedaVino`** — ora è un `forwardRef` che accetta le props `fatturaId` (override di `useParams`), `inline` (bool), `onClose`, `onFatturaUpdated`. Espone `hasPendingChanges()` al parent tramite `useImperativeHandle` per il prompt di conferma nel cambio fattura. Stesso identico pattern di `SchedaVino` in `MagazzinoVini` — così la logica della scheda resta in un unico posto e viene riutilizzata sia come pagina standalone (`/acquisti/dettaglio/:id`) sia inline nello Scadenzario
+- **Layout sidebar colorata + main content** — il dettaglio fattura ora ha lo stesso look & feel della scheda vino: wrapper `rounded-2xl shadow-lg` (inline) / `rounded-3xl shadow-2xl` (standalone), grid `[280px_1fr]`, altezza `78vh` inline / `88vh` standalone. Sidebar sinistra colorata in gradient con colori che riflettono lo stato della fattura (emerald=PAGATA, amber=DA_PAGARE, red=SCADUTA, teal=PAGATA_MANUALE, blue=PARZIALE, purple=RATEIZZATA, slate=default). Nella sidebar: header con fornitore grande, P.IVA mono, badge "FT numero" + data, stats card "Totale" in evidenza + mini-stats Imponibile/IVA, badge stato/rateizzata/batch, info list dense (scadenza eff., scadenza XML se override, mod. pagamento + label, pagata il, metodo, importato il, ID), IBAN full-width mono, link "Tutte le fatture del fornitore" + Chiudi
+- **Main content a destra con `SectionHeader`** — uniformato a `SchedaVino`, due section header fisse stile grigio-neutro: "Pagamenti & Scadenze" (con badge stato/rateizzata/batch a destra, banner viola se rateizzata, 3 tile editabili inline per scadenza/modalità/IBAN + riga info pagamento/riconciliazione) e "Righe fattura (N)" (tabella righe + footer totale). Tutto il comportamento editing (save via dispatcher B.2/B.3, toast, conferma dirty state) invariato rispetto a v2.0b
+- **Split-pane inline nello Scadenzario Uscite** — click su una riga FATTURA non fa più `navigate` a `/acquisti/dettaglio/:id` ma imposta `openFatturaId` locale: la lista viene sostituita dal componente `FattureDettaglio` inline (`inline={true}`) con barra di navigazione sky-50 sopra la scheda, bottoni "← Lista", prev/next `‹ ›`, contatore `N/total` e indicatore "Fattura #ID". La sidebar sinistra dello Scadenzario (filtri, KPI) rimane invariata e visibile, esattamente come in `MagazzinoVini`
+- **Navigazione prev/next** — i bottoni `‹ ›` scorrono solo tra le righe FATTURA con `fattura_id` della lista filtrata corrente, rispettando filtri, ordinamento e toggle "Mostra rateizzate". Se l'utente ha modifiche pendenti nella scheda aperta (editing di scadenza/IBAN/MP), viene richiesta conferma prima di cambiare fattura
+- **Refresh lista al close** — chiudendo la scheda (bottone "← Lista" o `onClose`), viene lanciato `fetchData(false)` per riflettere nella lista le modifiche appena salvate (scadenza/IBAN/MP via dispatcher B.2/B.3)
+- **Route standalone invariata** — `/acquisti/dettaglio/:id` continua a funzionare esattamente come prima per i link diretti e le altre entry points (es. click da elenco fatture, da fornitore), perché `FattureDettaglio` preserva il fallback `useParams` quando non riceve la prop `fatturaId`
+- **Bump versione** — `controlloGestione: 2.0b → 2.1b`
+
 ## 2026-04-10 — Controllo Gestione v2.0b: Query /uscite come vista aggregatore su fe_fatture
 
 #### New — Fase B.1 del refactoring v2.0 "CG come aggregatore"

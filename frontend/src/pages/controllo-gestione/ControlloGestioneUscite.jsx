@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import FattureDettaglio from "../admin/FattureDettaglio";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -88,6 +89,13 @@ export default function ControlloGestioneUscite() {
   const [candidati, setCandidati] = useState([]);
   const [loadingCandidati, setLoadingCandidati] = useState(false);
   const [linkingId, setLinkingId] = useState(null);
+
+  // ── v2.1 Split-pane inline: dettaglio fattura dentro lo scadenzario ──
+  // Pattern identico a MagazzinoVini/SchedaVino: click su riga FATTURA →
+  // setOpenFatturaId → la lista viene sostituita dal componente dettaglio.
+  const [openFatturaId, setOpenFatturaId] = useState(null);
+  const fatturaInlineRef = useRef(null);      // ref per scroll al wrapper
+  const fatturaCompRef = useRef(null);        // ref al componente (hasPendingChanges)
 
   // ── Auto-import + fetch ──
   const fetchData = useCallback(async (doImport = false) => {
@@ -267,9 +275,9 @@ export default function ControlloGestioneUscite() {
     setNuovaScadenza(u.data_scadenza || "");
   };
 
-  // ── v2.0 Fase E: click-through intelligente su riga ──
-  // FATTURA con fattura_id  → FattureDettaglio (?from=scadenzario)
-  // SPESA_FISSA/RATEIZZATA  → pagina spese fisse (highlight della riga)
+  // ── v2.1 Fase E + split-pane inline: click-through intelligente su riga ──
+  // FATTURA con fattura_id  → dettaglio INLINE (split-pane stile MagazzinoVini)
+  // SPESA_FISSA             → pagina spese fisse (highlight della riga)
   // STIPENDIO/ALTRO/altre   → modale modifica scadenza (comportamento legacy)
   const handleRowClick = (u) => {
     // Riconciliata via banca → non succede niente (comportamento pre-esistente)
@@ -277,16 +285,30 @@ export default function ControlloGestioneUscite() {
 
     const tipo = u.tipo_uscita || "FATTURA";
 
-    // 1) FATTURA con collegamento → FattureDettaglio arricchito
+    // 1) FATTURA con collegamento → dettaglio INLINE nello stesso pagina
+    //    (pattern SchedaVino in MagazzinoVini, niente navigazione)
     if (tipo === "FATTURA" && u.fattura_id) {
-      navigate(`/acquisti/dettaglio/${u.fattura_id}?from=scadenzario`);
+      // Se c'è già una fattura aperta con modifiche pendenti, chiedi conferma
+      if (
+        openFatturaId &&
+        openFatturaId !== u.fattura_id &&
+        fatturaCompRef.current?.hasPendingChanges?.()
+      ) {
+        if (!window.confirm("Hai modifiche non salvate sulla fattura corrente. Vuoi passare a un'altra?")) return;
+      }
+      setOpenFatturaId(u.fattura_id);
+      setTimeout(() => {
+        fatturaInlineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
       return;
     }
 
-    // 2) Rateizzata anche senza spesa_fissa_id diretta → se c'è una fattura, vai lì
-    //    (la banner nella card spiega il link alla spesa fissa e permette il jump)
+    // 2) Rateizzata anche senza spesa_fissa_id diretta → se c'è una fattura, vai lì inline
     if (u.stato === "RATEIZZATA" && u.fattura_id) {
-      navigate(`/acquisti/dettaglio/${u.fattura_id}?from=scadenzario`);
+      setOpenFatturaId(u.fattura_id);
+      setTimeout(() => {
+        fatturaInlineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
       return;
     }
 
@@ -901,9 +923,68 @@ export default function ControlloGestioneUscite() {
             </div>
           )}
 
-          {/* TABELLA SCROLLABILE con STICKY HEADER */}
-          <div className="flex-1 overflow-auto min-h-0">
-            {loading ? (
+          {/* TABELLA SCROLLABILE con STICKY HEADER — o dettaglio fattura inline (v2.1) */}
+          <div className="flex-1 overflow-auto min-h-0" ref={fatturaInlineRef}>
+            {openFatturaId ? (() => {
+              // Pattern split-pane stile MagazzinoVini/SchedaVino:
+              // la lista è sostituita dal dettaglio, con barra di navigazione prev/next.
+              const fatturePrev = sorted.filter(u => (u.tipo_uscita || "FATTURA") === "FATTURA" && u.fattura_id);
+              const curIdx = fatturePrev.findIndex(u => u.fattura_id === openFatturaId);
+              const prevFatt = curIdx > 0 ? fatturePrev[curIdx - 1] : null;
+              const nextFatt = curIdx >= 0 && curIdx < fatturePrev.length - 1 ? fatturePrev[curIdx + 1] : null;
+              const goTo = (u) => {
+                if (fatturaCompRef.current?.hasPendingChanges?.()) {
+                  if (!window.confirm("Hai modifiche non salvate. Vuoi passare a un'altra fattura?")) return;
+                }
+                setOpenFatturaId(u.fattura_id);
+              };
+              return (
+                <div className="flex flex-col h-full">
+                  {/* Barra navigazione inline */}
+                  <div className="px-3 py-2 bg-sky-50 border-b border-sky-200 flex items-center gap-2 flex-shrink-0 sticky top-0 z-10">
+                    <button onClick={() => {
+                      if (fatturaCompRef.current?.hasPendingChanges?.()) {
+                        if (!window.confirm("Hai modifiche non salvate. Vuoi tornare allo scadenzario?")) return;
+                      }
+                      setOpenFatturaId(null);
+                      // ricarica i dati per riflettere eventuali modifiche salvate
+                      fetchData(false);
+                    }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-neutral-300 hover:bg-neutral-50 transition shadow-sm">
+                      ← Lista
+                    </button>
+                    <div className="flex items-center gap-1 ml-2">
+                      <button onClick={() => prevFatt && goTo(prevFatt)} disabled={!prevFatt}
+                        className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={prevFatt ? `← ${prevFatt.fornitore_nome || ""}` : "Prima fattura"}>
+                        ‹
+                      </button>
+                      <span className="text-[10px] text-sky-700 font-medium min-w-[60px] text-center">
+                        {curIdx >= 0 ? `${curIdx + 1} / ${fatturePrev.length}` : "—"}
+                      </span>
+                      <button onClick={() => nextFatt && goTo(nextFatt)} disabled={!nextFatt}
+                        className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={nextFatt ? `→ ${nextFatt.fornitore_nome || ""}` : "Ultima fattura"}>
+                        ›
+                      </button>
+                    </div>
+                    <span className="text-xs text-sky-800 font-medium ml-2">
+                      Fattura #{openFatturaId}
+                    </span>
+                  </div>
+                  {/* Contenuto dettaglio */}
+                  <div className="flex-1 p-3 bg-neutral-50">
+                    <FattureDettaglio
+                      ref={fatturaCompRef}
+                      fatturaId={openFatturaId}
+                      inline={true}
+                      onClose={() => { setOpenFatturaId(null); fetchData(false); }}
+                      onFatturaUpdated={() => { /* refetch della lista lato parent al close */ }}
+                    />
+                  </div>
+                </div>
+              );
+            })() : loading ? (
               <div className="text-center py-20 text-neutral-400">Caricamento...</div>
             ) : sorted.length === 0 ? (
               <div className="text-center py-20 text-neutral-400 text-sm">
