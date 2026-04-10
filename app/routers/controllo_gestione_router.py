@@ -1178,6 +1178,47 @@ def list_spese_fisse(
         ORDER BY tipo, titolo
     """, params).fetchall()
 
+    # ── Aggregato pagato / residuo da cg_uscite (tutte le spese fisse) ──
+    # Usato per i prestiti / rateizzazioni (avanzamento piano ammortamento),
+    # ma esposto per tutti i tipi: per frontendhe vuole mostrare progresso.
+    agg_rows = fc.execute("""
+        SELECT
+            spesa_fissa_id,
+            COUNT(*) AS n_rate,
+            SUM(CASE WHEN stato IN ('PAGATA','PAGATA_MANUALE','PARZIALE')
+                     THEN COALESCE(importo_pagato, 0) ELSE 0 END) AS totale_pagato,
+            SUM(CASE WHEN stato IN ('DA_PAGARE','SCADUTA','PARZIALE')
+                     THEN COALESCE(totale, 0) - COALESCE(importo_pagato, 0) ELSE 0 END) AS totale_residuo,
+            SUM(CASE WHEN stato IN ('PAGATA','PAGATA_MANUALE') THEN 1 ELSE 0 END) AS n_pagate,
+            SUM(CASE WHEN stato = 'DA_PAGARE' THEN 1 ELSE 0 END) AS n_da_pagare,
+            SUM(CASE WHEN stato = 'SCADUTA' THEN 1 ELSE 0 END) AS n_scadute,
+            SUM(CASE WHEN stato = 'PARZIALE' THEN 1 ELSE 0 END) AS n_parziali
+        FROM cg_uscite
+        WHERE spesa_fissa_id IS NOT NULL
+        GROUP BY spesa_fissa_id
+    """).fetchall()
+    agg_map = {r["spesa_fissa_id"]: dict(r) for r in agg_rows}
+
+    spese_out = []
+    for r in rows:
+        d = dict(r)
+        ag = agg_map.get(d["id"])
+        if ag:
+            d["totale_pagato"] = round(float(ag.get("totale_pagato") or 0), 2)
+            d["totale_residuo"] = round(max(float(ag.get("totale_residuo") or 0), 0), 2)
+            d["n_rate_totali"] = int(ag.get("n_rate") or 0)
+            d["n_rate_pagate"] = int(ag.get("n_pagate") or 0) + int(ag.get("n_parziali") or 0)
+            d["n_rate_da_pagare"] = int(ag.get("n_da_pagare") or 0)
+            d["n_rate_scadute"] = int(ag.get("n_scadute") or 0)
+        else:
+            d["totale_pagato"] = 0.0
+            d["totale_residuo"] = 0.0
+            d["n_rate_totali"] = 0
+            d["n_rate_pagate"] = 0
+            d["n_rate_da_pagare"] = 0
+            d["n_rate_scadute"] = 0
+        spese_out.append(d)
+
     # Calcola riepilogo per tipo
     all_active = fc.execute("""
         SELECT tipo, COUNT(*) as n, SUM(importo) as totale
@@ -1194,8 +1235,8 @@ def list_spese_fisse(
     fc.close()
 
     return {
-        "spese": [dict(r) for r in rows],
-        "count": len(rows),
+        "spese": spese_out,
+        "count": len(spese_out),
         "riepilogo_tipo": [dict(r) for r in all_active],
         "totale_mensile_stimato": round(totale_mensile, 2),
     }

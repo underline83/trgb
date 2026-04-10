@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-04-10 — Controllo Gestione v1.6: Avanzamento piano + ricerca multi-fattura
+
+#### New — Avanzamento pagato / residuo in tabella Spese Fisse
+- **GET `/spese-fisse` arricchito** — ritorna `totale_pagato`, `totale_residuo`, `n_rate_totali`, `n_rate_pagate`, `n_rate_da_pagare`, `n_rate_scadute` aggregati da `cg_uscite` per ogni spesa fissa
+- **UI colonna Importo** — per PRESTITO e RATEIZZAZIONE mostra sotto l'importo di riferimento le righe "Pagato € X · (n/tot)" e "Residuo € Y · scadute" con mini progress bar verde
+
+#### New — Ricerca fatture + multi-selezione nel wizard Rateizzazione
+- **Campo ricerca** — ricerca solida multi-token (accenti/spazi ignorati) su fornitore, numero fattura, data, anno, importo
+- **Multi-select** — checkbox per selezionare più fatture e rateizzarle insieme (sum dei totali, titolo auto-generato in base al numero di fornitori unici)
+- **Seleziona tutte visibili** — azione rapida per togglare tutte le fatture filtrate
+- **Riepilogo selezione** — contatore fatture selezionate e totale cumulativo sempre visibile
+
+---
+
 ## 2026-04-10 — Controllo Gestione v1.5: Piano rate prestiti
 
 #### New — Piano di ammortamento visualizzabile per prestiti e rateizzazioni

@@ -72,6 +72,8 @@ export default function ControlloGestioneSpeseFisse() {
   // Per rateizzazione: fatture disponibili
   const [fattureDisponibili, setFattureDisponibili] = useState([]);
   const [loadingFatture, setLoadingFatture] = useState(false);
+  const [fatturaSearch, setFatturaSearch] = useState("");
+  const [fattureSelezionate, setFattureSelezionate] = useState([]); // array di id
 
   // Adeguamento ISTAT
   const [adeguamento, setAdeguamento] = useState(null); // { id, titolo, importo }
@@ -426,7 +428,7 @@ export default function ControlloGestioneSpeseFisse() {
         </button>
 
         {/* Rateizzazione */}
-        <button onClick={() => { setWizard("RATEIZZAZIONE"); setWizStep(0); setWizData({ tipo: "RATEIZZAZIONE" }); loadFatture(); setShowCreazione(false); }}
+        <button onClick={() => { setWizard("RATEIZZAZIONE"); setWizStep(0); setWizData({ tipo: "RATEIZZAZIONE" }); setFatturaSearch(""); setFattureSelezionate([]); loadFatture(); setShowCreazione(false); }}
           className="flex items-center gap-3 p-4 rounded-xl border-2 border-violet-200 bg-violet-50 hover:bg-violet-100 hover:border-violet-300 transition text-left">
           <span className="text-2xl">📅</span>
           <div>
@@ -742,44 +744,212 @@ export default function ControlloGestioneSpeseFisse() {
                 </div>
               </>
             )}
-            {wizStep === 1 && (
-              <>
-                <p className="text-xs text-neutral-500 mb-3">Seleziona la fattura da rateizzare:</p>
-                {loadingFatture ? (
-                  <div className="text-center py-6 text-neutral-400">Caricamento fatture...</div>
-                ) : fattureDisponibili.length === 0 ? (
-                  <div className="text-center py-6 text-neutral-400 text-sm">Nessuna fattura da pagare trovata</div>
-                ) : (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-                    {fattureDisponibili.map(f => (
-                      <button key={f.id} onClick={() => {
-                        setWizData({
-                          ...wizData,
-                          fonte: "fattura",
-                          titolo: `Rateizzazione ${f.fornitore_nome} — ${f.numero_fattura || ""}`.trim(),
-                          importo_totale: String(f.totale),
-                          fattura_rif: `${f.fornitore_nome} n.${f.numero_fattura || "?"} del ${f.data_fattura || "?"}`,
-                        });
-                        setWizStep(2);
-                      }}
-                        className="w-full flex items-center justify-between p-2.5 rounded-lg border border-neutral-200 hover:border-violet-300 hover:bg-violet-50 transition text-left">
-                        <div>
-                          <div className="text-xs font-medium text-neutral-800">{f.fornitore_nome}</div>
-                          <div className="text-[10px] text-neutral-400">{f.numero_fattura || "—"} — {f.data_fattura || ""}</div>
-                        </div>
-                        <div className="text-sm font-bold text-neutral-700">&euro; {fmt(f.totale)}</div>
-                      </button>
-                    ))}
+            {wizStep === 1 && (() => {
+              // Normalizzazione per ricerca: rimuove accenti, spazi, uppercase
+              const norm = (s) => (s || "").toString()
+                .toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+              const tokens = norm(fatturaSearch).split(" ").filter(Boolean);
+
+              // Filtro multi-token: ogni token deve matchare qualche campo
+              const fatturePresenti = fattureDisponibili.filter(f => {
+                if (tokens.length === 0) return true;
+                const haystack = [
+                  f.fornitore_nome,
+                  f.numero_fattura,
+                  f.data_fattura,
+                  String(f.totale || ""),
+                  (f.data_fattura || "").slice(0, 4), // anno
+                ].map(norm).join(" ");
+                return tokens.every(t => haystack.includes(t));
+              });
+
+              const totaleSel = fattureDisponibili
+                .filter(f => fattureSelezionate.includes(f.id))
+                .reduce((s, f) => s + (Number(f.totale) || 0), 0);
+
+              const toggle = (id) => {
+                setFattureSelezionate(prev =>
+                  prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                );
+              };
+
+              const toggleAllVisible = () => {
+                const visibleIds = fatturePresenti.map(f => f.id);
+                const allSelected = visibleIds.every(id => fattureSelezionate.includes(id));
+                if (allSelected) {
+                  setFattureSelezionate(prev => prev.filter(id => !visibleIds.includes(id)));
+                } else {
+                  setFattureSelezionate(prev => Array.from(new Set([...prev, ...visibleIds])));
+                }
+              };
+
+              const confermaSelezione = () => {
+                const selezionate = fattureDisponibili.filter(f => fattureSelezionate.includes(f.id));
+                if (selezionate.length === 0) return;
+                const totale = selezionate.reduce((s, f) => s + (Number(f.totale) || 0), 0);
+                // Titolo: se un solo fornitore raggruppa, altrimenti "N fatture"
+                const fornitoriUnici = Array.from(new Set(selezionate.map(f => f.fornitore_nome)));
+                let titolo;
+                let fatturaRif;
+                if (selezionate.length === 1) {
+                  const f = selezionate[0];
+                  titolo = `Rateizzazione ${f.fornitore_nome} — ${f.numero_fattura || ""}`.trim();
+                  fatturaRif = `${f.fornitore_nome} n.${f.numero_fattura || "?"} del ${f.data_fattura || "?"}`;
+                } else if (fornitoriUnici.length === 1) {
+                  titolo = `Rateizzazione ${fornitoriUnici[0]} — ${selezionate.length} fatture`;
+                  const nums = selezionate.map(f => f.numero_fattura || "?").join(", ");
+                  fatturaRif = `${fornitoriUnici[0]}: ${selezionate.length} fatture (${nums})`;
+                } else {
+                  titolo = `Rateizzazione — ${selezionate.length} fatture (${fornitoriUnici.length} fornitori)`;
+                  fatturaRif = selezionate.map(f => `${f.fornitore_nome} n.${f.numero_fattura || "?"}`).join(" + ");
+                }
+                setWizData({
+                  ...wizData,
+                  fonte: "fattura",
+                  titolo,
+                  importo_totale: String(totale.toFixed(2)),
+                  fattura_rif: fatturaRif,
+                  fatture_ids: fattureSelezionate,
+                });
+                setWizStep(2);
+              };
+
+              const visibleAllSelected = fatturePresenti.length > 0 &&
+                fatturePresenti.every(f => fattureSelezionate.includes(f.id));
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-neutral-500">Seleziona una o più fatture da rateizzare insieme:</p>
+                    <button
+                      onClick={loadFatture}
+                      className="text-[10px] text-violet-600 hover:text-violet-800"
+                      title="Ricarica fatture dal tabellone uscite"
+                    >
+                      ↻ Ricarica
+                    </button>
                   </div>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => setWizStep(0)}
-                    className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
-                    &larr; Indietro
-                  </button>
-                </div>
-              </>
-            )}
+
+                  {/* Barra di ricerca */}
+                  <div className="mb-2 relative">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={fatturaSearch}
+                      onChange={e => setFatturaSearch(e.target.value)}
+                      placeholder="Cerca: fornitore, numero fattura, anno, importo..."
+                      className="w-full pl-9 pr-9 py-2 border border-neutral-300 rounded-lg text-sm focus:border-violet-400 focus:ring-2 focus:ring-violet-200 focus:outline-none"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-sm">🔍</span>
+                    {fatturaSearch && (
+                      <button
+                        onClick={() => setFatturaSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 text-sm"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Contatori + seleziona tutto */}
+                  <div className="flex items-center justify-between mb-2 text-[10px]">
+                    <div className="text-neutral-500">
+                      <span className="font-semibold text-neutral-700">{fatturePresenti.length}</span>
+                      {fattureDisponibili.length !== fatturePresenti.length && (
+                        <span> / {fattureDisponibili.length}</span>
+                      )}
+                      {" "}fatture {fatturaSearch && "(filtrate)"}
+                      {fattureSelezionate.length > 0 && (
+                        <span className="ml-3 text-violet-700 font-semibold">
+                          · {fattureSelezionate.length} selezionate · Totale € {fmt(totaleSel)}
+                        </span>
+                      )}
+                    </div>
+                    {fatturePresenti.length > 0 && (
+                      <button
+                        onClick={toggleAllVisible}
+                        className="px-2 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700 hover:bg-violet-200 font-semibold"
+                      >
+                        {visibleAllSelected ? "Deseleziona visibili" : "Seleziona tutte visibili"}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lista fatture */}
+                  {loadingFatture ? (
+                    <div className="text-center py-6 text-neutral-400">Caricamento fatture...</div>
+                  ) : fattureDisponibili.length === 0 ? (
+                    <div className="text-center py-6 text-neutral-400 text-sm">Nessuna fattura da pagare trovata</div>
+                  ) : fatturePresenti.length === 0 ? (
+                    <div className="text-center py-6 text-neutral-400 text-sm">
+                      Nessuna fattura corrisponde alla ricerca "<span className="italic">{fatturaSearch}</span>"
+                    </div>
+                  ) : (
+                    <div className="space-y-1 max-h-[340px] overflow-y-auto border border-neutral-200 rounded-lg p-1 bg-neutral-50/50">
+                      {fatturePresenti.map(f => {
+                        const sel = fattureSelezionate.includes(f.id);
+                        return (
+                          <label
+                            key={f.id}
+                            className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition ${
+                              sel
+                                ? "border-violet-400 bg-violet-50 ring-1 ring-violet-200"
+                                : "border-neutral-200 bg-white hover:border-violet-300 hover:bg-violet-50/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={sel}
+                              onChange={() => toggle(f.id)}
+                              className="w-4 h-4 accent-violet-600 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-neutral-800 truncate">{f.fornitore_nome}</div>
+                              <div className="text-[10px] text-neutral-400">
+                                n. {f.numero_fattura || "—"} · {f.data_fattura || "—"}
+                                {f.stato === "SCADUTA" && (
+                                  <span className="ml-2 text-red-600 font-semibold">SCADUTA</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-sm font-bold text-neutral-700 tabular-nums flex-shrink-0">
+                              € {fmt(f.totale)}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Riepilogo selezione */}
+                  {fattureSelezionate.length > 1 && (
+                    <div className="mt-3 p-2.5 bg-violet-50 border border-violet-200 rounded-lg">
+                      <div className="text-[11px] text-violet-700">
+                        <span className="font-semibold">{fattureSelezionate.length} fatture</span> verranno rateizzate
+                        insieme per un totale di <span className="font-bold">€ {fmt(totaleSel)}</span>.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={() => { setWizStep(0); setFatturaSearch(""); setFattureSelezionate([]); }}
+                      className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+                      &larr; Indietro
+                    </button>
+                    <button
+                      onClick={confermaSelezione}
+                      disabled={fattureSelezionate.length === 0}
+                      className="px-5 py-2 rounded-lg bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      Avanti ({fattureSelezionate.length}) &rarr;
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
             {wizStep === 2 && (
               <>
                 {wizData.fattura_rif && (
@@ -1141,8 +1311,35 @@ export default function ControlloGestioneSpeseFisse() {
                           <div className="font-medium text-neutral-800">{s.titolo}</div>
                           {s.descrizione && <div className="text-[10px] text-neutral-400 truncate max-w-[200px]">{s.descrizione}</div>}
                         </td>
-                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-800">
-                          &euro; {fmt(s.importo)}
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="font-semibold text-neutral-800">&euro; {fmt(s.importo)}</div>
+                          {["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (s.totale_pagato > 0 || s.totale_residuo > 0) && (
+                            <div className="mt-1 space-y-0.5 text-[10px] leading-tight">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-neutral-400">Pagato</span>
+                                <span className="font-semibold text-emerald-700 tabular-nums">&euro; {fmt(s.totale_pagato)}</span>
+                                {s.n_rate_totali > 0 && (
+                                  <span className="text-[9px] text-neutral-400">({s.n_rate_pagate}/{s.n_rate_totali})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-neutral-400">Residuo</span>
+                                <span className="font-semibold text-indigo-700 tabular-nums">&euro; {fmt(s.totale_residuo)}</span>
+                                {s.n_rate_scadute > 0 && (
+                                  <span className="text-[9px] text-red-600 font-semibold">{s.n_rate_scadute} scad.</span>
+                                )}
+                              </div>
+                              {/* Progress bar */}
+                              {(s.totale_pagato + s.totale_residuo) > 0 && (
+                                <div className="w-full h-1 bg-neutral-100 rounded-full overflow-hidden mt-1">
+                                  <div
+                                    className="h-full bg-emerald-500 rounded-full"
+                                    style={{ width: `${Math.min(100, Math.round(s.totale_pagato / (s.totale_pagato + s.totale_residuo) * 100))}%` }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-2.5 text-neutral-600 text-xs">{freqLabel(s.frequenza)}</td>
                         <td className="px-4 py-2.5 text-center text-neutral-500 text-xs">
