@@ -21,7 +21,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   fatture: {
-    version: "2.0",
+    version: "2.1",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",

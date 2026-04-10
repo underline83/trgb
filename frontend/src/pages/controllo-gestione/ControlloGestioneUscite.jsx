@@ -266,6 +266,39 @@ export default function ControlloGestioneUscite() {
     setModaleScadenza({ ...u, data_scadenza_originale: originale });
     setNuovaScadenza(u.data_scadenza || "");
   };
+
+  // ── v2.0 Fase E: click-through intelligente su riga ──
+  // FATTURA con fattura_id  → FattureDettaglio (?from=scadenzario)
+  // SPESA_FISSA/RATEIZZATA  → pagina spese fisse (highlight della riga)
+  // STIPENDIO/ALTRO/altre   → modale modifica scadenza (comportamento legacy)
+  const handleRowClick = (u) => {
+    // Riconciliata via banca → non succede niente (comportamento pre-esistente)
+    if (u.stato === "PAGATA") return;
+
+    const tipo = u.tipo_uscita || "FATTURA";
+
+    // 1) FATTURA con collegamento → FattureDettaglio arricchito
+    if (tipo === "FATTURA" && u.fattura_id) {
+      navigate(`/acquisti/dettaglio/${u.fattura_id}?from=scadenzario`);
+      return;
+    }
+
+    // 2) Rateizzata anche senza spesa_fissa_id diretta → se c'è una fattura, vai lì
+    //    (la banner nella card spiega il link alla spesa fissa e permette il jump)
+    if (u.stato === "RATEIZZATA" && u.fattura_id) {
+      navigate(`/acquisti/dettaglio/${u.fattura_id}?from=scadenzario`);
+      return;
+    }
+
+    // 3) SPESA_FISSA / rata di rateizzazione → pagina spese fisse con highlight
+    if ((tipo === "SPESA_FISSA" || u.spesa_fissa_id) && u.spesa_fissa_id) {
+      navigate(`/controllo-gestione/spese-fisse?highlight=${u.spesa_fissa_id}&from=scadenzario`);
+      return;
+    }
+
+    // 4) STIPENDIO / ALTRO / SPESA_BANCARIA / fatture orfane → modale scadenza legacy
+    apriModaleScadenza(u);
+  };
   const salvaScadenza = async () => {
     if (!modaleScadenza || !nuovaScadenza) return;
     setSavingScadenza(true);
@@ -921,7 +954,12 @@ export default function ControlloGestioneUscite() {
 
                     return (
                       <tr key={u.id}
-                        onClick={() => apriModaleScadenza(u)}
+                        onClick={() => handleRowClick(u)}
+                        title={
+                          (u.tipo_uscita || "FATTURA") === "FATTURA" && u.fattura_id
+                            ? "Clicca per aprire il dettaglio fattura"
+                            : (u.spesa_fissa_id ? "Clicca per aprire la spesa fissa" : "Clicca per modificare la scadenza")
+                        }
                         className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
                         inPagamento ? "bg-indigo-50/50" :

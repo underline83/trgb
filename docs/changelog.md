@@ -62,9 +62,24 @@
 - **Toast feedback** — notifiche emerald/red dopo ogni save, auto-dismiss 3s
 - **Bumpata la version string del file** da `v1.0-dettaglio-fattura` a `v2.0-dettaglio-fattura`
 
+#### New — Fase E (Scadenzario click-through)
+- **`handleRowClick` intelligente nello Scadenzario Uscite** — il click su una riga ora dispatcha in base al tipo di uscita:
+  - **FATTURA con `fattura_id`** → naviga a `/acquisti/dettaglio/{fattura_id}?from=scadenzario` (apre FattureDettaglio arricchito della Fase D)
+  - **Riga `RATEIZZATA` con `fattura_id`** → stessa destinazione (la card in FattureDettaglio mostra poi il banner viola con link alla spesa fissa target)
+  - **SPESA_FISSA / rata con `spesa_fissa_id`** → naviga a `/controllo-gestione/spese-fisse?highlight={id}&from=scadenzario`
+  - **STIPENDIO / ALTRO / SPESA_BANCARIA / fatture orfane senza collegamento** → comportamento legacy: apre il modale modifica scadenza
+- **Tooltip dinamico** — l'attributo `title` della `<tr>` cambia in base al tipo (es. "Clicca per aprire il dettaglio fattura" vs "Clicca per modificare la scadenza") così Marco capisce cosa succede prima di cliccare
+- **`ControlloGestioneSpeseFisse.jsx` supporta `?highlight=<id>&from=scadenzario`** — quando la querystring è presente:
+  - La riga con `id === highlight` è evidenziata con `bg-amber-100 ring-2 ring-amber-400 animate-pulse`
+  - `scrollIntoView({ behavior: 'smooth', block: 'center' })` centra la riga nel viewport al mount
+  - Dopo 4s il param `highlight` viene rimosso dall'URL (`setSearchParams` in replace mode) così un reload non ri-triggera l'animazione
+  - Bottone "← Torna allo Scadenzario" (teal) nel header quando `from=scadenzario`, in aggiunta al bottone "← Menu" standard
+- **`useSearchParams` aggiunto a SpeseFisse** — prima non era importato. `useRef` aggiunto per il ref della riga evidenziata (scroll target)
+- **`MODULE_VERSIONS.fatture` bumpato da 2.0 a 2.1** per riflettere l'arrivo della card Pagamenti & Scadenze in FattureDettaglio
+
 #### Note architetturali v2.0
 - Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
-- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza) + B.3 (dispatcher IBAN/modalità) + D (FattureDettaglio arricchito). Pianificate: E (Scadenzario click-through verso FattureDettaglio), F (cleanup docs)
+- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza) + B.3 (dispatcher IBAN/modalità) + D (FattureDettaglio arricchito) + E (Scadenzario click-through). **Pianificata: F (cleanup docs finale, sessione.md)**
 
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 

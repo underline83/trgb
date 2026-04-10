@@ -1,7 +1,8 @@
 // @version: v2.0-wizard-spese-fisse
 // Spese Fisse — wizard guidati per Affitti, Prestiti, Assicurazioni + template Tasse + Rateizzazione fatture
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+// v2.0b Fase E: supporto ?highlight=<id>&from=scadenzario per deep-link dallo Scadenzario
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const CG = `${API_BASE}/controllo-gestione`;
@@ -45,6 +46,10 @@ const freqLabel = (f) => FREQ.find(x => x.value === f)?.label || f;
 
 export default function ControlloGestioneSpeseFisse() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("highlight");
+  const fromScadenzario = searchParams.get("from") === "scadenzario";
+  const highlightRef = useRef(null);
   const [spese, setSpese] = useState([]);
   const [riepilogo, setRiepilogo] = useState([]);
   const [totaleMensile, setTotaleMensile] = useState(0);
@@ -109,6 +114,27 @@ export default function ControlloGestioneSpeseFisse() {
   }, [filtroTipo, mostraInattive]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // v2.0b Fase E: quando arrivi con ?highlight=<id> dallo Scadenzario,
+  // scrolla alla riga e la flash-evidenzia. Il param sparisce dopo 4s
+  // così un reload non ri-triggera l'animazione.
+  useEffect(() => {
+    if (!highlightId || loading) return;
+    if (!spese.some(s => String(s.id) === String(highlightId))) return;
+    // piccolo delay per lasciare al DOM il tempo di renderizzare la riga
+    const t1 = setTimeout(() => {
+      if (highlightRef.current) {
+        highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 100);
+    const t2 = setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("highlight");
+      next.delete("from");
+      setSearchParams(next, { replace: true });
+    }, 4000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [highlightId, loading, spese]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const resetForm = () => {
     setForm({ tipo: "AFFITTO", titolo: "", descrizione: "", importo: "",
@@ -461,6 +487,12 @@ export default function ControlloGestioneSpeseFisse() {
             <p className="text-sm text-neutral-500 mt-0.5">Affitti, tasse, stipendi, prestiti, assicurazioni, rateizzazioni</p>
           </div>
           <div className="flex gap-2">
+            {fromScadenzario && (
+              <button onClick={() => navigate("/controllo-gestione/uscite")}
+                className="px-3 py-1.5 text-sm rounded-lg border border-teal-300 text-teal-700 bg-teal-50 hover:bg-teal-100 font-medium">
+                &larr; Torna allo Scadenzario
+              </button>
+            )}
             <button onClick={() => navigate("/controllo-gestione")}
               className="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 text-neutral-600 hover:bg-neutral-50">
               &larr; Menu
@@ -1300,8 +1332,15 @@ export default function ControlloGestioneSpeseFisse() {
                 <tbody>
                   {spese.map(s => {
                     const t = tipoInfo(s.tipo);
+                    const isHighlighted = highlightId && String(s.id) === String(highlightId);
                     return (
-                      <tr key={s.id} className={`border-b border-neutral-100 hover:bg-neutral-50 ${!s.attiva ? "opacity-50" : ""}`}>
+                      <tr
+                        key={s.id}
+                        ref={isHighlighted ? highlightRef : null}
+                        className={`border-b border-neutral-100 transition-all ${
+                          isHighlighted ? "bg-amber-100 ring-2 ring-amber-400 animate-pulse" : "hover:bg-neutral-50"
+                        } ${!s.attiva ? "opacity-50" : ""}`}
+                      >
                         <td className="px-4 py-2.5">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border ${t.color}`}>
                             {t.icon} {t.label}

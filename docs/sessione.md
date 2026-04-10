@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-10 (sessione 22 — v2.0 CG aggregatore, mig 055/056/057, backfill rateizzazioni **SOSPESO A META'**)
+> Ultima sessione: 2026-04-10 (sessione 22 — **v2.0 CG aggregatore COMPLETATA**: Fase A (backfill 43/43) + B.1/B.1.1/B.2/B.3 + D + E. Mancano solo F (questo cleanup) e test end-to-end)
 
 ---
 
@@ -49,42 +49,46 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nella sessione 22 (2026-04-10) — **SOSPESA A META'**
+## Cosa abbiamo fatto nella sessione 22 (2026-04-10) — **v2.0 CG aggregatore completata**
 
-### v2.0 CG aggregatore — Fase A (schema + backfill rateizzazioni)
+Sessione lunga (mattina → notte). Divisa in due tempi: backfill sospeso al pomeriggio, poi ripreso e completato con tutta la parte backend + frontend v2.0.
 
-1. **Mig 055** `fe_fatture.rateizzata_in_spesa_fissa_id` + indice parziale — APPLICATA sul VPS
-2. **Mig 056** `fe_fatture.data_prevista_pagamento`, `data_effettiva_pagamento`, `iban_beneficiario`, `modalita_pagamento_override` + 4 indici — APPLICATA sul VPS
-3. **Mig 057** `057_backfill_rateizzazioni_dryrun.py` — genera CSV senza toccare il DB, APPLICATA sul VPS (CSV in `app/data/backfill_057_dryrun.csv`)
-4. **Script apply** `scripts/apply_backfill_057.py` — con backup automatico, transazione atomica, gia' presente sul VPS
-5. **Decisioni v2.0** consolidate in `docs/v2.0-decisioni.md` (F4 insight: analitico vs finanziario, 3 campi data)
+### v2.0 CG aggregatore — Fase A (schema + backfill)
 
-### LAVORO SOSPESO — da riprendere nella sessione 23
+1. **Mig 055** `fe_fatture.rateizzata_in_spesa_fissa_id` + indice parziale — APPLICATA
+2. **Mig 056** `fe_fatture.data_prevista_pagamento`, `data_effettiva_pagamento`, `iban_beneficiario`, `modalita_pagamento_override` + 4 indici — APPLICATA
+3. **Mig 057** dry-run CSV del backfill rateizzazioni — APPLICATA
+4. **`scripts/apply_backfill_057.py`** — backup automatico + transazione atomica. **Backfill applicato: 43/43 fatture flaggate** (compreso Metro Italia risolto con `find_metro.py`)
+5. **`docs/v2.0-decisioni.md`** — consolidate le decisioni architetturali (F4 insight: analitico vs finanziario, 3 campi data)
 
-Il backfill delle 11 rateizzazioni si e' fermato al punto della **revisione del CSV**. Decisioni gia' prese:
-- **Lis Neris (sf_id 6, 767.26)**: fattura id **6611** del 2024-07-31
-- **Marchesi Antinori (sf_id 7, 5196.98)**: coppia id **5464** + **5466**, verificata somma
-- **Famiglia Cotarella, RISTO TEAM x5, Folonari, Philarmonica** (sf_id 8, 10, 11, 12, 13, 14, 15, 16): match NUM+IMPORTO 1.0, tutti auto-approvati
-- **Metro Italia (sf_id 9)**: target corretto = **13.617,34 (capitale)**, NON 14.388,50 che e' capitale+interessi+spese. Le fatture reali sono **4** (non 33 come diceva il titolo): `SP10`, `SP11`, `/9210013116/2025` (6484.51), `/9210015164/2025` (7129.33). Il dry-run NON le ha pescate (fornitore_nome probabilmente diverso). **Da cercare nel DB nella prossima sessione** con lo script `find_metro.py` gia' predisposto.
+### v2.0 CG aggregatore — Fase B (backend)
 
-### PROBLEMA GIT DA INDAGARE
+- **B.1** — `GET /controllo-gestione/uscite` riscritto come vista JOIN su `fe_fatture`. COALESCE chain per `data_scadenza_effettiva`, `modalita_pagamento_effettiva`, `iban_beneficiario_effettivo`. CASE per normalizzare stato → `RATEIZZATA`/`PAGATA`. Query param `includi_rateizzate` (default OFF) che nasconde le 43 righe rateizzate. Retrocompat piena sul payload JSON
+- **B.1.1** — toggle sidebar "Mostra rateizzate" nello Scadenzario + sfondo viola righe RATEIZZATA + badge permanente `STATO_STYLE.RATEIZZATA`
+- **B.2** — `PUT /uscite/{id}/scadenza` riscritto come **smart dispatcher 2-rami**: FATTURA con `fattura_id` → `fe_fatture.data_prevista_pagamento`; altro → `cg_uscite.data_scadenza` (legacy). Delta calcolato da `fe_fatture.data_scadenza` XML per fatture v2. **Nota**: `cg_piano_rate` non ha `data_scadenza`, quindi dispatcher 2-rami (non 3 come in roadmap originaria). Frontend `apriModaleScadenza` inietta `data_scadenza_originale` semantica (XML per fatture, cg_uscite per il resto)
+- **B.3** — nuovi endpoint `PUT /uscite/{id}/iban` e `PUT /uscite/{id}/modalita-pagamento` (dispatcher). FATTURA → `fe_fatture.iban_beneficiario` / `fe_fatture.modalita_pagamento_override`; SPESA_FISSA → `cg_spese_fisse.iban`; altri → 422. Helper `_normalize_iban` (upper+strip), `_normalize_mp_code`. Risposta con `fonte_modifica` per tracciamento
 
-Durante questa sessione abbiamo scoperto una divergenza strana:
-- **Mac** (sandbox): HEAD = `67905f6` = origin/main = github/main, allineati
-- **VPS working dir** `/home/marco/trgb/trgb`: HEAD = `e745d99a` con commit "fix: push.sh backup runtime prima del push, wizard rateizzazione..." che **NON esiste sul Mac**. Tutti i 5 commit recenti del VPS hanno hash e messaggi che non combaciano con nessun commit del Mac.
-- Conseguenza: **abbiamo bypassato git** e messo mig 057 + apply script sul VPS via scp diretto, senza passare da push.sh. Funziona ma lascia una traccia sporca.
-- **Da indagare** prima del prossimo push.sh: capire perche' il VPS working dir ha una storia diversa, e riallineare. Ipotesi: working dir VPS aggiornata da qualcuno/qualcosa che non e' push.sh (commit diretti? worktree?). Leggere `git remote -v` sul VPS e ispezionare l'hook post-receive del bare repo `/home/marco/trgb/trgb.git/hooks/post-receive`.
+### v2.0 CG aggregatore — Fase D (FattureDettaglio arricchito)
 
-### TODO sessione 23 in ordine
+- **`GET /contabilita/fe/fatture/{id}` esteso** con tutti i campi v2.0 (scadenze, IBAN, mp override, rateizzata flag, sub-oggetto `uscita` con batch) + COALESCE chain Python-side
+- **`FattureDettaglio.jsx`** — nuova card "Pagamenti & Scadenze" tra header e righe con:
+  - Badge stato uscita + badge rateizzata/batch
+  - Banner viola + link alla spesa fissa se rateizzata
+  - 3 tile editabili (Scadenza / Modalità / IBAN) con flag "override", edit inline → endpoint B.2/B.3
+  - Modifica bloccata se PAGATA o RATEIZZATA
+  - Breadcrumb `?from=scadenzario` → "Torna allo Scadenzario"
+  - Toast feedback emerald/red
 
-1. Leggere `project_v2_backfill_state.md` in memoria
-2. Sul VPS: `ssh trgb` e lanciare `find_metro.py` per trovare id delle 4 fatture Metro (SP10, SP11, /9210013116/2025, /9210015164/2025). Se non le trova con LIKE '%etro%', allargare la ricerca (fornitore_piva, intervallo date esteso)
-3. Costruire `backfill_057_approved.csv` con 14 righe approvate
-4. Upload e apply
-5. Verificare flag via PRAGMA / query
-6. Bulk-update separato: marcare pagato=1 sulle ~60 fatture Metro residue (NON rateizzate)
-7. Indagine git divergenza
-8. **Poi** Fase B v2.0 (query JOIN+CASE in CG uscite + indexes)
+### v2.0 CG aggregatore — Fase E (Scadenzario click-through)
+
+- **`handleRowClick` intelligente** nello Scadenzario: FATTURA → FattureDettaglio; SPESA_FISSA → SpeseFisse con highlight; altri → modale legacy. Tooltip dinamico
+- **`ControlloGestioneSpeseFisse.jsx`** supporta `?highlight=<id>&from=scadenzario`: scrollIntoView + `animate-pulse ring-amber`, param rimosso dopo 4s, bottone "← Torna allo Scadenzario" teal in header
+
+### Workflow lessons apprese
+
+- **push.sh SOLO dal main working dir** (`/Users/underline83/trgb`). MAI dai worktree `.claude/worktrees/*` — committa sul branch sbagliato e il push non arriva in main (salvato come memory `feedback_push_sh_cwd.md`)
+- **VPS git status sporco è cosmetico**: il post-receive hook usa `--git-dir=$BARE --work-tree=$WORKING_DIR checkout -f` che scrive i file ma non aggiorna il `.git/` locale. L'indicatore vero del deploy è `deploy.log` sul VPS (salvato come memory `project_vps_cosmetic_git.md`)
+- **Non fidarsi del titolo del commit**: quando B.1 era "già pushato" secondo il messaggio, in realtà il commit conteneva solo i docs. Il router era in un worktree non committato. Lezione: sempre `git show --stat <hash>` per verificare
 
 ---
 
