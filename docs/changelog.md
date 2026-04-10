@@ -31,9 +31,23 @@
 - **Frontend `apriModaleScadenza`** — inietta una `data_scadenza_originale` semanticamente corretta nel modale: per fatture v2.0 usa `u.data_scadenza_xml` (esposto dal GET /uscite), per le altre resta `u.data_scadenza_originale`
 - **Nota `cg_piano_rate`** — non ha colonna `data_scadenza`; per le rate delle spese fisse la scadenza effettiva continua a vivere in `cg_uscite`, quindi il dispatcher resta a 2 rami (non 3 come inizialmente previsto in roadmap)
 
+#### New — Fase B.3 (smart dispatcher IBAN + modalità pagamento)
+- **`PUT /controllo-gestione/uscite/{id}/iban`** — nuovo endpoint dispatcher:
+  - **FATTURA con `fattura_id`** → `fe_fatture.iban_beneficiario` (campo v2.0 della mig 056)
+  - **SPESA_FISSA con `spesa_fissa_id`** → `cg_spese_fisse.iban` (campo nativo)
+  - **STIPENDIO / ALTRO / SPESA_BANCARIA** → 422 non supportato (non esiste una fonte stabile dove persistere un override IBAN per questi tipi; vanno editati alla sorgente)
+  - IBAN normalizzato (upper, strip, no spazi); `null` o stringa vuota puliscono l'override
+- **`PUT /controllo-gestione/uscite/{id}/modalita-pagamento`** — nuovo endpoint dispatcher:
+  - **FATTURA con `fattura_id`** → `fe_fatture.modalita_pagamento_override` (il campo XML originale `f.modalita_pagamento` resta intoccato; l'override vince nella COALESCE chain del GET /uscite)
+  - **Altri tipi** → 422 non supportato (per le spese fisse la modalità è implicita; stipendi/altri non hanno concetto di codice SEPA MP)
+  - Codice MP normalizzato (upper, strip); `null` pulisce l'override e la UI tornerà a mostrare XML/fornitore
+  - Risposta include `modalita_pagamento_label` via `MP_LABELS` per consumo diretto da frontend
+- **Pattern `fonte_modifica` in risposta** — entrambi gli endpoint ritornano `fonte_modifica` (es. `fe_fatture.iban_beneficiario`) per tracciamento/debug del dispatcher v2.0, stesso contratto di B.2
+- **Niente UI in questa fase** — gli endpoint restano "dormienti" fino a Fase D, dove FattureDettaglio arricchito fornirà l'interfaccia utente per override IBAN/modalità. La frontend UX è intenzionalmente rimandata per non sovrapporsi con il modale attuale dello Scadenzario
+
 #### Note architetturali v2.0
 - Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
-- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza). Pianificate: B.3 (dispatcher IBAN/modalità), D (FattureDettaglio arricchito), E (Scadenzario badge+click-through), F (cleanup docs)
+- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza) + B.3 (dispatcher IBAN/modalità). Pianificate: D (FattureDettaglio arricchito), E (Scadenzario badge+click-through), F (cleanup docs)
 
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 

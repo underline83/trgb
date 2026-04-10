@@ -1893,6 +1893,165 @@ def modifica_scadenza(
         conn.close()
 
 
+# ═══════════════════════════════════════════════════════════════════
+# B.3 — SMART DISPATCHER IBAN + MODALITÀ PAGAMENTO (v2.0)
+# ═══════════════════════════════════════════════════════════════════
+#
+# Simmetrico a B.2: override di IBAN e modalità pagamento per una
+# singola uscita. La scrittura va sulla fonte di verità corretta in
+# base al tipo di uscita:
+#
+#   FATTURA  → fe_fatture.iban_beneficiario / .modalita_pagamento_override
+#   SPESA_FISSA → cg_spese_fisse.iban  (solo IBAN; niente mp override)
+#   STIPENDIO/ALTRO/SPESA_BANCARIA → non supportato (422)
+#
+# Il payload ritornato include `fonte_modifica` per tracciamento.
+# Passare `null` (o stringa vuota) come valore pulisce l'override.
+
+def _normalize_iban(raw):
+    """Normalizza un IBAN: upper, strip, rimuovi spazi. None/"" → None."""
+    if raw is None:
+        return None
+    s = str(raw).strip().upper().replace(" ", "")
+    return s or None
+
+
+def _normalize_mp_code(raw):
+    """Normalizza un codice modalità pagamento (MP01..MP23). None/"" → None."""
+    if raw is None:
+        return None
+    s = str(raw).strip().upper()
+    return s or None
+
+
+@router.put("/uscite/{uscita_id}/iban")
+def modifica_iban(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Cambia l'IBAN beneficiario di un'uscita — smart dispatcher v2.0.
+
+    Body: { iban: "IT60X..." | null }
+
+    Logica dispatcher:
+    - FATTURA con `fattura_id` → `fe_fatture.iban_beneficiario`
+    - SPESA_FISSA con `spesa_fissa_id` → `cg_spese_fisse.iban`
+    - Altri tipi (STIPENDIO/ALTRO/SPESA_BANCARIA) → 422 non supportato
+      (non c'è una fonte stabile dove persistere l'IBAN per queste;
+      vanno editati direttamente dove sono stati creati)
+
+    Passare `null` o stringa vuota pulisce l'override.
+    """
+    iban = _normalize_iban(payload.get("iban"))
+    conn = get_fc_db()
+    try:
+        row = conn.execute("""
+            SELECT u.id, u.tipo_uscita, u.fattura_id, u.spesa_fissa_id, u.stato
+            FROM cg_uscite u
+            WHERE u.id = ?
+        """, [uscita_id]).fetchone()
+        if not row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        if row["stato"] == "PAGATA":
+            return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
+
+        tipo_uscita = (row["tipo_uscita"] or "FATTURA")
+        fattura_id = row["fattura_id"]
+        spesa_fissa_id = row["spesa_fissa_id"]
+
+        if tipo_uscita == "FATTURA" and fattura_id is not None:
+            conn.execute(
+                "UPDATE fe_fatture SET iban_beneficiario = ? WHERE id = ?",
+                [iban, fattura_id],
+            )
+            fonte_modifica = "fe_fatture.iban_beneficiario"
+        elif tipo_uscita == "SPESA_FISSA" and spesa_fissa_id is not None:
+            conn.execute(
+                "UPDATE cg_spese_fisse SET iban = ?, updated_at = datetime('now') WHERE id = ?",
+                [iban, spesa_fissa_id],
+            )
+            fonte_modifica = "cg_spese_fisse.iban"
+        else:
+            return {
+                "ok": False,
+                "error": f"IBAN override non supportato per tipo_uscita={tipo_uscita} "
+                         f"(fattura_id={fattura_id}, spesa_fissa_id={spesa_fissa_id})",
+            }
+
+        conn.commit()
+        return {
+            "ok": True,
+            "iban": iban,
+            "fonte_modifica": fonte_modifica,
+        }
+    finally:
+        conn.close()
+
+
+@router.put("/uscite/{uscita_id}/modalita-pagamento")
+def modifica_modalita_pagamento(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Cambia la modalità di pagamento (codice SEPA MP01..MP23) di un'uscita.
+
+    Body: { modalita_pagamento: "MP05" | null }
+
+    Logica dispatcher:
+    - FATTURA con `fattura_id` → `fe_fatture.modalita_pagamento_override`
+      (il campo XML originale `fe_fatture.modalita_pagamento` resta
+      intoccato; l'override ha precedenza nella COALESCE chain lato GET)
+    - Altri tipi → 422 non supportato: per le spese fisse la modalità
+      è implicita/non modellata a livello SEPA; per stipendi/altri non
+      c'è proprio il concetto di codice MP
+
+    Passare `null` o stringa vuota rimuove l'override (la query tornerà
+    a mostrare il valore XML o il default fornitore).
+    """
+    mp = _normalize_mp_code(payload.get("modalita_pagamento"))
+    conn = get_fc_db()
+    try:
+        row = conn.execute("""
+            SELECT u.id, u.tipo_uscita, u.fattura_id, u.stato
+            FROM cg_uscite u
+            WHERE u.id = ?
+        """, [uscita_id]).fetchone()
+        if not row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        if row["stato"] == "PAGATA":
+            return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
+
+        tipo_uscita = (row["tipo_uscita"] or "FATTURA")
+        fattura_id = row["fattura_id"]
+
+        if tipo_uscita == "FATTURA" and fattura_id is not None:
+            conn.execute(
+                "UPDATE fe_fatture SET modalita_pagamento_override = ? WHERE id = ?",
+                [mp, fattura_id],
+            )
+            fonte_modifica = "fe_fatture.modalita_pagamento_override"
+        else:
+            return {
+                "ok": False,
+                "error": f"Modalità pagamento override non supportato per tipo_uscita={tipo_uscita} "
+                         f"(solo FATTURA con fattura_id valorizzato)",
+            }
+
+        conn.commit()
+        return {
+            "ok": True,
+            "modalita_pagamento": mp,
+            "modalita_pagamento_label": MP_LABELS.get(mp, mp) if mp else None,
+            "fonte_modifica": fonte_modifica,
+        }
+    finally:
+        conn.close()
+
+
 # ── Segna pagate bulk ──────────────────────────────────────────
 @router.post("/uscite/segna-pagate-bulk")
 def segna_pagate_bulk(
