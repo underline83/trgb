@@ -101,6 +101,14 @@ export default function ControlloGestioneUscite() {
     }
   }, []); // eslint-disable-line
 
+  // Reset ordinamento al cambio tab stato:
+  // - Da pagare / Scadute → data_scadenza ASC (le più vecchie/urgenti prima)
+  // - Pagate → data_scadenza DESC (le più recenti prima)
+  useEffect(() => {
+    setSortCol("data_scadenza");
+    setSortDir(filtroStato === "PAGATA" ? "desc" : "asc");
+  }, [filtroStato]);
+
   const allUscite = data?.uscite || [];
   const rig = data?.riepilogo || {};
 
