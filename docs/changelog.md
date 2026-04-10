@@ -7,6 +7,7 @@
 
 #### Fix — Rateizzazione: genera subito anche le uscite
 - **POST `/spese-fisse` con piano_rate** — oltre a inserire `cg_piano_rate`, crea contestualmente le righe `cg_uscite` con stato `DA_PAGARE` (o `SCADUTA` se la data scadenza è già passata), usando il `giorno_scadenza` clampato al massimo del mese. Prima le uscite comparivano solo dopo aver cliccato "Import uscite", e l'aggregato pagato/residuo restava vuoto per le rateizzazioni appena create
+- **Migrazione 052** — backfill: per le rateizzazioni/prestiti già esistenti con `cg_piano_rate` popolato ma senza `cg_uscite`, crea le uscite mancanti così il riepilogo pagato/residuo diventa disponibile anche retroattivamente
 - **UI colonna Importo** — la condizione che mostra "Pagato/Residuo" ora si basa su `n_rate_totali > 0` oltre che sui totali, così il blocco appare anche per rateizzazioni con totale pagato ancora a zero
 
 #### New — Avanzamento pagato / residuo in tabella Spese Fisse
