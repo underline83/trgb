@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-04-10 (notte) — Sistema Backup: fix permessi + router rifatto + banner warning età
+
+#### Incident — backup fermo da 12 giorni senza che nessuno se ne accorgesse
+- **Causa** — lo script `scripts/backup_db.sh` aveva perso il bit eseguibile (quasi certamente dopo un `push.sh` recente: git non sempre preserva `+x` quando riscrive un file già tracciato). Il cron marco continuava a provare a lanciarlo sia alle ore (`--hourly`) sia alle 03:30 (`--daily`) ma fallisce subito con `Permission denied`, senza nemmeno entrare nello script. Ultimo backup hourly riuscito: `20260329_223319` (2026-03-29 22:33, 12 giorni fa). La cartella `app/data/backups/daily/` era completamente vuota
+- **Fix immediato** — `ssh trgb "chmod +x /home/marco/trgb/trgb/scripts/backup_db.sh"`. Test di verifica con `--daily` eseguito subito dopo: tutti e 6 i DB backuppati (foodcost 6.5M, admin_finance 324K, vini 788K, vini_magazzino 2.9M, vini_settings 56K, dipendenti 104K), rotazione OK, sync Google Drive OK, cartella `daily/20260410_214042/` creata correttamente
+
+#### Architettura — backup_router.py riscritto per puntare al sistema reale
+- **Problema scoperto insieme all'incident** — il modulo `backup_router.py` leggeva da `/home/marco/trgb/backups/*.tar.gz` (Sistema B, residuo di un vecchio `backup.sh` mai più usato dal cron) mentre il cron vero scrive in `/home/marco/trgb/trgb/app/data/backups/daily/YYYYMMDD_HHMMSS/` (Sistema A, via `scripts/backup_db.sh`). Risultato: anche quando il cron funzionava, la UI "Backup giornalieri sul server" non mostrava nulla di recente — da settimane il tab Backup mostrava solo i due file fantasma del 2026-03-20 generati manualmente tempo addietro
+- **`backup_router.py` v2** — puntamento riportato su `DATA_DIR / "backups" / "daily"`. Nuova helper `_list_daily_snapshots()` che itera le cartelle `YYYYMMDD_HHMMSS`, le parsa con `datetime.strptime`, calcola la size totale dei file al loro interno e restituisce una lista ordinata (più recente prima). Gli endpoint `/backup/list` e `/backup/info` ora consumano questa helper
+- **Download al volo di una cartella come tar.gz** — l'endpoint `GET /backup/download/{filename}` non serve più file tar.gz preesistenti ma confeziona in memoria (`io.BytesIO` + `tarfile.open mode="w:gz"`) la cartella di snapshot richiesta, impacchettando tutti i `.db`/`.sqlite3` al suo interno con i nomi originali. Il file restituito al browser si chiama `trgb-backup-YYYYMMDD_HHMMSS.tar.gz`. Sanity check rinforzato: oltre a bloccare `..` e `/`, il `filename` deve matchare il formato `YYYYMMDD_HHMMSS` (altrimenti 400)
+- **Nuovo campo `last_backup_age_hours` in `/backup/info`** — calcolato come `(datetime.now() - timestamp_cartella).total_seconds() / 3600`. È il campo che abilita il banner warning nella UI (vedi sotto)
+
+#### UX — banner warning se l'ultimo backup è troppo vecchio
+- **`ImpostazioniSistema.jsx / TabBackup`** — aggiunto un banner in cima al tab che si comporta a 3 livelli: **verde** (≤ 30h, nessun banner — mostrato solo come badge accanto a "Ultimo backup automatico: ..."), **amber** (30-48h, banner giallo "Il backup notturno potrebbe essere stato saltato"), **red** (> 48h o `null`, banner rosso "Nessun backup automatico trovato" oppure "Ultimo backup di N ore fa"). Le due soglie sono calibrate sul cron reale: `--daily` alle 03:30 ogni notte, quindi un gap normale è 24h (massimo 26-27h se l'utente guarda la mattina presto), 30h è già "oggi è stato saltato", 48h è "sistema rotto"
+- **Obiettivo** — se il bit `+x` sparisce di nuovo (o qualsiasi altro guasto blocca il cron), Marco vede immediatamente il banner rosso la prossima volta che apre Impostazioni → Backup, invece di accorgersene settimane dopo come questa volta
+
+#### Cleanup file orfani
+- **Rimosso `backup.sh` dalla root del repo** — era un vecchio script Sistema B che scriveva tar.gz in `/home/marco/trgb/backups/`, superseduto da `scripts/backup_db.sh` da tempo ma mai cancellato. Il cron non lo chiamava più da mesi
+- **`setup-backup-and-security.sh` riscritto** — ora installa le DUE crontab corrette (`backup_db.sh --hourly` ogni ora, `backup_db.sh --daily` alle 03:30) e fa `chmod +x` su `scripts/backup_db.sh` invece che sul vecchio `backup.sh`. Il test di verifica a fine setup lancia `--daily`
+- **`docs/deploy.md`, `docs/sessione.md`, `docs/GUIDA-RAPIDA.md`** — tutti i riferimenti a `backup.sh` sostituiti con `scripts/backup_db.sh --daily`. Aggiunta in `deploy.md` e `sessione.md` una nota esplicita sul problema del bit `+x` che può sparire dopo un push, con il comando di fix pronto da copiare. `docs/deploy.md` ora documenta correttamente la struttura `app/data/backups/{hourly,daily}/YYYYMMDD_HHMMSS/` e le retention reali (48h per hourly, 7 giorni per daily)
+
+#### Note operative
+- Il banner warning appare solo per gli admin (`/backup/info` ha `_require_admin`). Gli utenti normali non hanno accesso al tab Backup
+- Il cron lanciato automaticamente ricomincerà a funzionare già dalla prima ora successiva al fix. Non è stato necessario riavviare niente: `crond` rilegge l'eseguibilità ogni volta che prova a lanciare lo script
+- Il sync su Google Drive (`gdrive:TRGB-Backup/db-daily`) tramite rclone è ripartito con successo al primo test manuale, quindi anche la copia off-site è di nuovo allineata a oggi
+
+---
+
 ## 2026-04-10 (tardi sera) — Acquisti v2.2: Unificazione dettaglio fattura in un unico componente riutilizzabile
 
 #### Refactor — Fase H (un solo FattureDettaglio per tutti i moduli)

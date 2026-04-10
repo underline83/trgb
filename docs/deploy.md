@@ -272,20 +272,28 @@ Il percorso nel sudoers deve corrispondere esattamente all'output di `which syst
 
 ## 10.1 Backup giornaliero database (automatico)
 
-Lo script `backup.sh` viene eseguito ogni notte alle 3:00 via cron.
-Salva tutti i database SQLite in `/home/marco/trgb/backups/` con retention 30 giorni.
-Dopo la compressione, il backup viene **caricato automaticamente su Google Drive** (cartella `TRGB-Backup`) via rclone.
+Lo script `scripts/backup_db.sh` viene eseguito via cron in due modalità:
+
+- `--hourly` ogni ora al minuto 0 (retention 48 ore)
+- `--daily` alle 03:30 (retention 7 giorni + sync su Google Drive)
+
+Usa `sqlite3 .backup` (copia atomica e consistente) su tutti i 6 database SQLite.
+Ogni esecuzione produce una cartella `YYYYMMDD_HHMMSS/` sotto `app/data/backups/{hourly,daily}/` contenente le copie dei DB.
+Il backup `--daily` viene inoltre sincronizzato su Google Drive (cartella `TRGB-Backup/db-daily`) via rclone.
 
 ```bash
-# Backup manuale
-/home/marco/trgb/trgb/backup.sh
+# Backup manuale (giornaliero)
+/home/marco/trgb/trgb/scripts/backup_db.sh --daily
 
-# Vedere i backup esistenti
-ls -la /home/marco/trgb/backups/
+# Vedere i backup esistenti sul server
+ls -la /home/marco/trgb/trgb/app/data/backups/daily/
+ls -la /home/marco/trgb/trgb/app/data/backups/hourly/
 
-# Log backup
-cat /home/marco/trgb/backups/backup.log
+# Log backup (cron)
+tail -f /home/marco/trgb/backups/backup.log
 ```
+
+> ⚠️ **Attenzione**: lo script deve avere il bit `+x`. Se dopo un push.sh sparisce (capitato a fine marzo 2026), il cron fallisce silenziosamente con `Permission denied`. Il fix è `chmod +x scripts/backup_db.sh` sul VPS. La UI mostra un banner rosso se l'ultimo backup ha più di 48 ore.
 
 ## 10.2 Download backup dall'app web
 
@@ -297,8 +305,8 @@ Endpoint API: `GET /backup/download` (backup istantaneo), `GET /backup/list` (li
 
 ## 10.3 Google Drive (backup off-site)
 
-I backup vengono caricati automaticamente su Google Drive nella cartella `TRGB-Backup` via rclone.
-Anche gli script principali (`backup.sh`, `push.sh`, `setup-backup-and-security.sh`) sono copiati in `TRGB-Backup/scripts/`.
+I backup giornalieri vengono sincronizzati automaticamente su Google Drive nella cartella `TRGB-Backup/db-daily` via rclone.
+Anche gli script principali (`scripts/backup_db.sh`, `push.sh`, `setup-backup-and-security.sh`) sono copiati in `TRGB-Backup/scripts/`.
 
 ```bash
 # Verifica configurazione rclone

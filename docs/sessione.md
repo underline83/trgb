@@ -350,8 +350,8 @@ app/services/auth_service.py           — auth PIN sha256_crypt
 app/data/users.json                    — store utenti (marco/iryna/paolo/ospite)
 
 # --- BACKUP ---
-app/routers/backup_router.py           — download backup on-demand, lista, info
-backup.sh                              — backup notturno + upload Google Drive
+app/routers/backup_router.py           — download backup on-demand, lista, info, age warning
+scripts/backup_db.sh                   — backup orario + giornaliero (cron) + sync Google Drive
 setup-backup-and-security.sh           — setup cron + fail2ban (one-time)
 
 # --- CHIUSURE TURNO ---
@@ -432,10 +432,12 @@ frontend/src/pages/CambioPIN.jsx       — self-service + admin reset
 | `dipendenti.sqlite3` | Dipendenti (runtime) |
 
 ### Backup database
-- **Automatico**: ogni notte alle 3:00 → `/home/marco/trgb/backups/` + Google Drive `TRGB-Backup/`
-- **Manuale da app**: Admin → Impostazioni → tab Backup
-- **Manuale da CLI**: `ssh trgb "/home/marco/trgb/trgb/backup.sh"`
-- **Retention**: 30 giorni (locale + Drive)
+- **Automatico orario**: ogni ora al minuto 0 → `app/data/backups/hourly/YYYYMMDD_HHMMSS/` (retention 48h)
+- **Automatico giornaliero**: ore 03:30 → `app/data/backups/daily/YYYYMMDD_HHMMSS/` + sync Google Drive `TRGB-Backup/db-daily` (retention 7gg)
+- **Script**: `scripts/backup_db.sh --hourly | --daily` — usa `sqlite3 .backup` (copia atomica)
+- **Manuale da app**: Admin → Impostazioni → tab Backup (banner rosso se ultimo backup > 48h)
+- **Manuale da CLI**: `ssh trgb "/home/marco/trgb/trgb/scripts/backup_db.sh --daily"`
+- ⚠️ **Attenzione**: il bit `+x` sullo script può sparire dopo un push.sh. Fix: `chmod +x scripts/backup_db.sh`.
 
 ---
 

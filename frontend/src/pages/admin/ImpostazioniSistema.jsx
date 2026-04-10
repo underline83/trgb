@@ -654,8 +654,55 @@ function TabBackup() {
   if (loading) return <p className="text-center text-neutral-400 py-12">Caricamento...</p>;
   if (error && !info) return <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4">{error}</div>;
 
+  // Stato di allarme sul backup automatico:
+  //   verde  = < 30h      (cron giornaliero regolare)
+  //   amber  = 30h – 48h  (saltato 1 giorno, ancora tollerabile)
+  //   red    = > 48h o null (sistema rotto o mai fatto)
+  const ageH = info?.last_backup_age_hours;
+  let backupAlert = null;
+  if (info) {
+    if (ageH == null) {
+      backupAlert = {
+        tone: "red",
+        title: "Nessun backup automatico trovato",
+        msg: "Il cron di backup giornaliero non ha mai prodotto un file, oppure la cartella è vuota. Controlla lo script scripts/backup_db.sh sul VPS.",
+      };
+    } else if (ageH > 48) {
+      backupAlert = {
+        tone: "red",
+        title: `Ultimo backup di ${Math.round(ageH)} ore fa`,
+        msg: `Sono passate più di 48 ore dall'ultimo backup automatico. Verifica che il cron e scripts/backup_db.sh funzionino.`,
+      };
+    } else if (ageH > 30) {
+      backupAlert = {
+        tone: "amber",
+        title: `Ultimo backup di ${Math.round(ageH)} ore fa`,
+        msg: "Il backup notturno potrebbe essere stato saltato. Se persiste oltre le 48h diventa un allarme rosso.",
+      };
+    }
+  }
+
   return (
     <div className="space-y-8">
+
+      {/* WARNING ETÀ BACKUP */}
+      {backupAlert && (
+        <div className={
+          backupAlert.tone === "red"
+            ? "bg-red-50 border border-red-200 text-red-800 rounded-2xl px-5 py-4"
+            : "bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-5 py-4"
+        }>
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none">
+              {backupAlert.tone === "red" ? "🚨" : "⚠️"}
+            </span>
+            <div className="flex-1">
+              <p className="font-semibold text-sm">{backupAlert.title}</p>
+              <p className="text-xs mt-1 opacity-90">{backupAlert.msg}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STATO DATABASE */}
       {info && (
@@ -672,6 +719,9 @@ function TabBackup() {
           {info.last_backup && (
             <p className="text-xs text-neutral-400 mt-3">
               Ultimo backup automatico: <strong>{info.last_backup.date}</strong> ({info.last_backup.size_mb} MB)
+              {ageH != null && ageH <= 30 && (
+                <span className="ml-2 text-emerald-600">· {ageH < 1 ? "poco fa" : `${Math.round(ageH)}h fa`}</span>
+              )}
             </p>
           )}
         </div>

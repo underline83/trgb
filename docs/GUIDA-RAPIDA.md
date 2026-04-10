@@ -13,9 +13,14 @@ ssh trgb
 
 ## Backup manuale database
 ```bash
-ssh trgb "/home/marco/trgb/trgb/backup.sh"
+ssh trgb "/home/marco/trgb/trgb/scripts/backup_db.sh --daily"
 ```
-Il backup viene anche caricato automaticamente su Google Drive (cartella `TRGB-Backup`).
+Il backup giornaliero viene anche sincronizzato automaticamente su Google Drive (cartella `TRGB-Backup/db-daily`).
+
+Se il cron sembra fermo, controllare prima il bit eseguibile:
+```bash
+ssh trgb "ls -la /home/marco/trgb/trgb/scripts/backup_db.sh && chmod +x /home/marco/trgb/trgb/scripts/backup_db.sh"
+```
 
 ## Download backup dall'app
 Admin → Impostazioni → tab **Backup** → "Scarica backup completo"
