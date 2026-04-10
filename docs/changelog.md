@@ -21,9 +21,19 @@
 - **Sfondo viola leggero** (`bg-purple-50/40`) sulle righe con stato `RATEIZZATA` + badge permanente "Rateizzata" nella colonna STATO (via `STATO_STYLE.RATEIZZATA`)
 - **clearFilters + conteggio activeFilters** aggiornati per includere il nuovo toggle
 
+#### New — Fase B.2 (smart dispatcher modifica scadenza)
+- **`PUT /controllo-gestione/uscite/{id}/scadenza` riscritto come dispatcher v2.0** — in base al tipo di uscita la nuova scadenza viene scritta sulla fonte di verità corretta:
+  - **FATTURA con `fattura_id`** → scrive su `fe_fatture.data_prevista_pagamento` (nuovo campo introdotto con mig 056). `cg_uscite.data_scadenza` NON viene toccata: la query di lettura la recupera via COALESCE chain preferendo il campo v2.0
+  - **Spese fisse / manuali / bancarie** → comportamento legacy su `cg_uscite.data_scadenza` (+ tracciamento `data_scadenza_originale` via COALESCE idempotente)
+- **Calcolo delta "originale"** — per le fatture v2.0 il delta giorni viene calcolato rispetto a `fe_fatture.data_scadenza` (XML analitico), non rispetto a `cg_uscite.data_scadenza_originale`: questo perché il primo override su una fattura v2.0 non sporca più cg_uscite, quindi l'XML è l'unica baseline semanticamente corretta
+- **Stato workflow ricalcolato in entrambi i rami** — SCADUTA ↔ DA_PAGARE in base a nuova vs oggi, su `cg_uscite.stato` (resta indice di workflow anche per le fatture v2.0)
+- **Risposta arricchita** — il payload include `fonte_modifica` (`fe_fatture.data_prevista_pagamento` o `cg_uscite.data_scadenza`) per tracciamento/debug del dispatcher
+- **Frontend `apriModaleScadenza`** — inietta una `data_scadenza_originale` semanticamente corretta nel modale: per fatture v2.0 usa `u.data_scadenza_xml` (esposto dal GET /uscite), per le altre resta `u.data_scadenza_originale`
+- **Nota `cg_piano_rate`** — non ha colonna `data_scadenza`; per le rate delle spese fisse la scadenza effettiva continua a vivere in `cg_uscite`, quindi il dispatcher resta a 2 rami (non 3 come inizialmente previsto in roadmap)
+
 #### Note architetturali v2.0
 - Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
-- Questa è la Fase B.1 + B.1.1; B.2 (smart dispatcher modifica scadenza) e B.3 (IBAN/modalità override) sono pianificate
+- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza). Pianificate: B.3 (dispatcher IBAN/modalità), D (FattureDettaglio arricchito), E (Scadenzario badge+click-through), F (cleanup docs)
 
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 

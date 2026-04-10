@@ -257,7 +257,13 @@ export default function ControlloGestioneUscite() {
   const apriModaleScadenza = (u) => {
     // Non aprire per righe riconciliate via banca
     if (u.stato === "PAGATA") return;
-    setModaleScadenza(u);
+    // v2.0: per fatture la "data originale" semantica è quella XML (f.data_scadenza).
+    // Per spese fisse / manuali resta cg_uscite.data_scadenza_originale.
+    const isFatturaV2 = !!u.fattura_id;
+    const originale = isFatturaV2
+      ? (u.data_scadenza_xml || u.data_scadenza_originale || u.data_scadenza)
+      : (u.data_scadenza_originale || u.data_scadenza);
+    setModaleScadenza({ ...u, data_scadenza_originale: originale });
     setNuovaScadenza(u.data_scadenza || "");
   };
   const salvaScadenza = async () => {
