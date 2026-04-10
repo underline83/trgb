@@ -1355,18 +1355,83 @@ def get_piano_rate(
     spesa_id: int,
     current_user=Depends(get_current_user),
 ):
-    """Restituisce il piano rate di una spesa fissa."""
+    """
+    Restituisce il piano rate di una spesa fissa, arricchito con lo stato
+    della corrispondente uscita (pagata / da pagare / scaduta) quando esiste.
+    """
     fc = get_fc_db()
     try:
+        # Meta spesa fissa (titolo, tipo, importo riferimento)
+        sf_row = fc.execute(
+            "SELECT id, tipo, titolo, importo, data_inizio, data_fine FROM cg_spese_fisse WHERE id = ?",
+            (spesa_id,)
+        ).fetchone()
+        spesa = dict(sf_row) if sf_row else None
+
+        # Piano rate + LEFT JOIN con cg_uscite (per stato + importo effettivamente pagato)
         rows = fc.execute("""
-            SELECT id, numero_rata, periodo, importo, note
-            FROM cg_piano_rate
-            WHERE spesa_fissa_id = ?
-            ORDER BY periodo
+            SELECT
+                pr.id, pr.numero_rata, pr.periodo, pr.importo, pr.note,
+                u.id              AS uscita_id,
+                u.stato           AS uscita_stato,
+                u.data_scadenza   AS uscita_scadenza,
+                u.importo_pagato  AS uscita_pagato,
+                u.data_pagamento  AS uscita_data_pagamento,
+                u.totale          AS uscita_totale
+            FROM cg_piano_rate pr
+            LEFT JOIN cg_uscite u
+              ON u.spesa_fissa_id = pr.spesa_fissa_id
+             AND u.periodo_riferimento = pr.periodo
+            WHERE pr.spesa_fissa_id = ?
+            ORDER BY pr.periodo
         """, (spesa_id,)).fetchall()
-        return {"ok": True, "rate": [dict(r) for r in rows]}
-    except Exception:
-        return {"ok": True, "rate": []}
+
+        rate = []
+        tot_pianificato = 0.0
+        tot_pagato = 0.0
+        tot_residuo = 0.0
+        n_pagate = 0
+        n_da_pagare = 0
+        n_scadute = 0
+        for r in rows:
+            d = dict(r)
+            imp = float(d.get("importo") or 0)
+            tot_pianificato += imp
+            stato = d.get("uscita_stato")
+            if stato in ("PAGATA", "PAGATA_MANUALE"):
+                n_pagate += 1
+                tot_pagato += float(d.get("uscita_pagato") or 0)
+            elif stato == "PARZIALE":
+                n_pagate += 1
+                tot_pagato += float(d.get("uscita_pagato") or 0)
+                tot_residuo += max(float(d.get("uscita_totale") or imp) - float(d.get("uscita_pagato") or 0), 0)
+            elif stato == "SCADUTA":
+                n_scadute += 1
+                tot_residuo += imp
+            elif stato == "DA_PAGARE":
+                n_da_pagare += 1
+                tot_residuo += imp
+            else:
+                # Nessuna uscita associata (rata nel piano senza scadenza generata)
+                tot_residuo += imp
+            rate.append(d)
+
+        return {
+            "ok": True,
+            "spesa": spesa,
+            "rate": rate,
+            "riepilogo": {
+                "n_rate": len(rate),
+                "n_pagate": n_pagate,
+                "n_da_pagare": n_da_pagare,
+                "n_scadute": n_scadute,
+                "totale_pianificato": round(tot_pianificato, 2),
+                "totale_pagato": round(tot_pagato, 2),
+                "totale_residuo": round(tot_residuo, 2),
+            },
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "rate": []}
     finally:
         fc.close()
 
@@ -1378,14 +1443,20 @@ def add_piano_rate(
     current_user=Depends(get_current_user),
 ):
     """
-    Aggiunge rate al piano. Accetta singola rata o lista.
+    Aggiunge/aggiorna rate al piano. Accetta singola rata o lista.
     Body: { rate: [{ numero_rata, periodo, importo, note? }] }
     oppure: { numero_rata, periodo, importo, note? }
+
+    Se sync_uscite = true (default), aggiorna anche l'importo (totale) delle
+    cg_uscite collegate per quel periodo, purché non siano già PAGATA / PAGATA_MANUALE / PARZIALE.
     """
     fc = get_fc_db()
     try:
         rate_input = payload.get("rate", [payload] if "periodo" in payload else [])
+        sync_uscite = bool(payload.get("sync_uscite", True))
         inserite = 0
+        uscite_aggiornate = 0
+        oggi_str = date.today().isoformat()
         for r in rate_input:
             periodo = r.get("periodo")
             importo = r.get("importo")
@@ -1404,8 +1475,19 @@ def add_piano_rate(
                     WHERE spesa_fissa_id = ? AND periodo = ?
                 """, (importo, r.get("numero_rata", 0), r.get("note"), spesa_id, periodo))
                 inserite += 1
+
+            # Propaga sul tabellone uscite (solo righe non ancora pagate)
+            if sync_uscite:
+                cur = fc.execute("""
+                    UPDATE cg_uscite
+                       SET totale = ?, updated_at = ?
+                     WHERE spesa_fissa_id = ?
+                       AND periodo_riferimento = ?
+                       AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+                """, (float(importo), oggi_str, spesa_id, periodo))
+                uscite_aggiornate += cur.rowcount or 0
         fc.commit()
-        return {"ok": True, "inserite": inserite}
+        return {"ok": True, "inserite": inserite, "uscite_aggiornate": uscite_aggiornate}
     finally:
         fc.close()
 

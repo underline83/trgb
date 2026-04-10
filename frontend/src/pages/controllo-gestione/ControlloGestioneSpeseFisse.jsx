@@ -79,6 +79,14 @@ export default function ControlloGestioneSpeseFisse() {
   const [savingAdegu, setSavingAdegu] = useState(false);
   const [storico, setStorico] = useState([]);
 
+  // Piano rate (prestiti / rateizzazioni alla francese)
+  const [pianoModal, setPianoModal] = useState(null);   // { id, titolo, tipo, importo }
+  const [pianoRate, setPianoRate] = useState([]);       // array di rate dal backend
+  const [pianoRiepilogo, setPianoRiepilogo] = useState(null);
+  const [pianoLoading, setPianoLoading] = useState(false);
+  const [pianoEdits, setPianoEdits] = useState({});     // { periodo: nuovoImporto }
+  const [pianoSaving, setPianoSaving] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -258,6 +266,94 @@ export default function ControlloGestioneSpeseFisse() {
   const adeguVariazione = adeguamento && adeguForm.nuovo_importo
     ? ((parseFloat(adeguForm.nuovo_importo) - adeguamento.importo) / adeguamento.importo * 100).toFixed(1)
     : null;
+
+  // ── Piano rate: apri modale e carica dati ──
+  const openPianoRate = async (s) => {
+    setPianoModal({ id: s.id, titolo: s.titolo, tipo: s.tipo, importo: s.importo });
+    setPianoEdits({});
+    setPianoRate([]);
+    setPianoRiepilogo(null);
+    setPianoLoading(true);
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/${s.id}/piano-rate`);
+      const d = await res.json();
+      if (d.ok) {
+        setPianoRate(d.rate || []);
+        setPianoRiepilogo(d.riepilogo || null);
+      }
+    } catch (e) {
+      console.error("Errore caricamento piano rate:", e);
+    } finally {
+      setPianoLoading(false);
+    }
+  };
+
+  const closePianoRate = () => {
+    setPianoModal(null);
+    setPianoRate([]);
+    setPianoRiepilogo(null);
+    setPianoEdits({});
+  };
+
+  // Modifica importo rata (local only, da salvare)
+  const updatePianoRata = (periodo, valore) => {
+    setPianoEdits(prev => ({ ...prev, [periodo]: valore }));
+  };
+
+  // Salva tutte le modifiche pendenti
+  const savePianoRate = async () => {
+    if (!pianoModal) return;
+    const modifiche = Object.entries(pianoEdits)
+      .map(([periodo, val]) => {
+        const rata = pianoRate.find(r => r.periodo === periodo);
+        if (!rata) return null;
+        const nuovo = parseFloat(val);
+        if (isNaN(nuovo) || nuovo < 0) return null;
+        if (Math.abs(nuovo - Number(rata.importo)) < 0.005) return null;
+        return {
+          periodo,
+          importo: nuovo,
+          numero_rata: rata.numero_rata,
+          note: rata.note,
+        };
+      })
+      .filter(Boolean);
+    if (modifiche.length === 0) {
+      closePianoRate();
+      return;
+    }
+    setPianoSaving(true);
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/${pianoModal.id}/piano-rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate: modifiche, sync_uscite: true }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        closePianoRate();
+        fetchData();
+      } else {
+        alert(d.error || "Errore salvataggio");
+      }
+    } catch (e) {
+      alert("Errore di rete");
+    } finally {
+      setPianoSaving(false);
+    }
+  };
+
+  const statoBadge = (stato) => {
+    const map = {
+      PAGATA: { label: "Pagata", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PAGATA_MANUALE: { label: "Pagata", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PARZIALE: { label: "Parziale", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+      SCADUTA: { label: "Scaduta", cls: "bg-red-100 text-red-700 border-red-200" },
+      DA_PAGARE: { label: "Da pagare", cls: "bg-sky-100 text-sky-700 border-sky-200" },
+    };
+    if (!stato) return { label: "—", cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
+    return map[stato] || { label: stato, cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
+  };
 
   // ── Carica fatture per rateizzazione ──
   const loadFatture = async () => {
@@ -1072,7 +1168,14 @@ export default function ControlloGestioneSpeseFisse() {
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           <div className="flex gap-1 justify-center flex-wrap">
-                            {s.attiva && ["AFFITTO", "PRESTITO", "ASSICURAZIONE", "RATEIZZAZIONE"].includes(s.tipo) && (
+                            {s.attiva && ["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (
+                              <button onClick={() => openPianoRate(s)}
+                                className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                                title="Piano di ammortamento / rate">
+                                Piano
+                              </button>
+                            )}
+                            {s.attiva && ["AFFITTO", "ASSICURAZIONE"].includes(s.tipo) && (
                               <button onClick={() => openAdeguamento(s)}
                                 className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
                                 title="Adeguamento importo (ISTAT, variazione canone)">
@@ -1205,6 +1308,155 @@ export default function ControlloGestioneSpeseFisse() {
                 className="w-full px-4 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50">
                 {savingAdegu ? "Applicazione..." : "Applica adeguamento"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE PIANO RATE ═══════ */}
+      {pianoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={closePianoRate}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-neutral-200 bg-indigo-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-indigo-900">📅 Piano rate — {pianoModal.titolo}</h3>
+                <p className="text-[11px] text-indigo-600 mt-0.5">
+                  {pianoModal.tipo === "PRESTITO" ? "Piano di ammortamento prestito" : "Piano rateizzazione"} — modifica gli importi dei singoli periodi
+                </p>
+              </div>
+              <button onClick={closePianoRate}
+                className="text-neutral-400 hover:text-neutral-600 text-xl leading-none">&times;</button>
+            </div>
+
+            {/* Riepilogo KPI */}
+            {pianoRiepilogo && !pianoLoading && (
+              <div className="px-6 py-3 border-b border-neutral-100 bg-neutral-50 grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Rate totali</div>
+                  <div className="text-sm font-bold text-neutral-800">{pianoRiepilogo.n_rate}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Pagate</div>
+                  <div className="text-sm font-bold text-emerald-700">{pianoRiepilogo.n_pagate}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Da pagare</div>
+                  <div className="text-sm font-bold text-sky-700">
+                    {pianoRiepilogo.n_da_pagare}
+                    {pianoRiepilogo.n_scadute > 0 && (
+                      <span className="text-red-600 ml-1">(+{pianoRiepilogo.n_scadute} scad.)</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Pagato</div>
+                  <div className="text-sm font-bold text-emerald-700">&euro; {fmt(pianoRiepilogo.totale_pagato)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Residuo</div>
+                  <div className="text-sm font-bold text-indigo-700">&euro; {fmt(pianoRiepilogo.totale_residuo)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Tabella rate */}
+            <div className="flex-1 overflow-y-auto">
+              {pianoLoading ? (
+                <div className="text-center py-12 text-neutral-400 text-sm">Caricamento piano rate...</div>
+              ) : pianoRate.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-neutral-400 text-sm">Nessuna rata nel piano.</p>
+                  <p className="text-neutral-400 text-[11px] mt-1">Le rate vengono create automaticamente dai wizard di Rateizzazione o dai prestiti importati.</p>
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-neutral-50 sticky top-0 z-10">
+                    <tr className="border-b border-neutral-200">
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">#</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Periodo</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Scadenza</th>
+                      <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Importo piano</th>
+                      <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Pagato</th>
+                      <th className="px-4 py-2 text-center text-neutral-600 font-semibold">Stato</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pianoRate.map((r, idx) => {
+                      const badge = statoBadge(r.uscita_stato);
+                      const isPagata = ["PAGATA", "PAGATA_MANUALE"].includes(r.uscita_stato);
+                      const isParziale = r.uscita_stato === "PARZIALE";
+                      const editValue = pianoEdits[r.periodo];
+                      const displayValue = editValue !== undefined ? editValue : String(r.importo);
+                      const isEdited = editValue !== undefined && Math.abs(parseFloat(editValue || 0) - Number(r.importo)) >= 0.005;
+                      const scad = r.uscita_scadenza || `${r.periodo}-??`;
+                      return (
+                        <tr key={r.id || idx}
+                          className={`border-b border-neutral-100 hover:bg-indigo-50/30 ${isPagata ? "bg-emerald-50/20" : ""}`}>
+                          <td className="px-4 py-1.5 text-neutral-400 font-mono tabular-nums">{r.numero_rata || idx + 1}</td>
+                          <td className="px-4 py-1.5 text-neutral-700 font-mono tabular-nums">{r.periodo}</td>
+                          <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
+                            {r.uscita_scadenza ? new Date(r.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                          </td>
+                          <td className="px-4 py-1 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              disabled={isPagata || isParziale}
+                              value={displayValue}
+                              onChange={e => updatePianoRata(r.periodo, e.target.value)}
+                              className={`w-28 text-right px-2 py-1 rounded border tabular-nums text-xs
+                                ${isEdited ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-200" : "border-neutral-200"}
+                                ${isPagata || isParziale ? "bg-neutral-100 text-neutral-500 cursor-not-allowed" : "focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"}`}
+                              title={isPagata ? "Rata già pagata — non modificabile" : ""}
+                            />
+                          </td>
+                          <td className="px-4 py-1.5 text-right text-neutral-600 tabular-nums">
+                            {r.uscita_pagato != null && Number(r.uscita_pagato) > 0
+                              ? `€ ${fmt(r.uscita_pagato)}`
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-1.5 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer con azioni */}
+            <div className="px-6 py-3 border-t border-neutral-200 bg-neutral-50 flex items-center justify-between">
+              <div className="text-[11px] text-neutral-500">
+                {(() => {
+                  const n = Object.entries(pianoEdits).filter(([periodo, val]) => {
+                    const rata = pianoRate.find(r => r.periodo === periodo);
+                    if (!rata) return false;
+                    const nuovo = parseFloat(val);
+                    return !isNaN(nuovo) && Math.abs(nuovo - Number(rata.importo)) >= 0.005;
+                  }).length;
+                  if (n === 0) return "Nessuna modifica pendente.";
+                  return `${n} ${n === 1 ? "rata modificata" : "rate modificate"} — le uscite non ancora pagate verranno aggiornate.`;
+                })()}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={closePianoRate}
+                  className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+                  Chiudi
+                </button>
+                <button onClick={savePianoRate}
+                  disabled={pianoSaving || pianoLoading}
+                  className="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
+                  {pianoSaving ? "Salvataggio..." : "Salva modifiche"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

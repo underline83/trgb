@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-04-10 — Controllo Gestione v1.5: Piano rate prestiti
+
+#### New — Piano di ammortamento visualizzabile per prestiti e rateizzazioni
+- **Modale Piano rate** — pulsante "Piano" sulle righe di tipo PRESTITO / RATEIZZAZIONE apre una tabella con tutte le rate (numero, periodo, scadenza, importo pianificato, importo pagato, stato)
+- **Riepilogo KPI** — rate totali / pagate / da pagare / scadute, totale pagato, totale residuo
+- **Edit inline** — importi editabili per le rate non ancora pagate (rate PAGATA / PARZIALE sono in sola lettura)
+- **Sync automatico** — il salvataggio aggiorna anche `cg_uscite.totale` per le righe non pagate, così il tabellone uscite riflette i nuovi importi
+- **"Adegua" nascosto per prestiti** — sostituito da "Piano": per AFFITTO / ASSICURAZIONE resta l'adeguamento ISTAT classico
+
+#### Backend — endpoint piano-rate arricchito
+- **GET `/spese-fisse/{id}/piano-rate`** — ora ritorna `spesa` (meta), `rate` (con LEFT JOIN `cg_uscite` per stato, scadenza, importo pagato), e `riepilogo` aggregato
+- **POST `/spese-fisse/{id}/piano-rate`** — nuovo parametro `sync_uscite` (default `true`): propaga l'importo modificato sulle uscite non ancora pagate
+
+---
+
 ## 2026-04-06 — Gestione Clienti v2.0: CRM completo con marketing, coppie, impostazioni
 
 #### New — Segmenti marketing configurabili
