@@ -17,6 +17,7 @@ const STATO_STYLE = {
   PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagata" },
   PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagata *" },
   PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
+  RATEIZZATA:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzata" },
 };
 
 const TIPO_USCITA_STYLE = {
@@ -68,6 +69,9 @@ export default function ControlloGestioneUscite() {
   // ── Filtro "solo in pagamento" ──
   const [filtroInPagamento, setFiltroInPagamento] = useState(false);
 
+  // ── v2.0: filtro rateizzate (server-side, passato come query param) ──
+  const [includiRateizzate, setIncludiRateizzate] = useState(false);
+
   // ── Gestione batch (lista + delete) ──
   const [gestioneBatchOpen, setGestioneBatchOpen] = useState(false);
   const [batchList, setBatchList] = useState([]);
@@ -96,7 +100,9 @@ export default function ControlloGestioneUscite() {
           console.warn("Import non riuscito (i dati esistenti verranno comunque caricati):", importErr);
         }
       }
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite`);
+      // v2.0: passa includi_rateizzate come query param (default backend = false)
+      const qs = includiRateizzate ? "?includi_rateizzate=true" : "";
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite${qs}`);
       if (!res.ok) throw new Error("Errore API");
       setData(await res.json());
     } catch (e) {
@@ -104,17 +110,17 @@ export default function ControlloGestioneUscite() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [includiRateizzate]);
 
   useEffect(() => {
-    // Auto-import al primo caricamento
+    // Auto-import al primo caricamento, poi rifetch al cambio di includiRateizzate
     if (!importDone.current) {
       importDone.current = true;
       fetchData(true);
     } else {
       fetchData(false);
     }
-  }, []); // eslint-disable-line
+  }, [fetchData]); // eslint-disable-line
 
   // Reset ordinamento al cambio tab stato:
   // - Da pagare / Scadute → data_scadenza ASC (le più vecchie/urgenti prima)
@@ -571,8 +577,8 @@ export default function ControlloGestioneUscite() {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento].filter(Boolean).length;
-  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); };
+  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); setIncludiRateizzate(false); };
 
   const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
   const fSel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-300";
@@ -645,6 +651,28 @@ export default function ControlloGestioneUscite() {
                     {o.label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Rateizzate (v2.0) — toggle server-side */}
+            <div className="bg-purple-50/60 rounded-lg p-2.5 border border-purple-200 shadow-sm">
+              <div className="text-[9px] font-extrabold text-purple-600 uppercase tracking-widest mb-1.5">Rateizzate</div>
+              <button onClick={() => setIncludiRateizzate(v => !v)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between gap-2 ${
+                  includiRateizzate ? "bg-purple-600 text-white font-semibold" : "hover:bg-purple-100 text-neutral-700"
+                }`}>
+                <span className="flex items-center gap-1.5">
+                  <span>📅</span>
+                  <span>Mostra rateizzate</span>
+                </span>
+                {includiRateizzate && (
+                  <span className="text-[9px] bg-purple-200 text-purple-900 px-1 rounded">ON</span>
+                )}
+              </button>
+              <div className="mt-1.5 text-[9px] text-neutral-500 leading-snug">
+                {includiRateizzate
+                  ? "Le fatture confluite in spese fisse sono visibili con badge viola."
+                  : "Nascoste di default: fatture coperte da rateizzazione non concorrono ai totali."}
               </div>
             </div>
 
@@ -891,6 +919,7 @@ export default function ControlloGestioneUscite() {
                         className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
                         inPagamento ? "bg-indigo-50/50" :
+                        u.stato === "RATEIZZATA" ? "bg-purple-50/40" :
                         u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}

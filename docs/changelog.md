@@ -16,9 +16,14 @@
 - **Binding nominale** — tutti i filtri dinamici ora passano parametri a nome (`:includi_rateizzate`, `:stato`, ecc.) — SQLite non permette alias del SELECT nella WHERE, quindi il COALESCE per le date nel range è duplicato (costo trascurabile)
 - **Retrocompatibilità piena** — `row["data_scadenza"]` rimpiazza `data_scadenza_effettiva` via `pop()` lato Python, così la shape del payload JSON è identica a v1.7 e il frontend non richiede modifiche
 
+#### UI — Fase B.1.1 (toggle sidebar rateizzate)
+- **Nuovo blocco "Rateizzate" nella sidebar dello Scadenzario Uscite** — toggle viola "Mostra rateizzate" (default OFF). Quando attivo, la fetch passa `?includi_rateizzate=true` al backend e le 43 fatture backfilled tornano visibili in lista
+- **Sfondo viola leggero** (`bg-purple-50/40`) sulle righe con stato `RATEIZZATA` + badge permanente "Rateizzata" nella colonna STATO (via `STATO_STYLE.RATEIZZATA`)
+- **clearFilters + conteggio activeFilters** aggiornati per includere il nuovo toggle
+
 #### Note architetturali v2.0
 - Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
-- Questa è la Fase B.1; B.2 (smart dispatcher modifica scadenza) e B.3 (IBAN/modalità override) sono pianificate
+- Questa è la Fase B.1 + B.1.1; B.2 (smart dispatcher modifica scadenza) e B.3 (IBAN/modalità override) sono pianificate
 
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 

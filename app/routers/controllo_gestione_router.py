@@ -1773,7 +1773,7 @@ def get_candidati_banca(
     }
 
 
-# ── Modifica scadenza singola uscita ───────────────────────────
+# ── Modifica scadenza singola uscita (B.2: smart dispatcher v2.0) ──
 @router.put("/uscite/{uscita_id}/scadenza")
 def modifica_scadenza(
     uscita_id: int,
@@ -1781,11 +1781,32 @@ def modifica_scadenza(
     current_user=Depends(get_current_user),
 ):
     """
-    Cambia la data_scadenza di un'uscita.
+    Cambia la data_scadenza di un'uscita — smart dispatcher v2.0.
+
     Body: { data_scadenza: "YYYY-MM-DD" }
-    Se lo spostamento rispetto a data_scadenza_originale è > 10 giorni,
-    il frontend lo mostrerà come 'arretrato'.
-    Restituisce anche il delta in giorni per decidere lato client.
+
+    Logica dispatcher (v2.0 "CG come aggregatore"):
+    - Se l'uscita è di tipo FATTURA ed è linkata a fe_fatture.id,
+      la nuova scadenza viene scritta su `fe_fatture.data_prevista_pagamento`
+      (nuovo campo v2.0, source of truth per le fatture).
+      `cg_uscite.data_scadenza` NON viene toccata: la query di lettura
+      (GET /uscite) la ricava via COALESCE chain preferendo
+      `data_prevista_pagamento` su `u.data_scadenza`.
+    - Per tutti gli altri tipi (SPESA_FISSA, SPESA_BANCARIA, STIPENDIO,
+      ALTRO) la scadenza viene scritta direttamente su
+      `cg_uscite.data_scadenza` (comportamento legacy).
+
+    Nota: cg_piano_rate NON ha una colonna data_scadenza, quindi per le
+    rate delle spese fisse la scadenza effettiva vive in cg_uscite.
+
+    In entrambi i rami, lo stato di workflow (`cg_uscite.stato`) viene
+    ricalcolato rispetto a oggi: SCADUTA se nuova < oggi, altrimenti
+    DA_PAGARE (solo quando lo stato attuale è DA_PAGARE o SCADUTA).
+
+    Se lo spostamento rispetto alla data originale è > 10 giorni,
+    il frontend lo mostrerà come 'arretrato'. Il delta è calcolato
+    rispetto a `cg_uscite.data_scadenza_originale` (il primo valore
+    scritto pre-override, XML o fallback fornitore).
     """
     nuova = payload.get("data_scadenza")
     if not nuova:
@@ -1793,10 +1814,15 @@ def modifica_scadenza(
 
     conn = get_fc_db()
     try:
-        row = conn.execute(
-            "SELECT id, data_scadenza, data_scadenza_originale, stato FROM cg_uscite WHERE id = ?",
-            [uscita_id],
-        ).fetchone()
+        row = conn.execute("""
+            SELECT
+                u.id, u.data_scadenza, u.data_scadenza_originale, u.stato,
+                u.tipo_uscita, u.fattura_id,
+                f.data_prevista_pagamento, f.data_scadenza AS fe_data_scadenza
+            FROM cg_uscite u
+            LEFT JOIN fe_fatture f ON u.fattura_id = f.id
+            WHERE u.id = ?
+        """, [uscita_id]).fetchone()
         if not row:
             return {"ok": False, "error": "Uscita non trovata"}
 
@@ -1804,26 +1830,48 @@ def modifica_scadenza(
         if row["stato"] == "PAGATA":
             return {"ok": False, "error": "Impossibile modificare: uscita già riconciliata con banca"}
 
-        originale = row["data_scadenza_originale"] or row["data_scadenza"]
+        tipo_uscita = (row["tipo_uscita"] or "FATTURA")
+        fattura_id = row["fattura_id"]
+        is_fattura_v2 = (tipo_uscita == "FATTURA" and fattura_id is not None)
 
-        conn.execute("""
-            UPDATE cg_uscite
-            SET data_scadenza = ?,
-                data_scadenza_originale = COALESCE(data_scadenza_originale, data_scadenza),
-                updated_at = datetime('now')
-            WHERE id = ?
-        """, [nuova, uscita_id])
+        # Data "originale" per calcolo delta:
+        #  - per FATTURE in v2.0 preferisci: data XML fattura → data originale cg_uscite → data attuale
+        #  - per non-FATTURE: data_scadenza_originale cg_uscite → data attuale
+        if is_fattura_v2:
+            originale = row["fe_data_scadenza"] or row["data_scadenza_originale"] or row["data_scadenza"]
+        else:
+            originale = row["data_scadenza_originale"] or row["data_scadenza"]
 
-        # Ricalcola stato: se nuova scadenza < oggi e non pagata → SCADUTA
+        # ── DISPATCH ──
+        if is_fattura_v2:
+            # v2.0: scrivi su fe_fatture.data_prevista_pagamento, NON su cg_uscite.data_scadenza
+            conn.execute("""
+                UPDATE fe_fatture
+                SET data_prevista_pagamento = ?
+                WHERE id = ?
+            """, [nuova, fattura_id])
+            fonte_modifica = "fe_fatture.data_prevista_pagamento"
+        else:
+            # Legacy: scrivi su cg_uscite.data_scadenza + traccia originale
+            conn.execute("""
+                UPDATE cg_uscite
+                SET data_scadenza = ?,
+                    data_scadenza_originale = COALESCE(data_scadenza_originale, data_scadenza),
+                    updated_at = datetime('now')
+                WHERE id = ?
+            """, [nuova, uscita_id])
+            fonte_modifica = "cg_uscite.data_scadenza"
+
+        # Ricalcola stato workflow (sempre su cg_uscite): SCADUTA se < oggi, DA_PAGARE altrimenti
         oggi = date.today().isoformat()
-        if nuova < oggi and row["stato"] in ("DA_PAGARE",):
-            conn.execute("UPDATE cg_uscite SET stato = 'SCADUTA' WHERE id = ?", [uscita_id])
+        if nuova < oggi and row["stato"] == "DA_PAGARE":
+            conn.execute("UPDATE cg_uscite SET stato = 'SCADUTA', updated_at = datetime('now') WHERE id = ?", [uscita_id])
         elif nuova >= oggi and row["stato"] == "SCADUTA":
-            conn.execute("UPDATE cg_uscite SET stato = 'DA_PAGARE' WHERE id = ?", [uscita_id])
+            conn.execute("UPDATE cg_uscite SET stato = 'DA_PAGARE', updated_at = datetime('now') WHERE id = ?", [uscita_id])
 
         conn.commit()
 
-        # Calcola delta giorni dall'originale
+        # Calcola delta giorni dall'originale (XML/originale, non da u.data_scadenza attuale)
         delta_giorni = 0
         if originale:
             try:
@@ -1839,6 +1887,7 @@ def modifica_scadenza(
             "data_scadenza_originale": originale,
             "delta_giorni": delta_giorni,
             "is_arretrato": abs(delta_giorni) > 10,
+            "fonte_modifica": fonte_modifica,  # debug/tracciamento v2.0
         }
     finally:
         conn.close()
