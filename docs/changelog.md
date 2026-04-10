@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-04-10 (notte tardi) — Scadenzario CG v2.1c: rewrite sidebar sinistra + fix +x idempotente in push.sh
+
+#### UX — sidebar sinistra Scadenzario ottimizzata (ControlloGestioneUscite.jsx)
+- **Problemi della vecchia sidebar** — 7 palette diverse alternate nei blocchi filtro (white/sky/indigo/purple/indigo/amber/violet/neutral) creavano rumore visivo senza aggiungere informazione; filtri impilati verticalmente sprecavano spazio (Stato: 4 bottoni full-width = ~112px, Tipo: 3 bottoni full-width); i pulsanti Pulisci/Aggiorna erano dentro il flusso scrollabile invece che in un footer fisso, quindi sparivano appena si scorreva
+- **Nuova struttura flat in 240px** — outer `flex flex-col` con body `flex-1 overflow-y-auto` e footer `flex-shrink-0` sticky. Una sola palette neutra (white + neutral-100 bordi) con accenti semantici **solo** dove il colore veicola informazione (stato fatture: amber/red/emerald; viola per riconciliazione; dashed per "Gestisci batch"). Sezioni separate da `border-b border-neutral-100`, header `text-[10px] uppercase tracking-wider text-neutral-500`
+- **Stato in griglia 2×2** — `grid grid-cols-2 gap-1.5` con i 4 bottoni (Tutti, Da pagare, Scadute, Pagate) che in stato attivo assumono il colore semantico del proprio stato: Tutti → `bg-neutral-800 text-white`, Da pagare → `bg-amber-100 text-amber-900 border-amber-300`, Scadute → `bg-red-100 text-red-900 border-red-300`, Pagate → `bg-emerald-100 text-emerald-900 border-emerald-300`. Inattivi tutti `bg-white border-neutral-200`
+- **Tipo come segment control** — `flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5` con i 3 pill (Tutti, Fatture, Cassa) in orizzontale, pill attivo `bg-white shadow-sm text-neutral-900`, inattivo `text-neutral-600 hover:text-neutral-900`. Molto più compatto e allineato al pattern iOS/Notion
+- **Periodo preset in 3 colonne** — `grid grid-cols-3 gap-1` con 6 bottoni (7gg, 30gg, Mese, Mese prox, Trim, Anno), active `bg-amber-100 border-amber-300 text-amber-900`. Sotto, Da/A in una `flex gap-1.5` inline (prima erano due `<input date>` impilati in verticale con label full-width)
+- **Filtri speciali fusi in un unico blocco** — "Rateizzate" e "Solo in pagamento" sono diventati due toggle riga con dot-indicator (`w-1.5 h-1.5 rounded-full bg-violet-500` / `bg-sky-500` quando attivi, `bg-neutral-300` quando off). Il bottone "Gestisci batch" è un `border-dashed border-neutral-300` che si integra nello stesso blocco senza creare una quarta sezione separata. La "Riconciliazione attiva" quando presente diventa un badge viola compatto sotto
+- **Footer sticky** — `flex gap-1.5 p-2 border-t border-neutral-200 bg-neutral-50 flex-shrink-0` con i due bottoni Pulisci (disabled quando nessun filtro è attivo) e Aggiorna sempre visibili, indipendentemente dallo scroll del body filtri
+- **Risultato misurato** — prima della rewrite la sidebar richiedeva scroll già con 4-5 filtri aperti; ora il contenuto standard (senza riconciliazione attiva) sta tutto nel viewport a partire da altezze monitor 900px+, e gli action button sono sempre raggiungibili senza cercarli
+
+#### DX — fix bit +x idempotente dentro push.sh
+- **Nuovo step in `push.sh` tra "Sync DB" e "Commit"** — "Verifica bit +x script critici" che itera un array `EXEC_SCRIPTS=("scripts/backup_db.sh" "push.sh")`, legge il mode da `git ls-files --stage`, e se non è `100755` esegue `git update-index --chmod=+x -- "$s"` + `chmod +x` locale e warn. Se tutto è già OK emette un ok silenzioso `"tutti gli script eseguibili hanno già 100755"`
+- **Perché** — l'incident backup di stanotte è stato causato proprio dalla perdita del bit `+x` su `scripts/backup_db.sh` dopo un push precedente (git non sempre preserva la mode bit se il file viene riscritto da strumenti che la perdono). Inserire il check dentro push.sh significa che a ogni push in futuro il mode viene verificato e, se serve, forzato in automatico nel commit stesso → impossibile rilasciare una versione con lo script non eseguibile senza rendersene conto (il warn finisce nell'output del push)
+- **Idempotente** — quando i mode sono già corretti lo step non fa nulla (nessun ALTER al repo), quindi non crea commit vuoti né modifica la durata del push nel caso normale
+
+#### Versioning
+- **`versions.jsx`** — bumped `controlloGestione` da v2.1b a **v2.1c** (rewrite sidebar Scadenzario, nessuna nuova feature funzionale ma UX significativamente migliorata)
+
+---
+
 ## 2026-04-10 (notte) — Dettaglio Fornitore v3.2: sidebar colorata + FattureDettaglio inline unificato
 
 #### Refactor grafico — FornitoreDetailView allineato a FattureDettaglio / SchedaVino
