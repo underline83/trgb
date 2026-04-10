@@ -1,6 +1,9 @@
-// @version: v3.0-cantina-inline
+// @version: v3.1-cantina-inline-deeplink
 // Elenco fornitori — Layout Cantina: Filtri SX + Lista/Dettaglio inline DX
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+// v3.1: supporto deep-link ?piva=xxx per auto-aprire un fornitore specifico
+// (usato dal bottone "Modifica anagrafica fornitore" in FattureDettaglio).
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 
@@ -64,6 +67,12 @@ export default function FattureFornitoriElenco() {
   const [openKey, setOpenKey] = useState(null);      // piva || nome del fornitore aperto
   const [detailData, setDetailData] = useState(null); // { fatture, prodotti, stats, fornNome, fornPiva }
   const [detLoading, setDetLoading] = useState(false);
+
+  // ── Deep-link ?piva=xxx (da FattureDettaglio → "Modifica anagrafica") ──
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pivaDeepLink = searchParams.get("piva");
+  // Evita di riaprire continuamente lo stesso deep-link dopo il primo match
+  const deepLinkHandled = useRef(null);
 
   // ── Fetch lista ──
   const fetchAll = useCallback(async () => {
@@ -221,6 +230,36 @@ export default function FattureFornitoriElenco() {
       setDetLoading(false);
     }
   };
+
+  // ── Auto-apertura da deep-link ?piva=xxx ──
+  // Quando l'utente arriva qui dal bottone "Modifica anagrafica fornitore"
+  // in FattureDettaglio, apre automaticamente il fornitore corrispondente.
+  // La ricerca avviene appena `fornitori` è disponibile.
+  useEffect(() => {
+    if (!pivaDeepLink) return;
+    if (!fornitori.length) return;
+    if (deepLinkHandled.current === pivaDeepLink) return;
+    const forn = fornitori.find(f => (f.fornitore_piva || "") === pivaDeepLink);
+    if (!forn) {
+      // Fornitore non trovato (può succedere se l'anno selezionato non contiene
+      // fatture di questo fornitore). Azzeriamo l'anno per mostrare tutti.
+      if (annoSel) {
+        setAnnoSel("");
+        return;
+      }
+      // Anche senza filtro anno non c'è: scartiamo il deep-link per evitare loop
+      deepLinkHandled.current = pivaDeepLink;
+      return;
+    }
+    deepLinkHandled.current = pivaDeepLink;
+    openDetail(forn);
+    // Pulisce il parametro dalla URL (senza reload) così che un refresh non
+    // forzi di nuovo l'apertura
+    const next = new URLSearchParams(searchParams);
+    next.delete("piva");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivaDeepLink, fornitori, annoSel]);
 
   // ── Callback per refresh dettaglio dopo modifica prodotti ──
   const refreshDetail = async () => {

@@ -1,8 +1,12 @@
-// @version: v3.0-cantina-style
+// @version: v3.1-dettaglio-unificato
 // Pagina Fatture Elettroniche — Layout Cantina: Filtri SX + Lista DX + Dettaglio inline
+// Il dettaglio inline usa il componente riutilizzabile FattureDettaglio
+// (stesso che gira in /acquisti/dettaglio/:id e in ControlloGestioneUscite),
+// per mantenere una sola grafica/logica coerente in tutta l'app.
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import FattureDettaglio from "./FattureDettaglio";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const fmt = (v) =>
@@ -43,9 +47,9 @@ export default function FattureElenco() {
   const [sortDir, setSortDir] = useState("desc");
 
   // ── Dettaglio inline ──
+  // Il fetch è gestito direttamente da FattureDettaglio, qui teniamo solo l'id
+  // della fattura aperta per il toggle e l'highlight di riga.
   const [openId, setOpenId] = useState(null);
-  const [dettaglio, setDettaglio] = useState(null);
-  const [detLoading, setDetLoading] = useState(false);
 
   // ── Paginazione ──
   const [page, setPage] = useState(1);
@@ -146,22 +150,13 @@ export default function FattureElenco() {
   useEffect(() => { setPage(1); }, [searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, fonteSel, pagatoSel, tipoSel, importoMode, importoVal1, importoVal2]);
 
   // ── Dettaglio ──
-  const openDetail = async (id) => {
-    if (openId === id) { setOpenId(null); setDettaglio(null); return; }
-    setOpenId(id);
-    setDetLoading(true);
-    try {
-      const res = await apiFetch(`${FE}/fatture/${id}`);
-      if (!res.ok) throw new Error();
-      setDettaglio(await res.json());
-    } catch {
-      setDettaglio(null);
-    } finally {
-      setDetLoading(false);
-    }
+  // Toggle semplice: il componente FattureDettaglio gestisce il fetch autonomamente.
+  const openDetail = (id) => {
+    setOpenId(openId === id ? null : id);
   };
 
   // ── Segna pagata manuale (CG) ──
+  // Chiamato dal bottone nella sidebar di FattureDettaglio (prop onSegnaPagata)
   const segnaPagata = async (id) => {
     if (!window.confirm("Segnare questa fattura come pagata (in attesa di riconciliazione banca)?")) return;
     try {
@@ -172,9 +167,8 @@ export default function FattureElenco() {
       });
       const data = await res.json();
       if (!data.ok) { alert(data.error || "Errore"); return; }
-      // Aggiorna stato locale
+      // Aggiorna la riga nella lista; FattureDettaglio fa il proprio refetch
       setFatture(prev => prev.map(f => f.id === id ? { ...f, pagato: 1 } : f));
-      if (dettaglio && dettaglio.id === id) setDettaglio(d => ({ ...d, pagato: 1 }));
     } catch { alert("Errore di rete"); }
   };
 
@@ -402,14 +396,29 @@ export default function FattureElenco() {
 
           {loading ? (
             <div className="text-center py-20 text-neutral-400">Caricamento fatture…</div>
-          ) : openId && dettaglio ? (
-            /* ═══════ VISTA DETTAGLIO ═══════ */
-            <DetailView
-              fattura={dettaglio}
-              loading={detLoading}
-              onClose={() => { setOpenId(null); setDettaglio(null); }}
-              onSegnaPagata={segnaPagata}
-            />
+          ) : openId ? (
+            /* ═══════ VISTA DETTAGLIO (componente unificato) ═══════ */
+            <div className="p-4 sm:p-6">
+              <div className="mb-3 flex items-center justify-between">
+                <button
+                  onClick={() => setOpenId(null)}
+                  className="text-xs text-teal-700 hover:text-teal-900 font-medium transition"
+                >
+                  ← Torna alla lista
+                </button>
+                <span className="text-[10px] text-neutral-400">ID: {openId}</span>
+              </div>
+              <FattureDettaglio
+                fatturaId={openId}
+                inline={true}
+                onClose={() => setOpenId(null)}
+                onSegnaPagata={segnaPagata}
+                onFatturaUpdated={(f) => {
+                  // Sync riga nella lista con eventuali modifiche effettuate nel dettaglio
+                  setFatture(prev => prev.map(x => x.id === f.id ? { ...x, ...f } : x));
+                }}
+              />
+            </div>
           ) : (
             /* ═══════ LISTA TABELLA ═══════ */
             <>
@@ -506,137 +515,7 @@ export default function FattureElenco() {
     </div>
   );
 }
-
-
-// ═══════════════════════════════════════════════════════
-// COMPONENTE DETTAGLIO FATTURA (inline, stile Cantina)
-// ═══════════════════════════════════════════════════════
-function DetailView({ fattura, loading, onClose, onSegnaPagata }) {
-  if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio…</div>;
-  if (!fattura) return <div className="text-center py-20 text-neutral-400">Fattura non trovata</div>;
-
-  const righe = fattura.righe || [];
-  const totaleRighe = righe.reduce((s, r) => s + (r.prezzo_totale || 0), 0);
-
-  return (
-    <div className="p-4 sm:p-6 space-y-4">
-      {/* Nav bar */}
-      <div className="flex items-center justify-between">
-        <button onClick={onClose}
-          className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
-          ← Torna alla lista
-        </button>
-        <span className="text-[10px] text-neutral-400">ID: {fattura.id}</span>
-      </div>
-
-      {/* Header card */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
-        <div className="flex flex-col md:flex-row justify-between gap-4">
-          <div className="flex-1">
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider mb-1">Fornitore</p>
-            <h1 className="text-xl font-bold text-teal-900 font-playfair">{fattura.fornitore_nome || "-"}</h1>
-            {fattura.fornitore_piva && (
-              <p className="text-sm text-neutral-500 mt-0.5">P.IVA: <span className="tabular-nums font-medium">{fattura.fornitore_piva}</span></p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1 text-right">
-            <div>
-              <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Fattura N.</p>
-              <p className="text-lg font-bold text-neutral-900">{fattura.numero_fattura || "-"}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Data</p>
-              <p className="text-sm font-semibold text-neutral-800 tabular-nums">{fattura.data_fattura || "-"}</p>
-            </div>
-            {fattura.xml_filename && (
-              <p className="text-[10px] text-neutral-400 mt-1 font-mono truncate max-w-[200px]">{fattura.xml_filename}</p>
-            )}
-            <span className={`mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              fattura.pagato ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-600"
-            }`}>
-              {fattura.pagato ? "Pagata" : "Da pagare"}
-            </span>
-            {!fattura.pagato && onSegnaPagata && (
-              <button
-                onClick={() => onSegnaPagata(fattura.id)}
-                className="mt-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
-              >
-                ✓ Segna pagata
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Amounts */}
-        <div className="mt-4 pt-4 border-t border-neutral-100 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Imponibile</p>
-            <p className="text-lg font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.imponibile_totale)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">IVA</p>
-            <p className="text-lg font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.iva_totale)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Totale</p>
-            <p className="text-2xl font-bold text-teal-900 tabular-nums font-playfair">€ {fmt(fattura.totale_fattura)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Righe fattura */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-neutral-100 flex justify-between items-center">
-          <h2 className="text-sm font-semibold text-neutral-800">Righe fattura ({righe.length})</h2>
-          <span className="text-xs text-neutral-400">Totale righe: € {fmt(totaleRighe)}</span>
-        </div>
-
-        {righe.length === 0 ? (
-          <div className="text-center py-8 text-neutral-400 text-sm">Nessuna riga presente</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-200">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium w-8">#</th>
-                  <th className="px-3 py-2 text-left font-medium">Descrizione</th>
-                  <th className="px-3 py-2 text-right font-medium">Q.tà</th>
-                  <th className="px-3 py-2 text-right font-medium">U.M.</th>
-                  <th className="px-3 py-2 text-right font-medium">Prezzo Unit.</th>
-                  <th className="px-3 py-2 text-right font-medium">Totale</th>
-                  <th className="px-3 py-2 text-right font-medium">IVA %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {righe.map((r, i) => (
-                  <tr key={r.id || i} className="border-b border-neutral-100 hover:bg-neutral-50/50">
-                    <td className="px-3 py-1.5 text-neutral-400 tabular-nums">{r.numero_linea || i + 1}</td>
-                    <td className="px-3 py-1.5 text-neutral-800 font-medium max-w-md">{r.descrizione || "-"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.quantita != null ? fmt(r.quantita) : "-"}</td>
-                    <td className="px-3 py-1.5 text-right text-neutral-500">{r.unita_misura || ""}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.prezzo_unitario != null ? `€ ${fmt(r.prezzo_unitario)}` : "-"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-neutral-900">{r.prezzo_totale != null ? `€ ${fmt(r.prezzo_totale)}` : "-"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{r.aliquota_iva != null ? `${r.aliquota_iva}%` : "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-teal-50/50 border-t-2 border-teal-200">
-                  <td colSpan={5} className="px-3 py-2 text-right text-xs font-bold text-teal-900 uppercase tracking-wide">Totale righe</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-bold text-teal-900 text-sm">€ {fmt(totaleRighe)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Meta */}
-      <div className="flex justify-between items-center text-[10px] text-neutral-400 px-1">
-        <span>Importato il: {fattura.data_import || "-"}</span>
-        <span>Fonte: {(fattura.fonte || "xml").toUpperCase()}</span>
-      </div>
-    </div>
-  );
-}
+// NOTA: il componente locale DetailView è stato rimosso in v3.1.
+// Il dettaglio fattura inline è ora gestito dal componente riutilizzabile
+// FattureDettaglio (stesso componente usato nella route /acquisti/dettaglio/:id
+// e nello split-pane dello Scadenzario in ControlloGestioneUscite).

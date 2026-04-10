@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-04-10 (tardi sera) — Acquisti v2.2: Unificazione dettaglio fattura in un unico componente riutilizzabile
+
+#### Refactor — Fase H (un solo FattureDettaglio per tutti i moduli)
+- **Fine dei "due moduli fatture"** — prima di oggi il dettaglio fattura aveva due implementazioni parallele: il componente riutilizzabile `FattureDettaglio` (usato in `/acquisti/dettaglio/:id` e nello split-pane dello Scadenzario), e un `DetailView` locale dentro `FattureElenco.jsx` con stile e campi suoi propri (header card, amounts grid, righe table, bottone "Segna pagata"). Marco ha giustamente notato che la nuova grafica "sidebar colorata + sectionheader" di v2.1b non appariva nel modulo Acquisti → Fatture perché quella vista continuava a usare la vecchia `DetailView`
+- **`FattureElenco.jsx` riscritto per usare `FattureDettaglio`** — il componente locale `DetailView` (~130 righe) è stato rimosso completamente. Il ramo "dettaglio aperto" nell'elenco ora renderizza `<FattureDettaglio fatturaId={openId} inline={true} onClose={...} onSegnaPagata={segnaPagata} onFatturaUpdated={(f) => ...}>` con una barra top minimale "← Torna alla lista" e ID fattura. Stato locale semplificato: rimossi `dettaglio` e `detLoading` perché il componente riutilizzabile fa il proprio fetch; resta solo `openId` per il toggle e l'highlight della riga selezionata
+- **Nuova prop `onSegnaPagata` in `FattureDettaglio`** — se passata, la sidebar colorata mostra un bottone "✓ Segna pagata" in ambra evidenziato (prima dei link di navigazione) solo quando la fattura non è pagata, non è rateizzata e lo stato uscita non è `PAGATA`. Il componente chiama la callback del parent, poi esegue automaticamente `refetch()` per aggiornare la propria vista. In questo modo la funzionalità "segna pagata manuale" preservata dal vecchio `DetailView` è ora disponibile ovunque venga montato `FattureDettaglio` con la prop
+- **Sync bidirezionale lista ⇄ dettaglio** — il callback `onFatturaUpdated(f)` in `FattureElenco` aggiorna la riga corrispondente nella lista locale (`setFatture(prev => prev.map(...))`) così che modifiche fatte nel dettaglio (scadenza, IBAN, modalità, segna-pagata) si riflettono immediatamente nella tabella quando l'utente torna indietro — nessun refetch full necessario
+- **`segnaPagata` in `FattureElenco` aggiornata** — non tocca più `setDettaglio` (rimosso); aggiorna solo `setFatture` per la riga lista, e il refresh del dettaglio è delegato all'`await refetch()` interno di `FattureDettaglio.handleSegnaPagata`
+
+#### UX — Fase H (bottone "Modifica anagrafica fornitore")
+- **Nuovo pulsante "✎ Modifica anagrafica fornitore →" nella sidebar di `FattureDettaglio`** — sostituisce il vecchio "Tutte le fatture del fornitore →" che puntava a una route (`/acquisti/fornitore/:piva`) che era solo un redirect a `/acquisti/fornitori`. Ora il bottone naviga direttamente a `/acquisti/fornitori?piva=${piva}`, saltando il redirect e permettendo di pre-aprire il fornitore corretto via deep-link
+- **Deep-link `?piva=xxx` in `FattureFornitoriElenco`** — nuovo `useEffect` che legge `useSearchParams()`, cerca il fornitore con P.IVA corrispondente nella lista caricata, chiama `openDetail(forn)` per aprire la sidebar inline del dettaglio, e ripulisce il parametro dalla URL (`setSearchParams` con `replace: true`) per evitare loop di riapertura. Un `useRef` tiene traccia dell'ultimo deep-link processato per idempotenza
+- **Fallback anno** — se il fornitore non è presente nella lista corrente (può succedere quando l'anno selezionato di default nella sidebar filtri non contiene fatture di quel fornitore), l'effetto azzera `annoSel` che triggera un refetch su tutti gli anni, e al secondo ciclo il fornitore viene trovato e aperto. Se nemmeno senza filtro anno il fornitore esiste, il deep-link viene scartato silenziosamente invece di loopare
+- **Comportamento in modalità inline** — quando l'utente clicca il bottone dentro lo split-pane dello Scadenzario, il componente esegue prima `onClose()` per chiudere la scheda inline (evitando che resti "spezzata" in background), poi naviga. Stesso pattern già usato dal link "Vai alla spesa fissa" quando la fattura è rateizzata
+
+#### Versioning
+- **Bump** — `fatture: 2.1 → 2.2` in `versions.jsx`. Nessun cambio alla versione di `controlloGestione` (resta 2.1b) perché il refactor di questa fase ha toccato principalmente il modulo Acquisti; lo Scadenzario ha beneficiato indirettamente della nuova prop `onSegnaPagata` ma non la utilizza (la riconciliazione lì passa dal flusso banca)
+- **Header file aggiornati** — `FattureDettaglio.jsx: v2.2 → v2.2b-dettaglio-fattura-riutilizzabile`, `FattureElenco.jsx: v3.0 → v3.1-dettaglio-unificato`, `FattureFornitoriElenco.jsx: v3.0 → v3.1-cantina-inline-deeplink`
+
+---
+
 ## 2026-04-10 (sera) — Controllo Gestione v2.1b: Dettaglio fattura inline nello Scadenzario con estetica uniforme
 
 #### UX — Fase G (refactor "in-page" + layout uniformato a SchedaVino)

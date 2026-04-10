@@ -1,4 +1,4 @@
-// @version: v2.2-dettaglio-fattura-inline-uniforme
+// @version: v2.2b-dettaglio-fattura-riutilizzabile
 // Componente riutilizzabile: dettaglio fattura singola con sidebar colorata
 // + main content, layout uniformato a SchedaVino (stesso pattern estetico di
 // MagazzinoVini → SchedaVino). Usato sia come pagina standalone (route
@@ -84,9 +84,13 @@ function SectionHeader({ title, children }) {
  *   - onClose: function (opzionale) — callback quando l'utente chiude/torna
  *   - onFatturaUpdated: function (opzionale) — callback chiamato dopo save,
  *     riceve l'oggetto fattura aggiornato (serve al parent per refresh lista)
+ *   - onSegnaPagata: function (opzionale) — callback (fatturaId) chiamato
+ *     quando l'utente clicca "Segna pagata" dalla sidebar. Se passato, il
+ *     pulsante appare solo se la fattura NON è già pagata. Dopo la callback,
+ *     il componente esegue automaticamente refetch.
  */
 const FattureDettaglio = forwardRef(function FattureDettaglio(
-  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated } = {},
+  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata } = {},
   ref
 ) {
   const { id: idFromParams } = useParams();
@@ -223,6 +227,25 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const goToSpesaFissa = (sfId) => {
     if (inline && onClose) onClose();
     navigate(`/controllo-gestione/spese-fisse?highlight=${sfId}`);
+  };
+
+  // Nav all'anagrafica del fornitore — porta direttamente all'elenco fornitori
+  // con il fornitore corrente già aperto (useSearchParams ?piva=xxx)
+  const goToFornitoreAnagrafica = () => {
+    if (!fattura?.fornitore_piva) return;
+    if (inline && onClose) onClose();
+    navigate(`/acquisti/fornitori?piva=${encodeURIComponent(fattura.fornitore_piva)}`);
+  };
+
+  // Wrapper per "Segna pagata": chiama callback del parent poi refresh locale
+  const handleSegnaPagata = async () => {
+    if (!onSegnaPagata || !fattura?.id) return;
+    try {
+      await onSegnaPagata(fattura.id);
+      await refetch();
+    } catch (e) {
+      console.error("segnaPagata:", e);
+    }
   };
 
   // ── Wrapper loading / error (shape identico a SchedaVino) ──
@@ -411,30 +434,32 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               </div>
             )}
 
-            {/* Link fornitore */}
-            {fattura.fornitore_piva && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (inline && onClose) onClose();
-                  navigate(`/acquisti/fornitore/${encodeURIComponent(fattura.fornitore_piva)}`);
-                }}
-                className="w-full mb-2 px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
-              >
-                Tutte le fatture del fornitore →
-              </button>
-            )}
+            {/* Azioni sidebar */}
+            <div className="space-y-2">
+              {/* Segna pagata — visibile solo se il parent passa onSegnaPagata
+                  e la fattura non risulta già pagata */}
+              {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
+                <button
+                  type="button"
+                  onClick={handleSegnaPagata}
+                  className="w-full px-3 py-2 rounded-lg text-[11px] font-bold bg-amber-400/90 text-amber-950 hover:bg-amber-300 transition text-center shadow-sm"
+                >
+                  ✓ Segna pagata
+                </button>
+              )}
 
-            {/* Chiudi (solo inline con onClose) */}
-            {inline && onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
-              >
-                Chiudi
-              </button>
-            )}
+              {/* Modifica anagrafica fornitore */}
+              {fattura.fornitore_piva && (
+                <button
+                  type="button"
+                  onClick={goToFornitoreAnagrafica}
+                  className="w-full px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
+                  title="Apri l'anagrafica del fornitore nell'elenco fornitori"
+                >
+                  ✎ Modifica anagrafica fornitore →
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
