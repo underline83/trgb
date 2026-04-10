@@ -77,6 +77,36 @@ else
   warn "${DB_OK} ok, ${DB_FAIL} non trovati (non bloccante)"
 fi
 
+# ── Bit +x script critici (idempotente) ────────────────────
+# Alcuni script devono restare eseguibili sul VPS (li lancia cron o systemd).
+# Git a volte "dimentica" il mode bit quando il file viene riscritto: registriamo
+# il bit DENTRO l'index così ogni checkout lato VPS ripristina 100755 da solo.
+# Noop se il bit è già corretto. Se cambia, finisce nel commit di questo push.
+step "Verifica bit +x script critici"
+EXEC_SCRIPTS=(
+  "scripts/backup_db.sh"
+  "push.sh"
+)
+FIXED=0
+for s in "${EXEC_SCRIPTS[@]}"; do
+  if [ ! -f "$s" ]; then
+    continue
+  fi
+  MODE=$(git ls-files --stage -- "$s" 2>/dev/null | awk '{print $1}')
+  if [ -z "$MODE" ]; then
+    continue  # file non tracciato, skip
+  fi
+  if [ "$MODE" != "100755" ]; then
+    git update-index --chmod=+x -- "$s"
+    chmod +x "$s" 2>/dev/null || true
+    warn "$s mode era $MODE → forzato 100755 (sarà nel commit)"
+    FIXED=$((FIXED + 1))
+  fi
+done
+if [ "$FIXED" -eq 0 ]; then
+  ok "tutti gli script eseguibili hanno già 100755"
+fi
+
 # ── Commit ─────────────────────────────────────────────────
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git status --porcelain)" ]; then
   if [[ -z "$MSG" ]]; then
