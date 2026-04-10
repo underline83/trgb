@@ -59,6 +59,15 @@ export default function ControlloGestioneUscite() {
   const [bulkMetodo, setBulkMetodo] = useState("CONTO_CORRENTE");
   const [bulkSaving, setBulkSaving] = useState(false);
 
+  // ── Batch di pagamento / stampa ──
+  const [stampaModal, setStampaModal] = useState(false); // {} when open
+  const [batchTitolo, setBatchTitolo] = useState("");
+  const [batchNote, setBatchNote] = useState("");
+  const [batchSaving, setBatchSaving] = useState(false);
+
+  // ── Filtro "solo in pagamento" ──
+  const [filtroInPagamento, setFiltroInPagamento] = useState(false);
+
   // ── Modale modifica scadenza ──
   const [modaleScadenza, setModaleScadenza] = useState(null); // { id, fornitore_nome, totale, data_scadenza, data_scadenza_originale, stato }
   const [nuovaScadenza, setNuovaScadenza] = useState("");
@@ -137,8 +146,9 @@ export default function ControlloGestioneUscite() {
     if (filtroTipo) rows = rows.filter(u => (u.tipo_uscita || "FATTURA") === filtroTipo);
     if (filtroDa) rows = rows.filter(u => u.data_scadenza && u.data_scadenza >= filtroDa);
     if (filtroA) rows = rows.filter(u => u.data_scadenza && u.data_scadenza <= filtroA);
+    if (filtroInPagamento) rows = rows.filter(u => !!u.in_pagamento_at);
     return rows;
-  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA]);
+  }, [allUscite, search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento]);
 
   // ── Sorting locale ──
   const sorted = useMemo(() => sortRows(filtered, sortCol, sortDir), [filtered, sortCol, sortDir]);
@@ -311,8 +321,210 @@ export default function ControlloGestioneUscite() {
     }
   };
 
-  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA].filter(Boolean).length;
-  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); };
+  // ── Batch di pagamento: apri modale conferma ──
+  const apriStampaBatch = () => {
+    if (selected.size === 0) return;
+    const oggi = new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+    setBatchTitolo(`Pagamenti ${oggi}`);
+    setBatchNote("");
+    setStampaModal(true);
+  };
+
+  // ── Conferma: crea batch via API e apre la finestra di stampa ──
+  const confermaStampaBatch = async () => {
+    if (selected.size === 0) return;
+    setBatchSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/batch-pagamento`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: [...selected],
+          titolo: batchTitolo.trim() || undefined,
+          note: batchNote.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      if (!json.ok) {
+        alert(json.error || "Errore creazione batch");
+        return;
+      }
+      // Apri la stampa con il batch ricevuto
+      apriFinestraStampa(json.batch);
+      // Reset UI
+      setStampaModal(false);
+      setSelected(new Set());
+      fetchData(false);
+    } catch (e) {
+      console.error("Errore batch pagamento:", e);
+      alert("Errore di rete");
+    } finally {
+      setBatchSaving(false);
+    }
+  };
+
+  // ── Template HTML per la stampa (apre nuova finestra) ──
+  const apriFinestraStampa = (batch) => {
+    const w = window.open("", "_blank", "width=900,height=1000");
+    if (!w) {
+      alert("Impossibile aprire la finestra di stampa. Controlla i popup del browser.");
+      return;
+    }
+    const righe = (batch.uscite || []).map((u, i) => {
+      const iban = u.fornitore_iban || u.sf_iban || "";
+      const desc = u.numero_fattura && u.numero_fattura !== "—"
+        ? u.numero_fattura
+        : (u.periodo_riferimento || u.sf_titolo || "");
+      const dataScad = u.data_scadenza
+        ? new Date(u.data_scadenza + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : "—";
+      const importo = Number(u.totale - u.importo_pagato).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const stato = u.stato === "SCADUTA" ? "SCADUTA" : "";
+      return `
+        <tr class="${stato === "SCADUTA" ? "scaduta" : ""}">
+          <td class="num">${i + 1}</td>
+          <td class="scad">${dataScad}${stato ? ` <span class="tag">${stato}</span>` : ""}</td>
+          <td class="forn">
+            <div class="forn-nome">${escapeHtml(u.fornitore_nome || "—")}</div>
+            ${desc ? `<div class="forn-desc">${escapeHtml(desc)}</div>` : ""}
+            ${u.note ? `<div class="forn-note">${escapeHtml(u.note)}</div>` : ""}
+          </td>
+          <td class="iban">${iban ? escapeHtml(iban) : '<span class="mute">—</span>'}</td>
+          <td class="imp">&euro; ${importo}</td>
+          <td class="check"></td>
+        </tr>
+      `;
+    }).join("");
+
+    const totale = Number(batch.totale || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dataBatch = new Date(batch.created_at || Date.now()).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+    const html = `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(batch.titolo || "Elenco pagamenti")}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 20px; font-size: 11pt; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 16px; }
+  .brand { font-size: 14pt; font-weight: 700; color: #0f766e; letter-spacing: 0.5px; }
+  .brand-sub { font-size: 9pt; color: #666; margin-top: 2px; }
+  .meta { text-align: right; font-size: 9pt; color: #444; }
+  .meta .tit { font-size: 13pt; font-weight: 700; color: #1a1a1a; margin-bottom: 2px; }
+  .note { margin: 10px 0; padding: 8px 12px; background: #fef3c7; border-left: 3px solid #f59e0b; font-size: 10pt; color: #78350f; border-radius: 3px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  thead th { background: #f1f5f9; color: #0f172a; font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 6px 8px; text-align: left; border-bottom: 2px solid #94a3b8; }
+  thead th.r { text-align: right; }
+  thead th.c { text-align: center; width: 30px; }
+  tbody td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 10pt; vertical-align: top; }
+  tbody td.num { color: #94a3b8; font-size: 9pt; width: 26px; text-align: center; }
+  tbody td.scad { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9.5pt; width: 100px; }
+  tbody td.scad .tag { display: inline-block; margin-left: 4px; padding: 1px 5px; background: #dc2626; color: white; font-size: 7.5pt; font-weight: 700; border-radius: 3px; letter-spacing: 0.3px; }
+  tbody tr.scaduta td.scad { color: #b91c1c; font-weight: 600; }
+  tbody td.forn .forn-nome { font-weight: 600; color: #0f172a; }
+  tbody td.forn .forn-desc { font-size: 9pt; color: #64748b; margin-top: 2px; }
+  tbody td.forn .forn-note { font-size: 8.5pt; color: #94a3b8; margin-top: 2px; font-style: italic; }
+  tbody td.iban { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9pt; color: #475569; letter-spacing: 0.3px; max-width: 220px; word-break: break-all; }
+  tbody td.iban .mute { color: #cbd5e1; }
+  tbody td.imp { text-align: right; font-weight: 600; white-space: nowrap; font-size: 10.5pt; }
+  tbody td.check { width: 28px; border: 1px solid #cbd5e1; }
+  tfoot td { padding: 10px 8px; font-weight: 700; font-size: 11pt; border-top: 2px solid #0f172a; background: #f8fafc; }
+  tfoot td.label { text-align: right; }
+  tfoot td.tot { text-align: right; color: #0f766e; font-size: 13pt; }
+  .footer { margin-top: 24px; display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .firm { width: 40%; }
+  .firm-label { text-transform: uppercase; font-size: 8pt; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 28px; }
+  .firm-line { border-top: 1px solid #475569; padding-top: 3px; text-align: center; font-size: 8.5pt; color: #475569; }
+  .toolbar { position: fixed; top: 10px; right: 10px; display: flex; gap: 6px; }
+  .toolbar button { background: #0f766e; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 10pt; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+  .toolbar button:hover { background: #115e59; }
+  .toolbar button.sec { background: #64748b; }
+  @media print {
+    .toolbar { display: none; }
+    body { padding: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">🖨 Stampa / Salva PDF</button>
+    <button class="sec" onclick="window.close()">Chiudi</button>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="brand">OSTERIA TRE GOBBI</div>
+      <div class="brand-sub">Elenco pagamenti da effettuare</div>
+    </div>
+    <div class="meta">
+      <div class="tit">${escapeHtml(batch.titolo || "Pagamenti")}</div>
+      <div>Emesso il ${dataBatch}</div>
+      <div>Batch #${batch.id} &middot; ${batch.n_uscite} uscit${batch.n_uscite === 1 ? "a" : "e"}</div>
+    </div>
+  </div>
+
+  ${batch.note ? `<div class="note">${escapeHtml(batch.note)}</div>` : ""}
+
+  <table>
+    <thead>
+      <tr>
+        <th class="c">#</th>
+        <th>Scadenza</th>
+        <th>Fornitore / Descrizione</th>
+        <th>IBAN / Coordinate</th>
+        <th class="r">Importo</th>
+        <th class="c">OK</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${righe}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" class="label">TOTALE DA PAGARE</td>
+        <td class="tot">&euro; ${totale}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    <div class="firm">
+      <div class="firm-label">Preparato da</div>
+      <div class="firm-line">Marco</div>
+    </div>
+    <div class="firm">
+      <div class="firm-label">Eseguito da</div>
+      <div class="firm-line">Data e firma</div>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    // Stampa auto dopo un breve delay per il rendering
+    w.addEventListener("load", () => {
+      setTimeout(() => w.focus(), 100);
+    });
+  };
+
+  // Escape HTML per il template stampa
+  const escapeHtml = (s) => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); };
 
   const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
   const fSel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-300";
@@ -386,6 +598,23 @@ export default function ControlloGestioneUscite() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* In pagamento (batch) */}
+            <div className="bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-200 shadow-sm">
+              <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest mb-1.5">Batch Pagamenti</div>
+              <button onClick={() => setFiltroInPagamento(v => !v)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between gap-2 ${
+                  filtroInPagamento ? "bg-indigo-600 text-white font-semibold" : "hover:bg-indigo-100 text-neutral-700"
+                }`}>
+                <span className="flex items-center gap-1.5">
+                  <span>🖨</span>
+                  <span>Solo in pagamento</span>
+                </span>
+                <span className={`text-[10px] ${filtroInPagamento ? "text-indigo-100" : "text-neutral-400"}`}>
+                  {allUscite.filter(u => u.in_pagamento_at).length}
+                </span>
+              </button>
             </div>
 
             {/* Periodo */}
@@ -524,6 +753,15 @@ export default function ControlloGestioneUscite() {
               <span className="text-xs font-semibold text-teal-800">
                 {selected.size} selezionat{selected.size === 1 ? "a" : "e"}
               </span>
+              {/* Stampa + batch */}
+              <button onClick={apriStampaBatch}
+                className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1.5"
+                title="Crea un batch di pagamento, apre una stampa e marca le uscite come messe in pagamento">
+                <span>🖨</span>
+                <span>Stampa / Metti in pagamento</span>
+              </button>
+              <div className="h-5 w-px bg-teal-300 mx-1" />
+              {/* Segna pagate */}
               <select value={bulkMetodo} onChange={e => setBulkMetodo(e.target.value)}
                 className="border border-teal-300 rounded-lg px-2 py-1 text-xs bg-white">
                 <option value="CONTO_CORRENTE">Conto corrente</option>
@@ -537,7 +775,7 @@ export default function ControlloGestioneUscite() {
                 {bulkSaving ? "Salvataggio..." : "Segna pagate"}
               </button>
               <button onClick={() => setSelected(new Set())}
-                className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+                className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 ml-auto">
                 Deseleziona
               </button>
             </div>
@@ -592,12 +830,14 @@ export default function ControlloGestioneUscite() {
                     const isRiconciliata = !!u.banca_movimento_id;
                     const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
                     const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
+                    const inPagamento = !!u.in_pagamento_at;
 
                     return (
                       <tr key={u.id}
                         onClick={() => apriModaleScadenza(u)}
                         className={`border-b border-neutral-100 hover:bg-sky-50/50 transition cursor-pointer ${
                         selected.has(u.id) ? "bg-teal-50/60" :
+                        inPagamento ? "bg-indigo-50/50" :
                         u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}
@@ -653,9 +893,19 @@ export default function ControlloGestioneUscite() {
                         </td>
                         {/* STATO */}
                         <td className="px-3 py-1.5 text-center">
-                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text} ${st.border} border`}>
-                            {st.label}
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${st.bg} ${st.text} ${st.border} border`}>
+                              {st.label}
+                            </span>
+                            {inPagamento && (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200"
+                                title={u.batch_titolo ? `Batch: ${u.batch_titolo}` : "In pagamento"}>
+                                <span>🖨</span>
+                                <span>In pagamento</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         {/* CATEGORIA */}
                         <td className="px-3 py-1.5">
@@ -703,6 +953,63 @@ export default function ControlloGestioneUscite() {
 
         </div>
       </div>
+
+      {/* ══════ MODALE CONFERMA STAMPA / BATCH PAGAMENTO ══════ */}
+      {stampaModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => !batchSaving && setStampaModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-neutral-200 bg-indigo-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                    <span>🖨</span> Crea batch di pagamento
+                  </h3>
+                  <p className="text-[11px] text-indigo-600 mt-0.5">
+                    {selected.size} uscit{selected.size === 1 ? "a" : "e"} selezionat{selected.size === 1 ? "a" : "e"} — verranno marcate come "In pagamento"
+                  </p>
+                </div>
+                <button onClick={() => setStampaModal(false)} disabled={batchSaving}
+                  className="text-neutral-400 hover:text-neutral-600 text-lg leading-none">&times;</button>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600 block mb-1">Titolo batch</label>
+                <input type="text" value={batchTitolo}
+                  onChange={e => setBatchTitolo(e.target.value)}
+                  placeholder="Pagamenti del ..."
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none" />
+                <p className="text-[10px] text-neutral-400 mt-1">Comparirà in stampa e sarà visibile nella futura dashboard contabile</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600 block mb-1">Note (opzionale)</label>
+                <textarea value={batchNote}
+                  onChange={e => setBatchNote(e.target.value)}
+                  placeholder="Istruzioni o note per chi esegue i pagamenti..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none resize-none" />
+              </div>
+              <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg px-3 py-2 text-[11px] text-indigo-700 space-y-1">
+                <div className="flex items-center gap-2"><span>✔</span> Si aprirà una finestra di stampa pronta (A4)</div>
+                <div className="flex items-center gap-2"><span>✔</span> Le uscite vengono marcate <strong>"In pagamento"</strong> nello scadenzario</div>
+                <div className="flex items-center gap-2"><span>✔</span> Il batch resta tracciato per future consegne al contabile</div>
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex justify-end gap-2">
+              <button onClick={() => setStampaModal(false)} disabled={batchSaving}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-200">
+                Annulla
+              </button>
+              <button onClick={confermaStampaBatch} disabled={batchSaving}
+                className="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                {batchSaving ? "Creazione batch..." : "Crea batch e stampa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════ MODALE MODIFICA SCADENZA ══════ */}
       {modaleScadenza && (() => {

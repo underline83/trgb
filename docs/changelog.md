@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
+
+#### New — Batch di pagamento per stampa e workflow contabile
+- **Selezione multipla + stampa** — nello Scadenzario Uscite seleziona più righe e clicca "Stampa / Metti in pagamento": crea un batch tracciato e apre una stampa A4 pulita con fornitore, descrizione, IBAN, importo, totale, caselle OK e firme
+- **Migrazione 053** — nuova tabella `cg_pagamenti_batch` (titolo, note, n_uscite, totale, stato, timestamp) + colonne `cg_uscite.pagamento_batch_id` e `cg_uscite.in_pagamento_at` con indici
+- **Stati batch** — `IN_PAGAMENTO` → `INVIATO_CONTABILE` → `CHIUSO` (predisposto per la futura dashboard contabile)
+- **Backend endpoint** — `POST /uscite/batch-pagamento`, `GET /pagamenti-batch`, `GET /pagamenti-batch/{id}`, `PUT /pagamenti-batch/{id}` (cambio stato), `DELETE /pagamenti-batch/{id}` (scollega le uscite)
+- **Badge "In pagamento"** — le righe flaggate mostrano il badge indigo con tooltip titolo batch; riga evidenziata con sfondo indigo leggero
+- **Filtro sidebar "Solo in pagamento"** — quick filter per vedere solo le uscite appartenenti a un batch attivo, con contatore
+- **Template stampa A4** — header Osteria Tre Gobbi, meta batch, tabella con righe alternate, totale evidenziato, area firme "preparato da / eseguito da". Auto-print dalla nuova finestra con bottoni Stampa/Chiudi
+
 ## 2026-04-10 — Controllo Gestione v1.6: Avanzamento piano + ricerca multi-fattura
 
 #### Fix — Scadenzario Uscite: ordinamento per data coerente per stato

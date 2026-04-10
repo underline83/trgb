@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    version: "1.6",
+    version: "1.7",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",

@@ -814,11 +814,15 @@ def get_uscite(
             s.giorni_pagamento AS giorni_fornitore,
             sf.tipo AS sf_tipo,
             sf.frequenza AS sf_frequenza,
-            sf.titolo AS sf_titolo
+            sf.titolo AS sf_titolo,
+            pb.titolo AS batch_titolo,
+            pb.stato AS batch_stato,
+            pb.created_at AS batch_created_at
         FROM cg_uscite u
         LEFT JOIN fe_fatture f ON u.fattura_id = f.id
         LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
         LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+        LEFT JOIN cg_pagamenti_batch pb ON u.pagamento_batch_id = pb.id
         {where_sql}
         ORDER BY {order_sql}
     """, params).fetchall()
@@ -1794,6 +1798,256 @@ def segna_pagate_bulk(
         aggiornate = conn.total_changes
         conn.commit()
         return {"ok": True, "aggiornate": aggiornate}
+    finally:
+        conn.close()
+
+
+# ══════════════════════════════════════════════════════════════════
+#  BATCH DI PAGAMENTO — stampa elenco uscite + workflow contabile
+# ══════════════════════════════════════════════════════════════════
+
+@router.post("/uscite/batch-pagamento")
+def crea_batch_pagamento(
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Crea un batch di pagamento a partire da una lista di uscite selezionate.
+    Le uscite vengono marcate con in_pagamento_at=NOW e collegate al batch.
+
+    Body: { ids: [int], titolo?: str, note?: str }
+
+    Ritorna il batch con i dettagli delle uscite, pronto per la stampa.
+    In futuro il batch può essere inviato al contabile (stato INVIATO_CONTABILE)
+    e poi chiuso quando tutte le uscite sono pagate.
+    """
+    ids = payload.get("ids", [])
+    titolo = (payload.get("titolo") or "").strip()
+    note = payload.get("note") or ""
+
+    if not ids or not isinstance(ids, list):
+        return {"ok": False, "error": "Nessuna uscita selezionata"}
+
+    if not titolo:
+        titolo = f"Pagamenti {date.today().strftime('%d/%m/%Y')}"
+
+    conn = get_fc_db()
+    try:
+        placeholders = ",".join("?" * len(ids))
+        # Calcola totale e conteggio dalle uscite effettive (non pagate)
+        agg = conn.execute(f"""
+            SELECT COUNT(*) AS n, COALESCE(SUM(totale - importo_pagato), 0) AS tot
+            FROM cg_uscite
+            WHERE id IN ({placeholders})
+              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+        """, ids).fetchone()
+
+        n_uscite = agg["n"] if agg else 0
+        totale = float(agg["tot"]) if agg else 0.0
+
+        if n_uscite == 0:
+            return {"ok": False, "error": "Nessuna uscita selezionata risulta da pagare"}
+
+        user_id = None
+        try:
+            user_id = current_user.get("id") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+        except Exception:
+            user_id = None
+
+        conn.execute("""
+            INSERT INTO cg_pagamenti_batch
+                (titolo, note, n_uscite, totale, stato, created_by)
+            VALUES (?, ?, ?, ?, 'IN_PAGAMENTO', ?)
+        """, (titolo, note, n_uscite, totale, user_id))
+        batch_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Marca le uscite: collegale al batch e setta in_pagamento_at
+        # Solo le righe effettivamente da pagare
+        conn.execute(f"""
+            UPDATE cg_uscite
+            SET pagamento_batch_id = ?,
+                in_pagamento_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id IN ({placeholders})
+              AND stato IN ('DA_PAGARE', 'SCADUTA', 'PARZIALE')
+        """, [batch_id] + ids)
+
+        conn.commit()
+
+        # Rileggi il batch con le uscite per la risposta (pronto stampa)
+        batch = dict(conn.execute(
+            "SELECT * FROM cg_pagamenti_batch WHERE id = ?", (batch_id,)
+        ).fetchone())
+
+        uscite = conn.execute(f"""
+            SELECT
+                u.id, u.fornitore_nome, u.fornitore_piva, u.numero_fattura,
+                u.data_fattura, u.data_scadenza, u.totale, u.importo_pagato,
+                u.stato, u.periodo_riferimento, u.note, u.tipo_uscita,
+                s.iban AS fornitore_iban,
+                s.modalita_pagamento_default AS mp_fornitore,
+                sf.titolo AS sf_titolo,
+                sf.iban AS sf_iban
+            FROM cg_uscite u
+            LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
+            LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+            WHERE u.pagamento_batch_id = ?
+            ORDER BY u.data_scadenza ASC, u.fornitore_nome ASC
+        """, (batch_id,)).fetchall()
+
+        batch["uscite"] = [dict(r) for r in uscite]
+        return {"ok": True, "batch": batch}
+    finally:
+        conn.close()
+
+
+@router.get("/pagamenti-batch")
+def list_pagamenti_batch(
+    stato: Optional[str] = Query(None),
+    current_user=Depends(get_current_user),
+):
+    """
+    Lista dei batch di pagamento. Filtrabile per stato.
+    Usato in Scadenzario e — in futuro — dalla dashboard contabile.
+    """
+    conn = get_fc_db()
+    try:
+        if stato:
+            rows = conn.execute("""
+                SELECT * FROM cg_pagamenti_batch
+                WHERE stato = ?
+                ORDER BY created_at DESC
+            """, (stato,)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT * FROM cg_pagamenti_batch
+                ORDER BY created_at DESC
+            """).fetchall()
+        return {"batch": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.get("/pagamenti-batch/{batch_id}")
+def get_pagamento_batch(
+    batch_id: int,
+    current_user=Depends(get_current_user),
+):
+    """Dettaglio batch con tutte le uscite collegate."""
+    conn = get_fc_db()
+    try:
+        batch_row = conn.execute(
+            "SELECT * FROM cg_pagamenti_batch WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if not batch_row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Batch non trovato")
+        batch = dict(batch_row)
+
+        uscite = conn.execute("""
+            SELECT
+                u.id, u.fornitore_nome, u.fornitore_piva, u.numero_fattura,
+                u.data_fattura, u.data_scadenza, u.totale, u.importo_pagato,
+                u.stato, u.periodo_riferimento, u.note, u.tipo_uscita,
+                s.iban AS fornitore_iban,
+                s.modalita_pagamento_default AS mp_fornitore,
+                sf.titolo AS sf_titolo,
+                sf.iban AS sf_iban
+            FROM cg_uscite u
+            LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
+            LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+            WHERE u.pagamento_batch_id = ?
+            ORDER BY u.data_scadenza ASC, u.fornitore_nome ASC
+        """, (batch_id,)).fetchall()
+        batch["uscite"] = [dict(r) for r in uscite]
+        return batch
+    finally:
+        conn.close()
+
+
+@router.put("/pagamenti-batch/{batch_id}")
+def update_pagamento_batch(
+    batch_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Aggiorna stato/titolo/note del batch.
+    Stati validi: IN_PAGAMENTO, INVIATO_CONTABILE, CHIUSO.
+    Quando si passa a INVIATO_CONTABILE setta inviato_contabile_at.
+    Quando si passa a CHIUSO setta chiuso_at.
+    """
+    stato_nuovo = payload.get("stato")
+    STATI = ("IN_PAGAMENTO", "INVIATO_CONTABILE", "CHIUSO")
+
+    conn = get_fc_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM cg_pagamenti_batch WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Batch non trovato")
+
+        sets = []
+        params = []
+        if "titolo" in payload:
+            sets.append("titolo = ?")
+            params.append(payload["titolo"])
+        if "note" in payload:
+            sets.append("note = ?")
+            params.append(payload["note"])
+        if stato_nuovo:
+            if stato_nuovo not in STATI:
+                return {"ok": False, "error": f"Stato non valido: {stato_nuovo}"}
+            sets.append("stato = ?")
+            params.append(stato_nuovo)
+            if stato_nuovo == "INVIATO_CONTABILE":
+                sets.append("inviato_contabile_at = CURRENT_TIMESTAMP")
+            elif stato_nuovo == "CHIUSO":
+                sets.append("chiuso_at = CURRENT_TIMESTAMP")
+
+        if not sets:
+            return {"ok": False, "error": "Nessun campo da aggiornare"}
+
+        params.append(batch_id)
+        conn.execute(f"UPDATE cg_pagamenti_batch SET {', '.join(sets)} WHERE id = ?", params)
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.delete("/pagamenti-batch/{batch_id}")
+def delete_pagamento_batch(
+    batch_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Elimina un batch e rimuove il flag dalle uscite collegate.
+    Le uscite NON vengono cancellate, tornano solo in stato normale.
+    """
+    conn = get_fc_db()
+    try:
+        row = conn.execute(
+            "SELECT id FROM cg_pagamenti_batch WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if not row:
+            from fastapi import HTTPException
+            raise HTTPException(404, "Batch non trovato")
+
+        # Scollega le uscite
+        conn.execute("""
+            UPDATE cg_uscite
+            SET pagamento_batch_id = NULL,
+                in_pagamento_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE pagamento_batch_id = ?
+        """, (batch_id,))
+
+        conn.execute("DELETE FROM cg_pagamenti_batch WHERE id = ?", (batch_id,))
+        conn.commit()
+        return {"ok": True}
     finally:
         conn.close()
 
