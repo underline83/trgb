@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-04-10 — Controllo Gestione v2.0b: Query /uscite come vista aggregatore su fe_fatture
+
+#### New — Fase B.1 del refactoring v2.0 "CG come aggregatore"
+- **`GET /controllo-gestione/uscite` riscritto** — la query non seleziona più solo da `cg_uscite`, ma fa LEFT JOIN con `fe_fatture` e legge da lì i campi di pianificazione finanziaria introdotti dalla mig 056 (`data_prevista_pagamento`, `data_effettiva_pagamento`, `modalita_pagamento_override`, `iban_beneficiario`). Per le righe FATTURA, la "verità" viene da `fe_fatture`; `cg_uscite` resta indice di workflow
+- **Campi derivati COALESCE** — il backend calcola tre fallback chain direttamente in SQL:
+  - `data_scadenza_effettiva` = effettiva → prevista → `u.data_scadenza` (modifiche pre-v2.0) → `f.data_scadenza` (XML analitico)
+  - `modalita_pagamento_effettiva` = override utente → XML → default fornitore
+  - `iban_beneficiario_effettivo` = IBAN fattura → IBAN spesa fissa → IBAN fornitore
+- **Stato normalizzato nel SELECT** — un `CASE` rimappa lo stato in `RATEIZZATA`/`PAGATA` quando `fe_fatture.rateizzata_in_spesa_fissa_id` è valorizzato o `f.data_effettiva_pagamento` è settato, anche se `cg_uscite` non è ancora allineata
+- **Filtro `includi_rateizzate` (default: False)** — nuovo query param che di default nasconde le 43 fatture backfilled dalla migrazione 057. Le rateizzate non appaiono più nello Scadenzario e non confluiscono nei totali di riepilogo, restituendo totali corretti al netto delle duplicazioni logiche
+- **Binding nominale** — tutti i filtri dinamici ora passano parametri a nome (`:includi_rateizzate`, `:stato`, ecc.) — SQLite non permette alias del SELECT nella WHERE, quindi il COALESCE per le date nel range è duplicato (costo trascurabile)
+- **Retrocompatibilità piena** — `row["data_scadenza"]` rimpiazza `data_scadenza_effettiva` via `pop()` lato Python, così la shape del payload JSON è identica a v1.7 e il frontend non richiede modifiche
+
+#### Note architetturali v2.0
+- Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
+- Questa è la Fase B.1; B.2 (smart dispatcher modifica scadenza) e B.3 (IBAN/modalità override) sono pianificate
+
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 
 #### New — Batch di pagamento per stampa e workflow contabile

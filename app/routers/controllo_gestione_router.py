@@ -768,60 +768,146 @@ def get_uscite(
     da: Optional[str] = Query(default=None, description="Data scadenza da (YYYY-MM-DD)"),
     a: Optional[str] = Query(default=None, description="Data scadenza a (YYYY-MM-DD)"),
     ordine: str = Query(default="scadenza_asc"),
+    includi_rateizzate: bool = Query(default=False, description="Se True mostra anche le fatture rateizzate"),
     current_user=Depends(get_current_user),
 ):
     """
-    Tabellone uscite.
+    Tabellone uscite (v2.0 — CG aggregatore).
+    cg_uscite resta indice di workflow; per le righe FATTURA la "verità" dei
+    campi di pianificazione finanziaria (data scadenza effettiva, IBAN,
+    modalità pagamento) viene letta da fe_fatture via JOIN.
     Filtri: stato (DA_PAGARE, SCADUTA, PAGATA, PARZIALE), fornitore, range scadenza.
     """
     fc = get_fc_db()
     oggi_str = date.today().isoformat()
 
-    where = []
-    params = []
+    # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate)
+    where = ["(:includi_rateizzate = 1 OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATA'))"]
+    params: dict = {"includi_rateizzate": 1 if includi_rateizzate else 0}
 
     if stato:
-        where.append("u.stato = ?")
-        params.append(stato)
+        # Filtri stato: in Fase B la transizione non è completa, restano su u.stato
+        where.append("u.stato = :stato")
+        params["stato"] = stato
     if fornitore:
-        where.append("u.fornitore_nome LIKE ?")
-        params.append(f"%{fornitore}%")
+        where.append("u.fornitore_nome LIKE :fornitore")
+        params["fornitore"] = f"%{fornitore}%"
     if da:
-        where.append("u.data_scadenza >= ?")
-        params.append(da)
+        # Range data: punta a data_scadenza_effettiva (COALESCE duplicato perché
+        # SQLite non permette di referenziare alias del SELECT nella WHERE).
+        where.append("COALESCE(f.data_effettiva_pagamento, f.data_prevista_pagamento, u.data_scadenza, f.data_scadenza) >= :da")
+        params["da"] = da
     if a:
-        where.append("u.data_scadenza <= ?")
-        params.append(a)
+        where.append("COALESCE(f.data_effettiva_pagamento, f.data_prevista_pagamento, u.data_scadenza, f.data_scadenza) <= :a")
+        params["a"] = a
 
-    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    where_sql = f"WHERE {' AND '.join(where)}"
 
     ordine_map = {
-        "scadenza_asc": "u.data_scadenza ASC NULLS LAST",
-        "scadenza_desc": "u.data_scadenza DESC NULLS LAST",
-        "importo_asc": "u.totale ASC",
-        "importo_desc": "u.totale DESC",
-        "fornitore": "u.fornitore_nome ASC",
-        "data_fattura": "u.data_fattura DESC",
+        "scadenza_asc":  "data_scadenza_effettiva ASC NULLS LAST",
+        "scadenza_desc": "data_scadenza_effettiva DESC NULLS LAST",
+        "importo_asc":   "u.totale ASC",
+        "importo_desc":  "u.totale DESC",
+        "fornitore":     "u.fornitore_nome ASC",
+        "data_fattura":  "u.data_fattura DESC",
     }
-    order_sql = ordine_map.get(ordine, "u.data_scadenza ASC NULLS LAST")
+    order_sql = ordine_map.get(ordine, "data_scadenza_effettiva ASC NULLS LAST")
 
     uscite = fc.execute(f"""
         SELECT
-            u.*,
-            f.modalita_pagamento AS mp_xml,
-            f.condizioni_pagamento AS cp_xml,
-            s.modalita_pagamento_default AS mp_fornitore,
-            s.giorni_pagamento AS giorni_fornitore,
-            sf.tipo AS sf_tipo,
-            sf.frequenza AS sf_frequenza,
-            sf.titolo AS sf_titolo,
-            pb.titolo AS batch_titolo,
-            pb.stato AS batch_stato,
-            pb.created_at AS batch_created_at
+            -- tutti i campi nativi di cg_uscite (retrocompatibilità)
+            u.id,
+            u.fattura_id,
+            u.fornitore_nome,
+            u.fornitore_piva,
+            u.numero_fattura,
+            u.data_fattura,
+            u.totale,
+            u.data_scadenza                 AS data_scadenza_cg,
+            u.importo_pagato,
+            u.data_pagamento,
+            u.stato                         AS stato_cg,
+            u.banca_movimento_id,
+            u.note,
+            u.created_at,
+            u.updated_at,
+            u.metodo_pagamento,
+            u.tipo_uscita,
+            u.spesa_fissa_id,
+            u.periodo_riferimento,
+            u.data_scadenza_originale,
+            u.pagamento_batch_id,
+            u.in_pagamento_at,
+
+            -- campi JOIN tradizionali
+            f.modalita_pagamento            AS mp_xml,
+            f.condizioni_pagamento          AS cp_xml,
+            s.modalita_pagamento_default    AS mp_fornitore,
+            s.giorni_pagamento              AS giorni_fornitore,
+            sf.tipo                         AS sf_tipo,
+            sf.frequenza                    AS sf_frequenza,
+            sf.titolo                       AS sf_titolo,
+            pb.titolo                       AS batch_titolo,
+            pb.stato                        AS batch_stato,
+            pb.created_at                   AS batch_created_at,
+
+            -- NUOVI campi v2.0 (fe_fatture come fonte di verità)
+            f.rateizzata_in_spesa_fissa_id,
+            f.data_scadenza                 AS data_scadenza_xml,
+            f.data_prevista_pagamento,
+            f.data_effettiva_pagamento,
+            f.iban_beneficiario             AS iban_fattura,
+            f.modalita_pagamento_override,
+            s.iban                          AS iban_fornitore,
+            sf.iban                         AS iban_spesa_fissa,
+
+            -- "data_scadenza_effettiva": fallback chain per il display
+            --  1) data_effettiva_pagamento (se pagata, vince sempre)
+            --  2) data_prevista_pagamento  (override utente)
+            --  3) u.data_scadenza          (cg_uscite, può avere modifiche pre-v2.0)
+            --  4) f.data_scadenza          (XML analitico)
+            COALESCE(
+                f.data_effettiva_pagamento,
+                f.data_prevista_pagamento,
+                u.data_scadenza,
+                f.data_scadenza
+            )                                AS data_scadenza_effettiva,
+
+            -- "modalita_pagamento_effettiva": override > XML > fornitore
+            COALESCE(
+                f.modalita_pagamento_override,
+                f.modalita_pagamento,
+                s.modalita_pagamento_default
+            )                                AS modalita_pagamento_effettiva,
+
+            -- "iban_beneficiario_effettivo": fattura > spesa fissa > fornitore
+            COALESCE(
+                f.iban_beneficiario,
+                sf.iban,
+                s.iban
+            )                                AS iban_beneficiario_effettivo,
+
+            -- Flag derivato
+            CASE
+                WHEN f.rateizzata_in_spesa_fissa_id IS NOT NULL THEN 1
+                WHEN u.stato = 'RATEIZZATA' THEN 1
+                ELSE 0
+            END                              AS is_rateizzata,
+
+            -- Stato normalizzato (display): fa vedere come RATEIZZATA/PAGATA
+            -- anche quando cg_uscite non è ancora allineata
+            CASE
+                WHEN f.rateizzata_in_spesa_fissa_id IS NOT NULL THEN 'RATEIZZATA'
+                WHEN u.stato = 'RATEIZZATA' THEN 'RATEIZZATA'
+                WHEN f.data_effettiva_pagamento IS NOT NULL AND u.stato NOT IN ('PAGATA','PAGATA_MANUALE','PARZIALE')
+                     THEN 'PAGATA'
+                ELSE u.stato
+            END                              AS stato
+
         FROM cg_uscite u
-        LEFT JOIN fe_fatture f ON u.fattura_id = f.id
-        LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
-        LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+        LEFT JOIN fe_fatture         f  ON u.fattura_id         = f.id
+        LEFT JOIN suppliers          s  ON u.fornitore_piva     = s.partita_iva
+        LEFT JOIN cg_spese_fisse     sf ON u.spesa_fissa_id     = sf.id
         LEFT JOIN cg_pagamenti_batch pb ON u.pagamento_batch_id = pb.id
         {where_sql}
         ORDER BY {order_sql}
@@ -830,8 +916,13 @@ def get_uscite(
     rows = []
     for r in uscite:
         row = dict(r)
-        # Arricchisci con label modalità pagamento
-        mp = row.get("mp_xml") or row.get("mp_fornitore")
+        # v2.0: rimappa il campo computato al nome pubblico del payload.
+        # row["stato"] arriva già col nome giusto (alias della CASE).
+        # row["stato_cg"] e row["data_scadenza_cg"] restano accessibili come raw.
+        row["data_scadenza"] = row.pop("data_scadenza_effettiva")
+
+        # Arricchisci con label modalità pagamento (preferisce la chain effettiva v2.0)
+        mp = row.get("modalita_pagamento_effettiva") or row.get("mp_xml") or row.get("mp_fornitore")
         row["modalita_pagamento_label"] = MP_LABELS.get(mp, mp) if mp else None
         row["modalita_pagamento_codice"] = mp
         # Label metodo pagamento manuale
@@ -846,7 +937,7 @@ def get_uscite(
                                "ASSICURAZIONE": "Assicurazione", "ALTRO": "Altro"}
             row["sf_tipo_label"] = _sf_tipo_labels.get(row.get("sf_tipo"), row.get("sf_tipo"))
         # Sorgente scadenza
-        if row.get("mp_xml") or (r["data_scadenza"] and not row.get("giorni_fornitore")):
+        if row.get("mp_xml") or (row.get("data_scadenza") and not row.get("giorni_fornitore")):
             row["scadenza_fonte"] = "xml"
         elif row.get("giorni_fornitore"):
             row["scadenza_fonte"] = "fornitore"
