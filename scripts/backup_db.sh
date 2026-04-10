@@ -29,6 +29,7 @@ DBS=(
     "vini_magazzino.sqlite3"
     "vini_settings.sqlite3"
     "dipendenti.sqlite3"
+    "clienti.sqlite3"
 )
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

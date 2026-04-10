@@ -1,11 +1,15 @@
-// @version: v3.1-cantina-inline-deeplink
+// @version: v3.2-fornitore-sidebar-colorata
 // Elenco fornitori — Layout Cantina: Filtri SX + Lista/Dettaglio inline DX
 // v3.1: supporto deep-link ?piva=xxx per auto-aprire un fornitore specifico
-// (usato dal bottone "Modifica anagrafica fornitore" in FattureDettaglio).
+//       (usato dal bottone "Modifica anagrafica fornitore" in FattureDettaglio).
+// v3.2: FornitoreDetailView refactorato sul pattern SchedaVino/FattureDettaglio
+//       (sidebar colorata + SectionHeader). Sostituito FatturaInlineDetail con
+//       FattureDettaglio (unification: terzo target).
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import FattureDettaglio from "./FattureDettaglio";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
@@ -18,6 +22,28 @@ const fmt = (v) =>
 const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
 const fInp = "w-full border border-neutral-300 rounded-md px-2 py-1.5 text-[11px] bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
 const fSel = fInp;
+
+// ── Sidebar colors fornitore — uniforme a FattureDettaglio/SchedaVino ──
+const FORNITORE_SIDEBAR = {
+  ATTIVO:     { bg: "bg-gradient-to-b from-teal-700 to-teal-900",   accent: "bg-teal-500/30",   text: "text-teal-100" },
+  IN_SOSPESO: { bg: "bg-gradient-to-b from-amber-700 to-amber-900", accent: "bg-amber-500/30",  text: "text-amber-100" },
+  ESCLUSO:    { bg: "bg-gradient-to-b from-slate-700 to-slate-900", accent: "bg-slate-500/30",  text: "text-slate-100" },
+};
+function getFornitoreSidebar(isExcluded, nDaPagare) {
+  if (isExcluded) return FORNITORE_SIDEBAR.ESCLUSO;
+  if (nDaPagare > 0) return FORNITORE_SIDEBAR.IN_SOSPESO;
+  return FORNITORE_SIDEBAR.ATTIVO;
+}
+
+// ── SectionHeader uniforme a FattureDettaglio/SchedaVino ──
+function SectionHeader({ title, children }) {
+  return (
+    <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between gap-3 flex-wrap">
+      <h3 className="text-sm font-bold text-neutral-800">{title}</h3>
+      <div className="flex items-center gap-2 flex-wrap">{children}</div>
+    </div>
+  );
+}
 
 // ── Sortable header ──
 function SortTh({ label, field, sort, setSort, align }) {
@@ -541,8 +567,9 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
 
   // ── Dettaglio fattura inline ──
   const [openFatturaId, setOpenFatturaId] = useState(null);
-  const [fatturaDetail, setFatturaDetail] = useState(null);
-  const [fatturaDetLoading, setFatturaDetLoading] = useState(false);
+  // fatturaDetail/fatturaDetLoading non servono più: FattureDettaglio gestisce
+  // il proprio fetch. Manteniamo solo openFatturaId per decidere se mostrare
+  // la lista o il dettaglio inline.
   const [fattSort, setFattSort] = useState({ field: "data_fattura", dir: "desc" });
 
   // ── Selezione fatture per pagamento ──
@@ -589,7 +616,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
     setSelected(new Set());
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
-    setOpenFatturaId(null); setFatturaDetail(null); setSelFatt(new Set());
+    setOpenFatturaId(null); setSelFatt(new Set());
     setPagMp(""); setPagGiorni(""); setPagNote(""); setPagPreset(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
     setLocalExcl(false);
   }, [openKey]);
@@ -753,23 +780,16 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
     else setSelFatt(new Set(nonPagate.map(f => f.id)));
   };
 
-  // ── Apri dettaglio fattura inline ──
-  const openFattura = async (id) => {
-    if (openFatturaId === id) { setOpenFatturaId(null); setFatturaDetail(null); return; }
+  // ── Apri / chiudi dettaglio fattura inline ──
+  // FattureDettaglio gestisce il proprio fetch; qui serve solo il toggle dell'id.
+  const openFattura = (id) => {
+    if (openFatturaId === id) { setOpenFatturaId(null); return; }
     setOpenFatturaId(id);
-    setFatturaDetLoading(true);
-    try {
-      const res = await apiFetch(`${FE}/fatture/${id}`);
-      if (!res.ok) throw new Error();
-      setFatturaDetail(await res.json());
-    } catch {
-      setFatturaDetail(null);
-    } finally {
-      setFatturaDetLoading(false);
-    }
   };
 
   // ── Segna pagata manuale (CG) ──
+  // Usata come prop onSegnaPagata di FattureDettaglio: il componente interno
+  // esegue poi il proprio refetch per aggiornare la sidebar colorata.
   const segnaPagataManuale = async (id) => {
     if (!window.confirm("Segnare questa fattura come pagata (in attesa di riconciliazione banca)?")) return;
     try {
@@ -780,11 +800,20 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
       });
       const d = await res.json();
       if (!d.ok) { alert(d.error || "Errore"); return; }
-      // Aggiorna dettaglio locale
-      if (fatturaDetail && fatturaDetail.id === id) setFatturaDetail(prev => ({ ...prev, pagato: 1 }));
-      // Ricarica dati fornitore per aggiornare badge nella lista
-      if (onRefresh) onRefresh();
+      // Aggiorna lista fatture del fornitore e KPI sidebar
+      await reloadFatture();
+      if (onReloadList) onReloadList();
     } catch { alert("Errore di rete"); }
+  };
+
+  // Sync della riga fattura modificata dentro il componente FattureDettaglio
+  // (scadenza, IBAN, modalità) — aggiorna la lista locale per coerenza badge.
+  const handleFatturaUpdatedInline = (f) => {
+    if (!f || !f.id) return;
+    setDetailData(prev => prev ? {
+      ...prev,
+      fatture: (prev.fatture || []).map(x => x.id === f.id ? { ...x, ...f } : x),
+    } : prev);
   };
 
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio...</div>;
@@ -933,10 +962,15 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
         : "border-transparent text-neutral-500 hover:text-neutral-700"
     }`;
 
+  // ── Sidebar color + tag stato ──
+  const sbc = getFornitoreSidebar(isExcluded, nDaPagare);
+  const statoLabel = isExcluded ? "ESCLUSO" : nDaPagare > 0 ? "IN SOSPESO" : "ATTIVO";
+
   return (
-    <div className="p-4 sm:p-6 space-y-4">
-      {/* Nav bar */}
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col bg-neutral-50">
+
+      {/* ══════ TOP BAR (back + stato esclusione) ══════ */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 bg-white flex-shrink-0">
         <button onClick={onClose}
           className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
           ← Torna alla lista
@@ -947,228 +981,310 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
               ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
               : "border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
           }`}>
-          {togglingExcl ? "..." : isExcluded ? "✕ Escluso da acquisti — Ripristina" : "Nascondi da acquisti"}
+          {togglingExcl ? "..." : isExcluded ? "✕ Escluso — Ripristina" : "Nascondi da acquisti"}
         </button>
       </div>
-      {isExcluded && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          Questo fornitore è escluso dalle statistiche acquisti (dashboard, KPI, grafici). Le categorie restano editabili.
-        </div>
-      )}
 
-      {/* Header card */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
-        <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
-          <div className="flex-1">
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider mb-1">Fornitore</p>
-            <h2 className="text-xl font-bold text-teal-900 font-playfair">{fornNome}</h2>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
-              {fornPiva && <p className="text-xs text-neutral-500 font-mono">P.IVA: {fornPiva}</p>}
-              {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && (
-                <p className="text-xs text-neutral-500 font-mono">C.F.: {anag.fornitore_cf}</p>
-              )}
-            </div>
-          </div>
-          {/* Anagrafica sede */}
-          {(anag.fornitore_indirizzo || anag.fornitore_citta) && (
-            <div className="md:text-right text-xs text-neutral-500 space-y-0.5">
-              {anag.fornitore_indirizzo && <p className="text-neutral-700">{anag.fornitore_indirizzo}</p>}
-              <p>
-                {[anag.fornitore_cap, anag.fornitore_citta, anag.fornitore_provincia ? `(${anag.fornitore_provincia})` : null]
-                  .filter(Boolean).join(" ")}
-              </p>
-              {anag.fornitore_nazione && anag.fornitore_nazione !== "IT" && (
-                <p className="text-neutral-400">{anag.fornitore_nazione}</p>
-              )}
-            </div>
-          )}
-        </div>
+      {/* ══════ LAYOUT SIDEBAR + MAIN ══════ */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[300px_1fr] overflow-hidden min-h-0">
 
-        {/* KPI grid */}
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 mb-4">
-          <div className="bg-teal-50 rounded-xl p-2.5 border border-teal-200 text-center">
-            <p className="text-lg font-bold text-teal-900 tabular-nums">{totFatture}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Fatture</p>
-          </div>
-          <div className="bg-green-50 rounded-xl p-2.5 border border-green-200 text-center">
-            <p className="text-lg font-bold text-green-900 tabular-nums">€ {fmt(totSpesa)}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Tot. spesa</p>
-          </div>
-          <div className="bg-blue-50 rounded-xl p-2.5 border border-blue-200 text-center">
-            <p className="text-lg font-bold text-blue-900 tabular-nums">€ {fmt(totImponibile)}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Imponibile</p>
-          </div>
-          <div className="bg-neutral-50 rounded-xl p-2.5 border border-neutral-200 text-center">
-            <p className="text-lg font-bold text-neutral-800 tabular-nums">€ {fmt(totFatture > 0 ? totSpesa / totFatture : 0)}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Media fatt.</p>
-          </div>
-          <div className="bg-purple-50 rounded-xl p-2.5 border border-purple-200 text-center">
-            <p className="text-lg font-bold text-purple-900 tabular-nums">{nProdotti}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Prodotti</p>
-          </div>
-          {nDaPagare > 0 && (
-            <div className="bg-red-50 rounded-xl p-2.5 border border-red-200 text-center">
-              <p className="text-lg font-bold text-red-700 tabular-nums">€ {fmt(totDaPagare)}</p>
-              <p className="text-[9px] text-neutral-500 uppercase">{nDaPagare} da pagare</p>
-            </div>
-          )}
-          <div className="bg-neutral-50 rounded-xl p-2.5 border border-neutral-200 text-center">
-            <p className="text-sm font-bold text-neutral-900">{primoAcquisto || "—"}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Primo acq.</p>
-          </div>
-          <div className="bg-neutral-50 rounded-xl p-2.5 border border-neutral-200 text-center">
-            <p className="text-sm font-bold text-neutral-900">{ultimoAcquisto || "—"}</p>
-            <p className="text-[9px] text-neutral-500 uppercase">Ultimo acq.</p>
-          </div>
-        </div>
+        {/* ═══════════ SIDEBAR COLORATA ═══════════ */}
+        <div className={`${sbc.bg} text-white flex flex-col h-full overflow-hidden`}>
 
-        {/* Categoria generica fornitore */}
-        <div className="border-t border-neutral-100 pt-3">
-          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Categoria generica fornitore</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <select value={catGenericaId} onChange={e => { setCatGenericaId(e.target.value); setSubGenericaId(""); }}
-              className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs">
-              <option value="">— Nessuna categoria —</option>
-              {categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
-            <select value={subGenericaId} onChange={e => setSubGenericaId(e.target.value)}
-              disabled={!catGenericaId}
-              className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs">
-              <option value="">— Sotto-cat. —</option>
-              {genSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-            </select>
-            <button onClick={handleSaveGenerica} disabled={savingGenerica}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
-              {savingGenerica ? "Salvataggio..." : "Salva"}
-            </button>
-          </div>
-
-          {/* Stats breakdown */}
-          {stats.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {stats.map((s, i) => (
-                <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                  s.categoria === "(Non categorizzato)"
-                    ? "bg-neutral-100 border-neutral-300 text-neutral-600"
-                    : "bg-teal-50 border-teal-200 text-teal-800"
-                }`}>
-                  {s.categoria}{s.sottocategoria ? ` > ${s.sottocategoria}` : ""}
-                  <span className="ml-1 font-semibold">
-                    {s.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}€
-                  </span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Condizioni pagamento — DEBUG: abilita gradualmente */}
-        {fornPiva && (
-          <div className="border-t border-neutral-100 pt-3 mt-3">
-            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Condizioni di pagamento</p>
-            {pagLoading ? (
-              <p className="text-xs text-neutral-400">Caricamento...</p>
-            ) : (
-              <>
-                {/* Banner auto-rilevato */}
-                {pagAutoDetected && !pagHasManual && (
-                  <div className="mb-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] text-blue-700">
-                      <strong>Auto-rilevato</strong> da {pagAutoDetected.fatture_analizzate} fatture:
-                      {pagAutoDetected.modalita_pagamento && <> {pagAutoDetected.modalita_pagamento}</>}
-                      {pagAutoDetected.giorni_pagamento != null && <> ~{pagAutoDetected.giorni_pagamento}gg</>}
-                      {" "}{pagAutoDetected.calcolo === "FM" ? "Fine Mese" : "Data Fattura"}
-                      {pagAutoDetected.preset_suggerito && (
-                        <span className="ml-1 font-semibold">→ {pagAutoDetected.preset_suggerito.descrizione}</span>
-                      )}
-                    </span>
-                    <button onClick={handleSavePagamento}
-                      className="ml-auto px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
-                      Conferma
-                    </button>
-                  </div>
-                )}
-                {pagHasManual && (
-                  <div className="mb-2 px-2 py-1 rounded text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100">
-                    ✓ Default salvato{pagAutoDetected ? ` — da ${pagAutoDetected.fatture_analizzate} fatture` : ""}
-                  </div>
-                )}
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="flex-1 min-w-[220px]">
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Condizione di pagamento</span>
-                    <select value={pagPreset} onChange={e => {
-                      const cod = e.target.value;
-                      setPagPreset(cod);
-                      const p = pagPresets.find(p => p.codice === cod);
-                      if (p) {
-                        setPagMp(p.modalita);
-                        setPagGiorni(String(p.giorni));
-                      } else {
-                        setPagMp(""); setPagGiorni("");
-                      }
-                    }}
-                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full">
-                      <option value="">— Seleziona condizione —</option>
-                      {pagPresets.map(p => (
-                        <option key={p.codice} value={p.codice}>{p.descrizione}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="w-24">
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Modalita</span>
-                    <input type="text" value={pagMp} readOnly
-                      className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
-                  </div>
-                  <div className="w-16">
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Giorni</span>
-                    <input type="text" value={pagGiorni} readOnly
-                      className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
-                  </div>
-                  <div className="flex-1 min-w-[100px]">
-                    <span className="text-[10px] text-neutral-400 block mb-0.5">Note</span>
-                    <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
-                      placeholder="Note aggiuntive..."
-                      className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
-                  </div>
-                  <button onClick={handleSavePagamento} disabled={pagSaving}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
-                    {pagSaving ? "..." : pagSaved ? "✓ Salvato" : "Salva"}
-                  </button>
-                </div>
-              </>
+          {/* Header fisso */}
+          <div className="p-4 pb-3 flex-shrink-0">
+            <p className="text-[9px] opacity-60 uppercase tracking-wider mb-0.5">Fornitore</p>
+            <h2 className="text-base font-bold leading-tight font-playfair">
+              {fornNome || "—"}
+            </h2>
+            {fornPiva && (
+              <p className="text-[10px] opacity-70 mt-0.5 font-mono">P.IVA {fornPiva}</p>
             )}
+            {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && (
+              <p className="text-[10px] opacity-60 font-mono">C.F. {anag.fornitore_cf}</p>
+            )}
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className="inline-flex items-center bg-white/20 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                {statoLabel}
+              </span>
+              {totFatture > 0 && (
+                <span className="inline-flex items-center bg-white/10 text-[10px] px-2 py-0.5 rounded tabular-nums">
+                  {totFatture} fatt.
+                </span>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-neutral-200">
-        <button className={tabCls("fatture")} onClick={() => setTab("fatture")}>
-          Fatture ({totFatture})
-        </button>
-        <button className={tabCls("prodotti")} onClick={() => setTab("prodotti")}>
-          Prodotti ({nProdotti})
-          {nProdotti > 0 && nAssegnati < nProdotti && (
-            <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold">
-              {nProdotti - nAssegnati}
-            </span>
+          {/* Contenuto scrollabile */}
+          <div className="flex-1 overflow-y-auto px-4 pb-4">
+
+            {/* Stat principale — Totale spesa */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className={`${sbc.accent} rounded-lg p-2.5 text-center col-span-2`}>
+                <div className="text-[8px] uppercase opacity-60 tracking-wider">Totale spesa</div>
+                <div className="text-2xl font-bold font-playfair tabular-nums">
+                  € {fmt(totSpesa)}
+                </div>
+              </div>
+              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
+                <div className="text-[8px] uppercase opacity-60 tracking-wider">Imponibile</div>
+                <div className="text-sm font-bold tabular-nums">
+                  € {fmt(totImponibile)}
+                </div>
+              </div>
+              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
+                <div className="text-[8px] uppercase opacity-60 tracking-wider">Media fatt.</div>
+                <div className="text-sm font-bold tabular-nums">
+                  € {fmt(totFatture > 0 ? totSpesa / totFatture : 0)}
+                </div>
+              </div>
+              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
+                <div className="text-[8px] uppercase opacity-60 tracking-wider">Prodotti</div>
+                <div className="text-sm font-bold tabular-nums">{nProdotti}</div>
+              </div>
+              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
+                <div className="text-[8px] uppercase opacity-60 tracking-wider">Pagate</div>
+                <div className="text-sm font-bold tabular-nums">{nPagate}/{totFatture}</div>
+              </div>
+            </div>
+
+            {/* Box "Da pagare" evidenziato se ci sono scadute */}
+            {nDaPagare > 0 && (
+              <div className="mb-3 rounded-lg p-2.5 bg-red-500/25 border border-red-300/40">
+                <div className="text-[9px] uppercase opacity-80 tracking-wider mb-0.5">⚠ Da pagare</div>
+                <div className="text-lg font-bold tabular-nums">€ {fmt(totDaPagare)}</div>
+                <div className="text-[10px] opacity-80">{nDaPagare} fatture aperte</div>
+              </div>
+            )}
+
+            {/* Info list */}
+            <ul className="text-[11px] space-y-0 mb-3">
+              {[
+                ["Primo acquisto", primoAcquisto],
+                ["Ultimo acquisto", ultimoAcquisto],
+              ].filter(([, v]) => v).map(([label, val]) => (
+                <li key={label} className="flex justify-between py-1.5 border-b border-white/10 gap-2">
+                  <span className="opacity-60 flex-shrink-0">{label}</span>
+                  <span className="font-medium text-right">{val}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Sede anagrafica */}
+            {(anag.fornitore_indirizzo || anag.fornitore_citta) && (
+              <div className="mb-3 pb-2 border-b border-white/10">
+                <div className="text-[9px] opacity-60 uppercase tracking-wider mb-1">Sede</div>
+                <div className="text-[10px] space-y-0.5">
+                  {anag.fornitore_indirizzo && <div className="font-medium">{anag.fornitore_indirizzo}</div>}
+                  {(anag.fornitore_cap || anag.fornitore_citta) && (
+                    <div className="opacity-80">
+                      {[anag.fornitore_cap, anag.fornitore_citta, anag.fornitore_provincia ? `(${anag.fornitore_provincia})` : null]
+                        .filter(Boolean).join(" ")}
+                    </div>
+                  )}
+                  {anag.fornitore_nazione && anag.fornitore_nazione !== "IT" && (
+                    <div className="opacity-60">{anag.fornitore_nazione}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Stats breakdown categorie (compatto) */}
+            {stats && stats.length > 0 && (
+              <div className="mb-3 pb-2 border-b border-white/10">
+                <div className="text-[9px] opacity-60 uppercase tracking-wider mb-1">Distribuzione categorie</div>
+                <div className="flex flex-wrap gap-1">
+                  {stats.slice(0, 6).map((s, i) => (
+                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 border border-white/15 leading-tight">
+                      {s.categoria === "(Non categorizzato)" ? "N/A" : s.categoria}
+                      <span className="ml-1 font-semibold">
+                        {s.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}€
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ID tecnico */}
+            <div className="text-[9px] opacity-40 mt-2">
+              ID: {fornPiva || fornNome}
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════ MAIN CONTENT ═══════════ */}
+        <div className="bg-white overflow-y-auto min-w-0">
+
+          {/* Banner esclusione */}
+          {isExcluded && (
+            <div className="mx-5 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+              Questo fornitore è escluso dalle statistiche acquisti (dashboard, KPI, grafici). Le categorie restano editabili.
+            </div>
           )}
-        </button>
-      </div>
 
-      {/* ═══════ TAB FATTURE ═══════ */}
-      {tab === "fatture" && (
-        fatture.length === 0 ? (
-          <p className="text-neutral-400 text-sm py-8 text-center">Nessuna fattura trovata.</p>
-        ) : openFatturaId && (fatturaDetail || fatturaDetLoading) ? (
-          /* ── Dettaglio fattura inline ── */
-          <FatturaInlineDetail
-            fattura={fatturaDetail}
-            loading={fatturaDetLoading}
-            onClose={() => { setOpenFatturaId(null); setFatturaDetail(null); }}
-            onSegnaPagata={segnaPagataManuale}
-          />
-        ) : (
+          {/* ── CATEGORIA GENERICA ── */}
+          <div className="border-b border-neutral-200">
+            <SectionHeader title="Categoria generica fornitore" />
+            <div className="px-5 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={catGenericaId} onChange={e => { setCatGenericaId(e.target.value); setSubGenericaId(""); }}
+                  className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs">
+                  <option value="">— Nessuna categoria —</option>
+                  {categorie.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+                <select value={subGenericaId} onChange={e => setSubGenericaId(e.target.value)}
+                  disabled={!catGenericaId}
+                  className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs disabled:bg-neutral-50 disabled:text-neutral-400">
+                  <option value="">— Sotto-cat. —</option>
+                  {genSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </select>
+                <button onClick={handleSaveGenerica} disabled={savingGenerica}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+                  {savingGenerica ? "Salvataggio..." : "Salva"}
+                </button>
+              </div>
+              {stats && stats.length > 0 && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {stats.map((s, i) => (
+                    <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                      s.categoria === "(Non categorizzato)"
+                        ? "bg-neutral-100 border-neutral-300 text-neutral-600"
+                        : "bg-teal-50 border-teal-200 text-teal-800"
+                    }`}>
+                      {s.categoria}{s.sottocategoria ? ` > ${s.sottocategoria}` : ""}
+                      <span className="ml-1 font-semibold">
+                        {s.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}€
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── CONDIZIONI PAGAMENTO ── */}
+          {fornPiva && (
+            <div className="border-b border-neutral-200">
+              <SectionHeader title="Condizioni di pagamento">
+                {pagHasManual && (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                    ✓ Default salvato
+                  </span>
+                )}
+              </SectionHeader>
+              <div className="px-5 py-4">
+                {pagLoading ? (
+                  <p className="text-xs text-neutral-400">Caricamento...</p>
+                ) : (
+                  <>
+                    {/* Banner auto-rilevato */}
+                    {pagAutoDetected && !pagHasManual && (
+                      <div className="mb-3 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] text-blue-700">
+                          <strong>Auto-rilevato</strong> da {pagAutoDetected.fatture_analizzate} fatture:
+                          {pagAutoDetected.modalita_pagamento && <> {pagAutoDetected.modalita_pagamento}</>}
+                          {pagAutoDetected.giorni_pagamento != null && <> ~{pagAutoDetected.giorni_pagamento}gg</>}
+                          {" "}{pagAutoDetected.calcolo === "FM" ? "Fine Mese" : "Data Fattura"}
+                          {pagAutoDetected.preset_suggerito && (
+                            <span className="ml-1 font-semibold">→ {pagAutoDetected.preset_suggerito.descrizione}</span>
+                          )}
+                        </span>
+                        <button onClick={handleSavePagamento}
+                          className="ml-auto px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
+                          Conferma
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="flex-1 min-w-[220px]">
+                        <span className="text-[10px] text-neutral-400 block mb-0.5 uppercase tracking-wide">Condizione di pagamento</span>
+                        <select value={pagPreset} onChange={e => {
+                          const cod = e.target.value;
+                          setPagPreset(cod);
+                          const p = pagPresets.find(p => p.codice === cod);
+                          if (p) {
+                            setPagMp(p.modalita);
+                            setPagGiorni(String(p.giorni));
+                          } else {
+                            setPagMp(""); setPagGiorni("");
+                          }
+                        }}
+                          className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full">
+                          <option value="">— Seleziona condizione —</option>
+                          {pagPresets.map(p => (
+                            <option key={p.codice} value={p.codice}>{p.descrizione}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24">
+                        <span className="text-[10px] text-neutral-400 block mb-0.5 uppercase tracking-wide">Modalità</span>
+                        <input type="text" value={pagMp} readOnly
+                          className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
+                      </div>
+                      <div className="w-16">
+                        <span className="text-[10px] text-neutral-400 block mb-0.5 uppercase tracking-wide">Giorni</span>
+                        <input type="text" value={pagGiorni} readOnly
+                          className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-full bg-neutral-50 text-neutral-500" />
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <span className="text-[10px] text-neutral-400 block mb-0.5 uppercase tracking-wide">Note</span>
+                        <input type="text" value={pagNote} onChange={e => setPagNote(e.target.value)}
+                          placeholder="Note aggiuntive..."
+                          className="px-2 py-1.5 border border-neutral-300 rounded-lg text-xs w-full" />
+                      </div>
+                      <button onClick={handleSavePagamento} disabled={pagSaving}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 text-white hover:bg-sky-700 transition disabled:opacity-50">
+                        {pagSaving ? "..." : pagSaved ? "✓ Salvato" : "Salva"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── TABS ── */}
+          <div className="border-b border-neutral-200 bg-neutral-50 px-3 flex-shrink-0">
+            <div className="flex gap-1">
+              <button className={tabCls("fatture")} onClick={() => setTab("fatture")}>
+                Fatture ({totFatture})
+              </button>
+              <button className={tabCls("prodotti")} onClick={() => setTab("prodotti")}>
+                Prodotti ({nProdotti})
+                {nProdotti > 0 && nAssegnati < nProdotti && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold">
+                    {nProdotti - nAssegnati}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* ═══════ TAB FATTURE ═══════ */}
+          {tab === "fatture" && (
+            fatture.length === 0 ? (
+              <p className="text-neutral-400 text-sm py-8 text-center">Nessuna fattura trovata.</p>
+            ) : openFatturaId ? (
+              /* ── Dettaglio fattura inline via FattureDettaglio unificato ── */
+              <div className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <button
+                    onClick={() => setOpenFatturaId(null)}
+                    className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
+                    ← Torna alle fatture del fornitore
+                  </button>
+                  <span className="text-[10px] text-neutral-400">ID: {openFatturaId}</span>
+                </div>
+                <FattureDettaglio
+                  fatturaId={openFatturaId}
+                  inline={true}
+                  onClose={() => setOpenFatturaId(null)}
+                  onSegnaPagata={segnaPagataManuale}
+                  onFatturaUpdated={handleFatturaUpdatedInline}
+                />
+              </div>
+            ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
             {/* Feedback messaggio */}
             {markMsg && (
@@ -1397,134 +1513,9 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
           )}
         </div>
       )}
+        </div>{/* /main content */}
+      </div>{/* /grid sidebar+main */}
     </div>
   );
 }
 
-
-// ═══════════════════════════════════════════════════════
-// COMPONENTE DETTAGLIO FATTURA INLINE (dentro tab Fatture)
-// ═══════════════════════════════════════════════════════
-function FatturaInlineDetail({ fattura, loading, onClose, onSegnaPagata }) {
-  if (loading) return <div className="text-center py-8 text-neutral-400 text-sm">Caricamento dettaglio fattura...</div>;
-  if (!fattura) return <div className="text-center py-8 text-neutral-400 text-sm">Fattura non trovata</div>;
-
-  const righe = fattura.righe || [];
-  const totaleRighe = righe.reduce((s, r) => s + (r.prezzo_totale || 0), 0);
-
-  return (
-    <div className="space-y-3">
-      {/* Back */}
-      <div className="flex items-center justify-between">
-        <button onClick={onClose}
-          className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
-          ← Torna alle fatture
-        </button>
-        <span className="text-[10px] text-neutral-400">ID: {fattura.id}</span>
-      </div>
-
-      {/* Header */}
-      <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4">
-        <div className="flex flex-col sm:flex-row justify-between gap-3">
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Fattura N.</p>
-            <p className="text-lg font-bold text-neutral-900">{fattura.numero_fattura || "—"}</p>
-            <p className="text-xs text-neutral-500 mt-0.5">Data: <strong>{fattura.data_fattura || "—"}</strong></p>
-            {fattura.xml_filename && (
-              <p className="text-[10px] text-neutral-400 mt-1 font-mono truncate max-w-[250px]">{fattura.xml_filename}</p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-              fattura.pagato ? "bg-emerald-100 text-emerald-700" : "bg-red-50 text-red-600"
-            }`}>
-              {fattura.pagato ? "Pagata" : "Da pagare"}
-            </span>
-            {!fattura.pagato && onSegnaPagata && (
-              <button
-                onClick={() => onSegnaPagata(fattura.id)}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
-              >
-                ✓ Segna pagata
-              </button>
-            )}
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-              fattura.fonte === "fic" ? "bg-teal-50 text-teal-700" : "bg-neutral-100 text-neutral-600"
-            }`}>
-              {(fattura.fonte || "xml").toUpperCase()}
-            </span>
-          </div>
-        </div>
-
-        {/* Importi */}
-        <div className="mt-3 pt-3 border-t border-neutral-200 grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Imponibile</p>
-            <p className="text-base font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.imponibile_totale)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">IVA</p>
-            <p className="text-base font-bold text-neutral-800 tabular-nums">€ {fmt(fattura.iva_totale)}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Totale</p>
-            <p className="text-xl font-bold text-teal-900 tabular-nums">€ {fmt(fattura.totale_fattura)}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Righe */}
-      <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white">
-        <div className="px-4 py-2 border-b border-neutral-100 flex justify-between items-center">
-          <span className="text-xs font-semibold text-neutral-800">Righe fattura ({righe.length})</span>
-          <span className="text-[10px] text-neutral-400">Totale righe: € {fmt(totaleRighe)}</span>
-        </div>
-        {righe.length === 0 ? (
-          <div className="text-center py-6 text-neutral-400 text-xs">Nessuna riga presente</div>
-        ) : (
-          <div className="overflow-x-auto max-h-[40vh] overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-neutral-50 text-neutral-500 border-b border-neutral-200 sticky top-0">
-                <tr>
-                  <th className="px-3 py-1.5 text-left font-medium w-8">#</th>
-                  <th className="px-3 py-1.5 text-left font-medium">Descrizione</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Q.tà</th>
-                  <th className="px-3 py-1.5 text-right font-medium">U.M.</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Prezzo Unit.</th>
-                  <th className="px-3 py-1.5 text-right font-medium">Totale</th>
-                  <th className="px-3 py-1.5 text-right font-medium">IVA %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {righe.map((r, i) => (
-                  <tr key={r.id || i} className="border-b border-neutral-100 hover:bg-neutral-50/50">
-                    <td className="px-3 py-1.5 text-neutral-400 tabular-nums">{r.numero_linea || i + 1}</td>
-                    <td className="px-3 py-1.5 text-neutral-800 font-medium max-w-md">{r.descrizione || "—"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.quantita != null ? fmt(r.quantita) : "—"}</td>
-                    <td className="px-3 py-1.5 text-right text-neutral-500">{r.unita_misura || ""}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-700">{r.prezzo_unitario != null ? `€ ${fmt(r.prezzo_unitario)}` : "—"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums font-semibold text-neutral-900">{r.prezzo_totale != null ? `€ ${fmt(r.prezzo_totale)}` : "—"}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-neutral-500">{r.aliquota_iva != null ? `${r.aliquota_iva}%` : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="bg-teal-50/50 border-t-2 border-teal-200">
-                  <td colSpan={5} className="px-3 py-1.5 text-right text-xs font-bold text-teal-900 uppercase tracking-wide">Totale righe</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums font-bold text-teal-900">€ {fmt(totaleRighe)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Meta */}
-      <div className="flex justify-between items-center text-[10px] text-neutral-400 px-1">
-        <span>Importato il: {fattura.data_import || "—"}</span>
-        <span>Fonte: {(fattura.fonte || "xml").toUpperCase()}</span>
-      </div>
-    </div>
-  );
-}

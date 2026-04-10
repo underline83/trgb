@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-04-10 (notte) — Dettaglio Fornitore v3.2: sidebar colorata + FattureDettaglio inline unificato
+
+#### Refactor grafico — FornitoreDetailView allineato a FattureDettaglio / SchedaVino
+- **Nuovo layout due colonne** (`grid-cols-1 lg:grid-cols-[300px_1fr]`) con sidebar colorata a sinistra e area principale a destra, stesso pattern già in uso in `FattureDettaglio` e `SchedaVino`. La top bar con pulsante "Torna alla lista" e "Nascondi da acquisti / Ripristina" rimane sopra, fuori dalla griglia, su sfondo bianco
+- **Sidebar colorata con stato semantico** — gradiente teal (ATTIVO, default), amber (IN SOSPESO, quando `nDaPagare > 0`), slate (ESCLUSO, quando `fornitore_escluso = 1`). Costante `FORNITORE_SIDEBAR` + helper `getFornitoreSidebar(isExcluded, nDaPagare)` scelgono la palette. Dentro la sidebar: header con nome + P.IVA + C.F. + badge stato, box totale spesa grande, 4 KPI compatti (imponibile, media fatture, prodotti, pagate/totale), box "Da pagare" evidenziato in rosso se ci sono fatture scadute, info list (primo/ultimo acquisto), sede anagrafica completa, breakdown distribuzione categorie (prime 6), ID tecnico in basso
+- **`SectionHeader` uniforme** — local helper con sfondo `neutral-50` + border-bottom + titolo uppercase `text-[10px] tracking-wider`, usato per "Categoria generica fornitore" e "Condizioni di pagamento" a delimitare le sezioni dell'area principale
+
+#### Unificazione — dettaglio fattura inline usa FattureDettaglio (niente più codice duplicato)
+- **Eliminato `FatturaInlineDetail`** — subcomponente interno di ~130 righe che duplicava il rendering del dettaglio fattura (header, importi, tabella righe) con una sua logica di fetch. Sostituito da `<FattureDettaglio fatturaId={openFatturaId} inline={true} ... />` che riusa il componente canonico già testato, completo di editor scadenza/modalità/IBAN, gestione banca e righe fattura
+- **Cleanup state** — rimosse le variabili `fatturaDetail` e `fatturaDetLoading` (ora gestite internamente da `FattureDettaglio`), semplificato `openFattura(id)` a un semplice toggle dell'id (niente più fetch manuale), aggiornati i due handler `onClose` del back-button
+- **Sync coerente con la lista fornitore** — `onSegnaPagata` e `onFatturaUpdated` passati a `FattureDettaglio` triggerano `reloadFatture()` + `handleFatturaUpdatedInline()` per mantenere aggiornati sia il badge "Da pagare N" nella sidebar colorata sia la riga nella tabella fatture del fornitore
+
+#### Versioning
+- **`versions.jsx`** — bumped `fatture` da v2.2 a **v2.3** (stesso modulo Gestione Acquisti, il dettaglio fornitore vive dentro `FattureFornitoriElenco.jsx`). File header aggiornato a `@version: v3.2-fornitore-sidebar-colorata`
+
+---
+
 ## 2026-04-10 (notte) — Sistema Backup: fix permessi + router rifatto + banner warning età
 
 #### Incident — backup fermo da 12 giorni senza che nessuno se ne accorgesse
@@ -18,6 +35,10 @@
 #### UX — banner warning se l'ultimo backup è troppo vecchio
 - **`ImpostazioniSistema.jsx / TabBackup`** — aggiunto un banner in cima al tab che si comporta a 3 livelli: **verde** (≤ 30h, nessun banner — mostrato solo come badge accanto a "Ultimo backup automatico: ..."), **amber** (30-48h, banner giallo "Il backup notturno potrebbe essere stato saltato"), **red** (> 48h o `null`, banner rosso "Nessun backup automatico trovato" oppure "Ultimo backup di N ore fa"). Le due soglie sono calibrate sul cron reale: `--daily` alle 03:30 ogni notte, quindi un gap normale è 24h (massimo 26-27h se l'utente guarda la mattina presto), 30h è già "oggi è stato saltato", 48h è "sistema rotto"
 - **Obiettivo** — se il bit `+x` sparisce di nuovo (o qualsiasi altro guasto blocca il cron), Marco vede immediatamente il banner rosso la prossima volta che apre Impostazioni → Backup, invece di accorgersene settimane dopo come questa volta
+
+#### Bug fix — clienti.sqlite3 non veniva backuppato
+- **Trovato durante la verifica UI post-fix** — la UI mostrava "6 database" ma in realtà `app/data/` ne contiene 7 (escluso il residuo `vini.db`): mancava `clienti.sqlite3` (modulo Clienti CRM). Il database era **escluso dal backup automatico da sempre** — né `scripts/backup_db.sh` né `backup_router.py` lo elencavano. Ogni prenotazione, ogni contatto CRM, ogni tag cliente era fuori dalla rete di sicurezza
+- **Fix** — aggiunto `clienti.sqlite3` all'array `DBS` in `scripts/backup_db.sh` e alla lista `DATABASES` in `backup_router.py`. Dal prossimo cron orario (e certamente dal prossimo `--daily` delle 03:30) il database dei clienti sarà incluso sia nei backup locali che nel sync Google Drive. Il banner "Database attivi" nella UI mostrerà 7 entries
 
 #### Cleanup file orfani
 - **Rimosso `backup.sh` dalla root del repo** — era un vecchio script Sistema B che scriveva tar.gz in `/home/marco/trgb/backups/`, superseduto da `scripts/backup_db.sh` da tempo ma mai cancellato. Il cron non lo chiamava più da mesi

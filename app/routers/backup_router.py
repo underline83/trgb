@@ -34,6 +34,7 @@ DATABASES = [
     "vini_magazzino.sqlite3",
     "foodcost.db",
     "dipendenti.sqlite3",
+    "clienti.sqlite3",
 ]
 
 
