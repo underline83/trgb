@@ -1080,14 +1080,30 @@ def get_fattura_detail(fattura_id: int):
     cur.execute(
         """
         SELECT
-            id, fornitore_nome, fornitore_piva,
-            numero_fattura, data_fattura,
-            imponibile_totale, iva_totale, totale_fattura,
-            valuta, xml_filename, data_import,
-            COALESCE(fonte, 'xml') AS fonte,
-            COALESCE(pagato, 0) AS pagato
-        FROM fe_fatture
-        WHERE id = ?
+            f.id, f.fornitore_nome, f.fornitore_piva,
+            f.numero_fattura, f.data_fattura,
+            f.imponibile_totale, f.iva_totale, f.totale_fattura,
+            f.valuta, f.xml_filename, f.data_import,
+            COALESCE(f.fonte, 'xml') AS fonte,
+            COALESCE(f.pagato, 0) AS pagato,
+            -- v2.0 campi pianificazione finanziaria (mig 056)
+            f.data_scadenza               AS data_scadenza_xml,
+            f.modalita_pagamento          AS modalita_pagamento_xml,
+            f.condizioni_pagamento,
+            f.data_prevista_pagamento,
+            f.data_effettiva_pagamento,
+            f.iban_beneficiario,
+            f.modalita_pagamento_override,
+            f.rateizzata_in_spesa_fissa_id,
+            -- fallback da anagrafica fornitore / spesa fissa target
+            s.iban                        AS iban_fornitore,
+            s.modalita_pagamento_default  AS mp_fornitore,
+            sf.titolo                     AS rateizzata_sf_titolo,
+            sf.iban                       AS rateizzata_sf_iban
+        FROM fe_fatture f
+        LEFT JOIN suppliers       s  ON f.fornitore_piva = s.partita_iva
+        LEFT JOIN cg_spese_fisse  sf ON f.rateizzata_in_spesa_fissa_id = sf.id
+        WHERE f.id = ?
         """,
         (fattura_id,),
     )
@@ -1114,10 +1130,60 @@ def get_fattura_detail(fattura_id: int):
         (fattura_id,),
     )
     righe = cur.fetchall()
+
+    # v2.0: arricchisci con dati dell'uscita collegata in cg_uscite
+    # (stato workflow, eventuale batch di pagamento, metodo pagamento manuale)
+    cur.execute(
+        """
+        SELECT
+            u.id                  AS uscita_id,
+            u.stato               AS uscita_stato,
+            u.importo_pagato,
+            u.data_pagamento,
+            u.metodo_pagamento,
+            u.banca_movimento_id,
+            u.pagamento_batch_id,
+            u.in_pagamento_at,
+            pb.titolo             AS batch_titolo,
+            pb.stato              AS batch_stato
+        FROM cg_uscite u
+        LEFT JOIN cg_pagamenti_batch pb ON u.pagamento_batch_id = pb.id
+        WHERE u.fattura_id = ?
+        LIMIT 1
+        """,
+        (fattura_id,),
+    )
+    uscita_row = cur.fetchone()
+    uscita = dict(uscita_row) if uscita_row else None
+
     conn.close()
 
+    fattura_dict = dict(fattura)
+
+    # Chain COALESCE Python-side, simmetrica a /controllo-gestione/uscite
+    data_scadenza_effettiva = (
+        fattura_dict.get("data_effettiva_pagamento")
+        or fattura_dict.get("data_prevista_pagamento")
+        or fattura_dict.get("data_scadenza_xml")
+    )
+    modalita_pagamento_effettiva = (
+        fattura_dict.get("modalita_pagamento_override")
+        or fattura_dict.get("modalita_pagamento_xml")
+        or fattura_dict.get("mp_fornitore")
+    )
+    iban_effettivo = (
+        fattura_dict.get("iban_beneficiario")
+        or fattura_dict.get("rateizzata_sf_iban")
+        or fattura_dict.get("iban_fornitore")
+    )
+
     return {
-        **dict(fattura),
+        **fattura_dict,
+        "data_scadenza_effettiva": data_scadenza_effettiva,
+        "modalita_pagamento_effettiva": modalita_pagamento_effettiva,
+        "iban_effettivo": iban_effettivo,
+        "is_rateizzata": fattura_dict.get("rateizzata_in_spesa_fissa_id") is not None,
+        "uscita": uscita,
         "righe": [dict(r) for r in righe],
     }
 

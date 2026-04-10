@@ -45,9 +45,26 @@
 - **Pattern `fonte_modifica` in risposta** — entrambi gli endpoint ritornano `fonte_modifica` (es. `fe_fatture.iban_beneficiario`) per tracciamento/debug del dispatcher v2.0, stesso contratto di B.2
 - **Niente UI in questa fase** — gli endpoint restano "dormienti" fino a Fase D, dove FattureDettaglio arricchito fornirà l'interfaccia utente per override IBAN/modalità. La frontend UX è intenzionalmente rimandata per non sovrapporsi con il modale attuale dello Scadenzario
 
+#### New — Fase D (FattureDettaglio arricchito)
+- **`GET /contabilita/fe/fatture/{id}` esteso** — il payload ora include tutti i campi v2.0: `data_scadenza_xml` (alias da `f.data_scadenza`), `modalita_pagamento_xml`, `condizioni_pagamento`, `data_prevista_pagamento`, `data_effettiva_pagamento`, `iban_beneficiario`, `modalita_pagamento_override`, `rateizzata_in_spesa_fissa_id`. JOIN con `suppliers` e `cg_spese_fisse` per esporre anche `iban_fornitore`, `mp_fornitore`, `rateizzata_sf_titolo`, `rateizzata_sf_iban`
+- **COALESCE chain Python-side** — il backend espone tre campi pre-calcolati per consumo diretto da frontend: `data_scadenza_effettiva`, `modalita_pagamento_effettiva`, `iban_effettivo` (stessa semantica della query /uscite)
+- **Sub-oggetto `uscita`** — query secondaria su `cg_uscite` (+ JOIN `cg_pagamenti_batch`) che ritorna la riga di workflow collegata alla fattura: stato, importo pagato, data pagamento, metodo, batch in cui è infilata, flag riconciliata. Il frontend usa questo per decidere se mostrare azioni di modifica (bloccate su stato PAGATA)
+- **Flag derivato `is_rateizzata`** — booleano pronto per UI, evita ricontrollare `rateizzata_in_spesa_fissa_id IS NOT NULL` lato client
+- **FattureDettaglio.jsx — nuova card "Pagamenti & Scadenze"** (viola se rateizzata, bianca altrimenti) inserita tra header e righe fattura con:
+  - Badge stato uscita (`DA_PAGARE`/`SCADUTA`/`PAGATA`/`PAGATA_MANUALE`/`PARZIALE`/`RATEIZZATA`) e badge "In batch: ..." se appartiene a un batch di pagamento
+  - Banner rateizzata con link alla spesa fissa target: "Questa fattura è stata rateizzata nella spesa fissa X. Le uscite effettive vivono nel piano rate" → bottone "Vai alla spesa fissa"
+  - **Tre tile editabili** (Scadenza, Modalità, IBAN) con flag "override" quando divergono dal valore XML/fornitore, valore XML o fornitore mostrato sotto come riferimento. Il click su "Modifica" apre inline edit → chiama rispettivamente `PUT /controllo-gestione/uscite/{id}/scadenza` (B.2), `.../modalita-pagamento` (B.3) e `.../iban` (B.3)
+  - Dropdown modalità pagamento pre-popolato con i codici SEPA più comuni (MP01, MP02, MP05, MP08, MP12, MP19, MP23)
+  - Input IBAN con auto-uppercase e strip spazi lato client (stessa normalizzazione del backend)
+  - Modifica bloccata quando la fattura è `RATEIZZATA` (l'override sulla fattura non ha effetto sulle rate) o `PAGATA` (già riconciliata)
+  - Footer con info pagamento effettivo se presente: data, metodo, flag "Riconciliata con banca"
+- **Breadcrumb `?from=scadenzario`** — quando presente in querystring, il bottone "Torna indietro" diventa "Torna allo Scadenzario" e naviga a `/controllo-gestione/uscite` invece di `history.back()`. Setup per Fase E
+- **Toast feedback** — notifiche emerald/red dopo ogni save, auto-dismiss 3s
+- **Bumpata la version string del file** da `v1.0-dettaglio-fattura` a `v2.0-dettaglio-fattura`
+
 #### Note architetturali v2.0
 - Riferimento: `docs/v2.0-query-uscite.sql` (design SQL con benchmark) e `docs/v2.0-roadmap.md` (Fase A → F)
-- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza) + B.3 (dispatcher IBAN/modalità). Pianificate: D (FattureDettaglio arricchito), E (Scadenzario badge+click-through), F (cleanup docs)
+- Fatto: Fase A (mig 057 backfill 43/43) + B.1 (query aggregatore) + B.1.1 (toggle sidebar rateizzate) + B.2 (dispatcher scadenza) + B.3 (dispatcher IBAN/modalità) + D (FattureDettaglio arricchito). Pianificate: E (Scadenzario click-through verso FattureDettaglio), F (cleanup docs)
 
 ## 2026-04-10 — Controllo Gestione v1.7: Batch pagamenti + stampa intelligente
 
