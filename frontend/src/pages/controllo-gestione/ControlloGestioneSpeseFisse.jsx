@@ -1313,7 +1313,7 @@ export default function ControlloGestioneSpeseFisse() {
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <div className="font-semibold text-neutral-800">&euro; {fmt(s.importo)}</div>
-                          {["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (s.totale_pagato > 0 || s.totale_residuo > 0) && (
+                          {["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (s.n_rate_totali > 0 || s.totale_pagato > 0 || s.totale_residuo > 0) && (
                             <div className="mt-1 space-y-0.5 text-[10px] leading-tight">
                               <div className="flex items-center justify-end gap-1">
                                 <span className="text-neutral-400">Pagato</span>

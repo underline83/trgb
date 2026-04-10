@@ -1296,8 +1296,16 @@ def create_spesa_fissa(
         ))
         new_id = fc.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-        # Se c'è un piano rate, inseriscilo
+        # Se c'è un piano rate, inseriscilo + genera le uscite corrispondenti
         piano_rate = payload.get("piano_rate", [])
+        titolo_sf = payload.get("titolo", "").strip()
+        giorno_scad = payload.get("giorno_scadenza") or 1
+        try:
+            giorno_scad = int(giorno_scad)
+        except Exception:
+            giorno_scad = 1
+        oggi = date.today()
+
         if piano_rate and isinstance(piano_rate, list):
             for r in piano_rate:
                 periodo = r.get("periodo")
@@ -1305,10 +1313,58 @@ def create_spesa_fissa(
                 if not periodo or importo_rata is None:
                     continue
                 try:
+                    importo_rata = float(importo_rata)
+                except Exception:
+                    continue
+                numero_rata = r.get("numero_rata", 0)
+                note_rata = r.get("note")
+
+                try:
                     fc.execute("""
                         INSERT INTO cg_piano_rate (spesa_fissa_id, numero_rata, periodo, importo, note)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (new_id, r.get("numero_rata", 0), periodo, float(importo_rata), r.get("note")))
+                    """, (new_id, numero_rata, periodo, importo_rata, note_rata))
+                except Exception:
+                    pass
+
+                # Calcola data_scadenza clampando il giorno al max del mese
+                try:
+                    anno_p, mese_p = periodo.split("-")
+                    anno_p = int(anno_p)
+                    mese_p = int(mese_p)
+                    max_giorno = calendar.monthrange(anno_p, mese_p)[1]
+                    g = min(giorno_scad, max_giorno)
+                    data_scad = date(anno_p, mese_p, g).isoformat()
+                except Exception:
+                    continue
+
+                # Stato: se scaduta → SCADUTA, altrimenti DA_PAGARE
+                try:
+                    ds = date.fromisoformat(data_scad)
+                    stato_u = "SCADUTA" if ds < oggi else "DA_PAGARE"
+                except Exception:
+                    stato_u = "DA_PAGARE"
+
+                # Evita duplicati se già esistente
+                existing = fc.execute(
+                    "SELECT id FROM cg_uscite WHERE spesa_fissa_id = ? AND periodo_riferimento = ?",
+                    (new_id, periodo)
+                ).fetchone()
+                if existing:
+                    continue
+
+                try:
+                    fc.execute("""
+                        INSERT INTO cg_uscite
+                            (spesa_fissa_id, tipo_uscita, fornitore_nome, numero_fattura,
+                             totale, data_scadenza, data_fattura,
+                             importo_pagato, stato, periodo_riferimento, note)
+                        VALUES (?, 'SPESA_FISSA', ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                    """, (
+                        new_id, titolo_sf, tipo,
+                        importo_rata, data_scad, data_scad,
+                        stato_u, periodo, note_rata
+                    ))
                 except Exception:
                     pass
 
