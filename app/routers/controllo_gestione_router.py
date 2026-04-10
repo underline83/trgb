@@ -1884,7 +1884,7 @@ def crea_batch_pagamento(
                 u.id, u.fornitore_nome, u.fornitore_piva, u.numero_fattura,
                 u.data_fattura, u.data_scadenza, u.totale, u.importo_pagato,
                 u.stato, u.periodo_riferimento, u.note, u.tipo_uscita,
-                NULL AS fornitore_iban,
+                s.iban AS fornitore_iban,
                 s.modalita_pagamento_default AS mp_fornitore,
                 sf.titolo AS sf_titolo,
                 sf.iban AS sf_iban
@@ -1949,7 +1949,7 @@ def get_pagamento_batch(
                 u.id, u.fornitore_nome, u.fornitore_piva, u.numero_fattura,
                 u.data_fattura, u.data_scadenza, u.totale, u.importo_pagato,
                 u.stato, u.periodo_riferimento, u.note, u.tipo_uscita,
-                NULL AS fornitore_iban,
+                s.iban AS fornitore_iban,
                 s.modalita_pagamento_default AS mp_fornitore,
                 sf.titolo AS sf_titolo,
                 sf.iban AS sf_iban

@@ -68,6 +68,12 @@ export default function ControlloGestioneUscite() {
   // ── Filtro "solo in pagamento" ──
   const [filtroInPagamento, setFiltroInPagamento] = useState(false);
 
+  // ── Gestione batch (lista + delete) ──
+  const [gestioneBatchOpen, setGestioneBatchOpen] = useState(false);
+  const [batchList, setBatchList] = useState([]);
+  const [loadingBatchList, setLoadingBatchList] = useState(false);
+  const [deletingBatchId, setDeletingBatchId] = useState(null);
+
   // ── Modale modifica scadenza ──
   const [modaleScadenza, setModaleScadenza] = useState(null); // { id, fornitore_nome, totale, data_scadenza, data_scadenza_originale, stato }
   const [nuovaScadenza, setNuovaScadenza] = useState("");
@@ -318,6 +324,48 @@ export default function ControlloGestioneUscite() {
       alert("Errore di rete");
     } finally {
       setBulkSaving(false);
+    }
+  };
+
+  // ── Gestione batch: apri modale lista ──
+  const apriGestioneBatch = async () => {
+    setGestioneBatchOpen(true);
+    await caricaBatchList();
+  };
+
+  const caricaBatchList = async () => {
+    setLoadingBatchList(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/pagamenti-batch`);
+      if (!res.ok) throw new Error("Errore API");
+      const json = await res.json();
+      setBatchList(json.batch || []);
+    } catch (e) {
+      console.error("Errore caricamento batch:", e);
+      alert("Errore caricamento batch");
+    } finally {
+      setLoadingBatchList(false);
+    }
+  };
+
+  const eliminaBatch = async (batch) => {
+    if (!window.confirm(
+      `Eliminare il batch "${batch.titolo}"?\n\n` +
+      `${batch.n_uscite} uscite torneranno al loro stato originale (non verranno cancellate).`
+    )) return;
+    setDeletingBatchId(batch.id);
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/pagamenti-batch/${batch.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Errore API");
+      await caricaBatchList();
+      fetchData(false); // ricarica uscite per aggiornare il flag in_pagamento
+    } catch (e) {
+      console.error("Errore eliminazione batch:", e);
+      alert("Errore eliminazione batch");
+    } finally {
+      setDeletingBatchId(null);
     }
   };
 
@@ -601,7 +649,7 @@ export default function ControlloGestioneUscite() {
             </div>
 
             {/* In pagamento (batch) */}
-            <div className="bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-200 shadow-sm">
+            <div className="bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-200 shadow-sm space-y-1.5">
               <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest mb-1.5">Batch Pagamenti</div>
               <button onClick={() => setFiltroInPagamento(v => !v)}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between gap-2 ${
@@ -614,6 +662,11 @@ export default function ControlloGestioneUscite() {
                 <span className={`text-[10px] ${filtroInPagamento ? "text-indigo-100" : "text-neutral-400"}`}>
                   {allUscite.filter(u => u.in_pagamento_at).length}
                 </span>
+              </button>
+              <button onClick={apriGestioneBatch}
+                className="w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center gap-1.5 hover:bg-indigo-100 text-neutral-700 border border-indigo-200 bg-white">
+                <span>⚙</span>
+                <span>Gestisci batch…</span>
               </button>
             </div>
 
@@ -953,6 +1006,93 @@ export default function ControlloGestioneUscite() {
 
         </div>
       </div>
+
+      {/* ══════ MODALE GESTIONE BATCH (lista + delete) ══════ */}
+      {gestioneBatchOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setGestioneBatchOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-neutral-200 bg-indigo-50 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                <span>⚙</span>
+                <span>Gestione Batch Pagamenti</span>
+              </h3>
+              <button onClick={() => setGestioneBatchOpen(false)}
+                className="text-neutral-500 hover:text-neutral-900 text-xl leading-none">×</button>
+            </div>
+
+            <div className="px-5 py-3 text-[11px] text-neutral-600 bg-amber-50 border-b border-amber-100">
+              Eliminare un batch <strong>non cancella</strong> le uscite collegate: vengono solo scollegate dal batch e tornano
+              al loro stato originale (DA_PAGARE / SCADUTA / PAGATA). Utile per ripulire test o annullare un invio sbagliato.
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loadingBatchList ? (
+                <div className="p-8 text-center text-neutral-500 text-sm">Caricamento…</div>
+              ) : batchList.length === 0 ? (
+                <div className="p-8 text-center text-neutral-500 text-sm">Nessun batch presente.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-neutral-50 text-neutral-600 uppercase text-[10px] tracking-wide">
+                    <tr>
+                      <th className="text-left px-3 py-2">Titolo</th>
+                      <th className="text-left px-3 py-2">Creato</th>
+                      <th className="text-right px-3 py-2">Uscite</th>
+                      <th className="text-right px-3 py-2">Totale</th>
+                      <th className="text-center px-3 py-2">Stato</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {batchList.map(b => {
+                      const created = b.created_at
+                        ? new Date(b.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                        : "—";
+                      const totale = Number(b.totale || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      const statoColors = {
+                        IN_PAGAMENTO: "bg-indigo-100 text-indigo-800",
+                        INVIATO_CONTABILE: "bg-amber-100 text-amber-800",
+                        CHIUSO: "bg-emerald-100 text-emerald-800",
+                      };
+                      return (
+                        <tr key={b.id} className="hover:bg-neutral-50">
+                          <td className="px-3 py-2">
+                            <div className="font-semibold text-neutral-800">{b.titolo || "—"}</div>
+                            {b.note && <div className="text-[10px] text-neutral-500 mt-0.5">{b.note}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-neutral-600">{created}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">{b.n_uscite}</td>
+                          <td className="px-3 py-2 text-right tabular-nums">€ {totale}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${statoColors[b.stato] || "bg-neutral-100 text-neutral-700"}`}>
+                              {b.stato}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <button onClick={() => eliminaBatch(b)}
+                              disabled={deletingBatchId === b.id}
+                              className="px-2 py-1 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 disabled:opacity-50">
+                              {deletingBatchId === b.id ? "Elimino…" : "🗑 Elimina"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end">
+              <button onClick={() => setGestioneBatchOpen(false)}
+                className="px-4 py-1.5 rounded-md text-xs font-semibold bg-neutral-200 hover:bg-neutral-300 text-neutral-800">
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════ MODALE CONFERMA STAMPA / BATCH PAGAMENTO ══════ */}
       {stampaModal && (
