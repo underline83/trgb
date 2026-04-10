@@ -28,6 +28,8 @@ venv-trgb/
 app/data/*.db
 app/data/*.db-wal
 app/data/*.db-shm
+# File di backfill v2.0a2 (dry-run generato dalla mig 057 e approved per apply)
+app/data/backfill_*.csv
 app/data/*.sqlite3
 app/data/*.prev
 app/data/.fuse_hidden*

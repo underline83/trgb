@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-06 (sessione 21 — Gestione Clienti v1.1, merge duplicati, protezione dati, export)
+> Ultima sessione: 2026-04-10 (sessione 22 — v2.0 CG aggregatore, mig 055/056/057, backfill rateizzazioni **SOSPESO A META'**)
 
 ---
 
@@ -49,7 +49,46 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nell'ultima sessione (2026-04-06, sessione 21)
+## Cosa abbiamo fatto nella sessione 22 (2026-04-10) — **SOSPESA A META'**
+
+### v2.0 CG aggregatore — Fase A (schema + backfill rateizzazioni)
+
+1. **Mig 055** `fe_fatture.rateizzata_in_spesa_fissa_id` + indice parziale — APPLICATA sul VPS
+2. **Mig 056** `fe_fatture.data_prevista_pagamento`, `data_effettiva_pagamento`, `iban_beneficiario`, `modalita_pagamento_override` + 4 indici — APPLICATA sul VPS
+3. **Mig 057** `057_backfill_rateizzazioni_dryrun.py` — genera CSV senza toccare il DB, APPLICATA sul VPS (CSV in `app/data/backfill_057_dryrun.csv`)
+4. **Script apply** `scripts/apply_backfill_057.py` — con backup automatico, transazione atomica, gia' presente sul VPS
+5. **Decisioni v2.0** consolidate in `docs/v2.0-decisioni.md` (F4 insight: analitico vs finanziario, 3 campi data)
+
+### LAVORO SOSPESO — da riprendere nella sessione 23
+
+Il backfill delle 11 rateizzazioni si e' fermato al punto della **revisione del CSV**. Decisioni gia' prese:
+- **Lis Neris (sf_id 6, 767.26)**: fattura id **6611** del 2024-07-31
+- **Marchesi Antinori (sf_id 7, 5196.98)**: coppia id **5464** + **5466**, verificata somma
+- **Famiglia Cotarella, RISTO TEAM x5, Folonari, Philarmonica** (sf_id 8, 10, 11, 12, 13, 14, 15, 16): match NUM+IMPORTO 1.0, tutti auto-approvati
+- **Metro Italia (sf_id 9)**: target corretto = **13.617,34 (capitale)**, NON 14.388,50 che e' capitale+interessi+spese. Le fatture reali sono **4** (non 33 come diceva il titolo): `SP10`, `SP11`, `/9210013116/2025` (6484.51), `/9210015164/2025` (7129.33). Il dry-run NON le ha pescate (fornitore_nome probabilmente diverso). **Da cercare nel DB nella prossima sessione** con lo script `find_metro.py` gia' predisposto.
+
+### PROBLEMA GIT DA INDAGARE
+
+Durante questa sessione abbiamo scoperto una divergenza strana:
+- **Mac** (sandbox): HEAD = `67905f6` = origin/main = github/main, allineati
+- **VPS working dir** `/home/marco/trgb/trgb`: HEAD = `e745d99a` con commit "fix: push.sh backup runtime prima del push, wizard rateizzazione..." che **NON esiste sul Mac**. Tutti i 5 commit recenti del VPS hanno hash e messaggi che non combaciano con nessun commit del Mac.
+- Conseguenza: **abbiamo bypassato git** e messo mig 057 + apply script sul VPS via scp diretto, senza passare da push.sh. Funziona ma lascia una traccia sporca.
+- **Da indagare** prima del prossimo push.sh: capire perche' il VPS working dir ha una storia diversa, e riallineare. Ipotesi: working dir VPS aggiornata da qualcuno/qualcosa che non e' push.sh (commit diretti? worktree?). Leggere `git remote -v` sul VPS e ispezionare l'hook post-receive del bare repo `/home/marco/trgb/trgb.git/hooks/post-receive`.
+
+### TODO sessione 23 in ordine
+
+1. Leggere `project_v2_backfill_state.md` in memoria
+2. Sul VPS: `ssh trgb` e lanciare `find_metro.py` per trovare id delle 4 fatture Metro (SP10, SP11, /9210013116/2025, /9210015164/2025). Se non le trova con LIKE '%etro%', allargare la ricerca (fornitore_piva, intervallo date esteso)
+3. Costruire `backfill_057_approved.csv` con 14 righe approvate
+4. Upload e apply
+5. Verificare flag via PRAGMA / query
+6. Bulk-update separato: marcare pagato=1 sulle ~60 fatture Metro residue (NON rateizzate)
+7. Indagine git divergenza
+8. **Poi** Fase B v2.0 (query JOIN+CASE in CG uscite + indexes)
+
+---
+
+## Cosa abbiamo fatto nella sessione 21 (2026-04-06)
 
 ### Gestione Clienti v1.1: Merge duplicati, protezione dati, export
 1. **Merge duplicati** — UI 3-step (principale → secondari → conferma), batch merge, trasferimento prenotazioni/note/tag/alias
