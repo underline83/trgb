@@ -5,6 +5,13 @@
 
 ---
 
+## PROBLEMI APERTI — LEGGERE SUBITO
+
+> 📋 Lista bug/anomalie segnalati da Marco in attesa di intervento: **`docs/problemi.md`**
+> Da leggere a inizio sessione insieme a questo file. Se Marco chiede "cosa c'è da fare?", la priorità è quella lista.
+
+---
+
 ## REGOLE OPERATIVE — LEGGERE PRIMA DI TUTTO
 
 ### Git & Deploy
