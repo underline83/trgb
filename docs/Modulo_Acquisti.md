@@ -1,7 +1,7 @@
 # Modulo Gestione Acquisti — TRGB Gestionale
-**Versione:** 2.3
+**Versione:** 2.3 (dettaglio fornitore v3.2 — sidebar colorata + FattureDettaglio inline unificato)
 **Stato:** Stabile
-**Data ultimo aggiornamento:** 2026-03-28
+**Data ultimo aggiornamento:** 2026-04-10
 **Dominio funzionale:** Acquisti, Fatture Elettroniche, Controllo di Gestione
 
 ---
@@ -37,10 +37,23 @@ Layout Cantina: sidebar filtri a sinistra + lista/dettaglio inline a destra.
 - **Dettaglio inline**: click su fornitore per aprire dettaglio senza cambio pagina
 
 ## 2.6 Dettaglio Fornitore (inline in `/acquisti/fornitori`)
-- **Header**: nome, P.IVA, C.F., indirizzo (da XML), KPI (fatture, spesa, imponibile, media, da pagare, prodotti, date)
-- **Categoria generica fornitore**: assegnazione con propagazione alle righe senza categoria
-- **Tab Fatture**: lista ordinabile con stato pagamento, fonte (XML/FIC), click per dettaglio fattura inline
-- **Tab Prodotti**: lista ordinabile con assegnazione categoria/sottocategoria per riga, filtro (tutti/da assegnare/ereditate/definite), selezione massiva
+Layout due colonne coerente con `FattureDettaglio` e `SchedaVino`: **sidebar colorata a sinistra** (300px) + area principale a destra (`grid-cols-1 lg:grid-cols-[300px_1fr]`). Sopra la griglia, una top bar bianca con pulsante "← Torna alla lista" e toggle "Nascondi da acquisti / Ripristina".
+
+- **Sidebar colorata con stato semantico** — gradiente dinamico: **teal** (ATTIVO, default), **amber** (IN SOSPESO, quando il fornitore ha fatture da pagare), **slate** (ESCLUSO, quando `escluso_acquisti = 1`). Costante `FORNITORE_SIDEBAR` + helper `getFornitoreSidebar(isExcluded, nDaPagare)` scelgono la palette. Contenuto della sidebar:
+  - Header: nome + P.IVA + C.F. + badge stato in alto + contatore fatture
+  - Box grande "Totale spesa" + 4 KPI compatti (Imponibile, Media fattura, Prodotti, Pagate/Totali)
+  - Box rosso "⚠ Da pagare" (solo se `nDaPagare > 0`) con importo e numero fatture aperte
+  - Info list: primo e ultimo acquisto
+  - Sede anagrafica (indirizzo, CAP, città, provincia, nazione) da XML
+  - Distribuzione categorie (prime 6, come pill compatti)
+  - ID tecnico (P.IVA o nome) in basso
+- **Area principale** (sfondo bianco) con sezioni separate da `SectionHeader` uniforme:
+  - Banner esclusione (ambra, solo se escluso)
+  - **Categoria generica fornitore**: assegnazione con propagazione alle righe senza categoria + pill con distribuzione categorie calcolate
+  - **Condizioni di pagamento**: preset modalità+giorni, banner "Auto-rilevato" se il sistema ha stimato da fatture passate, note aggiuntive, badge "✓ Default salvato"
+  - **Tabs Fatture / Prodotti**:
+    - **Tab Fatture**: lista ordinabile con stato pagamento, fonte (XML/FIC), badge "≠" se modalità pagamento fattura diverge dal default fornitore. Click su riga → **`FattureDettaglio` inline** (unificato, stesso componente del dettaglio fattura standalone): editor scadenza/IBAN/modalità, gestione righe, sync automatico con la sidebar colorata (il contatore "Da pagare" si aggiorna dopo `Segna pagata`). Selezione massiva per segnare pagate/non pagate in batch.
+    - **Tab Prodotti**: lista ordinabile con assegnazione categoria/sottocategoria per riga, filtro (tutti/da assegnare/ereditate/definite), selezione massiva, bulk edit bar teal.
 
 ## 2.7 Import XML (`/acquisti/import`)
 Drag & drop XML multipli o selezione file. Anti-duplicazione SHA-256. Lista fatture importate con dettaglio.
@@ -154,6 +167,14 @@ frontend/src/pages/admin/
 ---
 
 # 8. Changelog
+
+## v2.3 — Dettaglio fornitore v3.2 (2026-04-10)
+- **Refactor grafico `FornitoreDetailView`** — allineato al pattern `FattureDettaglio` / `SchedaVino`: layout due colonne con sidebar colorata (300px) a sinistra e area principale a destra. Top bar bianca sopra con back button e toggle esclusione.
+- **Sidebar colorata a stato semantico** — gradiente teal (ATTIVO) / amber (IN SOSPESO, con fatture aperte) / slate (ESCLUSO). Costante `FORNITORE_SIDEBAR` + helper `getFornitoreSidebar(isExcluded, nDaPagare)`. La sidebar contiene totale spesa + 4 KPI compatti, box "Da pagare" rosso se ci sono fatture aperte, info list primo/ultimo acquisto, sede anagrafica, distribuzione categorie.
+- **`SectionHeader` locale** — helper uniforme a `FattureDettaglio`/`SchedaVino`, usato per "Categoria generica fornitore" e "Condizioni di pagamento".
+- **Unificazione dettaglio fattura inline** — eliminato il subcomponente `FatturaInlineDetail` (~130 righe duplicate) e sostituito con `<FattureDettaglio fatturaId inline />`: riusa il componente canonico già testato (editor scadenza/IBAN/modalità, gestione banca e righe). Cleanup state: rimosse `fatturaDetail` / `fatturaDetLoading`, semplificato `openFattura(id)` a semplice toggle.
+- **Sync coerente** — `onSegnaPagata` e `onFatturaUpdated` passati al componente figlio triggerano `reloadFatture()` + `handleFatturaUpdatedInline()` per aggiornare sia il badge "Da pagare N" nella sidebar colorata sia la riga nella tabella.
+- File header: `v3.2-fornitore-sidebar-colorata`. versions.jsx: `fatture` bumped a v2.3.
 
 ## v2.3 (2026-03-28)
 - **CRITICO — Rimosso filtro `escluso` da query acquisti**: il campo `fe_fornitore_categoria.escluso` e' SOLO per il modulo Ricette/Matching. Era usato erroneamente nelle query dashboard/stats, escludendo 58 fornitori dai totali acquisti. `_EXCL_JOIN` ora vuoto, `_EXCL_WHERE` filtra solo autofatture.

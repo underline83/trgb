@@ -664,110 +664,80 @@ export default function ControlloGestioneUscite() {
       {/* LAYOUT: Filtri SX + Contenuto DX */}
       <div className="flex" style={{ height: "calc(100vh - 49px)" }}>
 
-        {/* ══════ SIDEBAR FILTRI ══════ */}
-        <div className="w-[240px] min-w-[240px] border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">
-          <div className="p-2.5 space-y-2">
+        {/* ══════ SIDEBAR FILTRI v2 (compatta, flat, sticky actions) ══════ */}
+        <div className="w-[240px] min-w-[240px] border-r border-neutral-200 bg-white flex flex-col flex-shrink-0">
+
+          {/* ── BODY SCROLLABILE ── */}
+          <div className="flex-1 overflow-y-auto">
 
             {/* Ricerca */}
-            <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">
-              <div className="text-[9px] font-extrabold text-neutral-400 uppercase tracking-widest mb-1.5">Ricerca</div>
+            <div className="px-3 pt-3 pb-2">
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Fornitore, fattura, importo, note..." className={fInp} />
+                placeholder="Cerca fornitore, fattura…"
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-neutral-400" />
             </div>
 
-            {/* Stato */}
-            <div className="bg-sky-50/50 rounded-lg p-2.5 border border-sky-100 shadow-sm">
-              <div className="text-[9px] font-extrabold text-sky-600 uppercase tracking-widest mb-1.5">Stato</div>
-              <div className="space-y-1">
+            {/* Stato — griglia 2×2 */}
+            <div className="px-3 pb-3 border-b border-neutral-100">
+              <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Stato</div>
+              <div className="grid grid-cols-2 gap-1">
                 {[
-                  { value: "", label: "Tutti", n: allUscite.length },
-                  { value: "DA_PAGARE", label: "Da pagare", n: allUscite.filter(u => u.stato === "DA_PAGARE").length },
-                  { value: "SCADUTA", label: "Scadute", n: allUscite.filter(u => u.stato === "SCADUTA").length },
-                  { value: "PAGATA", label: "Pagate", n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length },
-                ].map(o => (
-                  <button key={o.value} onClick={() => setFiltroStato(filtroStato === o.value ? "" : o.value)}
-                    className={`w-full text-left px-2 py-1 rounded-md text-xs transition flex justify-between ${
-                      filtroStato === o.value ? "bg-sky-200 text-sky-900 font-semibold" : "hover:bg-sky-100 text-neutral-700"
-                    }`}>
-                    <span>{o.label}</span>
-                    <span className="text-neutral-400 font-normal">{o.n}</span>
-                  </button>
-                ))}
+                  { value: "", label: "Tutti", n: allUscite.length, act: "bg-neutral-800 text-white border-neutral-800" },
+                  { value: "DA_PAGARE", label: "Da pagare", n: allUscite.filter(u => u.stato === "DA_PAGARE").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                  { value: "SCADUTA", label: "Scadute", n: allUscite.filter(u => u.stato === "SCADUTA").length, act: "bg-red-100 text-red-900 border-red-300" },
+                  { value: "PAGATA", label: "Pagate", n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                ].map(o => {
+                  const active = filtroStato === o.value;
+                  return (
+                    <button key={o.value} onClick={() => setFiltroStato(active ? "" : o.value)}
+                      className={`px-1.5 py-1 rounded-md text-[10px] font-medium border transition flex flex-col items-start leading-tight ${
+                        active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
+                      }`}>
+                      <span className="truncate w-full text-left">{o.label}</span>
+                      <span className={`text-[9px] font-semibold tabular-nums ${active ? "opacity-70" : "text-neutral-400"}`}>{o.n}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Tipo */}
-            <div className="bg-indigo-50/40 rounded-lg p-2.5 border border-indigo-100 shadow-sm">
-              <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest mb-1.5">Tipo</div>
-              <div className="space-y-1">
+            {/* Tipo — segment control orizzontale */}
+            <div className="px-3 py-3 border-b border-neutral-100">
+              <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Tipo</div>
+              <div className="flex rounded-md border border-neutral-200 bg-neutral-50 p-0.5">
                 {[
                   { value: "", label: "Tutti" },
                   { value: "FATTURA", label: "Fatture" },
-                  { value: "SPESA_FISSA", label: "Spese fisse" },
-                ].map(o => (
-                  <button key={o.value} onClick={() => setFiltroTipo(filtroTipo === o.value ? "" : o.value)}
-                    className={`w-full text-left px-2 py-1 rounded-md text-xs transition ${
-                      filtroTipo === o.value ? "bg-indigo-200 text-indigo-900 font-semibold" : "hover:bg-indigo-100 text-neutral-700"
-                    }`}>
-                    {o.label}
-                  </button>
-                ))}
+                  { value: "SPESA_FISSA", label: "Fisse" },
+                ].map(o => {
+                  const active = filtroTipo === o.value;
+                  return (
+                    <button key={o.value} onClick={() => setFiltroTipo(active ? "" : o.value)}
+                      className={`flex-1 px-1 py-1 rounded text-[10px] font-medium transition ${
+                        active ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                      }`}>
+                      {o.label}
+                    </button>
+                  );
+                })}
               </div>
-            </div>
-
-            {/* Rateizzate (v2.0) — toggle server-side */}
-            <div className="bg-purple-50/60 rounded-lg p-2.5 border border-purple-200 shadow-sm">
-              <div className="text-[9px] font-extrabold text-purple-600 uppercase tracking-widest mb-1.5">Rateizzate</div>
-              <button onClick={() => setIncludiRateizzate(v => !v)}
-                className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between gap-2 ${
-                  includiRateizzate ? "bg-purple-600 text-white font-semibold" : "hover:bg-purple-100 text-neutral-700"
-                }`}>
-                <span className="flex items-center gap-1.5">
-                  <span>📅</span>
-                  <span>Mostra rateizzate</span>
-                </span>
-                {includiRateizzate && (
-                  <span className="text-[9px] bg-purple-200 text-purple-900 px-1 rounded">ON</span>
-                )}
-              </button>
-              <div className="mt-1.5 text-[9px] text-neutral-500 leading-snug">
-                {includiRateizzate
-                  ? "Le fatture confluite in spese fisse sono visibili con badge viola."
-                  : "Nascoste di default: fatture coperte da rateizzazione non concorrono ai totali."}
-              </div>
-            </div>
-
-            {/* In pagamento (batch) */}
-            <div className="bg-indigo-50/60 rounded-lg p-2.5 border border-indigo-200 shadow-sm space-y-1.5">
-              <div className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-widest mb-1.5">Batch Pagamenti</div>
-              <button onClick={() => setFiltroInPagamento(v => !v)}
-                className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center justify-between gap-2 ${
-                  filtroInPagamento ? "bg-indigo-600 text-white font-semibold" : "hover:bg-indigo-100 text-neutral-700"
-                }`}>
-                <span className="flex items-center gap-1.5">
-                  <span>🖨</span>
-                  <span>Solo in pagamento</span>
-                </span>
-                <span className={`text-[10px] ${filtroInPagamento ? "text-indigo-100" : "text-neutral-400"}`}>
-                  {allUscite.filter(u => u.in_pagamento_at).length}
-                </span>
-              </button>
-              <button onClick={apriGestioneBatch}
-                className="w-full text-left px-2 py-1.5 rounded-md text-xs transition flex items-center gap-1.5 hover:bg-indigo-100 text-neutral-700 border border-indigo-200 bg-white">
-                <span>⚙</span>
-                <span>Gestisci batch…</span>
-              </button>
             </div>
 
             {/* Periodo */}
-            <div className="bg-amber-50/40 rounded-lg p-2.5 border border-amber-100 shadow-sm">
-              <div className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest mb-1.5">Periodo Scadenza</div>
-              {/* Pulsanti rapidi */}
-              <div className="flex flex-wrap gap-1 mb-2">
+            <div className="px-3 py-3 border-b border-neutral-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Periodo scadenza</div>
+                {(filtroDa || filtroA) && (
+                  <button onClick={() => { setFiltroDa(""); setFiltroA(""); }}
+                    className="text-[9px] text-neutral-400 hover:text-red-600" title="Rimuovi periodo">✕</button>
+                )}
+              </div>
+              {/* Preset rapidi */}
+              <div className="grid grid-cols-3 gap-1 mb-2">
                 {(() => {
                   const oggi = new Date();
                   const y = oggi.getFullYear();
-                  const m = oggi.getMonth(); // 0-based
+                  const m = oggi.getMonth();
                   const pad = (n) => String(n).padStart(2, "0");
                   const primoMese = `${y}-${pad(m + 1)}-01`;
                   const ultimoMese = `${y}-${pad(m + 1)}-${new Date(y, m + 1, 0).getDate()}`;
@@ -789,83 +759,105 @@ export default function ControlloGestioneUscite() {
                     if (isActive(da, a)) { setFiltroDa(""); setFiltroA(""); }
                     else { setFiltroDa(da); setFiltroA(a); }
                   };
-                  const btn = "px-1.5 py-0.5 rounded text-[9px] font-medium border transition";
-                  const act = "bg-amber-200 text-amber-900 border-amber-300";
-                  const def = "bg-white text-neutral-600 border-neutral-200 hover:bg-amber-50";
+                  const cls = (active) => `px-1 py-1 rounded text-[9px] font-medium border transition truncate ${
+                    active ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-white text-neutral-600 border-neutral-200 hover:border-amber-200 hover:bg-amber-50/50"
+                  }`;
                   return (
                     <>
-                      <button onClick={() => toggle(primoMese, ultimoMese)}
-                        className={`${btn} ${isActive(primoMese, ultimoMese) ? act : def}`}>
-                        {MESI_IT[m]}
-                      </button>
-                      <button onClick={() => toggle(meseProssimo1, meseProssimo2)}
-                        className={`${btn} ${isActive(meseProssimo1, meseProssimo2) ? act : def}`}>
-                        {MESI_IT[(m + 1) % 12]}
-                      </button>
-                      <button onClick={() => toggle(oggiStr, fra7)}
-                        className={`${btn} ${isActive(oggiStr, fra7) ? act : def}`}>
-                        7gg
-                      </button>
-                      <button onClick={() => toggle(oggiStr, fra30)}
-                        className={`${btn} ${isActive(oggiStr, fra30) ? act : def}`}>
-                        30gg
-                      </button>
-                      <button onClick={() => toggle(inizioTrim, fineTrim)}
-                        className={`${btn} ${isActive(inizioTrim, fineTrim) ? act : def}`}>
-                        Trim.
-                      </button>
-                      <button onClick={() => toggle(`${y}-01-01`, `${y}-12-31`)}
-                        className={`${btn} ${isActive(`${y}-01-01`, `${y}-12-31`) ? act : def}`}>
-                        {y}
-                      </button>
+                      <button onClick={() => toggle(oggiStr, fra7)} className={cls(isActive(oggiStr, fra7))}>7 gg</button>
+                      <button onClick={() => toggle(oggiStr, fra30)} className={cls(isActive(oggiStr, fra30))}>30 gg</button>
+                      <button onClick={() => toggle(primoMese, ultimoMese)} className={cls(isActive(primoMese, ultimoMese))}>{MESI_IT[m]}</button>
+                      <button onClick={() => toggle(meseProssimo1, meseProssimo2)} className={cls(isActive(meseProssimo1, meseProssimo2))}>{MESI_IT[(m + 1) % 12]}</button>
+                      <button onClick={() => toggle(inizioTrim, fineTrim)} className={cls(isActive(inizioTrim, fineTrim))}>Trim.</button>
+                      <button onClick={() => toggle(`${y}-01-01`, `${y}-12-31`)} className={cls(isActive(`${y}-01-01`, `${y}-12-31`))}>{y}</button>
                     </>
                   );
                 })()}
               </div>
-              <div className="space-y-1.5">
-                <div>
-                  <label className={fLbl}>Da</label>
-                  <input type="date" value={filtroDa} onChange={e => setFiltroDa(e.target.value)} className={fInp} />
+              {/* Date Da / A inline */}
+              <div className="flex gap-1">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[9px] text-neutral-400 mb-0.5">Da</label>
+                  <input type="date" value={filtroDa} onChange={e => setFiltroDa(e.target.value)}
+                    className="w-full border border-neutral-200 rounded px-1 py-0.5 text-[10px] bg-white" />
                 </div>
-                <div>
-                  <label className={fLbl}>A</label>
-                  <input type="date" value={filtroA} onChange={e => setFiltroA(e.target.value)} className={fInp} />
+                <div className="flex-1 min-w-0">
+                  <label className="block text-[9px] text-neutral-400 mb-0.5">A</label>
+                  <input type="date" value={filtroA} onChange={e => setFiltroA(e.target.value)}
+                    className="w-full border border-neutral-200 rounded px-1 py-0.5 text-[10px] bg-white" />
                 </div>
-                {(filtroDa || filtroA) && (
-                  <button onClick={() => { setFiltroDa(""); setFiltroA(""); }}
-                    className="w-full text-center text-[9px] text-amber-600 hover:text-amber-800 py-0.5">
-                    Rimuovi filtro periodo
-                  </button>
-                )}
               </div>
             </div>
 
-            {/* Riconciliazione mini-info */}
+            {/* Filtri speciali — Rateizzate + Batch Pagamenti fusi */}
+            <div className="px-3 py-3 border-b border-neutral-100">
+              <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Filtri speciali</div>
+              <div className="space-y-1">
+                {/* Rateizzate */}
+                <button onClick={() => setIncludiRateizzate(v => !v)}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                    includiRateizzate
+                      ? "bg-purple-50 border-purple-200 text-purple-900"
+                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                  }`}>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${includiRateizzate ? "bg-purple-500" : "bg-neutral-300"}`}></span>
+                    <span>Mostra rateizzate</span>
+                  </span>
+                </button>
+                {/* Solo in pagamento */}
+                <button onClick={() => setFiltroInPagamento(v => !v)}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                    filtroInPagamento
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-900"
+                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                  }`}>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${filtroInPagamento ? "bg-indigo-500" : "bg-neutral-300"}`}></span>
+                    <span>Solo in pagamento</span>
+                  </span>
+                  <span className={`text-[9px] tabular-nums ${filtroInPagamento ? "text-indigo-500" : "text-neutral-400"}`}>
+                    {allUscite.filter(u => u.in_pagamento_at).length}
+                  </span>
+                </button>
+                {/* Gestisci batch */}
+                <button onClick={apriGestioneBatch}
+                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[10px] text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition border border-dashed border-neutral-300">
+                  <span>⚙</span>
+                  <span>Gestisci batch…</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Riconciliazione — badge info */}
             {rig.num_da_riconciliare > 0 && (
-              <div className="bg-violet-50/60 rounded-lg p-2.5 border border-violet-200 shadow-sm">
-                <div className="text-[9px] font-extrabold text-violet-600 uppercase tracking-widest mb-1.5">Riconciliazione</div>
-                <div className="text-xs text-violet-800">
-                  <span className="font-bold">{rig.num_da_riconciliare}</span> pagate da riconciliare
+              <div className="mx-3 my-3 px-2.5 py-2 rounded-md bg-violet-50 border border-violet-200">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-lg font-bold text-violet-800 tabular-nums leading-none">{rig.num_da_riconciliare}</span>
+                  <span className="text-[10px] text-violet-700 uppercase tracking-wide">da riconciliare</span>
                 </div>
-                <div className="text-[10px] text-violet-500 mt-0.5">
-                  {rig.num_riconciliate || 0} gia verificate in banca
-                </div>
+                {rig.num_riconciliate > 0 && (
+                  <div className="text-[9px] text-violet-500 mt-0.5">
+                    {rig.num_riconciliate} già verificate in banca
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Azioni */}
-            <div className="flex gap-2 pt-1">
-              <button onClick={clearFilters}
-                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100">
-                Pulisci {activeFilters > 0 && <span className="text-sky-600">({activeFilters})</span>}
-              </button>
-              <button onClick={() => fetchData(true)} disabled={loading}
-                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50">
-                {loading ? "..." : "Aggiorna"}
-              </button>
-            </div>
-
           </div>
+
+          {/* ── FOOTER STICKY: AZIONI ── */}
+          <div className="flex gap-1.5 p-2 border-t border-neutral-200 bg-neutral-50 flex-shrink-0">
+            <button onClick={clearFilters} disabled={activeFilters === 0}
+              className="flex-1 px-2 py-1.5 rounded-md text-[10px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              Pulisci{activeFilters > 0 && <span className="ml-1 text-sky-600">({activeFilters})</span>}
+            </button>
+            <button onClick={() => fetchData(true)} disabled={loading}
+              className="flex-1 px-2 py-1.5 rounded-md text-[10px] font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition">
+              {loading ? "..." : "Aggiorna"}
+            </button>
+          </div>
+
         </div>
 
         {/* ══════ COLONNA DESTRA: KPI + TABELLA ══════ */}
