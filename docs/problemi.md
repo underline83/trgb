@@ -6,66 +6,6 @@
 
 ---
 
-## Aperti — Priorità alta
-
-### A1. Acquisti — FattureInCloud importa "fatture" che non sono fatture (affitti duplicati)
-**Segnalato:** 2026-04-10
-**Modulo:** Gestione Acquisti (fattureincloud_router, fe_import)
-**Gravità:** seria
-
-**Sintomo:**
-Alcune voci importate da FattureInCloud non sono vere fatture, ma registrazioni di pagamento (es. affitti). Due casi concreti:
-- **Cattaneo** — affitto locale
-- **Bana** — affitto locale
-
-Risultato: queste voci vengono duplicate in Acquisti e sporcano la dashboard/KPI.
-
-**Da capire / fare:**
-1. Identificare in FIC il campo o il tipo documento che distingue una "fattura vera" da una registrazione/spesa (probabilmente `type` o `document_type` nell'API FIC v2)
-2. Filtrare a monte in `fattureincloud_router.py` durante il sync, non importare quelle non-fatture
-3. Valutare se spostare Cattaneo/Bana in `cg_spese_fisse` (dove concettualmente appartengono gli affitti) invece che in `fe_fatture`
-4. Cleanup dei duplicati già presenti
-
-**Note:** Cattaneo e Bana sono già in `escluso_acquisti = 1` per la dashboard Acquisti (sessione 14), ma il problema vero è che vengono importati come fatture quando non lo sono.
-
----
-
-### A2. Dipendenti — Stipendi duplicati con nome leggermente diverso
-**Segnalato:** 2026-04-10
-**Modulo:** Dipendenti / Buste Paga / CG Uscite
-**Gravità:** seria
-
-**Sintomo:**
-Alcuni stipendi risultano raddoppiati nel sistema perché una prima importazione ha sbagliato il parsing del nome. Esempio concreto:
-- `stipendio - marco carminati`
-- `stipendio marco carminativo`  ← stesso dipendente, nome corrotto
-
-Sono lo stesso record logico ma vengono trattati come due entità separate.
-
-**Da capire / fare:**
-1. Trovare tutti i duplicati simili (query fuzzy su nome dipendente nelle tabelle coinvolte)
-2. Identificare la causa del parsing errato in prima importazione (LUL? import CSV stipendi?)
-3. Tool di merge duplicati dipendenti (stessa logica del merge Clienti CRM v1.1 — principale + secondari + batch merge)
-4. Fix del parser per evitare che succeda di nuovo
-
----
-
-### D3. Flussi di Cassa — Doppioni versamenti banca
-**Segnalato:** 2026-04-10
-**Modulo:** Flussi di Cassa / Banca (banca_router, banca_movimenti)
-**Gravità:** alta — bug ancora presente
-
-**Sintomo:**
-Il 25/01/2026 compare due volte un versamento da €5.000. Bug già visto in passato, non ancora risolto.
-
-**Da capire / fare:**
-1. Verificare nella tabella `banca_movimenti` se esistono davvero due righe o se è un problema di rendering
-2. Capire quando/come entrano i doppioni (import CSV BPM? Manuale? Sync con CG?)
-3. Aggiungere vincolo unique o dedup su (data, importo, descrizione, iban_conto) al momento dell'import
-4. Cleanup one-shot dei doppioni storici
-
----
-
 ## Aperti — Priorità media
 
 ### B1. Sistema — Ruoli e permessi si "ripristinano" da soli
@@ -134,30 +74,48 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ---
 
-### D2. Flussi di Cassa — Riconciliazione: casi parziali restano "aperti" senza modo di chiuderli
-**Segnalato:** 2026-04-10
-**Modulo:** Flussi di Cassa / Banca riconciliazione
-**Gravità:** media-alta
+## Risolti
 
-**Sintomo:**
-Ci sono casi di riconciliazione in cui:
-1. Le due cifre (movimento banca vs fattura) non sono identiche ma dovrebbero chiudersi comunque — es. **note di credito** che spezzano l'importo
-2. Bonifici che sommano **più fatture** insieme
-3. Bonifici che sommano **una fattura + una rata** di rateizzazione
+### A1. Acquisti — FattureInCloud importa non-fatture (affitti Cattaneo/Bana) ✅ 2026-04-11
+**Causa:** L'endpoint FIC `received_documents?type=expense` restituisce anche registrazioni di prima nota (affitti, spese cassa) che in FIC vengono create senza numero di documento e senza P.IVA del fornitore. Il sync le importava come se fossero vere fatture elettroniche, finendo in `fe_fatture` e duplicando le voci in dashboard Acquisti. Pattern identificato: `numero_fattura=''` AND `fornitore_piva=''` AND `fonte='fic'`. Casi concreti su DB: BANA MARIA DOLORES (26 record affitto locale), CATTANEO SILVIA (26 record affitto locale), PONTIGGIA (1 record isolato) — totale 53 fatture fittizie per €82.395,66.
 
-Marco ha già implementato la gestione di questi casi (fase precedente), ma ora questi match restano "aperti" nello stato: non c'è un modo per marcarli come chiusi/riconciliati.
-
-**Da capire / fare:**
-1. Verificare lo stato attuale dei record in `banca_fatture_link` (o tabella equivalente) per questi casi
-2. Serve uno stato esplicito `RICONCILIATO_MANUALE` o `CHIUSO_N_A_1` (n a 1) nel link
-3. UI: bottone "Chiudi riconciliazione" nel dettaglio movimento quando la somma dei link collegati quadra entro una tolleranza (±€0.01)
-4. Gestione n-a-1 e 1-a-n: un movimento può avere più link a fatture diverse e viceversa
+**Fix:**
+- **Migrazione 061** `061_escludi_fornitori_fittizi.py` — cleanup one-shot. Scansiona `fe_fatture` cercando record con numero vuoto + P.IVA vuota + fonte FIC, raggruppa per `fornitore_nome`, e INSERT/UPDATE in `fe_fornitore_categoria` con `escluso_acquisti=1` e `motivo_esclusione='Non-fattura importata da FIC (senza numero né P.IVA, probabile affitto/spesa cassa)'`. I record storici restano in `fe_fatture` per non rompere eventuali link cg_uscite esistenti, ma vengono automaticamente filtrati da dashboard/KPI grazie al `COALESCE(fc.escluso_acquisti, 0) = 0` già attivo in `fe_import.py`. Idempotente. Testata su copia DB: 3 fornitori esclusi, 57 fatture filtrate dal totale dashboard
+- **Filtro a monte in `fattureincloud_router.py`** — nella FASE 1 del `sync_fic`, prima del dedup hash, se `doc_number` e `fornitore_piva` sono entrambi stringhe vuote il record viene skippato e contato in `skipped_non_fattura`. Questo blocca l'ingresso di nuove non-fatture ai futuri sync, senza toccare le fatture vere. Il conteggio skippati finisce nella note di fine sync
+- **Risultato**: dashboard Acquisti pulita immediatamente, futuri sync FIC ignorano automaticamente le prima-nota. Se un giorno Cattaneo/Bana emettessero una vera fattura elettronica con P.IVA, quella avrà un record distinto in `fe_fornitore_categoria` (match per P.IVA) e verrà importata normalmente
 
 ---
 
-## Risolti
+### A2. Dipendenti — Stipendi duplicati con nome corrotto ✅ 2026-04-11
+**Causa:** Il parser LUL ha sbagliato l'estrazione del cognome per due dipendenti su un singolo batch di import (30/03 12:47): "Marco Carminatio" invece di "Marco Carminati" e "Dos Santos Mirla S Albuquerque" invece di "Dos Santos Mirla Stefane Albuquerque". Un import successivo (10/04 18:41) ha scritto di nuovo gli stipendi con i nomi canonici, ma il matching tra cedolino e dipendente in `_match_dipendente` era fatto solo per codice_fiscale o esatto "cognome=primo_token AND nome LIKE resto%" — quindi il typo "CARMINATIO" vs "CARMINATI" (e il troncamento "S" vs "STEFANE") non venivano matchati e veniva creato un nuovo record cg_uscite invece di aggiornare quello esistente.
 
-_(Nessuno ancora — spostare qui i problemi risolti con data e hash commit)_
+Risultato: 3 righe per Marco Carminati Gennaio 2026 (uppercase + typo + canonico), 2 righe per Febbraio (typo + canonico), 2 righe per Dos Santos Gennaio (troncato + canonico). 5 stipendi "fantasma" in cg_uscite.
+
+**Fix:**
+- **Migrazione 060** `060_pulizia_stipendi_duplicati.py` — cleanup one-shot dei 5 duplicati. Strategia: raggruppa cg_uscite per `(periodo_riferimento, totale)` con tipo_uscita='STIPENDIO' e >=2 righe, normalizza il nome strippando "Stipendio - " e lowercasing, classifica come CANONICO se matcha esattamente un nome "nome cognome" della tabella dipendenti, richiede almeno 1 canonico nel gruppo + check di similarità (subset di token OR SequenceMatcher ratio ≥ 0.85) per confermare che tutte le righe sono la stessa persona. Keeper = canonico con banca_movimento_id NOT NULL (o più recente), migra il link banca dal duplicato al keeper se necessario, DELETE dei duplicati. Testata su copia DB: 30→25 stipendi, tutti i record residui con nome canonico, link banca preservato
+- **Fuzzy matching in `_match_dipendente`** (`dipendenti.py`) — dopo il match esatto fallito, scorre tutti i dipendenti attivi e calcola `SequenceMatcher` ratio tra il blob "COGNOME NOME" del PDF e ciascun candidato "COGNOME NOME" dell'anagrafica (provando anche l'ordine inverso). Soglia 0.85 tollera typo singoli e troncamenti. Garantisce che un futuro import LUL con nome leggermente sporco aggiorni il record esistente invece di crearne uno nuovo
+- **Risultato**: da 30 a 25 stipendi in cg_uscite, 1 solo record per mese per dipendente, nome canonico ovunque, e prevenzione automatica per il futuro
+
+---
+
+### D2. Flussi di Cassa — Riconciliazione casi parziali senza modo di chiuderli ✅ 2026-04-11
+**Causa:** I casi di riconciliazione dove il movimento bancario e le fatture non quadrano al centesimo (note di credito, bonifici multipli F1+F2, fattura+rata) venivano collegati ma il movimento restava "aperto" con `residuo > 1€`, tornando in eterno nei suggerimenti senza un modo per dichiararlo chiuso.
+
+**Fix:**
+- **Migrazione 059** `059_banca_riconciliazione_chiusa.py` — aggiunge 3 colonne a `banca_movimenti`: `riconciliazione_chiusa` (flag 0/1), `riconciliazione_chiusa_at` (timestamp), `riconciliazione_chiusa_note` (nota opzionale) + indice parziale
+- **Backend `banca_router.py`** — `get_cross_ref` tratta un movimento con `riconciliazione_chiusa=1` come completamente collegato (niente suggerimenti, finisce nel tab Collegati). Due nuovi endpoint: `POST /cross-ref/chiudi/{movimento_id}` (con nota opzionale, richiede almeno un link esistente) e `POST /cross-ref/riapri/{movimento_id}` per annullare la chiusura
+- **Frontend `BancaCrossRef.jsx`** — `isFullyLinked` include il flag `riconciliazione_chiusa`. Bottone verde "✓ Chiudi" nei tab Suggerimenti e Senza match sui movimenti con link parziale (apre prompt per nota opzionale). Nel tab Collegati, i movimenti chiusi manualmente mostrano badge "🔒 Chiusa manuale" + nota + bottone "Riapri"
+- **Risultato**: Marco può ora chiudere N/C che spezzano l'importo, bonifici multipli, fattura+rata con un click, e sapere perché ha chiuso grazie alla nota
+
+---
+
+### D3. Flussi di Cassa — Doppioni versamenti banca ✅ 2026-04-11
+**Causa:** BPM esporta lo stesso movimento in due formati CSV diversi (uno con `ragione_sociale`+`banca` pieni e descrizione UPPERCASE, uno con campi vuoti e descrizione lowercase). Il dedup_hash v2 non catturava il pattern perché il prefisso comune delle descrizioni normalizzate era troppo corto (es. "comm" vs "commissioni" = 4 char).
+
+**Fix:**
+- **Migrazione 058** `058_pulizia_banca_duplicati_formato.py` — cleanup one-shot dei 10 duplicati residui. Raggruppa per `(data_contabile, importo)` con esattamente 2 righe, identifica il pattern "uno con ragione_sociale pieno + uno vuoto", tiene il record con più metadati, migra eventuali link fattura/cg_uscite/cg_entrate, elimina il duplicato. Testata su copia DB: 10/10 eliminati, gruppi legittimi (commissioni bonifici multiple con RIF diversi) intatti
+- **Soft dedup check in `banca_router.py`** — prima di `INSERT` nell'import CSV, verifica se esiste già un record con stessa `(data_contabile, importo)` e pattern `ragione_sociale` opposto (vuoto vs pieno). Se sì, skippa l'import (count come duplicato soft)
+- **Risultato**: €5000 del 26/01 ora singolo record, futuri import dei due formati BPM non creeranno più doppioni
 
 ---
 

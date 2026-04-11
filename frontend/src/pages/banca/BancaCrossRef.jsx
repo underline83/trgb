@@ -1,6 +1,7 @@
-// @version: v5.0-multilink-storni-dedup
+// @version: v5.1-chiusura-manuale
 // Riconciliazione — match movimenti bancari ↔ fatture, spese fisse, registrazione diretta
 // v5: multi-link (bonifici multi-fattura), ricerca entrate (storni), dedup, matching migliorato
+// v5.1: chiusura manuale riconciliazione n-a-1 (mig 059) per N/C, bonifici multipli, fattura+rata
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
@@ -172,8 +173,9 @@ export default function BancaCrossRef() {
   };
 
   // ── Helpers: un movimento è "completamente collegato" se ha links e residuo < 1 ──
-  const isFullyLinked = (m) => (m.links?.length > 0) && Math.abs(m.residuo ?? 0) < 1.0;
-  const isPartiallyLinked = (m) => (m.links?.length > 0) && Math.abs(m.residuo ?? 0) >= 1.0;
+  // oppure se è stato marcato come "riconciliazione chiusa manualmente" (mig 059)
+  const isFullyLinked = (m) => !!m.riconciliazione_chiusa || ((m.links?.length > 0) && Math.abs(m.residuo ?? 0) < 1.0);
+  const isPartiallyLinked = (m) => !m.riconciliazione_chiusa && (m.links?.length > 0) && Math.abs(m.residuo ?? 0) >= 1.0;
 
   const handleLink = async (movimentoId, source, sourceId) => {
     setLinking(movimentoId);
@@ -213,6 +215,41 @@ export default function BancaCrossRef() {
       await apiFetch(`${FC}/cross-ref/link/${linkId}`, { method: "DELETE" });
       await loadData();
     } catch (_) {}
+  };
+
+  // ── Chiusura manuale riconciliazione (mig 059) ──
+  const handleChiudiRiconciliazione = async (movId) => {
+    const note = window.prompt(
+      "Chiudi riconciliazione manualmente.\n" +
+      "Es. 'N/C sconto', 'bonifico F1+F2', 'fattura + rata'.\n" +
+      "(Nota opzionale, puoi lasciare vuoto)",
+      ""
+    );
+    if (note === null) return; // annullato
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/chiudi/${movId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note || null }),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.detail || "Errore chiusura");
+      }
+      await loadData();
+    } catch (err) { setError(err.message); }
+  };
+
+  const handleRiapriRiconciliazione = async (movId) => {
+    if (!window.confirm("Riaprire la riconciliazione di questo movimento? Tornerà tra i suggerimenti.")) return;
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/riapri/${movId}`, { method: "POST" });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.detail || "Errore riapertura");
+      }
+      await loadData();
+    } catch (err) { setError(err.message); }
   };
 
   // ── Registra spesa/entrata ──
@@ -638,6 +675,23 @@ export default function BancaCrossRef() {
                                       Totale: € {fmt(m.totale_collegato)}
                                     </div>
                                   )}
+                                  {m.riconciliazione_chiusa ? (
+                                    <div className="mt-1 text-[10px]">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-emerald-300 bg-emerald-50 text-emerald-700 font-medium">
+                                        🔒 Chiusa manuale
+                                      </span>
+                                      {Math.abs(m.residuo ?? 0) >= 1.0 && (
+                                        <span className="ml-1 text-neutral-500">
+                                          (residuo € {fmt(m.residuo)})
+                                        </span>
+                                      )}
+                                      {m.riconciliazione_chiusa_note && (
+                                        <div className="text-[10px] text-neutral-500 italic mt-0.5">
+                                          "{m.riconciliazione_chiusa_note}"
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 text-center">
@@ -648,20 +702,36 @@ export default function BancaCrossRef() {
                                       Scollega
                                     </button>
                                   ))}
+                                  {m.riconciliazione_chiusa && (
+                                    <button onClick={() => handleRiapriRiconciliazione(m.id)}
+                                      title="Riapri la riconciliazione manuale"
+                                      className="block px-2 py-1 rounded text-[10px] border border-amber-200 text-amber-600 hover:bg-amber-50 w-full">
+                                      Riapri
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </>
                           )}
 
-                          {/* ── Tab suggerimenti: pulsante espandi ── */}
+                          {/* ── Tab suggerimenti: pulsante espandi + chiudi manuale ── */}
                           {tab === "suggerimenti" && (
                             <td className="px-3 py-2.5">
-                              <button onClick={() => setExpandedId(isExpanded ? null : m.id)}
-                                className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
-                                  isExpanded ? "bg-amber-100 border-amber-300 text-amber-800" : "border-amber-200 text-amber-700 hover:bg-amber-50"
-                                }`}>
-                                {isExpanded ? "Chiudi" : `${m.possibili_match?.length} possibili`}
-                              </button>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button onClick={() => setExpandedId(isExpanded ? null : m.id)}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                                    isExpanded ? "bg-amber-100 border-amber-300 text-amber-800" : "border-amber-200 text-amber-700 hover:bg-amber-50"
+                                  }`}>
+                                  {isExpanded ? "Chiudi" : `${m.possibili_match?.length} possibili`}
+                                </button>
+                                {partial && (
+                                  <button onClick={() => handleChiudiRiconciliazione(m.id)}
+                                    title="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)"
+                                    className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
+                                    ✓ Chiudi
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           )}
 
@@ -714,6 +784,13 @@ export default function BancaCrossRef() {
                                     title="Torna ai suggerimenti automatici"
                                     className="px-2 py-1 rounded-lg text-[10px] font-medium border border-amber-200 text-amber-600 hover:bg-amber-50 transition">
                                     💡
+                                  </button>
+                                )}
+                                {partial && (
+                                  <button onClick={() => handleChiudiRiconciliazione(m.id)}
+                                    title="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)"
+                                    className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
+                                    ✓ Chiudi
                                   </button>
                                 )}
                               </div>

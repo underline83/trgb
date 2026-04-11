@@ -457,6 +457,7 @@ def fic_sync(
         duplicate_xml = 0
         errori = 0
         righe_importate = 0
+        skipped_non_fattura = 0  # mig 061 / problemi.md A1
         page = 1
         totale_api = 0
         error_details: list[str] = []
@@ -519,6 +520,23 @@ def fic_sync(
                     fornitore_nome = entity.get("name", "") or "Sconosciuto"
                     fornitore_piva = entity.get("vat_number", "") or ""
                     _sync_progress["last_fornitore"] = fornitore_nome
+
+                    # ── FILTRO NON-FATTURA (mig 061 / problemi.md A1) ──
+                    # FIC esporta come "received_documents expense" anche
+                    # registrazioni di prima nota (affitti, spese cassa) che
+                    # non hanno né numero di documento né P.IVA del fornitore.
+                    # Questi record non devono finire in fe_fatture.
+                    if not (doc_number or "").strip() and not (fornitore_piva or "").strip():
+                        skipped_non_fattura += 1
+                        sync_items.append({
+                            "fornitore": fornitore_nome,
+                            "numero": "",
+                            "data": doc_date or "",
+                            "totale": doc.get("amount_gross", 0) or 0,
+                            "stato": "skipped_non_fattura",
+                        })
+                        _sync_progress["phase1_done"] += 1
+                        continue
 
                     # Importi
                     amount_net = doc.get("amount_net", 0) or 0
@@ -699,6 +717,7 @@ def fic_sync(
         note = (
             f"Anno {anno}: {nuove} nuove, {aggiornate} agg, "
             f"{duplicate_xml} già da XML (fase1), {merged_xml} uniti (fase2), "
+            f"{skipped_non_fattura} non-fatture skippate, "
             f"{righe_importate} righe, totale API: {totale_api}"
         )
         conn.execute(

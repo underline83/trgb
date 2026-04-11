@@ -1397,7 +1397,9 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
 def _match_dipendente(conn, cedolino: dict) -> Optional[dict]:
     """
     Cerca di abbinare un cedolino PDF a un dipendente in anagrafica.
-    Strategia: prima per codice_fiscale, poi per cognome+nome (fuzzy).
+    Strategia: prima per codice_fiscale, poi per cognome+nome esatto,
+    poi fuzzy matching (SequenceMatcher) contro tutti gli attivi per tollerare
+    typo del parser LUL (es. "CARMINATIO MARCO" vs "CARMINATI MARCO").
     """
     cf = cedolino.get("codice_fiscale")
     if cf:
@@ -1436,6 +1438,32 @@ def _match_dipendente(conn, cedolino: dict) -> Optional[dict]:
             ).fetchone()
             if row:
                 return dict(row)
+
+    # ── Fuzzy fallback (mig 060 / problemi.md A2) ──
+    # Scorre tutti i dipendenti attivi e calcola similarità "cognome nome"
+    # contro il blob del PDF. Soglia 0.85 tollera typo singoli.
+    from difflib import SequenceMatcher
+    ced_norm = " ".join(cognome_nome.upper().split())
+    ced_norm_rev = " ".join(reversed(ced_norm.split()))
+    best = None
+    best_ratio = 0.0
+    for d in conn.execute(
+        "SELECT id, nome, cognome, codice_fiscale, giorno_paga FROM dipendenti WHERE attivo = 1"
+    ).fetchall():
+        dip = dict(d)
+        # Il PDF ha "COGNOME NOME", l'anagrafica "Nome Cognome"
+        cand = f"{(dip.get('cognome') or '').upper()} {(dip.get('nome') or '').upper()}".strip()
+        cand = " ".join(cand.split())
+        if not cand:
+            continue
+        r1 = SequenceMatcher(None, ced_norm, cand).ratio()
+        r2 = SequenceMatcher(None, ced_norm_rev, cand).ratio()
+        r = max(r1, r2)
+        if r > best_ratio:
+            best_ratio = r
+            best = dip
+    if best and best_ratio >= 0.85:
+        return best
 
     return None
 

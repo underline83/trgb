@@ -27,7 +27,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body
 from pydantic import BaseModel
 import sqlite3
 from pathlib import Path
@@ -307,6 +307,33 @@ async def import_csv(file: UploadFile = File(...)):
             if not date_max or data_c > date_max:
                 date_max = data_c
 
+        # Soft dedup check: pattern "formato vuoto+pieno" (vedi mig 058).
+        # Lo stesso movimento può apparire in due export CSV diversi della
+        # banca: uno con ragione_sociale+banca pieni (uppercase), l'altro
+        # con campi vuoti (lowercase). Il dedup_hash non cattura perché le
+        # descrizioni normalizzate hanno prefisso comune troppo corto.
+        # Strategia: se esiste un record con stessa data+importo e pattern
+        # ragione_sociale "opposto" (uno vuoto, uno pieno), è lo stesso
+        # movimento → skip import del nuovo (tieni il record esistente).
+        ragione_clean = (ragione or "").strip()
+        existing = cur.execute("""
+            SELECT id, ragione_sociale
+            FROM banca_movimenti
+            WHERE data_contabile = ? AND importo = ?
+        """, (data_c, importo)).fetchall()
+
+        is_soft_dup = False
+        for ex_id, ex_rs in existing:
+            ex_rs_clean = (ex_rs or "").strip()
+            # Pattern opposto: uno vuoto e l'altro pieno
+            if bool(ragione_clean) != bool(ex_rs_clean):
+                is_soft_dup = True
+                break
+
+        if is_soft_dup:
+            num_dup += 1
+            continue
+
         try:
             cur.execute("""
                 INSERT INTO banca_movimenti
@@ -318,7 +345,7 @@ async def import_csv(file: UploadFile = File(...)):
                   importo, divisa, descrizione, cat, subcat, hashtag, dhash))
             num_new += 1
         except sqlite3.IntegrityError:
-            # Duplicato
+            # Duplicato hard (hash identico)
             num_dup += 1
 
     # Se tutte le righe sono "duplicate" e nessuna data trovata → probabile mismatch colonne
@@ -802,6 +829,15 @@ def get_cross_ref(
             if f0.get("periodo_riferimento"):
                 mov["link_periodo"] = f0["periodo_riferimento"]
 
+        # Riconciliazione chiusa manualmente (mig 059): il movimento viene
+        # considerato "completamente collegato" anche se residuo > 1€.
+        # Serve per note di credito, bonifici multipli, fattura+rata dove
+        # i link sono stati creati ma non quadrano al centesimo.
+        if mov.get("riconciliazione_chiusa"):
+            mov["possibili_match"] = []
+            movimenti.append(mov)
+            continue
+
         # Completamente collegato (residuo < 1€) → nessun suggerimento
         if links and abs(residuo) < 1.0:
             mov["possibili_match"] = []
@@ -1104,6 +1140,87 @@ def delete_link(link_id: str):
                 WHERE fattura_id = ? AND banca_movimento_id = ?
             """, (l["fattura_id"], l["movimento_id"]))
 
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Chiusura manuale riconciliazione (mig 059)
+# ─────────────────────────────────────────────────────────────────────
+
+class RiconciliaChiudiRequest(BaseModel):
+    note: Optional[str] = None
+
+
+@router.post("/cross-ref/chiudi/{movimento_id}")
+def chiudi_riconciliazione(movimento_id: int, req: RiconciliaChiudiRequest = Body(default=None)):
+    """
+    Marca un movimento come riconciliato manualmente anche se residuo > 1€.
+    Usato per note di credito, bonifici multipli, fattura+rata dove i link
+    esistono ma non quadrano al centesimo.
+    Richiesta: almeno un link deve esistere (non si chiude un movimento vuoto).
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    mov = cur.execute(
+        "SELECT id FROM banca_movimenti WHERE id = ?", (movimento_id,)
+    ).fetchone()
+    if not mov:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+
+    # Verifica che ci sia almeno un link
+    n_fatt = cur.execute(
+        "SELECT COUNT(*) FROM banca_fatture_link WHERE movimento_id = ?", (movimento_id,)
+    ).fetchone()[0]
+    n_usc = cur.execute(
+        "SELECT COUNT(*) FROM cg_uscite WHERE banca_movimento_id = ?", (movimento_id,)
+    ).fetchone()[0]
+    n_ent = cur.execute(
+        "SELECT COUNT(*) FROM cg_entrate WHERE banca_movimento_id = ?", (movimento_id,)
+    ).fetchone()[0]
+    if (n_fatt + n_usc + n_ent) == 0:
+        conn.close()
+        raise HTTPException(400, "Nessun link esistente: collega almeno una fattura/uscita/entrata prima di chiudere")
+
+    note = (req.note if req else None) or None
+    cur.execute("""
+        UPDATE banca_movimenti
+        SET riconciliazione_chiusa = 1,
+            riconciliazione_chiusa_at = datetime('now'),
+            riconciliazione_chiusa_note = ?
+        WHERE id = ?
+    """, (note, movimento_id))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@router.post("/cross-ref/riapri/{movimento_id}")
+def riapri_riconciliazione(movimento_id: int):
+    """
+    Annulla la chiusura manuale di un movimento. Il residuo torna a essere
+    quello reale e il movimento ricompare tra i "suggerimenti" se ha residuo > 1€.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+
+    mov = cur.execute(
+        "SELECT id FROM banca_movimenti WHERE id = ?", (movimento_id,)
+    ).fetchone()
+    if not mov:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+
+    cur.execute("""
+        UPDATE banca_movimenti
+        SET riconciliazione_chiusa = 0,
+            riconciliazione_chiusa_at = NULL,
+            riconciliazione_chiusa_note = NULL
+        WHERE id = ?
+    """, (movimento_id,))
     conn.commit()
     conn.close()
     return {"ok": True}
