@@ -1,9 +1,10 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v4.3 — B.1 Header touch-compatibile (tap-toggle flyout su iPad/iPhone)
+// @version: v4.4 — B.2 Tooltip touch-compatibile (sostituito title= nativo)
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
+import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
 
 export default function Header({ onLogout }) {
@@ -338,7 +339,9 @@ export default function Header({ onLogout }) {
             <div className="text-sm font-medium text-neutral-800 leading-tight">
               {username}
               {canActivateSuperMode(role) && isSuperModeActive() && (
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1.5 align-middle" title="Modalità gestione" />
+                <Tooltip label="Modalità gestione">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1.5 align-middle" />
+                </Tooltip>
               )}
             </div>
             {role && (
@@ -347,13 +350,14 @@ export default function Header({ onLogout }) {
               </div>
             )}
           </div>
-          <button
-            onClick={() => navigate("/cambio-pin")}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
-            title="Cambia PIN"
-          >
-            🔑
-          </button>
+          <Tooltip label="Cambia PIN">
+            <button
+              onClick={() => navigate("/cambio-pin")}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
+            >
+              🔑
+            </button>
+          </Tooltip>
           <button
             onClick={onLogout}
             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"
