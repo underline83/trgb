@@ -2,8 +2,46 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tre Gobbi — Gestionale Web</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>Tre Gobbi — Gestionale</title>
+    <meta name="description" content="Gestionale interno Osteria Tre Gobbi (Bergamo)." />
+    <meta name="theme-color" content="#14b8a6" />
+
+    <!-- Favicon classici -->
+    <link rel="icon" type="image/x-icon" href="/icons/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+
+    <!-- PWA manifest (Chrome/Android/Edge/Safari 17+) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Apple iOS / iPadOS — standalone web app ("Aggiungi a Home") -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TRGB" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Apple touch icons — iOS sceglie il size piu' vicino al device -->
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/icons/apple-touch-icon-120.png" />
+    <link rel="apple-touch-icon" sizes="87x87"  href="/icons/apple-touch-icon-87.png" />
+    <link rel="apple-touch-icon" sizes="80x80"  href="/icons/apple-touch-icon-80.png" />
+    <link rel="apple-touch-icon" sizes="76x76"  href="/icons/apple-touch-icon-76.png" />
+    <link rel="apple-touch-icon" sizes="72x72"  href="/icons/apple-touch-icon-72.png" />
+    <link rel="apple-touch-icon" sizes="60x60"  href="/icons/apple-touch-icon-60.png" />
+    <link rel="apple-touch-icon" sizes="40x40"  href="/icons/apple-touch-icon-40.png" />
+    <link rel="apple-touch-icon" sizes="29x29"  href="/icons/apple-touch-icon-29.png" />
+
+    <!-- NOTA: gli splash screens iOS (apple-touch-startup-image) richiedono
+         una matrice completa di risoluzioni con media-query precise per ogni
+         device. Saranno aggiunti in Fase 1 (Capacitor) quando fisseremo i
+         target iPad/iPhone supportati. Per ora iOS mostra uno splash vuoto
+         con il background del manifest (#0f172a). -->
   </head>
   <body class="bg-gray-50">
     <div id="root"></div>

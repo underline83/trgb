@@ -6,6 +6,12 @@
 .LSOverride
 ._*
 Icon?
+# ATTENZIONE: la regola "Icon?" sopra (marker macOS Finder)
+# matcha anche "icons" come glob — dobbiamo ri-includere esplicitamente
+# la cartella PWA icons, altrimenti git ignora tutte le icone Apple/PWA
+# e il deploy va in produzione senza icone (manifest + apple-touch-icon → 404).
+!frontend/public/icons/
+!frontend/public/icons/**
 ehthumbs.db
 Thumbs.db
 

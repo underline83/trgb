@@ -193,6 +193,57 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 - [ ] Carta di Credito: import estratto conto, riconciliazione con CG uscite
 - [ ] Movimenti Contanti: annullamento pagamento, filtri avanzati
 
+## 33. App Apple standalone (NUOVO — 2026-04-11)
+> Analisi completa: `docs/analisi_app_apple.md`
+
+**Obiettivo finale:** TRGB come app vera su iPad (primario) + Mac (secondario) + iPhone "lite" (funzionalita' ridotte). Prima distribuzione privata interna, poi App Store pubblico.
+
+**Approccio progressivo in 2 fasi + decisione futura:**
+
+### Fase 0 — PWA (IN CORSO — sessione 26)
+- [x] Icone Apple/PWA da logo 5000x5000 (19 file in `frontend/public/icons/`) — 2026-04-11
+- [x] `manifest.webmanifest` con nome, icone, colori TRGB (teal primario #14b8a6, slate-900 background) — 2026-04-11
+- [x] Service worker base (`frontend/public/sw.js`): cache shell SWR, API cross-origin mai cache-ate — 2026-04-11
+- [x] Meta tag Apple in `index.html`: `apple-mobile-web-app-capable`, `apple-touch-icon` multi-size, theme-color, viewport-fit=cover — 2026-04-11
+- [x] Registrazione SW in `main.jsx` (solo PROD, non in dev) — 2026-04-11
+- [ ] **Test su iPad reale**: "Aggiungi a schermata Home" da Safari, verifica icona, avvio standalone, splash background
+- [ ] **Test su iPhone reale**: stesso workflow, verifica safe-area notch
+- [ ] (opzionale) Splash screens iOS — rimandato a Fase 1, troppo codice per poco valore in Fase 0
+
+### Fase 1 — Wrapper Capacitor (DA AVVIARE)
+**Prerequisito:** Apple Developer Program ($99/anno, Marco), Mac con Xcode aggiornato.
+
+- [ ] Setup progetto Capacitor (`@capacitor/core`, `@capacitor/ios`) nel frontend
+- [ ] Generazione progetto Xcode `ios/` con `npx cap add ios`
+- [ ] Icone + splash native iOS (AppIcon.appiconset completo, LaunchScreen.storyboard)
+- [ ] Build locale + test su simulatore iPad
+- [ ] Feature native minime per passare Apple Review Guideline 4.2:
+  - [ ] **FaceID/TouchID** al posto del PIN (plugin `@capacitor/biometric-auth` o custom)
+  - [ ] **AirPrint** share sheet per carta vini, cedolini, PDF fatture
+  - [ ] **Share sheet iOS** per conferme prenotazioni via Messaggi/WhatsApp/Mail
+  - [ ] **Push notifications** (nuova prenotazione, backup fallito, scadenza fattura imminente)
+  - [ ] (opzionale) Scanner codici a barre iPratico via VisionKit
+- [ ] Fix mobile-ready per pagine esistenti: safe-area CSS, scroll momentum, touch target >= 44pt, rimuovere hover-only
+- [ ] Versione iPhone "lite": build separato che nasconde Controllo Gestione, Foodcost, Acquisti (inusabili su 6"), mantiene Dashboard Sala, Prenotazioni, Clienti, Chiusure Turno
+- [ ] Build Mac Catalyst (stesso progetto, target macOS)
+- [ ] Iscrizione Apple Developer Program + App ID + certificati
+- [ ] TestFlight privato (solo Marco + eventuali tester invitati)
+- [ ] Submission App Store pubblica (con screenshot, privacy policy, descrizioni)
+
+**Stima complessiva Fase 1:** 2-3 mesi di lavoro concentrato.
+
+### Fase 2 — decisione futura (NON pianificata)
+Dopo 6-12 mesi di uso reale della Fase 1 valutare se riscrivere (parti di) frontend in SwiftUI nativo. Vedere `docs/analisi_app_apple.md` §3 Scenari C/D/E per stime.
+
+**Regola operativa — "mobile-aware from now on":**
+Da ora in poi, ogni modifica frontend dovrebbe tenere presente il target Capacitor futuro:
+- Niente hover-only interactions (su touch non esiste hover)
+- Touch target minimi 44x44 pt (Apple HIG)
+- Tabelle con scroll orizzontale devono funzionare anche su iPad
+- Evitare `window.print()` diretto, preferire share sheet
+- File upload deve accettare anche sorgente "Fotocamera iOS"
+- Rispetto safe-area insets (`env(safe-area-inset-*)`)
+
 ---
 
 # Rilasci
