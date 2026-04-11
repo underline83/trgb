@@ -15,6 +15,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
 import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
+import Tooltip from "../../components/Tooltip";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -137,13 +138,14 @@ export default function ControlloGestioneRiconciliazione() {
               placeholder="Cerca fornitore / titolo…"
               className="px-2 py-1 text-xs border border-neutral-300 rounded w-48"
             />
-            <button
-              onClick={fetchWorklist}
-              className="px-2 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-50"
-              title="Ricarica"
-            >
-              ↻
-            </button>
+            <Tooltip label="Ricarica">
+              <button
+                onClick={fetchWorklist}
+                className="px-2 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-50"
+              >
+                ↻
+              </button>
+            </Tooltip>
           </div>
 
           <div className="flex-1 overflow-auto">
