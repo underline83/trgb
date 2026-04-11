@@ -3,6 +3,68 @@
 
 ---
 
+## 2026-04-11 — CG v2.2: Riconciliazione bidirezionale (Workbench + Piano Rate + Storico)
+
+Richiesta di Marco del giorno stesso (parte A + B in un unico rilascio): rendere visibile e gestibile la riconciliazione banca dal lato uscite, non solo dal lato movimenti. Flusso bidirezionale: dal movimento all'uscita (esistente, via `BancaCrossRef`) **e ora** dall'uscita al movimento.
+
+**Decisioni di design (prese con Marco su mockup visivo `docs/mockups/riconciliazione_design.html`):**
+- **A1** opzione 2: pill KPI "Da riconciliare" direttamente nella barra KPI dello scadenzario, cliccabile, naviga al workbench
+- **A3** palette C (dot-indicator minimal) + nomi A (Riconciliata / Automatica / Da collegare / Aperta) — 4 stati tecnici semantici
+- **6** opzione C: workbench split-pane dedicato (pagina `/controllo-gestione/riconciliazione`) invece che modale sovrapposta
+- **7** componenti riutilizzabili come regola cardine — `StatoRiconciliazioneBadge` e `RiconciliaBancaPanel` usati in 3 contesti diversi
+
+#### Componenti riutilizzabili (nuovi)
+- **`frontend/src/components/riconciliazione/StatoRiconciliazioneBadge.jsx`** — badge dot-indicator + label, 4 stati (`riconciliata`/`automatica`/`da_collegare`/`aperta`). Espone `derivaStatoRiconciliazione(row)` come helper puro, coerente con la logica backend. Taglie `xs`/`sm`, prop `showLabel` per modalità icon-only. Export anche `STATI_RICONCILIAZIONE` per legende/filtri esterni
+- **`frontend/src/components/riconciliazione/RiconciliaBancaPanel.jsx`** — pannello con 2 tab:
+  - 🎯 **Auto**: chiama `GET /controllo-gestione/uscite/{id}/candidati-banca` (matching esistente ±10% importo, ±15gg)
+  - 🔍 **Ricerca libera**: chiama il nuovo `GET /controllo-gestione/uscite/{id}/ricerca-banca` con filtri testo/data/importo (prefill ±60gg, ±30%)
+  - Link tramite `POST /controllo-gestione/uscite/{id}/riconcilia`, callback `onLinked` per refresh contesto
+  - Usato in: workbench split-pane (right pane), modale piano rate, modale storico
+
+#### Parte A — Scadenzario uscite
+- **Pill KPI "Da riconciliare"** in `ControlloGestioneUscite.jsx` barra KPI (solo se `rig.num_da_riconciliare > 0`). Clic → `navigate("/controllo-gestione/riconciliazione")`
+- **Workbench split-pane `ControlloGestioneRiconciliazione.jsx`** (nuova pagina):
+  - **Pane SX**: worklist di uscite PAGATA_MANUALE senza movimento, tabella clickabile con search box + refresh
+  - **Pane DX**: `RiconciliaBancaPanel` inizializzato sulla riga selezionata
+  - Dopo link, la worklist si rigenera e seleziona il successivo item automaticamente
+  - Header con contatore totale da collegare + bottone back allo scadenzario
+- **Voce "Riconciliazione"** aggiunta a `ControlloGestioneNav`
+
+#### Parte B — Spese Fisse
+- **Piano Rate (prestiti)**: nuova colonna **Banca** nella tabella. Se `riconciliazione_stato=riconciliata` mostra badge + data movimento; se `da_collegare` mostra bottone "Cerca movimento" che apre modale con `RiconciliaBancaPanel`; altrimenti badge "Aperta"
+- **Storico (affitti e non-prestiti)**: nuova modale `storicoModal` aperta dal bottone **"Storico"** in tabella spese fisse (tipi ≠ PRESTITO/RATEIZZAZIONE). Lista delle `cg_uscite` passate collegate alla spesa fissa, con stesso trattamento della colonna Banca e KPI in alto (uscite / riconciliate / da collegare / aperte / pagato totale)
+- Refresh automatico di piano e storico dopo link banca (callback `refreshPianoRate` + `refreshStorico`)
+
+#### Backend — nuovi endpoint
+- **`GET /controllo-gestione/spese-fisse/{id}/piano-rate` esteso**: LEFT JOIN su `banca_movimenti` via `u.banca_movimento_id`, restituisce `banca_data_contabile`, `banca_importo`, `banca_descrizione`, `banca_ragione_sociale`. Calcola `riconciliazione_stato` per ogni rata replicando la logica del frontend `derivaStatoRiconciliazione`. Aggiunge `n_riconciliate`/`n_da_collegare`/`n_aperte` al riepilogo
+- **`GET /controllo-gestione/spese-fisse/{id}/storico`** (nuovo): per spese fisse senza piano rate. Restituisce tutte le `cg_uscite` del `spesa_fissa_id` ordinate per data scadenza DESC, con info banca e `riconciliazione_stato` derivato. Riepilogo aggregato
+- **`GET /controllo-gestione/uscite/da-riconciliare`** (nuovo): worklist per il workbench. Filtra `stato='PAGATA_MANUALE' AND banca_movimento_id IS NULL`, JOIN con `cg_spese_fisse` per ottenere `spesa_fissa_titolo`/`tipo`. Limit param (default 200), totale separato per badge counter
+- **`GET /controllo-gestione/uscite/{id}/ricerca-banca`** (nuovo): ricerca libera movimenti bancari. Parametri `q` (LIKE su descrizione + ragione_sociale), `data_da`/`data_a`, `importo_min`/`importo_max`, `limit`. Esclude movimenti già riconciliati (LEFT JOIN `cg_uscite u2`). Lavora su movimenti in uscita (`importo < 0`)
+
+#### Frontend — file modificati
+- `ControlloGestioneUscite.jsx` — pill KPI cliccabile + navigazione
+- `ControlloGestioneSpeseFisse.jsx` — colonna Banca nel piano rate + modale Cerca banca + modale Storico + bottone "Storico" in tabella spese
+- `ControlloGestioneNav.jsx` — voce "Riconciliazione"
+- `App.jsx` — nuova rotta `/controllo-gestione/riconciliazione`
+- `versions.jsx` — bump `controlloGestione` 2.1c → 2.2
+
+**Test end-to-end su DB locale:**
+- Query `/piano-rate` estesa: prestito BPM 1 → 5 rate restituite con campi banca (NULL in questo test: le rate 2021 non hanno movimento collegato)
+- Query `/storico`: affitto Via Broseta → 5 uscite recenti restituite (DA_PAGARE/SCADUTA → `riconciliazione_stato=aperta` corretto)
+- Query `/uscite/da-riconciliare`: **917 uscite** PAGATA_MANUALE senza movimento bancario in attesa di collegamento — ottimo caso di test reale per il workbench
+
+**Da testare dopo push:**
+- [ ] Pill "Da riconciliare" appare in scadenzario e naviga al workbench
+- [ ] Worklist carica le 917 righe, selezione fluida
+- [ ] Tab Auto → candidati reali per almeno una uscita
+- [ ] Tab Ricerca libera → filtri date/importo/testo funzionanti
+- [ ] Link → worklist si rigenera senza la riga appena collegata
+- [ ] Piano rate di un prestito mostra la colonna Banca; bottone Cerca apre modale
+- [ ] Bottone "Storico" su un affitto mostra la lista storica
+- [ ] Nessun regresso su `banca_router.py` cross-ref direzione opposta (movimento → fattura)
+
+---
+
 ## 2026-04-11 — Bugfix batch "problemi 10/04": D3 + D2 + A2 + A1 + C1 + C2 + B1 in una passata
 
 Sessione dedicata a chiudere i problemi che Marco aveva dettato il 10/04 durante l'uso del gestionale. 7 item su 8 chiusi, resta solo D1 (sistema storni difettoso) che richiede repro live.

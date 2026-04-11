@@ -113,6 +113,7 @@ import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGest
 import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
 import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
 import ControlloGestioneSpeseFisse from "./pages/controllo-gestione/ControlloGestioneSpeseFisse";
+import ControlloGestioneRiconciliazione from "./pages/controllo-gestione/ControlloGestioneRiconciliazione";
 
 // --- STATISTICHE ---
 import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
@@ -225,6 +226,7 @@ export default function App() {
         <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
         <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
         <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/riconciliazione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneRiconciliazione /></ProtectedRoute>} />
 
         {/* --- STATISTICHE --- */}
         <Route path="/statistiche" element={<ProtectedRoute module="statistiche"><StatisticheMenu /></ProtectedRoute>} />

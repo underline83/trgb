@@ -4,6 +4,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
+import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -93,6 +95,15 @@ export default function ControlloGestioneSpeseFisse() {
   const [pianoLoading, setPianoLoading] = useState(false);
   const [pianoEdits, setPianoEdits] = useState({});     // { periodo: nuovoImporto }
   const [pianoSaving, setPianoSaving] = useState(false);
+
+  // Riconciliazione banca: modale "Cerca banca" (sovrapposta al piano rate o allo storico)
+  const [bancaModal, setBancaModal] = useState(null);   // { uscita_id, contextLabel, dataRif, importo }
+
+  // Storico spese fisse senza piano rate (affitti, utenze, ...)
+  const [storicoModal, setStoricoModal] = useState(null);  // { id, titolo, tipo }
+  const [storicoRows, setStoricoRows] = useState([]);
+  const [storicoRiepilogo, setStoricoRiepilogo] = useState(null);
+  const [storicoLoading, setStoricoLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -321,6 +332,64 @@ export default function ControlloGestioneSpeseFisse() {
     setPianoRate([]);
     setPianoRiepilogo(null);
     setPianoEdits({});
+  };
+
+  // Ricarica dati della modale piano/storico attualmente aperta (dopo link banca)
+  const refreshPianoRate = useCallback(async () => {
+    if (pianoModal) {
+      try {
+        const res = await apiFetch(`${CG}/spese-fisse/${pianoModal.id}/piano-rate`);
+        const d = await res.json();
+        if (d.ok) {
+          setPianoRate(d.rate || []);
+          setPianoRiepilogo(d.riepilogo || null);
+        }
+      } catch {}
+    }
+  }, [pianoModal]);
+
+  const refreshStorico = useCallback(async () => {
+    if (storicoModal) {
+      try {
+        const res = await apiFetch(`${CG}/spese-fisse/${storicoModal.id}/storico`);
+        const d = await res.json();
+        if (d.ok) {
+          setStoricoRows(d.storico || []);
+          setStoricoRiepilogo(d.riepilogo || null);
+        }
+      } catch {}
+    }
+  }, [storicoModal]);
+
+  // ── Apri modale "Cerca banca" per una uscita (da piano rate o storico) ──
+  const openBancaModal = (uscitaId, contextLabel, dataRif, importo) => {
+    setBancaModal({ uscita_id: uscitaId, contextLabel, dataRif, importo: Math.abs(importo || 0) });
+  };
+  const closeBancaModal = () => setBancaModal(null);
+
+  // ── Storico spesa fissa (affitti/utenze senza piano rate) ──
+  const openStorico = async (s) => {
+    setStoricoModal({ id: s.id, titolo: s.titolo, tipo: s.tipo });
+    setStoricoRows([]);
+    setStoricoRiepilogo(null);
+    setStoricoLoading(true);
+    try {
+      const res = await apiFetch(`${CG}/spese-fisse/${s.id}/storico`);
+      const d = await res.json();
+      if (d.ok) {
+        setStoricoRows(d.storico || []);
+        setStoricoRiepilogo(d.riepilogo || null);
+      }
+    } catch (e) {
+      console.error("Errore caricamento storico:", e);
+    } finally {
+      setStoricoLoading(false);
+    }
+  };
+  const closeStorico = () => {
+    setStoricoModal(null);
+    setStoricoRows([]);
+    setStoricoRiepilogo(null);
   };
 
   // Modifica importo rata (local only, da salvare)
@@ -1411,6 +1480,13 @@ export default function ControlloGestioneSpeseFisse() {
                                 Piano
                               </button>
                             )}
+                            {s.attiva && !["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (
+                              <button onClick={() => openStorico(s)}
+                                className="px-2 py-0.5 rounded text-[10px] bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200"
+                                title="Storico addebiti + riconciliazione banca">
+                                Storico
+                              </button>
+                            )}
                             {s.attiva && ["AFFITTO", "ASSICURAZIONE"].includes(s.tipo) && (
                               <button onClick={() => openAdeguamento(s)}
                                 className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
@@ -1618,6 +1694,7 @@ export default function ControlloGestioneSpeseFisse() {
                       <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Importo piano</th>
                       <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Pagato</th>
                       <th className="px-4 py-2 text-center text-neutral-600 font-semibold">Stato</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Banca</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1660,6 +1737,41 @@ export default function ControlloGestioneSpeseFisse() {
                               {badge.label}
                             </span>
                           </td>
+                          <td className="px-4 py-1.5">
+                            {(() => {
+                              const ric = r.riconciliazione_stato || "aperta";
+                              if (ric === "riconciliata" || ric === "automatica") {
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <StatoRiconciliazioneBadge stato={ric} size="xs" />
+                                    <span className="text-[10px] text-neutral-500 truncate max-w-[140px]"
+                                      title={r.banca_descrizione || ""}>
+                                      {r.banca_data_contabile
+                                        ? new Date(r.banca_data_contabile + "T00:00:00").toLocaleDateString("it-IT")
+                                        : ""}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              if (ric === "da_collegare" && r.uscita_id) {
+                                return (
+                                  <button
+                                    onClick={() => openBancaModal(
+                                      r.uscita_id,
+                                      `${pianoModal?.titolo || ""} · € ${fmt(r.importo)} · ${r.periodo}`,
+                                      r.uscita_data_pagamento || r.uscita_scadenza,
+                                      r.importo
+                                    )}
+                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[10px] text-amber-800"
+                                  >
+                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Cerca movimento
+                                  </button>
+                                );
+                              }
+                              return <StatoRiconciliazioneBadge stato="aperta" size="xs" />;
+                            })()}
+                          </td>
                         </tr>
                       );
                     })}
@@ -1693,6 +1805,156 @@ export default function ControlloGestioneSpeseFisse() {
                   {pianoSaving ? "Salvataggio..." : "Salva modifiche"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE CERCA BANCA (riutilizzabile) ═══════ */}
+      {bancaModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          onClick={closeBancaModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-neutral-200 bg-amber-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-800">Cerca movimento bancario</h3>
+                <p className="text-[11px] text-neutral-500 mt-0.5">{bancaModal.contextLabel}</p>
+              </div>
+              <button onClick={closeBancaModal} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <RiconciliaBancaPanel
+                uscitaId={bancaModal.uscita_id}
+                contextLabel={bancaModal.contextLabel}
+                dataRif={bancaModal.dataRif}
+                importo={bancaModal.importo}
+                onLinked={() => {
+                  closeBancaModal();
+                  refreshPianoRate();
+                  refreshStorico();
+                  fetchData();
+                }}
+                onClose={closeBancaModal}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ MODALE STORICO (spese fisse senza piano rate) ═══════ */}
+      {storicoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={closeStorico}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-neutral-200 bg-sky-50 flex items-start justify-between flex-shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-sky-900">📜 Storico addebiti — {storicoModal.titolo}</h3>
+                <p className="text-[11px] text-sky-700 mt-0.5">
+                  Uscite passate registrate per questa spesa fissa — collega i movimenti bancari mancanti
+                </p>
+              </div>
+              <button onClick={closeStorico} className="text-neutral-400 hover:text-neutral-600 text-xl">&times;</button>
+            </div>
+
+            {storicoRiepilogo && (
+              <div className="px-6 py-3 border-b border-neutral-200 bg-white grid grid-cols-5 gap-4 flex-shrink-0">
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Uscite</div>
+                  <div className="text-sm font-bold text-neutral-800">{storicoRiepilogo.n_uscite}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Riconciliate</div>
+                  <div className="text-sm font-bold text-emerald-700">{storicoRiepilogo.n_riconciliate}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Da collegare</div>
+                  <div className="text-sm font-bold text-amber-700">{storicoRiepilogo.n_da_collegare}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Aperte</div>
+                  <div className="text-sm font-bold text-neutral-500">{storicoRiepilogo.n_aperte}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Pagato</div>
+                  <div className="text-sm font-bold text-emerald-700">&euro; {fmt(storicoRiepilogo.totale_pagato)}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto">
+              {storicoLoading ? (
+                <div className="text-center py-12 text-neutral-400 text-sm">Caricamento storico...</div>
+              ) : storicoRows.length === 0 ? (
+                <div className="text-center py-12 text-neutral-400 text-sm">Nessuna uscita registrata.</div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-neutral-50 sticky top-0 z-10">
+                    <tr className="border-b border-neutral-200">
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Periodo</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Scadenza</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Pagamento</th>
+                      <th className="px-4 py-2 text-right text-neutral-600 font-semibold">Importo</th>
+                      <th className="px-4 py-2 text-left text-neutral-600 font-semibold">Banca</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storicoRows.map((u) => {
+                      const ric = u.riconciliazione_stato || "aperta";
+                      return (
+                        <tr key={u.uscita_id} className="border-b border-neutral-100 hover:bg-sky-50/30">
+                          <td className="px-4 py-1.5 text-neutral-700 font-mono tabular-nums">{u.periodo_riferimento}</td>
+                          <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
+                            {u.uscita_scadenza ? new Date(u.uscita_scadenza + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                          </td>
+                          <td className="px-4 py-1.5 text-neutral-600 tabular-nums">
+                            {u.uscita_data_pagamento ? new Date(u.uscita_data_pagamento + "T00:00:00").toLocaleDateString("it-IT") : "—"}
+                          </td>
+                          <td className="px-4 py-1.5 text-right font-mono tabular-nums text-neutral-800">
+                            &euro; {fmt(u.uscita_totale)}
+                          </td>
+                          <td className="px-4 py-1.5">
+                            {(ric === "riconciliata" || ric === "automatica") ? (
+                              <div className="flex items-center gap-2">
+                                <StatoRiconciliazioneBadge stato={ric} size="xs" />
+                                <span className="text-[10px] text-neutral-500 truncate max-w-[160px]"
+                                  title={u.banca_descrizione || ""}>
+                                  {u.banca_data_contabile
+                                    ? new Date(u.banca_data_contabile + "T00:00:00").toLocaleDateString("it-IT")
+                                    : ""}
+                                </span>
+                              </div>
+                            ) : ric === "da_collegare" ? (
+                              <button
+                                onClick={() => openBancaModal(
+                                  u.uscita_id,
+                                  `${storicoModal.titolo} · € ${fmt(u.uscita_totale)} · ${u.periodo_riferimento}`,
+                                  u.uscita_data_pagamento || u.uscita_scadenza,
+                                  u.uscita_totale
+                                )}
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[10px] text-amber-800"
+                              >
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                Cerca movimento
+                              </button>
+                            ) : (
+                              <StatoRiconciliazioneBadge stato="aperta" size="xs" />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end flex-shrink-0">
+              <button onClick={closeStorico}
+                className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+                Chiudi
+              </button>
             </div>
           </div>
         </div>

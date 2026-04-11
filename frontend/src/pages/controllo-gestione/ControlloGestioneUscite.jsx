@@ -890,6 +890,23 @@ export default function ControlloGestioneUscite() {
               active={filtroStato === "SCADUTA"} onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")} />
             <KPI label="Pagate" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
               active={filtroStato === "PAGATA"} onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")} />
+            {/* KPI pill "Da riconciliare" — clic apre il workbench split-pane */}
+            {rig.num_da_riconciliare > 0 && (
+              <button
+                onClick={() => navigate("/controllo-gestione/riconciliazione")}
+                title="Apri il workbench riconciliazione"
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 transition"
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+                <span className="text-[11px] font-semibold text-amber-800 tabular-nums">
+                  {rig.num_da_riconciliare}
+                </span>
+                <span className="text-[10px] text-amber-700 uppercase tracking-wide">
+                  Da riconciliare
+                </span>
+                <span className="text-amber-600">›</span>
+              </button>
+            )}
             {rig.num_riconciliate > 0 && (
               <span className="text-[10px] text-violet-600 flex items-center gap-1 ml-1">
                 <BancaCheckIcon size={12} /> {rig.num_riconciliate} riconc.

@@ -1584,19 +1584,27 @@ def get_piano_rate(
         spesa = dict(sf_row) if sf_row else None
 
         # Piano rate + LEFT JOIN con cg_uscite (per stato + importo effettivamente pagato)
+        # + LEFT JOIN con banca_movimenti (per mostrare stato riconciliazione bidirezionale)
         rows = fc.execute("""
             SELECT
                 pr.id, pr.numero_rata, pr.periodo, pr.importo, pr.note,
-                u.id              AS uscita_id,
-                u.stato           AS uscita_stato,
-                u.data_scadenza   AS uscita_scadenza,
-                u.importo_pagato  AS uscita_pagato,
-                u.data_pagamento  AS uscita_data_pagamento,
-                u.totale          AS uscita_totale
+                u.id                 AS uscita_id,
+                u.stato              AS uscita_stato,
+                u.data_scadenza      AS uscita_scadenza,
+                u.importo_pagato     AS uscita_pagato,
+                u.data_pagamento     AS uscita_data_pagamento,
+                u.totale             AS uscita_totale,
+                u.banca_movimento_id AS banca_movimento_id,
+                bm.data_contabile    AS banca_data_contabile,
+                bm.importo           AS banca_importo,
+                bm.descrizione       AS banca_descrizione,
+                bm.ragione_sociale   AS banca_ragione_sociale
             FROM cg_piano_rate pr
             LEFT JOIN cg_uscite u
               ON u.spesa_fissa_id = pr.spesa_fissa_id
              AND u.periodo_riferimento = pr.periodo
+            LEFT JOIN banca_movimenti bm
+              ON bm.id = u.banca_movimento_id
             WHERE pr.spesa_fissa_id = ?
             ORDER BY pr.periodo
         """, (spesa_id,)).fetchall()
@@ -1608,6 +1616,10 @@ def get_piano_rate(
         n_pagate = 0
         n_da_pagare = 0
         n_scadute = 0
+        # Contatori stato riconciliazione
+        n_riconciliate = 0
+        n_da_collegare = 0
+        n_aperte = 0
         for r in rows:
             d = dict(r)
             imp = float(d.get("importo") or 0)
@@ -1629,6 +1641,27 @@ def get_piano_rate(
             else:
                 # Nessuna uscita associata (rata nel piano senza scadenza generata)
                 tot_residuo += imp
+
+            # ── Deriva riconciliazione_stato (coerente con frontend StatoRiconciliazioneBadge) ──
+            has_mov = d.get("banca_movimento_id") is not None
+            if stato is None:
+                ric = "aperta"
+            elif has_mov:
+                ric = "riconciliata"  # "automatica" riservato per futuro matcher
+            elif stato == "PAGATA_MANUALE":
+                ric = "da_collegare"
+            elif stato in ("PAGATA", "PARZIALE"):
+                ric = "riconciliata"
+            else:
+                ric = "aperta"
+            d["riconciliazione_stato"] = ric
+            if ric == "riconciliata":
+                n_riconciliate += 1
+            elif ric == "da_collegare":
+                n_da_collegare += 1
+            else:
+                n_aperte += 1
+
             rate.append(d)
 
         return {
@@ -1640,6 +1673,9 @@ def get_piano_rate(
                 "n_pagate": n_pagate,
                 "n_da_pagare": n_da_pagare,
                 "n_scadute": n_scadute,
+                "n_riconciliate": n_riconciliate,
+                "n_da_collegare": n_da_collegare,
+                "n_aperte": n_aperte,
                 "totale_pianificato": round(tot_pianificato, 2),
                 "totale_pagato": round(tot_pagato, 2),
                 "totale_residuo": round(tot_residuo, 2),
@@ -1722,6 +1758,103 @@ def delete_piano_rata(
 
 
 # ═══════════════════════════════════════════════════════════════════
+# STORICO SPESA FISSA — per spese fisse senza piano rate (affitti, utenze, ...)
+# Fornisce la lista degli addebiti passati (cg_uscite) con stato riconciliazione
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/spese-fisse/{spesa_id}/storico")
+def get_storico_spesa_fissa(
+    spesa_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Restituisce lo storico delle cg_uscite collegate a una spesa fissa
+    (usabile per affitti / spese ricorrenti senza piano rate).
+    Ogni riga include lo stato di riconciliazione bancaria derivato.
+    """
+    fc = get_fc_db()
+    try:
+        sf_row = fc.execute(
+            "SELECT id, tipo, titolo, importo, data_inizio, data_fine FROM cg_spese_fisse WHERE id = ?",
+            (spesa_id,)
+        ).fetchone()
+        spesa = dict(sf_row) if sf_row else None
+
+        rows = fc.execute("""
+            SELECT
+                u.id                 AS uscita_id,
+                u.periodo_riferimento,
+                u.data_scadenza      AS uscita_scadenza,
+                u.data_pagamento     AS uscita_data_pagamento,
+                u.stato              AS uscita_stato,
+                u.totale             AS uscita_totale,
+                u.importo_pagato     AS uscita_pagato,
+                u.banca_movimento_id AS banca_movimento_id,
+                bm.data_contabile    AS banca_data_contabile,
+                bm.importo           AS banca_importo,
+                bm.descrizione       AS banca_descrizione,
+                bm.ragione_sociale   AS banca_ragione_sociale
+            FROM cg_uscite u
+            LEFT JOIN banca_movimenti bm ON bm.id = u.banca_movimento_id
+            WHERE u.spesa_fissa_id = ?
+            ORDER BY COALESCE(u.data_scadenza, u.periodo_riferimento) DESC
+        """, (spesa_id,)).fetchall()
+
+        storico = []
+        n_riconciliate = 0
+        n_da_collegare = 0
+        n_aperte = 0
+        tot_pagato = 0.0
+        tot_pianificato = 0.0
+        for r in rows:
+            d = dict(r)
+            imp = float(d.get("uscita_totale") or 0)
+            tot_pianificato += imp
+            stato = d.get("uscita_stato")
+            if stato in ("PAGATA", "PAGATA_MANUALE", "PARZIALE"):
+                tot_pagato += float(d.get("uscita_pagato") or 0)
+
+            has_mov = d.get("banca_movimento_id") is not None
+            if stato is None:
+                ric = "aperta"
+            elif has_mov:
+                ric = "riconciliata"
+            elif stato == "PAGATA_MANUALE":
+                ric = "da_collegare"
+            elif stato in ("PAGATA", "PARZIALE"):
+                ric = "riconciliata"
+            else:
+                ric = "aperta"
+            d["riconciliazione_stato"] = ric
+            if ric == "riconciliata":
+                n_riconciliate += 1
+            elif ric == "da_collegare":
+                n_da_collegare += 1
+            else:
+                n_aperte += 1
+
+            storico.append(d)
+
+        return {
+            "ok": True,
+            "spesa": spesa,
+            "storico": storico,
+            "riepilogo": {
+                "n_uscite": len(storico),
+                "n_riconciliate": n_riconciliate,
+                "n_da_collegare": n_da_collegare,
+                "n_aperte": n_aperte,
+                "totale_pianificato": round(tot_pianificato, 2),
+                "totale_pagato": round(tot_pagato, 2),
+            },
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e), "storico": []}
+    finally:
+        fc.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
 # RICONCILIAZIONE BANCA — match uscite ↔ movimenti bancari
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1794,6 +1927,138 @@ def get_candidati_banca(
         },
         "candidati": rows,
     }
+
+
+# ── Worklist "Da riconciliare": uscite PAGATA_MANUALE senza movimento collegato ──
+@router.get("/uscite/da-riconciliare")
+def get_uscite_da_riconciliare(
+    limit: int = 200,
+    current_user=Depends(get_current_user),
+):
+    """
+    Worklist per il Workbench di riconciliazione.
+    Restituisce le cg_uscite dichiarate pagate ma senza movimento bancario collegato
+    (stato = PAGATA_MANUALE AND banca_movimento_id IS NULL), ordinate per data pagamento desc.
+    """
+    fc = get_fc_db()
+    try:
+        rows = fc.execute("""
+            SELECT
+                u.id, u.stato, u.totale, u.importo_pagato,
+                u.data_fattura, u.data_scadenza, u.data_pagamento,
+                u.fornitore_nome, u.periodo_riferimento,
+                u.fattura_id, u.spesa_fissa_id, u.banca_movimento_id,
+                sf.titolo AS spesa_fissa_titolo,
+                sf.tipo   AS spesa_fissa_tipo
+            FROM cg_uscite u
+            LEFT JOIN cg_spese_fisse sf ON sf.id = u.spesa_fissa_id
+            WHERE u.stato = 'PAGATA_MANUALE'
+              AND u.banca_movimento_id IS NULL
+            ORDER BY COALESCE(u.data_pagamento, u.data_scadenza) DESC, u.id DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+
+        uscite = []
+        for r in rows:
+            d = dict(r)
+            d["riconciliazione_stato"] = "da_collegare"
+            uscite.append(d)
+
+        # Conta totale (per mostrare badge/KPI anche quando limit tronca)
+        total = fc.execute("""
+            SELECT COUNT(*) AS c
+            FROM cg_uscite
+            WHERE stato = 'PAGATA_MANUALE' AND banca_movimento_id IS NULL
+        """).fetchone()
+        totale = int(total["c"] if total else 0)
+
+        return {
+            "ok": True,
+            "uscite": uscite,
+            "totale": totale,
+            "limit": limit,
+        }
+    finally:
+        fc.close()
+
+
+# ── Ricerca libera movimenti bancari per una uscita (filtri q/data/importo) ──
+@router.get("/uscite/{uscita_id}/ricerca-banca")
+def ricerca_banca_libera(
+    uscita_id: int,
+    q: str = "",
+    data_da: str = "",
+    data_a: str = "",
+    importo_min: float = 0,
+    importo_max: float = 0,
+    limit: int = 50,
+    current_user=Depends(get_current_user),
+):
+    """
+    Ricerca libera di movimenti bancari candidati per una specifica uscita.
+    Esclude movimenti già riconciliati (collegati ad altre cg_uscite).
+    Filtri: testo libero su descrizione/ragione_sociale, range date, range importo.
+    """
+    fc = get_fc_db()
+    try:
+        u_row = fc.execute("SELECT * FROM cg_uscite WHERE id = ?", (uscita_id,)).fetchone()
+        if not u_row:
+            return {"ok": False, "error": "Uscita non trovata", "movimenti": []}
+        u = dict(u_row)
+
+        query = """
+            SELECT m.*
+            FROM banca_movimenti m
+            LEFT JOIN cg_uscite u2 ON u2.banca_movimento_id = m.id
+            WHERE m.importo < 0
+              AND u2.id IS NULL
+        """
+        params = []
+
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            query += " AND (m.descrizione LIKE ? OR m.ragione_sociale LIKE ?)"
+            params.extend([like, like])
+
+        if data_da:
+            query += " AND m.data_contabile >= ?"
+            params.append(data_da)
+        if data_a:
+            query += " AND m.data_contabile <= ?"
+            params.append(data_a)
+
+        if importo_min and importo_min > 0:
+            query += " AND ABS(m.importo) >= ?"
+            params.append(importo_min)
+        if importo_max and importo_max > 0:
+            query += " AND ABS(m.importo) <= ?"
+            params.append(importo_max)
+
+        query += " ORDER BY m.data_contabile DESC LIMIT ?"
+        params.append(int(limit))
+
+        rows = fc.execute(query, params).fetchall()
+        movimenti = []
+        for r in rows:
+            d = dict(r)
+            d["importo_abs"] = abs(d["importo"] or 0)
+            movimenti.append(d)
+
+        return {
+            "ok": True,
+            "uscita": {
+                "id": u["id"],
+                "fornitore_nome": u.get("fornitore_nome"),
+                "totale": u.get("totale"),
+                "data_scadenza": u.get("data_scadenza"),
+                "data_pagamento": u.get("data_pagamento"),
+                "stato": u.get("stato"),
+            },
+            "movimenti": movimenti,
+            "count": len(movimenti),
+        }
+    finally:
+        fc.close()
 
 
 # ── Modifica scadenza singola uscita (B.2: smart dispatcher v2.0) ──

@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>TRGB — Mockup riconciliazione (A1 / A3 / 6)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .section-title { letter-spacing: 0.02em; }
+  .chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:600; border:1px solid transparent; }
+  .pick-hint { font-size: 10px; color: #9ca3af; font-style: italic; }
+  .choice-pill { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:10px; }
+</style>
+</head>
+<body class="bg-neutral-100 text-neutral-800">
+
+<div class="max-w-7xl mx-auto px-6 py-8 space-y-12">
+
+  <!-- HEADER -->
+  <header class="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm">
+    <h1 class="text-xl font-bold text-neutral-900">TRGB — Mockup riconciliazione</h1>
+    <p class="text-sm text-neutral-600 mt-1">
+      Tre decisioni di design su cui mi serve la tua conferma prima di scrivere codice.
+      Rispondi indicando per ciascuna sezione l'opzione preferita (es: "A1=2, A3=palette B, 6=C").
+    </p>
+    <div class="mt-3 flex flex-wrap gap-2 text-[10px]">
+      <span class="px-2 py-1 rounded bg-teal-50 text-teal-800 border border-teal-200">A1 — dove metto il badge</span>
+      <span class="px-2 py-1 rounded bg-teal-50 text-teal-800 border border-teal-200">A3 — nomi/colori 4 stati</span>
+      <span class="px-2 py-1 rounded bg-teal-50 text-teal-800 border border-teal-200">6 — tabella "da riconciliare"</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- A1 — DOVE METTO IL BADGE "N DA RICONCILIARE" -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="section-title text-[11px] uppercase font-bold text-neutral-500 mb-3">A1 · Dove metto il badge "N da riconciliare"</h2>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- OPZIONE 1: STATO ATTUALE (sidebar box non cliccabile) -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Opzione 1 · attuale</div>
+            <div class="text-sm font-bold text-neutral-800">Box in sidebar — non cliccabile</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">A1=1</span>
+        </div>
+        <div class="p-4 bg-white">
+          <!-- Mini mockup -->
+          <div class="flex gap-2">
+            <!-- KPI top -->
+            <div class="flex-1 space-y-2">
+              <div class="flex gap-1.5">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-semibold">Da pagare <b>€18.4k</b> <span class="opacity-50">(12)</span></span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 bg-red-50 text-red-800 text-[10px] font-semibold">Scadute <b>€2.1k</b> <span class="opacity-50">(3)</span></span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-[10px] font-semibold">Pagate <b>€41.2k</b> <span class="opacity-50">(28)</span></span>
+              </div>
+              <div class="h-20 bg-neutral-50 border border-dashed border-neutral-200 rounded-md flex items-center justify-center text-[9px] text-neutral-400">tabella uscite</div>
+            </div>
+            <!-- sidebar -->
+            <div class="w-36 border border-neutral-200 rounded-md bg-white p-2 text-[9px]">
+              <div class="text-neutral-400 uppercase tracking-wider mb-1">Filtri</div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+              <div class="h-3 bg-neutral-100 rounded mb-2"></div>
+              <!-- il badge box attuale -->
+              <div class="px-1.5 py-1 rounded bg-violet-50 border border-violet-200">
+                <div class="text-[14px] font-bold text-violet-800 leading-none">5</div>
+                <div class="text-[8px] text-violet-700 uppercase">da riconciliare</div>
+              </div>
+            </div>
+          </div>
+          <p class="text-[11px] text-neutral-500 mt-3">
+            ✖ Non cliccabile &middot; estetica disallineata dai KPI in testa &middot; poco visibile.
+            Da scartare ma la metto per confronto.
+          </p>
+        </div>
+      </div>
+
+      <!-- OPZIONE 2: PILL NELLA BARRA KPI IN TESTA -->
+      <div class="bg-white rounded-xl border-2 border-teal-400 overflow-hidden shadow-md ring-2 ring-teal-100">
+        <div class="px-4 py-2 bg-teal-50 border-b border-teal-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-teal-600 uppercase tracking-wider">Opzione 2 · raccomandata</div>
+            <div class="text-sm font-bold text-teal-900">KPI pill in barra in testa</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-teal-100 text-teal-700 border border-teal-300">A1=2</span>
+        </div>
+        <div class="p-4 bg-white">
+          <div class="flex gap-2">
+            <div class="flex-1 space-y-2">
+              <div class="flex flex-wrap gap-1.5">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-semibold">Da pagare <b>€18.4k</b> <span class="opacity-50">(12)</span></span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 bg-red-50 text-red-800 text-[10px] font-semibold">Scadute <b>€2.1k</b> <span class="opacity-50">(3)</span></span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-[10px] font-semibold">Pagate <b>€41.2k</b> <span class="opacity-50">(28)</span></span>
+                <!-- NUOVO: pill da riconciliare -->
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-violet-300 bg-violet-100 text-violet-900 text-[10px] font-bold shadow-sm ring-2 ring-violet-200 cursor-pointer">
+                  🔗 Da riconciliare <b>5</b>
+                </span>
+              </div>
+              <div class="h-20 bg-neutral-50 border border-dashed border-neutral-200 rounded-md flex items-center justify-center text-[9px] text-neutral-400">tabella uscite (filtrata al click)</div>
+            </div>
+            <div class="w-36 border border-neutral-200 rounded-md bg-white p-2 text-[9px]">
+              <div class="text-neutral-400 uppercase tracking-wider mb-1">Filtri</div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+            </div>
+          </div>
+          <p class="text-[11px] text-neutral-600 mt-3">
+            ✓ Cliccabile &middot; estetica coerente con gli altri KPI &middot; visibile subito in testa &middot;
+            filtra la tabella come un normale KPI.
+          </p>
+        </div>
+      </div>
+
+      <!-- OPZIONE 3: TASK BANNER FLOATING SOTTO I KPI -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Opzione 3 · banner</div>
+            <div class="text-sm font-bold text-neutral-800">Task banner sotto i KPI</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">A1=3</span>
+        </div>
+        <div class="p-4 bg-white">
+          <div class="flex gap-2">
+            <div class="flex-1 space-y-2">
+              <div class="flex gap-1.5">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-semibold">Da pagare</span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-red-200 bg-red-50 text-red-800 text-[10px] font-semibold">Scadute</span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 text-[10px] font-semibold">Pagate</span>
+              </div>
+              <!-- banner full-width -->
+              <div class="px-3 py-2 rounded-md bg-gradient-to-r from-violet-50 to-violet-100 border border-violet-200 flex items-center justify-between cursor-pointer">
+                <div class="flex items-center gap-2">
+                  <span class="text-base">🔗</span>
+                  <div class="text-[10px]">
+                    <div class="font-semibold text-violet-900">5 pagamenti dichiarati senza movimento banca</div>
+                    <div class="text-violet-600">Clicca per riconciliarli</div>
+                  </div>
+                </div>
+                <span class="text-violet-600 text-xs">→</span>
+              </div>
+              <div class="h-16 bg-neutral-50 border border-dashed border-neutral-200 rounded-md flex items-center justify-center text-[9px] text-neutral-400">tabella uscite</div>
+            </div>
+            <div class="w-36 border border-neutral-200 rounded-md bg-white p-2 text-[9px]">
+              <div class="text-neutral-400 uppercase tracking-wider mb-1">Filtri</div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+              <div class="h-3 bg-neutral-100 rounded mb-1"></div>
+            </div>
+          </div>
+          <p class="text-[11px] text-neutral-500 mt-3">
+            ◐ Più "invito all'azione" &middot; occupa una riga in più quando non serve &middot;
+            utile se vogliamo enfatizzare che è un compito aperto da chiudere.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- A3 — 4 STATI DI RICONCILIAZIONE: NOMI E COLORI -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="section-title text-[11px] uppercase font-bold text-neutral-500 mb-3">A3 · Nomi e colori dei 4 stati di riconciliazione</h2>
+    <p class="text-xs text-neutral-500 mb-4">
+      Questi badge appariranno nella colonna "Banca" del Piano Rate e dello Storico Spese Fisse.
+      3 palette proposte, in ciascuna trovi la stessa rata mostrata nei 4 stati diversi + un esempio di tabella applicata.
+    </p>
+
+    <div class="space-y-4">
+
+      <!-- PALETTE A: classic semaforica -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Palette A · semaforica classica</div>
+            <div class="text-sm font-bold text-neutral-800">Emerald / Sky / Amber / Slate — termini tecnici</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">A3=A</span>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-center">
+          <div>
+            <span class="chip bg-emerald-50 border-emerald-200 text-emerald-800">
+              <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path d="M8 13.3l-3.3-3.3-1.4 1.4L8 16l10-10-1.4-1.4z"/></svg>
+              Riconciliata
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">banca_movimento_id ≠ null</div>
+          </div>
+          <div>
+            <span class="chip bg-sky-50 border-sky-200 text-sky-800">
+              ⚡ Automatica
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">matcher auto (futuro)</div>
+          </div>
+          <div>
+            <span class="chip bg-amber-50 border-amber-200 text-amber-800">
+              ⏳ Da collegare
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">PAGATA_MANUALE senza banca</div>
+          </div>
+          <div>
+            <span class="chip bg-slate-50 border-slate-200 text-slate-600">
+              ○ Aperta
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">DA_PAGARE / SCADUTA</div>
+          </div>
+        </div>
+        <div class="px-4 pb-4">
+          <div class="mt-2 border border-neutral-200 rounded overflow-hidden text-[11px]">
+            <table class="w-full">
+              <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase">
+                <tr><th class="px-3 py-1 text-left">Periodo</th><th class="px-3 py-1 text-right">Importo</th><th class="px-3 py-1 text-center">Banca</th></tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr><td class="px-3 py-1.5 font-mono">2026-01</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-emerald-50 border-emerald-200 text-emerald-800">Riconciliata</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-02</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-sky-50 border-sky-200 text-sky-800">⚡ Automatica</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-03</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-amber-50 border-amber-200 text-amber-800">⏳ Da collegare</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-04</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-slate-50 border-slate-200 text-slate-600">○ Aperta</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PALETTE B: finance / business -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Palette B · business</div>
+            <div class="text-sm font-bold text-neutral-800">Teal / Indigo / Rose / Neutral — termini contabili</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">A3=B</span>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-center">
+          <div>
+            <span class="chip bg-teal-50 border-teal-200 text-teal-800">
+              🔗 Quadrata
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">banca_movimento_id ≠ null</div>
+          </div>
+          <div>
+            <span class="chip bg-indigo-50 border-indigo-200 text-indigo-800">
+              🤖 Auto
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">matcher auto (futuro)</div>
+          </div>
+          <div>
+            <span class="chip bg-rose-50 border-rose-200 text-rose-800">
+              📌 Da quadrare
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">pagata senza movimento</div>
+          </div>
+          <div>
+            <span class="chip bg-neutral-50 border-neutral-300 text-neutral-500">
+              — Sospesa
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">DA_PAGARE / SCADUTA</div>
+          </div>
+        </div>
+        <div class="px-4 pb-4">
+          <div class="mt-2 border border-neutral-200 rounded overflow-hidden text-[11px]">
+            <table class="w-full">
+              <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase">
+                <tr><th class="px-3 py-1 text-left">Periodo</th><th class="px-3 py-1 text-right">Importo</th><th class="px-3 py-1 text-center">Banca</th></tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr><td class="px-3 py-1.5 font-mono">2026-01</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-teal-50 border-teal-200 text-teal-800">🔗 Quadrata</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-02</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-indigo-50 border-indigo-200 text-indigo-800">🤖 Auto</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-03</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-rose-50 border-rose-200 text-rose-800">📌 Da quadrare</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-04</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5 text-center"><span class="chip bg-neutral-50 border-neutral-300 text-neutral-500">— Sospesa</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[10px] text-neutral-500 mt-2 italic">"Quadrata" è il termine contabile per "conciliata con l'estratto conto".</p>
+        </div>
+      </div>
+
+      <!-- PALETTE C: minimale dot + nomi friendly -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Palette C · minimal dot</div>
+            <div class="text-sm font-bold text-neutral-800">Dot-indicator + testo neutro — niente pill colorati</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">A3=C</span>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-3 text-center">
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-neutral-700">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+              Verificata
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">banca_movimento_id ≠ null</div>
+          </div>
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-neutral-700">
+              <span class="inline-block w-2 h-2 rounded-full bg-sky-500"></span>
+              Automatica
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">matcher auto (futuro)</div>
+          </div>
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-neutral-700">
+              <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+              In attesa
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">pagata senza movimento</div>
+          </div>
+          <div>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-neutral-500">
+              <span class="inline-block w-2 h-2 rounded-full bg-neutral-300"></span>
+              Aperta
+            </span>
+            <div class="text-[9px] text-neutral-400 mt-1">DA_PAGARE / SCADUTA</div>
+          </div>
+        </div>
+        <div class="px-4 pb-4">
+          <div class="mt-2 border border-neutral-200 rounded overflow-hidden text-[11px]">
+            <table class="w-full">
+              <thead class="bg-neutral-50 text-neutral-500 text-[10px] uppercase">
+                <tr><th class="px-3 py-1 text-left">Periodo</th><th class="px-3 py-1 text-right">Importo</th><th class="px-3 py-1 text-left">Banca</th></tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr><td class="px-3 py-1.5 font-mono">2026-01</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5"><span class="inline-flex items-center gap-1.5 text-[11px] text-neutral-700"><span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>Verificata</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-02</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5"><span class="inline-flex items-center gap-1.5 text-[11px] text-neutral-700"><span class="inline-block w-2 h-2 rounded-full bg-sky-500"></span>Automatica</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-03</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5"><span class="inline-flex items-center gap-1.5 text-[11px] text-neutral-700"><span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>In attesa</span></td></tr>
+                <tr><td class="px-3 py-1.5 font-mono">2026-04</td><td class="px-3 py-1.5 text-right tabular-nums">€ 2.416,65</td><td class="px-3 py-1.5"><span class="inline-flex items-center gap-1.5 text-[11px] text-neutral-500"><span class="inline-block w-2 h-2 rounded-full bg-neutral-300"></span>Aperta</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[10px] text-neutral-500 mt-2 italic">Coerente con i toggle "Rateizzate / In pagamento" della sidebar attuale (stessa pattern dot-indicator).</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Mix-and-match hint -->
+    <div class="mt-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200">
+      <div class="text-[11px] font-bold text-amber-900 mb-1">💡 Mix & match</div>
+      <p class="text-[11px] text-amber-800">
+        Non sei obbligato a scegliere una palette intera. Puoi dire ad esempio:
+        <span class="font-mono bg-white px-1 rounded">"colori palette A, nomi palette B"</span>
+        o cambiare il nome di un solo stato. E se nessuno ti soddisfa dimmelo e riproviamo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- 6 — TABELLA DEDICATA "DA RICONCILIARE" -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <section>
+    <h2 class="section-title text-[11px] uppercase font-bold text-neutral-500 mb-3">6 · Design della tabella "da riconciliare"</h2>
+    <p class="text-xs text-neutral-500 mb-4">
+      Hai detto "aggiungerei anche una tabella, dammi idee". Ecco 3 approcci possibili.
+      Le differenze stanno in quanto spazio dai alla riconciliazione e se la vedi come "un filtro temporaneo" o "un workspace dedicato".
+    </p>
+
+    <div class="space-y-5">
+
+      <!-- OPZIONE A: INLINE FILTRO -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Opzione A · semplice</div>
+            <div class="text-sm font-bold text-neutral-800">Filtro inline sullo scadenzario esistente</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">6=A</span>
+        </div>
+        <div class="p-4">
+          <p class="text-[11px] text-neutral-600 mb-3">
+            Click sul KPI "Da riconciliare" → lo scadenzario mostra solo le righe PAGATA_MANUALE senza banca.
+            La modale "Riconcilia con Banca" è quella di sempre (con il nuovo tab Auto/Ricerca).
+            <b>Nessuna nuova pagina/tabella</b>, solo un filtro in più.
+          </p>
+          <div class="border border-neutral-200 rounded-md overflow-hidden text-[10px]">
+            <div class="px-3 py-2 bg-violet-50 border-b border-violet-200 flex items-center justify-between">
+              <span class="font-semibold text-violet-900">📋 Scadenzario uscite — filtro: solo da riconciliare</span>
+              <button class="px-2 py-0.5 rounded bg-white border border-violet-300 text-violet-700 text-[9px]">✕ pulisci filtro</button>
+            </div>
+            <table class="w-full">
+              <thead class="bg-neutral-50 text-neutral-500 text-[9px] uppercase">
+                <tr>
+                  <th class="px-3 py-1 text-left">Data pag.</th>
+                  <th class="px-3 py-1 text-left">Fornitore</th>
+                  <th class="px-3 py-1 text-right">Importo</th>
+                  <th class="px-3 py-1 text-left">Metodo</th>
+                  <th class="px-3 py-1 text-center">Azione</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100">
+                <tr>
+                  <td class="px-3 py-1.5 tabular-nums">15/03/2026</td>
+                  <td class="px-3 py-1.5">MERCATOAGRO SRL</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums">€ 1.247,30</td>
+                  <td class="px-3 py-1.5">Bonifico</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca banca</button></td>
+                </tr>
+                <tr>
+                  <td class="px-3 py-1.5 tabular-nums">18/03/2026</td>
+                  <td class="px-3 py-1.5">PESCE FRESCO DI ESPOSITO</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums">€ 892,15</td>
+                  <td class="px-3 py-1.5">Bonifico</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca banca</button></td>
+                </tr>
+                <tr>
+                  <td class="px-3 py-1.5 tabular-nums">22/03/2026</td>
+                  <td class="px-3 py-1.5">VINI &amp; ALTRO</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums">€ 2.104,00</td>
+                  <td class="px-3 py-1.5">SEPA</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca banca</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[10px] text-neutral-500 mt-3">✓ Zero codice nuovo per la tabella ◐ minimo effort ✖ colonne dello scadenzario non ottimizzate per il task</p>
+        </div>
+      </div>
+
+      <!-- OPZIONE B: MODALE FULL-SCREEN CON WORKFLOW -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Opzione B · workflow</div>
+            <div class="text-sm font-bold text-neutral-800">Modale full-screen "Workbench riconciliazione"</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">6=B</span>
+        </div>
+        <div class="p-4">
+          <p class="text-[11px] text-neutral-600 mb-3">
+            Click sul KPI → modale che occupa tutto lo schermo, dedicata solo al task di riconciliazione.
+            Tabella con colonne ottimizzate (delta giorni, ultimo tentativo di match, note), bottone "Cerca banca" su ogni riga,
+            progress bar globale "N/M riconciliate". Chiudi la modale e torni allo scadenzario.
+          </p>
+          <div class="border-2 border-violet-300 rounded-lg overflow-hidden shadow-lg">
+            <div class="px-4 py-3 bg-gradient-to-r from-violet-50 to-violet-100 border-b border-violet-200 flex items-center justify-between">
+              <div>
+                <div class="text-[12px] font-bold text-violet-900">🔗 Workbench riconciliazione</div>
+                <div class="text-[9px] text-violet-600">Completa il collegamento tra pagamenti dichiarati e movimenti di banca</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="text-[10px] text-violet-700"><b>2 / 5</b> riconciliate</div>
+                <div class="w-24 h-1.5 bg-white rounded-full overflow-hidden"><div class="h-full bg-violet-500 rounded-full" style="width:40%"></div></div>
+                <button class="text-neutral-400 hover:text-neutral-600 text-base">&times;</button>
+              </div>
+            </div>
+            <div class="p-3 bg-neutral-50 border-b border-neutral-200 flex gap-2 flex-wrap">
+              <input type="text" placeholder="Cerca fornitore..." class="px-2 py-1 border border-neutral-300 rounded text-[10px] bg-white">
+              <select class="px-2 py-1 border border-neutral-300 rounded text-[10px] bg-white"><option>Tutti i mesi</option></select>
+              <select class="px-2 py-1 border border-neutral-300 rounded text-[10px] bg-white"><option>Tutti gli importi</option></select>
+              <span class="ml-auto text-[10px] text-neutral-500 self-center">Ordina: più vecchie prima ↓</span>
+            </div>
+            <table class="w-full text-[10px]">
+              <thead class="bg-white text-neutral-500 text-[9px] uppercase border-b border-neutral-200">
+                <tr>
+                  <th class="px-3 py-2 text-left">Pagata il</th>
+                  <th class="px-3 py-2 text-left">Fornitore / Beneficiario</th>
+                  <th class="px-3 py-2 text-right">Importo</th>
+                  <th class="px-3 py-2 text-center">Giorni attesa</th>
+                  <th class="px-3 py-2 text-left">Ultimo tentativo</th>
+                  <th class="px-3 py-2 text-center">Azione</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-neutral-100 bg-white">
+                <tr class="hover:bg-violet-50/30">
+                  <td class="px-3 py-1.5 tabular-nums">15/03/2026</td>
+                  <td class="px-3 py-1.5 font-medium">MERCATOAGRO SRL</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums font-semibold">€ 1.247,30</td>
+                  <td class="px-3 py-1.5 text-center"><span class="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[9px]">27 gg</span></td>
+                  <td class="px-3 py-1.5 text-neutral-400 italic">mai</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca</button></td>
+                </tr>
+                <tr class="hover:bg-violet-50/30">
+                  <td class="px-3 py-1.5 tabular-nums">18/03/2026</td>
+                  <td class="px-3 py-1.5 font-medium">PESCE FRESCO DI ESPOSITO</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums font-semibold">€ 892,15</td>
+                  <td class="px-3 py-1.5 text-center"><span class="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[9px]">24 gg</span></td>
+                  <td class="px-3 py-1.5 text-neutral-500 italic">2 candidati non convincenti</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca</button></td>
+                </tr>
+                <tr class="hover:bg-violet-50/30">
+                  <td class="px-3 py-1.5 tabular-nums">22/03/2026</td>
+                  <td class="px-3 py-1.5 font-medium">VINI &amp; ALTRO</td>
+                  <td class="px-3 py-1.5 text-right tabular-nums font-semibold">€ 2.104,00</td>
+                  <td class="px-3 py-1.5 text-center"><span class="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px]">20 gg</span></td>
+                  <td class="px-3 py-1.5 text-neutral-400 italic">mai</td>
+                  <td class="px-3 py-1.5 text-center"><button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">🔗 Cerca</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="px-3 py-2 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-500">
+              <span>Totale importi da riconciliare: <b class="text-neutral-800">€ 4.243,45</b></span>
+              <button class="px-3 py-1 rounded border border-neutral-300 bg-white text-neutral-600">Chiudi workbench</button>
+            </div>
+          </div>
+          <p class="text-[10px] text-neutral-500 mt-3">✓ colonne mirate + progress bar + stati di avanzamento ✓ percepito come "task da completare" ◐ un pattern nuovo da manutenere</p>
+        </div>
+      </div>
+
+      <!-- OPZIONE C: SPLIT-PANE WORKBENCH (pagina dedicata) -->
+      <div class="bg-white rounded-xl border-2 border-neutral-200 overflow-hidden shadow-sm">
+        <div class="px-4 py-2 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+          <div>
+            <div class="text-[10px] text-neutral-400 uppercase tracking-wider">Opzione C · ambiziosa</div>
+            <div class="text-sm font-bold text-neutral-800">Split-pane: lista a sinistra + ricerca banca a destra</div>
+          </div>
+          <span class="choice-pill px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 border border-neutral-300">6=C</span>
+        </div>
+        <div class="p-4">
+          <p class="text-[11px] text-neutral-600 mb-3">
+            Stesso workbench dell'opzione B, ma con split-pane: a sinistra la lista delle uscite da riconciliare,
+            clicchi una riga e <b>a destra (senza chiudere nessuna modale)</b> si popola la ricerca banca con candidati auto + filtri.
+            Scorri il lavoro in modo continuo senza aprire/chiudere modali.
+            È la cosa più vicina ai "workbench di riconciliazione" dei gestionali tipo Oracle/SAP.
+          </p>
+          <div class="border-2 border-violet-300 rounded-lg overflow-hidden shadow-lg">
+            <div class="px-4 py-2 bg-violet-50 border-b border-violet-200 flex items-center justify-between">
+              <div class="text-[11px] font-bold text-violet-900">🔗 Riconciliazione · 2/5 completate</div>
+              <div class="flex items-center gap-2"><div class="w-32 h-1 bg-white rounded-full overflow-hidden"><div class="h-full bg-violet-500" style="width:40%"></div></div></div>
+            </div>
+            <div class="grid grid-cols-12 min-h-[260px]">
+              <!-- LEFT: lista uscite -->
+              <div class="col-span-5 border-r border-neutral-200 bg-neutral-50">
+                <div class="px-3 py-1.5 border-b border-neutral-200 text-[9px] uppercase tracking-wider text-neutral-500 bg-white">Pagamenti da riconciliare (3)</div>
+                <div class="divide-y divide-neutral-100">
+                  <div class="px-3 py-2 bg-violet-100 border-l-4 border-violet-500">
+                    <div class="text-[10px] font-bold text-neutral-800">PESCE FRESCO DI ESPOSITO</div>
+                    <div class="flex justify-between mt-0.5 text-[9px] text-neutral-500">
+                      <span>18/03/2026 · SEPA</span>
+                      <span class="font-semibold text-neutral-700 tabular-nums">€ 892,15</span>
+                    </div>
+                  </div>
+                  <div class="px-3 py-2 hover:bg-white cursor-pointer">
+                    <div class="text-[10px] font-medium text-neutral-700">MERCATOAGRO SRL</div>
+                    <div class="flex justify-between mt-0.5 text-[9px] text-neutral-500">
+                      <span>15/03/2026 · Bonifico</span>
+                      <span class="font-semibold text-neutral-700 tabular-nums">€ 1.247,30</span>
+                    </div>
+                  </div>
+                  <div class="px-3 py-2 hover:bg-white cursor-pointer">
+                    <div class="text-[10px] font-medium text-neutral-700">VINI &amp; ALTRO</div>
+                    <div class="flex justify-between mt-0.5 text-[9px] text-neutral-500">
+                      <span>22/03/2026 · SEPA</span>
+                      <span class="font-semibold text-neutral-700 tabular-nums">€ 2.104,00</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- RIGHT: ricerca banca -->
+              <div class="col-span-7 bg-white">
+                <div class="px-3 py-1.5 border-b border-neutral-200 bg-violet-50">
+                  <div class="text-[10px] font-bold text-violet-900">Movimenti banca compatibili con:</div>
+                  <div class="text-[9px] text-violet-600">PESCE FRESCO DI ESPOSITO · € 892,15 · 18/03/2026</div>
+                </div>
+                <div class="px-3 py-2 border-b border-neutral-100 flex gap-1.5">
+                  <button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px] font-semibold">🎯 Auto (2)</button>
+                  <button class="px-2 py-0.5 rounded bg-white border border-neutral-300 text-neutral-600 text-[9px]">🔍 Ricerca libera</button>
+                </div>
+                <div class="p-2 space-y-1.5">
+                  <div class="border border-emerald-200 bg-emerald-50/30 rounded p-2 flex items-start justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[10px] font-medium text-neutral-800 truncate">BONIFICO PESCE FRESCO ESPOSITO FT 234</div>
+                      <div class="flex gap-2 text-[9px] text-neutral-500 mt-0.5">
+                        <span>19/03/2026</span>
+                        <span class="font-semibold text-neutral-700">€ 892,15</span>
+                        <span class="px-1 py-0 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Match esatto</span>
+                      </div>
+                    </div>
+                    <button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">Collega</button>
+                  </div>
+                  <div class="border border-neutral-200 rounded p-2 flex items-start justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                      <div class="text-[10px] font-medium text-neutral-800 truncate">SEPA ESPOSITO ITTICA SRL</div>
+                      <div class="flex gap-2 text-[9px] text-neutral-500 mt-0.5">
+                        <span>16/03/2026</span>
+                        <span class="font-semibold text-neutral-700">€ 880,00</span>
+                        <span class="px-1 py-0 rounded-full bg-amber-100 text-amber-700 font-semibold">98% match</span>
+                      </div>
+                    </div>
+                    <button class="px-2 py-0.5 rounded bg-violet-600 text-white text-[9px]">Collega</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="text-[10px] text-neutral-500 mt-3">
+            ✓ Massima efficienza: scorri la lista e riconcili senza aprire modali &middot; ✓ pattern professionale "rec workbench" &middot;
+            ◐ codice nuovo più consistente &middot; ◐ pagina dedicata da linkare dal menu
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RIEPILOGO FINALE -->
+  <section class="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm">
+    <h2 class="text-base font-bold text-neutral-900 mb-3">Per rispondere</h2>
+    <p class="text-sm text-neutral-600 mb-3">Risposta rapida col formato:</p>
+    <pre class="bg-neutral-900 text-neutral-100 p-3 rounded text-xs overflow-x-auto">A1 = 2
+A3 = palette C (o "colori A nomi C" se mischi)
+6  = B</pre>
+    <p class="text-[11px] text-neutral-500 mt-3">
+      Se nessuna delle palette A3 ti piace dimmelo e ne proviamo altre 3.
+      Stessa cosa per la tabella: se nessuna opzione è quella giusta descrivimi cosa vuoi e ci riprovo.
+    </p>
+  </section>
+
+</div>
+
+</body>
+</html>
