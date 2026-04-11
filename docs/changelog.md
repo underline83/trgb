@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-04-11 — Fix .gitignore: protezione cartelle runtime dal post-receive `git clean -fd`
+
+**Bug critico** segnalato da Marco: dopo un push.sh i PDF cedolini importati il 10/04 sono spariti dal VPS. Badge "PDF" viola ancora visibile nella pagina Documenti dipendente (il `pdf_path` nel DB esiste), ma il download dava 404 "File PDF non trovato su disco".
+
+**Root cause**: il post-receive hook del VPS (`/home/marco/trgb/trgb.git/hooks/post-receive`) esegue:
+```bash
+git --git-dir="$BARE_REPO" --work-tree="$WORKING_DIR" checkout -f main
+git --git-dir="$BARE_REPO" --work-tree="$WORKING_DIR" clean -fd
+```
+Il `clean -fd` rimuove **tutte le cartelle/file untracked** ad ogni push. `app/data/cedolini/` **non era in .gitignore**, quindi ad ogni push veniva rasa al suolo. Lo stesso valeva per altre 3 cartelle runtime scoperte durante l'analisi.
+
+**Fix — `.gitignore`**: aggiunte 4 cartelle runtime scritte dal backend. Senza `-x`, `git clean -fd` rispetta le ignore rules e non le tocca più.
+```
+app/data/cedolini/              # cedolini PDF estratti da LUL
+app/data/documenti_dipendenti/  # allegati manuali su anagrafica dipendente
+app/data/uploads/               # UPLOAD_DIR admin_finance (XML fatture)
+app/data/ipratico_uploads/      # upload iPratico products
+```
+
+**Recovery**: i DB (`buste_paga.pdf_path`) conservano ancora i path, ma i file fisici sono persi. L'unico modo per riaverli è **re-importare il PDF LUL originale**: l'import è idempotente (`WHERE fornitore_nome AND data_scadenza AND tipo_uscita='STIPENDIO'`), riconosce la busta paga esistente, aggiorna `pdf_path` e ricrea il file fisico. Nessun duplicato in `cg_uscite` o `buste_paga`.
+
+**Procedura post-push**:
+1. Push di questa modifica (così il nuovo .gitignore arriva sul VPS e protegge i file futuri).
+2. Re-import del PDF LUL di marzo 2026 dalla UI Anagrafica → Buste Paga.
+3. I cedolini di mesi precedenti che servono vanno ri-importati uno per uno (se ci sono i PDF originali).
+
+---
+
 ## 2026-04-11 — CG v2.3: Scadenzario fix stipendi + rename stati + multi-select
 
 Sessione 23: debug dei filtri Scadenzario (`ControlloGestioneUscite.jsx`). Marco ha notato che gli stipendi di marzo 2026 apparivano con scadenza **27/03** (default legacy `giorno_paga`=27 applicato al mese di riferimento) quando in realtà nella sua operatività gli stipendi del mese N vengono pagati il **giorno 15 del mese N+1** (stipendio marzo → 15 aprile).

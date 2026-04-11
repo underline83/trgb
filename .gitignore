@@ -41,6 +41,16 @@ app/data/users.json
 app/data/modules.runtime.json
 *.backup
 
+# ⚠️ CARTELLE RUNTIME SCRITTE DAL BACKEND — DEVONO essere ignorate,
+# altrimenti il post-receive hook del VPS (`git clean -fd`) le cancella
+# ad ogni push.sh perché sono viste come untracked.
+# Bug del 11/04/2026: i cedolini PDF importati sono scomparsi dopo un push
+# perché `app/data/cedolini/` non era in .gitignore e il hook ha fatto pulizia.
+app/data/cedolini/
+app/data/documenti_dipendenti/
+app/data/uploads/
+app/data/ipratico_uploads/
+
 # =====================
 #  NODE / VITE / REACT
 # =====================
