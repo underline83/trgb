@@ -1,8 +1,18 @@
 # TRGB — Piano responsive Mac+iPad
 
 **Sessione di analisi:** 2026-04-11 (sessione 26 — Marco + Claude)
-**Stato:** pianificazione completa. Punto 1 tentato in produzione e ROLLBACKATO (vedi cap. 10). **Punto 2 (B.1 Header touch) ESEGUITO sessione 27 ✓** rispettando il protocollo commit-isolato del cap. 10 — conferma empirica che il workflow funziona. Punti 3-7 ancora da fare.
-**Prossima sessione operativa:** **B.2/B.3/B.4** (tutti indipendenti da `useAppHeight`) oppure **C.3** (bisezione `useAppHeight`).
+**Stato aggiornato fine sessione 27 (2026-04-12 notte):**
+- **Punto 1 (`useAppHeight`)** — ROLLBACKATO in sessione 26. Da rifare con C.3 bisezione.
+- **Punto 2 (B.1 Header touch)** — ✅ FATTO sessione 27. `Header.jsx` v4.3, tap-toggle + click-outside touchstart.
+- **Punto 3 (B.2 Tooltip popover)** — 🔶 PARZIALE sessione 27. Componente `Tooltip.jsx` v1.1 creato (detection iPad Desktop-mode, no long-press callout). Block 1 CG completo migrato (`Uscite.jsx` KPI + 9 wrapping, `SpeseFisse.jsx` 4 wrapping, `Riconciliazione.jsx` 1 wrapping). **Block 2-6 da fare sessione 28**: Acquisti, Cantina, Dipendenti, Clienti+Contanti, Prenotazioni+Ricette+Banca+FlussiCassa.
+- **Punto 4 (B.3 input font-size 16px)** — ✅ FATTO sessione 27. `index.css` media query `@media (pointer: coarse)`.
+- **Punto 5 (B.4 tap target sidebar)** — ancora da fare.
+- **Punto 6 (B.5 sidebar width variabile)** — ancora da fare (opzionale).
+- **Punto 7 (B.6 tabelle critiche `hidden xl:table-cell`)** — condizionale, solo se serve dopo gli altri.
+
+**Prossima sessione operativa:** **B.2 Block 2 Acquisti** (continuazione migrazione Tooltip) o **B.4 tap target sidebar** (entrambi indipendenti da `useAppHeight`). Scelta in base alla priorità di Marco.
+
+**Protocollo cap. 10 confermato empiricamente:** sessione 27 ha eseguito **sette commit isolati consecutivi** (B.1 + B.3 + 5 commit del Block 1 B.2) con zero rollback e zero regressioni. Il pattern "un file per commit + Marco testa tra un push e l'altro" funziona. Rule of thumb: mai più worktree `.claude/worktrees/*` — sempre direttamente in main (vedi postmortem worktree in `sessione.md` sessione 27 e memory `feedback_worktree_no_trust.md`).
 
 > **Nota al Claude che legger questo file in una sessione futura:** questo  il piano condiviso con Marco alla fine della sessione 26. Leggi TUTTO prima di proporre modifiche. I punti 1-7 sono dettagliati e pronti da eseguire.
 

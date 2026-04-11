@@ -3,6 +3,103 @@
 
 ---
 
+## 2026-04-11/12 — Sessione 27 / B.2 Block 1 CG: ControlloGestioneRiconciliazione title= → Tooltip ✓
+
+Ultimo file del Block 1 Controllo Gestione del piano B.2. Un solo `title=` nel file, su un bottone `↻ Ricarica` in alto a destra. Migrato a `<Tooltip>`, import aggiunto, nessun residuo.
+
+**File toccato:** `frontend/src/pages/controllo-gestione/ControlloGestioneRiconciliazione.jsx` (1 wrapping + import Tooltip). Nient'altro.
+
+**Test superati:** Mac hover → tooltip "Ricarica"; iPad primo tap → tooltip, secondo tap → ricarica worklist.
+
+**Stato Block 1 CG:** ✅ CHIUSO. `ControlloGestioneUscite.jsx` + `ControlloGestioneSpeseFisse.jsx` + `ControlloGestioneRiconciliazione.jsx` tutti migrati, testati Mac + iPad, in produzione. Block 2-6 di B.2 (Acquisti, Cantina, Dipendenti, Clienti+Contanti, Prenotazioni+Ricette+Banca) rimandati a sessione 28.
+
+---
+
+## 2026-04-11/12 — Sessione 27 / B.2 Block 1 CG: ControlloGestioneSpeseFisse title= → Tooltip ✓
+
+Secondo file del Block 1 B.2. Quattro bottoni migrati a `<Tooltip>` (Ricarica fatture nel wizard rateizzazione, Piano/Storico/Adegua nella tabella spese fisse attive). Due span informativi della tabella storico rate (con `title={banca_descrizione}`) **lasciati deliberatamente con `title=` nativo** perché non hanno azioni cliccabili e il label può essere vuoto.
+
+**File toccato:** `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx` (4 wrapping + import Tooltip).
+
+**Esclusi dalle regole B.2:** 5 `WizardPanel title=...` (prop del component, non HTML title), 1 `<input title={...}>` in una cella rata (no wrapping di input).
+
+**Test superati:** Mac hover + iPad tap-toggle verdi su tutti e 4 i bottoni.
+
+---
+
+## 2026-04-11/12 — Sessione 27 / B.2 Block 1 CG: ControlloGestioneUscite title= → Tooltip ✓
+
+Primo file grande del Block 1 B.2. Nove wrapping `<Tooltip>` aggiunti (escludendo quelli su input/th/tr strutturali): bottoni ✕ azzera filtro nella sidebar (Stato, Periodo), button "Mostra escluse" con spiegazione lunga sulle spese fisse FIC, bottone "Stampa / Metti in pagamento" nella barra bulk, frecce `‹ ›` navigazione fattura precedente/successiva (label dinamico con nome fornitore), badge "In pagamento" con titolo dinamico (`Batch: ...`), icone banca riconciliata/scollegare per riga. Tutto in un commit isolato.
+
+**File toccato:** `frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx` (9 wrapping + import Tooltip).
+
+**Esclusi dalle regole B.2:** `<input type="checkbox" title=...>` "seleziona tutte non pagate", `<th title="Riconciliazione banca">`, `<tr title={...}>` con titolo dinamico (struttura tabella).
+
+**Test critico superato:** icone banca per riga (scollega/collega) dentro `<td onClick={e => e.stopPropagation()}>` — il capture del Tooltip intercetta il click PRIMA del button.onClick e il td.stopPropagation non interferisce.
+
+---
+
+## 2026-04-11/12 — Sessione 27 / B.2 KPI ControlloGestioneUscite → Tooltip ✓ (fix tap iPad)
+
+Bug di origine: su iPad il tap sui KPI "Da riconciliare" e "Riconciliate" apriva direttamente il workbench/crossref senza mostrare il tooltip di spiegazione, perché il componente interno `KPI` di `ControlloGestioneUscite.jsx` usava `title=` HTML nativo che su iPad non blocca il click.
+
+**File toccato:** `frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx` (import Tooltip + riscrittura interna del componente `function KPI`). Nient'altro.
+
+**Pattern:** se al KPI viene passato `title`, il bottone interno viene wrappato in `<Tooltip label={title}>`. Se `title` è assente, resta il bottone nudo — nessuna regressione sui KPI senza tooltip (Programmato, Scaduto, Pagato).
+
+**Nota meta:** questo fix è nato dopo aver scoperto che il Block 1 CG originariamente eseguito da Claude Code in un worktree `.claude/worktrees/gracious-liskov/` NON era mai stato mergiato in main. Tutte le modifiche di Code erano fantasma (file presenti nel worktree ma branch mai mergiato, e working directory del worktree non accessibile dalla sandbox per via del path host `/Users/underline83/...`). Il fix KPI è stato fatto manualmente direttamente in main. Memory aggiornata: `feedback_worktree_no_trust.md` → regola ferrea "un worktree NON è in main finché non faccio merge esplicito verificato".
+
+---
+
+## 2026-04-11/12 — Sessione 27 / B.2 fix Tooltip iPad: detect desktop-mode + no long-press callout ✓
+
+Bugfix al componente `Tooltip.jsx` (v1.0 → v1.1) dopo report di Marco sul comportamento su iPad reale.
+
+**Bug 1 — detection touch fallimentare su iPad Desktop Website.** iPadOS 13+ di default richiede modalità "Desktop Website" che fa riportare a Safari `hover: hover` e `pointer: fine`. La detection v1.0 basata su `matchMedia("(hover: none) and (pointer: coarse)")` tornava `false` → `isTouch` restava `false` → `handleClickCapture` faceva `return` subito → primo tap passava direttamente al child button. Su Mac hover funzionava (colpa non visibile prima del test iPad reale).
+
+**Fix 1:** detection combinata con `navigator.maxTouchPoints > 0` (restituisce 5 su iPad anche in desktop mode) + `(any-pointer: coarse)` come fallback + vecchia query mantenuta per retrocompatibilità.
+
+**Bug 2 — long-press iOS Safari = zoom/menu callout.** Il tocco prolungato su elementi wrappati dal Tooltip faceva scattare la selezione testo e il menu di callout iOS, interpretati come richiesta di zoom.
+
+**Fix 2:** aggiunto `style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}` sullo span wrapper del Tooltip. Nessun impatto su desktop (gli elementi wrappati sono button/icone, non testo selezionabile).
+
+**File toccato:** `frontend/src/components/Tooltip.jsx` (da v1.0 → v1.1). Nient'altro.
+
+**Test superati:** Mac hover invariato; iPad reale tap-toggle funziona, long-press non zooma più, icone e bottoni wrappati in Tooltip tutti ok.
+
+---
+
+## 2026-04-11 — Sessione 27 / B.2 componente Tooltip + integrazione Header ✓
+
+Creato il componente `frontend/src/components/Tooltip.jsx` v1.0 — wrapper touch-compatible che sostituisce l'attributo `title=` nativo HTML. Su desktop mostra un popup in hover con delay 400ms; su touch il primo tap mostra il tooltip MA blocca il click del child (via `onClickCapture` con `preventDefault` + `stopPropagation` in fase capture), il secondo tap sullo stesso child lascia passare l'azione. Click/touch fuori chiude, auto-close dopo 2.5s su touch.
+
+**File toccati:** `frontend/src/components/Tooltip.jsx` (NUOVO) + `frontend/src/components/Header.jsx` (2 integrazioni: span "Modalità gestione" amber dot e bottone "🔑 Cambia PIN").
+
+**Test superati:** Mac hover + iPad tap-toggle su Header, tutto verde.
+
+**Pianificazione Block 1-6 B.2 iniziale:** documento `docs/b2_tooltip_migration_prompts.md` con 6 prompt per Claude Code, stima 66 migrazioni reali su 96 occorrenze `title=` (30 false positive: th, input, label, WizardPanel, Section, SectionHeader, iframe).
+
+---
+
+## 2026-04-11 — Sessione 27 / B.3 Input font-size 16px su touch (no zoom iOS) ✓
+
+Fix CSS globale per evitare il saltello zoom automatico di iOS Safari quando si tocca un input con `font-size < 16px`. Un solo file, una sola media query.
+
+**File toccato:** `frontend/src/index.css` — aggiunta in coda:
+```css
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+```
+
+**Test superati:** Mac invariato (nessuna modifica percepita); iPad reale — tap su input sidebar filtri (Anno, Mese, Cerca fornitore, ecc.) non zooma più. Cinque minuti netti di lavoro, zero regressioni.
+
+---
+
 ## 2026-04-11 — Sessione 27 / B.1: Header touch-compatibile (tap-toggle flyout iPad/iPhone) ✓
 
 Prima sigla della scaletta B eseguita con disciplina commit-isolato dopo la lezione sessione 26.

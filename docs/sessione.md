@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-11 (sessione 27 — **B.1 Header touch-compatibile ✓**. Ripartenza ordinata dopo il disastro di sessione 26: una sola modifica, un solo file (`Header.jsx` v4.2 → v4.3), commit isolato come da protocollo cap. 10 `piano_responsive_3target.md`. Tap-toggle flyout su iPad/iPhone, click-outside esteso a touchstart, handler mouse condizionali su `!isTouch`. Testato su Mac + iPad reale. Nessun tocco a `useAppHeight`, SW, file pagina responsive. Prossimo passo: scegliere tra B.2/B.3/B.4/B.5/B.6 indipendenti da `useAppHeight`, oppure attaccare C.3 bisezione `useAppHeight` seguendo il workflow obbligatorio.)
+> Ultima sessione: 2026-04-11/12 (sessione 27 — **lunga**, iniziata con la sola B.1 e finita con B.1 + B.3 + B.2 Block 1 CG completo + fix Tooltip iPad). Sessione di recupero ordinato dopo il disastro di sessione 26: sette commit isolati in totale, un file alla volta, test Mac + iPad reale tra un push e l'altro, zero rollback. Il protocollo post-mortem cap. 10 del `piano_responsive_3target.md` è ora confermato empiricamente. Stato scaletta: **B.1 ✓, B.3 ✓, B.2 parziale (Block 1 CG fatto: Uscite/SpeseFisse/Riconciliazione; Block 2-6 rimandati: Acquisti, Cantina, Dipendenti, Clienti+Contanti, Prenotazioni+Ricette+Banca)**. **Lezione importante**: i worktree di Claude Code (`.claude/worktrees/*`) non sono in main finché non faccio merge esplicito verificato — memory `feedback_worktree_no_trust.md` aggiornata con la regola ferrea. Prossimo passo: **B.2 Block 2 Acquisti** o **B.4 tap target sidebar** (entrambi indipendenti da `useAppHeight`).
 
 ---
 
@@ -56,35 +56,81 @@ La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scriv
 
 ---
 
-## Cosa abbiamo fatto nella sessione 27 (2026-04-11) — **B.1 Header touch-compatibile ✓ (commit isolato, primo test della nuova disciplina)**
+## Cosa abbiamo fatto nella sessione 27 (2026-04-11 pomeriggio → 2026-04-12 notte) — **B.1 + B.3 + B.2 Block 1 CG completo + fix Tooltip iPad ✓✓✓**
 
-Sessione brevissima, focalizzata, con una sola sigla della scaletta eseguita secondo il protocollo post-mortem di sessione 26. Un solo file toccato, un solo commit, test su Mac + iPad reale, tutto verde. **Prima conferma che il workflow "un blocco alla volta, commit isolato, test specifico" funziona.**
+Sessione lunga, partita come "solo B.1" e finita con sette commit isolati. **Il protocollo post-mortem cap. 10 funziona**: sette push consecutivi, zero rollback, ogni singolo file testato su Mac + iPad reale prima del successivo.
 
-### Cosa è stato fatto e lasciato in produzione
+### Cosa è stato fatto e lasciato in produzione (ordine cronologico dei push)
 
-**B.1 — Header touch-compatibile** (`frontend/src/components/Header.jsx` da v4.2 → v4.3):
+**1. B.1 — Header touch-compatibile** (`frontend/src/components/Header.jsx` da v4.2 → v4.3):
 - Detection touch via `matchMedia("(hover: none) and (pointer: coarse)")` con listener `change` (regge anche il toggle Device Mode di Chrome DevTools)
 - Tap-toggle sul row del modulo: su touch + modulo con sotto-voci, primo tap apre il flyout (`activateHover(key)`), secondo tap sullo stesso row naviga al path principale (`goTo(cfg.go)`). Moduli senza sotto-voci navigano al primo tap
 - Click-outside esteso a `touchstart` oltre `mousedown` → tap fuori dal dropdown lo chiude su iPad
 - `onMouseEnter`/`onMouseLeave` di row, container lista, flyout sub-menu e "ponte invisibile" condizionali su `!isTouch` → evita che gli eventi mouse sintetici post-touch dei browser mobile inneschino l'intent-detection desktop
 - Desktop completamente invariato (intent-detection, hover safe-zone, intent timer 80ms tutti preservati)
 
+**2. B.3 — Input font-size 16px su touch** (`frontend/src/index.css`):
+- Media query `@media (pointer: coarse) { input, textarea, select { font-size: 16px; } }` aggiunta in coda al file.
+- Risolve il saltello zoom automatico di iOS Safari al focus di un input con font-size < 16px. Mac invariato, iPad reale conferma che tap su sidebar filtri (Anno, Mese, Cerca fornitore) non zooma più. 5 minuti netti.
+
+**3. B.2 componente `Tooltip.jsx` v1.0 + integrazione Header** (`frontend/src/components/Tooltip.jsx` NUOVO, `frontend/src/components/Header.jsx`):
+- Componente wrapper touch-compatible che sostituisce l'attributo `title=` nativo HTML.
+- Desktop: hover con delay 400ms → popup.
+- Touch: primo tap mostra il tooltip MA blocca il click del child via `onClickCapture` con `preventDefault` + `stopPropagation` in fase capture. Secondo tap lascia passare l'azione. Auto-close 2.5s su touch, click/touch fuori chiude.
+- Prima integrazione in Header: span "Modalità gestione" amber dot + bottone "🔑 Cambia PIN".
+- Testato e verde Mac + iPad.
+
+**4. B.2 fix Tooltip v1.0 → v1.1 iPad** (`frontend/src/components/Tooltip.jsx`):
+- Dopo i primi test su CG Uscite su iPad, Marco ha scoperto che i KPI "Da riconciliare" / "Riconciliate" aprivano direttamente al primo tap invece di mostrare il tooltip. **Causa**: iPadOS 13+ di default è in modalità "Desktop Website", che fa riportare a Safari `hover: hover` e `pointer: fine`. La detection v1.0 basata su `matchMedia("(hover: none) and (pointer: coarse)")` tornava `false`, `isTouch` restava `false`, `handleClickCapture` faceva return, il click passava al child button.
+- **Fix 1 (detection):** `navigator.maxTouchPoints > 0` come rilevatore primario (iPad restituisce 5 anche in desktop mode) + `(any-pointer: coarse)` come fallback + vecchia query mantenuta.
+- **Fix 2 (long-press zoom):** aggiunto `style={{ WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}` sullo span wrapper del Tooltip → blocca menu callout iOS e selezione testo che causavano lo zoom su long-press.
+- Testato e verde su iPad reale dopo il push.
+
+**5. B.2 KPI ControlloGestioneUscite → Tooltip** (`frontend/src/pages/controllo-gestione/ControlloGestioneUscite.jsx`):
+- **Fix vero del bug iPad sui KPI** (il punto 4 era necessario ma non sufficiente). Il componente `function KPI` interno al file usava `<button title={title}>` nativo HTML. Il fix Tooltip v1.1 non poteva toccarlo perché il KPI non passava dal componente Tooltip. Riscritta la funzione: se viene passato `title`, il bottone interno viene wrappato in `<Tooltip label={title}>`; se no, resta nudo (nessuna regressione sui KPI Programmato/Scaduto/Pagato che non hanno title).
+- Aggiunto `import Tooltip from "../../components/Tooltip";`
+- Testato iPad: primo tap su "Da riconciliare"/"Riconciliate" mostra il tooltip, secondo tap apre il workbench / crossref.
+
+**6. B.2 Block 1 CG — ControlloGestioneUscite.jsx title= → Tooltip** (9 wrapping totali):
+- Sidebar filtri: ✕ "Azzera selezione stato", ✕ "Rimuovi periodo", bottone "Mostra escluse" con spiegazione lunga FIC (`className="w-full"` passato al Tooltip per preservare larghezza).
+- Barra bulk: bottone "Stampa / Metti in pagamento".
+- Dettaglio fattura inline: frecce `‹` `›` navigazione prev/next con label dinamico (nome fornitore).
+- Tabella righe: badge "In pagamento" con label dinamico `Batch: ...`, icone banca per riga Riconciliata/Collega (scollega/apri riconciliazione).
+- **Esclusi per regole B.2**: `<input type="checkbox">` "seleziona tutte non pagate", `<th>` banca, `<tr>` con title dinamico (struttura tabella).
+- Test critico superato: icone banca per riga dentro `<td onClick={e => e.stopPropagation()}>` → il capture del Tooltip intercetta il click PRIMA del button.onClick e il td.stopPropagation non interferisce.
+
+**7. B.2 Block 1 CG — ControlloGestioneSpeseFisse.jsx title= → Tooltip** (4 wrapping):
+- `↻ Ricarica fatture` nel wizard rateizzazione.
+- `Piano` / `Storico` / `Adegua` nella tabella spese fisse attive (label dinamici condizionali sul tipo spesa).
+- **Esclusi**: 5 `WizardPanel title=...` (prop component, non HTML), 1 `<input title={...}>` in cella rata, **2 span informativi** della tabella storico rate con `title={banca_descrizione}` lasciati deliberatamente con `title=` nativo perché non hanno onClick e il label può essere stringa vuota.
+
+**8. B.2 Block 1 CG — ControlloGestioneRiconciliazione.jsx title= → Tooltip** (1 wrapping):
+- Solo bottone `↻ Ricarica` in alto a destra. Unico `title=` nel file, nessun residuo dopo.
+
 ### Cosa NON è stato toccato (di proposito, per rispettare il protocollo)
 - `useAppHeight` → resta orfano, C.3 ancora da bisezionare
 - I 6 file pagina responsive → restano `calc(100vh - Npx)` originali
 - Service Worker / `main.jsx` → resta il blocco difensivo unregister
-- Qualunque altro componente
+- Nessun file di Acquisti, Cantina, Dipendenti, Clienti, Contanti, Prenotazioni, Ricette, Banca, FlussiCassa (rimandati a Block 2-6 sessione 28)
 
-### Test eseguiti
-- **Mac desktop** Chrome/Safari: dropdown + hover + flyout + click = comportamento storico invariato
-- **Mac Chrome DevTools Device Mode iPad**: tap-toggle funziona, click-outside funziona, moduli senza sotto-voci navigano al primo tap
-- **iPad reale**: tutti i moduli con sotto-voci (Cantina, Ricette, Acquisti, Controllo Gestione, ecc.) ora accessibili via tap. Cantina e RicetteNuova aprono correttamente → **conferma indiretta che il crash di sessione 26 non dipendeva dal touch handling dell'header ma dall'hook `useAppHeight`**
+### Casino worktree Claude Code — lezione importante
+Durante il lavoro sul Block 1 CG avevo inizialmente provato a far eseguire le migrazioni a Claude Code in un worktree `.claude/worktrees/gracious-liskov/`. Code ha lavorato bene, io ho "verificato" le sue modifiche dentro al worktree con grep, e ho detto "ok Block 1 integro" — ma **il worktree non è mai stato mergiato in main**. Siamo passati a parlare dei bug iPad Tooltip credendo che Block 1 fosse in main, ho fixato il Tooltip component v1.0 → v1.1, Marco ha pushato e testato → bug ancora presente. Motivo: il KPI in main usava ancora `title=` nativo, Block 1 viveva solo nel worktree. Dopo aver capito l'errore ho fatto il fix KPI direttamente in main e siamo ripartiti con la disciplina "sempre in main, mai più worktree".
+
+**Aggravante**: il worktree è registrato con path host (`/Users/underline83/trgb/.claude/worktrees/gracious-liskov`) e dalla sandbox `/sessions/...` i comandi git dentro al worktree falliscono con "not a git repository" perché il path non esiste sulla sandbox. Quindi anche a voler recuperare le modifiche di Code dopo, non posso nemmeno usare `git log`/`git diff` sul worktree — devo leggere i file raw dal mount e fare diff a mano, fragile.
+
+**Regola ferrea aggiornata in memoria** (`feedback_worktree_no_trust.md`): un worktree NON è in main finché non faccio merge esplicito verificato con `git log --oneline` sul branch main. Mai più dire "Block X verificato" basandomi solo su grep nel worktree. Per i refactoring massivi meglio lavorare direttamente in main un file alla volta — più lento ma zero confusione, e visto che comunque ora testiamo ogni singolo push il rischio è basso.
+
+### Test eseguiti in sessione
+- **Mac desktop** Chrome/Safari: tutti i tooltip hover invariati vs `title=` nativo (popup più pulito di Tooltip.jsx, estetica OK)
+- **iPad reale Marco**: tap-toggle funzionante su tutti gli 8 elementi della sezione Header + 14 wrapping CG (KPI + 9 Uscite + 4 SpeseFisse + 1 Riconciliazione)
+- **iPad reale Marco**: long-press niente più zoom/callout iOS
+- Zero regressioni segnalate, zero rollback
 
 ### Stato scaletta B/C/D/E dopo sessione 27
-Vedi "Scaletta lavori" più sotto nella sezione sessione 26 (master list aggiornata inline: B.1 marcata ✓).
+Vedi "Scaletta lavori" più sotto nella sezione sessione 26 (master list aggiornata inline: B.1 ✓, B.2 parziale (Block 1 CG), B.3 ✓).
 
 ### Lezione di sessione
-Il protocollo post-mortem cap. 10 funziona. Un solo file, un solo commit, test specifico, push singolo → zero regressioni, zero rollback. Questo è il pattern da replicare per tutte le prossime sigle della scaletta B, e sarà OBBLIGATORIO per la bisezione di C.3.
+Il protocollo cap. 10 funziona anche su sessioni lunghe con tante sigle. Sette file diversi, sette push, sette test, zero regressioni. Il pattern da replicare in sessione 28 e per tutte le prossime migrazioni è: **un file per commit, testo di commit preciso, Marco testa tra un push e l'altro**. Per sessione 28 si riprende da Block 2 di B.2 (Acquisti) con stessa disciplina.
 
 ---
 
@@ -149,8 +195,18 @@ Sessione "ambiziosa che è esplosa". Aperta con l'analisi sull'evoluzione di TRG
 
 **B — Piano responsive Mac+iPad (resto, dopo aver risolto C.3)**
 - ~~B.1~~ ✅ **FATTA SESSIONE 27** — Header touch-compatibile: `matchMedia("(hover: none) and (pointer: coarse)")`, tap-toggle flyout, click-outside esteso a touchstart, handler mouse condizionali su `!isTouch`. File toccato: `Header.jsx` v4.2 → v4.3. Testato Mac + iPad reale, tutto verde
-- B.2 Punto 3 — Tooltip popover componente (sostituisce `title=` nativo che non funziona su iPad). 15-20 occorrenze critiche. ⏱ ~30 min, rischio basso
-- B.3 Punto 4 — Input font-size 16px su touch (`@media (pointer: coarse)` in `index.css`, no zoom iOS). ⏱ 5 min, rischio basso
+- **B.2 Punto 3 — Tooltip popover componente — PARZIALE (sessione 27)**:
+  - ✅ Componente `Tooltip.jsx` v1.1 creato (con fix iPad Desktop-mode via `navigator.maxTouchPoints` + no long-press callout)
+  - ✅ Header.jsx integrato (2 wrapping)
+  - ✅ Block 1 CG completo: `ControlloGestioneUscite.jsx` (KPI fix + 9 wrapping), `ControlloGestioneSpeseFisse.jsx` (4 wrapping), `ControlloGestioneRiconciliazione.jsx` (1 wrapping)
+  - ⏳ **Block 2-6 da fare sessione 28**, sempre un file per commit direttamente in main:
+    - **B.2.B2 Acquisti** (`pages/acquisti/*` — fatture elenco, dettaglio, fornitori elenco, dettaglio fornitore, ecc.)
+    - **B.2.B3 Cantina** (`pages/cantina/*` — MagazzinoVini, SchedaVino, stocks, movimenti)
+    - **B.2.B4 Dipendenti** (`pages/dipendenti/*` — anagrafica, cedolini, contratti)
+    - **B.2.B5 Clienti + GestioneContanti**
+    - **B.2.B6 Prenotazioni + Ricette + Banca + FlussiCassa**
+  - ⚠️ **Regola operativa sessione 28**: sempre direttamente in main, mai più worktree `.claude/worktrees/*`. Un file per commit, Marco testa tra un push e l'altro. Regole di esclusione costanti: NO `<input>`, NO `<th>`/`<tr>` struct tabella, NO `<label>`, NO prop `title` di component custom (WizardPanel, SectionHeader, Section, ecc.). Span informativi con label dinamico eventualmente vuoto possono essere lasciati con `title=` nativo (come fatto in SpeseFisse storico)
+- ~~B.3~~ ✅ **FATTA SESSIONE 27** — Input font-size 16px su touch (`@media (pointer: coarse)` in `index.css`). File toccato: `frontend/src/index.css`. Testato iPad reale, no zoom al focus
 - B.4 Punto 5 — Tap target 40-44px su sidebar filtri (~30-40 sostituzioni Tailwind). ⏱ ~45 min, rischio basso
 - B.5 Punto 6 (opzionale) — Sidebar width → variabile `w-sidebar` in `tailwind.config.js`. ⏱ 15 min
 - B.6 Punto 7 (CONDIZIONALE) — Tabelle critiche `hidden xl:table-cell` su colonne secondarie. SOLO se test iPad reale conferma scroll orizzontale dopo B.1-B.4. Approvazione tabella per tabella
