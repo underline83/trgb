@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureDettaglio from "../admin/FattureDettaglio";
+import Tooltip from "../../components/Tooltip";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -1550,8 +1551,8 @@ function KPI({ label, value, n, color, active, onClick, dot = false, title }) {
     amber: "bg-amber-500", red: "bg-red-500",
     emerald: "bg-emerald-500", violet: "bg-violet-500", sky: "bg-sky-500",
   };
-  return (
-    <button onClick={onClick} title={title}
+  const btn = (
+    <button onClick={onClick}
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition cursor-pointer ${cm[color] || ""} ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}>
       {dot && <span className={`inline-block w-2 h-2 rounded-full ${dotColor[color] || "bg-neutral-400"}`}></span>}
       <span>{label}</span>
@@ -1559,6 +1560,9 @@ function KPI({ label, value, n, color, active, onClick, dot = false, title }) {
       {n != null && <span className="opacity-50 font-normal text-[9px]">({n})</span>}
     </button>
   );
+  // Se c'è un title usiamo il componente <Tooltip> (touch-friendly con
+  // tap-toggle su iPad); altrimenti rendiamo solo il bottone nudo.
+  return title ? <Tooltip label={title}>{btn}</Tooltip> : btn;
 }
 
 
