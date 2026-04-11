@@ -442,11 +442,11 @@ export default function ControlloGestioneSpeseFisse() {
 
   const statoBadge = (stato) => {
     const map = {
-      PAGATA: { label: "Pagata", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-      PAGATA_MANUALE: { label: "Pagata", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PAGATA: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      PAGATA_MANUALE: { label: "Pagato", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
       PARZIALE: { label: "Parziale", cls: "bg-amber-100 text-amber-700 border-amber-200" },
-      SCADUTA: { label: "Scaduta", cls: "bg-red-100 text-red-700 border-red-200" },
-      DA_PAGARE: { label: "Da pagare", cls: "bg-sky-100 text-sky-700 border-sky-200" },
+      SCADUTA: { label: "Scaduto", cls: "bg-red-100 text-red-700 border-red-200" },
+      DA_PAGARE: { label: "Programmato", cls: "bg-sky-100 text-sky-700 border-sky-200" },
     };
     if (!stato) return { label: "—", cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
     return map[stato] || { label: stato, cls: "bg-neutral-100 text-neutral-500 border-neutral-200" };
@@ -1656,7 +1656,7 @@ export default function ControlloGestioneSpeseFisse() {
                   <div className="text-sm font-bold text-emerald-700">{pianoRiepilogo.n_pagate}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Da pagare</div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Programmato</div>
                   <div className="text-sm font-bold text-sky-700">
                     {pianoRiepilogo.n_da_pagare}
                     {pianoRiepilogo.n_scadute > 0 && (

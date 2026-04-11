@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-11 (sessione 24 — **bugfix batch 10/04**: chiusi D3 + D2 + A2 + A1 + C1 + C2 + B1 in una sola passata. 3 nuove migrazioni 059/060/061, split seed/runtime modules.json, bottone WA cedolini, fuzzy matching dipendenti, filtro FIC non-fatture. Resta aperto solo D1 — sistema storni difettoso — che richiede repro live con Marco)
+> Ultima sessione: 2026-04-11 (sessione 25 — **Scadenzario CG v2.3**: fix bug stipendi `data_scadenza` (mese+1, default `giorno_paga`=15), mig 064 back-fix stipendi marzo 2026 + dipendenti legacy, rename stati Scadenzario al maschile coerente ("Programmato / Scaduto / Pagato / Parziale"), multi-select sul filtro stato in sidebar SX + KPI toggle. Conferma procedurale Marco: OK fix stipendi, OK desinenza maschile uniforme, filtro data range NON toccare)
 
 ---
 

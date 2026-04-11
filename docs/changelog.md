@@ -3,6 +3,43 @@
 
 ---
 
+## 2026-04-11 — CG v2.3: Scadenzario fix stipendi + rename stati + multi-select
+
+Sessione 23: debug dei filtri Scadenzario (`ControlloGestioneUscite.jsx`). Marco ha notato che gli stipendi di marzo 2026 apparivano con scadenza **27/03** (default legacy `giorno_paga`=27 applicato al mese di riferimento) quando in realtà nella sua operatività gli stipendi del mese N vengono pagati il **giorno 15 del mese N+1** (stipendio marzo → 15 aprile).
+
+### Bug stipendi — `app/routers/dipendenti.py`
+- **`_genera_scadenza_stipendio`**: la `data_scadenza` era calcolata sul mese di riferimento (`anno`, `mese`). Ora calcola sul mese successivo con rollover anno a dicembre→gennaio. Default `giorno_paga` portato da **27 → 15**.
+- **Creazione automatica dipendente da cedolino** (`_crea_dipendente_da_cedolino`): default `giorno_paga` allineato a **15**.
+
+### Migrazione back-fix — `app/migrations/064_fix_stipendi_data_scadenza.py`
+- UPDATE `cg_uscite` WHERE `tipo_uscita='STIPENDIO' AND stato IN ('DA_PAGARE','SCADUTA')`: sposta `data_scadenza` al 15 del mese N+1 parsando `periodo_riferimento` ("Marzo 2026" → 2026-04-15). Solo righe non pagate: gli storici `PAGATA_MANUALE` restano intatti (audit trail pagamenti).
+- Ricalcolo stato post-shift: righe con `data_scadenza < oggi` → `SCADUTA`, altrimenti `DA_PAGARE`.
+- UPDATE `dipendenti.db.dipendenti SET giorno_paga=15 WHERE giorno_paga=27` (tocca solo i legacy, rispetta eventuali valori personalizzati).
+
+### Frontend rename stati → tutti al maschile per coerenza desinenza
+Richiesta estetica di Marco: "Da pagare" e "Scaduta" avevano desinenze miste (a/o). Uniformati tutti al maschile sottinteso "pagamento":
+- **Da pagare** → **Programmato** (amber)
+- **Scaduta** → **Scaduto** (red)
+- **Pagata / Pagata \*** → **Pagato / Pagato \*** (emerald / teal)
+- **Rateizzata** → **Rateizzato** (purple)
+- Parziale e Da riconciliare invariati
+
+Toccati: `ControlloGestioneUscite.jsx` (STATO_STYLE + grid Stato SX + KPI bar + confirm scollega), `ControlloGestioneSpeseFisse.jsx` (mappa badge + riepilogo piano rate). I moduli Fatture (`FattureElenco`, `FattureFornitoriElenco`, `FattureInCloud`) restano con vecchie label: riguardano acquisti, non scadenzario pagamenti.
+
+### Frontend multi-select stato — `ControlloGestioneUscite.jsx`
+Marco: "se sono scadute sono anche da pagare, dovresti distinguerle in modo diverso". Risolto trasformando `filtroStato` da stringa singola a **`Set<string>`**:
+- Grid Stato in sidebar SX ora permette di selezionare **più stati contemporaneamente** (OR logico)
+- KPI bar in alto usa toggle sul Set: click attiva/disattiva singolo stato, conservando gli altri
+- Aggiunto **Parziale** come 4° tab nella grid (prima non filtrabile dal lato UI)
+- Aggiunto bottone "✕" per azzerare la selezione stato nella sidebar
+- `activeFilters` counter e `clearFilters` aggiornati alla nuova struttura
+- Sort direction per tab "solo Pagato" resta DESC (recenti prima), altrimenti ASC
+
+### Non toccato (su richiesta di Marco)
+- Logica filtro Periodo `Da` / `A`: range aperto (solo "A" = `<= A`) è **comportamento voluto**, non bug. Con la `data_scadenza` stipendi ora corretta, il range 11/04–11/04 non mostrerà più gli stipendi di aprile.
+
+---
+
 ## 2026-04-11 — Flussi di Cassa v1.7: Riconciliazione filtri avanzati (sidebar SX)
 
 Richiesta **C** di Marco (11/04/2026): "Migliora pesantemente il filtro [della Riconciliazione], funziona male; non ha possibilità etc etc." Il filtro era un singolo input testuale client-side, nessun range date, nessun range importo, nessun filtro per tipo/direzione, tutto gestito con LIMIT 500 hardcoded. Marco ha approvato TUTTI gli 8 filtri proposti.

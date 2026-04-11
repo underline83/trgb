@@ -13,12 +13,12 @@ const giorniA = (d) => d ? Math.ceil((new Date(d) - new Date()) / 86400000) : nu
 const cleanFatt = (s) => s && s !== "&mdash;" && s !== "—" && s.trim() ? s : null;
 
 const STATO_STYLE = {
-  DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Da pagare" },
-  SCADUTA:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduta" },
-  PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagata" },
-  PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagata *" },
+  DA_PAGARE:       { bg: "bg-amber-100", text: "text-amber-800", border: "border-amber-200", label: "Programmato" },
+  SCADUTA:         { bg: "bg-red-100",   text: "text-red-800",   border: "border-red-200",   label: "Scaduto" },
+  PAGATA:          { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200", label: "Pagato" },
+  PAGATA_MANUALE:  { bg: "bg-teal-100",  text: "text-teal-800",  border: "border-teal-200",  label: "Pagato *" },
   PARZIALE:        { bg: "bg-blue-100",  text: "text-blue-800",  border: "border-blue-200",  label: "Parziale" },
-  RATEIZZATA:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzata" },
+  RATEIZZATA:      { bg: "bg-purple-100", text: "text-purple-800", border: "border-purple-200", label: "Rateizzato" },
 };
 
 const TIPO_USCITA_STYLE = {
@@ -49,12 +49,24 @@ export default function ControlloGestioneUscite() {
 
   // ── Filtri (locali, no API) ──
   const [search, setSearch] = useState("");
-  const [filtroStato, setFiltroStato] = useState("");
+  // filtroStato: Set di stati selezionati. Vuoto = "tutti".
+  // Valori possibili: "DA_PAGARE", "SCADUTA", "PAGATA" (include anche PAGATA_MANUALE), "PARZIALE"
+  const [filtroStato, setFiltroStato] = useState(() => new Set());
   const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
   const [filtroDa, setFiltroDa] = useState("");
   const [filtroA, setFiltroA] = useState("");
   const [sortCol, setSortCol] = useState("data_scadenza");
   const [sortDir, setSortDir] = useState("asc");
+
+  // Helper: toggle di uno stato nel Set filtroStato (multi-select)
+  const toggleStato = useCallback((val) => {
+    setFiltroStato(prev => {
+      const next = new Set(prev);
+      if (next.has(val)) next.delete(val);
+      else next.add(val);
+      return next;
+    });
+  }, []);
 
   // ── Selezione multipla + bulk payment ──
   const [selected, setSelected] = useState(new Set());
@@ -137,11 +149,12 @@ export default function ControlloGestioneUscite() {
   }, [fetchData]); // eslint-disable-line
 
   // Reset ordinamento al cambio tab stato:
-  // - Da pagare / Scadute → data_scadenza ASC (le più vecchie/urgenti prima)
-  // - Pagate → data_scadenza DESC (le più recenti prima)
+  // - Programmato / Scaduto → data_scadenza ASC (le più vecchie/urgenti prima)
+  // - Pagato (selezionato da solo) → data_scadenza DESC (le più recenti prima)
   useEffect(() => {
     setSortCol("data_scadenza");
-    setSortDir(filtroStato === "PAGATA" ? "desc" : "asc");
+    const soloPagate = filtroStato.size === 1 && filtroStato.has("PAGATA");
+    setSortDir(soloPagate ? "desc" : "asc");
   }, [filtroStato]);
 
   const allUscite = data?.uscite || [];
@@ -162,12 +175,12 @@ export default function ControlloGestioneUscite() {
         String(u.totale || "").includes(s)
       );
     }
-    if (filtroStato) {
-      if (filtroStato === "PAGATA") {
-        rows = rows.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE");
-      } else {
-        rows = rows.filter(u => u.stato === filtroStato);
-      }
+    if (filtroStato.size > 0) {
+      rows = rows.filter(u => {
+        // PAGATA del filtro include sia PAGATA che PAGATA_MANUALE
+        if (filtroStato.has("PAGATA") && (u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE")) return true;
+        return filtroStato.has(u.stato);
+      });
     }
     if (filtroTipo) rows = rows.filter(u => (u.tipo_uscita || "FATTURA") === filtroTipo);
     if (filtroDa) rows = rows.filter(u => u.data_scadenza && u.data_scadenza >= filtroDa);
@@ -254,7 +267,7 @@ export default function ControlloGestioneUscite() {
 
   // ── Riconciliazione: scollega ──
   const scollegaMovimento = async (uscita_id) => {
-    if (!confirm("Scollegare il movimento bancario? Lo stato tornerà a 'Pagata *'")) return;
+    if (!confirm("Scollegare il movimento bancario? Lo stato tornerà a 'Pagato *'")) return;
     try {
       const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite/${uscita_id}/riconcilia`, {
         method: "DELETE",
@@ -644,8 +657,27 @@ export default function ControlloGestioneUscite() {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate, includiEscluse].filter(Boolean).length;
-  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); setIncludiRateizzate(false); setIncludiEscluse(false); };
+  // filtroStato è un Set: conta come 1 filtro attivo se contiene almeno un valore
+  const activeFilters = [
+    search,
+    filtroStato.size > 0,
+    filtroTipo,
+    filtroDa,
+    filtroA,
+    filtroInPagamento,
+    includiRateizzate,
+    includiEscluse,
+  ].filter(Boolean).length;
+  const clearFilters = () => {
+    setSearch("");
+    setFiltroStato(new Set());
+    setFiltroTipo("");
+    setFiltroDa("");
+    setFiltroA("");
+    setFiltroInPagamento(false);
+    setIncludiRateizzate(false);
+    setIncludiEscluse(false);
+  };
 
   const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
   const fSel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-300";
@@ -683,19 +715,25 @@ export default function ControlloGestioneUscite() {
                 className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-neutral-400" />
             </div>
 
-            {/* Stato — griglia 2×2 */}
+            {/* Stato — multi-select (si sommano in OR) */}
             <div className="px-3 pb-3 border-b border-neutral-100">
-              <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider mb-1.5">Stato</div>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Stato</div>
+                {filtroStato.size > 0 && (
+                  <button onClick={() => setFiltroStato(new Set())}
+                    className="text-[9px] text-neutral-400 hover:text-red-600" title="Azzera selezione stato">✕</button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-1">
                 {[
-                  { value: "", label: "Tutti", n: allUscite.length, act: "bg-neutral-800 text-white border-neutral-800" },
-                  { value: "DA_PAGARE", label: "Da pagare", n: allUscite.filter(u => u.stato === "DA_PAGARE").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
-                  { value: "SCADUTA", label: "Scadute", n: allUscite.filter(u => u.stato === "SCADUTA").length, act: "bg-red-100 text-red-900 border-red-300" },
-                  { value: "PAGATA", label: "Pagate", n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "DA_PAGARE", label: "Programmato", n: allUscite.filter(u => u.stato === "DA_PAGARE").length, act: "bg-amber-100 text-amber-900 border-amber-300" },
+                  { value: "SCADUTA",   label: "Scaduto",     n: allUscite.filter(u => u.stato === "SCADUTA").length,   act: "bg-red-100 text-red-900 border-red-300" },
+                  { value: "PAGATA",    label: "Pagato",      n: allUscite.filter(u => u.stato === "PAGATA" || u.stato === "PAGATA_MANUALE").length, act: "bg-emerald-100 text-emerald-900 border-emerald-300" },
+                  { value: "PARZIALE",  label: "Parziale",    n: allUscite.filter(u => u.stato === "PARZIALE").length,  act: "bg-blue-100 text-blue-900 border-blue-300" },
                 ].map(o => {
-                  const active = filtroStato === o.value;
+                  const active = filtroStato.has(o.value);
                   return (
-                    <button key={o.value} onClick={() => setFiltroStato(active ? "" : o.value)}
+                    <button key={o.value} onClick={() => toggleStato(o.value)}
                       className={`px-1.5 py-1 rounded-md text-[10px] font-medium border transition flex flex-col items-start leading-tight ${
                         active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
                       }`}>
@@ -884,12 +922,12 @@ export default function ControlloGestioneUscite() {
 
           {/* KPI BAR */}
           <div className="px-3 py-2 border-b border-neutral-200 bg-white flex flex-wrap gap-2 items-center flex-shrink-0">
-            <KPI label="Da pagare" value={kpi.da_pagare} n={kpi.n_da_pagare} color="amber"
-              active={filtroStato === "DA_PAGARE"} onClick={() => setFiltroStato(filtroStato === "DA_PAGARE" ? "" : "DA_PAGARE")} />
-            <KPI label="Scadute" value={kpi.scadute} n={kpi.n_scadute} color="red"
-              active={filtroStato === "SCADUTA"} onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")} />
-            <KPI label="Pagate" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
-              active={filtroStato === "PAGATA"} onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")} />
+            <KPI label="Programmato" value={kpi.da_pagare} n={kpi.n_da_pagare} color="amber"
+              active={filtroStato.has("DA_PAGARE")} onClick={() => toggleStato("DA_PAGARE")} />
+            <KPI label="Scaduto" value={kpi.scadute} n={kpi.n_scadute} color="red"
+              active={filtroStato.has("SCADUTA")} onClick={() => toggleStato("SCADUTA")} />
+            <KPI label="Pagato" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
+              active={filtroStato.has("PAGATA")} onClick={() => toggleStato("PAGATA")} />
             {/* KPI "Da riconciliare" — clic apre il workbench split-pane */}
             {rig.num_da_riconciliare > 0 && (
               <KPI

@@ -1213,17 +1213,24 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
     if not dip:
         return None
 
-    giorno = dip["giorno_paga"] or 27
+    giorno = dip["giorno_paga"] or 15
     mese = payload["mese"]
     anno = payload["anno"]
     netto = payload["netto"]
     nome_completo = f"{dip['nome']} {dip['cognome']}"
 
-    # Calcola data scadenza stipendio
+    # Calcola data scadenza stipendio.
+    # Gli stipendi del mese N vengono pagati il giorno_paga del mese N+1
+    # (es. stipendio marzo 2026 → pagamento 15 aprile 2026).
     import calendar
-    max_gg = calendar.monthrange(anno, mese)[1]
+    mese_paga = mese + 1
+    anno_paga = anno
+    if mese_paga > 12:
+        mese_paga = 1
+        anno_paga += 1
+    max_gg = calendar.monthrange(anno_paga, mese_paga)[1]
     giorno_eff = min(giorno, max_gg)
-    data_scadenza = f"{anno}-{mese:02d}-{giorno_eff:02d}"
+    data_scadenza = f"{anno_paga}-{mese_paga:02d}-{giorno_eff:02d}"
 
     # Scrivi in foodcost.db
     fc_conn = _sqlite3.connect(FOODCOST_DB)
@@ -1372,7 +1379,7 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
         INSERT INTO dipendenti
         (codice, nome, cognome, ruolo, iban, codice_fiscale, data_nascita,
          tipo_rapporto, livello, qualifica, attivo, giorno_paga)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 27)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 15)
     """, [
         codice, nome, cognome, ruolo,
         ced.get("iban"),
@@ -1390,7 +1397,7 @@ def _crea_dipendente_da_cedolino(conn, ced: dict) -> Optional[dict]:
         "nome": nome,
         "cognome": cognome,
         "codice_fiscale": ced.get("codice_fiscale"),
-        "giorno_paga": 27,
+        "giorno_paga": 15,
     }
 
 
