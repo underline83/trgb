@@ -89,6 +89,186 @@ const TABS = [
   { key: "collegati",    label: "Collegati",      icon: "✅", desc: "Già riconciliati" },
 ];
 
+// ── Tipi di link selezionabili nel filtro sidebar ──
+const TIPO_LINK_OPTIONS = [
+  { key: "FATTURA",      label: "Fattura",        group: "out" },
+  { key: "SPESA_FISSA",  label: "Spesa fissa",    group: "out" },
+  { key: "AFFITTO",      label: "Affitto",        group: "out" },
+  { key: "STIPENDIO",    label: "Stipendio",      group: "out" },
+  { key: "TASSA",        label: "Tassa",          group: "out" },
+  { key: "RATEIZZAZIONE",label: "Rata",           group: "out" },
+  { key: "ASSICURAZIONE",label: "Assicurazione",  group: "out" },
+  { key: "ENTRATA",      label: "Entrate reg.",   group: "in" },
+  { key: "NESSUNO",      label: "Nessun link",    group: "none" },
+];
+
+// ── Filtri di default ──
+const DEFAULT_FILTERS = {
+  datePreset: "all",   // 'mese' | 'trim' | 'anno' | 'all' | 'custom'
+  dateFrom: "",
+  dateTo: "",
+  importoMin: "",
+  importoMax: "",
+  direzione: "all",    // 'all' | 'uscite' | 'entrate'
+  tipoLink: [],        // subset di TIPO_LINK_OPTIONS keys
+  searchText: "",
+};
+
+// Converte datePreset + custom range in {from, to} YYYY-MM-DD
+function resolveDateRange({ datePreset, dateFrom, dateTo }) {
+  const today = new Date();
+  const iso = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  };
+  if (datePreset === "mese") {
+    const from = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { from: iso(from), to: iso(today) };
+  }
+  if (datePreset === "trim") {
+    const from = new Date(today);
+    from.setMonth(from.getMonth() - 3);
+    return { from: iso(from), to: iso(today) };
+  }
+  if (datePreset === "anno") {
+    const from = new Date(today.getFullYear(), 0, 1);
+    return { from: iso(from), to: iso(today) };
+  }
+  if (datePreset === "custom") {
+    return { from: dateFrom || "", to: dateTo || "" };
+  }
+  return { from: "", to: "" }; // all
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FilterPanel — pannello filtri riutilizzabile (sidebar + mobile)
+// ═══════════════════════════════════════════════════════════════
+function FilterPanel({ filters, update, reset, toggleTipoLink, activeCount, compact = false }) {
+  const btnBase = "px-2 py-1 rounded-md text-[11px] font-medium border transition";
+  const btnOn   = "bg-emerald-600 text-white border-emerald-600 shadow-sm";
+  const btnOff  = "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50";
+
+  return (
+    <div className="space-y-4">
+      {/* Header con clear */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Filtri</span>
+          {activeCount > 0 && (
+            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-full px-2 py-0.5">
+              {activeCount} {activeCount === 1 ? "attivo" : "attivi"}
+            </span>
+          )}
+        </div>
+        {activeCount > 0 && (
+          <button onClick={reset}
+            className="text-[10px] text-red-500 hover:text-red-700 font-medium underline-offset-2 hover:underline">
+            Pulisci tutti
+          </button>
+        )}
+      </div>
+
+      {/* Ricerca testuale */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 block mb-1">Cerca</label>
+        <div className="relative">
+          <input type="text" value={filters.searchText}
+            onChange={(e) => update({ searchText: e.target.value })}
+            placeholder="Descrizione, fornitore, importo..."
+            className="w-full px-3 py-2 pr-8 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+          {filters.searchText && (
+            <button onClick={() => update({ searchText: "" })}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 text-sm">
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Periodo */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 block mb-1">Periodo</label>
+        <div className="flex flex-wrap gap-1">
+          {[
+            { k: "all",  l: "Tutto" },
+            { k: "mese", l: "Mese" },
+            { k: "trim", l: "3 mesi" },
+            { k: "anno", l: "Anno" },
+            { k: "custom", l: "Custom" },
+          ].map(o => (
+            <button key={o.k} onClick={() => update({ datePreset: o.k })}
+              className={`${btnBase} ${filters.datePreset === o.k ? btnOn : btnOff}`}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+        {filters.datePreset === "custom" && (
+          <div className="grid grid-cols-2 gap-1 mt-2">
+            <input type="date" value={filters.dateFrom} onChange={(e) => update({ dateFrom: e.target.value })}
+              className="px-2 py-1 rounded-md border border-neutral-300 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+            <input type="date" value={filters.dateTo} onChange={(e) => update({ dateTo: e.target.value })}
+              className="px-2 py-1 rounded-md border border-neutral-300 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+          </div>
+        )}
+      </div>
+
+      {/* Direzione */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 block mb-1">Direzione</label>
+        <div className="flex gap-1">
+          {[
+            { k: "all",     l: "Tutti" },
+            { k: "uscite",  l: "Uscite" },
+            { k: "entrate", l: "Entrate" },
+          ].map(o => (
+            <button key={o.k} onClick={() => update({ direzione: o.k })}
+              className={`${btnBase} flex-1 ${filters.direzione === o.k ? btnOn : btnOff}`}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Range importo */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 block mb-1">Importo (€)</label>
+        <div className="grid grid-cols-2 gap-1">
+          <input type="number" value={filters.importoMin} onChange={(e) => update({ importoMin: e.target.value })}
+            placeholder="min" inputMode="decimal"
+            className="px-2 py-1 rounded-md border border-neutral-300 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+          <input type="number" value={filters.importoMax} onChange={(e) => update({ importoMax: e.target.value })}
+            placeholder="max" inputMode="decimal"
+            className="px-2 py-1 rounded-md border border-neutral-300 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+        </div>
+      </div>
+
+      {/* Tipo link */}
+      <div>
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 block mb-1">Tipo link</label>
+        <div className="flex flex-wrap gap-1">
+          {TIPO_LINK_OPTIONS.map(o => {
+            const active = filters.tipoLink.includes(o.key);
+            return (
+              <button key={o.key} onClick={() => toggleTipoLink(o.key)}
+                className={`${btnBase} ${active ? btnOn : btnOff}`}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+        {filters.tipoLink.length > 0 && (
+          <button onClick={() => update({ tipoLink: [] })}
+            className="text-[10px] text-neutral-400 hover:text-neutral-700 mt-1">
+            Deseleziona tutti
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SortTh({ label, field, sort, onSort, className = "" }) {
   const active = sort.field === field;
   const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
@@ -125,7 +305,10 @@ export default function BancaCrossRef() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [filterText, setFilterText] = useState("");
+  // ── Filtri (oggetto unico) ──
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false); // mobile drawer
   const [sort, setSort] = useState({ field: "data_contabile", dir: "desc" });
   const [dismissed, setDismissed] = useState(new Set());
   const [registraId, setRegistraId] = useState(null);
@@ -142,7 +325,33 @@ export default function BancaCrossRef() {
   const [dupDeleting, setDupDeleting] = useState(false);
   const debounceRef = useRef(null);
 
-  useEffect(() => { loadData(); loadCategorie(); loadDuplicati(); }, []);
+  // ── Chiave query per i filtri server-side (trigger reload) ──
+  const serverParams = useMemo(() => {
+    const p = new URLSearchParams();
+    const { from, to } = resolveDateRange(filters);
+    if (from) p.set("data_da", from);
+    if (to)   p.set("data_a", to);
+    if (filters.importoMin !== "" && !isNaN(Number(filters.importoMin))) {
+      p.set("importo_min", String(Number(filters.importoMin)));
+    }
+    if (filters.importoMax !== "" && !isNaN(Number(filters.importoMax))) {
+      p.set("importo_max", String(Number(filters.importoMax)));
+    }
+    if (filters.direzione !== "all") p.set("direzione", filters.direzione);
+    return p.toString();
+  }, [filters.datePreset, filters.dateFrom, filters.dateTo, filters.importoMin, filters.importoMax, filters.direzione]);
+
+  // Debounce text search (200ms)
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(filters.searchText), 200);
+    return () => clearTimeout(t);
+  }, [filters.searchText]);
+
+  // Carica categorie e duplicati una volta
+  useEffect(() => { loadCategorie(); loadDuplicati(); }, []);
+
+  // Ricarica movimenti quando cambiano i filtri server-side
+  useEffect(() => { loadData(); }, [serverParams]);
 
   const loadCategorie = async () => {
     try {
@@ -158,12 +367,34 @@ export default function BancaCrossRef() {
     setLoading(true);
     setError("");
     try {
-      const resp = await apiFetch(`${FC}/cross-ref`);
+      const qs = serverParams ? `?${serverParams}` : "";
+      const resp = await apiFetch(`${FC}/cross-ref${qs}`);
       if (!resp.ok) throw new Error("Errore caricamento");
       setMovimenti(await resp.json());
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
+
+  // ── Helpers per aggiornare i filtri ──
+  const updateFilter = (patch) => setFilters(f => ({ ...f, ...patch }));
+  const resetFilters = () => setFilters(DEFAULT_FILTERS);
+  const toggleTipoLink = (key) => {
+    setFilters(f => {
+      const has = f.tipoLink.includes(key);
+      return { ...f, tipoLink: has ? f.tipoLink.filter(k => k !== key) : [...f.tipoLink, key] };
+    });
+  };
+
+  // Conteggio filtri attivi (esclude "all")
+  const activeFiltersCount = useMemo(() => {
+    let n = 0;
+    if (filters.datePreset !== "all") n++;
+    if (filters.importoMin !== "" || filters.importoMax !== "") n++;
+    if (filters.direzione !== "all") n++;
+    if (filters.tipoLink.length > 0) n++;
+    if (filters.searchText.trim()) n++;
+    return n;
+  }, [filters]);
 
   const loadDuplicati = async () => {
     try {
@@ -371,13 +602,37 @@ export default function BancaCrossRef() {
   const listMap = { collegati: linked, suggerimenti: withSugg, senza: noMatch };
   let currentList = listMap[tab] || [];
 
-  if (filterText.trim()) {
-    const ft = filterText.toLowerCase();
-    currentList = currentList.filter(m =>
-      (m.descrizione || "").toLowerCase().includes(ft) ||
-      (m.links || []).some(l => (l.fornitore_nome || "").toLowerCase().includes(ft)) ||
-      String(Math.abs(m.importo || 0)).includes(ft)
-    );
+  // ── Filtro client-side: tipo link ──
+  if (filters.tipoLink.length > 0) {
+    currentList = currentList.filter(m => {
+      const links = m.links || [];
+      if (links.length === 0) {
+        return filters.tipoLink.includes("NESSUNO");
+      }
+      return links.some(l => {
+        if (filters.tipoLink.includes("ENTRATA") && l.source === "entrata") return true;
+        return filters.tipoLink.includes(l.tipo);
+      });
+    });
+  }
+
+  // ── Filtro client-side: text search (debounced) ──
+  if (searchDebounced.trim()) {
+    const ft = searchDebounced.toLowerCase().trim();
+    // se è un numero, match anche su valore assoluto con tolleranza formato italiano
+    const numGuess = ft.replace(",", ".");
+    const isNum = !isNaN(Number(numGuess)) && numGuess !== "";
+    currentList = currentList.filter(m => {
+      if ((m.descrizione || "").toLowerCase().includes(ft)) return true;
+      if ((m.links || []).some(l => (l.fornitore_nome || "").toLowerCase().includes(ft))) return true;
+      if ((m.categoria_banca || "").toLowerCase().includes(ft)) return true;
+      if ((m.sottocategoria_banca || "").toLowerCase().includes(ft)) return true;
+      if (isNum) {
+        const absImp = Math.abs(m.importo || 0);
+        if (String(absImp).includes(numGuess) || absImp.toFixed(2).includes(numGuess)) return true;
+      }
+      return false;
+    });
   }
 
   const sorted = sortRows(currentList, sort);
@@ -456,14 +711,65 @@ export default function BancaCrossRef() {
   return (
     <div className="min-h-screen bg-neutral-100 font-sans">
       <FlussiCassaNav current="crossref" />
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 mt-2">
-        <div className="bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200">
-          <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair mb-1">
-            Riconciliazione
-          </h1>
-          <p className="text-neutral-500 text-sm mb-5">
-            Collega o registra ogni movimento bancario — uscite e entrate — per un quadro completo.
-          </p>
+      <div className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-2">
+        <div className="flex gap-4 lg:gap-6">
+
+          {/* ═══ Sidebar filtri SX (desktop / iPad landscape) ═══ */}
+          <aside className="hidden lg:block w-60 flex-shrink-0">
+            <div className="bg-white shadow-sm rounded-2xl p-4 border border-neutral-200 sticky top-4">
+              <FilterPanel
+                filters={filters}
+                update={updateFilter}
+                reset={resetFilters}
+                toggleTipoLink={toggleTipoLink}
+                activeCount={activeFiltersCount}
+              />
+            </div>
+          </aside>
+
+          {/* ═══ Drawer filtri mobile ═══ */}
+          {filterPanelOpen && (
+            <div className="lg:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setFilterPanelOpen(false)}>
+              <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl p-5 overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-bold text-neutral-800">Filtri</h3>
+                  <button onClick={() => setFilterPanelOpen(false)}
+                    className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-600 hover:bg-neutral-200">✕</button>
+                </div>
+                <FilterPanel
+                  filters={filters}
+                  update={updateFilter}
+                  reset={resetFilters}
+                  toggleTipoLink={toggleTipoLink}
+                  activeCount={activeFiltersCount}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ═══ Main content ═══ */}
+          <div className="flex-1 min-w-0">
+            <div className="bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200">
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair">
+                  Riconciliazione
+                </h1>
+                {/* Pulsante apri drawer su mobile */}
+                <button onClick={() => setFilterPanelOpen(true)}
+                  className="lg:hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-50">
+                  <span>⚙</span>
+                  <span>Filtri</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="text-[10px] font-bold bg-emerald-600 text-white rounded-full px-1.5 py-0.5">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+              <p className="text-neutral-500 text-sm mb-5">
+                Collega o registra ogni movimento bancario — uscite e entrate — per un quadro completo.
+              </p>
 
           {/* ── Avviso duplicati ── */}
           {dupGroups.length > 0 && (
@@ -535,12 +841,48 @@ export default function BancaCrossRef() {
             })}
           </div>
 
-          {/* ── Filtro ── */}
-          <div className="mb-4">
-            <input type="text" value={filterText} onChange={(e) => setFilterText(e.target.value)}
-              placeholder="Filtra per descrizione, fornitore, importo..."
-              className="w-full sm:w-96 px-3 py-2 rounded-lg border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
-          </div>
+          {/* Filtri attivi — chip summary (su desktop la sidebar già li mostra; qui solo se attivi) */}
+          {activeFiltersCount > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {activeFiltersCount} {activeFiltersCount === 1 ? "filtro attivo" : "filtri attivi"}:
+              </span>
+              {filters.datePreset !== "all" && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                  {({ mese: "Mese corrente", trim: "Ultimi 3 mesi", anno: "Anno in corso", custom: "Custom" })[filters.datePreset]}
+                  <button onClick={() => updateFilter({ datePreset: "all", dateFrom: "", dateTo: "" })} className="text-emerald-500 hover:text-emerald-800">✕</button>
+                </span>
+              )}
+              {filters.direzione !== "all" && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                  {filters.direzione === "uscite" ? "Solo uscite" : "Solo entrate"}
+                  <button onClick={() => updateFilter({ direzione: "all" })} className="text-emerald-500 hover:text-emerald-800">✕</button>
+                </span>
+              )}
+              {(filters.importoMin !== "" || filters.importoMax !== "") && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                  €{filters.importoMin || "0"} – {filters.importoMax || "∞"}
+                  <button onClick={() => updateFilter({ importoMin: "", importoMax: "" })} className="text-emerald-500 hover:text-emerald-800">✕</button>
+                </span>
+              )}
+              {filters.tipoLink.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                  {filters.tipoLink.length} tipi link
+                  <button onClick={() => updateFilter({ tipoLink: [] })} className="text-emerald-500 hover:text-emerald-800">✕</button>
+                </span>
+              )}
+              {filters.searchText.trim() && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+                  "{filters.searchText}"
+                  <button onClick={() => updateFilter({ searchText: "" })} className="text-emerald-500 hover:text-emerald-800">✕</button>
+                </span>
+              )}
+              <button onClick={resetFilters}
+                className="text-[10px] text-red-500 hover:text-red-700 font-medium underline-offset-2 hover:underline ml-auto">
+                Pulisci tutti
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
@@ -591,7 +933,15 @@ export default function BancaCrossRef() {
             <div className="text-center py-12 text-neutral-500">Caricamento...</div>
           ) : sorted.length === 0 ? (
             <div className="text-center py-12 text-neutral-400">
-              {filterText ? "Nessun risultato per il filtro." :
+              {activeFiltersCount > 0 ? (
+                <>
+                  <div>Nessun risultato con i filtri attivi.</div>
+                  <button onClick={resetFilters}
+                    className="mt-2 text-xs text-emerald-600 hover:text-emerald-800 underline underline-offset-2">
+                    Pulisci i filtri
+                  </button>
+                </>
+              ) :
                tab === "collegati" ? "Nessun movimento riconciliato." :
                tab === "suggerimenti" ? "Nessun suggerimento disponibile." :
                "Tutti i movimenti hanno almeno un suggerimento."}
@@ -921,8 +1271,10 @@ export default function BancaCrossRef() {
               )}
             </div>
           )}
-        </div>
-      </div>
+            </div>{/* /bg-white card */}
+          </div>{/* /flex-1 min-w-0 main */}
+        </div>{/* /flex gap layout */}
+      </div>{/* /max-w container */}
     </div>
   );
 }

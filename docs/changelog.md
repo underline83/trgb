@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-04-11 — Flussi di Cassa v1.7: Riconciliazione filtri avanzati (sidebar SX)
+
+Richiesta **C** di Marco (11/04/2026): "Migliora pesantemente il filtro [della Riconciliazione], funziona male; non ha possibilità etc etc." Il filtro era un singolo input testuale client-side, nessun range date, nessun range importo, nessun filtro per tipo/direzione, tutto gestito con LIMIT 500 hardcoded. Marco ha approvato TUTTI gli 8 filtri proposti.
+
+### Backend
+- **`app/routers/banca_router.py`** — estensione endpoint `GET /banca/cross-ref`:
+  - nuovi parametri: `importo_min`, `importo_max` (applicati su `ABS(m.importo)`), `direzione` (`'uscite'`→`importo<0`, `'entrate'`→`importo>=0`), `categoria_banca` (substring LIKE case-insensitive), `limit` (default 500, cap 5000)
+  - `data_da`/`data_a` già esistenti, riutilizzati
+  - il `LIMIT 500` ora è parametrizzato via `limit` con safety cap
+
+### Frontend — `BancaCrossRef.jsx`
+- **Sidebar filtri SX** (Cantina layout, 240px, `sticky top-4`) visibile da `lg:` in su; su mobile/iPad portrait apre drawer laterale con bottone "⚙ Filtri" in header
+- **`FilterPanel`** componente riutilizzabile con tutti i controlli: ricerca testuale con clear inline, preset periodo (Tutto / Mese / 3 mesi / Anno / Custom → con due `<input type="date">`), direzione segmented (Tutti / Uscite / Entrate), range importo (min/max), chip multi-select per tipo link (Fattura, Spesa fissa, Affitto, Stipendio, Tassa, Rata, Assicurazione, Entrate reg., Nessun link)
+- **Filter state consolidato** in singolo oggetto `filters` + helper `updateFilter`/`resetFilters`/`toggleTipoLink`
+- **Debounce text search 200ms** — `filters.searchText` → `searchDebounced` via `setTimeout` in effect
+- **Separazione server-side / client-side**:
+  - server-side (triggerano reload): date range, range importo, direzione → calcolati in `serverParams` con `useMemo`, `useEffect([serverParams])` richiama `loadData`
+  - client-side (lavorano sul set già caricato): tipo link, ricerca testuale — la ricerca per importo tenta match numerico con tolleranza formato italiano (virgola→punto)
+- **Badge "N filtri attivi"** in header della sidebar + **chip riepilogo** sopra la tabella (uno per dimensione attiva, ognuno con ✕ per pulire singolarmente) + bottone "Pulisci tutti"
+- **Empty state**: se filtri attivi e lista vuota, messaggio dedicato + shortcut "Pulisci i filtri"
+- **Max-width esteso** `max-w-7xl` → `max-w-[1400px]` per fare spazio alla sidebar su desktop
+- Ricerca testuale ora cerca anche su `categoria_banca` / `sottocategoria_banca`, non solo descrizione e fornitore
+
+### Note
+- La regola dei componenti riutilizzabili è rispettata: `FilterPanel` vive come funzione a modulo scope, usata sia in sidebar desktop che in drawer mobile con le stesse prop
+- iPad portrait (< lg): il drawer slide-in mantiene la stessa esperienza touch, con bottone filtri nell'header della card principale
+
+---
+
 ## 2026-04-11 — CG v2.2: Riconciliazione bidirezionale (Workbench + Piano Rate + Storico)
 
 Richiesta di Marco del giorno stesso (parte A + B in un unico rilascio): rendere visibile e gestibile la riconciliazione banca dal lato uscite, non solo dal lato movimenti. Flusso bidirezionale: dal movimento all'uscita (esistente, via `BancaCrossRef`) **e ora** dall'uscita al movimento.

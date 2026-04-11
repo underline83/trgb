@@ -702,10 +702,22 @@ def _score_match(nome: str, totale_match: float, data_ref, target: float,
 def get_cross_ref(
     data_da: Optional[str] = None,
     data_a: Optional[str] = None,
+    importo_min: Optional[float] = None,   # |importo| >= importo_min
+    importo_max: Optional[float] = None,   # |importo| <= importo_max
+    direzione: Optional[str] = None,       # 'uscite' | 'entrate' | None
+    categoria_banca: Optional[str] = None, # filtra per m.categoria_banca (ILIKE)
+    limit: int = 500,
 ):
     """
     Tutti i movimenti bancari con link multipli e suggerimenti.
     Supporta multi-link (bonifici che pagano più fatture) e residuo.
+
+    Filtri server-side:
+    - data_da / data_a: range su data_contabile
+    - importo_min / importo_max: applicati a ABS(importo)
+    - direzione: 'uscite' -> importo<0, 'entrate' -> importo>=0
+    - categoria_banca: substring match case-insensitive
+    - limit: default 500 (max 5000)
     """
     conn = get_db()
     cur = conn.cursor()
@@ -718,13 +730,32 @@ def get_cross_ref(
     if data_a:
         where.append("m.data_contabile <= ?")
         params.append(data_a)
+    if importo_min is not None:
+        where.append("ABS(m.importo) >= ?")
+        params.append(float(importo_min))
+    if importo_max is not None:
+        where.append("ABS(m.importo) <= ?")
+        params.append(float(importo_max))
+    if direzione == "uscite":
+        where.append("m.importo < 0")
+    elif direzione == "entrate":
+        where.append("m.importo >= 0")
+    if categoria_banca:
+        where.append("LOWER(COALESCE(m.categoria_banca,'')) LIKE ?")
+        params.append(f"%{categoria_banca.lower()}%")
+
+    # Cap sicurezza limit
+    try:
+        lim = max(1, min(int(limit), 5000))
+    except Exception:
+        lim = 500
 
     # ── 1. Carica movimenti ──
     cur.execute(f"""
         SELECT m.* FROM banca_movimenti m
         WHERE {" AND ".join(where)}
         ORDER BY m.data_contabile DESC
-        LIMIT 500
+        LIMIT {lim}
     """, params)
     raw_movimenti = [dict(r) for r in cur.fetchall()]
 
