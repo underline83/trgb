@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
+import useAppHeight from "./hooks/useAppHeight";
 
 // --- GESTIONE VINI ---
 import ViniMenu from "./pages/vini/ViniMenu";
@@ -125,6 +126,12 @@ import StatisticheCoperti from "./pages/statistiche/StatisticheCoperti";
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
+
+  // Inizializza la CSS variable --app-h (altezza viewport - header).
+  // Va chiamato PRIMA di qualunque return condizionale per rispettare
+  // le regole degli hook React. Quando l'utente non è loggato l'header
+  // non esiste ancora: l'hook resta sul fallback 100dvh.
+  useAppHeight();
 
   if (!token) {
     return <Login setToken={setToken} setRole={setRole} />;

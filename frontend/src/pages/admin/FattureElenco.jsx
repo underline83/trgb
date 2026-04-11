@@ -218,7 +218,7 @@ export default function FattureElenco() {
       <FattureNav current="fatture" />
 
       {/* LAYOUT: Filtri SX + Contenuto DX */}
-      <div className="flex" style={{ height: "calc(100vh - 48px)" }}>
+      <div className="flex" style={{ height: "var(--app-h, 100dvh)" }}>
 
         {/* ═══════ SIDEBAR FILTRI (280px) ═══════ */}
         <div className="w-[280px] min-w-[280px] border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">

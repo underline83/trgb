@@ -207,7 +207,7 @@ export default function DipendentiAnagrafica() {
         </div>
       )}
 
-      <div className="flex" style={{ height: "calc(100vh - 49px)" }}>
+      <div className="flex" style={{ height: "var(--app-h, 100dvh)" }}>
         {/* ── SIDEBAR LISTA ── */}
         <div className="w-72 bg-white border-r border-neutral-200 flex flex-col">
           <div className="p-3 border-b border-neutral-100">

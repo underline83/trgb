@@ -1050,7 +1050,8 @@ export default function MagazzinoVini() {
       </div>
 
       {/* LAYOUT PRINCIPALE: Filtri SX + Contenuto DX */}
-      <div className="flex" style={{ height: "calc(100vh - 88px)" }}>
+      {/* var(--app-h) = innerHeight - header globale; -88px sottrae ViniNav + header compatto sopra il flex */}
+      <div className="flex" style={{ height: "calc(var(--app-h, 100dvh) - 88px)" }}>
 
         {/* ══════════════════════════════════════════════
             COLONNA SINISTRA: FILTRI (280px fisso)

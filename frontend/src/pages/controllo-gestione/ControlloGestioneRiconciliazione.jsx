@@ -123,7 +123,8 @@ export default function ControlloGestioneRiconciliazione() {
       )}
 
       {/* Split-pane */}
-      <div className="flex gap-4 p-6" style={{ minHeight: "calc(100vh - 180px)" }}>
+      {/* var(--app-h) toglie l'header globale; -132px sottrae nav + titolo + padding sopra lo split */}
+      <div className="flex gap-4 p-6" style={{ minHeight: "calc(var(--app-h, 100dvh) - 132px)" }}>
         {/* Pane SX: worklist */}
         <div className="w-1/2 bg-white border border-neutral-200 rounded-lg flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-200 flex items-center gap-3">
