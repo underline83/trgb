@@ -721,8 +721,10 @@ export default function ControlloGestioneUscite() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Stato</div>
                 {filtroStato.size > 0 && (
-                  <button onClick={() => setFiltroStato(new Set())}
-                    className="text-[9px] text-neutral-400 hover:text-red-600" title="Azzera selezione stato">✕</button>
+                  <Tooltip label="Azzera selezione stato">
+                    <button onClick={() => setFiltroStato(new Set())}
+                      className="text-[9px] text-neutral-400 hover:text-red-600">✕</button>
+                  </Tooltip>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-1">
@@ -773,8 +775,10 @@ export default function ControlloGestioneUscite() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Periodo scadenza</div>
                 {(filtroDa || filtroA) && (
-                  <button onClick={() => { setFiltroDa(""); setFiltroA(""); }}
-                    className="text-[9px] text-neutral-400 hover:text-red-600" title="Rimuovi periodo">✕</button>
+                  <Tooltip label="Rimuovi periodo">
+                    <button onClick={() => { setFiltroDa(""); setFiltroA(""); }}
+                      className="text-[9px] text-neutral-400 hover:text-red-600">✕</button>
+                  </Tooltip>
                 )}
               </div>
               {/* Preset rapidi */}
@@ -851,18 +855,22 @@ export default function ControlloGestioneUscite() {
                   </span>
                 </button>
                 {/* Escluse (fornitori con escluso_acquisti=1) */}
-                <button onClick={() => setIncludiEscluse(v => !v)}
-                  title="Mostra le fatture di fornitori esclusi dagli acquisti (es. affitti importati da FIC). Di default sono nascoste per evitare doppio conteggio con le spese fisse CG."
-                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
-                    includiEscluse
-                      ? "bg-amber-50 border-amber-200 text-amber-900"
-                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
-                  }`}>
-                  <span className="flex items-center gap-1.5">
-                    <span className={`inline-block w-2 h-2 rounded-full ${includiEscluse ? "bg-amber-500" : "bg-neutral-300"}`}></span>
-                    <span>Mostra escluse</span>
-                  </span>
-                </button>
+                <Tooltip
+                  label="Mostra le fatture di fornitori esclusi dagli acquisti (es. affitti importati da FIC). Di default sono nascoste per evitare doppio conteggio con le spese fisse CG."
+                  className="w-full"
+                >
+                  <button onClick={() => setIncludiEscluse(v => !v)}
+                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                      includiEscluse
+                        ? "bg-amber-50 border-amber-200 text-amber-900"
+                        : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                    }`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`inline-block w-2 h-2 rounded-full ${includiEscluse ? "bg-amber-500" : "bg-neutral-300"}`}></span>
+                      <span>Mostra escluse</span>
+                    </span>
+                  </button>
+                </Tooltip>
                 {/* Solo in pagamento */}
                 <button onClick={() => setFiltroInPagamento(v => !v)}
                   className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
@@ -963,12 +971,13 @@ export default function ControlloGestioneUscite() {
                 {selected.size} selezionat{selected.size === 1 ? "a" : "e"}
               </span>
               {/* Stampa + batch */}
-              <button onClick={apriStampaBatch}
-                className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1.5"
-                title="Crea un batch di pagamento, apre una stampa e marca le uscite come messe in pagamento">
-                <span>🖨</span>
-                <span>Stampa / Metti in pagamento</span>
-              </button>
+              <Tooltip label="Crea un batch di pagamento, apre una stampa e marca le uscite come messe in pagamento">
+                <button onClick={apriStampaBatch}
+                  className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 flex items-center gap-1.5">
+                  <span>🖨</span>
+                  <span>Stampa / Metti in pagamento</span>
+                </button>
+              </Tooltip>
               <div className="h-5 w-px bg-teal-300 mx-1" />
               {/* Segna pagate */}
               <select value={bulkMetodo} onChange={e => setBulkMetodo(e.target.value)}
@@ -1021,19 +1030,21 @@ export default function ControlloGestioneUscite() {
                       ← Lista
                     </button>
                     <div className="flex items-center gap-1 ml-2">
-                      <button onClick={() => prevFatt && goTo(prevFatt)} disabled={!prevFatt}
-                        className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={prevFatt ? `← ${prevFatt.fornitore_nome || ""}` : "Prima fattura"}>
-                        ‹
-                      </button>
+                      <Tooltip label={prevFatt ? `← ${prevFatt.fornitore_nome || ""}` : "Prima fattura"}>
+                        <button onClick={() => prevFatt && goTo(prevFatt)} disabled={!prevFatt}
+                          className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                          ‹
+                        </button>
+                      </Tooltip>
                       <span className="text-[10px] text-sky-700 font-medium min-w-[60px] text-center">
                         {curIdx >= 0 ? `${curIdx + 1} / ${fatturePrev.length}` : "—"}
                       </span>
-                      <button onClick={() => nextFatt && goTo(nextFatt)} disabled={!nextFatt}
-                        className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                        title={nextFatt ? `→ ${nextFatt.fornitore_nome || ""}` : "Ultima fattura"}>
-                        ›
-                      </button>
+                      <Tooltip label={nextFatt ? `→ ${nextFatt.fornitore_nome || ""}` : "Ultima fattura"}>
+                        <button onClick={() => nextFatt && goTo(nextFatt)} disabled={!nextFatt}
+                          className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-sky-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                          ›
+                        </button>
+                      </Tooltip>
                     </div>
                     <span className="text-xs text-sky-800 font-medium ml-2">
                       Fattura #{openFatturaId}
@@ -1172,12 +1183,13 @@ export default function ControlloGestioneUscite() {
                               {st.label}
                             </span>
                             {inPagamento && (
-                              <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                title={u.batch_titolo ? `Batch: ${u.batch_titolo}` : "In pagamento"}>
-                                <span>🖨</span>
-                                <span>In pagamento</span>
-                              </span>
+                              <Tooltip label={u.batch_titolo ? `Batch: ${u.batch_titolo}` : "In pagamento"}>
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                  <span>🖨</span>
+                                  <span>In pagamento</span>
+                                </span>
+                              </Tooltip>
                             )}
                           </div>
                         </td>
@@ -1200,17 +1212,19 @@ export default function ControlloGestioneUscite() {
                         {/* BANCA (riconciliazione) */}
                         <td className="px-3 py-1.5 text-center" onClick={e => e.stopPropagation()}>
                           {isRiconciliata ? (
-                            <button onClick={() => scollegaMovimento(u.id)}
-                              title="Riconciliata — click per scollegare"
-                              className="inline-flex items-center gap-0.5 text-emerald-600 hover:text-red-500 transition">
-                              <BancaCheckIcon size={14} />
-                            </button>
+                            <Tooltip label="Riconciliata — click per scollegare">
+                              <button onClick={() => scollegaMovimento(u.id)}
+                                className="inline-flex items-center gap-0.5 text-emerald-600 hover:text-red-500 transition">
+                                <BancaCheckIcon size={14} />
+                              </button>
+                            </Tooltip>
                           ) : puoRiconciliare ? (
-                            <button onClick={() => apriRiconciliazione(u)}
-                              title="Collega a movimento bancario"
-                              className="inline-flex items-center gap-0.5 text-violet-500 hover:text-violet-700 transition hover:scale-110">
-                              <BancaLinkIcon size={14} />
-                            </button>
+                            <Tooltip label="Collega a movimento bancario">
+                              <button onClick={() => apriRiconciliazione(u)}
+                                className="inline-flex items-center gap-0.5 text-violet-500 hover:text-violet-700 transition hover:scale-110">
+                                <BancaLinkIcon size={14} />
+                              </button>
+                            </Tooltip>
                           ) : u.stato === "PAGATA" && u.banca_movimento_id ? (
                             <BancaCheckIcon size={14} className="text-emerald-400" />
                           ) : (
