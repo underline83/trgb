@@ -8,56 +8,6 @@
 
 ## Aperti — Priorità media
 
-### B1. Sistema — Ruoli e permessi si "ripristinano" da soli
-**Segnalato:** 2026-04-10
-**Modulo:** Impostazioni Sistema / auth
-**Gravità:** media (comportamento imprevedibile)
-
-**Sintomo:**
-A volte i ruoli/permessi modificati da Marco vengono ripristinati a valori precedenti. Non è chiaro in seguito a quale evento — forse qualcosa di hardcoded che sovrascrive la config al restart del servizio o al login.
-
-**Da capire / fare:**
-1. Cercare hardcode in `auth_service.py`, `users.json`, router di init, eventuali seed di default
-2. Verificare se al restart di `trgb-backend` c'è una routine che "normalizza" i ruoli
-3. Controllare se esiste una migrazione o uno script di setup che rilegge i ruoli di default
-4. Loggare ogni modifica a `users.json` / permessi per capire quando avviene il reset
-5. Possibili sospetti: `ImpostazioniSistema.jsx` tab Utenti che ricarica un default, oppure qualche `ensure_default_users()` al boot
-
----
-
-### C1. Dipendenti — Invio busta paga via WhatsApp
-**Segnalato:** 2026-04-10
-**Modulo:** Dipendenti / Buste Paga
-**Tipo:** feature request
-**Gravità:** media (migliora workflow)
-
-**Sintomo/richiesta:**
-Nella pagina Buste Paga, accanto al bottone "PDF" di ogni busta paga, aggiungere un bottone "WA" che apre WhatsApp con il numero di telefono del dipendente (preso da anagrafica) e il PDF allegato.
-
-**Da capire / fare:**
-1. Verificare se il numero di telefono del dipendente è sempre presente in anagrafica (altrimenti il bottone va disabilitato)
-2. WhatsApp web/native non supporta l'allegato via `wa.me/{num}` — si può solo pre-compilare il testo. Per l'allegato serve WhatsApp Business API (a pagamento) oppure l'utente fa drag & drop manuale del PDF scaricato
-3. Soluzione realistica MVP: bottone WA apre `wa.me/{num}?text=Ciao%20{nome},%20ecco%20la%20tua%20busta%20paga%20di%20{mese}` + download automatico del PDF in contemporanea, così Marco ha il file pronto da allegare su WA in un click
-4. Soluzione avanzata (futura): WA Business API se il volume lo giustifica
-
----
-
-### C2. Dipendenti — Anagrafica, salvare PDF buste paga anche in Documenti
-**Segnalato:** 2026-04-10
-**Modulo:** Dipendenti / Anagrafica
-**Tipo:** improvement
-**Gravità:** media
-
-**Sintomo/richiesta:**
-Nella pagina Anagrafica Dipendenti, sezione "Documenti", i PDF delle buste paga caricate dovrebbero comparire automaticamente (oggi sono separati: la busta paga vive solo nel modulo Buste Paga).
-
-**Da capire / fare:**
-1. La Tab Documenti unificata è già stata fatta (sessione 18, 2026-03-30 — "allegati manuali + cedolini PDF"). Verificare se la lista unificata già mostra i cedolini o se c'è un bug/filtro che li nasconde
-2. Se il sistema già li salva ma non li mostra → fix UI / query
-3. Se non li salva → aggiungere write path in `cedolini_service` che duplica il PDF nella tabella `documenti_dipendente` (o meglio: vista union che li aggrega lato query)
-
----
-
 ### D1. Flussi di Cassa — Sistema storni difettoso
 **Segnalato:** 2026-04-10
 **Modulo:** Flussi di Cassa / Banca (sistema storni)
@@ -76,13 +26,69 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
+### B1. Sistema — Ruoli/permessi si "ripristinano" dopo i deploy ✅ 2026-04-11
+**Causa:** `app/data/modules.json` era tracciato in git (con una nota esplicita nel `.gitignore`: _"modules.json è tracciato in git, non contiene dati sensibili, solo config moduli"_). Quando Marco modificava i ruoli/permessi dal pannello Impostazioni in produzione, il backend salvava le modifiche in `modules.json` sul VPS — corretto. Ma al primo `push.sh` successivo, il post-receive hook faceva `git checkout` del working dir ricaricando `modules.json` dal commit di Marco (macchina locale), **sovrascrivendo la versione runtime con il seed hardcoded in git**. Risultato: i ruoli modificati sparivano ad ogni deploy, in modo imprevedibile perché il reset coincideva con un push di codice non correlato.
+
+`users.json` invece non aveva il problema perché era già gitignored (le credenziali non sono in repo).
+
+**Fix:**
+- **Split seed / runtime in `modules_router.py`**: introdotti due path separati. `modules.json` resta tracciato in git ma ora ha il ruolo di **seed** (default ruoli al primo deploy). Lo stato effettivo vive in `modules.runtime.json`, creato al primo `_load()` copiando il seed.
+- **`_load()` prova prima `modules.runtime.json`**: se esiste, lo legge e basta. Se non esiste, copia il seed `modules.json` → `modules.runtime.json` e restituisce il seed. Se manca anche il seed, cade su `DEFAULT_MODULES` hardcoded
+- **`_save()` scrive sempre su `modules.runtime.json`** — il seed tracciato in git non viene mai toccato dal backend
+- **`.gitignore`**: aggiunto `app/data/modules.runtime.json` così il file runtime sopravvive ai deploy. Il commento è esplicito sulla ragione del design (bug B1)
+- **Zero-break deploy**: al primo restart dopo il fix, `_load()` bootstrap-a il runtime dal seed attuale. I ruoli sono identici a prima del fix, poi Marco può modificare liberamente senza più perdere lo stato
+- **Nota sul recupero dello stato**: purtroppo le modifiche ai ruoli che Marco aveva fatto negli ultimi deploy e che sono state sovrascritte da push precedenti **non sono recuperabili** (il git tracciato non conserva lo storico VPS). Marco dovrà reimpostare i permessi una volta dopo il primo deploy col fix — da quel momento saranno stabili
+
+---
+
+### C1. Dipendenti — Bottone WhatsApp per condividere cedolino ✅ 2026-04-11
+**Richiesta:** Accanto al bottone PDF della lista cedolini, aggiungere un tasto WA che apra WhatsApp col numero del dipendente e pre-compili il messaggio.
+
+**Fix:**
+- **Backend** `dipendenti.py` — la query `GET /buste-paga` ora include `d.telefono` nel SELECT, così il frontend dispone del numero senza round-trip aggiuntivo
+- **Frontend** `DipendentiBustePaga.jsx` — aggiunto bottone "WA" (emerald) accanto a "✕" nella colonna Azioni. Al click:
+  1. Normalizza il numero (strip spazi/+, aggiunge prefisso +39 ai cellulari italiani)
+  2. Scarica il PDF in locale col nome `bustapaga_cognome_nome_YYYY-MM.pdf` (solo se `pdf_path` presente)
+  3. Apre `https://wa.me/{numero}?text=Ciao {nome}, ecco la tua busta paga di {mese}/{anno}. Netto: € {x}. Il PDF è stato scaricato sul mio PC, te lo allego qui.`
+- Il bottone è disabilitato in grigio se `telefono` è vuoto, con tooltip esplicativo. Al primo click l'utente (Marco) trascina il PDF dal download allegandolo al thread WhatsApp che si è appena aperto
+- **Nota tecnica:** non esiste un modo via URL di allegare automaticamente il file a un messaggio WA. L'unica alternativa sarebbe integrare WhatsApp Business API — fuori scope
+
+---
+
+### C2. Dipendenti — Cedolini PDF in tab Documenti anagrafica ✅ 2026-04-11 (bug endpoint 500)
+**Segnalato:** tab Documenti dell'anagrafica non mostrava i cedolini importati dal LUL, solo il form di upload per gli allegati manuali.
+
+**Causa reale (trovata dopo verifica end-to-end):** L'endpoint `GET /dipendenti/{id}/documenti` (in `dipendenti.py` linee 1911-1953) era _scritto_ per fare la UNION di `dipendenti_allegati` + `buste_paga` con `pdf_path IS NOT NULL`. Ma alla riga 1940 faceva `MESI_IT.get(c["mese"], str(c["mese"]))` trattando `MESI_IT` come un dict — mentre alla riga 1080 `MESI_IT` è definito come **lista** `["", "Gennaio", "Febbraio", ...]`. Le liste Python non hanno `.get()`, quindi appena il loop incontrava il primo cedolino, l'endpoint lanciava `AttributeError: 'list' object has no attribute 'get'` → FastAPI trasformava l'eccezione in HTTP 500 → il frontend nel `try/catch` di `loadDocumenti` cadeva nel `catch` e faceva `setDocs([])` → lista vuota visibile all'utente, né cedolini né allegati.
+
+Il bug era presente sin dall'introduzione della UNION cedolini+allegati (sessione 18, 2026-03-30). Non si è notato prima perché:
+1. Chi testava doveva avere un dipendente **senza alcun cedolino con pdf_path**, nel qual caso il loop non partiva e l'endpoint tornava correttamente la lista degli allegati manuali
+2. Oppure non aveva allegati manuali, quindi la lista vuota sembrava coerente con "non ho ancora caricato nulla" — è esattamente quello che ha visto Marco
+
+**Fix (1 riga):** sostituito in `dipendenti.py` ~riga 1940:
+```python
+# prima (BROKEN):
+mese_label = MESI_IT.get(c["mese"], str(c["mese"])) if c["mese"] else "?"
+
+# dopo:
+mese_idx = c.get("mese") or 0
+mese_label = MESI_IT[mese_idx] if 1 <= mese_idx <= 12 else "?"
+```
+
+**Verifica:** simulata la query dell'endpoint sul DB locale con il nuovo codice. Per Marco Carminati (id=1) vengono generati correttamente `Cedolino Gennaio 2026`, `Cedolino Febbraio 2026`, `Cedolino Marzo 2026`. Dopo push e Ctrl+Shift+R i cedolini appaiono nella tab Documenti con sfondo viola e bottone "📄 Apri PDF".
+
+**Lesson learned:** nella prima passata avevo chiuso C2 come "feature già esistente, non c'è nulla da fare" basandomi solo sulla lettura del codice e sui dati del DB, senza provare end-to-end il percorso frontend → API → render. Fidarsi del codice senza eseguirlo è stato un errore: il codice era scritto ma non funzionava.
+
+---
+
 ### A1. Acquisti — FattureInCloud importa non-fatture (affitti Cattaneo/Bana) ✅ 2026-04-11
 **Causa:** L'endpoint FIC `received_documents?type=expense` restituisce anche registrazioni di prima nota (affitti, spese cassa) che in FIC vengono create senza numero di documento e senza P.IVA del fornitore. Il sync le importava come se fossero vere fatture elettroniche, finendo in `fe_fatture` e duplicando le voci in dashboard Acquisti. Pattern identificato: `numero_fattura=''` AND `fornitore_piva=''` AND `fonte='fic'`. Casi concreti su DB: BANA MARIA DOLORES (26 record affitto locale), CATTANEO SILVIA (26 record affitto locale), PONTIGGIA (1 record isolato) — totale 53 fatture fittizie per €82.395,66.
 
 **Fix:**
 - **Migrazione 061** `061_escludi_fornitori_fittizi.py` — cleanup one-shot. Scansiona `fe_fatture` cercando record con numero vuoto + P.IVA vuota + fonte FIC, raggruppa per `fornitore_nome`, e INSERT/UPDATE in `fe_fornitore_categoria` con `escluso_acquisti=1` e `motivo_esclusione='Non-fattura importata da FIC (senza numero né P.IVA, probabile affitto/spesa cassa)'`. I record storici restano in `fe_fatture` per non rompere eventuali link cg_uscite esistenti, ma vengono automaticamente filtrati da dashboard/KPI grazie al `COALESCE(fc.escluso_acquisti, 0) = 0` già attivo in `fe_import.py`. Idempotente. Testata su copia DB: 3 fornitori esclusi, 57 fatture filtrate dal totale dashboard
 - **Filtro a monte in `fattureincloud_router.py`** — nella FASE 1 del `sync_fic`, prima del dedup hash, se `doc_number` e `fornitore_piva` sono entrambi stringhe vuote il record viene skippato e contato in `skipped_non_fattura`. Questo blocca l'ingresso di nuove non-fatture ai futuri sync, senza toccare le fatture vere. Il conteggio skippati finisce nella note di fine sync
-- **Risultato**: dashboard Acquisti pulita immediatamente, futuri sync FIC ignorano automaticamente le prima-nota. Se un giorno Cattaneo/Bana emettessero una vera fattura elettronica con P.IVA, quella avrà un record distinto in `fe_fornitore_categoria` (match per P.IVA) e verrà importata normalmente
+- **Upgrade A1 (mig 062)** — Marco ha chiesto di rendere questi skip visibili e tracciabili: creata tabella `fic_sync_warnings` (foodcost.db) con schema estendibile per futuri tipi di warning (`tipo`, `fornitore_nome/piva`, `data_documento`, `importo`, `fic_document_id`, `raw_payload_json`, `visto`, `visto_at`, `note`), indici + UNIQUE `(tipo, fic_document_id)` per dedup su sync ripetuti. Il filtro a monte ora fa `INSERT OR IGNORE` nella tabella invece di skip silenzioso. Aggiunti endpoint `/fic/warnings` (lista con filtro visto/non visto), `/fic/warnings/count`, `/fic/warnings/{id}` (dettaglio + raw payload), `/fic/warnings/{id}/visto` + `/unvisto`. Frontend: nuova tab "Warning" dentro la pagina Fatture in Cloud con badge arancio per i non visti, export CSV, bottone 🔍 per vedere il payload raw FIC in modale, bottoni ✓/↺ per marcare visto/non visto. Se un domani FIC cambia formato e inizia a inviare qualcosa di inatteso senza P.IVA, lo trovi tutto lì
+- **Dove vedere i fornitori flaggati nell'app**: Acquisti → Fornitori, sidebar filtri → checkbox "Mostra esclusi (N)". Appaiono con badge giallo "ESCLUSO" e si possono riattivare dal dettaglio fornitore (toggle in alto della scheda)
+- **Risultato**: dashboard Acquisti pulita immediatamente, futuri sync FIC ignorano automaticamente le prima-nota ma le registrano nella tabella warning. Se un giorno Cattaneo/Bana emettessero una vera fattura elettronica con P.IVA, quella avrà un record distinto in `fe_fornitore_categoria` (match per P.IVA) e verrà importata normalmente
 
 ---
 

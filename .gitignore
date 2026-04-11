@@ -35,7 +35,10 @@ app/data/*.prev
 app/data/.fuse_hidden*
 app/data/backups/
 app/data/users.json
-# modules.json è tracciato in git (non contiene dati sensibili, solo config moduli)
+# modules.json è tracciato in git come SEED (default ruoli/permessi).
+# Lo stato effettivo vive in modules.runtime.json che NON va in git,
+# altrimenti ogni push.sh riporta i ruoli ai default (bug B1 problemi.md)
+app/data/modules.runtime.json
 *.backup
 
 # =====================

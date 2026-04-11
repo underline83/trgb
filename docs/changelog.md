@@ -3,6 +3,72 @@
 
 ---
 
+## 2026-04-11 — Bugfix batch "problemi 10/04": D3 + D2 + A2 + A1 + C1 + C2 + B1 in una passata
+
+Sessione dedicata a chiudere i problemi che Marco aveva dettato il 10/04 durante l'uso del gestionale. 7 item su 8 chiusi, resta solo D1 (sistema storni difettoso) che richiede repro live.
+
+#### D3 — Doppioni versamenti banca €5000 (Flussi di Cassa)
+- **Mig 058** `058_pulizia_banca_duplicati_formato.py` — cleanup 10 duplicati residui del pattern "stesso movimento in formato BPM vecchio + nuovo" (uno con `ragione_sociale` pieno, l'altro vuoto). Raggruppa per `(data_contabile, importo)` in coppie, preserva il record con più metadati, migra link fattura/cg_uscite/cg_entrate, elimina il duplicato
+- **Soft dedup check in `banca_router.py`** — prima dell'INSERT durante l'import CSV, verifica se esiste già un record opposto sullo stesso `(data_contabile, importo)` e skippa
+- Risultato: €5000 del 26/01 ora record singolo, futuri import dei due formati BPM non creano più doppioni
+
+#### D2 — Chiusura manuale riconciliazioni parziali (Flussi di Cassa)
+- **Mig 059** `059_banca_riconciliazione_chiusa.py` — aggiunge 3 colonne a `banca_movimenti`: flag `riconciliazione_chiusa`, timestamp `riconciliazione_chiusa_at`, nota `riconciliazione_chiusa_note` + indice parziale
+- **Backend `banca_router.py`** — `get_cross_ref` tratta movimento con `riconciliazione_chiusa=1` come completamente collegato. Nuovi endpoint `POST /cross-ref/chiudi/{id}` (con nota, richiede almeno un link) e `POST /cross-ref/riapri/{id}`
+- **Frontend `BancaCrossRef.jsx` v5.1** — `isFullyLinked` include il flag. Bottone verde "✓ Chiudi" nei tab Suggerimenti e Senza match sui movimenti con link parziale. Nel tab Collegati, movimenti chiusi manualmente mostrano badge "🔒 Chiusa manuale" + nota + bottone "Riapri"
+- Risolve casi di note di credito, bonifici multipli F1+F2, fattura+rata dove le cifre non quadrano al centesimo
+
+#### A2 — Stipendi duplicati con nome corrotto (Dipendenti)
+- **Causa:** il parser LUL su un batch del 30/03 12:47 aveva sbagliato 2 estrazioni ("Marco Carminatio" e "Dos Santos Mirla S Albuquerque"). Un import successivo del 10/04 18:41 con nomi canonici non ha riconosciuto quelli vecchi e ha creato nuovi record cg_uscite invece di aggiornarli
+- **Mig 060** `060_pulizia_stipendi_duplicati.py` — cleanup 5 duplicati residui in cg_uscite. Strategia: raggruppa per `(periodo_riferimento, totale)` con tipo_uscita='STIPENDIO' e >=2 righe, normalizza il nome (strip "Stipendio - ", lowercase), classifica come CANONICO se matcha esattamente un nome di `dipendenti`, usa `SequenceMatcher` ratio ≥ 0.85 + subset di token per confermare stessa persona. Keeper = canonico con banca_movimento_id NOT NULL (o più recente), migra link banca se necessario, DELETE
+- **Fuzzy matching in `_match_dipendente`** (`dipendenti.py`) — dopo il fallimento del match esatto (CF o "cognome=primo_token"), scorre tutti i dipendenti attivi e calcola `SequenceMatcher` ratio tra il blob "COGNOME NOME" del PDF e ciascun candidato (prova anche l'ordine inverso). Soglia 0.85 tollera typo singoli e troncamenti. Previene ricorrenze future
+- Risultato: 30 → 25 stipendi in cg_uscite, 1 solo record per mese per dipendente, nome canonico ovunque
+
+#### A1 — FIC importa non-fatture (affitti Cattaneo/Bana) (Acquisti) + tab Warning
+- **Causa:** l'endpoint FIC `received_documents?type=expense` include registrazioni di prima nota (affitti, spese cassa) create in FIC senza numero di documento e senza P.IVA. Il sync le importava come fatture elettroniche finendo in `fe_fatture` e sporcando la dashboard Acquisti
+- **Mig 061** `061_escludi_fornitori_fittizi.py` — cleanup one-shot. Scansiona `fe_fatture` cercando record con `numero_fattura=''` AND `fornitore_piva=''` AND `fonte='fic'`, raggruppa per `fornitore_nome`, INSERT/UPDATE in `fe_fornitore_categoria` con `escluso_acquisti=1` e motivo esplicito. I record storici restano in `fe_fatture` per non rompere eventuali link cg_uscite, ma vengono filtrati dalla dashboard grazie al `COALESCE(fc.escluso_acquisti, 0) = 0` già attivo in `fe_import.py`. Idempotente
+- **Filtro a monte in `fattureincloud_router.py`** — nella FASE 1 del `sync_fic`, prima del dedup hash, se `doc_number` e `fornitore_piva` sono entrambi vuoti, skippa e conta in `skipped_non_fattura` (finisce nella note di fine sync)
+- **Upgrade A1 — Mig 062 `062_fic_sync_warnings.py`** — Marco ha chiesto di rendere tracciabili questi skip così se un domani FIC cambia formato se ne accorge. Creata tabella `fic_sync_warnings` (foodcost.db) con schema estendibile per futuri tipi di warning: `id`, `sync_at`, `tipo`, `fornitore_nome/piva`, `numero_documento`, `data_documento`, `importo`, `fic_document_id`, `raw_payload_json`, `visto`, `visto_at`, `note`. Indici `(tipo, visto)`, `fornitore_nome`, UNIQUE `(tipo, fic_document_id)` per dedup su sync ripetuti
+- **Filtro a monte → INSERT OR IGNORE**: invece di skip silenzioso, il filtro FIC persiste ora ogni non-fattura nella tabella warning con il payload raw completo. Non blocca mai il sync — se l'INSERT fallisce, logga e continua
+- **Endpoint FIC**: `GET /fic/warnings?tipo=&visto=` (lista con filtro), `GET /fic/warnings/count?visto=0` (badge), `GET /fic/warnings/{id}` (dettaglio + raw payload deserializzato), `POST /fic/warnings/{id}/visto?note=...`, `POST /fic/warnings/{id}/unvisto`
+- **Frontend `FattureInCloud.jsx` v1.1** — nuova tab "Warning" a fianco di "Fatture" con badge arancio count dei non visti. Filtro segmented non_visti/visti/tutti, export CSV one-click, bottone 🔍 per modale con payload raw FIC (debug retroattivo), bottoni ✓ marca visto (prompt per nota opzionale) / ↺ rimetti non visto
+- Risultato: 3 fornitori esclusi (BANA MARIA DOLORES, CATTANEO SILVIA, PONTIGGIA), 57 fatture filtrate dalla dashboard, totale €82.395,66. Futuri sync FIC ignorano automaticamente le prima-nota E le registrano nella tabella warning
+- **Dove vedere i fornitori flaggati:** Acquisti → Fornitori, sidebar filtri → checkbox "Mostra esclusi (N)" (appare solo se ci sono fornitori flaggati). Badge giallo "ESCLUSO" accanto al nome, toggle di riattivazione nel dettaglio fornitore
+
+#### C1 — Bottone WhatsApp per condividere cedolino (Dipendenti) — v2.2-buste-paga
+- **Backend `dipendenti.py`** — `GET /buste-paga` ora include `d.telefono` nel SELECT, così il frontend ha il numero senza round-trip aggiuntivo
+- **Frontend `DipendentiBustePaga.jsx`** — bottone "WA" emerald nella colonna Azioni accanto al bottone ✕. Al click: (1) normalizza il numero (strip spazi/+, aggiunge prefisso 39 ai cellulari italiani che iniziano con 3 o 0); (2) scarica il PDF in locale con nome `bustapaga_cognome_nome_YYYY-MM.pdf` (se `pdf_path` presente); (3) apre `https://wa.me/{num}?text=Ciao {nome}, ecco la tua busta paga di {mese}/{anno}. Netto: € X. Il PDF è stato scaricato sul mio PC, te lo allego qui.`
+- Il bottone è disabilitato in grigio se `telefono` è vuoto, con tooltip esplicativo
+- **Nota:** non esiste un modo via URL di allegare automaticamente il file — l'utente trascina il PDF scaricato nel thread WA aperto. L'unica alternativa sarebbe WhatsApp Business API (fuori scope)
+
+#### C2 — Buste paga in tab Documenti anagrafica (Dipendenti) — bug endpoint 500
+- **Causa reale:** l'endpoint `GET /dipendenti/{id}/documenti` (introdotto in sessione 18) faceva correttamente la UNION `dipendenti_allegati` + `buste_paga.pdf_path NOT NULL`, ma al momento di formattare il mese del cedolino chiamava `MESI_IT.get(c["mese"], ...)` — `MESI_IT` è definita come **lista** `["", "Gennaio", …]`, non dict. Appena incontrava un cedolino l'endpoint lanciava `AttributeError: 'list' object has no attribute 'get'`, FastAPI lo trasformava in HTTP 500, il frontend nel try/catch cadeva in `setDocs([])` → tab Documenti vuota per chi aveva cedolini
+- **Perché non era emerso prima:** era invisibile per i dipendenti senza cedolini con `pdf_path` (loop non entrava mai) o senza allegati manuali (lista vuota coerente con "non ho mai caricato nulla"). Marco ricadeva esattamente nel secondo caso
+- **Fix (1 riga)** in `dipendenti.py`:
+  ```python
+  # prima: MESI_IT.get(c["mese"], str(c["mese"])) if c["mese"] else "?"
+  mese_idx = c.get("mese") or 0
+  mese_label = MESI_IT[mese_idx] if 1 <= mese_idx <= 12 else "?"
+  ```
+- **Verifica:** simulata la query lato DB col nuovo codice — per Marco Carminati (id=1) vengono correttamente generati `Cedolino Gennaio/Febbraio/Marzo 2026`
+- **Lesson learned (importante):** alla prima passata avevo chiuso C2 come "feature già esistente" basandomi solo sulla lettura del codice e sul contenuto DB, senza testare end-to-end il percorso frontend→API→render. Fidarsi del codice senza eseguirlo è stato un errore che avrebbe potuto ripetersi. Da ora, per bug "la schermata è vuota" il primo passo è sempre il replay dell'endpoint, non la code review
+
+#### B1 — Reset ruoli/permessi dopo push (Sistema)
+- **Causa:** `app/data/modules.json` era tracciato in git con una nota nel `.gitignore` che diceva esplicitamente _"non contiene dati sensibili, solo config moduli"_. Quando Marco modificava ruoli/permessi in produzione, il backend salvava in `modules.json` sul VPS (corretto). Ma al primo `push.sh` successivo, il post-receive hook faceva `git checkout` del working dir **sovrascrivendo `modules.json` runtime con il seed hardcoded in git**. I ruoli si ripristinavano in modo imprevedibile, sempre in coincidenza con un push di codice non correlato
+- **Fix seed/runtime split in `modules_router.py`**: `modules.json` resta tracciato in git ma ora ha il ruolo di **seed** (default ruoli al primo deploy). Lo stato effettivo vive in `modules.runtime.json`, creato al primo `_load()` copiando il seed. `_save()` scrive sempre sul runtime, il seed non viene mai toccato dal backend
+- **`.gitignore`** — aggiunto `app/data/modules.runtime.json` così il file runtime sopravvive ai deploy. Commento esplicito sulla ragione del design
+- **Zero-break deploy:** al primo restart dopo il fix, `_load()` bootstrap-a il runtime dal seed attuale. Ruoli identici a prima del fix, poi modifiche stabili
+- **Nota recupero:** le modifiche runtime che Marco aveva fatto in passato e che sono state sovrascritte dai push precedenti **non sono recuperabili**. Marco dovrà reimpostare i permessi una volta dopo il primo deploy col fix
+- **Perché `users.json` non aveva il problema:** era già gitignored. Solo `modules.json` era tracciato
+
+#### File toccati
+- **Migrazioni**: 058, 059, 060, 061 (4 nuove)
+- **Backend**: `banca_router.py`, `dipendenti.py`, `modules_router.py`, `fattureincloud_router.py`
+- **Frontend**: `BancaCrossRef.jsx` v5.0→v5.1, `DipendentiBustePaga.jsx` v2.1→v2.2, `versions.jsx`
+- **Config/docs**: `.gitignore`, `docs/problemi.md`, `docs/changelog.md`, `docs/sessione.md`
+
+---
+
 ## 2026-04-10 (notte tardi) — Scadenzario CG v2.1c: rewrite sidebar sinistra + fix +x idempotente in push.sh
 
 #### UX — sidebar sinistra Scadenzario ottimizzata (ControlloGestioneUscite.jsx)

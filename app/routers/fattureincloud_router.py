@@ -526,6 +526,11 @@ def fic_sync(
                     # registrazioni di prima nota (affitti, spese cassa) che
                     # non hanno né numero di documento né P.IVA del fornitore.
                     # Questi record non devono finire in fe_fatture.
+                    #
+                    # Upgrade (mig 062): oltre a skippare, salvo un warning in
+                    # fic_sync_warnings così Marco può controllarli dal pannello
+                    # e sapere se FIC ha cambiato formato (es. una vera fattura
+                    # senza P.IVA in futuro).
                     if not (doc_number or "").strip() and not (fornitore_piva or "").strip():
                         skipped_non_fattura += 1
                         sync_items.append({
@@ -535,6 +540,29 @@ def fic_sync(
                             "totale": doc.get("amount_gross", 0) or 0,
                             "stato": "skipped_non_fattura",
                         })
+                        # Persist warning (dedup via UNIQUE (tipo, fic_document_id))
+                        try:
+                            conn.execute(
+                                """
+                                INSERT OR IGNORE INTO fic_sync_warnings
+                                    (sync_at, tipo, fornitore_nome, fornitore_piva,
+                                     numero_documento, data_documento, importo,
+                                     fic_document_id, raw_payload_json)
+                                VALUES (CURRENT_TIMESTAMP, 'non_fattura', ?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    fornitore_nome,
+                                    fornitore_piva or "",
+                                    doc_number or "",
+                                    doc_date or "",
+                                    float(doc.get("amount_gross", 0) or 0),
+                                    fic_id,
+                                    json.dumps(doc, ensure_ascii=False),
+                                ),
+                            )
+                        except Exception as wex:
+                            # Non bloccante: se il warning fallisce, skippo comunque
+                            error_details.append(f"Warning insert fallito per fic_id={fic_id}: {wex}")
                         _sync_progress["phase1_done"] += 1
                         continue
 
@@ -822,6 +850,161 @@ def fic_sync_log(
             (limit,),
         ).fetchall()
         return {"log": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.get("/warnings", summary="Lista warning sync FIC (mig 062 / problemi.md A1)")
+def fic_warnings_list(
+    tipo: str = Query("", description="Filtro per tipo (es. 'non_fattura'). Vuoto = tutti"),
+    visto: Optional[int] = Query(None, description="0=non visti, 1=visti, null=tutti"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=10, le=200),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Lista warning generati dal sync FIC (es. prima-nota senza P.IVA).
+    Marco può usare questa lista per verificare se FIC ha iniziato a inviare
+    documenti in formato inatteso (es. fatture vere senza P.IVA).
+    """
+    conn = get_db()
+    try:
+        where = []
+        params: list = []
+        if tipo:
+            where.append("tipo = ?")
+            params.append(tipo)
+        if visto is not None:
+            where.append("COALESCE(visto, 0) = ?")
+            params.append(int(bool(visto)))
+
+        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
+        offset = (page - 1) * per_page
+
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM fic_sync_warnings{where_sql}", params
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            f"""
+            SELECT id, sync_at, tipo, fornitore_nome, fornitore_piva,
+                   numero_documento, data_documento, importo,
+                   fic_document_id, COALESCE(visto, 0) AS visto,
+                   visto_at, note
+            FROM fic_sync_warnings
+            {where_sql}
+            ORDER BY sync_at DESC, id DESC
+            LIMIT ? OFFSET ?
+            """,
+            params + [per_page, offset],
+        ).fetchall()
+
+        return {
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "warnings": [dict(r) for r in rows],
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/warnings/count", summary="Conta warning non visti (per badge)")
+def fic_warnings_count(
+    visto: int = Query(0, description="0=non visti, 1=visti"),
+    current_user: Any = Depends(get_current_user),
+):
+    conn = get_db()
+    try:
+        # La tabella può non esistere su DB vecchi — difensivo
+        try:
+            total = conn.execute(
+                "SELECT COUNT(*) FROM fic_sync_warnings WHERE COALESCE(visto, 0) = ?",
+                (int(bool(visto)),),
+            ).fetchone()[0]
+        except sqlite3.OperationalError:
+            total = 0
+        return {"count": total}
+    finally:
+        conn.close()
+
+
+@router.get("/warnings/{warning_id}", summary="Dettaglio warning + raw payload FIC")
+def fic_warning_detail(
+    warning_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM fic_sync_warnings WHERE id = ?", (warning_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Warning non trovato")
+        out = dict(row)
+        # Parse raw_payload_json per UI più comoda
+        raw = out.get("raw_payload_json")
+        if raw:
+            try:
+                out["raw_payload"] = json.loads(raw)
+            except Exception:
+                out["raw_payload"] = None
+        return out
+    finally:
+        conn.close()
+
+
+@router.post("/warnings/{warning_id}/visto", summary="Marca warning come visto")
+def fic_warning_mark_seen(
+    warning_id: int,
+    note: str = Query("", description="Nota opzionale"),
+    current_user: Any = Depends(get_current_user),
+):
+    conn = get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM fic_sync_warnings WHERE id = ?", (warning_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, "Warning non trovato")
+        conn.execute(
+            """
+            UPDATE fic_sync_warnings
+               SET visto = 1,
+                   visto_at = CURRENT_TIMESTAMP,
+                   note = CASE WHEN ? = '' THEN note ELSE ? END
+             WHERE id = ?
+            """,
+            (note, note, warning_id),
+        )
+        conn.commit()
+        return {"ok": True, "id": warning_id}
+    finally:
+        conn.close()
+
+
+@router.post("/warnings/{warning_id}/unvisto", summary="Rimetti warning come non visto")
+def fic_warning_mark_unseen(
+    warning_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    conn = get_db()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM fic_sync_warnings WHERE id = ?", (warning_id,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(404, "Warning non trovato")
+        conn.execute(
+            """
+            UPDATE fic_sync_warnings
+               SET visto = 0, visto_at = NULL
+             WHERE id = ?
+            """,
+            (warning_id,),
+        )
+        conn.commit()
+        return {"ok": True, "id": warning_id}
     finally:
         conn.close()
 

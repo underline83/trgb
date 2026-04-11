@@ -16,7 +16,11 @@ from app.services.auth_service import get_current_user, is_admin
 
 router = APIRouter(prefix="/settings/modules", tags=["modules"])
 
-MODULES_FILE = Path(__file__).resolve().parent.parent / "data" / "modules.json"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# modules.json = seed tracciato in git (default ruoli)
+# modules.runtime.json = stato effettivo, NON tracciato (sopravvive ai push)
+MODULES_SEED_FILE = _DATA_DIR / "modules.json"
+MODULES_FILE = _DATA_DIR / "modules.runtime.json"
 VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sommelier", "sala", "viewer"}
 
 # Struttura default — usata se modules.json non esiste (es. primo deploy, file perso)
@@ -123,15 +127,33 @@ DEFAULT_MODULES = [
 
 
 def _load() -> list:
-    if not MODULES_FILE.exists():
-        # Genera modules.json di default se non esiste
-        _save(DEFAULT_MODULES)
-        return DEFAULT_MODULES
-    with open(MODULES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """
+    Strategia di caricamento ruoli/permessi moduli:
+    1. Se esiste modules.runtime.json → lo legge (stato effettivo, mai sovrascritto dal push)
+    2. Altrimenti, copia il seed da modules.json (tracciato in git) e lo salva come runtime
+    3. Se manca anche il seed → cade su DEFAULT_MODULES hardcoded
+    In questo modo Marco puo' modificare i ruoli in produzione senza che un futuro
+    `push.sh` sovrascriva le sue modifiche (era il bug B1 / problemi.md).
+    """
+    if MODULES_FILE.exists():
+        with open(MODULES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    # Prima volta dopo il fix: bootstrap dal seed tracciato in git
+    if MODULES_SEED_FILE.exists():
+        try:
+            with open(MODULES_SEED_FILE, "r", encoding="utf-8") as f:
+                seed = json.load(f)
+        except Exception:
+            seed = DEFAULT_MODULES
+    else:
+        seed = DEFAULT_MODULES
+    _save(seed)
+    return seed
 
 
 def _save(data: list) -> None:
+    """Salva sempre su modules.runtime.json (file gitignored)."""
+    MODULES_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(MODULES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 

@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-10 (sessione 23 — **notte/postsessione22**: incident backup risolto + Acquisti v2.2/v2.3 unificazione FattureDettaglio + Dettaglio Fornitore v3.2 sidebar colorata + Scadenzario v2.1c sidebar rewrite + push.sh fix +x idempotente)
+> Ultima sessione: 2026-04-11 (sessione 24 — **bugfix batch 10/04**: chiusi D3 + D2 + A2 + A1 + C1 + C2 + B1 in una sola passata. 3 nuove migrazioni 059/060/061, split seed/runtime modules.json, bottone WA cedolini, fuzzy matching dipendenti, filtro FIC non-fatture. Resta aperto solo D1 — sistema storni difettoso — che richiede repro live con Marco)
 
 ---
 

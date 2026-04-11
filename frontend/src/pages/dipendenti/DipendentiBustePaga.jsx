@@ -1,5 +1,6 @@
-// @version: v2.1-buste-paga
+// @version: v2.2-buste-paga
 // Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL 2-step (anteprima + conferma)
+// v2.2: bottone WA accanto a PDF per condividere cedolino via WhatsApp (problemi.md C1)
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -111,6 +112,58 @@ export default function DipendentiBustePaga() {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── WA: normalizza telefono e apre wa.me con messaggio precompilato ──
+  // Il file PDF non puo' essere allegato via URL: viene scaricato in locale e
+  // l'utente deve poi trascinarlo/allegarlo nel thread WA che si e' aperto.
+  const normalizePhoneForWA = (raw) => {
+    if (!raw) return null;
+    // Rimuovi tutto eccetto cifre e +
+    let s = String(raw).replace(/[^\d+]/g, "");
+    if (!s) return null;
+    if (s.startsWith("+")) s = s.slice(1);
+    // Se non ha prefisso internazionale e comincia con 3 (cellulare IT) o 0 (fisso), aggiungi 39
+    if (s.length <= 10 && /^[03]/.test(s)) s = "39" + s.replace(/^0/, "");
+    return s;
+  };
+
+  const handleShareWA = async (b) => {
+    const phone = normalizePhoneForWA(b.telefono);
+    if (!phone) {
+      alert(`Nessun numero di telefono in anagrafica per ${b.cognome} ${b.nome}. Inseriscilo in Dipendenti → Anagrafica.`);
+      return;
+    }
+    const periodo = `${MESI[b.mese] || b.mese}/${b.anno}`;
+    const testo =
+      `Ciao ${b.nome || ""}, ecco la tua busta paga di ${periodo}.\n` +
+      `Netto: € ${fmt(b.netto)}.\n` +
+      `(Il PDF e' stato scaricato sul mio PC, te lo allego qui.)`;
+    // Se c'e' il PDF, lo scarica in locale cosi' Marco puo' allegarlo al thread WA
+    if (b.pdf_path) {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `bustapaga_${(b.cognome || "").toLowerCase()}_${(b.nome || "").toLowerCase()}_${b.anno}-${String(b.mese).padStart(2, "0")}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+      } catch (err) {
+        console.error("Errore download PDF per WA:", err);
+      }
+    }
+    // Apre WhatsApp Web / app con testo precompilato
+    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(testo)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 
   // ── STEP 1: Upload → Anteprima ──
@@ -712,7 +765,7 @@ export default function DipendentiBustePaga() {
                       <th className="px-4 py-1.5 text-right">TFR</th>
                       <th className="px-4 py-1.5 text-center">Ore</th>
                       <th className="px-4 py-1.5 text-center">Stato</th>
-                      <th className="px-4 py-1.5 text-center w-16">Azioni</th>
+                      <th className="px-4 py-1.5 text-center w-28">Azioni</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -766,10 +819,26 @@ export default function DipendentiBustePaga() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-center">
-                          <button onClick={() => handleDelete(b.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200">
-                            {"\u2715"}
-                          </button>
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleShareWA(b)}
+                              disabled={!b.telefono}
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                b.telefono
+                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                  : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                              }`}
+                              title={b.telefono
+                                ? `Condividi busta paga via WhatsApp (${b.telefono})`
+                                : "Numero di telefono non presente in anagrafica"}>
+                              WA
+                            </button>
+                            <button onClick={() => handleDelete(b.id)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                              title="Elimina cedolino">
+                              {"\u2715"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

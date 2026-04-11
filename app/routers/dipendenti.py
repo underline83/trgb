@@ -1092,7 +1092,7 @@ def lista_buste_paga(
     """Lista cedolini importati."""
     conn = get_dipendenti_conn()
     query = """
-        SELECT bp.*, d.nome, d.cognome, d.ruolo, d.giorno_paga
+        SELECT bp.*, d.nome, d.cognome, d.ruolo, d.giorno_paga, d.telefono
         FROM buste_paga bp
         JOIN dipendenti d ON d.id = bp.dipendente_id
         WHERE 1=1
@@ -1937,7 +1937,9 @@ def lista_documenti(
 
     for c in cedolini:
         c = dict(c)
-        mese_label = MESI_IT.get(c["mese"], str(c["mese"])) if c["mese"] else "?"
+        # MESI_IT è una lista (index 0 vuoto, 1..12 = nomi mesi), non un dict
+        mese_idx = c.get("mese") or 0
+        mese_label = MESI_IT[mese_idx] if 1 <= mese_idx <= 12 else "?"
         docs.append({
             "id": f"bp_{c['id']}",
             "filename_originale": f"Cedolino_{mese_label}_{c['anno']}.pdf",

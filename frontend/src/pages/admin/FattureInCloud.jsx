@@ -1,5 +1,7 @@
-// @version: v1.0-fattureincloud
+// @version: v1.1-fattureincloud-warnings
 // Pagina integrazione Fatture in Cloud — connessione, sync fatture ricevute, lista
+// + Tab "Warning" (mig 062 / problemi.md A1): lista documenti FIC skippati dal sync
+// perché senza numero e senza P.IVA (prima nota mascherata da fattura).
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
@@ -22,6 +24,14 @@ export default function FattureInCloud() {
   const [anno, setAnno] = useState(new Date().getFullYear());
   const [syncLog, setSyncLog] = useState([]);
   const [filterFornitore, setFilterFornitore] = useState("");
+
+  // ── Tab + Warnings (A1 / mig 062) ───────────────────────
+  const [activeTab, setActiveTab] = useState("fatture"); // "fatture" | "warnings"
+  const [warnings, setWarnings] = useState([]);
+  const [warningsTotal, setWarningsTotal] = useState(0);
+  const [warningsUnseen, setWarningsUnseen] = useState(0);
+  const [warningsFilter, setWarningsFilter] = useState("non_visti"); // "non_visti" | "visti" | "tutti"
+  const [warningDetail, setWarningDetail] = useState(null); // raw payload modale
 
   // ── Fetch status ────────────────────────────────────────
   const fetchStatus = useCallback(async () => {
@@ -68,6 +78,92 @@ export default function FattureInCloud() {
   useEffect(() => {
     if (status?.connected) fetchSyncLog();
   }, [status, fetchSyncLog]);
+
+  // ── Fetch warnings ──────────────────────────────────────
+  const fetchWarnings = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ tipo: "non_fattura", per_page: 200 });
+      if (warningsFilter === "non_visti") params.append("visto", "0");
+      else if (warningsFilter === "visti") params.append("visto", "1");
+      const r = await apiFetch(`${FC}/warnings?${params}`);
+      if (r.ok) {
+        const d = await r.json();
+        setWarnings(d.warnings || []);
+        setWarningsTotal(d.total || 0);
+      }
+    } catch (_) {}
+  }, [warningsFilter]);
+
+  const fetchWarningsCount = useCallback(async () => {
+    try {
+      const r = await apiFetch(`${FC}/warnings/count?visto=0`);
+      if (r.ok) {
+        const d = await r.json();
+        setWarningsUnseen(d.count || 0);
+      }
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (status?.connected) fetchWarningsCount();
+  }, [status, fetchWarningsCount]);
+
+  useEffect(() => {
+    if (status?.connected && activeTab === "warnings") fetchWarnings();
+  }, [status, activeTab, fetchWarnings]);
+
+  // ── Warning actions ─────────────────────────────────────
+  const handleMarkSeen = async (w) => {
+    const note = prompt("Nota opzionale (lascia vuoto per saltare):", w.note || "") ?? "";
+    try {
+      const r = await apiFetch(`${FC}/warnings/${w.id}/visto?note=${encodeURIComponent(note)}`, { method: "POST" });
+      if (r.ok) {
+        fetchWarnings();
+        fetchWarningsCount();
+      }
+    } catch (_) {}
+  };
+
+  const handleMarkUnseen = async (w) => {
+    try {
+      const r = await apiFetch(`${FC}/warnings/${w.id}/unvisto`, { method: "POST" });
+      if (r.ok) {
+        fetchWarnings();
+        fetchWarningsCount();
+      }
+    } catch (_) {}
+  };
+
+  const handleShowDetail = async (w) => {
+    try {
+      const r = await apiFetch(`${FC}/warnings/${w.id}`);
+      if (r.ok) setWarningDetail(await r.json());
+    } catch (_) {}
+  };
+
+  const exportWarningsCsv = () => {
+    if (!warnings.length) return;
+    const esc = (v) => {
+      const s = v == null ? "" : String(v);
+      return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = [
+      ["id", "sync_at", "tipo", "fornitore", "piva", "numero", "data", "importo", "fic_id", "visto", "note"],
+      ...warnings.map((w) => [
+        w.id, w.sync_at, w.tipo, w.fornitore_nome, w.fornitore_piva,
+        w.numero_documento, w.data_documento, w.importo, w.fic_document_id,
+        w.visto, w.note,
+      ]),
+    ];
+    const csv = rows.map((r) => r.map(esc).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fic_warnings_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // ── Connect ─────────────────────────────────────────────
   const handleConnect = async () => {
@@ -307,6 +403,37 @@ export default function FattureInCloud() {
               </div>
             )}
 
+            {/* Tabs */}
+            <div className="flex items-center gap-1 border-b border-neutral-200 mb-4">
+              <button
+                onClick={() => setActiveTab("fatture")}
+                className={`px-4 py-2.5 text-sm font-semibold transition border-b-2 -mb-px ${
+                  activeTab === "fatture"
+                    ? "border-teal-600 text-teal-900"
+                    : "border-transparent text-neutral-500 hover:text-neutral-800"
+                }`}
+              >
+                Fatture
+              </button>
+              <button
+                onClick={() => setActiveTab("warnings")}
+                className={`px-4 py-2.5 text-sm font-semibold transition border-b-2 -mb-px flex items-center gap-2 ${
+                  activeTab === "warnings"
+                    ? "border-amber-500 text-amber-800"
+                    : "border-transparent text-neutral-500 hover:text-neutral-800"
+                }`}
+              >
+                Warning
+                {warningsUnseen > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                    {warningsUnseen}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {activeTab === "fatture" && (
+            <>
             {/* Filtri */}
             <div className="flex items-center gap-3 mb-4">
               <input
@@ -418,7 +545,180 @@ export default function FattureInCloud() {
                 </div>
               </div>
             )}
+            </>
+            )}
+
+            {activeTab === "warnings" && (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-xs text-amber-900">
+                  <div className="font-semibold mb-1">⚠ Documenti skippati dal sync FIC</div>
+                  <div className="text-amber-800">
+                    Record importati da Fatture in Cloud come <code className="bg-amber-100 px-1 rounded">expense</code> ma
+                    senza numero documento e senza P.IVA del fornitore — tipicamente
+                    registrazioni di prima nota (affitti, spese cassa) non vere fatture.
+                    Il sync li esclude automaticamente dalla dashboard Acquisti.
+                    <br />
+                    Controlla periodicamente se emerge qualcosa di inatteso: se FIC inizia a
+                    inviare documenti nuovi, qui li trovi e puoi decidere come gestirli.
+                  </div>
+                </div>
+
+                {/* Filtri */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg p-1">
+                    {[
+                      { k: "non_visti", label: "Non visti" },
+                      { k: "visti", label: "Visti" },
+                      { k: "tutti", label: "Tutti" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.k}
+                        onClick={() => setWarningsFilter(opt.k)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                          warningsFilter === opt.k
+                            ? "bg-amber-500 text-white"
+                            : "text-neutral-600 hover:bg-neutral-100"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-xs text-neutral-500">
+                    {warningsTotal} warning
+                  </span>
+                  <button
+                    onClick={exportWarningsCsv}
+                    disabled={!warnings.length}
+                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-200 hover:bg-neutral-50 disabled:opacity-40"
+                  >
+                    📥 Export CSV
+                  </button>
+                </div>
+
+                {/* Tabella warnings */}
+                <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-amber-50 border-b border-amber-100">
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-800">Sync</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-800">Fornitore</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-800">Data</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-amber-800">Importo</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-amber-800">FIC ID</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-amber-800">Stato</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-amber-800">Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {warnings.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center text-neutral-400">
+                            {warningsFilter === "non_visti"
+                              ? "Nessun warning da controllare 👍"
+                              : "Nessun warning."}
+                          </td>
+                        </tr>
+                      ) : (
+                        warnings.map((w) => (
+                          <tr key={w.id} className="border-b border-neutral-100 hover:bg-amber-50/40 transition">
+                            <td className="px-4 py-2.5 text-neutral-500 text-xs font-mono">
+                              {w.sync_at?.replace("T", " ").slice(0, 16)}
+                            </td>
+                            <td className="px-4 py-2.5 font-medium text-neutral-900">{w.fornitore_nome || "—"}</td>
+                            <td className="px-4 py-2.5 text-neutral-600">{w.data_documento || "—"}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-amber-900">€ {fmt(w.importo)}</td>
+                            <td className="px-4 py-2.5 text-neutral-500 text-xs font-mono">{w.fic_document_id}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              {w.visto ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">✓ Visto</span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800">Da vedere</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <div className="flex items-center gap-1 justify-center">
+                                <button
+                                  onClick={() => handleShowDetail(w)}
+                                  title="Mostra payload raw FIC"
+                                  className="px-2 py-1 rounded text-xs border border-neutral-200 hover:bg-neutral-100"
+                                >
+                                  🔍
+                                </button>
+                                {w.visto ? (
+                                  <button
+                                    onClick={() => handleMarkUnseen(w)}
+                                    title="Rimetti come non visto"
+                                    className="px-2 py-1 rounded text-xs border border-amber-300 text-amber-700 hover:bg-amber-50"
+                                  >
+                                    ↺
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleMarkSeen(w)}
+                                    title="Marca come visto (nota opzionale)"
+                                    className="px-2 py-1 rounded text-xs border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                  >
+                                    ✓
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Note visibili (solo se ci sono warning con note) */}
+                {warnings.some((w) => w.note) && (
+                  <div className="mt-4 space-y-1">
+                    {warnings.filter((w) => w.note).map((w) => (
+                      <div key={`note-${w.id}`} className="text-xs text-neutral-600">
+                        <span className="font-mono text-amber-700">#{w.id}</span>{" "}
+                        <span className="text-neutral-400">{w.fornitore_nome}:</span>{" "}
+                        {w.note}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </>
+        )}
+
+        {/* Modale dettaglio raw FIC */}
+        {warningDetail && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            onClick={() => setWarningDetail(null)}
+          >
+            <div
+              className="bg-white rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-teal-900">Payload raw FIC</h3>
+                  <p className="text-xs text-neutral-500">
+                    {warningDetail.fornitore_nome} — fic_id {warningDetail.fic_document_id}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setWarningDetail(null)}
+                  className="text-neutral-400 hover:text-neutral-700 text-2xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                <pre className="text-[11px] font-mono text-neutral-700 bg-neutral-50 p-4 rounded-lg whitespace-pre-wrap break-all">
+                  {JSON.stringify(warningDetail.raw_payload || warningDetail, null, 2)}
+                </pre>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
