@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-04-11 — Sessione 26: tentativo App Apple Fase 0 + Punto 1 responsive, ROLLBACK ENTRAMBI
+
+Sessione ambiziosa partita come avvio della roadmap App Apple (`docs/analisi_app_apple.md`, `docs/roadmap.md` §33) e finita con due rollback in produzione.
+
+**Cosa è rimasto in produzione (positivo):**
+- `docs/analisi_app_apple.md` — analisi completa scenari Apple (5 scenari A-E, pitfall, costi, tempi)
+- `docs/piano_responsive_3target.md` — piano in 7 punti per ottimizzare Mac+iPad. iPhone esplicitamente fuori scope per decisione di Marco fino a "progetto quasi finito"
+- `docs/roadmap.md` §33 — roadmap App Apple (Fase 0 PWA + Fase 1 Capacitor + Fase 2 SwiftUI futura), aggiornata con stato regressioni
+- `frontend/src/main.jsx` — blocco difensivo `serviceWorker.getRegistrations().then(unregister) + caches.delete()`. Lasciato attivo per ripulire automaticamente i client (Mac/iPad) dove era stato registrato il sw.js durante il tentativo PWA. Si toglie quando saremo certi che nessun client ha più SW vecchio
+- `frontend/public/icons/` (19 icone PWA/Apple), `frontend/public/manifest.webmanifest`, meta tag iOS in `index.html`, fix `.gitignore` per pattern `Icon?` — tutti sul disco ma inerti senza il SW. Pronti per essere riusati quando rifaremo la PWA correttamente
+- `frontend/src/hooks/useAppHeight.js` — orfano, non importato. Lasciato per riutilizzo dopo debug
+
+**Cosa è stato rollbackato:**
+- **PWA Fase 0** — il `sw.js` con strategia stale-while-revalidate causava crash su iPad aprendo Cantina e RicetteNuova (pagine pesanti, sospetto cache servita male da iOS Safari al primo deploy). Disabilitata la registrazione del SW in `main.jsx`
+- **Punto 1 piano responsive — `useAppHeight` hook** — anche dopo rollback PWA, Cantina/RicetteNuova continuavano a crashare. RicetteNuova non era nemmeno stata toccata dal Punto 1 → causa probabile nell'hook globale, non nel CSS pagina-per-pagina. Rollback completo: import + chiamata `useAppHeight` rimossi da `App.jsx`, tutti i 6 file pagina (FattureElenco, FattureFornitoriElenco, ControlloGestioneUscite, DipendentiAnagrafica, MagazzinoVini, ControlloGestioneRiconciliazione) ripristinati a `calc(100vh - Npx)` originale
+
+**Lezione operativa critica:** mai più commit a blocchi accoppiati su modifiche infrastrutturali rischiose. Il push iniziale mescolava 3 cambiamenti incrociati (PWA SW + hook globale + 6 file CSS) in un push solo. Quando è esploso non c'era modo di bisezionare la causa senza rollback completo. Workflow per i prossimi tentativi (vedi `docs/piano_responsive_3target.md` cap. 10 e roadmap §33 D.4):
+- `useAppHeight`: prima commit l'hook isolato (senza toccare nessun file pagina), poi 1 file pagina alla volta, dalla più semplice (DipendentiAnagrafica) alla più complessa (MagazzinoVini)
+- PWA Fase 0: `CACHE_NAME` legato a `BUILD_VERSION`, network-first per app shell, no precache di chunk Vite, test in dev tools desktop con throttling+offline mode prima di toccare il VPS, test su iPad con Safari devtools collegato
+
+**Stato finale codice:** identico a fine sessione 25, eccetto i file marcati "in produzione" qui sopra.
+
+---
+
 ## 2026-04-11 — Fix .gitignore: protezione cartelle runtime dal post-receive `git clean -fd`
 
 **Bug critico** segnalato da Marco: dopo un push.sh i PDF cedolini importati il 10/04 sono spariti dal VPS. Badge "PDF" viola ancora visibile nella pagina Documenti dipendente (il `pdf_path` nel DB esiste), ma il download dava 404 "File PDF non trovato su disco".

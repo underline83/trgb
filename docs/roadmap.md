@@ -195,20 +195,40 @@ Roadmap ufficiale per lo sviluppo progressivo del gestionale.
 
 ## 33. App Apple standalone (NUOVO — 2026-04-11)
 > Analisi completa: `docs/analisi_app_apple.md`
+> Tentativo Fase 0 + Punto 1 piano responsive: vedi `docs/sessione.md` (sessione 26), entrambi rollbackati
 
 **Obiettivo finale:** TRGB come app vera su iPad (primario) + Mac (secondario) + iPhone "lite" (funzionalita' ridotte). Prima distribuzione privata interna, poi App Store pubblico.
 
 **Approccio progressivo in 2 fasi + decisione futura:**
 
-### Fase 0 — PWA (IN CORSO — sessione 26)
-- [x] Icone Apple/PWA da logo 5000x5000 (19 file in `frontend/public/icons/`) — 2026-04-11
-- [x] `manifest.webmanifest` con nome, icone, colori TRGB (teal primario #14b8a6, slate-900 background) — 2026-04-11
-- [x] Service worker base (`frontend/public/sw.js`): cache shell SWR, API cross-origin mai cache-ate — 2026-04-11
-- [x] Meta tag Apple in `index.html`: `apple-mobile-web-app-capable`, `apple-touch-icon` multi-size, theme-color, viewport-fit=cover — 2026-04-11
-- [x] Registrazione SW in `main.jsx` (solo PROD, non in dev) — 2026-04-11
-- [ ] **Test su iPad reale**: "Aggiungi a schermata Home" da Safari, verifica icona, avvio standalone, splash background
-- [ ] **Test su iPhone reale**: stesso workflow, verifica safe-area notch
-- [ ] (opzionale) Splash screens iOS — rimandato a Fase 1, troppo codice per poco valore in Fase 0
+### Fase 0 — PWA (TENTATIVO ROLLBACKATO — sessione 26, da rifare)
+**Stato:** asset PWA scritti su disco ma SW disabilitato in `main.jsx` perché crashava iPad su pagine pesanti (Cantina, RicetteNuova). Da reinvestigare con strategia cache diversa.
+
+- [x] Icone Apple/PWA da logo 5000x5000 (19 file in `frontend/public/icons/`) — 2026-04-11, sul disco ma inerti
+- [x] `manifest.webmanifest` con nome, icone, colori TRGB (teal #14b8a6, slate-900 background) — 2026-04-11, sul disco ma inerte
+- [x] Meta tag Apple in `index.html`: `apple-mobile-web-app-capable`, `apple-touch-icon` multi-size, theme-color, viewport-fit=cover — 2026-04-11, attivi (innocui anche senza SW)
+- [~] Service worker base (`frontend/public/sw.js`): cache shell SWR — **scritto ma DISABILITATO**, causava crash iPad. Da riscrivere
+- [~] Registrazione SW in `main.jsx` — **disabilitata**, sostituita con blocco difensivo `unregister + caches.delete` per ripulire client già registrati
+- [ ] **D.4 — Re-implementare PWA Fase 0** con strategia cache safe per iOS:
+  - `CACHE_NAME` legato a `BUILD_VERSION` (cache buster automatico per ogni deploy)
+  - Network-first per app shell (no stale-while-revalidate)
+  - Nessun precache di chunk Vite (i nomi cambiano per hash, precache stale)
+  - Test in dev tools desktop con throttling + Offline mode prima di toccare il VPS
+  - Test su iPad con Safari devtools collegato (Mac → Safari → Develop → iPad) per vedere errori console reali
+- [ ] **D.1 — Test su iPad reale** (bloccato fino a D.4): "Aggiungi a schermata Home" da Safari, verifica icona, avvio standalone, splash background
+- [ ] **Test su iPhone reale**: bloccato (vedi nota iPhone più sotto)
+- [ ] (opzionale) Splash screens iOS — rimandato a Fase 1
+
+### Lavoro responsive Mac+iPad collegato (piano 7 punti)
+> Documento di riferimento: `docs/piano_responsive_3target.md`
+
+- [~] **Punto 1 — `useAppHeight` hook** — TENTATO E ROLLBACKATO (sessione 26). Crashava Cantina/RicetteNuova anche dopo rollback puntuale dei file pagina, causa probabilmente nell'hook stesso (ResizeObserver loop? race header non montato? interazione con tabelle sticky di MagazzinoVini?). Hook orfano sul disco in `frontend/src/hooks/useAppHeight.js`. **C.3:** reinvestigare con bisezione step-by-step (commit isolato hook, poi 1 pagina alla volta)
+- [ ] **B.1 Punto 2 — Header touch-compatibile** (matchMedia hover:none, tap apre flyout invece di navigare). **Indipendente dal Punto 1, può partire senza aspettare C.3.** ⏱ ~30-45 min
+- [ ] B.2 Punto 3 — Tooltip popover componente
+- [ ] B.3 Punto 4 — Input font-size 16px su touch
+- [ ] B.4 Punto 5 — Tap target 40-44px sidebar filtri
+- [ ] B.5 Punto 6 (opzionale) — Sidebar width → variabile `w-sidebar`
+- [ ] B.6 Punto 7 (CONDIZIONALE) — Tabelle critiche `hidden xl:table-cell`
 
 ### Fase 1 — Wrapper Capacitor (DA AVVIARE)
 **Prerequisito:** Apple Developer Program ($99/anno, Marco), Mac con Xcode aggiornato.

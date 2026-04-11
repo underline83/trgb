@@ -1,8 +1,8 @@
 # TRGB — Piano responsive Mac+iPad
 
 **Sessione di analisi:** 2026-04-11 (sessione 26 — Marco + Claude)
-**Stato:** pianificazione completa, **nessun codice ancora scritto**.
-**Prossima sessione operativa:** esecuzione piano 7 punti Mac+iPad.
+**Stato:** pianificazione completa. Punto 1 tentato in produzione e ROLLBACKATO (vedi cap. 10). Punti 2-7 mai tentati.
+**Prossima sessione operativa:** **C.3** (reinvestigare Punto 1 con bisezione) oppure **B.1** (Punto 2 Header touch — indipendente dal Punto 1, può partire prima).
 
 > **Nota al Claude che legger questo file in una sessione futura:** questo  il piano condiviso con Marco alla fine della sessione 26. Leggi TUTTO prima di proporre modifiche. I punti 1-7 sono dettagliati e pronti da eseguire.
 
@@ -330,4 +330,105 @@ Questi punti NON vanno decisi ora. Qualunque scelta fatta oggi  quasi certamente
 
 ---
 
-**Fine piano.** Nessun file del codice modificato in sessione 26. La prossima Claude che apre una sessione responsive ha qui tutto quello che serve per partire senza ricostruire la conversazione.
+**Fine piano.** La prossima Claude che apre una sessione responsive ha qui tutto quello che serve per partire senza ricostruire la conversazione.
+
+---
+
+## 10. POSTMORTEM tentativo Punto 1 (sessione 26, rollbackato)
+
+> **Importante per il prossimo Claude:** prima di rifare il Punto 1, leggi questo capitolo e segui il workflow di bisezione descritto sotto. Non rifare l'errore di committare hook + 6 file pagine in un push solo.
+
+### Cosa abbiamo provato
+
+Single push contenente TRE cambiamenti accoppiati:
+1. Nuovo hook `frontend/src/hooks/useAppHeight.js` con `ResizeObserver` su `<header>` e setProperty `--app-h` su `document.documentElement`
+2. Import + chiamata `useAppHeight()` in `App.jsx` PRIMA del return condizionale per token (per rispettare regole hook React)
+3. Sostituzione di `calc(100vh - Npx)` con `var(--app-h, 100dvh)` (eventualmente meno offset locali) in 6 file: FattureElenco, FattureFornitoriElenco, ControlloGestioneUscite, DipendentiAnagrafica, MagazzinoVini, ControlloGestioneRiconciliazione
+
+In parallelo, nello stesso push, anche la **PWA Fase 0** (manifest, icone, sw.js, meta iOS).
+
+### Cosa è successo
+
+- iPad: crash aprendo Cantina (MagazzinoVini)
+- iPad: crash aprendo Nuova Ricetta (RicetteNuova) — pagina che NON era stata toccata dal Punto 1
+- Mac: inizialmente OK, poi (dopo i tentativi di rollback parziale) crashava anche su Mac aprendo Cantina
+
+Il fatto che RicetteNuova crashasse pur non essendo nel Punto 1 ha indicato che la causa era globale: o il SW PWA o l'hook in App.jsx, non il CSS pagina-per-pagina.
+
+### Tentativi di isolamento (in ordine)
+
+1. **Rollback altezza Cantina** (`MagazzinoVini.jsx` tornato a `calc(100vh - 88px)`) → non bastava
+2. **Disabilita SW PWA** (`main.jsx` con blocco difensivo `unregister + caches.delete`) → non bastava
+3. **Rollback completo Punto 1** (tolto `useAppHeight` da App.jsx, ripristinati tutti e 6 i file) → ✅ ha funzionato
+
+Quindi la causa più probabile è **l'hook stesso**, non la PWA. Il SW potrebbe essere stato un problema secondario, ma il colpevole primario è in `useAppHeight.js`.
+
+### Sospetti per `useAppHeight`
+
+- **ResizeObserver loop**: l'hook setta `--app-h` in risposta al ResizeObserver del `<header>`. Se cambiare `--app-h` provoca un reflow che cambia l'altezza dell'header (banner viewer? layout shift?), entra in loop. iOS Safari WebKit è notoriamente intollerante.
+- **Race header non ancora montato**: l'hook chiama `document.querySelector("header")` al primo effect, ma in App.jsx l'hook è chiamato PRIMA del return condizionale per token. Quando l'utente non è loggato non c'è header. Quando lo è, l'header viene montato dal router DOPO il primo effect dell'hook. Il `requestAnimationFrame` di fallback dovrebbe gestirlo ma forse no.
+- **Fallback iOS Safari < 15.4**: `100dvh` è supportato da iOS 15.4+. Se l'iPad di Marco è più vecchio, il fallback CSS è ignorato e `var(--app-h, 100dvh)` diventa vuoto → height vuoto → layout rotto. NON spiegherebbe il crash di RicetteNuova però (che non usa `var(--app-h)`)
+- **Interazione con `position: sticky` di MagazzinoVini**: thead sticky + altezza dinamica = trigger noto di reflow loops in WebKit
+- **`React.StrictMode`** in `main.jsx`: in dev e prod monta i componenti due volte. L'effect dell'hook viene chiamato due volte → due ResizeObserver attivi sullo stesso header → loop?
+
+### Workflow di bisezione obbligatorio per il prossimo tentativo (C.3)
+
+**Passo 1 — Hook isolato, 0 file pagina**
+- Commit con SOLO `useAppHeight.js` (anche con possibili modifiche per i sospetti sopra) + import + chiamata in `App.jsx`
+- Nessun file pagina toccato. Le pagine continuano a usare `calc(100vh - Npx)` originale, quindi `--app-h` è settato ma nessuno lo legge
+- Test: aprire OGNI pagina già esistente, in particolare Cantina e Nuova Ricetta. NIENTE deve crashare. Se crasha qui → la causa è dentro l'hook (ResizeObserver, race, StrictMode loop). Debug isolato dell'hook prima di andare avanti
+- Test specifico console: aprire DevTools, cercare warning "ResizeObserver loop completed with undelivered notifications" o errori React simili
+- Test specifico iOS: usare Safari devtools collegato (Mac → Safari → Develop → iPad di Marco) per leggere errori console reali su iPad
+
+**Passo 2 — UNA pagina sostituita (la più semplice)**
+- Sostituire `calc(100vh - 49px)` → `var(--app-h, 100dvh)` SOLO in `DipendentiAnagrafica.jsx` (la più piatta, niente sub-nav, niente sticky thead pesante)
+- Commit + push. Test esclusivamente quella pagina su Mac e iPad
+- Se crasha → il bug è in come `var(--app-h)` viene interpretato in produzione, non nell'hook. Stop e debug
+
+**Passo 3-7 — Una pagina alla volta**
+- Ordine di rischio crescente: FattureElenco → FattureFornitoriElenco → ControlloGestioneUscite → ControlloGestioneRiconciliazione → MagazzinoVini (la più pesante per ULTIMA)
+- Un commit per pagina. Test della pagina specifica subito dopo il push, prima di passare alla successiva
+- Se una crasha, sai esattamente quale e puoi rollbackare solo quella
+
+### Possibili modifiche difensive da provare nell'hook (passo 1)
+
+```js
+// Anti-loop ResizeObserver: ignora un calcolo se troppo vicino al precedente
+let lastTime = 0;
+const measure = () => {
+  const now = Date.now();
+  if (now - lastTime < 100) return;
+  lastTime = now;
+  // ... resto
+};
+
+// Oppure: usa solo window resize, niente ResizeObserver sul header
+//   (perdiamo la gestione del banner viewer ma evitiamo il loop)
+```
+
+```jsx
+// In App.jsx, NON dentro App() ma sopra il root in main.jsx
+// (così l'hook NON viene rieseguito ad ogni rerender di App)
+```
+
+```js
+// Se il sospetto è StrictMode: usare una guardia globale
+let hookInitialized = false;
+export default function useAppHeight() {
+  useEffect(() => {
+    if (hookInitialized) return;
+    hookInitialized = true;
+    // ... resto
+  }, []);
+}
+```
+
+### File che esistono ancora dopo il rollback
+
+- `frontend/src/hooks/useAppHeight.js` — orfano, sul disco, non importato
+- Commenti residui in `App.jsx` (riga 12 import commentato, riga 130 chiamata commentata) — vanno rimossi prima di reimportare l'hook per evitare doppioni
+- I 6 file pagina sono identici all'originale pre-Punto 1
+
+### Nota su PWA Fase 0 (parallela ma separata)
+
+La PWA Fase 0 è stata anch'essa rollbackata nello stesso giro (vedi `docs/sessione.md` sessione 26 e `roadmap.md` §33 D.4). Anche qui c'è un postmortem con sospetti diversi (cache stale-while-revalidate, CACHE_NAME senza versione). Il fix descritto in D.4 va fatto INDIPENDENTEMENTE da C.3 — sono due bug diversi.
