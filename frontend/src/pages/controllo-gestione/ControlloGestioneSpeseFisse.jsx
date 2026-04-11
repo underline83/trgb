@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
+import Tooltip from "../../components/Tooltip";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -925,13 +926,14 @@ export default function ControlloGestioneSpeseFisse() {
                 <>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs text-neutral-500">Seleziona una o più fatture da rateizzare insieme:</p>
-                    <button
-                      onClick={loadFatture}
-                      className="text-[10px] text-violet-600 hover:text-violet-800"
-                      title="Ricarica fatture dal tabellone uscite"
-                    >
-                      ↻ Ricarica
-                    </button>
+                    <Tooltip label="Ricarica fatture dal tabellone uscite">
+                      <button
+                        onClick={loadFatture}
+                        className="text-[10px] text-violet-600 hover:text-violet-800"
+                      >
+                        ↻ Ricarica
+                      </button>
+                    </Tooltip>
                   </div>
 
                   {/* Barra di ricerca */}
@@ -1474,25 +1476,28 @@ export default function ControlloGestioneSpeseFisse() {
                         <td className="px-4 py-2.5 text-center">
                           <div className="flex gap-1 justify-center flex-wrap">
                             {s.attiva && ["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (
-                              <button onClick={() => openPianoRate(s)}
-                                className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
-                                title="Piano di ammortamento / rate">
-                                Piano
-                              </button>
+                              <Tooltip label="Piano di ammortamento / rate">
+                                <button onClick={() => openPianoRate(s)}
+                                  className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200">
+                                  Piano
+                                </button>
+                              </Tooltip>
                             )}
                             {s.attiva && !["PRESTITO", "RATEIZZAZIONE"].includes(s.tipo) && (
-                              <button onClick={() => openStorico(s)}
-                                className="px-2 py-0.5 rounded text-[10px] bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200"
-                                title="Storico addebiti + riconciliazione banca">
-                                Storico
-                              </button>
+                              <Tooltip label="Storico addebiti + riconciliazione banca">
+                                <button onClick={() => openStorico(s)}
+                                  className="px-2 py-0.5 rounded text-[10px] bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200">
+                                  Storico
+                                </button>
+                              </Tooltip>
                             )}
                             {s.attiva && ["AFFITTO", "ASSICURAZIONE"].includes(s.tipo) && (
-                              <button onClick={() => openAdeguamento(s)}
-                                className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-                                title="Adeguamento importo (ISTAT, variazione canone)">
-                                Adegua
-                              </button>
+                              <Tooltip label="Adeguamento importo (ISTAT, variazione canone)">
+                                <button onClick={() => openAdeguamento(s)}
+                                  className="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200">
+                                  Adegua
+                                </button>
+                              </Tooltip>
                             )}
                             <button onClick={() => openEdit(s)}
                               className="px-2 py-0.5 rounded text-[10px] bg-sky-100 text-sky-700 hover:bg-sky-200">
