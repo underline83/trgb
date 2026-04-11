@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v4.2 — Flyout con permessi granulari da useModuleAccess
+// @version: v4.3 — B.1 Header touch-compatibile (tap-toggle flyout su iPad/iPhone)
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
@@ -18,6 +18,7 @@ export default function Header({ onLogout }) {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(null);
   const [flyoutTop, setFlyoutTop] = useState(0);
+  const [isTouch, setIsTouch] = useState(false);
   const dropRef = useRef(null);
   const listRef = useRef(null);
   const rowRefs = useRef({});
@@ -33,7 +34,21 @@ export default function Header({ onLogout }) {
     return () => document.removeEventListener("mousemove", handler);
   }, [open]);
 
-  // Click-outside
+  // B.1 — Detect device touch (iPad/iPhone): matchMedia con listener per cambi (Chrome DevTools toggle)
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
+    const update = () => setIsTouch(mq.matches);
+    update();
+    if (mq.addEventListener) mq.addEventListener("change", update);
+    else if (mq.addListener) mq.addListener(update); // fallback Safari < 14
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", update);
+      else if (mq.removeListener) mq.removeListener(update);
+    };
+  }, []);
+
+  // Click-outside (mousedown per desktop, touchstart per touch)
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -42,7 +57,11 @@ export default function Header({ onLogout }) {
       }
     };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
   }, [open]);
 
   // Chiudi su navigazione
@@ -157,7 +176,7 @@ export default function Header({ onLogout }) {
               <div
                 ref={listRef}
                 className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100vh-80px)] overflow-y-auto relative"
-                onMouseLeave={handleContainerLeave}
+                onMouseLeave={!isTouch ? handleContainerLeave : undefined}
               >
                 {/* Home */}
                 <button
@@ -186,15 +205,31 @@ export default function Header({ onLogout }) {
                     return subKey ? canAccessSub(key, subKey) : true;
                   });
 
+                  const hasSubs = visibleSubs.length > 0;
+                  const handleRowClick = () => {
+                    // B.1 — Su touch: se il modulo ha sotto-voci, il primo tap apre il flyout,
+                    // il secondo tap sullo stesso row naviga al path principale.
+                    // Su desktop: comportamento storico (click naviga sempre).
+                    if (isTouch && hasSubs) {
+                      if (isHov) {
+                        goTo(cfg.go);
+                      } else {
+                        activateHover(key);
+                      }
+                    } else {
+                      goTo(cfg.go);
+                    }
+                  };
+
                   return (
                     <div
                       key={key}
                       ref={el => { rowRefs.current[key] = el; }}
-                      onMouseEnter={() => handleRowEnter(key)}
+                      onMouseEnter={!isTouch ? () => handleRowEnter(key) : undefined}
                       className="relative"
                     >
                       <button
-                        onClick={() => goTo(cfg.go)}
+                        onClick={handleRowClick}
                         className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
                           isActive
                             ? `font-semibold text-neutral-900 ${cfg.hoverBg}`
@@ -234,15 +269,17 @@ export default function Header({ onLogout }) {
                   <div
                     className="absolute left-full"
                     style={{ top: flyoutTop, paddingLeft: 4 }}
-                    onMouseEnter={handleFlyoutEnter}
-                    onMouseLeave={handleContainerLeave}
+                    onMouseEnter={!isTouch ? handleFlyoutEnter : undefined}
+                    onMouseLeave={!isTouch ? handleContainerLeave : undefined}
                   >
-                    {/* Ponte invisibile — safe zone tra colonna e flyout */}
-                    <div
-                      className="absolute"
-                      style={{ left: -16, top: 0, width: 20, height: "100%" }}
-                      onMouseEnter={handleFlyoutEnter}
-                    />
+                    {/* Ponte invisibile — safe zone tra colonna e flyout (solo desktop) */}
+                    {!isTouch && (
+                      <div
+                        className="absolute"
+                        style={{ left: -16, top: 0, width: 20, height: "100%" }}
+                        onMouseEnter={handleFlyoutEnter}
+                      />
+                    )}
 
                     <div className="w-52 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2">
                       {/* Titoletto */}
