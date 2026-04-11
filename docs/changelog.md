@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-04-11 — Sessione 27 / B.1: Header touch-compatibile (tap-toggle flyout iPad/iPhone) ✓
+
+Prima sigla della scaletta B eseguita con disciplina commit-isolato dopo la lezione sessione 26.
+
+**File toccato:** `frontend/src/components/Header.jsx` (da v4.2 → v4.3). Nessuna altra modifica.
+
+**Cosa fa:**
+- Detection touch via `matchMedia("(hover: none) and (pointer: coarse)")` con listener `change` (regge anche il toggle Device Mode di Chrome DevTools)
+- Sul row del modulo: tap-toggle. Su touch + modulo con sotto-voci, il primo tap apre il flyout, il secondo tap sullo stesso row naviga al path principale. Moduli senza sotto-voci navigano al primo tap. Desktop completamente invariato
+- Click-outside esteso a `touchstart` oltre `mousedown`, così il tap fuori dal dropdown lo chiude su iPad
+- `onMouseEnter`/`onMouseLeave` di row, container lista, flyout sub-menu e "ponte invisibile" resi condizionali su `!isTouch`, per evitare che gli eventi mouse sintetici post-touch dei browser mobile inneschino l'intent-detection del desktop
+
+**Non toccato di proposito:** `useAppHeight` (C.3 resta da bisezionare), i 6 file pagina della responsive (restano `calc(100vh - Npx)`), Service Worker, qualunque altro componente. Isolamento pieno come da cap. 10 del piano responsive.
+
+**Test superati:**
+- Mac Chrome/Safari: dropdown + hover + flyout + click row = comportamento storico invariato
+- Mac Chrome DevTools Device Mode iPad: tap-toggle funziona, click-outside funziona, moduli senza sotto-voci navigano al primo tap
+- iPad reale: tutti i moduli con sotto-voci (Cantina, Ricette, Acquisti, Controllo Gestione, ecc.) ora accessibili via tap. Cantina e RicetteNuova aprono correttamente (erano il sintomo del crash di sessione 26: confermato che NON dipendeva dall'header ma da `useAppHeight`)
+
+---
+
 ## 2026-04-11 — Sessione 26: tentativo App Apple Fase 0 + Punto 1 responsive, ROLLBACK ENTRAMBI
 
 Sessione ambiziosa partita come avvio della roadmap App Apple (`docs/analisi_app_apple.md`, `docs/roadmap.md` §33) e finita con due rollback in produzione.

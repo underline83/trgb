@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-11 (sessione 26 — **App Apple roadmap + tentativo PWA Fase 0 + tentativo Punto 1 useAppHeight, ENTRAMBI ROLLBACK**. App tornata stabile come pre-sessione 26. Sopravvissuti i soli docs (analisi_app_apple.md, piano_responsive_3target.md) + roadmap §33 + blocco difensivo unregister SW in main.jsx. Da reinvestigare con bisezione step-by-step prima di rimettere in produzione.)
+> Ultima sessione: 2026-04-11 (sessione 27 — **B.1 Header touch-compatibile ✓**. Ripartenza ordinata dopo il disastro di sessione 26: una sola modifica, un solo file (`Header.jsx` v4.2 → v4.3), commit isolato come da protocollo cap. 10 `piano_responsive_3target.md`. Tap-toggle flyout su iPad/iPhone, click-outside esteso a touchstart, handler mouse condizionali su `!isTouch`. Testato su Mac + iPad reale. Nessun tocco a `useAppHeight`, SW, file pagina responsive. Prossimo passo: scegliere tra B.2/B.3/B.4/B.5/B.6 indipendenti da `useAppHeight`, oppure attaccare C.3 bisezione `useAppHeight` seguendo il workflow obbligatorio.)
 
 ---
 
@@ -53,6 +53,38 @@ Il progetto si chiama **TRGB Gestionale** — un'app web FastAPI + React in prod
 L'utente si chiama **Marco** (mac: `underline83`, win: `mcarm`).
 
 La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scrivere direttamente tutti i file del progetto.
+
+---
+
+## Cosa abbiamo fatto nella sessione 27 (2026-04-11) — **B.1 Header touch-compatibile ✓ (commit isolato, primo test della nuova disciplina)**
+
+Sessione brevissima, focalizzata, con una sola sigla della scaletta eseguita secondo il protocollo post-mortem di sessione 26. Un solo file toccato, un solo commit, test su Mac + iPad reale, tutto verde. **Prima conferma che il workflow "un blocco alla volta, commit isolato, test specifico" funziona.**
+
+### Cosa è stato fatto e lasciato in produzione
+
+**B.1 — Header touch-compatibile** (`frontend/src/components/Header.jsx` da v4.2 → v4.3):
+- Detection touch via `matchMedia("(hover: none) and (pointer: coarse)")` con listener `change` (regge anche il toggle Device Mode di Chrome DevTools)
+- Tap-toggle sul row del modulo: su touch + modulo con sotto-voci, primo tap apre il flyout (`activateHover(key)`), secondo tap sullo stesso row naviga al path principale (`goTo(cfg.go)`). Moduli senza sotto-voci navigano al primo tap
+- Click-outside esteso a `touchstart` oltre `mousedown` → tap fuori dal dropdown lo chiude su iPad
+- `onMouseEnter`/`onMouseLeave` di row, container lista, flyout sub-menu e "ponte invisibile" condizionali su `!isTouch` → evita che gli eventi mouse sintetici post-touch dei browser mobile inneschino l'intent-detection desktop
+- Desktop completamente invariato (intent-detection, hover safe-zone, intent timer 80ms tutti preservati)
+
+### Cosa NON è stato toccato (di proposito, per rispettare il protocollo)
+- `useAppHeight` → resta orfano, C.3 ancora da bisezionare
+- I 6 file pagina responsive → restano `calc(100vh - Npx)` originali
+- Service Worker / `main.jsx` → resta il blocco difensivo unregister
+- Qualunque altro componente
+
+### Test eseguiti
+- **Mac desktop** Chrome/Safari: dropdown + hover + flyout + click = comportamento storico invariato
+- **Mac Chrome DevTools Device Mode iPad**: tap-toggle funziona, click-outside funziona, moduli senza sotto-voci navigano al primo tap
+- **iPad reale**: tutti i moduli con sotto-voci (Cantina, Ricette, Acquisti, Controllo Gestione, ecc.) ora accessibili via tap. Cantina e RicetteNuova aprono correttamente → **conferma indiretta che il crash di sessione 26 non dipendeva dal touch handling dell'header ma dall'hook `useAppHeight`**
+
+### Stato scaletta B/C/D/E dopo sessione 27
+Vedi "Scaletta lavori" più sotto nella sezione sessione 26 (master list aggiornata inline: B.1 marcata ✓).
+
+### Lezione di sessione
+Il protocollo post-mortem cap. 10 funziona. Un solo file, un solo commit, test specifico, push singolo → zero regressioni, zero rollback. Questo è il pattern da replicare per tutte le prossime sigle della scaletta B, e sarà OBBLIGATORIO per la bisezione di C.3.
 
 ---
 
@@ -116,7 +148,7 @@ Sessione "ambiziosa che è esplosa". Aperta con l'analisi sull'evoluzione di TRG
 ### Scaletta lavori per le prossime sessioni (master list)
 
 **B — Piano responsive Mac+iPad (resto, dopo aver risolto C.3)**
-- B.1 Punto 2 piano responsive — Header touch-compatibile (matchMedia hover:none → tap apre flyout, non naviga). Sblocca metà app su iPad. ⏱ ~30-45 min, rischio medio. **Indipendente dal Punto 1, può partire prima di C.3 se vogliamo.**
+- ~~B.1~~ ✅ **FATTA SESSIONE 27** — Header touch-compatibile: `matchMedia("(hover: none) and (pointer: coarse)")`, tap-toggle flyout, click-outside esteso a touchstart, handler mouse condizionali su `!isTouch`. File toccato: `Header.jsx` v4.2 → v4.3. Testato Mac + iPad reale, tutto verde
 - B.2 Punto 3 — Tooltip popover componente (sostituisce `title=` nativo che non funziona su iPad). 15-20 occorrenze critiche. ⏱ ~30 min, rischio basso
 - B.3 Punto 4 — Input font-size 16px su touch (`@media (pointer: coarse)` in `index.css`, no zoom iOS). ⏱ 5 min, rischio basso
 - B.4 Punto 5 — Tap target 40-44px su sidebar filtri (~30-40 sostituzioni Tailwind). ⏱ ~45 min, rischio basso

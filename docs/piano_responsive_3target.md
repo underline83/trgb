@@ -1,8 +1,8 @@
 # TRGB — Piano responsive Mac+iPad
 
 **Sessione di analisi:** 2026-04-11 (sessione 26 — Marco + Claude)
-**Stato:** pianificazione completa. Punto 1 tentato in produzione e ROLLBACKATO (vedi cap. 10). Punti 2-7 mai tentati.
-**Prossima sessione operativa:** **C.3** (reinvestigare Punto 1 con bisezione) oppure **B.1** (Punto 2 Header touch — indipendente dal Punto 1, può partire prima).
+**Stato:** pianificazione completa. Punto 1 tentato in produzione e ROLLBACKATO (vedi cap. 10). **Punto 2 (B.1 Header touch) ESEGUITO sessione 27 ✓** rispettando il protocollo commit-isolato del cap. 10 — conferma empirica che il workflow funziona. Punti 3-7 ancora da fare.
+**Prossima sessione operativa:** **B.2/B.3/B.4** (tutti indipendenti da `useAppHeight`) oppure **C.3** (bisezione `useAppHeight`).
 
 > **Nota al Claude che legger questo file in una sessione futura:** questo  il piano condiviso con Marco alla fine della sessione 26. Leggi TUTTO prima di proporre modifiche. I punti 1-7 sono dettagliati e pronti da eseguire.
 

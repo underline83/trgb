@@ -89,3 +89,22 @@ a:hover {
   0%   { opacity: 0; transform: translate(-50%, -20px); }
   100% { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ----------------------------------------------------------
+   B.3 — TOUCH DEVICE: input font-size 16px
+   ----------------------------------------------------------
+   iOS Safari zooma automaticamente sulla pagina quando metti
+   focus su un input con font-size < 16px. Su dispositivi touch
+   (iPad/iPhone) forziamo 16px su tutti gli input/textarea/select
+   per disabilitare lo zoom senza modificare l'estetica desktop.
+
+   `@media (pointer: coarse)` matcha solo touch device (non mouse),
+   quindi l'impostazione NON tocca Mac/desktop.
+   ---------------------------------------------------------- */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
