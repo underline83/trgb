@@ -35,6 +35,26 @@ Sessione dedicata a chiudere i problemi che Marco aveva dettato il 10/04 durante
 - Risultato: 3 fornitori esclusi (BANA MARIA DOLORES, CATTANEO SILVIA, PONTIGGIA), 57 fatture filtrate dalla dashboard, totale €82.395,66. Futuri sync FIC ignorano automaticamente le prima-nota E le registrano nella tabella warning
 - **Dove vedere i fornitori flaggati:** Acquisti → Fornitori, sidebar filtri → checkbox "Mostra esclusi (N)" (appare solo se ci sono fornitori flaggati). Badge giallo "ESCLUSO" accanto al nome, toggle di riattivazione nel dettaglio fornitore
 
+#### A1 — Follow-up 2: doppio conteggio affitti in scadenzario + riconciliazioni sbagliate
+- **Problema emerso dopo A1 base:** Marco lavorando con il gestionale ha notato "che confusione": nella dashboard Acquisti le fatture escluse erano effettivamente nascoste, ma nello scadenzario uscite di Controllo Gestione e nel matcher riconciliazioni di Flussi di Cassa le stesse fatture continuavano a comparire. Risultato: ogni mese l'affitto veniva contato due volte (la rata dalla spesa fissa CG "Ristorante - Via Broseta 20/C" + la fattura FIC "CATTANEO SILVIA"), e 3 bonifici dell'affitto erano stati riconciliati contro la fattura FIC invece che contro la rata della spesa fissa
+- **Causa architetturale:** il flag `escluso_acquisti` era un filtro locale applicato solo dal modulo Acquisti (`fe_import.py`). Controllo Gestione generava `cg_uscite` dalle stesse `fe_fatture` senza guardare il flag, e il matcher banca proponeva le fatture come possibili match senza filtrarle. Tre casi di dirty reconciliation manuale (movimenti 100, 102, 294) da sistemare
+- **Scelte procedurali condivise con Marco:**
+  1. **Opzione A — filtri a monte ovunque** (scelta): applicare `escluso_acquisti` in tutti i punti che leggono `fe_fatture` (generatore cg_uscite, query scadenzario, matcher banca). Mantiene le fatture nel DB per audit/warning tab ma le rende invisibili al workflow CG
+  2. **Opzione B — drop spesa fissa**: rigettata come illogica. Perché far vincere una fattura importata automaticamente sulla rata confermata manualmente?
+  3. **Opzione C — link fattura↔spesa_fissa** (differita a v2.1): quando un giorno una spesa fissa prenderà origine da una fattura vera (es. assicurazione annuale con IVA), servirà un collegamento esplicito così da nascondere la fattura ma accreditarla alla spesa fissa (e permettere di aprire il dettaglio XML dal bottone inline). Marco ha approvato di partire subito in parallelo come traccia concettuale. NON riutilizzerà `rateizzata_in_spesa_fissa_id` (mig 055) per evitare overload semantico; verrà aggiunta colonna dedicata `coperta_da_spesa_fissa_id`
+- **Mig 063 `063_cleanup_riconciliazioni_escluse.py`** — cleanup one-shot irreversibile con backup in audit table
+  1. `cg_uscite_audit_063` — snapshot JSON completo delle cg_uscite cancellate, per ripristino manuale se serve
+  2. Trova `fe_fatture` con `fc.escluso_acquisti=1` (57 fatture: 28 BANA + 28 CATTANEO + 1 PONTIGGIA)
+  3. DELETE di 3 `banca_fatture_link` (movimenti 100, 102, 294) → i bonifici tornano "senza match", Marco li riconcilierà manualmente contro la rata della spesa fissa CG
+  4. UPDATE `banca_movimenti.riconciliazione_chiusa=0` per i movimenti impattati se erano stati marcati come fully-linked
+  5. DELETE delle 57 `cg_uscite` (backup già salvato). I record in `fe_fatture` NON vengono toccati (restano per tab Warning/audit)
+  - Idempotente: su rilancio, se non trova fatture di fornitori esclusi termina in no-op
+- **Filtro generatore `controllo_gestione_router.py` (riga 447)** — `import_fatture_cg()` ora fa LEFT JOIN su `fe_fornitore_categoria` con pattern standard (match per piva o per nome quando piva vuota) e aggiunge `COALESCE(fc_cat.escluso_acquisti, 0) = 0` al WHERE. Senza questo, al primo sync FIC post-mig 063 le 57 cg_uscite si sarebbero ricreate
+- **Filtro scadenzario `controllo_gestione_router.py` (`GET /uscite`)** — nuovo param `includi_escluse` (default `false`), nuovo LEFT JOIN a `fe_fornitore_categoria` con stesso pattern, clausola `(:includi_escluse = 1 OR u.fattura_id IS NULL OR COALESCE(fc_cat.escluso_acquisti, 0) = 0)`. La `u.fattura_id IS NULL` lascia passare le cg_uscite di tipo SPESA_FISSA (che non hanno fattura né fornitore flaggato)
+- **Filtro matcher `banca_router.py` (4 query)** — le 4 query che propongono fatture come possibili match (match-per-nome, match-per-importo, search-importo, search-testo) ora hanno lo stesso LEFT JOIN + `COALESCE(fc_cat.escluso_acquisti, 0) = 0`. Così il matcher non ripropone più le fatture escluse come possibili match per bonifici d'affitto
+- **Frontend `ControlloGestioneUscite.jsx`** — nuovo stato `includiEscluse`, nuovo toggle ambra "Mostra escluse" nella sidebar Filtri speciali sotto "Mostra rateizzate", passato come query param a `fetchData`, incluso in `activeFilters` e `clearFilters`. Tooltip esplicativo spiega che il filtro serve a evitare doppio conteggio con le spese fisse CG
+- **Risultato:** scadenzario uscite pulito (solo 1 riga AFFITTO per ogni mese), matcher banca non ripropone più fatture escluse, 3 bonifici "senza match" pronti per riconciliazione manuale contro le rate spese fisse corrispondenti
+
 #### C1 — Bottone WhatsApp per condividere cedolino (Dipendenti) — v2.2-buste-paga
 - **Backend `dipendenti.py`** — `GET /buste-paga` ora include `d.telefono` nel SELECT, così il frontend ha il numero senza round-trip aggiuntivo
 - **Frontend `DipendentiBustePaga.jsx`** — bottone "WA" emerald nella colonna Azioni accanto al bottone ✕. Al click: (1) normalizza il numero (strip spazi/+, aggiunge prefisso 39 ai cellulari italiani che iniziano con 3 o 0); (2) scarica il PDF in locale con nome `bustapaga_cognome_nome_YYYY-MM.pdf` (se `pdf_path` presente); (3) apre `https://wa.me/{num}?text=Ciao {nome}, ecco la tua busta paga di {mese}/{anno}. Netto: € X. Il PDF è stato scaricato sul mio PC, te lo allego qui.`
@@ -62,9 +82,9 @@ Sessione dedicata a chiudere i problemi che Marco aveva dettato il 10/04 durante
 - **Perché `users.json` non aveva il problema:** era già gitignored. Solo `modules.json` era tracciato
 
 #### File toccati
-- **Migrazioni**: 058, 059, 060, 061 (4 nuove)
-- **Backend**: `banca_router.py`, `dipendenti.py`, `modules_router.py`, `fattureincloud_router.py`
-- **Frontend**: `BancaCrossRef.jsx` v5.0→v5.1, `DipendentiBustePaga.jsx` v2.1→v2.2, `versions.jsx`
+- **Migrazioni**: 058, 059, 060, 061, 062, 063 (6 nuove)
+- **Backend**: `banca_router.py`, `dipendenti.py`, `modules_router.py`, `fattureincloud_router.py`, `controllo_gestione_router.py`
+- **Frontend**: `BancaCrossRef.jsx` v5.0→v5.1, `DipendentiBustePaga.jsx` v2.1→v2.2, `FattureInCloud.jsx` v1.0→v1.1, `ControlloGestioneUscite.jsx` (toggle escluse), `versions.jsx`
 - **Config/docs**: `.gitignore`, `docs/problemi.md`, `docs/changelog.md`, `docs/sessione.md`
 
 ---

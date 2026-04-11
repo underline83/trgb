@@ -874,6 +874,7 @@ def get_cross_ref(
 
         # 1) Fatture: match per NOME fornitore nella descrizione bancaria
         #    Con filtro importo max ±50%
+        #    Esclude fatture di fornitori con escluso_acquisti=1 (es. affitti FIC)
         cur2 = conn.cursor()
         cur2.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
@@ -881,8 +882,16 @@ def get_cross_ref(
                    'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            LEFT JOIN fe_fornitore_categoria fc_cat
+                   ON (fc_cat.fornitore_piva = f.fornitore_piva
+                       AND fc_cat.fornitore_piva IS NOT NULL
+                       AND fc_cat.fornitore_piva != '')
+                   OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                       AND COALESCE(f.fornitore_piva, '') = ''
+                       AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
               AND f.totale_fattura > 0
+              AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
             ORDER BY f.data_fattura DESC
             LIMIT 500
         """)
@@ -906,6 +915,7 @@ def get_cross_ref(
                 suggestions.append(d)
 
         # 2) Fatture: match per importo simile (±15%) entro ±30 giorni
+        #    Esclude fatture di fornitori con escluso_acquisti=1
         cur2b = conn.cursor()
         cur2b.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
@@ -913,7 +923,15 @@ def get_cross_ref(
                    'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            LEFT JOIN fe_fornitore_categoria fc_cat
+                   ON (fc_cat.fornitore_piva = f.fornitore_piva
+                       AND fc_cat.fornitore_piva IS NOT NULL
+                       AND fc_cat.fornitore_piva != '')
+                   OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                       AND COALESCE(f.fornitore_piva, '') = ''
+                       AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND ABS(f.totale_fattura - ?) / MAX(?, 0.01) < 0.15
               AND f.data_fattura BETWEEN date(?, '-30 days') AND date(?, '+30 days')
             ORDER BY ABS(f.totale_fattura - ?) ASC
@@ -1251,14 +1269,22 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
         importo = 0.0
 
     if is_importo:
-        # Fatture per importo (uscite)
+        # Fatture per importo (uscite) — esclude fornitori con escluso_acquisti=1
         cur.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            LEFT JOIN fe_fornitore_categoria fc_cat
+                   ON (fc_cat.fornitore_piva = f.fornitore_piva
+                       AND fc_cat.fornitore_piva IS NOT NULL
+                       AND fc_cat.fornitore_piva != '')
+                   OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                       AND COALESCE(f.fornitore_piva, '') = ''
+                       AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND ABS(f.totale_fattura - ?) < MAX(? * 0.1, 1.0)
             ORDER BY ABS(f.totale_fattura - ?) ASC
             LIMIT ?
@@ -1303,14 +1329,22 @@ def search_uscite_for_link(q: str = "", limit: int = 20):
 
     else:
         term = f"%{q.strip()}%"
-        # Fatture per testo
+        # Fatture per testo — esclude fornitori con escluso_acquisti=1
         cur.execute("""
             SELECT f.id, f.fornitore_nome, f.numero_fattura,
                    f.data_fattura AS data_ref, f.totale_fattura AS totale,
                    'FATTURA' AS tipo
             FROM fe_fatture f
             LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
+            LEFT JOIN fe_fornitore_categoria fc_cat
+                   ON (fc_cat.fornitore_piva = f.fornitore_piva
+                       AND fc_cat.fornitore_piva IS NOT NULL
+                       AND fc_cat.fornitore_piva != '')
+                   OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                       AND COALESCE(f.fornitore_piva, '') = ''
+                       AND fc_cat.fornitore_nome = f.fornitore_nome)
             WHERE bfl.id IS NULL
+              AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
               AND (f.fornitore_nome LIKE ? OR f.numero_fattura LIKE ?)
             ORDER BY f.data_fattura DESC
             LIMIT ?

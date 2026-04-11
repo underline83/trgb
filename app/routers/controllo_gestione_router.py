@@ -444,6 +444,7 @@ def import_uscite(
 
     # ── Fetch tutte le fatture non-auto, non-nota-credito ──
     # LEFT JOIN con banca_fatture_link per riconciliare cross-ref esistenti
+    # LEFT JOIN fe_fornitore_categoria per filtrare i fornitori esclusi (mig 061+063)
     fatture = fc.execute("""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -458,9 +459,17 @@ def import_uscite(
         LEFT JOIN suppliers s ON f.fornitore_piva = s.partita_iva
         LEFT JOIN banca_fatture_link bfl ON f.id = bfl.fattura_id
         LEFT JOIN banca_movimenti bm ON bfl.movimento_id = bm.id
+        LEFT JOIN fe_fornitore_categoria fc_cat
+               ON (fc_cat.fornitore_piva = f.fornitore_piva
+                   AND fc_cat.fornitore_piva IS NOT NULL
+                   AND fc_cat.fornitore_piva != '')
+               OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                   AND COALESCE(f.fornitore_piva, '') = ''
+                   AND fc_cat.fornitore_nome = f.fornitore_nome)
         WHERE f.is_autofattura = 0
           AND COALESCE(f.tipo_documento, 'TD01') NOT IN ('TD04')
           AND f.totale_fattura > 0
+          AND COALESCE(fc_cat.escluso_acquisti, 0) = 0
     """).fetchall()
 
     importate = 0
@@ -769,6 +778,7 @@ def get_uscite(
     a: Optional[str] = Query(default=None, description="Data scadenza a (YYYY-MM-DD)"),
     ordine: str = Query(default="scadenza_asc"),
     includi_rateizzate: bool = Query(default=False, description="Se True mostra anche le fatture rateizzate"),
+    includi_escluse: bool = Query(default=False, description="Se True mostra anche le fatture di fornitori esclusi dagli acquisti"),
     current_user=Depends(get_current_user),
 ):
     """
@@ -783,7 +793,13 @@ def get_uscite(
 
     # Filtro fisso: nascondi rateizzate di default (riattivabili con includi_rateizzate)
     where = ["(:includi_rateizzate = 1 OR (f.rateizzata_in_spesa_fissa_id IS NULL AND u.stato <> 'RATEIZZATA'))"]
-    params: dict = {"includi_rateizzate": 1 if includi_rateizzate else 0}
+    # Filtro fisso: nascondi righe di fornitori con escluso_acquisti=1 (riattivabili con includi_escluse).
+    # Le cg_uscite di tipo SPESA_FISSA non hanno fattura_id né fornitore escluso, quindi passano sempre.
+    where.append("(:includi_escluse = 1 OR u.fattura_id IS NULL OR COALESCE(fc_cat.escluso_acquisti, 0) = 0)")
+    params: dict = {
+        "includi_rateizzate": 1 if includi_rateizzate else 0,
+        "includi_escluse": 1 if includi_escluse else 0,
+    }
 
     if stato:
         # Filtri stato: in Fase B la transizione non è completa, restano su u.stato
@@ -909,6 +925,13 @@ def get_uscite(
         LEFT JOIN suppliers          s  ON u.fornitore_piva     = s.partita_iva
         LEFT JOIN cg_spese_fisse     sf ON u.spesa_fissa_id     = sf.id
         LEFT JOIN cg_pagamenti_batch pb ON u.pagamento_batch_id = pb.id
+        LEFT JOIN fe_fornitore_categoria fc_cat
+               ON (fc_cat.fornitore_piva = f.fornitore_piva
+                   AND fc_cat.fornitore_piva IS NOT NULL
+                   AND fc_cat.fornitore_piva != '')
+               OR (COALESCE(fc_cat.fornitore_piva, '') = ''
+                   AND COALESCE(f.fornitore_piva, '') = ''
+                   AND fc_cat.fornitore_nome = f.fornitore_nome)
         {where_sql}
         ORDER BY {order_sql}
     """, params).fetchall()

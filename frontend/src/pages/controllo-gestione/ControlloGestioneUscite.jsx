@@ -73,6 +73,9 @@ export default function ControlloGestioneUscite() {
   // ── v2.0: filtro rateizzate (server-side, passato come query param) ──
   const [includiRateizzate, setIncludiRateizzate] = useState(false);
 
+  // ── Filtro "mostra anche escluse" (fornitori con escluso_acquisti=1, es. affitti FIC) ──
+  const [includiEscluse, setIncludiEscluse] = useState(false);
+
   // ── Gestione batch (lista + delete) ──
   const [gestioneBatchOpen, setGestioneBatchOpen] = useState(false);
   const [batchList, setBatchList] = useState([]);
@@ -108,8 +111,11 @@ export default function ControlloGestioneUscite() {
           console.warn("Import non riuscito (i dati esistenti verranno comunque caricati):", importErr);
         }
       }
-      // v2.0: passa includi_rateizzate come query param (default backend = false)
-      const qs = includiRateizzate ? "?includi_rateizzate=true" : "";
+      // v2.0: passa includi_rateizzate + includi_escluse come query params
+      const qsParts = [];
+      if (includiRateizzate) qsParts.push("includi_rateizzate=true");
+      if (includiEscluse) qsParts.push("includi_escluse=true");
+      const qs = qsParts.length ? `?${qsParts.join("&")}` : "";
       const res = await apiFetch(`${API_BASE}/controllo-gestione/uscite${qs}`);
       if (!res.ok) throw new Error("Errore API");
       setData(await res.json());
@@ -118,7 +124,7 @@ export default function ControlloGestioneUscite() {
     } finally {
       setLoading(false);
     }
-  }, [includiRateizzate]);
+  }, [includiRateizzate, includiEscluse]);
 
   useEffect(() => {
     // Auto-import al primo caricamento, poi rifetch al cambio di includiRateizzate
@@ -638,8 +644,8 @@ export default function ControlloGestioneUscite() {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate].filter(Boolean).length;
-  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); setIncludiRateizzate(false); };
+  const activeFilters = [search, filtroStato, filtroTipo, filtroDa, filtroA, filtroInPagamento, includiRateizzate, includiEscluse].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setFiltroStato(""); setFiltroTipo(""); setFiltroDa(""); setFiltroA(""); setFiltroInPagamento(false); setIncludiRateizzate(false); setIncludiEscluse(false); };
 
   const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
   const fSel = "w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-300";
@@ -803,6 +809,19 @@ export default function ControlloGestioneUscite() {
                   <span className="flex items-center gap-1.5">
                     <span className={`inline-block w-2 h-2 rounded-full ${includiRateizzate ? "bg-purple-500" : "bg-neutral-300"}`}></span>
                     <span>Mostra rateizzate</span>
+                  </span>
+                </button>
+                {/* Escluse (fornitori con escluso_acquisti=1) */}
+                <button onClick={() => setIncludiEscluse(v => !v)}
+                  title="Mostra le fatture di fornitori esclusi dagli acquisti (es. affitti importati da FIC). Di default sono nascoste per evitare doppio conteggio con le spese fisse CG."
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                    includiEscluse
+                      ? "bg-amber-50 border-amber-200 text-amber-900"
+                      : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                  }`}>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${includiEscluse ? "bg-amber-500" : "bg-neutral-300"}`}></span>
+                    <span>Mostra escluse</span>
                   </span>
                 </button>
                 {/* Solo in pagamento */}
