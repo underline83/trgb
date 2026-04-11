@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/Tooltip.jsx
-// @version: v1.0 — B.2 piano responsive Mac+iPad
+// @version: v1.1 — fix detect iPad desktop-mode + long-press callout/zoom
 //
 // Wrapper sostitutivo per `title=` nativo HTML.
 // Su desktop: hover con delay → popup. Comportamento storico.
@@ -7,6 +7,15 @@
 // child (via onClickCapture in fase capture con preventDefault+stopPropagation).
 // Secondo tap sullo stesso child esegue l'azione normalmente (firstTouch reset).
 // Tap fuori o timeout 2.5s → chiude.
+//
+// v1.1 — BUGFIX iPad:
+//  1) iPad in modalità "Desktop Website" (default iPadOS 13+) riporta
+//     hover:hover / pointer:fine, quindi la vecchia detection via
+//     matchMedia("(hover: none) and (pointer: coarse)") falliva e isTouch
+//     restava false → il primo tap eseguiva subito l'azione.
+//     Ora usiamo anche navigator.maxTouchPoints e (any-pointer: coarse).
+//  2) Il long-press su iOS Safari apriva il menu callout / zoom di selezione
+//     testo. Aggiunto -webkit-touch-callout:none + user-select:none al wrapper.
 //
 // Uso tipico:
 //   <Tooltip label="Cambia PIN">
@@ -31,12 +40,26 @@ export default function Tooltip({
   const autoCloseTimer = useRef(null);
   const firstTouchShown = useRef(false);
 
-  // Detect touch device (matchMedia)
+  // Detect touch device — combinazione di matchMedia + maxTouchPoints.
+  // iPad in modalità Desktop Website riporta hover:hover/pointer:fine, quindi
+  // il solo matchMedia("(hover:none)") NON basta. Usiamo anche:
+  //  - navigator.maxTouchPoints > 0 (iPad restituisce 5 anche in desktop mode)
+  //  - (any-pointer: coarse) come ulteriore fallback
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
+    if (typeof window === "undefined") return;
+    const detect = () => {
+      const hasCoarseMedia =
+        window.matchMedia &&
+        (window.matchMedia("(hover: none) and (pointer: coarse)").matches ||
+          window.matchMedia("(any-pointer: coarse)").matches);
+      const hasTouchPoints =
+        typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+      setIsTouch(Boolean(hasCoarseMedia || hasTouchPoints));
+    };
+    detect();
+    if (!window.matchMedia) return;
     const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
-    const update = () => setIsTouch(mq.matches);
-    update();
+    const update = () => detect();
     if (mq.addEventListener) mq.addEventListener("change", update);
     else if (mq.addListener) mq.addListener(update);
     return () => {
@@ -126,10 +149,19 @@ export default function Tooltip({
       ? "left-full ml-1.5 top-1/2 -translate-y-1/2"
       : "bottom-full mb-1.5 left-1/2 -translate-x-1/2"; // default top
 
+  // Stile wrapper: su touch blocchiamo il callout iOS (long-press menu/zoom)
+  // e la selezione testo. Su desktop nessun impatto percepibile su <button>/icone.
+  const wrapperStyle = {
+    WebkitTouchCallout: "none",
+    WebkitUserSelect: "none",
+    userSelect: "none",
+  };
+
   return (
     <span
       ref={wrapperRef}
       className={`relative inline-flex ${className}`}
+      style={wrapperStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClickCapture={handleClickCapture}
