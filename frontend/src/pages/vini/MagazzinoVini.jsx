@@ -1050,8 +1050,8 @@ export default function MagazzinoVini() {
       </div>
 
       {/* LAYOUT PRINCIPALE: Filtri SX + Contenuto DX */}
-      {/* var(--app-h) = innerHeight - header globale; -88px sottrae ViniNav + header compatto sopra il flex */}
-      <div className="flex" style={{ height: "calc(var(--app-h, 100dvh) - 88px)" }}>
+      {/* NB: rollback temporaneo a calc(100vh - 88px). La versione var(--app-h) faceva crashare iPad su questa pagina (sessione 26+). Da investigare prima di re-introdurre. */}
+      <div className="flex" style={{ height: "calc(100vh - 88px)" }}>
 
         {/* ══════════════════════════════════════════════
             COLONNA SINISTRA: FILTRI (280px fisso)
