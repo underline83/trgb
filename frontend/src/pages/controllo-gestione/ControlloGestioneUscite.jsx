@@ -890,27 +890,27 @@ export default function ControlloGestioneUscite() {
               active={filtroStato === "SCADUTA"} onClick={() => setFiltroStato(filtroStato === "SCADUTA" ? "" : "SCADUTA")} />
             <KPI label="Pagate" value={kpi.pagate} n={kpi.n_pagate} color="emerald"
               active={filtroStato === "PAGATA"} onClick={() => setFiltroStato(filtroStato === "PAGATA" ? "" : "PAGATA")} />
-            {/* KPI pill "Da riconciliare" — clic apre il workbench split-pane */}
+            {/* KPI "Da riconciliare" — clic apre il workbench split-pane */}
             {rig.num_da_riconciliare > 0 && (
-              <button
+              <KPI
+                label="Da riconciliare"
+                n={rig.num_da_riconciliare}
+                color="amber"
+                dot
                 onClick={() => navigate("/controllo-gestione/riconciliazione")}
                 title="Apri il workbench riconciliazione"
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 transition"
-              >
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
-                <span className="text-[11px] font-semibold text-amber-800 tabular-nums">
-                  {rig.num_da_riconciliare}
-                </span>
-                <span className="text-[10px] text-amber-700 uppercase tracking-wide">
-                  Da riconciliare
-                </span>
-                <span className="text-amber-600">›</span>
-              </button>
+              />
             )}
+            {/* KPI "Riconciliate" — clic apre il cross-ref di Flussi di Cassa (tab collegati) */}
             {rig.num_riconciliate > 0 && (
-              <span className="text-[10px] text-violet-600 flex items-center gap-1 ml-1">
-                <BancaCheckIcon size={12} /> {rig.num_riconciliate} riconc.
-              </span>
+              <KPI
+                label="Riconciliate"
+                n={rig.num_riconciliate}
+                color="violet"
+                dot
+                onClick={() => navigate("/flussi-cassa/cc/crossref")}
+                title="Vedi i movimenti bancari collegati"
+              />
             )}
             <span className="ml-auto text-[10px] text-neutral-400 flex-shrink-0">
               {sorted.length} / {allUscite.length} righe
@@ -1500,15 +1500,25 @@ export default function ControlloGestioneUscite() {
 }
 
 
-function KPI({ label, value, n, color, active, onClick }) {
-  const cm = { amber: "border-amber-200 bg-amber-50 text-amber-800", red: "border-red-200 bg-red-50 text-red-800",
-               emerald: "border-emerald-200 bg-emerald-50 text-emerald-800" };
+function KPI({ label, value, n, color, active, onClick, dot = false, title }) {
+  const cm = {
+    amber:   "border-amber-200 bg-amber-50 text-amber-800",
+    red:     "border-red-200 bg-red-50 text-red-800",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    violet:  "border-violet-200 bg-violet-50 text-violet-800",
+    sky:     "border-sky-200 bg-sky-50 text-sky-800",
+  };
+  const dotColor = {
+    amber: "bg-amber-500", red: "bg-red-500",
+    emerald: "bg-emerald-500", violet: "bg-violet-500", sky: "bg-sky-500",
+  };
   return (
-    <button onClick={onClick}
+    <button onClick={onClick} title={title}
       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-semibold transition cursor-pointer ${cm[color] || ""} ${active ? "ring-2 ring-sky-400 shadow-md" : "hover:shadow-sm"}`}>
+      {dot && <span className={`inline-block w-2 h-2 rounded-full ${dotColor[color] || "bg-neutral-400"}`}></span>}
       <span>{label}</span>
-      <span className="font-bold">&euro; {fmt(value)}</span>
-      <span className="opacity-50 font-normal text-[9px]">({n})</span>
+      {value != null && <span className="font-bold">&euro; {fmt(value)}</span>}
+      {n != null && <span className="opacity-50 font-normal text-[9px]">({n})</span>}
     </button>
   );
 }
