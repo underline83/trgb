@@ -5,9 +5,9 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import TrgbLoader from "../../components/TrgbLoader";
-import Tooltip from "../../components/Tooltip";
+import TrgbTooltip from "../../components/Tooltip";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
 
@@ -365,7 +365,7 @@ function ChartMensile({ data, selectedYear, onDrill }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
             <XAxis dataKey="mese" tick={{ fontSize: 10 }} />
             <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={55} />
-            <Tooltip
+            <RechartsTooltip
               formatter={(v) => [`€ ${fmt(v)}`, "Totale"]}
               contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e5e5" }}
             />
@@ -531,7 +531,7 @@ function ChartCategorie({ data, onDrill }) {
                   ))}
                 </Pie>
               )}
-              <Tooltip
+              <RechartsTooltip
                 content={({ payload }) => {
                   if (!payload || !payload.length) return null;
                   const d = payload[0].payload;
@@ -702,7 +702,7 @@ function ChartConfronto({ data }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
           <XAxis dataKey="mese" tick={{ fontSize: 10 }} />
           <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} width={55} />
-          <Tooltip
+          <RechartsTooltip
             formatter={(v, name) => [`€ ${fmt(v)}`, name]}
             contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e5e5" }}
           />
@@ -737,14 +737,14 @@ function DrillPanel({ drill, onClose, navigate }) {
             </p>
           )}
         </div>
-        <Tooltip label="Chiudi">
+        <TrgbTooltip label="Chiudi">
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 text-sm font-bold transition"
           >
             ×
           </button>
-        </Tooltip>
+        </TrgbTooltip>
       </div>
 
       {loading ? (
