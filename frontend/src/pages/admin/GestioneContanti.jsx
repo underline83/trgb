@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isSuperAdminRole } from "../../utils/authHelpers";
+import Tooltip from "../../components/Tooltip";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -54,7 +55,11 @@ export function GestioneContantiContent() {
                   }`}>
                   <span>{item.icon}</span>
                   <span>{item.label}</span>
-                  {item.superOnly && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" title="Solo modalità gestione" />}
+                  {item.superOnly && (
+                    <Tooltip label="Solo modalità gestione">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    </Tooltip>
+                  )}
                 </button>
               ))}
             </div>
@@ -709,10 +714,12 @@ function SubVersamentiContanti() {
                           <span className={row.cumulative > 0 ? "text-orange-700" : "text-neutral-600"}>
                             € {fmt(row.cumulative)}
                           </span>
-                          <button onClick={() => handleDeleteDeposit(row.id)}
-                            className="text-red-400 hover:text-red-600 text-xs" title="Elimina">
-                            ✕
-                          </button>
+                          <Tooltip label="Elimina">
+                            <button onClick={() => handleDeleteDeposit(row.id)}
+                              className="text-red-400 hover:text-red-600 text-xs">
+                              ✕
+                            </button>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>
@@ -782,8 +789,10 @@ function SubVersamentiContanti() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-emerald-700">€ {fmt(v.importo)}</span>
-                  <button onClick={() => handleDeleteDeposit(v.id)}
-                    className="text-red-400 hover:text-red-600 text-xs" title="Elimina">✕</button>
+                  <Tooltip label="Elimina">
+                    <button onClick={() => handleDeleteDeposit(v.id)}
+                      className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                  </Tooltip>
                 </div>
               </div>
             ))}
@@ -1651,8 +1660,10 @@ function SezioneSpeseVarie() {
                       {row.note || "—"}
                     </td>
                     <td className="border-b border-neutral-100 px-3 py-2 text-center">
-                      <button onClick={() => handleDelete(row.id)}
-                        className="text-red-400 hover:text-red-600 text-xs" title="Elimina">✕</button>
+                      <Tooltip label="Elimina">
+                        <button onClick={() => handleDelete(row.id)}
+                          className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                      </Tooltip>
                     </td>
                   </tr>
                 );

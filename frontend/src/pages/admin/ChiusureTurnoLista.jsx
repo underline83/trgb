@@ -7,11 +7,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
+import Tooltip from "../../components/Tooltip";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
 /** Pallino ambra che indica contenuto visibile solo in modalità gestione */
-const SuperDot = () => <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 align-middle" title="Solo modalità gestione" />;
+const SuperDot = () => (
+  <Tooltip label="Solo modalità gestione">
+    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1 align-middle" />
+  </Tooltip>
+);
 
 function fmt(n) {
   if (n == null) return "—";

@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
 
 // ─────────────────────────────────────────────────────────────
@@ -417,14 +418,15 @@ export default function ViniVendite() {
               {selectedVino && (
                 <span className="absolute right-3 top-8 flex items-center gap-1.5 text-xs text-violet-600 font-semibold">
                   #{selectedVino.id} — {selectedVino.QTA_TOTALE ?? 0} bt
-                  <button
-                    type="button"
-                    onClick={clearVino}
-                    className="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-neutral-200 text-neutral-500 hover:bg-red-100 hover:text-red-600 transition text-xs font-bold"
-                    title="Deseleziona vino"
-                  >
-                    ✕
-                  </button>
+                  <Tooltip label="Deseleziona vino">
+                    <button
+                      type="button"
+                      onClick={clearVino}
+                      className="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-neutral-200 text-neutral-500 hover:bg-red-100 hover:text-red-600 transition text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </Tooltip>
                 </span>
               )}
 

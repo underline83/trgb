@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
 import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
@@ -319,12 +320,13 @@ export default function MagazzinoAdmin() {
                 className="px-6 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
                 {saving ? "Salvataggio..." : "💾 Salva tutto"}
               </button>
-              <button onClick={ricalcolaPrezzi}
-                disabled={recalcing}
-                className="px-4 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm text-sm"
-                title="Ricalcola PREZZO_CARTA automaticamente per tutti i vini con EURO_LISTINO">
-                {recalcing ? "Ricalcolo..." : "🏷️ Ricalcola prezzi"}
-              </button>
+              <Tooltip label="Ricalcola PREZZO_CARTA automaticamente per tutti i vini con EURO_LISTINO">
+                <button onClick={ricalcolaPrezzi}
+                  disabled={recalcing}
+                  className="px-4 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm text-sm">
+                  {recalcing ? "Ricalcolo..." : "🏷️ Ricalcola prezzi"}
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -403,11 +405,12 @@ export default function MagazzinoAdmin() {
                       </td>
                     ))}
                     <td className="px-1 py-0.5 text-center">
-                      <button onClick={() => deleteVino(vino)}
-                        className="text-red-300 hover:text-red-600 transition text-sm"
-                        title={`Elimina #${vino.id}`}>
-                        🗑
-                      </button>
+                      <Tooltip label={`Elimina #${vino.id}`}>
+                        <button onClick={() => deleteVino(vino)}
+                          className="text-red-300 hover:text-red-600 transition text-sm">
+                          🗑
+                        </button>
+                      </Tooltip>
                     </td>
                   </tr>
                 );

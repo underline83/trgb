@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
@@ -845,7 +846,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                             <td className="px-3 py-2 text-xs text-neutral-600">{m.tipo === "MODIFICA" ? "—" : (m.locazione || "—")}</td>
                             <td className="px-3 py-2 text-xs text-neutral-700" style={{maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis"}}>{m.note || ""}</td>
                             <td className="px-3 py-2 text-xs text-neutral-500">{m.utente || "—"}</td>
-                            {canDelete && <td className="px-3 py-2 text-center"><button type="button" onClick={() => deleteMovimento(m.id)} className="text-xs text-red-400 hover:text-red-600 transition" title="Elimina">🗑</button></td>}
+                            {canDelete && <td className="px-3 py-2 text-center"><Tooltip label="Elimina"><button type="button" onClick={() => deleteMovimento(m.id)} className="text-xs text-red-400 hover:text-red-600 transition">🗑</button></Tooltip></td>}
                           </tr>
                         );
                       })}
@@ -879,7 +880,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         <p className="text-sm text-neutral-900 whitespace-pre-wrap">{n.nota}</p>
                         <p className="text-[11px] text-neutral-500 mt-1">{n.autore && <span className="font-medium">{n.autore} — </span>}{n.created_at?.slice(0,16).replace("T"," ")}</p>
                       </div>
-                      <button type="button" onClick={() => deleteNota(n.id)} className="text-xs text-red-400 hover:text-red-600 transition shrink-0" title="Elimina nota">🗑</button>
+                      <Tooltip label="Elimina nota"><button type="button" onClick={() => deleteNota(n.id)} className="text-xs text-red-400 hover:text-red-600 transition shrink-0">🗑</button></Tooltip>
                     </div>
                   ))}
                 </div>

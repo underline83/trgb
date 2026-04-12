@@ -8,6 +8,7 @@ import PrenotazioniForm from "./PrenotazioniForm";
 import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
 import CanaleBadge from "./components/CanaleBadge";
+import Tooltip from "../../components/Tooltip";
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
@@ -66,7 +67,7 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
         {/* Ora */}
         <td className="px-3 py-2 text-sm font-mono font-medium text-neutral-700 whitespace-nowrap">
           {oraShort}
-          {isRitardo(pren) && <span className="ml-1 text-amber-500" title="In ritardo">⏰</span>}
+          {isRitardo(pren) && <Tooltip label="In ritardo"><span className="ml-1 text-amber-500">⏰</span></Tooltip>}
         </td>
 
         {/* Cliente */}
@@ -84,9 +85,11 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
             ) : (
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
-            {pren.vip === 1 && <span title="VIP">⭐</span>}
+            {pren.vip === 1 && <Tooltip label="VIP"><span>⭐</span></Tooltip>}
             {(pren.allergie || pren.allergie_segnalate) && (
-              <span className="text-red-500 text-xs" title={pren.allergie || pren.allergie_segnalate}>⚠️</span>
+              <Tooltip label={pren.allergie || pren.allergie_segnalate}>
+                <span className="text-red-500 text-xs">⚠️</span>
+              </Tooltip>
             )}
             {pren.stato === "REQUESTED" && (
               <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
@@ -100,7 +103,7 @@ function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
         {/* Tavolo */}
         <td className="px-3 py-2 text-sm text-center text-neutral-600">
           {pren.tavolo || <span className="text-amber-500">—</span>}
-          {pren.tavolo_esterno === 1 && <span className="ml-1" title="Esterno">🌳</span>}
+          {pren.tavolo_esterno === 1 && <Tooltip label="Esterno"><span className="ml-1">🌳</span></Tooltip>}
         </td>
 
         {/* Note (troncate) */}

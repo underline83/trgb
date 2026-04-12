@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import TrgbLoader from "../../components/TrgbLoader";
+import Tooltip from "../../components/Tooltip";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -736,13 +737,14 @@ function DrillPanel({ drill, onClose, navigate }) {
             </p>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 text-sm font-bold transition"
-          title="Chiudi"
-        >
-          ×
-        </button>
+        <Tooltip label="Chiudi">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-500 text-sm font-bold transition"
+          >
+            ×
+          </button>
+        </Tooltip>
       </div>
 
       {loading ? (

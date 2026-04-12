@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 import SchedaVino from "./SchedaVino";
+import Tooltip from "../../components/Tooltip";
 import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
@@ -1393,10 +1394,10 @@ export default function MagazzinoVini() {
                         </td>
                         <td className="px-1 py-1.5 text-center">
                           <div className="flex flex-wrap gap-0.5 justify-center">
-                            {vino.CARTA === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200" title="Carta Vini">C</span>}
-                            {vino.IPRATICO === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 border border-sky-200" title="iPratico">iP</span>}
-                            {vino.VENDITA_CALICE === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200" title="Calice">🥂</span>}
-                            {vino.BIOLOGICO === "SI" && <span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-lime-100 text-lime-700 border border-lime-200" title="Biologico">🌿</span>}
+                            {vino.CARTA === "SI" && <Tooltip label="Carta Vini"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">C</span></Tooltip>}
+                            {vino.IPRATICO === "SI" && <Tooltip label="iPratico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-sky-100 text-sky-700 border border-sky-200">iP</span></Tooltip>}
+                            {vino.VENDITA_CALICE === "SI" && <Tooltip label="Calice"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 border border-amber-200">🥂</span></Tooltip>}
+                            {vino.BIOLOGICO === "SI" && <Tooltip label="Biologico"><span className="inline-block px-1 py-0 rounded text-[8px] font-bold bg-lime-100 text-lime-700 border border-lime-200">🌿</span></Tooltip>}
                           </div>
                         </td>
                       </tr>
@@ -1439,19 +1440,21 @@ export default function MagazzinoVini() {
                   ← Lista
                 </button>
                 <div className="flex items-center gap-1 ml-2">
-                  <button onClick={() => prevVino && goTo(prevVino)} disabled={!prevVino}
-                    className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                    title={prevVino ? `← ${prevVino.DESCRIZIONE}` : "Primo vino"}>
-                    ‹
-                  </button>
+                  <Tooltip label={prevVino ? `← ${prevVino.DESCRIZIONE}` : "Primo vino"}>
+                    <button onClick={() => prevVino && goTo(prevVino)} disabled={!prevVino}
+                      className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                      ‹
+                    </button>
+                  </Tooltip>
                   <span className="text-[10px] text-amber-700 font-medium min-w-[60px] text-center">
                     {curIdx >= 0 ? `${curIdx + 1} / ${viniVisibili.length}` : "—"}
                   </span>
-                  <button onClick={() => nextVino && goTo(nextVino)} disabled={!nextVino}
-                    className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                    title={nextVino ? `→ ${nextVino.DESCRIZIONE}` : "Ultimo vino"}>
-                    ›
-                  </button>
+                  <Tooltip label={nextVino ? `→ ${nextVino.DESCRIZIONE}` : "Ultimo vino"}>
+                    <button onClick={() => nextVino && goTo(nextVino)} disabled={!nextVino}
+                      className="px-2 py-1 rounded-md text-xs font-bold bg-white border border-neutral-300 hover:bg-amber-100 transition shadow-sm disabled:opacity-30 disabled:cursor-not-allowed">
+                      ›
+                    </button>
+                  </Tooltip>
                 </div>
                 <span className="text-xs text-amber-800 font-medium ml-2">
                   #{openSchedaId}

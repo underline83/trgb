@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import Tooltip from "../../components/Tooltip";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -640,18 +641,19 @@ export default function RicetteMatching() {
                                 className="w-4 h-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
                               />
                             </label>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleIgnoreDescription(s); }}
-                              disabled={ignoringItem === s.suggested_name}
-                              title="Non è un ingrediente — ignora"
-                              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition ${
-                                ignoringItem === s.suggested_name
-                                  ? "bg-neutral-200 text-neutral-400"
-                                  : "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                            <Tooltip label="Non è un ingrediente — ignora">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleIgnoreDescription(s); }}
+                                disabled={ignoringItem === s.suggested_name}
+                                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded transition ${
+                                  ignoringItem === s.suggested_name
+                                    ? "bg-neutral-200 text-neutral-400"
+                                    : "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                               }`}
-                            >
-                              {ignoringItem === s.suggested_name ? "..." : "Ignora"}
-                            </button>
+                              >
+                                {ignoringItem === s.suggested_name ? "..." : "Ignora"}
+                              </button>
+                            </Tooltip>
                           </div>
 
                           <div className="flex-1 min-w-0">

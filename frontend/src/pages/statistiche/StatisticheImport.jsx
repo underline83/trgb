@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
+import Tooltip from "../../components/Tooltip";
 
 const EP = `${API_BASE}/statistiche`;
 
@@ -204,13 +205,14 @@ export default function StatisticheImport() {
                       {imp.imported_at ? new Date(imp.imported_at).toLocaleDateString("it-IT") : "—"}
                     </td>
                     <td className="py-2 px-2 text-right">
-                      <button
-                        onClick={() => handleDelete(imp.anno, imp.mese)}
-                        className="text-red-500 hover:text-red-700 text-xs"
-                        title="Elimina mese"
-                      >
-                        🗑️
-                      </button>
+                      <Tooltip label="Elimina mese">
+                        <button
+                          onClick={() => handleDelete(imp.anno, imp.mese)}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          🗑️
+                        </button>
+                      </Tooltip>
                     </td>
                   </tr>
                 ))}

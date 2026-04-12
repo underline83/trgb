@@ -7,6 +7,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 
 function toISODate(d) {
   const copy = new Date(d.getTime());
@@ -607,15 +608,16 @@ const handleDeleteTurno = async (turnoId) => {
                                       t.colore_bg || "rgba(180, 198, 252, 0.9)",
                                     color: t.colore_testo || "#111827",
                                   }}
-                                  title="Clic per cancellare il turno"
                                 >
-                                  <div className="font-semibold">
-                                    {t.turno_nome}
-                                  </div>
-                                  <div className="text-[10px] opacity-90">
-                                    {t.ora_inizio?.slice(0, 5)} -{" "}
-                                    {t.ora_fine?.slice(0, 5)}
-                                  </div>
+                                  <Tooltip label="Clic per cancellare il turno">
+                                    <div className="font-semibold">
+                                      {t.turno_nome}
+                                    </div>
+                                    <div className="text-[10px] opacity-90">
+                                      {t.ora_inizio?.slice(0, 5)} -{" "}
+                                      {t.ora_fine?.slice(0, 5)}
+                                    </div>
+                                  </Tooltip>
                                   {t.note && (
                                     <div className="text-[10px] opacity-90">
                                       {t.note}
@@ -667,21 +669,22 @@ const handleDeleteTurno = async (turnoId) => {
                           t.colore_bg || "rgba(180, 198, 252, 0.9)",
                         color: t.colore_testo || "#111827",
                       }}
-                      title="Clic per cancellare il turno"
                     >
-                      <div className="flex flex-col text-left">
-                        <span className="font-semibold">
-                          {t.dipendente_cognome} {t.dipendente_nome}
-                        </span>
-                        <span className="opacity-90">
-                          {t.turno_nome} —{" "}
-                          {t.ora_inizio?.slice(0, 5)} -{" "}
-                          {t.ora_fine?.slice(0, 5)}
-                        </span>
-                        {t.note && (
-                          <span className="opacity-90">{t.note}</span>
-                        )}
-                      </div>
+                      <Tooltip label="Clic per cancellare il turno">
+                        <div className="flex flex-col text-left">
+                          <span className="font-semibold">
+                            {t.dipendente_cognome} {t.dipendente_nome}
+                          </span>
+                          <span className="opacity-90">
+                            {t.turno_nome} —{" "}
+                            {t.ora_inizio?.slice(0, 5)} -{" "}
+                            {t.ora_fine?.slice(0, 5)}
+                          </span>
+                          {t.note && (
+                            <span className="opacity-90">{t.note}</span>
+                          )}
+                        </div>
+                      </Tooltip>
                     </button>
                   ))}
                 </div>

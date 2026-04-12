@@ -4,6 +4,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 
@@ -301,14 +302,15 @@ export default function MovimentiCantina() {
                       </td>
                       {canDelete && (
                         <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => deleteMovimento(m.id)}
-                            className="text-xs text-red-400 hover:text-red-600 transition"
-                            title="Elimina movimento"
-                          >
-                            🗑
-                          </button>
+                          <Tooltip label="Elimina movimento">
+                            <button
+                              type="button"
+                              onClick={() => deleteMovimento(m.id)}
+                              className="text-xs text-red-400 hover:text-red-600 transition"
+                            >
+                              🗑
+                            </button>
+                          </Tooltip>
                         </td>
                       )}
                     </tr>

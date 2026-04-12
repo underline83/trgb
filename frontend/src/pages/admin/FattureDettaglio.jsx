@@ -7,6 +7,7 @@ import React, { useState, useEffect, forwardRef, useImperativeHandle } from "rea
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import Tooltip from "../../components/Tooltip";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CG = `${API_BASE}/controllo-gestione`;
@@ -450,14 +451,15 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
               {/* Modifica anagrafica fornitore */}
               {fattura.fornitore_piva && (
-                <button
-                  type="button"
-                  onClick={goToFornitoreAnagrafica}
-                  className="w-full px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
-                  title="Apri l'anagrafica del fornitore nell'elenco fornitori"
-                >
-                  ✎ Modifica anagrafica fornitore →
-                </button>
+                <Tooltip label="Apri l'anagrafica del fornitore nell'elenco fornitori">
+                  <button
+                    type="button"
+                    onClick={goToFornitoreAnagrafica}
+                    className="w-full px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
+                  >
+                    ✎ Modifica anagrafica fornitore →
+                  </button>
+                </Tooltip>
               )}
             </div>
           </div>

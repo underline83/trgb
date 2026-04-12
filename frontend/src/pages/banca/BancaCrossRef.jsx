@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
+import Tooltip from "../../components/Tooltip";
 
 const FC = `${API_BASE}/banca`;
 
@@ -1053,11 +1054,12 @@ export default function BancaCrossRef() {
                                     </button>
                                   ))}
                                   {m.riconciliazione_chiusa && (
-                                    <button onClick={() => handleRiapriRiconciliazione(m.id)}
-                                      title="Riapri la riconciliazione manuale"
-                                      className="block px-2 py-1 rounded text-[10px] border border-amber-200 text-amber-600 hover:bg-amber-50 w-full">
-                                      Riapri
-                                    </button>
+                                    <Tooltip label="Riapri la riconciliazione manuale">
+                                      <button onClick={() => handleRiapriRiconciliazione(m.id)}
+                                        className="block px-2 py-1 rounded text-[10px] border border-amber-200 text-amber-600 hover:bg-amber-50 w-full">
+                                        Riapri
+                                      </button>
+                                    </Tooltip>
                                   )}
                                 </div>
                               </td>
@@ -1075,11 +1077,12 @@ export default function BancaCrossRef() {
                                   {isExpanded ? "Chiudi" : `${m.possibili_match?.length} possibili`}
                                 </button>
                                 {partial && (
-                                  <button onClick={() => handleChiudiRiconciliazione(m.id)}
-                                    title="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)"
-                                    className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
-                                    ✓ Chiudi
-                                  </button>
+                                  <Tooltip label="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)">
+                                    <button onClick={() => handleChiudiRiconciliazione(m.id)}
+                                      className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
+                                      ✓ Chiudi
+                                    </button>
+                                  </Tooltip>
                                 )}
                               </div>
                             </td>
@@ -1130,18 +1133,20 @@ export default function BancaCrossRef() {
                                   {registraId === m.id ? "Annulla" : "📋 Registra"}
                                 </button>
                                 {dismissed.has(m.id) && (
-                                  <button onClick={() => handleUndismiss(m.id)}
-                                    title="Torna ai suggerimenti automatici"
-                                    className="px-2 py-1 rounded-lg text-[10px] font-medium border border-amber-200 text-amber-600 hover:bg-amber-50 transition">
-                                    💡
-                                  </button>
+                                  <Tooltip label="Torna ai suggerimenti automatici">
+                                    <button onClick={() => handleUndismiss(m.id)}
+                                      className="px-2 py-1 rounded-lg text-[10px] font-medium border border-amber-200 text-amber-600 hover:bg-amber-50 transition">
+                                      💡
+                                    </button>
+                                  </Tooltip>
                                 )}
                                 {partial && (
-                                  <button onClick={() => handleChiudiRiconciliazione(m.id)}
-                                    title="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)"
-                                    className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
-                                    ✓ Chiudi
-                                  </button>
+                                  <Tooltip label="Chiudi la riconciliazione manualmente (es. N/C, bonifico multiplo, fattura+rata)">
+                                    <button onClick={() => handleChiudiRiconciliazione(m.id)}
+                                      className="px-2 py-1 rounded-lg text-xs font-medium border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition">
+                                      ✓ Chiudi
+                                    </button>
+                                  </Tooltip>
                                 )}
                               </div>
                             </td>

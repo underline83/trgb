@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
 import {
@@ -1078,11 +1079,12 @@ export default function ViniImpostazioni() {
                                   onChange={e => setLocMapping(m => ({ ...m, [v.valore]: e.target.value }))}
                                   placeholder={v.ok ? "Corretto — cambia se necessario" : "Valore normalizzato…"}
                                   className="flex-1 border border-neutral-300 rounded-lg px-2 py-1.5 text-xs focus:ring-amber-500 focus:border-amber-500" />
-                                <button onClick={() => setLocMapping(m => ({ ...m, [v.valore]: SVUOTA }))}
-                                  title="Svuota locazione"
-                                  className={`px-2 py-1 rounded-lg text-xs border transition ${locMapping[v.valore] === SVUOTA ? "bg-red-100 border-red-300 text-red-700" : "border-neutral-300 text-neutral-500 hover:bg-red-50"}`}>
-                                  ✕
-                                </button>
+                                <Tooltip label="Svuota locazione">
+                                  <button onClick={() => setLocMapping(m => ({ ...m, [v.valore]: SVUOTA }))}
+                                    className={`px-2 py-1 rounded-lg text-xs border transition ${locMapping[v.valore] === SVUOTA ? "bg-red-100 border-red-300 text-red-700" : "border-neutral-300 text-neutral-500 hover:bg-red-50"}`}>
+                                    ✕
+                                  </button>
+                                </Tooltip>
                               </div>
                             )}
                           </td>
@@ -1551,8 +1553,10 @@ export default function ViniImpostazioni() {
                       {bp.costo > 0 ? `${(Math.round(bp.costo * bp.moltiplicatore * 2) / 2).toFixed(2)} EUR` : "—"}
                     </td>
                     <td className="px-3 py-1.5 text-center">
-                      <button onClick={() => removeMarkupRow(idx)}
-                        className="text-red-400 hover:text-red-600 text-xs font-bold" title="Rimuovi">x</button>
+                      <Tooltip label="Rimuovi">
+                        <button onClick={() => removeMarkupRow(idx)}
+                          className="text-red-400 hover:text-red-600 text-xs font-bold">x</button>
+                      </Tooltip>
                     </td>
                   </tr>
                 ))}

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 
 const GIORNI_SETTIMANA = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -224,32 +225,35 @@ export default function CalendarioChiusure() {
             const isPast = new Date(cell.iso + "T00:00:00") < new Date(new Date().toISOString().slice(0, 10) + "T00:00:00");
 
             return (
-              <button
+              <Tooltip
                 key={idx}
-                onClick={() => toggleGiornoChiuso(cell.iso)}
-                className={`relative rounded-lg border text-xs h-9 font-medium transition ${
-                  isChiuso
-                    ? "bg-red-500 border-red-600 text-white"
-                    : isGiornoSettimanale
-                      ? "bg-red-50 border-red-200 text-red-400"
-                      : hasTurnoChiuso
-                        ? "bg-amber-50 border-amber-300 text-amber-700"
-                        : isPast
-                          ? "bg-neutral-50 border-neutral-100 text-neutral-400"
-                          : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
-                }`}
-                title={
+                label={
                   isChiuso ? `${cell.iso} — CHIUSO (clicca per rimuovere)`
                   : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale`
                   : hasTurnoChiuso ? `${cell.iso} — Turno parziale chiuso`
                   : `${cell.iso} — Clicca per chiudere`
                 }
               >
-                {cell.day}
-                {hasTurnoChiuso && !isChiuso && (
-                  <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                )}
-              </button>
+                <button
+                  onClick={() => toggleGiornoChiuso(cell.iso)}
+                  className={`relative rounded-lg border text-xs h-9 font-medium transition ${
+                    isChiuso
+                      ? "bg-red-500 border-red-600 text-white"
+                      : isGiornoSettimanale
+                        ? "bg-red-50 border-red-200 text-red-400"
+                        : hasTurnoChiuso
+                          ? "bg-amber-50 border-amber-300 text-amber-700"
+                          : isPast
+                            ? "bg-neutral-50 border-neutral-100 text-neutral-400"
+                            : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50 hover:border-indigo-300"
+                  }`}
+                >
+                  {cell.day}
+                  {hasTurnoChiuso && !isChiuso && (
+                    <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  )}
+                </button>
+              </Tooltip>
             );
           })}
         </div>

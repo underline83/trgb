@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import Tooltip from "../../components/Tooltip";
 
 const FC = `${API_BASE}/fic`;
 
@@ -638,29 +639,32 @@ export default function FattureInCloud() {
                             </td>
                             <td className="px-4 py-2.5 text-center">
                               <div className="flex items-center gap-1 justify-center">
-                                <button
-                                  onClick={() => handleShowDetail(w)}
-                                  title="Mostra payload raw FIC"
-                                  className="px-2 py-1 rounded text-xs border border-neutral-200 hover:bg-neutral-100"
-                                >
-                                  🔍
-                                </button>
+                                <Tooltip label="Mostra payload raw FIC">
+                                  <button
+                                    onClick={() => handleShowDetail(w)}
+                                    className="px-2 py-1 rounded text-xs border border-neutral-200 hover:bg-neutral-100"
+                                  >
+                                    🔍
+                                  </button>
+                                </Tooltip>
                                 {w.visto ? (
-                                  <button
-                                    onClick={() => handleMarkUnseen(w)}
-                                    title="Rimetti come non visto"
-                                    className="px-2 py-1 rounded text-xs border border-amber-300 text-amber-700 hover:bg-amber-50"
-                                  >
-                                    ↺
-                                  </button>
+                                  <Tooltip label="Rimetti come non visto">
+                                    <button
+                                      onClick={() => handleMarkUnseen(w)}
+                                      className="px-2 py-1 rounded text-xs border border-amber-300 text-amber-700 hover:bg-amber-50"
+                                    >
+                                      ↺
+                                    </button>
+                                  </Tooltip>
                                 ) : (
-                                  <button
-                                    onClick={() => handleMarkSeen(w)}
-                                    title="Marca come visto (nota opzionale)"
-                                    className="px-2 py-1 rounded text-xs border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                                  >
-                                    ✓
-                                  </button>
+                                  <Tooltip label="Marca come visto (nota opzionale)">
+                                    <button
+                                      onClick={() => handleMarkSeen(w)}
+                                      className="px-2 py-1 rounded text-xs border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                      ✓
+                                    </button>
+                                  </Tooltip>
                                 )}
                               </div>
                             </td>

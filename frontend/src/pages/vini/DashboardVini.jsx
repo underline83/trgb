@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 import { STATO_RIORDINO, STATO_VENDITA, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 import ViniNav from "./ViniNav";
 
@@ -493,17 +494,18 @@ export default function DashboardVini() {
                     <div className="flex items-center gap-2 shrink-0 ml-3 mt-0.5">
                       <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
                       <span className="text-xs text-red-600 font-semibold">0 bt</span>
-                      <button type="button" disabled={togglingId === v.id} onClick={() => toggleNonRicomprare(v)}
-                        title={dimmed ? "Rimuovi flag — torna in lista urgenti" : "Segna come 'Non ricomprare'"}
-                        className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
-                          ${dimmed
-                            ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
-                            : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
-                          }
-                          ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                      >
-                        {dimmed ? "🚫 Non ricomprare" : "◦ Non ricomprare"}
-                      </button>
+                      <Tooltip label={dimmed ? "Rimuovi flag — torna in lista urgenti" : "Segna come 'Non ricomprare'"}>
+                        <button type="button" disabled={togglingId === v.id} onClick={() => toggleNonRicomprare(v)}
+                          className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
+                            ${dimmed
+                              ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                              : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
+                            }
+                            ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          {dimmed ? "🚫 Non ricomprare" : "◦ Non ricomprare"}
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
                 );

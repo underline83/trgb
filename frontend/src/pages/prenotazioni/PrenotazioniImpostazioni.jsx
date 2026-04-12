@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
+import Tooltip from "../../components/Tooltip";
 
 // ── Sidebar items ──
 const SECTIONS = [
@@ -53,14 +54,15 @@ function SlotManager({ label, slots, onChange }) {
             className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium"
           >
             {s}
-            <button
-              type="button"
-              onClick={() => removeSlot(idx)}
-              className="ml-0.5 text-indigo-400 hover:text-red-500 transition text-xs leading-none"
-              title="Rimuovi"
-            >
-              ✕
-            </button>
+            <Tooltip label="Rimuovi">
+              <button
+                type="button"
+                onClick={() => removeSlot(idx)}
+                className="ml-0.5 text-indigo-400 hover:text-red-500 transition text-xs leading-none"
+              >
+                ✕
+              </button>
+            </Tooltip>
           </span>
         ))}
       </div>

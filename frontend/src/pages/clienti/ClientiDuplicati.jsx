@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import Tooltip from "../../components/Tooltip";
 
 export default function ClientiDuplicati({ embedded = false }) {
   const navigate = useNavigate();
@@ -412,13 +413,14 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
           {principale && selezionati.size > 0 && (
             <span className="text-xs text-emerald-600 font-medium">3. Conferma il merge</span>
           )}
-          <button
-            onClick={() => onIgnore(clienti.map((c) => c.id), idx)}
-            className="text-[11px] text-neutral-400 hover:text-red-500 transition ml-2"
-            title="Non sono duplicati (es. marito e moglie)"
-          >
-            Non sono duplicati
-          </button>
+          <Tooltip label="Non sono duplicati (es. marito e moglie)">
+            <button
+              onClick={() => onIgnore(clienti.map((c) => c.id), idx)}
+              className="text-[11px] text-neutral-400 hover:text-red-500 transition ml-2"
+            >
+              Non sono duplicati
+            </button>
+          </Tooltip>
         </div>
       </div>
 

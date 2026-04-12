@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import Tooltip from "../../components/Tooltip";
 
 function ImportSection({ title, icon, instructions, endpoint, color, note }) {
   const [file, setFile] = useState(null);
@@ -255,13 +256,17 @@ function DiffReviewSection({ onCountChange }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded border border-red-200 truncate max-w-[200px]" title={d.valore_crm}>
-                          {d.valore_crm}
-                        </span>
+                        <Tooltip label={d.valore_crm}>
+                          <span className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded border border-red-200 truncate max-w-[200px]">
+                            {d.valore_crm}
+                          </span>
+                        </Tooltip>
                         <span className="text-neutral-400 text-xs">→</span>
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded border border-emerald-200 truncate max-w-[200px]" title={d.valore_thefork}>
-                          {d.valore_thefork}
-                        </span>
+                        <Tooltip label={d.valore_thefork}>
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded border border-emerald-200 truncate max-w-[200px]">
+                            {d.valore_thefork}
+                          </span>
+                        </Tooltip>
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">

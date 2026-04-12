@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import Tooltip from "../../components/Tooltip";
 
 // ── Colori sidebar per rank ──────────────────────────────
 const RANK_SIDEBAR = {
@@ -301,7 +302,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                     <h1 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
                       {cliente.vip ? "⭐ " : ""}{cliente.nome}{cliente.nome2 ? ` & ${cliente.nome2}` : ""} {cliente.cognome2 && cliente.cognome2 !== cliente.cognome ? `${cliente.cognome} / ${cliente.cognome2}` : cliente.cognome}
                       {cliente.protetto === 1 && (
-                        <span className="text-xs text-teal-500" title="Protetto da import TheFork">🛡</span>
+                        <Tooltip label="Protetto da import TheFork">
+                          <span className="text-xs text-teal-500">🛡</span>
+                        </Tooltip>
                       )}
                     </h1>
                     <div className="flex items-center gap-2 mt-1">

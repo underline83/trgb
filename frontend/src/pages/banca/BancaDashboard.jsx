@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
+import Tooltip from "../../components/Tooltip";
 
 const FC = `${API_BASE}/banca`;
 
@@ -185,13 +186,14 @@ export default function BancaDashboard() {
           <div className="flex flex-wrap items-center gap-2">
             {modo === "mese" && (
               <>
-                <button
-                  onClick={mesePrev}
-                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
-                  title="Mese precedente"
-                >
-                  ←
-                </button>
+                <Tooltip label="Mese precedente">
+                  <button
+                    onClick={mesePrev}
+                    className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                  >
+                    ←
+                  </button>
+                </Tooltip>
                 <select
                   value={selMese}
                   onChange={(e) => setSelMese(Number(e.target.value))}
@@ -210,13 +212,14 @@ export default function BancaDashboard() {
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-                <button
-                  onClick={meseNext}
-                  className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
-                  title="Mese successivo"
-                >
-                  →
-                </button>
+                <Tooltip label="Mese successivo">
+                  <button
+                    onClick={meseNext}
+                    className="px-2 py-1 rounded-lg text-sm border border-neutral-200 hover:bg-neutral-100 transition"
+                  >
+                    →
+                  </button>
+                </Tooltip>
               </>
             )}
 

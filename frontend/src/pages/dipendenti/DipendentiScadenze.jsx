@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 0 }) : "\u2014";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : null;
@@ -283,8 +284,9 @@ export default function DipendentiScadenze() {
                       s.stato_calc === "IN_SCADENZA" ? "bg-amber-50/30" : ""
                     }`}>
                       <td className="px-3 py-2 text-center">
-                        <span className={`inline-block w-3 h-3 rounded-full ${st.dot}`}
-                          title={st.label} />
+                        <Tooltip label={st.label}>
+                          <span className={`inline-block w-3 h-3 rounded-full ${st.dot}`} />
+                        </Tooltip>
                       </td>
                       <td className="px-3 py-2 font-medium text-neutral-800">
                         {s.cognome} {s.nome}

@@ -10,6 +10,7 @@ import { useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
+import Tooltip from "../../components/Tooltip";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
@@ -500,42 +501,50 @@ export default function FattureFornitoriElenco() {
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           {f.cat_status === "ok" && (
-                            <span title={`${f.righe_categorizzate}/${f.righe_totali} — tutte definite`}
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                            <Tooltip label={`${f.righe_categorizzate}/${f.righe_totali} — tutte definite`}>
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                            </Tooltip>
                           )}
                           {f.cat_status === "auto" && (
-                            <span title={`${f.righe_auto}/${f.righe_totali} categorie ereditate da fornitore`}
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">C</span>
+                            <Tooltip label={`${f.righe_auto}/${f.righe_totali} categorie ereditate da fornitore`}>
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-amber-100 text-amber-700">C</span>
+                            </Tooltip>
                           )}
                           {f.cat_status === "partial" && (
-                            <span title={`${f.righe_categorizzate}/${f.righe_totali} categorizzati`}
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700">
-                              {f.righe_categorizzate}/{f.righe_totali}
-                            </span>
+                            <Tooltip label={`${f.righe_categorizzate}/${f.righe_totali} categorizzati`}>
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700">
+                                {f.righe_categorizzate}/{f.righe_totali}
+                              </span>
+                            </Tooltip>
                           )}
                           {f.cat_status === "none" && f.righe_totali > 0 && (
-                            <span title={`0/${f.righe_totali} — nessuna categoria`}
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                            <Tooltip label={`0/${f.righe_totali} — nessuna categoria`}>
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                            </Tooltip>
                           )}
                         </td>
                         <td className="px-2 py-2.5 text-center">
                           {f.pag_status === "ok" && (
-                            <span title={`${f.fat_con_scadenza}/${f.fat_totali_pag} — tutte con scadenza`}
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                            <Tooltip label={`${f.fat_con_scadenza}/${f.fat_totali_pag} — tutte con scadenza`}>
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">✓</span>
+                            </Tooltip>
                           )}
                           {f.pag_status === "partial" && (
-                            <span title={`${f.fat_con_scadenza}/${f.fat_totali_pag} con scadenza`}
-                              className="inline-flex items-center justify-center min-w-[24px] h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700 px-1">
-                              {f.fat_con_scadenza}/{f.fat_totali_pag}
-                            </span>
+                            <Tooltip label={`${f.fat_con_scadenza}/${f.fat_totali_pag} con scadenza`}>
+                              <span className="inline-flex items-center justify-center min-w-[24px] h-5 rounded text-[9px] font-bold bg-orange-100 text-orange-700 px-1">
+                                {f.fat_con_scadenza}/{f.fat_totali_pag}
+                              </span>
+                            </Tooltip>
                           )}
                           {f.pag_status === "default" && (
-                            <span title="Default fornitore configurato, nessuna scadenza da fatture"
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-blue-100 text-blue-700">D</span>
+                            <Tooltip label="Default fornitore configurato, nessuna scadenza da fatture">
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-blue-100 text-blue-700">D</span>
+                            </Tooltip>
                           )}
                           {f.pag_status === "none" && (
-                            <span title="Nessun dato pagamento"
-                              className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                            <Tooltip label="Nessun dato pagamento">
+                              <span className="inline-flex items-center justify-center w-6 h-5 rounded text-[9px] font-bold bg-red-100 text-red-600">✗</span>
+                            </Tooltip>
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-neutral-500 text-[10px] hidden sm:table-cell font-mono">{f.fornitore_piva || "—"}</td>
@@ -1364,8 +1373,9 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
                           <span className="text-emerald-700">
                             {f.data_scadenza}
                             {pagMp && f.modalita_pagamento && f.modalita_pagamento !== pagMp && (
-                              <span title={`Modalità diversa: ${f.modalita_pagamento} (default: ${pagMp})`}
-                                className="ml-1 px-1 py-0.5 rounded text-[7px] font-bold bg-amber-100 text-amber-700">≠</span>
+                              <Tooltip label={`Modalità diversa: ${f.modalita_pagamento} (default: ${pagMp})`}>
+                                <span className="ml-1 px-1 py-0.5 rounded text-[7px] font-bold bg-amber-100 text-amber-700">≠</span>
+                              </Tooltip>
                             )}
                           </span>
                         ) : (

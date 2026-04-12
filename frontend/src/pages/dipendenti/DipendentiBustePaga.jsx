@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "\u2014";
 const MESI = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -348,11 +349,12 @@ export default function DipendentiBustePaga() {
             + Inserisci Manuale
           </button>
           <input ref={testInputRef} type="file" accept=".pdf" onChange={handleTestPDF} className="hidden" />
-          <button onClick={() => testInputRef.current?.click()} disabled={uploading}
-            className="px-2 py-1 rounded border border-neutral-300 text-neutral-500 text-[10px] hover:bg-neutral-100 disabled:opacity-50"
-            title="Debug: testa cosa estrae il parser dal PDF senza importare">
-            {"\uD83D\uDD0D"} Test PDF
-          </button>
+          <Tooltip label="Debug: testa cosa estrae il parser dal PDF senza importare">
+            <button onClick={() => testInputRef.current?.click()} disabled={uploading}
+              className="px-2 py-1 rounded border border-neutral-300 text-neutral-500 text-[10px] hover:bg-neutral-100 disabled:opacity-50">
+              {"\uD83D\uDD0D"} Test PDF
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -776,22 +778,23 @@ export default function DipendentiBustePaga() {
                           <span className="ml-1 text-[10px] text-neutral-400">{b.ruolo}</span>
                           {b.fonte === "PDF" && (
                             b.pdf_path ? (
-                              <a href={`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`}
-                                target="_blank" rel="noopener noreferrer"
-                                onClick={e => {
-                                  e.preventDefault();
-                                  const token = localStorage.getItem("token");
-                                  fetch(`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`, {
-                                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                                  }).then(r => r.blob()).then(blob => {
-                                    const url = URL.createObjectURL(blob);
-                                    window.open(url, "_blank");
-                                  });
-                                }}
-                                className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono hover:bg-violet-200 cursor-pointer"
-                                title="Apri PDF cedolino">
-                                {"\uD83D\uDCC4"} PDF
-                              </a>
+                              <Tooltip label="Apri PDF cedolino">
+                                <a href={`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    const token = localStorage.getItem("token");
+                                    fetch(`${API_BASE}/dipendenti/buste-paga/${b.id}/pdf`, {
+                                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                    }).then(r => r.blob()).then(blob => {
+                                      const url = URL.createObjectURL(blob);
+                                      window.open(url, "_blank");
+                                    });
+                                  }}
+                                  className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono hover:bg-violet-200 cursor-pointer">
+                                  {"\uD83D\uDCC4"} PDF
+                                </a>
+                              </Tooltip>
                             ) : (
                               <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 rounded font-mono">PDF</span>
                             )
@@ -815,29 +818,33 @@ export default function DipendentiBustePaga() {
                             {b.stato}
                           </span>
                           {b.uscita_netto_id && (
-                            <span className="ml-1 text-[9px] text-violet-500" title="Scadenza generata">{"\u2192"} CG</span>
+                            <Tooltip label="Scadenza generata">
+                              <span className="ml-1 text-[9px] text-violet-500">{"\u2192"} CG</span>
+                            </Tooltip>
                           )}
                         </td>
                         <td className="px-4 py-2 text-center">
                           <div className="inline-flex items-center gap-1">
-                            <button
-                              onClick={() => handleShareWA(b)}
-                              disabled={!b.telefono}
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                                b.telefono
-                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                  : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                              }`}
-                              title={b.telefono
+                            <Tooltip label={b.telefono
                                 ? `Condividi busta paga via WhatsApp (${b.telefono})`
                                 : "Numero di telefono non presente in anagrafica"}>
-                              WA
-                            </button>
-                            <button onClick={() => handleDelete(b.id)}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200"
-                              title="Elimina cedolino">
-                              {"\u2715"}
-                            </button>
+                              <button
+                                onClick={() => handleShareWA(b)}
+                                disabled={!b.telefono}
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                  b.telefono
+                                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                    : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                                }`}>
+                                WA
+                              </button>
+                            </Tooltip>
+                            <Tooltip label="Elimina cedolino">
+                              <button onClick={() => handleDelete(b.id)}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200">
+                                {"\u2715"}
+                              </button>
+                            </Tooltip>
                           </div>
                         </td>
                       </tr>

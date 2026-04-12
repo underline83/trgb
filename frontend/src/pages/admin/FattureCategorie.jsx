@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import Tooltip from "../../components/Tooltip";
 
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
 
@@ -447,8 +448,10 @@ function TabImpostazioni({ categorie, onRefresh }) {
                     <>
                       <span className="text-sm">{sub.nome}</span>
                       <button onClick={() => setEditSub({ id: sub.id, nome: sub.nome })} className="text-[10px] px-1.5 py-0.5 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
-                      <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
-                        className="text-[10px] px-1.5 py-0.5 text-teal-600 hover:bg-teal-50 rounded" title="Sposta in un'altra categoria">↗️</button>
+                      <Tooltip label="Sposta in un'altra categoria">
+                        <button onClick={() => setMoving({ subId: sub.id, subNome: sub.nome, fromCatId: cat.id })}
+                          className="text-[10px] px-1.5 py-0.5 text-teal-600 hover:bg-teal-50 rounded">↗️</button>
+                      </Tooltip>
                       <button onClick={() => deleteSub(sub.id, sub.nome)} className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded">🗑️</button>
                     </>
                   )}

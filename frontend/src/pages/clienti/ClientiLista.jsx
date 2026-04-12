@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import ClientiScheda from "./ClientiScheda";
+import Tooltip from "../../components/Tooltip";
 
 // ── Colori rank ──────────────────────────────────────────
 const RANK_COLORS = {
@@ -514,7 +515,7 @@ export default function ClientiLista() {
                                       {c.rank}
                                     </span>
                                   )}
-                                  {c.protetto === 1 && <span className="text-[10px] text-teal-500" title="Protetto">🛡</span>}
+                                  {c.protetto === 1 && <Tooltip label="Protetto"><span className="text-[10px] text-teal-500">🛡</span></Tooltip>}
                                 </div>
                               </td>
                               <td className="px-3 py-2.5 text-neutral-600 font-mono text-xs whitespace-nowrap">{c.telefono || "—"}</td>
@@ -549,12 +550,13 @@ export default function ClientiLista() {
                                 {c.ultima_visita || "—"}
                               </td>
                               <td className="px-3 py-2.5 text-center">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setNotaClienteId(notaClienteId === c.id ? null : c.id); setNotaTesto(""); }}
-                                  className={`text-sm hover:scale-110 transition ${notaClienteId === c.id ? "opacity-100" : "opacity-40 hover:opacity-70"}`}
-                                  title="Nota rapida">
-                                  📝
-                                </button>
+                                <Tooltip label="Nota rapida">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setNotaClienteId(notaClienteId === c.id ? null : c.id); setNotaTesto(""); }}
+                                    className={`text-sm hover:scale-110 transition ${notaClienteId === c.id ? "opacity-100" : "opacity-40 hover:opacity-70"}`}>
+                                    📝
+                                  </button>
+                                </Tooltip>
                               </td>
                             </tr>
                             {notaClienteId === c.id && (

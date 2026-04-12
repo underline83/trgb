@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import Tooltip from "../../components/Tooltip";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -426,30 +427,33 @@ export default function RicetteNuova() {
 
                   {/* Azioni riga */}
                   <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => moveItem(idx, -1)}
-                      className="px-1.5 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-100"
-                      title="Sposta su"
-                    >
-                      &uarr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveItem(idx, 1)}
-                      className="px-1.5 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-100"
-                      title="Sposta gi\u00F9"
-                    >
-                      &darr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(idx)}
-                      className="px-1.5 py-1 text-xs bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200"
-                      title="Rimuovi"
-                    >
-                      &times;
-                    </button>
+                    <Tooltip label="Sposta su">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(idx, -1)}
+                        className="px-1.5 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-100"
+                      >
+                        &uarr;
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Sposta giù">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(idx, 1)}
+                        className="px-1.5 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-100"
+                      >
+                        &darr;
+                      </button>
+                    </Tooltip>
+                    <Tooltip label="Rimuovi">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        className="px-1.5 py-1 text-xs bg-red-100 text-red-700 border border-red-300 rounded hover:bg-red-200"
+                      >
+                        &times;
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
               ))}

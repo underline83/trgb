@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import Tooltip from "../../components/Tooltip";
 
 /**
  * MatricePicker — griglia visuale per locazione 3 (matrice).
@@ -137,8 +138,10 @@ export default function MatricePicker({ vinoId, onVinoUpdated, disabled = false 
               className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200 rounded-lg">
               ({c.colonna},{c.riga})
               {!disabled && (
-                <button type="button" onClick={() => handleCellClick(c.riga, c.colonna)}
-                  className="text-amber-500 hover:text-red-600 font-bold ml-0.5" title="Rimuovi">×</button>
+                <Tooltip label="Rimuovi">
+                  <button type="button" onClick={() => handleCellClick(c.riga, c.colonna)}
+                    className="text-amber-500 hover:text-red-600 font-bold ml-0.5">×</button>
+                </Tooltip>
               )}
             </span>
           ))}

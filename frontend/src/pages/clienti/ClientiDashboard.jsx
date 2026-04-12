@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import Tooltip from "../../components/Tooltip";
 
 export default function ClientiDashboard() {
   const navigate = useNavigate();
@@ -96,20 +97,22 @@ export default function ClientiDashboard() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           {waLink && (
-                            <a href={waLink} target="_blank" rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition border border-emerald-200"
-                              title={`WhatsApp a ${tel}`}>
-                              WA
-                            </a>
+                            <Tooltip label={`WhatsApp a ${tel}`}>
+                              <a href={waLink} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition border border-emerald-200">
+                                WA
+                              </a>
+                            </Tooltip>
                           )}
                           {mailLink && (
-                            <a href={mailLink}
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition border border-sky-200"
-                              title={`Email a ${c.email}`}>
-                              Email
-                            </a>
+                            <Tooltip label={`Email a ${c.email}`}>
+                              <a href={mailLink}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-sky-100 text-sky-700 rounded-lg hover:bg-sky-200 transition border border-sky-200">
+                                Email
+                              </a>
+                            </Tooltip>
                           )}
                           {!waLink && !mailLink && (
                             <span className="text-[10px] text-neutral-400">No contatti</span>
