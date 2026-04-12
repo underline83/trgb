@@ -10,6 +10,7 @@ import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 // import useAppHeight from "./hooks/useAppHeight"; // disabilitato sessione 26+, da reinvestigare
+import useUpdateChecker from "./hooks/useUpdateChecker";
 
 // --- GESTIONE VINI ---
 import ViniMenu from "./pages/vini/ViniMenu";
@@ -129,6 +130,8 @@ export default function App() {
 
   // useAppHeight() disabilitato sessione 26+ — causava crash su Cantina/RicetteNuova.
   // Da reinvestigare prima di rimettere.
+
+  const { updateAvailable, reload } = useUpdateChecker();
 
   if (!token) {
     return <Login setToken={setToken} setRole={setRole} />;
@@ -277,6 +280,19 @@ export default function App() {
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Banner auto-update — polling /version.json */}
+      {updateAvailable && (
+        <div className="fixed bottom-0 inset-x-0 z-50 flex items-center justify-center gap-3 bg-brand-blue px-4 py-2.5 text-white text-sm shadow-lg">
+          <span>Nuova versione disponibile</span>
+          <button
+            onClick={reload}
+            className="rounded bg-white/20 px-3 py-1 text-white font-medium hover:bg-white/30 transition-colors"
+          >
+            Aggiorna
+          </button>
+        </div>
+      )}
     </BrowserRouter>
   );
 }
