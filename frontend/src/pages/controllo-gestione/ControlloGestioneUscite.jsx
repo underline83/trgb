@@ -1114,6 +1114,7 @@ export default function ControlloGestioneUscite() {
                     const residuo = (u.totale || 0) - (u.importo_pagato || 0);
                     const isSF = (u.tipo_uscita || "FATTURA") === "SPESA_FISSA";
                     const isStipendio = u.tipo_uscita === "STIPENDIO";
+                    const isProforma = u.tipo_uscita === "PROFORMA";
                     const isRiconciliata = !!u.banca_movimento_id;
                     const puoRiconciliare = u.stato === "PAGATA_MANUALE" && !isRiconciliata;
                     const puoSelezionare = ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato);
@@ -1131,7 +1132,7 @@ export default function ControlloGestioneUscite() {
                         selected.has(u.id) ? "bg-teal-50/60" :
                         inPagamento ? "bg-indigo-50/50" :
                         u.stato === "RATEIZZATA" ? "bg-purple-50/40" :
-                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : "bg-white"
+                        u.stato === "SCADUTA" ? "bg-red-50/30" : isSF ? "bg-indigo-50/20" : isStipendio ? "bg-violet-50/20" : isProforma ? "bg-amber-50/20" : "bg-white"
                       }`}>
                         {/* CHECKBOX */}
                         <td className="px-2 py-1.5 text-center" onClick={e => e.stopPropagation()}>
@@ -1167,6 +1168,10 @@ export default function ControlloGestioneUscite() {
                           ) : isStipendio ? (
                             <span className="text-violet-600 italic">
                               {cleanFatt(u.numero_fattura) || u.periodo_riferimento || "Stipendio"}
+                            </span>
+                          ) : isProforma ? (
+                            <span className="text-amber-700 italic">
+                              {u.note || "Proforma"}
                             </span>
                           ) : (
                             <>
@@ -1210,6 +1215,10 @@ export default function ControlloGestioneUscite() {
                           ) : isStipendio ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 font-medium">
                               Stipendio
+                            </span>
+                          ) : isProforma ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                              Proforma
                             </span>
                           ) : (
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
