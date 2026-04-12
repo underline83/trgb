@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-11/12 (sessione 27 — **lunga**, iniziata con la sola B.1 e finita con B.1 + B.3 + B.2 Block 1 CG completo + fix Tooltip iPad). Sessione di recupero ordinato dopo il disastro di sessione 26: sette commit isolati in totale, un file alla volta, test Mac + iPad reale tra un push e l'altro, zero rollback. Il protocollo post-mortem cap. 10 del `piano_responsive_3target.md` è ora confermato empiricamente. Stato scaletta: **B.1 ✓, B.3 ✓, B.2 parziale (Block 1 CG fatto: Uscite/SpeseFisse/Riconciliazione; Block 2-6 rimandati: Acquisti, Cantina, Dipendenti, Clienti+Contanti, Prenotazioni+Ricette+Banca)**. **Lezione importante**: i worktree di Claude Code (`.claude/worktrees/*`) non sono in main finché non faccio merge esplicito verificato — memory `feedback_worktree_no_trust.md` aggiornata con la regola ferrea. Prossimo passo: **B.2 Block 2 Acquisti** o **B.4 tap target sidebar** (entrambi indipendenti da `useAppHeight`).
+> Ultima sessione: 2026-04-12 (sessione 28 — brand TRGB-02). Integrazione completa del nuovo logo e palette brand nel frontend. Asset SVG/PNG copiati nel repo, palette Tailwind `brand.*`, favicon/PWA aggiornati, Header v5.0 con icona gobbette, Login e Home con wordmark composto (gobbette SVG inline + testo HTML centrato flexbox), TrgbLoader animato sui dashboard principali, colori Recharts allineati, sfondo `bg-brand-cream` su tutte le 90 pagine, card Home con bordo RGB a rotazione. Sistema v5.3 → v5.4. **TODO brand residuo**: pattern gobbette in empty state (P2.9), colori tavoli editor (P2.13), About panel (P2.14), dark mode (P3.8), PDF/export header (P3.11), email template (P3.12). Prossimo passo non-brand: **B.2 Block 2 Acquisti** o **B.4 tap target sidebar**.
 
 ---
 
@@ -37,7 +37,7 @@
 - Frontend: React + Tailwind CSS, no CSS separati. Componenti funzionali con hooks.
 - Backend: FastAPI + SQLite. Migrazioni numerate in `app/migrations/`.
 - Pattern UI consolidati: `SortTh`/`sortRows` per colonne ordinabili, toast per feedback, sidebar filtri a sinistra.
-- Colori: teal per primario, amber per warning, emerald per successo, red per errore.
+- Colori: palette TRGB-02 in `tailwind.config.js` sotto `brand.*`. Sfondo pagine: `bg-brand-cream`. Azioni primarie: `brand-blue`. Errori: `brand-red`. Successo: `brand-green`. Testo: `brand-ink`. Colori ruolo invariati (amber/cyan/purple/rose/emerald/slate).
 
 ### Migrazioni DB
 - Le migrazioni sono in `app/migrations/NNN_nome.py` e vengono tracciate in `schema_migrations`.
@@ -53,6 +53,39 @@ Il progetto si chiama **TRGB Gestionale** — un'app web FastAPI + React in prod
 L'utente si chiama **Marco** (mac: `underline83`, win: `mcarm`).
 
 La cartella di lavoro e' selezionata come workspace Cowork. Puoi leggere e scrivere direttamente tutti i file del progetto.
+
+---
+
+## Cosa abbiamo fatto nella sessione 28 (2026-04-12) — Brand TRGB-02 integrazione completa
+
+### P0 — Fondamenta
+- **Asset copiati**: favicon/icone PWA in `public/icons/`, 10 SVG brand in `src/assets/brand/`, OG image
+- **Palette Tailwind**: `brand-red/green/blue/ink/cream/night` in `tailwind.config.js`
+- **index.html**: theme-color cream, OG image, body `bg-brand-cream`
+- **manifest.webmanifest**: colori aggiornati a cream
+- **index.css**: variabili CSS aggiornate alla palette TRGB-02, link da amber a blue
+- **Header.jsx v5.0**: icona SVG gobbette+T, sfondo cream, testo ink
+- **LoginForm.jsx**: wordmark composto (gobbette SVG inline + testo HTML)
+
+### P1 — Coerenza visiva
+- **Home.jsx v4.0**: wordmark composto centrato flexbox, gobbette strip decorativa, TrgbLoader, card con bordo sinistro RGB a rotazione, sfondo cream
+- **TrgbLoader.jsx** (nuovo): tre gobbette animate pulse sfalsato, props size/label/className
+- **Grafici Recharts** (3 dashboard): colori serie da indigo/teal a brand-blue, CAT_COLORS con brand
+- **TrgbLoader inserito** in 6 loading principali (Home, Vendite, Acquisti, Statistiche, CG, Annuale)
+- **Sfondo cream globale**: 90 pagine `bg-neutral-100`/`bg-gray-50` → `bg-brand-cream` via sed
+
+### Fix intermedi
+- viewBox gobbette strip SVG (era 600x60, contenuto solo a sinistra → croppato a 155x28)
+- Wordmark da SVG con `<text>` (non centrato per variabilità font) → composizione HTML flex
+
+### TODO brand residuo (P2-P3)
+- **P2.9** Pattern gobbette in empty state / watermark decorativo
+- **P2.13** Editor tavoli: colori zone mappati su brand (verde=libero, blue=prenotato, rosso=occupato)
+- **P2.14** Sezione About/version panel con logo
+- **P3.8** Dark mode (asset dark pronti, serve switch `dark:` su tutto il FE)
+- **P3.10** Widget pubblico prenotazioni (bloccato da Fase 3)
+- **P3.11** PDF/export con header brand (backend Python)
+- **P3.12** Email template Brevo (bloccato da Fase 4 SMTP)
 
 ---
 

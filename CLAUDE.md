@@ -24,7 +24,22 @@
 - **API calls**: sempre tramite `API_BASE` da `config/api.js`. Mai URL hardcoded.
 - **Auth**: JWT con `Depends(get_current_user)` su ogni endpoint.
 - **Pattern UI consolidati**: `SortTh`/`sortRows` per colonne ordinabili, toast per feedback, sidebar filtri a sinistra.
-- **Colori Tailwind**: teal primario, amber warning, emerald successo, red errore.
+- **Colori Tailwind — Palette TRGB-02 (sessione 28)**:
+  - `brand-red` (#E8402B) → errori, alert, gobbetta 1
+  - `brand-green` (#2EB872) → successo, conferme, gobbetta 2
+  - `brand-blue` (#2E7BE8) → link, azioni primarie, gobbetta 3
+  - `brand-ink` (#111111) → testo principale
+  - `brand-cream` (#F4F1EC) → sfondo pagine (sostituisce bg-neutral-100 / bg-gray-50)
+  - `brand-night` (#0E0E10) → sfondo dark mode (futuro)
+  - I colori ruolo (amber admin, cyan contabile, purple sommelier, rose sala, emerald chef, slate viewer) restano invariati
+- **Logo/brand nel codice**:
+  - Header: `import TrgbIcon from "../assets/brand/TRGB-02-icon-transparent.svg"` — icona gobbette+T
+  - Wordmark (Home, Login): composto inline con SVG gobbette + `<span>TRGB</span>` in Helvetica Neue 800 — NON usare il file wordmark SVG (ha problemi di viewBox con `<text>`)
+  - Loader: `<TrgbLoader />` da `components/TrgbLoader.jsx` — gobbette animate pulse, usarlo per loading di pagina
+  - Strip decorativa: `assets/brand/TRGB-gobbette-strip.svg` (viewBox corretto)
+  - Sfondo pagine: SEMPRE `bg-brand-cream`, MAI `bg-neutral-100` / `bg-gray-50`
+  - Grafici Recharts: serie anno corrente `#2E7BE8` (brand-blue), serie precedente `#d1d5db`. Categorie: partire da red/green/blue brand
+- **Asset brand**: tutti in `frontend/src/assets/brand/` (SVG) e `frontend/public/icons/` (PNG favicon/PWA)
 
 ## Migrazioni DB
 - File: `app/migrations/NNN_nome.py`, tracciate in `schema_migrations` di `foodcost.db`.
