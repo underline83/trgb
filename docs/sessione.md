@@ -1,7 +1,54 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-12 (sessione 28 — brand TRGB-02). Integrazione completa del nuovo logo e palette brand nel frontend. Asset SVG/PNG copiati nel repo, palette Tailwind `brand.*`, favicon/PWA aggiornati, Header v5.0 con icona gobbette, Login e Home con wordmark composto (gobbette SVG inline + testo HTML centrato flexbox), TrgbLoader animato sui dashboard principali, colori Recharts allineati, sfondo `bg-brand-cream` su tutte le 90 pagine, card Home con bordo RGB a rotazione. Sistema v5.3 → v5.4. **TODO brand residuo**: pattern gobbette in empty state (P2.9), colori tavoli editor (P2.13), About panel (P2.14), dark mode (P3.8), PDF/export header (P3.11), email template (P3.12). Piano responsive COMPLETATO 7/7 (sessione 28 cont.): B.2 tooltip 88 wrapping 38 file, B.4 tap target, B.5 sidebar variabile, B.6 colonne nascoste iPad, Punto 1 100dvh. **Prossimo passo: D.4 PWA Fase 0** (riscrivere sw.js network-first) oppure D1 storni banca.
+> Ultima sessione: 2026-04-12 (sessione 29 — Home v3 redesign). Redesign completo della Home in ottica app iPad/iPhone. Due pagine con swipe: pagina 1 = widget personalizzabili (alert, prenotazioni oggi, stats, azioni rapide), pagina 2 = griglia moduli con tile grafiche (icone SVG, no emoji, colori smorzati, linea gobbetta brand). Mockup v3 approvato da Marco. **Fase 0 completata**: docs aggiornati, specifiche widget, regole design. **Prossimo passo: Fase 1** — endpoint backend `/dashboard/home` (aggregatore widget data), poi Fase 2 frontend (hook + componenti + riscrittura Home.jsx).
+
+---
+
+## HOME v3 REDESIGN — Piano implementazione (sessione 29)
+
+> Redesign approvato da Marco il 2026-04-12. Mockup interattivo: `mockup-home-v3.html` nella root.
+
+### Concept
+- **Due pagine con swipe** (dot indicator, touch gesture): pagina 1 = widget, pagina 2 = moduli
+- **Widget programmabili**: al lancio fissi, futura configurabilità per ruolo (admin sceglie)
+- **Tile moduli senza emoji**: icone SVG stroke 1.5 monocromatiche su tintina, colori smorzati, linea gobbetta R/G/B in alto
+- **Estetica raffinata**: Playfair Display per titoli, palette muted (non più colori sparati), card bianche su cream, ombre minime, respiro generoso
+
+### Widget al lancio (v1 — fissi per tutti i ruoli)
+1. **Attenzione** — alert aggregati: fatture da registrare, scadenze imminenti, vini sotto scorta. Icona SVG modulo + testo + chevron. Dati da: `fe_fatture`, `dipendenti_scadenze`, stock vini
+2. **Prenotazioni oggi** — lista compatta orario/nome/pax/stato + totale pax header. Dati da: `clienti_prenotazioni` filtrate per data odierna
+3. **Incasso ieri** — cifra grande + delta % vs media. Dati da: `shift_closures` giorno precedente
+4. **Coperti mese** — cifra + confronto anno precedente. Dati da: `shift_closures` aggregati mese corrente
+5. **Azioni rapide** — griglia 2×2: Chiusura Turno, Nuova Prenotazione, Cerca Vino, Food Cost. Link diretti, configurabili in futuro
+
+### Widget futuri (v2 — dopo il lancio)
+- Turni dipendenti oggi
+- Meteo (per prenotazioni outdoor)
+- Obiettivo incasso settimanale con progress bar
+- Widget personalizzabili per ruolo (cuoco vede ordini, sala vede prenotazioni)
+
+### Fasi implementazione
+- **Fase 0** ✅ Docs + specifiche + regole design (questa sessione Cowork)
+- **Fase 1** — Backend: endpoint `GET /dashboard/home` aggregatore (query su prenotazioni, shift_closures, fe_fatture)
+- **Fase 2** — Frontend infrastruttura: hook `useHomeWidgets()`, componente `WidgetCard`, file `icons.jsx` con set SVG moduli
+- **Fase 3** — Frontend pagina widget (pagina 1): riscrittura Home.jsx con swipe container + 5 widget
+- **Fase 4** — Frontend pagina moduli (pagina 2): componente `ModuleTile`, griglia 3col iPad / 2col iPhone
+- **Fase 5** — Navigazione: adattamento Header, aggiornamento DashboardSala con stile v3
+- **Fase 6** — Polish: aggiornamento styleguide.md, test iPad/iPhone viewport, versioning
+
+### Regole design Home v3 (per tutti gli agenti)
+- **Sfondo**: `bg-brand-cream` (#F4F1EC) — invariato
+- **Card/Widget**: bg bianco, border-radius 14px, `box-shadow: 0 1px 3px rgba(0,0,0,.04)`, NO bordi visibili pesanti
+- **Icone moduli**: SVG stroke 1.5, monocromatiche nel colore accent del modulo, su fondo tintina chiaro (accent + 08 opacity)
+- **Colori moduli**: palette SMORZATA (es. Vini #B8860B non #F59E0B, Acquisti #2D8F7B non #14B8A6). Tinte: bianco sporco, non pastelli saturi
+- **Gobbetta brand**: linea sottile 2px in alto su ogni tile, cicla R/G/B (#E8402B/#2EB872/#2E7BE8), opacity .5
+- **Titoli**: Playfair Display 700 per titoli pagina (saluto, "Moduli"), font sistema per tutto il resto
+- **Label widget**: 10px uppercase letter-spacing 1.2px, colore `#a8a49e` (warm gray)
+- **NO emoji** nei moduli — solo icone SVG. Emoji ammesse SOLO in contesti testuali (note, alert)
+- **Touch target**: minimo 44pt, bottoni 48pt, righe lista ≥ 44pt
+- **Proporzioni iPad**: padding 32px, griglia widget 1.5fr + .5fr per prenotazioni+stats
+- **Proporzioni iPhone**: padding 18px, widget impilati 1 colonna, tile moduli 2 colonne
 
 ---
 
@@ -259,6 +306,15 @@ Sessione "ambiziosa che è esplosa". Aperta con l'analisi sull'evoluzione di TRG
 - E.1 Mailchimp sync (vedi `project_backlog.md` in memoria)
 - E.2 Google Contacts API
 - E.3 Modulo Prenotazioni — 5 fasi, obiettivo eliminare TF Manager (`docs/modulo_prenotazioni.md`, `docs/prenotazioni_todo.md`)
+
+**F — Home v3 Redesign (NUOVO sessione 29)**
+- ✅ F.0 Docs + specifiche + regole design + mockup approvato
+- ⏳ F.1 Backend endpoint `GET /dashboard/home` aggregatore widget
+- ⏳ F.2 Frontend infrastruttura: `useHomeWidgets()` hook, `WidgetCard` component, `icons.jsx` set SVG
+- ⏳ F.3 Frontend pagina 1 (widget): riscrittura Home.jsx con swipe + 5 widget
+- ⏳ F.4 Frontend pagina 2 (moduli): `ModuleTile` component, griglia responsive
+- ⏳ F.5 Navigazione: adattamento Header + DashboardSala stile v3
+- ⏳ F.6 Polish: styleguide.md aggiornato, test viewport iPad/iPhone, versions.jsx
 
 ---
 

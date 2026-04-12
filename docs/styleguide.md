@@ -155,11 +155,44 @@ div.bg-white.rounded-xl.border.border-neutral-200.overflow-hidden.shadow-sm
 
 ---
 
+## Home v3 — Tile moduli (sessione 29)
+
+Le tile della Home NON usano emoji. Pattern:
+```
+div.tile3 — bg-white rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,.04)] overflow-hidden relative
+  div — gobbetta accent: 2px top bar, cicla brand-red/green/blue, opacity .5
+  div — padding 20px, flex column, justify-between, height 100%
+    div.icon — 36x36 rounded-[10px] bg-{tint} color-{accent}
+      svg stroke-1.5 (da icons.jsx)
+    div.text
+      div.label — 14px font-bold text-brand-ink
+      div.sub — 10px warm-gray opacity .6
+```
+
+Colori moduli SMORZATI (NON i Tailwind saturi):
+| Modulo              | Accent    | Tint      |
+|---------------------|-----------|-----------|
+| Vini                | #B8860B   | #FAF5EB   |
+| Acquisti            | #2D8F7B   | #EEF9F6   |
+| Vendite             | #4F52B5   | #EDEDFA   |
+| Ricette             | #C05621   | #FDF3EC   |
+| Flussi Cassa        | #1A7F5A   | #EBF8F3   |
+| Controllo Gestione  | #2871B8   | #EBF3FC   |
+| Statistiche         | #B83A52   | #FCEDF0   |
+| Prenotazioni        | #6B4FA8   | #F1EDF9   |
+| Clienti             | #1E7E8A   | #ECF7F8   |
+| Dipendenti          | #7C4FA8   | #F3EEF9   |
+| Impostazioni        | #6B6B6B   | #F2F2F2   |
+
+---
+
 ## Regole
 
 1. Il colore primario di ogni sotto-pagina segue il **colore del modulo padre** (es. Buste Paga usa purple perche e sotto Dipendenti)
 2. I colori semantici (rosso/amber/verde) si usano SOLO per stati e alert, MAI come tema modulo
 3. Il back button torna sempre al **livello superiore** (sotto-pagina → menu modulo, menu modulo → Home)
-4. Le emoji vanno in JSX escaped (`{"\uD83D\uDC65"}`) non come carattere diretto nel codice
+4. **NO emoji nei moduli**: usare icone SVG da `icons.jsx`. Emoji ammesse solo in testi/note
 5. Niente CSS file separati, tutto Tailwind inline
 6. `VersionBadge` sulle tile dei menu, non nelle header bar
+7. Card e widget: border-radius 14px, shadow minima, niente bordi pesanti
+8. Touch target minimo 44pt su tutto (bottoni 48pt, righe lista ≥ 44pt)

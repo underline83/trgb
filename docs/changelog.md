@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-04-12 — Sessione 29 / HOME v3 REDESIGN — Fase 0 (docs + specifiche)
+
+Redesign completo della Home in ottica app iPad/iPhone. Concept approvato da Marco: due pagine con swipe (pagina 1 = widget personalizzabili, pagina 2 = griglia moduli). Tile moduli con icone SVG (no emoji), colori smorzati, linea gobbetta brand, estetica raffinata (Playfair Display, card bianche, ombre minime). Mockup interattivo `mockup-home-v3.html`. Fase 0 completata: `docs/sessione.md` aggiornato con piano 7 fasi (F.0-F.6), specifiche 5 widget al lancio, regole design per pagine interne. `CLAUDE.md` aggiornato con regole Home v3 per tutti gli agenti. Prossimo: Fase 1 backend endpoint `/dashboard/home`.
+
+---
+
 ## 2026-04-12 — Sessione 28 / PIANO RESPONSIVE COMPLETATO (tutti i 7 punti)
 
 **Punto 1** — `100vh`→`100dvh` in 7 file (fix iOS Safari URL bar). Niente hook JS, solo CSS nativo.
