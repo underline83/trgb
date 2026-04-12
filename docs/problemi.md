@@ -6,6 +6,27 @@
 
 ---
 
+## Aperti — Priorità alta
+
+### D4. PWA Fase 0 — Re-implementare service worker con cache strategy corretta
+**Segnalato:** 2026-04-11 (sessione 26, rollbackato)
+**Modulo:** Infrastruttura / PWA
+**Gravità:** alta — blocca il percorso verso app Apple standalone
+
+**Stato:** Manifest, icone, meta tag iOS sono sul disco e funzionanti. Il service worker (`sw.js`) è disabilitato dal rollback sessione 26. La registrazione in `main.jsx` è rimpiazzata da un blocco difensivo che ripulisce SW/cache residui.
+
+**Causa rollback sessione 26:** `sw.js` con strategia stale-while-revalidate ha servito mix incoerente di chunk Vite su iPad Safari al primo deploy. Crash su Cantina (MagazzinoVini) e Nuova Ricetta (RicetteNuova).
+
+**Piano D.4 (da eseguire):**
+1. Riscrivere `sw.js`: network-first per app shell, cache come fallback offline, `CACHE_NAME` legato a `BUILD_VERSION`, zero precache di chunk Vite
+2. Riattivare registrazione in `main.jsx` (sostituire blocco difensivo cleanup)
+3. Push isolato — test Mac poi iPad (specificamente Cantina e RicetteNuova)
+4. Se crasha: ri-disabilitare registrazione, il blocco cleanup già collaudato ripulisce tutto
+
+**Ref:** `docs/analisi_app_apple.md`, memory `project_app_apple.md`, `docs/sessione.md` sessione 26
+
+---
+
 ## Aperti — Priorità media
 
 ### D1. Flussi di Cassa — Sistema storni difettoso

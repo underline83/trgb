@@ -2,15 +2,15 @@
 
 **Sessione di analisi:** 2026-04-11 (sessione 26 — Marco + Claude)
 **Stato aggiornato fine sessione 27 (2026-04-12 notte):**
-- **Punto 1 (`useAppHeight`)** — ROLLBACKATO in sessione 26. Da rifare con C.3 bisezione.
+- **Punto 1 (`100dvh`)** — ✅ COMPLETATO sessione 28. Approccio semplificato: `100vh`→`100dvh` puro CSS in 7 file, niente hook JS. Risolve iOS Safari URL bar dinamica.
 - **Punto 2 (B.1 Header touch)** — ✅ FATTO sessione 27. `Header.jsx` v4.3, tap-toggle + click-outside touchstart.
 - **Punto 3 (B.2 Tooltip popover)** — ✅ COMPLETATA sessione 27+28. Componente `Tooltip.jsx` v1.1 (detection iPad Desktop-mode, no long-press callout). Tutti i blocchi migrati: Block 1 CG (14), Block 2 Acquisti (17), Block 3 Cantina (16), Block 4-5 Dip/Clienti/Pren/Ricette (28), Block 6 Banca/Stat/Admin (13). **88 wrapping in 38 file, zero title= migrabili rimasti.**
 - **Punto 4 (B.3 input font-size 16px)** — ✅ FATTO sessione 27. `index.css` media query `@media (pointer: coarse)`.
-- **Punto 5 (B.4 tap target sidebar)** — ancora da fare.
-- **Punto 6 (B.5 sidebar width variabile)** — ancora da fare (opzionale).
-- **Punto 7 (B.6 tabelle critiche `hidden xl:table-cell`)** — condizionale, solo se serve dopo gli altri.
+- **Punto 5 (B.4 tap target sidebar)** — ✅ COMPLETATO sessione 28. Bump py→py-2.5 su 4 file primari (FattureElenco, FattureFornitoriElenco, CG Uscite, BancaMovimenti).
+- **Punto 6 (B.5 sidebar width variabile)** — ✅ COMPLETATO sessione 28. `w-sidebar`/`w-sidebar-sm` in Tailwind config, 4 file migrati.
+- **Punto 7 (B.6 tabelle `hidden xl:table-cell`)** — ✅ COMPLETATO sessione 28. FattureElenco (IVA/Righe/Fonte) e CG Uscite (Banca) nascoste su <1280px.
 
-**Prossima sessione operativa:** **B.4 tap target sidebar** (indipendente da `useAppHeight`), poi B.5 (opzionale), B.6 (condizionale). B.2 è completata.
+**Piano responsive COMPLETATO al 100%.** Tutti i 7 punti eseguiti tra sessione 27 e 28. Nessun punto residuo.
 
 **Protocollo cap. 10 confermato empiricamente:** sessione 27 ha eseguito **sette commit isolati consecutivi** (B.1 + B.3 + 5 commit del Block 1 B.2) con zero rollback e zero regressioni. Il pattern "un file per commit + Marco testa tra un push e l'altro" funziona. Rule of thumb: mai più worktree `.claude/worktrees/*` — sempre direttamente in main (vedi postmortem worktree in `sessione.md` sessione 27 e memory `feedback_worktree_no_trust.md`).
 

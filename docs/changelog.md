@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-04-12 — Sessione 28 / PIANO RESPONSIVE COMPLETATO (tutti i 7 punti)
+
+**Punto 1** — `100vh`→`100dvh` in 7 file (fix iOS Safari URL bar). Niente hook JS, solo CSS nativo.
+**B.4** — Tap target ~40px su sidebar filtri (FattureElenco, FattureFornitoriElenco, CG Uscite, BancaMovimenti).
+**B.5** — Sidebar width variabile: `w-sidebar` (280px) e `w-sidebar-sm` (240px) in `tailwind.config.js`.
+**B.6** — Colonne secondarie `hidden xl:table-cell`: IVA/Righe/Fonte in FattureElenco, Banca in CG Uscite.
+
+---
+
 ## 2026-04-12 — Sessione 28 / B.2 COMPLETATA: migrazione title=→Tooltip su tutto il frontend
 
 Migrazione bulk di tutti i `title=` su elementi interattivi (button, link, span-icona, badge) al componente `<Tooltip>` custom con supporto touch iPad. 35 file toccati, 74 wrapping in 6 blocchi (Acquisti 17, Cantina 16, Dipendenti/Clienti/Prenotazioni/Ricette 28, Banca/Statistiche/Admin 13). Fix conflitto Recharts Tooltip in `FattureDashboard.jsx` (rinominato `TrgbTooltip` + `RechartsTooltip`).
