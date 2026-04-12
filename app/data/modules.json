@@ -24,6 +24,7 @@
       { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "viewer"] },
       { "key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "viewer"] },
       { "key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "proforme",     "label": "Pro-forme",    "roles": ["superadmin", "admin"] },
       { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
   },

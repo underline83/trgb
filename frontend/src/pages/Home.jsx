@@ -1,4 +1,4 @@
-// @version: v6.0 — Home v3.1: pagina moduli con righe gradient colore + dati dinamici dal backend
+// @version: v7.0 — Home v3.2 Magazine: card bianche + accent bar + icona tinta + dati dinamici, griglia responsive
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -9,19 +9,19 @@ import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 
-/* ── Palette moduli: gradient per righe colore (Home v3.1) ── */
+/* ── Palette moduli Magazine: accent bar + icona tinta (Home v3.2) ── */
 const MODULE_STYLE = {
-  vini:                { grad: "linear-gradient(135deg, #C4960F, #A87A00)" },
-  acquisti:            { grad: "linear-gradient(135deg, #7B5F8A, #634A70)" },
-  vendite:             { grad: "linear-gradient(135deg, #6A7B5E, #4E5F42)" },
-  ricette:             { grad: "linear-gradient(135deg, #5A7A92, #44657A)" },
-  "flussi-cassa":      { grad: "linear-gradient(135deg, #3D9F8B, #28806C)" },
-  "controllo-gestione":{ grad: "linear-gradient(135deg, #5A6A78, #444F5C)" },
-  statistiche:         { grad: "linear-gradient(135deg, #707070, #555555)" },
-  prenotazioni:        { grad: "linear-gradient(135deg, #9B6E4C, #7A5030)" },
-  clienti:             { grad: "linear-gradient(135deg, #5A6E92, #44587A)" },
-  dipendenti:          { grad: "linear-gradient(135deg, #8A7362, #6E5A4A)" },
-  impostazioni:        { grad: "linear-gradient(135deg, #555555, #444444)" },
+  vini:                { accent: "#B8860B", tint: "#F5F0E6" },
+  acquisti:            { accent: "#6B4F7A", tint: "#EDE8F0" },
+  vendite:             { accent: "#5A6B50", tint: "#EBF0E8" },
+  ricette:             { accent: "#4A6A82", tint: "#E9EFF3" },
+  "flussi-cassa":      { accent: "#2D8F7B", tint: "#E8EFEB" },
+  "controllo-gestione":{ accent: "#4A5A68", tint: "#EAEAEA" },
+  statistiche:         { accent: "#888888", tint: "#EAEAEA" },
+  prenotazioni:        { accent: "#8B5E3C", tint: "#F3EDE7" },
+  clienti:             { accent: "#4A5E82", tint: "#E8ECF3" },
+  dipendenti:          { accent: "#7A6352", tint: "#F0EAE4" },
+  impostazioni:        { accent: "#666666", tint: "#EAEAEA" },
 };
 
 /* Gobbetta accent colors cycle */
@@ -308,7 +308,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ════════ PAGINA 2: MODULI (righe gradient) ════════ */}
+            {/* ════════ PAGINA 2: MODULI (Magazine) ════════ */}
             <div className="w-full flex-shrink-0 overflow-y-auto px-5 sm:px-8 pb-8">
               <div className="flex items-baseline justify-between mb-5 sm:mb-6">
                 <h2 className="font-playfair text-[22px] sm:text-[26px] font-bold text-brand-ink tracking-tight">
@@ -319,76 +319,134 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Mappa summary da API per lookup veloce */}
-              <div className="flex flex-col gap-2">
-                {visibleModules.map((m) => {
-                  const menu = MODULES_MENU[m.key];
-                  const style = MODULE_STYLE[m.key];
-                  if (!menu || !style) return null;
-                  const IconComp = MODULE_ICONS[m.key];
-                  // Cerca dati dinamici dal backend
-                  const summary = widgets?.moduli?.find((s) => s.key === m.key);
-                  const badge = summary?.badge || 0;
+              {(() => {
+                // Separa "prenotazioni" come hero (se visibile)
+                const heroKey = "prenotazioni";
+                const heroModule = visibleModules.find((m) => m.key === heroKey);
+                const restModules = visibleModules.filter((m) => m.key !== heroKey);
 
-                  return (
-                    <div
-                      key={m.key}
-                      onClick={() => navigate(menu.go)}
-                      className="flex items-center gap-3.5 rounded-[14px] cursor-pointer active:scale-[.98] transition-transform overflow-hidden"
-                      style={{
-                        background: style.grad,
-                        padding: "14px 16px",
-                        minHeight: 64,
-                      }}
-                    >
-                      {/* Icona SVG bianca */}
-                      <div className="flex-shrink-0" style={{ color: "rgba(255,255,255,.85)" }}>
-                        {IconComp ? <IconComp size={22} /> : null}
-                      </div>
+                return (
+                  <>
+                    {/* ── Hero: Prenotazioni (span 2 col) ── */}
+                    {heroModule && (() => {
+                      const menu = MODULES_MENU[heroModule.key];
+                      const style = MODULE_STYLE[heroModule.key];
+                      const IconComp = MODULE_ICONS[heroModule.key];
+                      const summary = widgets?.moduli?.find((s) => s.key === heroModule.key);
+                      const badge = summary?.badge || 0;
+                      if (!menu || !style) return null;
 
-                      {/* Testo: nome + 2 righe dinamiche */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[14px] font-semibold text-white leading-tight truncate">
-                          {menu.title.replace("Gestione ", "")}
+                      return (
+                        <div className="mb-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#a8a49e] mb-2.5 ml-1">
+                            Oggi
+                          </div>
+                          <div
+                            onClick={() => navigate(menu.go)}
+                            className="bg-white rounded-[14px] cursor-pointer active:scale-[.98] transition-transform relative overflow-hidden"
+                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,.05)" }}
+                          >
+                            {/* Gobbette accent strip */}
+                            <div
+                              className="absolute top-0 left-0 right-0 h-[3px]"
+                              style={{ background: "linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8)" }}
+                            />
+                            <div className="flex items-center gap-3.5 px-5 py-4">
+                              <div
+                                className="w-12 h-12 rounded-[13px] flex items-center justify-center flex-shrink-0"
+                                style={{ background: style.tint, color: style.accent }}
+                              >
+                                {IconComp ? <IconComp size={24} /> : null}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[15px] font-bold text-brand-ink leading-tight">
+                                  {menu.title}
+                                </div>
+                                {summary?.line1 && (
+                                  <div className="text-[12px] text-[#888] mt-0.5">{summary.line1}</div>
+                                )}
+                                {summary?.line2 && (
+                                  <div className="text-[11px] text-[#aaa]">{summary.line2}</div>
+                                )}
+                              </div>
+                              {badge > 0 && (
+                                <span
+                                  className="flex-shrink-0 text-[10px] font-bold text-white rounded-full text-center"
+                                  style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}
+                                >
+                                  {badge}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        {summary?.line1 && (
-                          <div className="text-[11px] text-white/60 mt-0.5 leading-snug truncate">
-                            {summary.line1}
-                          </div>
-                        )}
-                        {summary?.line2 && (
-                          <div className="text-[11px] text-white/45 leading-snug truncate">
-                            {summary.line2}
-                          </div>
-                        )}
-                      </div>
+                      );
+                    })()}
 
-                      {/* Badge notifica (se > 0) */}
-                      {badge > 0 && (
-                        <span
-                          className="flex-shrink-0 text-[11px] font-bold text-white rounded-full text-center"
-                          style={{
-                            background: "rgba(255,255,255,.25)",
-                            padding: "2px 8px",
-                            minWidth: 24,
-                          }}
-                        >
-                          {badge}
-                        </span>
-                      )}
-
-                      {/* Chevron */}
-                      <svg
-                        width="14" height="14" viewBox="0 0 24 24"
-                        fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"
-                        className="flex-shrink-0"
-                      >
-                        <path strokeLinecap="round" d="M9 6l6 6-6 6" />
-                      </svg>
+                    {/* ── Griglia moduli: 3 col landscape, 2 col portrait ── */}
+                    <div className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#a8a49e] mb-2.5 ml-1 mt-4">
+                      Tutti i moduli
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {restModules.map((m) => {
+                        const menu = MODULES_MENU[m.key];
+                        const style = MODULE_STYLE[m.key];
+                        if (!menu || !style) return null;
+                        const IconComp = MODULE_ICONS[m.key];
+                        const summary = widgets?.moduli?.find((s) => s.key === m.key);
+                        const badge = summary?.badge || 0;
+
+                        return (
+                          <div
+                            key={m.key}
+                            onClick={() => navigate(menu.go)}
+                            className="bg-white rounded-[14px] cursor-pointer active:scale-[.97] transition-transform relative overflow-hidden"
+                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,.05)", padding: 16 }}
+                          >
+                            {/* Accent bar top */}
+                            <div
+                              className="absolute top-0 left-0 right-0 h-[3px]"
+                              style={{ background: style.accent }}
+                            />
+                            {/* Badge */}
+                            {badge > 0 && (
+                              <span
+                                className="absolute top-3 right-3 text-[10px] font-bold text-white rounded-full text-center"
+                                style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}
+                              >
+                                {badge}
+                              </span>
+                            )}
+                            {/* Icon */}
+                            <div
+                              className="w-[38px] h-[38px] rounded-[11px] flex items-center justify-center"
+                              style={{ background: style.tint, color: style.accent }}
+                            >
+                              {IconComp ? <IconComp size={20} /> : null}
+                            </div>
+                            {/* Text */}
+                            <div className="mt-2.5">
+                              <div className="text-[13px] font-bold text-brand-ink leading-tight">
+                                {menu.title.replace("Gestione ", "").replace("Ricette & ", "Ricette &\u00a0")}
+                              </div>
+                              {summary?.line1 && (
+                                <div className="text-[11px] text-[#888] mt-1 leading-snug truncate">
+                                  {summary.line1}
+                                </div>
+                              )}
+                              {summary?.line2 && (
+                                <div className="text-[11px] text-[#aaa] leading-snug truncate">
+                                  {summary.line2}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Footer versione */}
               <div className="mt-10 flex flex-col items-center gap-1.5">

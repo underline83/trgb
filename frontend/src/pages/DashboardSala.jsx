@@ -1,43 +1,42 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v2.0 — Home v3 style
+// @version: v3.0 — Home v3.2 Magazine style
 // Dashboard a tile per utenti sala — accesso rapido alle funzioni principali
-// Stile coerente con Home v3: icone SVG, colori smorzati, card 14px radius
+// Stile Magazine: card bianche, accent bar colorata, icona tinta, 2 righe testo
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { IconVendite, IconVini, IconPrenotazioni } from "../components/icons";
 
-/* ── Palette smorzata coerente con Home v3 ── */
 const TILES = [
   {
     key: "fine-turno",
     title: "Chiusura Turno",
-    subtitle: "Compila la chiusura cassa di fine servizio",
+    line1: "Compila la chiusura cassa",
+    line2: "Fine servizio",
     Icon: IconVendite,
     go: "/vendite/fine-turno",
-    accent: "#5A6B50",   // vendite muted
-    tint: "#EEF0EC",
-    gobbetta: "#E8402B",
+    accent: "#5A6B50",
+    tint: "#EBF0E8",
   },
   {
     key: "cantina",
     title: "Cantina Vini",
-    subtitle: "Cerca vini, controlla giacenze e locazioni",
+    line1: "Cerca vini e giacenze",
+    line2: "Magazzino e locazioni",
     Icon: IconVini,
     go: "/vini/magazzino",
-    accent: "#B8860B",   // vini muted
+    accent: "#B8860B",
     tint: "#F5F0E6",
-    gobbetta: "#2EB872",
   },
   {
     key: "prenotazioni",
     title: "Prenotazioni",
-    subtitle: "Visualizza le prenotazioni di oggi",
+    line1: "Tavoli e servizi",
+    line2: "Planning di oggi",
     Icon: IconPrenotazioni,
     go: "/prenotazioni",
-    accent: "#8B5E3C",   // prenotazioni muted
+    accent: "#8B5E3C",
     tint: "#F3EDE7",
-    gobbetta: "#2E7BE8",
   },
 ];
 
@@ -45,7 +44,6 @@ export default function DashboardSala() {
   const navigate = useNavigate();
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "Sala";
 
-  /* Saluto contestuale */
   const h = new Date().getHours();
   const saluto = h < 12 ? "Buongiorno" : h < 18 ? "Buon pomeriggio" : "Buonasera";
 
@@ -53,10 +51,7 @@ export default function DashboardSala() {
     <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div
-          className="bg-white p-8 mb-6 text-center"
-          style={{ borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,.04)" }}
-        >
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-brand-ink font-playfair">
             {saluto}, {displayName}
           </h1>
@@ -65,30 +60,36 @@ export default function DashboardSala() {
           </p>
         </div>
 
-        {/* Tiles */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Tiles — Magazine style */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {TILES.map((tile) => (
             <div
               key={tile.key}
               onClick={() => navigate(tile.go)}
-              className="bg-white cursor-pointer hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col items-center text-center"
+              className="bg-white cursor-pointer active:scale-[.97] transition-transform overflow-hidden relative"
               style={{
                 borderRadius: 14,
-                boxShadow: "0 1px 3px rgba(0,0,0,.04)",
-                borderTop: `2px solid ${tile.gobbetta}50`,
+                boxShadow: "0 2px 8px rgba(0,0,0,.05)",
+                padding: 16,
               }}
             >
-              <div className="pt-6 pb-2">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto"
-                  style={{ backgroundColor: tile.tint, color: tile.accent }}
-                >
-                  <tile.Icon size={24} />
-                </div>
+              {/* Accent bar */}
+              <div
+                className="absolute top-0 left-0 right-0 h-[3px]"
+                style={{ background: tile.accent }}
+              />
+              {/* Icon */}
+              <div
+                className="w-10 h-10 rounded-[11px] flex items-center justify-center"
+                style={{ background: tile.tint, color: tile.accent }}
+              >
+                <tile.Icon size={22} />
               </div>
-              <div className="px-5 pb-5">
-                <div className="text-base font-semibold text-brand-ink mt-2">{tile.title}</div>
-                <div className="text-xs mt-1" style={{ color: "#a8a49e" }}>{tile.subtitle}</div>
+              {/* Text */}
+              <div className="mt-2.5">
+                <div className="text-[14px] font-bold text-brand-ink">{tile.title}</div>
+                <div className="text-[11px] mt-1" style={{ color: "#888" }}>{tile.line1}</div>
+                <div className="text-[11px]" style={{ color: "#aaa" }}>{tile.line2}</div>
               </div>
             </div>
           ))}
