@@ -1,0 +1,54 @@
+// FILE: frontend/src/components/TrgbLoader.jsx
+// @version: v1.0 — Loader animato TRGB-02 (gobbette pulse)
+import React from "react";
+
+/**
+ * Loader brand TRGB-02.
+ * Tre gobbette (R/G/B) con animazione pulse sfalsata.
+ *
+ * Props:
+ *  - size: altezza in px (default 48)
+ *  - label: testo opzionale sotto il loader
+ *  - className: classi extra sul wrapper
+ */
+export default function TrgbLoader({ size = 48, label, className = "" }) {
+  return (
+    <div className={`flex flex-col items-center justify-center gap-3 ${className}`}>
+      <svg
+        viewBox="0 0 1024 1024"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ height: size, width: size }}
+        role="img"
+        aria-label="Caricamento…"
+      >
+        {/* Gobbetta rossa */}
+        <path
+          d="M 299.5 370.0 L 300.3 366.7 L 301.3 363.4 L 302.4 360.1 L 303.6 356.9 L 304.9 353.8 L 306.4 350.7 L 308.1 347.7 L 309.9 344.7 L 311.9 341.9 L 314.1 339.1 L 316.6 336.4 L 319.2 333.8 L 322.0 331.7 L 324.9 329.7 L 327.9 328.0 L 331.0 326.7 L 334.3 325.6 L 337.6 324.8 L 341.1 324.3 L 344.7 324.0 L 348.3 324.0 L 351.9 324.4 L 355.4 324.9 L 358.8 325.5 L 362.2 326.3 L 365.5 327.3 L 368.7 328.5 L 371.9 329.7 L 375.0 331.1 L 378.1 332.6 L 381.1 334.2 L 384.2 335.8 L 387.2 337.5 L 390.1 339.3 L 393.0 341.1 L 395.9 343.1 L 398.8 345.0 L 401.7 347.1 L 404.5 349.2"
+          stroke="#E8402B" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none"
+          opacity="0.3"
+        >
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0s" repeatCount="indefinite" />
+        </path>
+        {/* Gobbetta verde */}
+        <path
+          d="M 459.5 370.0 L 460.3 366.7 L 461.3 363.4 L 462.4 360.1 L 463.6 356.9 L 464.9 353.8 L 466.4 350.7 L 468.1 347.7 L 469.9 344.7 L 471.9 341.9 L 474.1 339.1 L 476.6 336.4 L 479.2 333.8 L 482.0 331.7 L 484.9 329.7 L 487.9 328.0 L 491.0 326.7 L 494.3 325.6 L 497.6 324.8 L 501.1 324.3 L 504.7 324.0 L 508.3 324.0 L 511.9 324.4 L 515.4 324.9 L 518.8 325.5 L 522.2 326.3 L 525.5 327.3 L 528.7 328.5 L 531.9 329.7 L 535.0 331.1 L 538.1 332.6 L 541.1 334.2 L 544.2 335.8 L 547.2 337.5 L 550.1 339.3 L 553.0 341.1 L 555.9 343.1 L 558.8 345.0 L 561.7 347.1 L 564.5 349.2"
+          stroke="#2EB872" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none"
+          opacity="0.3"
+        >
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+        </path>
+        {/* Gobbetta blu */}
+        <path
+          d="M 619.5 370.0 L 620.3 366.7 L 621.3 363.4 L 622.4 360.1 L 623.6 356.9 L 624.9 353.8 L 626.4 350.7 L 628.1 347.7 L 629.9 344.7 L 631.9 341.9 L 634.1 339.1 L 636.6 336.4 L 639.2 333.8 L 642.0 331.7 L 644.9 329.7 L 647.9 328.0 L 651.0 326.7 L 654.3 325.6 L 657.6 324.8 L 661.1 324.3 L 664.7 324.0 L 668.3 324.0 L 671.9 324.4 L 675.4 324.9 L 678.8 325.5 L 682.2 326.3 L 685.5 327.3 L 688.7 328.5 L 691.9 329.7 L 695.0 331.1 L 698.1 332.6 L 701.1 334.2 L 704.2 335.8 L 707.2 337.5 L 710.1 339.3 L 713.0 341.1 L 715.9 343.1 L 718.8 345.0 L 721.7 347.1 L 724.5 349.2"
+          stroke="#2E7BE8" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none"
+          opacity="0.3"
+        >
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+        </path>
+      </svg>
+      {label && (
+        <span className="text-sm text-brand-ink/50 font-medium">{label}</span>
+      )}
+    </div>
+  );
+}

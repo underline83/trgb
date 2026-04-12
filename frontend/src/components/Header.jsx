@@ -1,11 +1,12 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v4.4 — B.2 Tooltip touch-compatibile (sostituito title= nativo)
+// @version: v5.0 — TRGB-02 brand integration (logo SVG + palette cream/ink)
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
 import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
+import TrgbIcon from "../assets/brand/TRGB-02-icon-transparent.svg";
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
@@ -134,7 +135,7 @@ export default function Header({ onLogout }) {
   const goTo = (path) => { navigate(path); };
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-neutral-200 shadow-sm">
+    <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm">
       {isViewer && (
         <div className="bg-amber-50 border-b border-amber-200 text-center py-1">
           <span className="text-xs text-amber-700 font-medium">
@@ -150,13 +151,13 @@ export default function Header({ onLogout }) {
             onClick={handleOpen}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <img src="/logo_tregobbi.png" alt="Logo" className="h-8 w-auto object-contain" />
+            <img src={TrgbIcon} alt="TRGB" className="h-8 w-auto object-contain" />
             <div className="hidden sm:flex items-center gap-1.5">
               {currentModule && (
                 <span className="text-base mr-0.5">{currentModule[1].icon}</span>
               )}
-              <span className="text-sm font-semibold text-neutral-700 tracking-wide group-hover:text-neutral-900 transition">
-                {currentModule ? currentModule[1].title : "TRGB Gestionale"}
+              <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition">
+                {currentModule ? currentModule[1].title : "TRGB"}
               </span>
               <svg
                 className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}

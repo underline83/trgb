@@ -14,9 +14,12 @@
    VARIABILI TEMA TRE GOBBI
    ---------------------------------------------------------- */
 :root {
-  --trgb-bg: #f5f0e8;         /* beige caldo */
-  --trgb-text: #2b2118;       /* marrone scuro elegante */
-  --trgb-amber: #b8894a;      /* oro caldo */
+  --trgb-bg: #F4F1EC;         /* cream brand */
+  --trgb-text: #111111;       /* ink brand */
+  --trgb-red: #E8402B;        /* gobbetta 1 */
+  --trgb-green: #2EB872;      /* gobbetta 2 */
+  --trgb-blue: #2E7BE8;       /* gobbetta 3 */
+  --trgb-night: #0E0E10;      /* dark mode bg */
 }
 
 /* ----------------------------------------------------------
@@ -39,13 +42,13 @@ h1, h2, h3, h4 {
    LINK (coerenti con palette vintage)
    ---------------------------------------------------------- */
 a {
-  color: var(--trgb-amber);
+  color: var(--trgb-blue);
   text-decoration: none;
   font-weight: 500;
 }
 
 a:hover {
-  color: #8c652f;
+  color: #1a5bbf;
   text-decoration: underline;
 }
 

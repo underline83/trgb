@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import TrgbWordmark from "../assets/brand/TRGB-02-wordmark-color.svg";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -138,9 +139,9 @@ export default function LoginForm({ setToken, setRole }) {
     return (
       <div className="flex flex-col items-center gap-8 w-full max-w-md">
         {/* Logo / Titolo */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-800">Tre Gobbi</h1>
-          <p className="text-slate-500 text-sm mt-1">Seleziona il tuo profilo</p>
+        <div className="text-center flex flex-col items-center gap-3">
+          <img src={TrgbWordmark} alt="TRGB" className="h-14 w-auto" />
+          <p className="text-brand-ink/60 text-sm">Seleziona il tuo profilo</p>
         </div>
 
         {/* Tile utenti */}
