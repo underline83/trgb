@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
+import TrgbLoader from "../../components/TrgbLoader";
 
 const monthNames = [
   "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
@@ -111,7 +112,7 @@ export default function CorrispettiviAnnual() {
         </div>
 
         {/* Stato */}
-        {loading && <p className="text-gray-500 text-sm">Caricamento...</p>}
+        {loading && <TrgbLoader size={40} className="my-4" />}
         {error && <p className="text-red-500 text-sm">Errore: {error}</p>}
 
         {data && (
@@ -119,7 +120,7 @@ export default function CorrispettiviAnnual() {
             {/* Riepilogo totali */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {/* Anno corrente */}
-              <div className="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
+              <div className="bg-white rounded-xl shadow p-5 border-l-4 border-brand-blue">
                 <div className="text-xs text-gray-400 mb-1 uppercase tracking-wide">
                   {data.current.year}
                 </div>
@@ -177,7 +178,7 @@ export default function CorrispettiviAnnual() {
                     formatter={(value) => [`€ ${formatCurrency(value)}`, ""]}
                   />
                   <Legend />
-                  <Bar dataKey={String(data.current.year)} fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey={String(data.current.year)} fill="#2E7BE8" radius={[3, 3, 0, 0]} />
                   <Bar dataKey={String(data.previous.year)} fill="#d1d5db" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

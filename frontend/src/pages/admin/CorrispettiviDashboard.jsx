@@ -9,6 +9,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
+import TrgbLoader from "../../components/TrgbLoader";
 
 // ── Costanti ──
 const MONTH_NAMES = [
@@ -601,7 +602,7 @@ export default function CorrispettiviDashboard() {
           <p className="text-xs text-neutral-500">Confronto con {prevPeriodLabel}</p>
         </div>
 
-        {loading && <div className="mb-4 text-sm text-neutral-600">Caricamento dati in corso...</div>}
+        {loading && <TrgbLoader size={40} className="mb-4" />}
         {error && <div className="mb-4 text-sm text-red-600">Errore: {error}</div>}
         {!loading && hasData && dailyRows.length === 0 && mode !== "annuale" && (
           <div className="text-sm text-neutral-600">Nessuna chiusura registrata per {periodLabel}.</div>
@@ -692,7 +693,7 @@ export default function CorrispettiviDashboard() {
                         <YAxis tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                         <Tooltip formatter={(value) => [`€ ${formatCurrency(value)}`, ""]} />
                         <Legend />
-                        <Bar dataKey="corrispettivi" fill="#4f46e5" radius={[3,3,0,0]} name={`${year}`} />
+                        <Bar dataKey="corrispettivi" fill="#2E7BE8" radius={[3,3,0,0]} name={`${year}`} />
                         <Bar dataKey="prev" fill="#d1d5db" radius={[3,3,0,0]} name={`${year - 1}`} />
                       </BarChart>
                     ) : (
@@ -705,7 +706,7 @@ export default function CorrispettiviDashboard() {
                           name === "prev" ? `${year - 1}` : `${year}`
                         ]} />
                         <Legend />
-                        <Line type="monotone" dataKey="corrispettivi" stroke="#4f46e5" strokeWidth={2} dot={false} name={`${year}`} />
+                        <Line type="monotone" dataKey="corrispettivi" stroke="#2E7BE8" strokeWidth={2} dot={false} name={`${year}`} />
                         <Line type="monotone" dataKey="prev" stroke="#d1d5db" strokeWidth={1.5} strokeDasharray="5 3" dot={false} name={`${year - 1}`} connectNulls={false} />
                       </LineChart>
                     )}

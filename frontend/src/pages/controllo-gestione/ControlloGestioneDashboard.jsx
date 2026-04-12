@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ControlloGestioneNav from "./ControlloGestioneNav";
+import TrgbLoader from "../../components/TrgbLoader";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -94,7 +95,7 @@ export default function ControlloGestioneDashboard() {
     return (
       <div className="min-h-screen bg-neutral-100 p-6">
         <ControlloGestioneNav current="dashboard" />
-        <div className="max-w-7xl mx-auto mt-4 text-center py-20 text-neutral-400">Caricamento...</div>
+        <TrgbLoader size={48} label="Caricamento…" className="max-w-7xl mx-auto mt-4 py-20" />
       </div>
     );
   }

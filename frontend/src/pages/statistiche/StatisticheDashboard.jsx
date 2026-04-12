@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
+import TrgbLoader from "../../components/TrgbLoader";
 
 const EP = `${API_BASE}/statistiche`;
 
@@ -123,7 +124,7 @@ export default function StatisticheDashboard() {
         </div>
 
         {loading ? (
-          <p className="text-center text-neutral-400 py-12">Caricamento...</p>
+          <TrgbLoader size={48} label="Caricamento…" className="py-12" />
         ) : (
           <>
             {/* KPI Cards */}

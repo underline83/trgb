@@ -151,7 +151,7 @@ export default function Header({ onLogout }) {
             onClick={handleOpen}
             className="flex items-center gap-3 cursor-pointer group"
           >
-            <img src={TrgbIcon} alt="TRGB" className="h-8 w-auto object-contain" />
+            <img src={TrgbIcon} alt="TRGB" className="h-10 w-auto object-contain" />
             <div className="hidden sm:flex items-center gap-1.5">
               {currentModule && (
                 <span className="text-base mr-0.5">{currentModule[1].icon}</span>

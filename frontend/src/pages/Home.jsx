@@ -1,10 +1,13 @@
-// @version: v3.4-shared-menu-config
+// @version: v4.0 — TRGB-02 brand integration (wordmark + cream + gobbette strip)
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 import MODULES_MENU from "../config/modulesMenu";
 import DashboardSala from "./DashboardSala";
+import TrgbLoader from "../components/TrgbLoader";
+import TrgbWordmark from "../assets/brand/TRGB-02-wordmark-color.svg";
+import GobbetteStrip from "../assets/brand/TRGB-gobbette-strip.svg";
 
 // Estendi con subtitle e vKey per le card Home (il resto viene da modulesMenu)
 const HOME_EXTRA = {
@@ -54,17 +57,19 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6">
+    <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-        <h1 className="text-4xl font-bold text-center mb-4">
-          Osteria Tre Gobbi — Sistema Gestionale
-        </h1>
-        <p className="text-center text-neutral-600 mb-10">
-          Seleziona un'area per iniziare.
-        </p>
+        {/* Wordmark brand + strip gobbette */}
+        <div className="flex flex-col items-center gap-4 mb-10">
+          <img src={TrgbWordmark} alt="TRGB" className="h-16 w-auto" />
+          <img src={GobbetteStrip} alt="" className="w-40 opacity-40" aria-hidden="true" />
+          <p className="text-brand-ink/60 text-sm">
+            Seleziona un'area per iniziare.
+          </p>
+        </div>
 
         {loading ? (
-          <p className="text-center text-neutral-400 py-12">Caricamento...</p>
+          <TrgbLoader size={56} label="Caricamento…" className="py-12" />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {visibleModules.map((m) => {
@@ -89,8 +94,11 @@ export default function Home() {
         )}
 
         {/* Footer versione sistema */}
-        <div className="mt-12 text-center text-xs text-neutral-400">
-          TRGB Gestionale v{MODULE_VERSIONS.sistema.version} — Osteria Tre Gobbi, Bergamo
+        <div className="mt-12 flex flex-col items-center gap-2">
+          <img src={GobbetteStrip} alt="" className="w-24 opacity-30" aria-hidden="true" />
+          <span className="text-xs text-brand-ink/40">
+            TRGB Gestionale v{MODULE_VERSIONS.sistema.version} — Osteria Tre Gobbi, Bergamo
+          </span>
         </div>
       </div>
     </div>

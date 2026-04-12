@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import TrgbLoader from "../../components/TrgbLoader";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -12,7 +13,7 @@ import {
 const FE = `${API_BASE}/contabilita/fe`;
 
 const CAT_COLORS = [
-  "#d97706", "#2563eb", "#dc2626", "#059669", "#7c3aed",
+  "#E8402B", "#2EB872", "#2E7BE8", "#d97706", "#7c3aed",
   "#db2777", "#0891b2", "#65a30d", "#ea580c", "#6366f1",
   "#78716c",
 ];
@@ -191,7 +192,7 @@ export default function FattureDashboard() {
         )}
 
         {loading ? (
-          <div className="text-center py-20 text-neutral-400">Caricamento dashboard...</div>
+          <TrgbLoader size={48} label="Caricamento dashboard…" className="py-20" />
         ) : (
           <>
             {kpi && <KpiCards kpi={kpi} />}
@@ -369,7 +370,7 @@ function ChartMensile({ data, selectedYear, onDrill }) {
             />
             <Bar
               dataKey="totale"
-              fill="#0d9488"
+              fill="#2E7BE8"
               radius={[4, 4, 0, 0]}
               name="Spesa"
               onClick={handleBarClick}
@@ -705,8 +706,8 @@ function ChartConfronto({ data }) {
             contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e5e5" }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey={String(prev_year)} fill="#94a3b8" radius={[4, 4, 0, 0]} />
-          <Bar dataKey={String(year)} fill="#0d9488" radius={[4, 4, 0, 0]} />
+          <Bar dataKey={String(prev_year)} fill="#d1d5db" radius={[4, 4, 0, 0]} />
+          <Bar dataKey={String(year)} fill="#2E7BE8" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
