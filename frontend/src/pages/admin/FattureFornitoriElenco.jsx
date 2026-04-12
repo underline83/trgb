@@ -310,7 +310,7 @@ export default function FattureFornitoriElenco() {
       <div className="flex" style={{ height: "calc(100vh - 48px)" }}>
 
         {/* ═══════ SIDEBAR FILTRI ═══════ */}
-        <div className="w-[280px] min-w-[280px] border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">
+        <div className="w-sidebar min-w-sidebar border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">
           <div className="p-2.5 space-y-2">
 
             <div className="bg-white rounded-lg p-2.5 border border-neutral-200 shadow-sm">

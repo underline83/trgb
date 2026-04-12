@@ -16,6 +16,10 @@ export default {
           night:  '#0E0E10',
         },
       },
+      spacing: {
+        'sidebar':    '280px',
+        'sidebar-sm': '240px',
+      },
     },
   },
   plugins: [],
