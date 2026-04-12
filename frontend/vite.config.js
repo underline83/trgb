@@ -6,16 +6,25 @@ import { resolve } from "path";
 // Versione build — timestamp unico generato UNA volta per tutto il build
 const BUILD_VERSION = String(Math.floor(Date.now() / 1000));
 
-// Plugin: genera version.json nella cartella build ad ogni build
+// Plugin: serve /version.json con il timestamp corrente
+// - Dev mode (VPS): middleware serve la risposta dinamicamente
+// - Build mode: scrive version.json nella cartella dist
 function versionJsonPlugin() {
+  const payload = () => JSON.stringify({ version: BUILD_VERSION, built: new Date().toISOString() });
   return {
     name: "version-json",
+    // Dev server: middleware intercetta /version.json prima di public/
+    configureServer(server) {
+      server.middlewares.use("/version.json", (_req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Cache-Control", "no-cache, no-store");
+        res.end(payload());
+      });
+    },
+    // Production build: scrive il file nella cartella output
     writeBundle(options) {
       const outDir = options.dir || "dist";
-      writeFileSync(
-        resolve(outDir, "version.json"),
-        JSON.stringify({ version: BUILD_VERSION, built: new Date().toISOString() })
-      );
+      writeFileSync(resolve(outDir, "version.json"), payload());
     },
   };
 }
