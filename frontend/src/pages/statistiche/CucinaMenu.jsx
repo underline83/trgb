@@ -8,7 +8,7 @@ export default function CucinaMenu() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <StatisticheNav current="cucina" />
       <div className="max-w-5xl mx-auto p-6">
         <div className="bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">

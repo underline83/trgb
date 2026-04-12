@@ -180,7 +180,7 @@ export default function CorrispettiviGestione() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <VenditeNav current="chiusure" />
 
       <div className="p-6">

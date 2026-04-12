@@ -14,7 +14,7 @@ export default function ControlloGestioneMenu() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6">
+    <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
         <div className="flex items-center justify-between mb-8">
           <div>

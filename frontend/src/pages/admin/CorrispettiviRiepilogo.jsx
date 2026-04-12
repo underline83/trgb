@@ -72,7 +72,7 @@ export default function CorrispettiviRiepilogo() {
   const grandInc = sortedYears.reduce((s, y) => s + (yearsData[y]?.totale_incassi || 0), 0);
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <VenditeNav current="riepilogo" />
 
       <div className="p-6">

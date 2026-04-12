@@ -1001,7 +1001,7 @@ export default function MagazzinoVini() {
   // RENDER
   // ------------------------------------------------
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="cantina" />
 
       {/* HEADER compatto */}

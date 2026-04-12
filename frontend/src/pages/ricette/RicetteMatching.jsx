@@ -342,7 +342,7 @@ export default function RicetteMatching() {
     : pending;
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <RicetteNav current="matching" />
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200">
 

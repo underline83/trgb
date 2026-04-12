@@ -41,7 +41,7 @@ export default function ImpostazioniSistema() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
 
         {/* HEADER */}

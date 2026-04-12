@@ -81,7 +81,7 @@ export default function StatisticheDashboard() {
   const maxTrend = trend.length > 0 ? Math.max(...trend.map((t) => t.totale_euro)) : 1;
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <StatisticheNav current="dashboard" />
       <div className="max-w-6xl mx-auto mt-4">
         {/* Filtro periodo */}

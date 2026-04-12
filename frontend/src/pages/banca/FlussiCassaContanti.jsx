@@ -7,7 +7,7 @@ import { GestioneContantiContent } from "../admin/GestioneContanti";
 
 export default function FlussiCassaContanti() {
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <FlussiCassaNav current="contanti" />
       <GestioneContantiContent />
     </div>

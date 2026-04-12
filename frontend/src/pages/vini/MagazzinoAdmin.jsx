@@ -99,7 +99,7 @@ export default function MagazzinoAdmin() {
   // ── Protezione ruolo ──
   if (role !== "admin") {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="min-h-screen bg-brand-cream p-6">
         <div className="max-w-3xl mx-auto bg-white rounded-3xl shadow-2xl p-12 text-center">
           <h1 className="text-2xl font-bold text-red-700 mb-4">Accesso negato</h1>
           <p className="text-neutral-600">Questa pagina è riservata agli amministratori.</p>
@@ -279,7 +279,7 @@ export default function MagazzinoAdmin() {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <ViniNav current="cantina" />
       <div className="max-w-[100rem] mx-auto p-4 space-y-4">
 

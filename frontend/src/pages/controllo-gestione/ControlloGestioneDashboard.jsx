@@ -93,7 +93,7 @@ export default function ControlloGestioneDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="min-h-screen bg-brand-cream p-6">
         <ControlloGestioneNav current="dashboard" />
         <TrgbLoader size={48} label="Caricamento…" className="max-w-7xl mx-auto mt-4 py-20" />
       </div>
@@ -102,7 +102,7 @@ export default function ControlloGestioneDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="min-h-screen bg-brand-cream p-6">
         <ControlloGestioneNav current="dashboard" />
         <div className="max-w-7xl mx-auto mt-4 text-center py-20 text-red-500">{error}</div>
       </div>
@@ -124,7 +124,7 @@ export default function ControlloGestioneDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <ControlloGestioneNav current="dashboard" />
 
       <div className="max-w-7xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200 mt-4">

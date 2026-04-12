@@ -200,7 +200,7 @@ export default function DashboardVini() {
   // RENDER
   // ─────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="dashboard" />
       <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
 

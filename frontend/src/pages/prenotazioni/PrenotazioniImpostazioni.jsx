@@ -150,7 +150,7 @@ export default function PrenotazioniImpostazioni() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="impostazioni" />
       <div className="text-center py-12 text-neutral-400">Caricamento...</div>
     </div>

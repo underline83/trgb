@@ -303,7 +303,7 @@ export default function FattureFornitoriElenco() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="fornitori" />
 
       <div className="flex" style={{ height: "calc(100vh - 48px)" }}>

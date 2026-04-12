@@ -505,7 +505,7 @@ export default function ViniImpostazioni() {
   // -------------------------------------------------------
   if (!isAllowed) {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6 font-sans flex items-center justify-center">
+      <div className="min-h-screen bg-brand-cream p-6 font-sans flex items-center justify-center">
         <div className="bg-white shadow-xl rounded-2xl p-10 text-center max-w-md">
           <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-xl font-bold text-neutral-800 mb-2">Accesso riservato</h2>
@@ -1900,7 +1900,7 @@ export default function ViniImpostazioni() {
   // RENDER MAIN
   // -------------------------------------------------------
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="settings" />
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
 

@@ -214,7 +214,7 @@ export default function FattureElenco() {
   const MESI = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="fatture" />
 
       {/* LAYOUT: Filtri SX + Contenuto DX */}

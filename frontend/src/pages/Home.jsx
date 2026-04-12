@@ -83,14 +83,15 @@ export default function Home() {
           <TrgbLoader size={56} label="Caricamento…" className="py-12" />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {visibleModules.map((m) => {
+            {visibleModules.map((m, idx) => {
               const cfg = MENU_CONFIG[m.key];
               if (!cfg) return null;
+              const accent = ["border-l-brand-red","border-l-brand-green","border-l-brand-blue"][idx % 3];
               return (
                 <div
                   key={m.key}
                   onClick={() => navigate(cfg.go)}
-                  className={`rounded-2xl border shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${cfg.color}`}
+                  className={`rounded-2xl border border-l-4 ${accent} shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${cfg.color}`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="text-4xl">{cfg.icon}</div>

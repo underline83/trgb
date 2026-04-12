@@ -6,7 +6,7 @@ export default function RicetteImport() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6">
+    <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
 
         <div className="flex justify-end mb-6">

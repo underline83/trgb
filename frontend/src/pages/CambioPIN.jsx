@@ -102,7 +102,7 @@ export default function CambioPIN() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-4 sm:p-6">
+    <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
       <div className="max-w-xl mx-auto space-y-5">
 
         {/* Back */}

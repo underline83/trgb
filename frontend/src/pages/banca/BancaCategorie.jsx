@@ -168,7 +168,7 @@ export default function BancaCategorie() {
   }));
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <FlussiCassaNav current="impostazioni" />
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200 mt-4">
         <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair mb-1">

@@ -252,7 +252,7 @@ export default function ClientiLista() {
   return (
     <>
       <ClientiNav current="lista" />
-      <div className="min-h-screen bg-neutral-100 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
 
           {/* ── HEADER ── */}

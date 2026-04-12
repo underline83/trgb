@@ -530,7 +530,7 @@ export default function CorrispettiviDashboard() {
     : !!annualData;
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <VenditeNav current="dashboard" />
 
       <div className="p-6">

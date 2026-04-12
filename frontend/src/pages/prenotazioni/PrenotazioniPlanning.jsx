@@ -375,7 +375,7 @@ export default function PrenotazioniPlanning() {
   const c = planning?.contatori || {};
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="planning" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">

@@ -47,7 +47,7 @@ export default function RicetteDettaglio() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-neutral-100 flex items-center justify-center">
+      <div className="min-h-screen bg-brand-cream flex items-center justify-center">
         <p className="text-neutral-500">Caricamento...</p>
       </div>
     );
@@ -55,7 +55,7 @@ export default function RicetteDettaglio() {
 
   if (error || !ricetta) {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6">
+      <div className="min-h-screen bg-brand-cream p-6">
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
           <p className="text-red-600 mb-4">{error || "Ricetta non trovata"}</p>
           <button onClick={() => navigate("/ricette/archivio")} className="text-orange-700 underline">
@@ -69,7 +69,7 @@ export default function RicetteDettaglio() {
   const r = ricetta;
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <RicetteNav current="archivio" />
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-8 sm:p-12 border border-neutral-200">
 

@@ -547,7 +547,7 @@ export default function ControlloGestioneSpeseFisse() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-4 md:p-6">
+    <div className="min-h-screen bg-brand-cream p-4 md:p-6">
       <div className="max-w-6xl mx-auto">
 
         {/* HEADER */}

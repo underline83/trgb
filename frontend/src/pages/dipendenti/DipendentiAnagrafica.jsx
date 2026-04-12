@@ -185,7 +185,7 @@ export default function DipendentiAnagrafica() {
   const docCategIcon = (cat) => DOC_CATEGORIE.find(c => c.value === cat)?.icon || "\uD83D\uDCCE";
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       {/* ── HEADER ── */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">

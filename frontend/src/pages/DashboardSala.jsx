@@ -39,7 +39,7 @@ export default function DashboardSala() {
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "Sala";
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6">
+    <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="bg-white shadow-xl rounded-3xl p-8 border border-neutral-200 mb-6 text-center">

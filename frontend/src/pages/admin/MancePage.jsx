@@ -52,7 +52,7 @@ export default function MancePage() {
   const giorniConMance = useMemo(() => new Set(rows.map(r => r.date)).size, [rows]);
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <VenditeNav current="mance" />
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
         <div className="bg-white rounded-2xl shadow-lg border border-neutral-200 p-5 md:p-6 space-y-5">

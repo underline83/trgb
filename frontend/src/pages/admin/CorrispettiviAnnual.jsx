@@ -83,7 +83,7 @@ export default function CorrispettiviAnnual() {
   const deltaPositive = data && data.delta_incassi >= 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <VenditeNav current="annual" />
 
       <div className="p-6">

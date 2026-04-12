@@ -69,7 +69,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    version: "5.3",
+    version: "5.4",
     label: "Sistema",
     status: "stabile",
     color: "green",

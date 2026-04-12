@@ -709,7 +709,7 @@ export default function BancaCrossRef() {
   const colSpan = tab === "collegati" ? 6 : tab === "senza" ? 5 : 4;
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FlussiCassaNav current="crossref" />
       <div className="max-w-[1400px] mx-auto p-4 sm:p-6 mt-2">
         <div className="flex gap-4 lg:gap-6">

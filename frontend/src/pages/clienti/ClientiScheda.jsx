@@ -251,7 +251,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   if (loading) return (
     <>
       {!embedded && <ClientiNav current="lista" />}
-      <div className={`${embedded ? "py-12" : "min-h-screen bg-neutral-100"} flex items-center justify-center`}>
+      <div className={`${embedded ? "py-12" : "min-h-screen bg-brand-cream"} flex items-center justify-center`}>
         <div className="text-sm text-neutral-400">Caricamento...</div>
       </div>
     </>
@@ -260,7 +260,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   if (!cliente) return (
     <>
       {!embedded && <ClientiNav current="lista" />}
-      <div className={`${embedded ? "py-12" : "min-h-screen bg-neutral-100"} flex items-center justify-center`}>
+      <div className={`${embedded ? "py-12" : "min-h-screen bg-brand-cream"} flex items-center justify-center`}>
         <div className="text-sm text-neutral-400">Cliente non trovato</div>
       </div>
     </>
@@ -279,7 +279,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
   return (
     <>
       {!embedded && <ClientiNav current="lista" />}
-      <div className={`${embedded ? "" : "min-h-screen bg-neutral-100"} font-sans`}>
+      <div className={`${embedded ? "" : "min-h-screen bg-brand-cream"} font-sans`}>
         <div className={embedded ? "" : "max-w-4xl mx-auto p-4 sm:p-6"}>
 
           {/* ── CARD PRINCIPALE con sidebar colorata ── */}

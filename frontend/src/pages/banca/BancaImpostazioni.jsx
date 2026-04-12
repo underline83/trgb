@@ -27,7 +27,7 @@ export default function BancaImpostazioni() {
     }`;
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FlussiCassaNav current="impostazioni" />
       <div className="max-w-5xl mx-auto mt-4">
         <div className="bg-white shadow-2xl rounded-3xl border border-neutral-200 overflow-hidden">

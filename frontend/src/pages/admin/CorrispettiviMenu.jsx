@@ -26,7 +26,7 @@ export default function CorrispettiviMenu() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <VenditeNav current="" />
 
       <div className="p-6">

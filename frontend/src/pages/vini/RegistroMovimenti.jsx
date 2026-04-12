@@ -68,7 +68,7 @@ export default function RegistroMovimenti() {
   // Accesso negato per non-admin
   if (role !== "admin") {
     return (
-      <div className="min-h-screen bg-neutral-100 p-6 font-sans flex items-center justify-center">
+      <div className="min-h-screen bg-brand-cream p-6 font-sans flex items-center justify-center">
         <div className="bg-white rounded-3xl shadow-xl p-10 text-center max-w-md">
           <div className="text-5xl mb-4">🔒</div>
           <h1 className="text-xl font-bold text-neutral-800 mb-2">Accesso negato</h1>
@@ -83,7 +83,7 @@ export default function RegistroMovimenti() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <ViniNav current="cantina" />
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
       <div className="bg-white shadow-xl rounded-2xl p-6 sm:p-8 border border-neutral-200">

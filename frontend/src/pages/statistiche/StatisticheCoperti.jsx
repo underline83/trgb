@@ -211,7 +211,7 @@ export default function StatisticheCoperti() {
   }, [data]);
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <StatisticheNav current="coperti" />
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-5">
 

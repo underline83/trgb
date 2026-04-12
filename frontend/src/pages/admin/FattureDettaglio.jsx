@@ -262,7 +262,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
     );
     if (inline) return loadingBody;
     return (
-      <div className="min-h-screen bg-neutral-100 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <FattureNav current="elenco" />
         <div className="max-w-6xl mx-auto p-4 sm:p-6">{loadingBody}</div>
       </div>
@@ -294,7 +294,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
     );
     if (inline) return errorBody;
     return (
-      <div className="min-h-screen bg-neutral-100 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <FattureNav current="elenco" />
         <div className="max-w-6xl mx-auto p-4 sm:p-6">{errorBody}</div>
       </div>
@@ -777,7 +777,7 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
 
   // ── Rendering STANDALONE (pagina /acquisti/dettaglio/:id) ──
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="elenco" />
       <div className="max-w-6xl mx-auto p-4 sm:p-6">
         {/* BACK */}

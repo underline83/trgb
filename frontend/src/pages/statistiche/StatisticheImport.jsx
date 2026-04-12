@@ -90,7 +90,7 @@ export default function StatisticheImport() {
   for (let y = 2020; y <= now.getFullYear() + 1; y++) ANNI.push(y);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <StatisticheNav current="import" />
       <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-10 border border-neutral-200 mt-4">
         <h1 className="text-3xl font-bold text-rose-900 tracking-wide font-playfair mb-1">

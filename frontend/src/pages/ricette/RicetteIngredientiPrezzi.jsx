@@ -140,7 +140,7 @@ export default function RicetteIngredientiPrezzi() {
   }, [showConversions]);
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream p-6 font-sans">
       <RicetteNav current="ingredienti" />
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
 

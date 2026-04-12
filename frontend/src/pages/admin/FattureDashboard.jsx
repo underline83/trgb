@@ -158,7 +158,7 @@ export default function FattureDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="dashboard" />
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* HEADER */}

@@ -60,7 +60,7 @@ export default function PrenotazioniSettimana() {
   const rangeLabel = `${lunD.getDate()}/${lunD.getMonth()+1} — ${domD.getDate()}/${domD.getMonth()+1}/${domD.getFullYear()}`;
 
   return (
-    <div className="min-h-screen bg-neutral-100">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="settimana" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">

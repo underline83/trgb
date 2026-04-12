@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-04-12 — Sessione 28 / Brand TRGB-02: integrazione completa P0+P1
+
+Integrazione del nuovo logo TRGB-02 (gobbette RGB + T) in tutto il frontend. Palette brand definita in Tailwind, favicon/icone PWA sostituite, header e login con logo SVG, Home con wordmark composto (gobbette inline + testo HTML centrato da flexbox), TrgbLoader animato sui dashboard principali, colori Recharts allineati alla palette brand. Sfondo `bg-brand-cream` applicato a tutte le ~90 pagine.
+
+**Palette brand Tailwind:** red #E8402B, green #2EB872, blue #2E7BE8, ink #111111, cream #F4F1EC, night #0E0E10.
+
+**File creati:** `TrgbLoader.jsx`, `src/assets/brand/` (10 SVG + pattern).  
+**File principali toccati:** `tailwind.config.js`, `index.html`, `manifest.webmanifest`, `index.css`, `Header.jsx` (v5.0), `LoginForm.jsx`, `Home.jsx` (v4.0), `CorrispettiviDashboard.jsx`, `FattureDashboard.jsx`, `CorrispettiviAnnual.jsx`, `StatisticheDashboard.jsx`, `ControlloGestioneDashboard.jsx`, `versions.jsx` (sistema 5.3→5.4).  
+**Bulk update:** 90 pagine `bg-neutral-100` / `bg-gray-50` → `bg-brand-cream`.
+
+**Sistema:** v5.3 → v5.4
+
+---
+
 ## 2026-04-11/12 — Sessione 27 / B.2 Block 1 CG: ControlloGestioneRiconciliazione title= → Tooltip ✓
 
 Ultimo file del Block 1 Controllo Gestione del piano B.2. Un solo `title=` nel file, su un bottone `↻ Ricarica` in alto a destra. Migrato a `<Tooltip>`, import aggiunto, nessun residuo.
