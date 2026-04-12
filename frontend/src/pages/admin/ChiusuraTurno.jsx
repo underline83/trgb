@@ -379,7 +379,7 @@ export default function ChiusuraTurno() {
     }));
 
     try {
-      const res = await fetch(`${API}/admin/finance/shift-closures`, {
+      const res = await fetch(`${API}/admin/finance/shift-closures/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
