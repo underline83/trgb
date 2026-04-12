@@ -437,13 +437,13 @@ export default function FattureElenco() {
                     <th className="px-3 py-2 text-right cursor-pointer hover:text-teal-700" onClick={() => toggleSort("imponibile_totale")}>
                       Netto{sortIcon("imponibile_totale")}
                     </th>
-                    <th className="px-3 py-2 text-right">IVA</th>
+                    <th className="px-3 py-2 text-right hidden xl:table-cell">IVA</th>
                     <th className="px-3 py-2 text-right cursor-pointer hover:text-teal-700" onClick={() => toggleSort("totale_fattura")}>
                       Totale{sortIcon("totale_fattura")}
                     </th>
-                    <th className="px-3 py-2 text-center">Righe</th>
+                    <th className="px-3 py-2 text-center hidden xl:table-cell">Righe</th>
                     <th className="px-3 py-2 text-center">Stato</th>
-                    <th className="px-3 py-2 text-center">Fonte</th>
+                    <th className="px-3 py-2 text-center hidden xl:table-cell">Fonte</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -467,9 +467,9 @@ export default function FattureElenco() {
                           {f.is_autofattura ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle">AUTO</span> : null}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px]">€ {fmt(f.iva_totale)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px] hidden xl:table-cell">€ {fmt(f.iva_totale)}</td>
                         <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-900">€ {fmt(f.totale_fattura)}</td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center hidden xl:table-cell">
                           {f.n_righe > 0
                             ? <span className="text-teal-700 font-medium">{f.n_righe}</span>
                             : <span className="text-neutral-300">—</span>}
@@ -479,7 +479,7 @@ export default function FattureElenco() {
                             ? <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-emerald-100 text-emerald-700">Pagata</span>
                             : <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-red-50 text-red-600">Da pagare</span>}
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center hidden xl:table-cell">
                           <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
                             f.fonte === "fic" ? "bg-teal-50 text-teal-700" : "bg-neutral-100 text-neutral-600"
                           }`}>

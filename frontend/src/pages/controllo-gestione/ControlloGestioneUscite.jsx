@@ -1095,7 +1095,7 @@ export default function ControlloGestioneUscite() {
                     <th className="px-3 py-2 text-left cursor-pointer hover:text-sky-700" onClick={() => handleSort("tipo_uscita")}>
                       Categoria <SortIcon col="tipo_uscita" />
                     </th>
-                    <th className="px-3 py-2 text-center" title="Riconciliazione banca">
+                    <th className="px-3 py-2 text-center hidden xl:table-cell" title="Riconciliazione banca">
                       Banca
                     </th>
                   </tr>
@@ -1209,8 +1209,8 @@ export default function ControlloGestioneUscite() {
                             </span>
                           )}
                         </td>
-                        {/* BANCA (riconciliazione) */}
-                        <td className="px-3 py-1.5 text-center" onClick={e => e.stopPropagation()}>
+                        {/* BANCA (riconciliazione) — nascosta su iPad (<1280px) */}
+                        <td className="px-3 py-1.5 text-center hidden xl:table-cell" onClick={e => e.stopPropagation()}>
                           {isRiconciliata ? (
                             <Tooltip label="Riconciliata — click per scollegare">
                               <button onClick={() => scollegaMovimento(u.id)}
