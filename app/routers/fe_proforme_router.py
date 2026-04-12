@@ -137,7 +137,7 @@ def search_fornitori(
 # LISTA PROFORME
 # ═══════════════════════════════════════════════════════════════════
 
-@router.get("/")
+@router.get("")
 def lista_proforme(
     stato: Optional[str] = Query(None, description="ATTIVA, RICONCILIATA, ANNULLATA"),
     fornitore: Optional[str] = Query(None),
@@ -238,7 +238,7 @@ def dettaglio_proforma(
 # CREAZIONE
 # ═══════════════════════════════════════════════════════════════════
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 def crea_proforma(
     payload: ProformaCreate,
     current_user=Depends(get_current_user),

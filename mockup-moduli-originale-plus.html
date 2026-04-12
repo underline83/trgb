@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Originale Potenziato</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  .frame-row { display: flex; gap: 36px; padding: 24px; justify-content: center; flex-wrap: wrap; }
+  .frame-label {
+    text-align: center; padding: 20px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+  .device-frame {
+    background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .device-frame::-webkit-scrollbar { width: 0; }
+  .device-label { text-align: center; font-size: 11px; color: #a8a49e; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .page-inner { padding: 20px 16px 32px; }
+
+  .header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .header h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: #111; }
+  .header span { font-size: 11px; color: #a8a49e; }
+
+  .dots { display: flex; justify-content: center; gap: 6px; padding: 16px 0 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+  .dot.active { background: #111; width: 18px; border-radius: 3px; }
+
+  .footer { margin-top: 28px; text-align: center; }
+  .footer svg { height: 12px; width: auto; opacity: .3; }
+  .footer span { display: block; font-size: 10px; color: rgba(17,17,17,.3); margin-top: 4px; }
+
+  /* ── Card originali potenziate ── */
+  .mod-grid { display: grid; gap: 10px; }
+  .mod-grid-2 { grid-template-columns: 1fr 1fr; }
+  .mod-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .mod-card {
+    border-radius: 14px;
+    border: 1px solid;
+    padding: 16px;
+    cursor: pointer;
+    position: relative;
+    min-height: 110px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .mod-card:active { transform: scale(.98); }
+
+  .mod-card .emoji { font-size: 28px; line-height: 1; }
+  .mod-card .title { font-size: 14px; font-weight: 700; margin-top: 10px; line-height: 1.2; }
+  .mod-card .line { font-size: 11px; opacity: .7; line-height: 1.3; margin-top: 2px; }
+
+  /* Badge notifica */
+  .mod-card .badge {
+    position: absolute; top: 10px; right: 10px;
+    background: #E8402B; color: #fff;
+    font-size: 10px; font-weight: 800;
+    min-width: 18px; height: 18px;
+    border-radius: 9px; display: flex;
+    align-items: center; justify-content: center;
+    padding: 0 5px;
+    box-shadow: 0 1px 3px rgba(232,64,43,.3);
+  }
+
+  /* Hero card */
+  .mod-card.hero { grid-column: span 2; min-height: 100px; }
+  .mod-card.hero .hero-row {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .mod-card.hero .emoji { font-size: 32px; }
+  .mod-card.hero .hero-text .title { margin-top: 0; font-size: 16px; }
+
+  /* Colori modulo — stessi del dropdown menu */
+  .c-vini     { background: #FFFBEB; border-color: #FDE68A; color: #78350F; }
+  .c-acquisti { background: #F0FDFA; border-color: #99F6E4; color: #134E4A; }
+  .c-vendite  { background: #EEF2FF; border-color: #C7D2FE; color: #312E81; }
+  .c-ricette  { background: #FFF7ED; border-color: #FED7AA; color: #7C2D12; }
+  .c-flussi   { background: #ECFDF5; border-color: #A7F3D0; color: #064E3B; }
+  .c-cg       { background: #F0F9FF; border-color: #BAE6FD; color: #0C4A6E; }
+  .c-stat     { background: #FFF1F2; border-color: #FECDD3; color: #881337; }
+  .c-prenot   { background: #EEF2FF; border-color: #C7D2FE; color: #312E81; }
+  .c-clienti  { background: #F0FDFA; border-color: #99F6E4; color: #134E4A; }
+  .c-dipend   { background: #FAF5FF; border-color: #E9D5FF; color: #581C87; }
+  .c-imposta  { background: #FAFAFA; border-color: #D4D4D4; color: #262626; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ TITOLO ═══════ -->
+<div class="frame-label">Originale Potenziato</div>
+<div class="frame-sublabel">
+  Stessa grafica del dropdown menu (colori + emoji) con l'aggiunta di: 2 righe dati dinamici, badge notifica, hero Prenotazioni, griglia responsive.
+</div>
+
+<div class="frame-row">
+
+  <!-- ── iPhone Portrait (2 col) ── -->
+  <div>
+    <div class="device-frame" style="width: 375px; height: 780px;">
+      <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      <div class="page-inner">
+        <div class="header">
+          <h2>Moduli</h2>
+          <span>11 attivi</span>
+        </div>
+
+        <div class="mod-grid mod-grid-2">
+          <!-- Hero Prenotazioni -->
+          <div class="mod-card hero c-prenot">
+            <div class="badge">3</div>
+            <div class="hero-row">
+              <div class="emoji">📅</div>
+              <div class="hero-text">
+                <div class="title">Prenotazioni</div>
+                <div class="line">18 pax oggi · 6 pranzo, 12 cena</div>
+                <div class="line">3 in lista d'attesa</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vini -->
+          <div class="mod-card c-vini">
+            <div class="emoji">🍷</div>
+            <div>
+              <div class="title">Gestione Vini</div>
+              <div class="line">142 etichette attive</div>
+              <div class="line">8 sotto scorta</div>
+            </div>
+          </div>
+
+          <!-- Acquisti -->
+          <div class="mod-card c-acquisti">
+            <div class="badge">5</div>
+            <div class="emoji">📦</div>
+            <div>
+              <div class="title">Gestione Acquisti</div>
+              <div class="line">5 fatture da pagare</div>
+              <div class="line">€ 3.240 in scadenza</div>
+            </div>
+          </div>
+
+          <!-- Ricette -->
+          <div class="mod-card c-ricette">
+            <div class="emoji">📘</div>
+            <div>
+              <div class="title">Ricette & Food Cost</div>
+              <div class="line">87 schede attive</div>
+              <div class="line">Food cost medio 28%</div>
+            </div>
+          </div>
+
+          <!-- Vendite -->
+          <div class="mod-card c-vendite">
+            <div class="emoji">💵</div>
+            <div>
+              <div class="title">Gestione Vendite</div>
+              <div class="line">Ieri € 2.840 · 42 coperti</div>
+              <div class="line">↑ 12% vs scorsa sett.</div>
+            </div>
+          </div>
+
+          <!-- Flussi -->
+          <div class="mod-card c-flussi">
+            <div class="emoji">🏦</div>
+            <div>
+              <div class="title">Flussi di Cassa</div>
+              <div class="line">Saldo mese +€ 4.520</div>
+              <div class="line">CC · Carta · Contanti</div>
+            </div>
+          </div>
+
+          <!-- CG -->
+          <div class="mod-card c-cg">
+            <div class="emoji">🎯</div>
+            <div>
+              <div class="title">Controllo di Gestione</div>
+              <div class="line">P&L · Scadenzario</div>
+              <div class="line">412 coperti apr vs 380 prec.</div>
+            </div>
+          </div>
+
+          <!-- Statistiche -->
+          <div class="mod-card c-stat">
+            <div class="emoji">📈</div>
+            <div>
+              <div class="title">Statistiche</div>
+              <div class="line">Cucina · Coperti · Trend</div>
+              <div class="line">Dashboard e grafici</div>
+            </div>
+          </div>
+
+          <!-- Dipendenti -->
+          <div class="mod-card c-dipend">
+            <div class="emoji">👥</div>
+            <div>
+              <div class="title">Dipendenti</div>
+              <div class="line">12 dipendenti attivi</div>
+              <div class="line">2 scadenze entro 14gg</div>
+            </div>
+          </div>
+
+          <!-- Clienti -->
+          <div class="mod-card c-clienti">
+            <div class="emoji">🤝</div>
+            <div>
+              <div class="title">Gestione Clienti</div>
+              <div class="line">234 clienti in anagrafica</div>
+              <div class="line">CRM · Tag · Note</div>
+            </div>
+          </div>
+
+          <!-- Impostazioni -->
+          <div class="mod-card c-imposta">
+            <div class="emoji">⚙️</div>
+            <div>
+              <div class="title">Impostazioni</div>
+              <div class="line">Utenti · Moduli</div>
+              <div class="line">Backup · Sistema</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <svg viewBox="15 28 155 28"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M20 50 Q37 30 55 42" stroke="#E8402B"/><path d="M75 50 Q92 30 110 42" stroke="#2EB872"/><path d="M130 50 Q147 30 165 42" stroke="#2E7BE8"/></g></svg>
+          <span>TRGB Gestionale v5.4</span>
+        </div>
+      </div>
+    </div>
+    <div class="device-label">iPhone Portrait · 2 colonne</div>
+  </div>
+
+  <!-- ── iPad Landscape (3 col) ── -->
+  <div>
+    <div class="device-frame" style="width: 680px; height: 780px;">
+      <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      <div class="page-inner" style="padding: 24px 28px 32px;">
+        <div class="header">
+          <h2>Moduli</h2>
+          <span>11 attivi</span>
+        </div>
+
+        <div class="mod-grid mod-grid-3">
+          <!-- Hero Prenotazioni (span 2) -->
+          <div class="mod-card hero c-prenot">
+            <div class="badge">3</div>
+            <div class="hero-row">
+              <div class="emoji">📅</div>
+              <div class="hero-text">
+                <div class="title">Prenotazioni</div>
+                <div class="line">18 pax oggi · 6 pranzo, 12 cena</div>
+                <div class="line">3 in lista d'attesa</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vini -->
+          <div class="mod-card c-vini">
+            <div class="emoji">🍷</div>
+            <div>
+              <div class="title">Gestione Vini</div>
+              <div class="line">142 etichette attive</div>
+              <div class="line">8 sotto scorta</div>
+            </div>
+          </div>
+
+          <!-- Acquisti -->
+          <div class="mod-card c-acquisti">
+            <div class="badge">5</div>
+            <div class="emoji">📦</div>
+            <div>
+              <div class="title">Gestione Acquisti</div>
+              <div class="line">5 fatture da pagare</div>
+              <div class="line">€ 3.240 in scadenza</div>
+            </div>
+          </div>
+
+          <!-- Ricette -->
+          <div class="mod-card c-ricette">
+            <div class="emoji">📘</div>
+            <div>
+              <div class="title">Ricette & Food Cost</div>
+              <div class="line">87 schede attive</div>
+              <div class="line">Food cost medio 28%</div>
+            </div>
+          </div>
+
+          <!-- Vendite -->
+          <div class="mod-card c-vendite">
+            <div class="emoji">💵</div>
+            <div>
+              <div class="title">Gestione Vendite</div>
+              <div class="line">Ieri € 2.840 · 42 coperti</div>
+              <div class="line">↑ 12% vs scorsa sett.</div>
+            </div>
+          </div>
+
+          <!-- Flussi -->
+          <div class="mod-card c-flussi">
+            <div class="emoji">🏦</div>
+            <div>
+              <div class="title">Flussi di Cassa</div>
+              <div class="line">Saldo mese +€ 4.520</div>
+              <div class="line">CC · Carta · Contanti</div>
+            </div>
+          </div>
+
+          <!-- CG -->
+          <div class="mod-card c-cg">
+            <div class="emoji">🎯</div>
+            <div>
+              <div class="title">Controllo di Gestione</div>
+              <div class="line">P&L · Scadenzario</div>
+              <div class="line">412 coperti apr vs 380 prec.</div>
+            </div>
+          </div>
+
+          <!-- Statistiche -->
+          <div class="mod-card c-stat">
+            <div class="emoji">📈</div>
+            <div>
+              <div class="title">Statistiche</div>
+              <div class="line">Cucina · Coperti · Trend</div>
+              <div class="line">Dashboard e grafici</div>
+            </div>
+          </div>
+
+          <!-- Dipendenti -->
+          <div class="mod-card c-dipend">
+            <div class="emoji">👥</div>
+            <div>
+              <div class="title">Dipendenti</div>
+              <div class="line">12 dipendenti attivi</div>
+              <div class="line">2 scadenze entro 14gg</div>
+            </div>
+          </div>
+
+          <!-- Clienti -->
+          <div class="mod-card c-clienti">
+            <div class="emoji">🤝</div>
+            <div>
+              <div class="title">Gestione Clienti</div>
+              <div class="line">234 clienti in anagrafica</div>
+              <div class="line">CRM · Tag · Note</div>
+            </div>
+          </div>
+
+          <!-- Impostazioni -->
+          <div class="mod-card c-imposta">
+            <div class="emoji">⚙️</div>
+            <div>
+              <div class="title">Impostazioni</div>
+              <div class="line">Utenti · Moduli</div>
+              <div class="line">Backup · Sistema</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <svg viewBox="15 28 155 28"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M20 50 Q37 30 55 42" stroke="#E8402B"/><path d="M75 50 Q92 30 110 42" stroke="#2EB872"/><path d="M130 50 Q147 30 165 42" stroke="#2E7BE8"/></g></svg>
+          <span>TRGB Gestionale v5.4</span>
+        </div>
+      </div>
+    </div>
+    <div class="device-label">iPad / Mac Landscape · 3 colonne</div>
+  </div>
+
+</div>
+
+</body>
+</html>

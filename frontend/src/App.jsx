@@ -204,7 +204,7 @@ export default function App() {
         <Route path="/acquisti/dettaglio/:id" element={<ProtectedRoute module="acquisti" sub="fatture"><FattureDettaglio /></ProtectedRoute>} />
         <Route path="/acquisti/fornitori" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoriElenco /></ProtectedRoute>} />
         <Route path="/acquisti/categorie" element={<Navigate to="/acquisti/impostazioni" replace />} />
-        <Route path="/acquisti/proforme" element={<ProtectedRoute module="acquisti" sub="proforme"><FattureProformeElenco /></ProtectedRoute>} />
+        <Route path="/acquisti/proforme" element={<ProtectedRoute module="acquisti"><FattureProformeElenco /></ProtectedRoute>} />
         <Route path="/acquisti/impostazioni" element={<ProtectedRoute module="acquisti" sub="impostazioni"><FattureImpostazioni /></ProtectedRoute>} />
         <Route path="/acquisti/fornitore/:piva" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoreDettaglio /></ProtectedRoute>} />
         <Route path="/acquisti/elenco" element={<Navigate to="/acquisti/fatture" replace />} />

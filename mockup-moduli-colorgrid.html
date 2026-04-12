@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Card colorate responsive (finale)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  .frame-row { display: flex; gap: 36px; padding: 24px; justify-content: center; flex-wrap: wrap; }
+  .frame-label {
+    text-align: center; padding: 20px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; max-width: 700px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+  .device-frame {
+    background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .device-frame::-webkit-scrollbar { width: 0; }
+  .device-label { text-align: center; font-size: 11px; color: #a8a49e; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .page-inner { padding: 20px 16px 32px; }
+
+  .header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .header h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: #111; }
+  .header span { font-size: 11px; color: #a8a49e; }
+
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #a8a49e; margin: 16px 0 10px 4px; font-weight: 600;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  .dots { display: flex; justify-content: center; gap: 6px; padding: 16px 0 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+  .dot.active { background: #111; width: 18px; border-radius: 3px; }
+
+  .footer { margin-top: 28px; text-align: center; }
+  .footer svg { height: 12px; width: auto; opacity: .3; }
+  .footer span { display: block; font-size: 10px; color: rgba(17,17,17,.3); margin-top: 4px; }
+
+  /* ── Card colorate in griglia ── */
+  .cg-grid { display: grid; gap: 10px; }
+  .cg-grid-2 { grid-template-columns: 1fr 1fr; }
+  .cg-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .cg-card {
+    border-radius: 16px; padding: 16px; cursor: pointer;
+    transition: transform .15s; overflow: hidden; position: relative;
+    min-height: 120px; display: flex; flex-direction: column;
+  }
+  .cg-card:active { transform: scale(.97); }
+
+  /* Subtle shine */
+  .cg-card::after {
+    content: ''; position: absolute; top: -30%; right: -20%; width: 50%; height: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cg-card svg.icon {
+    width: 24px; height: 24px; stroke-width: 1.5; fill: none;
+    stroke: rgba(255,255,255,.85); stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  .cg-name { font-size: 14px; font-weight: 700; color: #fff; margin-top: 10px; line-height: 1.2; }
+  .cg-line1 { font-size: 11px; color: rgba(255,255,255,.6); margin-top: 4px; line-height: 1.3; }
+  .cg-line2 { font-size: 11px; color: rgba(255,255,255,.45); line-height: 1.3; }
+  .cg-spacer { flex: 1; }
+
+  .cg-badge {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(255,255,255,.25); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 10px; padding: 2px 7px; min-width: 22px; text-align: center;
+    backdrop-filter: blur(4px);
+  }
+
+  /* ── Hero (span 2 col) ── */
+  .cg-card.hero {
+    grid-column: span 2;
+    flex-direction: row; align-items: center; gap: 16px;
+    padding: 20px; min-height: 90px;
+  }
+  .cg-card.hero svg.icon { width: 28px; height: 28px; flex-shrink: 0; }
+  .cg-card.hero .cg-name { margin-top: 0; font-size: 16px; }
+  .cg-card.hero .cg-line1 { margin-top: 2px; font-size: 12px; }
+  .cg-card.hero .hero-text { flex: 1; min-width: 0; }
+  .cg-card.hero .hero-value {
+    font-size: 32px; font-weight: 800; color: #fff; opacity: .2;
+    flex-shrink: 0; line-height: 1;
+  }
+
+  /* ── Compact (iPhone) ── */
+  .compact .cg-card { min-height: 100px; padding: 14px; }
+  .compact .cg-card svg.icon { width: 20px; height: 20px; }
+  .compact .cg-name { font-size: 12px; margin-top: 8px; }
+  .compact .cg-line1, .compact .cg-line2 { font-size: 10px; }
+  .compact .cg-card.hero { min-height: 76px; padding: 14px 16px; }
+  .compact .cg-card.hero svg.icon { width: 24px; height: 24px; }
+  .compact .cg-card.hero .cg-name { font-size: 14px; }
+  .compact .cg-card.hero .hero-value { font-size: 24px; }
+</style>
+</head>
+<body>
+
+<p class="frame-label">Card colorate in griglia responsive</p>
+<p class="frame-sublabel">Sfondo gradient per modulo, icona bianca, nome completo, 2 righe dati dinamici, badge. Hero Prenotazioni span 2 col. Griglia 3 col landscape, 2 portrait.</p>
+
+<div class="frame-row">
+  <!-- ═══════ LANDSCAPE / MAC ═══════ -->
+  <div>
+    <div class="device-frame" style="width: 720px; height: 560px;">
+      <div class="page-inner">
+        <div class="header"><h2>Moduli</h2><span>11 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="cg-grid cg-grid-3">
+          <!-- Hero: Prenotazioni -->
+          <div class="cg-card hero" style="background: linear-gradient(145deg, #9B6E4C, #6A4528);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            <div class="hero-text">
+              <div class="cg-name">Prenotazioni</div>
+              <div class="cg-line1">38 pax oggi</div>
+              <div class="cg-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value">38</div>
+            <span class="cg-badge">14</span>
+          </div>
+          <!-- Vendite -->
+          <div class="cg-card" style="background: linear-gradient(145deg, #6A7B5E, #4E5F42);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <div class="cg-name">Gestione Vendite</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Incasso ieri: € 1.842</div>
+            <div class="cg-line2">+12% vs media · 46 coperti</div>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="cg-grid cg-grid-3">
+          <div class="cg-card" style="background: linear-gradient(145deg, #C4960F, #A07800);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+            <div class="cg-name">Gestione Vini</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">312 etichette attive</div>
+            <div class="cg-line2">2 sotto scorta</div>
+            <span class="cg-badge">2</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A7A92, #44657A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+            <div class="cg-name">Ricette & Food Cost</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">87 schede attive</div>
+            <div class="cg-line2">Food cost medio 32%</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #7B5F8A, #634A70);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>
+            <div class="cg-name">Gestione Acquisti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">5 fatture da pagare</div>
+            <div class="cg-line2">€ 3.420 in sospeso</div>
+            <span class="cg-badge">5</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #3D9F8B, #28806C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <div class="cg-name">Flussi di Cassa</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Saldo mese: +€ 4.200</div>
+            <div class="cg-line2">CC · Carta · Contanti · Mance</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6A78, #444F5C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Controllo di Gestione</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Dashboard P&L e confronto</div>
+            <div class="cg-line2">Coperti mese: 312 vs 290</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #8A7362, #6E5A4A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <div class="cg-name">Dipendenti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">8 dipendenti attivi</div>
+            <div class="cg-line2">1 scadenza entro 14gg</div>
+            <span class="cg-badge">1</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6E92, #44587A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div class="cg-name">Gestione Clienti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">246 clienti in rubrica</div>
+            <div class="cg-line2">Anagrafica · CRM · Dashboard</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #707070, #555);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Statistiche</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Cucina · Coperti · Trend</div>
+            <div class="cg-line2">Dashboard e grafici</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #555, #444);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <div class="cg-name">Impostazioni</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Utenti · Moduli</div>
+            <div class="cg-line2">Backup</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+        <div class="footer">
+          <svg viewBox="15 28 155 28"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 Q 37 30 55 42" stroke="#E8402B"/><path d="M 75 50 Q 92 30 110 42" stroke="#2EB872"/><path d="M 130 50 Q 147 30 165 42" stroke="#2E7BE8"/></g></svg>
+          <span>TRGB Gestionale v5.4</span>
+        </div>
+      </div>
+    </div>
+    <div class="device-label">iPad Landscape / Mac</div>
+  </div>
+</div>
+
+<div class="frame-row">
+  <!-- ═══════ PORTRAIT IPAD ═══════ -->
+  <div>
+    <div class="device-frame" style="width: 400px; height: 680px;">
+      <div class="page-inner">
+        <div class="header"><h2>Moduli</h2><span>11 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="cg-grid cg-grid-2">
+          <div class="cg-card hero" style="background: linear-gradient(145deg, #9B6E4C, #6A4528);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            <div class="hero-text">
+              <div class="cg-name">Prenotazioni</div>
+              <div class="cg-line1">38 pax oggi</div>
+              <div class="cg-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value">38</div>
+            <span class="cg-badge">14</span>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="cg-grid cg-grid-2">
+          <div class="cg-card" style="background: linear-gradient(145deg, #6A7B5E, #4E5F42);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <div class="cg-name">Gestione Vendite</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">€ 1.842 ieri</div>
+            <div class="cg-line2">+12% vs media</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #C4960F, #A07800);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+            <div class="cg-name">Gestione Vini</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">312 etichette</div>
+            <div class="cg-line2">2 sotto scorta</div>
+            <span class="cg-badge">2</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A7A92, #44657A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+            <div class="cg-name">Ricette & Food Cost</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">87 schede</div>
+            <div class="cg-line2">FC medio 32%</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #7B5F8A, #634A70);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            <div class="cg-name">Gestione Acquisti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">5 da pagare</div>
+            <div class="cg-line2">€ 3.420</div>
+            <span class="cg-badge">5</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #3D9F8B, #28806C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <div class="cg-name">Flussi di Cassa</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">+€ 4.200 mese</div>
+            <div class="cg-line2">CC · Carta · Contanti</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6A78, #444F5C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Controllo Gestione</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">P&L e confronto</div>
+            <div class="cg-line2">312 vs 290 coperti</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #8A7362, #6E5A4A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <div class="cg-name">Dipendenti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">8 attivi</div>
+            <div class="cg-line2">1 scadenza 14gg</div>
+            <span class="cg-badge">1</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6E92, #44587A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div class="cg-name">Gestione Clienti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">246 in rubrica</div>
+            <div class="cg-line2">Anagrafica · CRM</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #707070, #555);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Statistiche</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Cucina · Coperti</div>
+            <div class="cg-line2">Dashboard</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #555, #444);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <div class="cg-name">Impostazioni</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Utenti · Moduli</div>
+            <div class="cg-line2">Backup</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+    <div class="device-label">iPad Portrait</div>
+  </div>
+
+  <!-- ═══════ IPHONE ═══════ -->
+  <div>
+    <div class="device-frame compact" style="width: 320px; height: 680px;">
+      <div class="page-inner">
+        <div class="header"><h2 style="font-size:20px;">Moduli</h2><span>11 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="cg-grid" style="grid-template-columns:1fr;">
+          <div class="cg-card hero" style="background: linear-gradient(145deg, #9B6E4C, #6A4528);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            <div class="hero-text">
+              <div class="cg-name">Prenotazioni</div>
+              <div class="cg-line1">38 pax oggi</div>
+              <div class="cg-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value">38</div>
+            <span class="cg-badge">14</span>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="cg-grid cg-grid-2" style="gap:8px;">
+          <div class="cg-card" style="background: linear-gradient(145deg, #6A7B5E, #4E5F42);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <div class="cg-name">Vendite</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">€ 1.842 ieri</div>
+            <div class="cg-line2">+12%</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #C4960F, #A07800);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+            <div class="cg-name">Vini</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">312 etichette</div>
+            <div class="cg-line2">2 sotto scorta</div>
+            <span class="cg-badge">2</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A7A92, #44657A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+            <div class="cg-name">Ricette</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">87 schede</div>
+            <div class="cg-line2">FC 32%</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #7B5F8A, #634A70);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            <div class="cg-name">Acquisti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">5 da pagare</div>
+            <div class="cg-line2">€ 3.420</div>
+            <span class="cg-badge">5</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #3D9F8B, #28806C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <div class="cg-name">Flussi</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">+€ 4.200</div>
+            <div class="cg-line2">CC · Carta</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6A78, #444F5C);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Controllo</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">P&L</div>
+            <div class="cg-line2">312 vs 290</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #8A7362, #6E5A4A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <div class="cg-name">Dipendenti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">8 attivi</div>
+            <div class="cg-line2">1 scadenza</div>
+            <span class="cg-badge">1</span>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #5A6E92, #44587A);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div class="cg-name">Clienti</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">246 contatti</div>
+            <div class="cg-line2">CRM</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #707070, #555);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="cg-name">Statistiche</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Cucina</div>
+            <div class="cg-line2">Coperti</div>
+          </div>
+          <div class="cg-card" style="background: linear-gradient(145deg, #555, #444);">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <div class="cg-name">Impostaz.</div>
+            <div class="cg-spacer"></div>
+            <div class="cg-line1">Utenti</div>
+            <div class="cg-line2">Backup</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+    <div class="device-label">iPhone</div>
+  </div>
+</div>
+
+</body>
+</html>
