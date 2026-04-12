@@ -41,14 +41,17 @@
   - Grafici Recharts: serie anno corrente `#2E7BE8` (brand-blue), serie precedente `#d1d5db`. Categorie: partire da red/green/blue brand
 - **Asset brand**: tutti in `frontend/src/assets/brand/` (SVG) e `frontend/public/icons/` (PNG favicon/PWA)
 
-## Home v3 — Regole design (sessione 29)
-La Home è in fase di redesign: due pagine con swipe (widget + moduli). Regole per tutti gli agenti:
-- **NO emoji nei moduli**: le tile usano icone SVG da `icons.jsx` (stroke 1.5, monocromatiche). Emoji ammesse solo in testi/note
-- **Colori moduli SMORZATI**: NON usare i colori Tailwind saturi (es. amber-50, teal-50). Usare la palette muted definita in Home.jsx v5 (es. Vini #B8860B, Acquisti #2D8F7B)
-- **Card/Widget**: bg bianco, border-radius 14px, shadow minima `0 1px 3px rgba(0,0,0,.04)`, niente bordi pesanti
-- **Gobbetta brand sulle tile**: linea 2px in alto, cicla R/G/B, opacity .5
+## Home v3.2 Magazine — Regole design (sessione 29)
+La Home ha due pagine con swipe (widget + moduli). Regole per tutti gli agenti:
+- **NO emoji nei moduli**: icone SVG da `icons.jsx` (stroke 1.5, monocromatiche). Emoji ammesse solo in testi/note
+- **Pagina moduli = Magazine layout**: card bianche con accent bar colorata 3px in alto, icona tinta nel cerchietto, nome + 2 righe dati dinamici dal backend, badge rosso notifica
+- **Hero card**: Prenotazioni è hero (span 2 col) con gobbette strip gradient R/G/B
+- **Griglia responsive**: 3 colonne su landscape/desktop (md:grid-cols-3), 2 su portrait (grid-cols-2)
+- **Dati dinamici**: endpoint `GET /dashboard/home` campo `moduli[]` con `key, line1, line2, badge`
+- **Card/Widget**: bg bianco, border-radius 14px, shadow `0 2px 8px rgba(0,0,0,.05)`, niente bordi pesanti
+- **Colori accent/tint**: palette muted in MODULE_STYLE di Home.jsx (es. Vini accent #B8860B tint #F5F0E6)
 - **Titoli pagina**: Playfair Display 700 (già caricato). Tutto il resto: font di sistema
-- **Label sezioni widget**: 10px uppercase, letter-spacing 1.2px, warm gray `#a8a49e`
+- **Label sezioni**: 10px uppercase, letter-spacing 1.2px, warm gray `#a8a49e`
 - **Touch target**: minimo 44pt, bottoni 48pt, righe lista ≥ 44pt
 - **Piano completo**: vedi `docs/sessione.md` sezione "HOME v3 REDESIGN"
 
