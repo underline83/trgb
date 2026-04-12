@@ -79,12 +79,19 @@ class AlertItem(BaseModel):
     testo: str
     accent: str = ""  # colore accent opzionale
 
+class ModuloSummary(BaseModel):
+    key: str
+    line1: str = ""
+    line2: str = ""
+    badge: int = 0    # 0 = nessun badge, >0 = notifica
+
 class DashboardHome(BaseModel):
     prenotazioni: PrenotazioniOggi
     incasso_ieri: IncassoIeri
     coperti_mese: CopertiMese
     fatture_pending: FatturePending
     alerts: List[AlertItem] = []
+    moduli: List[ModuloSummary] = []
 
 
 # ─────────────────────────────────────────────────────────
@@ -313,6 +320,179 @@ def _alerts(oggi: str) -> List[AlertItem]:
     return alerts
 
 
+def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
+                     incasso: IncassoIeri, fatture: FatturePending,
+                     coperti: CopertiMese) -> List[ModuloSummary]:
+    """Genera 2 righe dinamiche + badge per ogni modulo."""
+    summaries: List[ModuloSummary] = []
+
+    # ── Prenotazioni ──
+    line1 = f"{prenotazioni.totale_pax} pax oggi"
+    parts = []
+    if prenotazioni.pranzo_pax > 0:
+        parts.append(f"pranzo {prenotazioni.pranzo_pax}")
+    if prenotazioni.cena_pax > 0:
+        parts.append(f"cena {prenotazioni.cena_pax}")
+    line2 = " · ".join(parts) if parts else "Nessuna prenotazione"
+    summaries.append(ModuloSummary(
+        key="prenotazioni", line1=line1, line2=line2,
+        badge=len(prenotazioni.lista),
+    ))
+
+    # ── Vendite ──
+    tot_str = f"€ {incasso.totale:,.0f}".replace(",", ".")
+    line1 = f"Incasso ieri: {tot_str}"
+    if incasso.delta_pct is not None:
+        segno = "+" if incasso.delta_pct >= 0 else ""
+        line2 = f"{segno}{incasso.delta_pct}% vs media · {incasso.coperti} coperti"
+    else:
+        line2 = f"{incasso.coperti} coperti ieri"
+    summaries.append(ModuloSummary(key="vendite", line1=line1, line2=line2))
+
+    # ── Vini ──
+    try:
+        from app.models import vini_db
+        if hasattr(vini_db, "get_vini_conn"):
+            conn = vini_db.get_vini_conn()
+        else:
+            import sqlite3 as _sq
+            from pathlib import Path
+            conn = _sq.connect(Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3")
+            conn.row_factory = _sq.Row
+        row = conn.execute("SELECT COUNT(*) as cnt FROM vini WHERE COALESCE(attivo,1)=1").fetchone()
+        n_vini = row["cnt"] if row else 0
+        sotto = 0
+        try:
+            r2 = conn.execute("""
+                SELECT COUNT(*) as cnt FROM vini
+                WHERE COALESCE(scorta_minima,0)>0
+                  AND COALESCE(qta,0)<scorta_minima
+                  AND COALESCE(attivo,1)=1
+            """).fetchone()
+            sotto = r2["cnt"] if r2 else 0
+        except Exception:
+            pass
+        conn.close()
+        line2 = f"{sotto} sotto scorta" if sotto > 0 else "Giacenze ok"
+        summaries.append(ModuloSummary(
+            key="vini", line1=f"{n_vini} etichette attive", line2=line2,
+            badge=sotto,
+        ))
+    except Exception:
+        summaries.append(ModuloSummary(key="vini", line1="Cantina & Vini", line2=""))
+
+    # ── Ricette ──
+    try:
+        conn = get_foodcost_connection()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM ricette WHERE COALESCE(attiva,1)=1").fetchone()
+        n_ric = row["cnt"] if row else 0
+        # Food cost medio (se ci sono dati)
+        fc_str = ""
+        try:
+            r2 = conn.execute("""
+                SELECT AVG(food_cost_pct) as avg_fc FROM ricette
+                WHERE COALESCE(attiva,1)=1 AND food_cost_pct IS NOT NULL AND food_cost_pct > 0
+            """).fetchone()
+            if r2 and r2["avg_fc"]:
+                fc_str = f"Food cost medio {r2['avg_fc']:.0f}%"
+        except Exception:
+            pass
+        conn.close()
+        summaries.append(ModuloSummary(
+            key="ricette", line1=f"{n_ric} schede attive",
+            line2=fc_str or "Archivio ricette",
+        ))
+    except Exception:
+        summaries.append(ModuloSummary(key="ricette", line1="Ricette & Food Cost", line2=""))
+
+    # ── Acquisti ──
+    line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"
+    line2 = f"€ {fatture.importo:,.0f}".replace(",", ".") + " in sospeso" if fatture.importo > 0 else "Tutto pagato"
+    summaries.append(ModuloSummary(
+        key="acquisti", line1=line1, line2=line2,
+        badge=fatture.count,
+    ))
+
+    # ── Flussi di Cassa ──
+    try:
+        conn = get_foodcost_connection()
+        prefix = oggi[:7]  # YYYY-MM
+        row = conn.execute("""
+            SELECT COALESCE(SUM(CASE WHEN tipo='entrata' THEN importo ELSE -importo END), 0) as saldo
+            FROM flussi_cassa WHERE data LIKE ?
+        """, (prefix + "%",)).fetchone()
+        saldo = row["saldo"] if row else 0
+        conn.close()
+        segno = "+" if saldo >= 0 else ""
+        summaries.append(ModuloSummary(
+            key="flussi-cassa",
+            line1=f"Saldo mese: {segno}€ {saldo:,.0f}".replace(",", "."),
+            line2="CC · Carta · Contanti · Mance",
+        ))
+    except Exception:
+        summaries.append(ModuloSummary(key="flussi-cassa", line1="Flussi di Cassa", line2="CC · Carta · Contanti"))
+
+    # ── Controllo Gestione ──
+    summaries.append(ModuloSummary(
+        key="controllo-gestione",
+        line1="Dashboard P&L e confronto",
+        line2=f"Coperti mese: {coperti.totale} (vs {coperti.anno_precedente} prec.)" if coperti.anno_precedente > 0 else f"Coperti mese: {coperti.totale}",
+    ))
+
+    # ── Dipendenti ──
+    try:
+        conn = get_dipendenti_conn()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM dipendenti WHERE COALESCE(attivo,1)=1").fetchone()
+        n_dip = row["cnt"] if row else 0
+        # Scadenze prossime 14gg
+        r2 = conn.execute("""
+            SELECT COUNT(*) as cnt FROM dipendenti_scadenze ds
+            JOIN dipendenti d ON ds.dipendente_id = d.id
+            WHERE ds.data_scadenza IS NOT NULL AND ds.data_scadenza != ''
+              AND ds.data_scadenza <= date(?, '+14 days')
+              AND ds.data_scadenza >= ?
+              AND COALESCE(ds.stato, 'VALIDO') != 'SCADUTO'
+        """, (oggi, oggi)).fetchone()
+        n_scad = r2["cnt"] if r2 else 0
+        conn.close()
+        line2 = f"{n_scad} scadenz{'a' if n_scad == 1 else 'e'} entro 14gg" if n_scad > 0 else "Nessuna scadenza imminente"
+        summaries.append(ModuloSummary(
+            key="dipendenti", line1=f"{n_dip} dipendenti attivi", line2=line2,
+            badge=n_scad,
+        ))
+    except Exception:
+        summaries.append(ModuloSummary(key="dipendenti", line1="Dipendenti", line2=""))
+
+    # ── Clienti ──
+    try:
+        conn = get_clienti_conn()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM clienti").fetchone()
+        n_cl = row["cnt"] if row else 0
+        conn.close()
+        summaries.append(ModuloSummary(
+            key="clienti", line1=f"{n_cl} clienti in rubrica",
+            line2="Anagrafica · CRM · Dashboard",
+        ))
+    except Exception:
+        summaries.append(ModuloSummary(key="clienti", line1="Gestione Clienti", line2=""))
+
+    # ── Statistiche ──
+    summaries.append(ModuloSummary(
+        key="statistiche",
+        line1="Cucina · Coperti · Trend",
+        line2="Dashboard e grafici",
+    ))
+
+    # ── Impostazioni ──
+    summaries.append(ModuloSummary(
+        key="impostazioni",
+        line1="Utenti · Moduli · Backup",
+        line2="Configurazione sistema",
+    ))
+
+    return summaries
+
+
 # ─────────────────────────────────────────────────────────
 # ENDPOINT
 # ─────────────────────────────────────────────────────────
@@ -330,10 +510,16 @@ def get_dashboard_home():
     # strftime('%w') in SQLite: 0=Sunday, 1=Monday, ..., 6=Saturday
     giorno_settimana = ieri.isoweekday() % 7  # Python isoweekday: 1=Mon..7=Sun → SQLite %w
 
+    prenotazioni = _prenotazioni_oggi(oggi_str)
+    incasso = _incasso_ieri(ieri_str, giorno_settimana)
+    fatture = _fatture_pending()
+    coperti = _coperti_mese(oggi)
+
     return DashboardHome(
-        prenotazioni=_prenotazioni_oggi(oggi_str),
-        incasso_ieri=_incasso_ieri(ieri_str, giorno_settimana),
-        coperti_mese=_coperti_mese(oggi),
-        fatture_pending=_fatture_pending(),
+        prenotazioni=prenotazioni,
+        incasso_ieri=incasso,
+        coperti_mese=coperti,
+        fatture_pending=fatture,
         alerts=_alerts(oggi_str),
+        moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )

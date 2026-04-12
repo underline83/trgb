@@ -1,4 +1,4 @@
-// @version: v5.0 — Home v3 redesign: due pagine swipe (widget + moduli), tile SVG, estetica raffinata
+// @version: v6.0 — Home v3.1: pagina moduli con righe gradient colore + dati dinamici dal backend
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -9,19 +9,19 @@ import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 
-/* ── Palette moduli smorzata (Home v3) ── */
+/* ── Palette moduli: gradient per righe colore (Home v3.1) ── */
 const MODULE_STYLE = {
-  vini:                { accent: "#B8860B", tint: "#FAF5EB", sub: "Carta \u00b7 Cantina \u00b7 Vendite" },
-  acquisti:            { accent: "#2D8F7B", tint: "#EEF9F6", sub: "Fatture \u00b7 Fornitori" },
-  vendite:             { accent: "#4F52B5", tint: "#EDEDFA", sub: "Corrispettivi \u00b7 Chiusure" },
-  ricette:             { accent: "#C05621", tint: "#FDF3EC", sub: "Archivio \u00b7 Ingredienti \u00b7 Matching" },
-  "flussi-cassa":      { accent: "#1A7F5A", tint: "#EBF8F3", sub: "CC \u00b7 Carta \u00b7 Contanti \u00b7 Mance" },
-  "controllo-gestione":{ accent: "#2871B8", tint: "#EBF3FC", sub: "Dashboard \u00b7 Scadenze \u00b7 Confronto" },
-  statistiche:         { accent: "#B83A52", tint: "#FCEDF0", sub: "Cucina \u00b7 Coperti \u00b7 Trend" },
-  prenotazioni:        { accent: "#6B4FA8", tint: "#F1EDF9", sub: "Planning \u00b7 Mappa \u00b7 Settimana" },
-  clienti:             { accent: "#1E7E8A", tint: "#ECF7F8", sub: "Anagrafica \u00b7 CRM \u00b7 Dashboard" },
-  dipendenti:          { accent: "#7C4FA8", tint: "#F3EEF9", sub: "Buste Paga \u00b7 Turni \u00b7 Scadenze" },
-  impostazioni:        { accent: "#6B6B6B", tint: "#F2F2F2", sub: "Utenti \u00b7 Moduli \u00b7 Backup" },
+  vini:                { grad: "linear-gradient(135deg, #C4960F, #A87A00)" },
+  acquisti:            { grad: "linear-gradient(135deg, #7B5F8A, #634A70)" },
+  vendite:             { grad: "linear-gradient(135deg, #6A7B5E, #4E5F42)" },
+  ricette:             { grad: "linear-gradient(135deg, #5A7A92, #44657A)" },
+  "flussi-cassa":      { grad: "linear-gradient(135deg, #3D9F8B, #28806C)" },
+  "controllo-gestione":{ grad: "linear-gradient(135deg, #5A6A78, #444F5C)" },
+  statistiche:         { grad: "linear-gradient(135deg, #707070, #555555)" },
+  prenotazioni:        { grad: "linear-gradient(135deg, #9B6E4C, #7A5030)" },
+  clienti:             { grad: "linear-gradient(135deg, #5A6E92, #44587A)" },
+  dipendenti:          { grad: "linear-gradient(135deg, #8A7362, #6E5A4A)" },
+  impostazioni:        { grad: "linear-gradient(135deg, #555555, #444444)" },
 };
 
 /* Gobbetta accent colors cycle */
@@ -308,7 +308,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ════════ PAGINA 2: MODULI ════════ */}
+            {/* ════════ PAGINA 2: MODULI (righe gradient) ════════ */}
             <div className="w-full flex-shrink-0 overflow-y-auto px-5 sm:px-8 pb-8">
               <div className="flex items-baseline justify-between mb-5 sm:mb-6">
                 <h2 className="font-playfair text-[22px] sm:text-[26px] font-bold text-brand-ink tracking-tight">
@@ -318,42 +318,73 @@ export default function Home() {
                   {visibleModules.length} attivi
                 </span>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3.5">
-                {visibleModules.map((m, idx) => {
+
+              {/* Mappa summary da API per lookup veloce */}
+              <div className="flex flex-col gap-2">
+                {visibleModules.map((m) => {
                   const menu = MODULES_MENU[m.key];
                   const style = MODULE_STYLE[m.key];
                   if (!menu || !style) return null;
                   const IconComp = MODULE_ICONS[m.key];
-                  const gobColor = GOB[idx % 3];
+                  // Cerca dati dinamici dal backend
+                  const summary = widgets?.moduli?.find((s) => s.key === m.key);
+                  const badge = summary?.badge || 0;
 
                   return (
                     <div
                       key={m.key}
                       onClick={() => navigate(menu.go)}
-                      className="bg-white rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,.04)] cursor-pointer relative overflow-hidden active:scale-[.98] transition"
-                      style={{ minHeight: 130 }}
+                      className="flex items-center gap-3.5 rounded-[14px] cursor-pointer active:scale-[.98] transition-transform overflow-hidden"
+                      style={{
+                        background: style.grad,
+                        padding: "14px 16px",
+                        minHeight: 64,
+                      }}
                     >
-                      {/* Gobbetta accent top */}
-                      <div
-                        className="absolute top-0 left-4 right-4 h-[2px] rounded-b-sm"
-                        style={{ background: gobColor, opacity: 0.5 }}
-                      />
-                      <div className="p-4 sm:p-5 h-full flex flex-col justify-between">
-                        <div
-                          className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-                          style={{ background: style.tint, color: style.accent }}
-                        >
-                          {IconComp ? <IconComp size={18} /> : null}
-                        </div>
-                        <div className="mt-3">
-                          <div className="text-[13px] sm:text-sm font-bold text-brand-ink leading-tight tracking-tight">
-                            {menu.title.replace("Gestione ", "").replace("Ricette & ", "Ricette &\u00a0")}
-                          </div>
-                          <div className="text-[10px] text-[#a8a49e] mt-1 leading-snug">
-                            {style.sub}
-                          </div>
-                        </div>
+                      {/* Icona SVG bianca */}
+                      <div className="flex-shrink-0" style={{ color: "rgba(255,255,255,.85)" }}>
+                        {IconComp ? <IconComp size={22} /> : null}
                       </div>
+
+                      {/* Testo: nome + 2 righe dinamiche */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[14px] font-semibold text-white leading-tight truncate">
+                          {menu.title.replace("Gestione ", "")}
+                        </div>
+                        {summary?.line1 && (
+                          <div className="text-[11px] text-white/60 mt-0.5 leading-snug truncate">
+                            {summary.line1}
+                          </div>
+                        )}
+                        {summary?.line2 && (
+                          <div className="text-[11px] text-white/45 leading-snug truncate">
+                            {summary.line2}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Badge notifica (se > 0) */}
+                      {badge > 0 && (
+                        <span
+                          className="flex-shrink-0 text-[11px] font-bold text-white rounded-full text-center"
+                          style={{
+                            background: "rgba(255,255,255,.25)",
+                            padding: "2px 8px",
+                            minWidth: 24,
+                          }}
+                        >
+                          {badge}
+                        </span>
+                      )}
+
+                      {/* Chevron */}
+                      <svg
+                        width="14" height="14" viewBox="0 0 24 24"
+                        fill="none" stroke="rgba(255,255,255,.4)" strokeWidth="2"
+                        className="flex-shrink-0"
+                      >
+                        <path strokeLinecap="round" d="M9 6l6 6-6 6" />
+                      </svg>
                     </div>
                   );
                 })}

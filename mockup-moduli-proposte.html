@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Proposte Moduli</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  .frame-row { display: flex; gap: 32px; padding: 32px; justify-content: center; flex-wrap: wrap; }
+  .frame-label {
+    text-align: center; padding: 24px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; }
+
+  /* iPad frame */
+  .ipad-frame {
+    width: 380px; height: 560px; background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden; position: relative;
+  }
+  .ipad-frame::-webkit-scrollbar { width: 0; }
+
+  .page-inner { padding: 20px 16px 24px; }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #a8a49e; margin: 16px 0 10px 4px; font-weight: 600;
+  }
+  .section-label:first-child { margin-top: 4px; }
+
+  /* ─── PROPOSTA A: Lista iOS ─── */
+  .list-group { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04); overflow: hidden; }
+  .list-row {
+    display: flex; align-items: center; padding: 14px 16px; gap: 14px;
+    cursor: pointer; transition: background .15s;
+    border-bottom: 1px solid rgba(0,0,0,.04);
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-row:active { background: #f5f3ef; }
+  .list-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .list-icon svg { width: 20px; height: 20px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .list-text { flex: 1; }
+  .list-title { font-size: 15px; font-weight: 600; color: #111; }
+  .list-sub { font-size: 11px; color: #a8a49e; margin-top: 1px; }
+  .list-chevron { color: #ccc; font-size: 14px; }
+  .list-badge {
+    background: #E8402B; color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 10px; padding: 1px 7px; min-width: 20px; text-align: center;
+  }
+
+  /* ─── PROPOSTA B: Card con preview dato ─── */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .data-card {
+    background: #fff; border-radius: 14px; padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); cursor: pointer;
+    transition: transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .data-card:active { transform: scale(.97); }
+  .data-card-accent { position: absolute; top: 0; left: 0; right: 0; height: 2px; opacity: .5; }
+  .data-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .data-icon svg { width: 18px; height: 18px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .data-name { font-size: 13px; font-weight: 600; color: #111; margin-top: 10px; }
+  .data-value { font-size: 22px; font-weight: 700; color: #111; margin-top: 4px; line-height: 1; }
+  .data-label { font-size: 10px; color: #a8a49e; margin-top: 2px; }
+
+  /* ─── PROPOSTA C: Cerchi stile iOS home ─── */
+  .circle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 4px; }
+  .circle-item {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    padding: 12px 4px; cursor: pointer; border-radius: 12px;
+    transition: background .15s;
+  }
+  .circle-item:active { background: rgba(0,0,0,.04); }
+  .circle-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .circle-icon svg { width: 24px; height: 24px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .circle-label { font-size: 11px; color: #111; text-align: center; line-height: 1.2; font-weight: 500; }
+
+  /* ─── PROPOSTA D: Side-accent compatto ─── */
+  .side-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .side-card {
+    background: #fff; border-radius: 14px; padding: 14px 14px 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .side-card:active { transform: scale(.97); }
+  .side-card-bar { position: absolute; top: 8px; bottom: 8px; left: 0; width: 3px; border-radius: 0 3px 3px 0; }
+  .side-card-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .side-card-icon svg { width: 20px; height: 20px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .side-card-name { font-size: 13px; font-weight: 600; color: #111; }
+
+  /* ─── PROPOSTA E: Lista grouped a righe senza card ─── */
+  .flat-group { margin-bottom: 16px; }
+  .flat-row {
+    display: flex; align-items: center; padding: 12px 4px; gap: 14px;
+    cursor: pointer; transition: background .15s;
+    border-bottom: 1px solid rgba(0,0,0,.05);
+  }
+  .flat-row:active { background: rgba(0,0,0,.03); border-radius: 10px; }
+  .flat-row:last-child { border-bottom: none; }
+  .flat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .flat-name { font-size: 14px; font-weight: 500; color: #111; flex: 1; }
+  .flat-chevron { color: #ccc; font-size: 13px; }
+
+  /* Navigation selector */
+  .nav-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(244,241,236,.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    display: flex; justify-content: center; gap: 8px; padding: 12px 16px;
+  }
+  .nav-btn {
+    padding: 8px 16px; border: none; border-radius: 20px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all .2s; background: transparent; color: #a8a49e;
+  }
+  .nav-btn.active { background: #111; color: #fff; }
+  .proposals { padding-top: 60px; }
+  .proposal { display: none; }
+  .proposal.active { display: block; }
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <button class="nav-btn active" onclick="show('a')">A · Lista</button>
+  <button class="nav-btn" onclick="show('b')">B · Card+Dato</button>
+  <button class="nav-btn" onclick="show('c')">C · Icone</button>
+  <button class="nav-btn" onclick="show('d')">D · Side Bar</button>
+  <button class="nav-btn" onclick="show('e')">E · Minimal</button>
+</nav>
+
+<div class="proposals">
+
+<!-- ═══════ PROPOSTA A: Lista raggruppata stile iOS ═══════ -->
+<div class="proposal active" id="prop-a">
+  <p class="frame-label">A · Lista raggruppata</p>
+  <p class="frame-sublabel">Stile Impostazioni iOS — righe in gruppi con sfondo bianco, badge notifiche</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Operatività</div>
+        <div class="list-group">
+          <div class="list-row">
+            <div class="list-icon" style="background:#F5F0E6; color:#B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/><path d="M12 2v1M4.22 4.22l.71.71M1 10.5h1.5M19.5 10.5H21M18.36 4.93l-.71.71" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Cantina & Vini</div>
+              <div class="list-sub">Magazzino, ricerca, giacenze</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#EBF0E8; color:#5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Vendite</div>
+              <div class="list-sub">Corrispettivi e chiusura turno</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#F3EDE7; color:#8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Prenotazioni</div>
+              <div class="list-sub">Gestione tavoli e servizi</div>
+            </div>
+            <span class="list-badge">3</span>
+            <span class="list-chevron">›</span>
+          </div>
+        </div>
+
+        <div class="section-label">Cucina</div>
+        <div class="list-group">
+          <div class="list-row">
+            <div class="list-icon" style="background:#E9EFF3; color:#4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Ricette & Food Cost</div>
+              <div class="list-sub">Schede tecniche, costi, margini</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+        </div>
+
+        <div class="section-label">Amministrazione</div>
+        <div class="list-group">
+          <div class="list-row">
+            <div class="list-icon" style="background:#EDE8F0; color:#6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Acquisti & Fatture</div>
+              <div class="list-sub">Fatture, fornitori, scadenze</div>
+            </div>
+            <span class="list-badge">5</span>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#E8EFEB; color:#2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Flussi di Cassa</div>
+              <div class="list-sub">Entrate, uscite, proiezioni</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#EAEAEA; color:#555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Controllo Gestione</div>
+              <div class="list-sub">P&L, analisi, budget</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#F0EAE4; color:#7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Dipendenti</div>
+              <div class="list-sub">Anagrafica, scadenze, turni</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+          <div class="list-row">
+            <div class="list-icon" style="background:#E8ECF3; color:#4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Clienti</div>
+              <div class="list-sub">Anagrafica e preferenze</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+        </div>
+
+        <div class="section-label">Sistema</div>
+        <div class="list-group">
+          <div class="list-row">
+            <div class="list-icon" style="background:#EAEAEA; color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor"/></svg>
+            </div>
+            <div class="list-text">
+              <div class="list-title">Statistiche</div>
+            </div>
+            <span class="list-chevron">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PROPOSTA B: Card con dato live ═══════ -->
+<div class="proposal" id="prop-b">
+  <p class="frame-label">B · Card con dato live</p>
+  <p class="frame-sublabel">Ogni modulo mostra un numero chiave — il gestionale che "parla" appena apri</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Oggi</div>
+        <div class="data-grid">
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#E8402B;"></div>
+            <div class="data-icon" style="background:#F3EDE7; color:#8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Prenotazioni</div>
+            <div class="data-value">14</div>
+            <div class="data-label">coperti stasera</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2EB872;"></div>
+            <div class="data-icon" style="background:#EBF0E8; color:#5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Vendite</div>
+            <div class="data-value">€ 1.842</div>
+            <div class="data-label">incasso ieri</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2E7BE8;"></div>
+            <div class="data-icon" style="background:#F5F0E6; color:#B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Cantina</div>
+            <div class="data-value">312</div>
+            <div class="data-label">etichette</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#E8402B;"></div>
+            <div class="data-icon" style="background:#EDE8F0; color:#6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Fatture</div>
+            <div class="data-value" style="color:#E8402B;">5</div>
+            <div class="data-label">da pagare</div>
+          </div>
+        </div>
+
+        <div class="section-label">Gestione</div>
+        <div class="data-grid">
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2EB872;"></div>
+            <div class="data-icon" style="background:#E9EFF3; color:#4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Ricette</div>
+            <div class="data-value">87</div>
+            <div class="data-label">schede attive</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2E7BE8;"></div>
+            <div class="data-icon" style="background:#E8EFEB; color:#2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Flussi Cassa</div>
+            <div class="data-value">+€ 4k</div>
+            <div class="data-label">mese corrente</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#E8402B;"></div>
+            <div class="data-icon" style="background:#EAEAEA; color:#555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Controllo Gestione</div>
+            <div class="data-value">32%</div>
+            <div class="data-label">food cost medio</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2EB872;"></div>
+            <div class="data-icon" style="background:#F0EAE4; color:#7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Dipendenti</div>
+            <div class="data-value">8</div>
+            <div class="data-label">in organico</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#2E7BE8;"></div>
+            <div class="data-icon" style="background:#E8ECF3; color:#4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Clienti</div>
+            <div class="data-value">246</div>
+            <div class="data-label">in rubrica</div>
+          </div>
+          <div class="data-card">
+            <div class="data-card-accent" style="background:#E8402B;"></div>
+            <div class="data-icon" style="background:#EAEAEA; color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="data-name">Statistiche</div>
+            <div class="data-value">—</div>
+            <div class="data-label">apri dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PROPOSTA C: Icone stile iOS app grid ═══════ -->
+<div class="proposal" id="prop-c">
+  <p class="frame-label">C · Icone app</p>
+  <p class="frame-sublabel">Stile home screen iOS — icone squadrate con angoli arrotondati, label sotto</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner" style="padding-top: 32px;">
+        <div class="section-label" style="text-align:center;">Moduli</div>
+        <div class="circle-grid">
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #F5F0E6, #EDE5D4); color:#B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Vini</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #EBF0E8, #DDE5D8); color:#5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Vendite</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #F3EDE7, #E8DDD2); color:#8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Prenotaz.</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #E9EFF3, #D8E3EC); color:#4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Ricette</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #EDE8F0, #DDD4E3); color:#6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Acquisti</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #E8EFEB, #D5E3DC); color:#2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Flussi</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #EAEAEA, #DCDCDC); color:#555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Controllo</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #F0EAE4, #E3D9CE); color:#7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <span class="circle-label">Dipendenti</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #E8ECF3, #D5DBE8); color:#4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <span class="circle-label">Clienti</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #EAEAEA, #DCDCDC); color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Statistiche</span>
+          </div>
+          <div class="circle-item">
+            <div class="circle-icon" style="background: linear-gradient(135deg, #E8E8E8, #D6D6D6); color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="circle-label">Sistema</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PROPOSTA D: Side bar accent ═══════ -->
+<div class="proposal" id="prop-d">
+  <p class="frame-label">D · Side bar accent</p>
+  <p class="frame-sublabel">Griglia 2 colonne con barra colorata laterale — compatto ma identificabile</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Operatività</div>
+        <div class="side-grid">
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#B8860B;"></div>
+            <div class="side-card-icon" style="background:#F5F0E6; color:#B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Vini</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#5A6B50;"></div>
+            <div class="side-card-icon" style="background:#EBF0E8; color:#5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Vendite</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#8B5E3C;"></div>
+            <div class="side-card-icon" style="background:#F3EDE7; color:#8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Prenotazioni</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#4A6A82;"></div>
+            <div class="side-card-icon" style="background:#E9EFF3; color:#4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Ricette</div>
+          </div>
+        </div>
+
+        <div class="section-label">Amministrazione</div>
+        <div class="side-grid">
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#6B4F7A;"></div>
+            <div class="side-card-icon" style="background:#EDE8F0; color:#6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Acquisti</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#2D8F7B;"></div>
+            <div class="side-card-icon" style="background:#E8EFEB; color:#2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Flussi Cassa</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#555;"></div>
+            <div class="side-card-icon" style="background:#EAEAEA; color:#555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Controllo</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#7A6352;"></div>
+            <div class="side-card-icon" style="background:#F0EAE4; color:#7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <div class="side-card-name">Dipendenti</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#4A5E82;"></div>
+            <div class="side-card-icon" style="background:#E8ECF3; color:#4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <div class="side-card-name">Clienti</div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-bar" style="background:#666;"></div>
+            <div class="side-card-icon" style="background:#EAEAEA; color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="side-card-name">Statistiche</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ PROPOSTA E: Minimal flat ═══════ -->
+<div class="proposal" id="prop-e">
+  <p class="frame-label">E · Minimal flat</p>
+  <p class="frame-sublabel">Solo testo con pallino colore — massima densità, zero decorazioni</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Operatività</div>
+        <div class="flat-group">
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#B8860B;"></div>
+            <span class="flat-name">Cantina & Vini</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#5A6B50;"></div>
+            <span class="flat-name">Vendite</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#8B5E3C;"></div>
+            <span class="flat-name">Prenotazioni</span>
+            <span style="background:#E8402B; color:#fff; font-size:11px; font-weight:700; border-radius:10px; padding:1px 7px;">3</span>
+            <span class="flat-chevron">›</span>
+          </div>
+        </div>
+
+        <div class="section-label">Cucina</div>
+        <div class="flat-group">
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#4A6A82;"></div>
+            <span class="flat-name">Ricette & Food Cost</span>
+            <span class="flat-chevron">›</span>
+          </div>
+        </div>
+
+        <div class="section-label">Amministrazione</div>
+        <div class="flat-group">
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#6B4F7A;"></div>
+            <span class="flat-name">Acquisti & Fatture</span>
+            <span style="background:#E8402B; color:#fff; font-size:11px; font-weight:700; border-radius:10px; padding:1px 7px;">5</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#2D8F7B;"></div>
+            <span class="flat-name">Flussi di Cassa</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#555;"></div>
+            <span class="flat-name">Controllo Gestione</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#7A6352;"></div>
+            <span class="flat-name">Dipendenti</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#4A5E82;"></div>
+            <span class="flat-name">Clienti</span>
+            <span class="flat-chevron">›</span>
+          </div>
+          <div class="flat-row">
+            <div class="flat-dot" style="background:#888;"></div>
+            <span class="flat-name">Statistiche</span>
+            <span class="flat-chevron">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /proposals -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.proposal').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('prop-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

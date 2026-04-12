@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Moduli v2 (più carattere)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  .frame-row { display: flex; gap: 32px; padding: 24px; justify-content: center; flex-wrap: wrap; }
+  .frame-label {
+    text-align: center; padding: 20px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; max-width: 600px; margin-left: auto; margin-right: auto; }
+
+  .ipad-frame {
+    width: 380px; height: 620px; background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .ipad-frame::-webkit-scrollbar { width: 0; }
+  .page-inner { padding: 20px 16px 24px; }
+
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #a8a49e; margin: 16px 0 10px 4px; font-weight: 600;
+  }
+  .section-label:first-child { margin-top: 4px; }
+
+  /* Nav */
+  .nav-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(244,241,236,.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    display: flex; justify-content: center; gap: 6px; padding: 10px 16px;
+  }
+  .nav-btn {
+    padding: 8px 14px; border: none; border-radius: 20px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all .2s; background: transparent; color: #a8a49e;
+  }
+  .nav-btn.active { background: #111; color: #fff; }
+  .proposals { padding-top: 56px; }
+  .proposal { display: none; }
+  .proposal.active { display: block; }
+
+  /* ─── F: Colore pieno con icona bianca ─── */
+  .bold-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .bold-card {
+    border-radius: 16px; padding: 18px 14px 16px; cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    min-height: 110px;
+  }
+  .bold-card:active { transform: scale(.95); }
+  .bold-card svg { width: 28px; height: 28px; stroke-width: 1.5; fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+  .bold-card-name { font-size: 12px; font-weight: 600; color: #fff; margin-top: 10px; opacity: .95; }
+  .bold-card-shine {
+    position: absolute; top: -40%; right: -30%; width: 80%; height: 80%;
+    background: radial-gradient(circle, rgba(255,255,255,.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ─── G: Gradient card con dato ─── */
+  .grad-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grad-card {
+    border-radius: 16px; padding: 18px; cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+    min-height: 100px;
+  }
+  .grad-card:active { transform: scale(.96); }
+  .grad-card svg { width: 22px; height: 22px; stroke-width: 1.5; fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+  .grad-card-name { font-size: 14px; font-weight: 700; color: #fff; margin-top: 8px; }
+  .grad-card-sub { font-size: 11px; color: rgba(255,255,255,.7); margin-top: 2px; }
+  .grad-card-value { font-size: 26px; font-weight: 800; color: #fff; position: absolute; bottom: 14px; right: 18px; opacity: .3; }
+
+  /* ─── H: Magazine layout (mixed sizes) ─── */
+  .mag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; grid-auto-rows: auto; }
+  .mag-card {
+    background: #fff; border-radius: 14px; padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06); cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+  }
+  .mag-card:active { transform: scale(.97); }
+  .mag-card.hero { grid-column: span 2; display: flex; align-items: center; gap: 16px; padding: 20px; }
+  .mag-card.hero .mag-icon { width: 56px; height: 56px; border-radius: 14px; }
+  .mag-card.hero .mag-icon svg { width: 28px; height: 28px; }
+  .mag-card.hero .mag-name { font-size: 17px; }
+  .mag-card.hero .mag-sub { font-size: 12px; color: #a8a49e; margin-top: 2px; }
+  .mag-card.hero .mag-badge { font-size: 24px; font-weight: 800; color: #111; margin-left: auto; }
+  .mag-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mag-icon svg { width: 22px; height: 22px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .mag-name { font-size: 13px; font-weight: 700; color: #111; margin-top: 10px; }
+  .mag-sub { font-size: 11px; color: #a8a49e; margin-top: 2px; }
+  .mag-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+
+  /* ─── I: Dark mode card ─── */
+  .dark-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dark-card {
+    background: #1a1a1e; border-radius: 16px; padding: 18px; cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+  }
+  .dark-card:active { transform: scale(.96); }
+  .dark-card svg { width: 22px; height: 22px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .dark-card-name { font-size: 13px; font-weight: 600; color: #fff; margin-top: 10px; }
+  .dark-card-glow {
+    position: absolute; top: -20px; right: -20px; width: 80px; height: 80px;
+    border-radius: 50%; filter: blur(24px); opacity: .25; pointer-events: none;
+  }
+
+  /* ─── J: Full-width list con colore forte ─── */
+  .color-list { display: flex; flex-direction: column; gap: 8px; }
+  .color-row {
+    display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+    border-radius: 14px; cursor: pointer; transition: transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .color-row:active { transform: scale(.98); }
+  .color-row svg { width: 22px; height: 22px; stroke-width: 1.5; fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+  .color-row-name { font-size: 15px; font-weight: 600; color: #fff; flex: 1; }
+  .color-row-chevron { color: rgba(255,255,255,.5); font-size: 16px; }
+  .color-row-badge {
+    background: rgba(255,255,255,.25); color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 10px; padding: 2px 8px;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <button class="nav-btn active" onclick="show('f')">F · Colore pieno</button>
+  <button class="nav-btn" onclick="show('g')">G · Gradient</button>
+  <button class="nav-btn" onclick="show('h')">H · Magazine</button>
+  <button class="nav-btn" onclick="show('i')">I · Dark</button>
+  <button class="nav-btn" onclick="show('j')">J · Righe colore</button>
+</nav>
+
+<div class="proposals">
+
+<!-- ═══════ F: COLORE PIENO CON ICONA BIANCA ═══════ -->
+<div class="proposal active" id="prop-f">
+  <p class="frame-label">F · Colore pieno</p>
+  <p class="frame-sublabel">Sfondo colorato per modulo, icona bianca — ogni tile ha identità forte. Griglia 3 colonne su iPad, 2 su iPhone.</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label" style="color:#a8a49e;">Moduli</div>
+        <div class="bold-grid">
+          <div class="bold-card" style="background: linear-gradient(145deg, #C4960F, #B8860B);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+            <div class="bold-card-name">Vini</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #6A7B5E, #5A6B50);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <div class="bold-card-name">Vendite</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #9B6E4C, #8B5E3C);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            <div class="bold-card-name">Prenotazioni</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #5A7A92, #4A6A82);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+            <div class="bold-card-name">Ricette</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #7B5F8A, #6B4F7A);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <div class="bold-card-name">Acquisti</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #3D9F8B, #2D8F7B);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <div class="bold-card-name">Flussi Cassa</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #5A6A78, #4A5A68);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="bold-card-name">Controllo</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #8A7362, #7A6352);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <div class="bold-card-name">Dipendenti</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #5A6E92, #4A5E82);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <div class="bold-card-name">Clienti</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #707070, #606060);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <div class="bold-card-name">Statistiche</div>
+          </div>
+          <div class="bold-card" style="background: linear-gradient(145deg, #555, #444);">
+            <div class="bold-card-shine"></div>
+            <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            <div class="bold-card-name">Sistema</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ G: GRADIENT CARD CON DATO ═══════ -->
+<div class="proposal" id="prop-g">
+  <p class="frame-label">G · Gradient + numero</p>
+  <p class="frame-sublabel">Card con gradiente ricco, icona bianca e numero grande semitrasparente in basso a destra</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">I tuoi moduli</div>
+        <div class="grad-grid">
+          <div class="grad-card" style="background: linear-gradient(135deg, #D4A017, #B8860B);">
+            <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Cantina & Vini</div>
+            <div class="grad-card-sub">Magazzino e giacenze</div>
+            <div class="grad-card-value">312</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #6F8060, #5A6B50);">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Vendite</div>
+            <div class="grad-card-sub">Corrispettivi</div>
+            <div class="grad-card-value">€1.8k</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #A0704C, #8B5E3C);">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Prenotazioni</div>
+            <div class="grad-card-sub">Oggi</div>
+            <div class="grad-card-value">14</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #5F8098, #4A6A82);">
+            <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Ricette</div>
+            <div class="grad-card-sub">Food cost</div>
+            <div class="grad-card-value">87</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #806090, #6B4F7A);">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Acquisti</div>
+            <div class="grad-card-sub">Fatture e fornitori</div>
+            <div class="grad-card-value">5</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #3FA590, #2D8F7B);">
+            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Flussi Cassa</div>
+            <div class="grad-card-sub">Entrate e uscite</div>
+            <div class="grad-card-value">+4k</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #60707E, #4A5A68);">
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Controllo Gestione</div>
+            <div class="grad-card-sub">P&L e budget</div>
+            <div class="grad-card-value">32%</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #958070, #7A6352);">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Dipendenti</div>
+            <div class="grad-card-sub">Organico</div>
+            <div class="grad-card-value">8</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #607498, #4A5E82);">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Clienti</div>
+            <div class="grad-card-sub">Rubrica</div>
+            <div class="grad-card-value">246</div>
+          </div>
+          <div class="grad-card" style="background: linear-gradient(135deg, #777, #5A5A5A);">
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            <div class="grad-card-name">Statistiche</div>
+            <div class="grad-card-sub">Dashboard</div>
+            <div class="grad-card-value">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ H: MAGAZINE LAYOUT ═══════ -->
+<div class="proposal" id="prop-h">
+  <p class="frame-label">H · Magazine</p>
+  <p class="frame-sublabel">I moduli più usati sono card grandi (hero) con dato live, il resto card normali. Gerarchia visiva chiara.</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Oggi</div>
+        <div class="mag-grid">
+          <!-- Hero: Prenotazioni -->
+          <div class="mag-card hero">
+            <div class="mag-accent" style="background: linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8);"></div>
+            <div class="mag-icon" style="background:#F3EDE7; color:#8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="mag-name" style="font-size:17px;">Prenotazioni</div>
+              <div class="mag-sub">14 coperti stasera</div>
+            </div>
+            <div class="mag-badge">14</div>
+          </div>
+          <!-- Hero: Vendite -->
+          <div class="mag-card hero">
+            <div class="mag-accent" style="background:#2EB872;"></div>
+            <div class="mag-icon" style="background:#EBF0E8; color:#5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <div class="mag-name" style="font-size:17px;">Vendite</div>
+              <div class="mag-sub">€ 1.842 incasso ieri</div>
+            </div>
+            <div class="mag-badge">+12%</div>
+          </div>
+        </div>
+
+        <div class="section-label" style="margin-top:20px;">Tutti i moduli</div>
+        <div class="mag-grid">
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#B8860B;"></div>
+            <div class="mag-icon" style="background:#F5F0E6; color:#B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Cantina & Vini</div>
+            <div class="mag-sub">312 etichette</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#4A6A82;"></div>
+            <div class="mag-icon" style="background:#E9EFF3; color:#4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Ricette</div>
+            <div class="mag-sub">87 schede</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#6B4F7A;"></div>
+            <div class="mag-icon" style="background:#EDE8F0; color:#6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Acquisti</div>
+            <div class="mag-sub">5 da pagare</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#2D8F7B;"></div>
+            <div class="mag-icon" style="background:#E8EFEB; color:#2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Flussi Cassa</div>
+            <div class="mag-sub">+€ 4k mese</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#4A5A68;"></div>
+            <div class="mag-icon" style="background:#EAEAEA; color:#555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Controllo Gestione</div>
+            <div class="mag-sub">Food cost 32%</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#7A6352;"></div>
+            <div class="mag-icon" style="background:#F0EAE4; color:#7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <div class="mag-name">Dipendenti</div>
+            <div class="mag-sub">8 in organico</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#4A5E82;"></div>
+            <div class="mag-icon" style="background:#E8ECF3; color:#4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <div class="mag-name">Clienti</div>
+            <div class="mag-sub">246 contatti</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background:#888;"></div>
+            <div class="mag-icon" style="background:#EAEAEA; color:#666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="mag-name">Statistiche</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ I: DARK MODE CARD ═══════ -->
+<div class="proposal" id="prop-i">
+  <p class="frame-label">I · Dark card</p>
+  <p class="frame-sublabel">Card scure con glow colorato — elegante, premium, forte identità. Sfondo cream resta come contrasto.</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Moduli</div>
+        <div class="dark-grid">
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#B8860B;"></div>
+            <svg viewBox="0 0 24 24" style="color:#D4A017;"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Cantina & Vini</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#5A6B50;"></div>
+            <svg viewBox="0 0 24 24" style="color:#7A8B68;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Vendite</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#8B5E3C;"></div>
+            <svg viewBox="0 0 24 24" style="color:#B08060;"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Prenotazioni</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#4A6A82;"></div>
+            <svg viewBox="0 0 24 24" style="color:#6A8AA2;"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Ricette</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#6B4F7A;"></div>
+            <svg viewBox="0 0 24 24" style="color:#8B6F9A;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Acquisti</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#2D8F7B;"></div>
+            <svg viewBox="0 0 24 24" style="color:#4DAF9B;"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Flussi Cassa</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#4A5A68;"></div>
+            <svg viewBox="0 0 24 24" style="color:#7A8A98;"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Controllo Gestione</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#7A6352;"></div>
+            <svg viewBox="0 0 24 24" style="color:#9A8372;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            <div class="dark-card-name">Dipendenti</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#4A5E82;"></div>
+            <svg viewBox="0 0 24 24" style="color:#6A7EA2;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            <div class="dark-card-name">Clienti</div>
+          </div>
+          <div class="dark-card">
+            <div class="dark-card-glow" style="background:#666;"></div>
+            <svg viewBox="0 0 24 24" style="color:#888;"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dark-card-name">Statistiche</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ J: RIGHE COLORE PIENO ═══════ -->
+<div class="proposal" id="prop-j">
+  <p class="frame-label">J · Righe a colore pieno</p>
+  <p class="frame-sublabel">Lista full-width, ogni riga ha il colore del modulo — massima riconoscibilità, stile app moderna</p>
+  <div class="frame-row">
+    <div class="ipad-frame">
+      <div class="page-inner">
+        <div class="section-label">Moduli</div>
+        <div class="color-list">
+          <div class="color-row" style="background: linear-gradient(135deg, #C4960F, #B8860B);">
+            <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+            <span class="color-row-name">Cantina & Vini</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #6A7B5E, #5A6B50);">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span class="color-row-name">Vendite</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #9B6E4C, #8B5E3C);">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            <span class="color-row-name">Prenotazioni</span>
+            <span class="color-row-badge">3</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #5A7A92, #4A6A82);">
+            <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+            <span class="color-row-name">Ricette & Food Cost</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #7B5F8A, #6B4F7A);">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+            <span class="color-row-name">Acquisti & Fatture</span>
+            <span class="color-row-badge">5</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #3D9F8B, #2D8F7B);">
+            <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <span class="color-row-name">Flussi di Cassa</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #5A6A78, #4A5A68);">
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <span class="color-row-name">Controllo Gestione</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #8A7362, #7A6352);">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <span class="color-row-name">Dipendenti</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #5A6E92, #4A5E82);">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="color-row-name">Clienti</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+          <div class="color-row" style="background: linear-gradient(135deg, #707070, #5A5A5A);">
+            <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <span class="color-row-name">Statistiche</span>
+            <span class="color-row-chevron">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /proposals -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.proposal').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('prop-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

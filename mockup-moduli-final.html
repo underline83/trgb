@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Moduli FINAL (righe gradient + dati dinamici)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; display: flex; gap: 40px; justify-content: center; padding: 32px; flex-wrap: wrap; }
+
+  .device-frame {
+    background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .device-frame::-webkit-scrollbar { width: 0; }
+  .ipad { width: 420px; height: 680px; }
+  .iphone { width: 320px; height: 680px; }
+
+  .page-inner { padding: 20px 16px 32px; }
+
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #a8a49e; margin: 4px 0 12px 4px; font-weight: 600;
+  }
+
+  .device-label { text-align: center; font-size: 11px; color: #a8a49e; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+  .header h2 { font-family: 'Playfair Display', serif; font-size: 24px; color: #111; }
+  .header span { font-size: 11px; color: #a8a49e; }
+
+  /* Color rows */
+  .color-list { display: flex; flex-direction: column; gap: 8px; }
+  .color-row {
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+    border-radius: 14px; cursor: pointer; transition: transform .15s;
+    position: relative; overflow: hidden;
+  }
+  .color-row:active { transform: scale(.98); }
+  .color-row svg.icon {
+    width: 22px; height: 22px; stroke-width: 1.5; fill: none;
+    stroke: rgba(255,255,255,.85); stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+  .row-text { flex: 1; min-width: 0; }
+  .row-name { font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-line1 { font-size: 11px; color: rgba(255,255,255,.6); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-line2 { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-badge {
+    background: rgba(255,255,255,.25); color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 10px; padding: 2px 8px; min-width: 24px; text-align: center; flex-shrink: 0;
+  }
+  .row-chevron { color: rgba(255,255,255,.4); font-size: 16px; flex-shrink: 0; }
+
+  .dots { display: flex; justify-content: center; gap: 6px; padding: 12px 0 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+  .dot.active { background: #111; width: 18px; border-radius: 3px; }
+
+  .footer { margin-top: 32px; text-align: center; }
+  .footer svg { height: 12px; width: auto; opacity: .3; }
+  .footer span { display: block; font-size: 10px; color: rgba(17,17,17,.3); margin-top: 4px; }
+
+  /* Compact variant for iPhone */
+  .compact .color-row { padding: 12px 14px; gap: 12px; }
+  .compact .color-row svg.icon { width: 20px; height: 20px; }
+  .compact .row-name { font-size: 13px; }
+  .compact .row-line1, .compact .row-line2 { font-size: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ iPad ═══════ -->
+<div>
+  <div class="device-frame ipad">
+    <div class="page-inner">
+      <div class="header">
+        <h2>Moduli</h2>
+        <span>10 attivi</span>
+      </div>
+
+      <div class="color-list">
+        <!-- Prenotazioni -->
+        <div class="color-row" style="background: linear-gradient(135deg, #9B6E4C, #7A5030);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+          <div class="row-text">
+            <div class="row-name">Prenotazioni</div>
+            <div class="row-line1">38 pax oggi</div>
+            <div class="row-line2">pranzo 12 · cena 26</div>
+          </div>
+          <span class="row-badge">14</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Vendite -->
+        <div class="color-row" style="background: linear-gradient(135deg, #6A7B5E, #4E5F42);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <div class="row-text">
+            <div class="row-name">Vendite</div>
+            <div class="row-line1">Incasso ieri: € 1.842</div>
+            <div class="row-line2">+12% vs media · 46 coperti</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Vini -->
+        <div class="color-row" style="background: linear-gradient(135deg, #C4960F, #A87A00);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+          <div class="row-text">
+            <div class="row-name">Cantina & Vini</div>
+            <div class="row-line1">312 etichette attive</div>
+            <div class="row-line2">2 sotto scorta</div>
+          </div>
+          <span class="row-badge">2</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Ricette -->
+        <div class="color-row" style="background: linear-gradient(135deg, #5A7A92, #44657A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+          <div class="row-text">
+            <div class="row-name">Ricette & Food Cost</div>
+            <div class="row-line1">87 schede attive</div>
+            <div class="row-line2">Food cost medio 32%</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Acquisti -->
+        <div class="color-row" style="background: linear-gradient(135deg, #7B5F8A, #634A70);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>
+          <div class="row-text">
+            <div class="row-name">Acquisti & Fatture</div>
+            <div class="row-line1">5 fatture da pagare</div>
+            <div class="row-line2">€ 3.420 in sospeso</div>
+          </div>
+          <span class="row-badge">5</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Flussi -->
+        <div class="color-row" style="background: linear-gradient(135deg, #3D9F8B, #28806C);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Flussi di Cassa</div>
+            <div class="row-line1">Saldo mese: +€ 4.200</div>
+            <div class="row-line2">CC · Carta · Contanti · Mance</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Controllo -->
+        <div class="color-row" style="background: linear-gradient(135deg, #5A6A78, #444F5C);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Controllo di Gestione</div>
+            <div class="row-line1">Dashboard P&L e confronto</div>
+            <div class="row-line2">Coperti mese: 312 (vs 290 prec.)</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Dipendenti -->
+        <div class="color-row" style="background: linear-gradient(135deg, #8A7362, #6E5A4A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <div class="row-text">
+            <div class="row-name">Dipendenti</div>
+            <div class="row-line1">8 dipendenti attivi</div>
+            <div class="row-line2">1 scadenza entro 14gg</div>
+          </div>
+          <span class="row-badge">1</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Clienti -->
+        <div class="color-row" style="background: linear-gradient(135deg, #5A6E92, #44587A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div class="row-text">
+            <div class="row-name">Clienti</div>
+            <div class="row-line1">246 clienti in rubrica</div>
+            <div class="row-line2">Anagrafica · CRM · Dashboard</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- Statistiche -->
+        <div class="color-row" style="background: linear-gradient(135deg, #707070, #555555);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Statistiche</div>
+            <div class="row-line1">Cucina · Coperti · Trend</div>
+            <div class="row-line2">Dashboard e grafici</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+        </div>
+      </div>
+
+      <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+
+      <div class="footer">
+        <svg viewBox="15 28 155 28" aria-hidden="true">
+          <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+            <path d="M 20 50 Q 37 30 55 42" stroke="#E8402B"/>
+            <path d="M 75 50 Q 92 30 110 42" stroke="#2EB872"/>
+            <path d="M 130 50 Q 147 30 165 42" stroke="#2E7BE8"/>
+          </g>
+        </svg>
+        <span>TRGB Gestionale v5.4</span>
+      </div>
+    </div>
+  </div>
+  <div class="device-label">iPad</div>
+</div>
+
+<!-- ═══════ iPhone ═══════ -->
+<div>
+  <div class="device-frame iphone compact">
+    <div class="page-inner">
+      <div class="header">
+        <h2 style="font-size:20px;">Moduli</h2>
+        <span>10 attivi</span>
+      </div>
+
+      <div class="color-list">
+        <div class="color-row" style="background: linear-gradient(135deg, #9B6E4C, #7A5030);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+          <div class="row-text">
+            <div class="row-name">Prenotazioni</div>
+            <div class="row-line1">38 pax oggi</div>
+            <div class="row-line2">pranzo 12 · cena 26</div>
+          </div>
+          <span class="row-badge">14</span>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #6A7B5E, #4E5F42);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <div class="row-text">
+            <div class="row-name">Vendite</div>
+            <div class="row-line1">Incasso ieri: € 1.842</div>
+            <div class="row-line2">+12% vs media</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #C4960F, #A87A00);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+          <div class="row-text">
+            <div class="row-name">Cantina & Vini</div>
+            <div class="row-line1">312 etichette attive</div>
+            <div class="row-line2">2 sotto scorta</div>
+          </div>
+          <span class="row-badge">2</span>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #5A7A92, #44657A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+          <div class="row-text">
+            <div class="row-name">Ricette & Food Cost</div>
+            <div class="row-line1">87 schede attive</div>
+            <div class="row-line2">Food cost medio 32%</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #7B5F8A, #634A70);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Acquisti & Fatture</div>
+            <div class="row-line1">5 fatture da pagare</div>
+            <div class="row-line2">€ 3.420 in sospeso</div>
+          </div>
+          <span class="row-badge">5</span>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #3D9F8B, #28806C);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Flussi di Cassa</div>
+            <div class="row-line1">Saldo mese: +€ 4.200</div>
+            <div class="row-line2">CC · Carta · Contanti</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #5A6A78, #444F5C);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Controllo Gestione</div>
+            <div class="row-line1">Dashboard P&L</div>
+            <div class="row-line2">Coperti: 312 vs 290</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #8A7362, #6E5A4A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <div class="row-text">
+            <div class="row-name">Dipendenti</div>
+            <div class="row-line1">8 dipendenti attivi</div>
+            <div class="row-line2">1 scadenza entro 14gg</div>
+          </div>
+          <span class="row-badge">1</span>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #5A6E92, #44587A);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div class="row-text">
+            <div class="row-name">Clienti</div>
+            <div class="row-line1">246 clienti in rubrica</div>
+            <div class="row-line2">Anagrafica · CRM</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+
+        <div class="color-row" style="background: linear-gradient(135deg, #707070, #555555);">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          <div class="row-text">
+            <div class="row-name">Statistiche</div>
+            <div class="row-line1">Cucina · Coperti · Trend</div>
+          </div>
+          <span class="row-chevron">›</span>
+        </div>
+      </div>
+
+      <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+    </div>
+  </div>
+  <div class="device-label">iPhone</div>
+</div>
+
+</body>
+</html>
