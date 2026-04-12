@@ -66,6 +66,9 @@ from app.routers.clienti_router import router as clienti_router
 # PRENOTAZIONI
 from app.routers.prenotazioni_router import router as prenotazioni_router
 
+# DASHBOARD HOME — widget aggregatore Home v3
+from app.routers.dashboard_router import router as dashboard_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -228,6 +231,9 @@ app.include_router(clienti_router)
 
 # PRENOTAZIONI
 app.include_router(prenotazioni_router)
+
+# DASHBOARD HOME (widget Home v3)
+app.include_router(dashboard_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)
