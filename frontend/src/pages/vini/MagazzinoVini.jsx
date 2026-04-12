@@ -1051,8 +1051,8 @@ export default function MagazzinoVini() {
       </div>
 
       {/* LAYOUT PRINCIPALE: Filtri SX + Contenuto DX */}
-      {/* NB: rollback temporaneo a calc(100vh - 88px). La versione var(--app-h) faceva crashare iPad su questa pagina (sessione 26+). Da investigare prima di re-introdurre. */}
-      <div className="flex" style={{ height: "calc(100vh - 88px)" }}>
+      {/* 100dvh: fix iOS Safari URL bar (sessione 28, sostituisce rollback sessione 26) */}
+      <div className="flex" style={{ height: "calc(100dvh - 88px)" }}>
 
         {/* ══════════════════════════════════════════════
             COLONNA SINISTRA: FILTRI (280px fisso)

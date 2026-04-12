@@ -177,7 +177,7 @@ export default function Header({ onLogout }) {
               {/* Colonna principale — lista moduli */}
               <div
                 ref={listRef}
-                className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100vh-80px)] overflow-y-auto relative"
+                className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100dvh-80px)] overflow-y-auto relative"
                 onMouseLeave={!isTouch ? handleContainerLeave : undefined}
               >
                 {/* Home */}

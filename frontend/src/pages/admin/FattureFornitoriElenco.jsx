@@ -307,7 +307,7 @@ export default function FattureFornitoriElenco() {
     <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="fornitori" />
 
-      <div className="flex" style={{ height: "calc(100vh - 48px)" }}>
+      <div className="flex" style={{ height: "calc(100dvh - 48px)" }}>
 
         {/* ═══════ SIDEBAR FILTRI ═══════ */}
         <div className="w-sidebar min-w-sidebar border-r border-neutral-200 bg-neutral-50 overflow-y-auto flex-shrink-0">

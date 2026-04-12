@@ -701,7 +701,7 @@ export default function ControlloGestioneUscite() {
       </div>
 
       {/* LAYOUT: Filtri SX + Contenuto DX */}
-      <div className="flex" style={{ height: "calc(100vh - 49px)" }}>
+      <div className="flex" style={{ height: "calc(100dvh - 49px)" }}>
 
         {/* ══════ SIDEBAR FILTRI v2 (compatta, flat, sticky actions) ══════ */}
         <div className="w-sidebar-sm min-w-sidebar-sm border-r border-neutral-200 bg-white flex flex-col flex-shrink-0">
