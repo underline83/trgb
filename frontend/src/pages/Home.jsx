@@ -1,38 +1,34 @@
-// @version: v7.0 — Home v3.2 Magazine: card bianche + accent bar + icona tinta + dati dinamici, griglia responsive
+// @version: v8.0 — Home v3.3 Originale Potenziato: emoji + colori modulesMenu + dati dinamici + badge + hero + griglia responsive
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../config/versions";
 import MODULES_MENU from "../config/modulesMenu";
-import MODULE_ICONS from "../components/icons";
 import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 
-/* ── Palette moduli Magazine: accent bar + icona tinta + fallback sub (Home v3.2) ── */
-const MODULE_STYLE = {
-  vini:                { accent: "#B8860B", tint: "#F5F0E6", sub1: "Carta dei Vini · Cantina", sub2: "Vendite · Dashboard" },
-  acquisti:            { accent: "#6B4F7A", tint: "#EDE8F0", sub1: "Fatture · Fornitori", sub2: "Dashboard · Impostazioni" },
-  vendite:             { accent: "#5A6B50", tint: "#EBF0E8", sub1: "Corrispettivi · Chiusura Turno", sub2: "Riepilogo · Dashboard" },
-  ricette:             { accent: "#4A6A82", tint: "#E9EFF3", sub1: "Archivio · Ingredienti", sub2: "Matching · Food Cost" },
-  "flussi-cassa":      { accent: "#2D8F7B", tint: "#E8EFEB", sub1: "CC · Carta · Contanti", sub2: "Mance · Riconciliazione" },
-  "controllo-gestione":{ accent: "#4A5A68", tint: "#EAEAEA", sub1: "Dashboard P&L", sub2: "Scadenzario · Confronto" },
-  statistiche:         { accent: "#888888", tint: "#EAEAEA", sub1: "Cucina · Coperti · Trend", sub2: "Dashboard e grafici" },
-  prenotazioni:        { accent: "#8B5E3C", tint: "#F3EDE7", sub1: "Planning · Mappa Tavoli", sub2: "Settimana" },
-  clienti:             { accent: "#4A5E82", tint: "#E8ECF3", sub1: "Anagrafica · CRM", sub2: "Dashboard" },
-  dipendenti:          { accent: "#7A6352", tint: "#F0EAE4", sub1: "Buste Paga · Turni", sub2: "Scadenze" },
-  impostazioni:        { accent: "#666666", tint: "#EAEAEA", sub1: "Utenti · Moduli", sub2: "Backup" },
+/* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
+const MODULE_FALLBACK = {
+  vini:                { sub1: "Carta, cantina, vendite, dashboard", sub2: "" },
+  acquisti:            { sub1: "Fatture XML, fornitori, dashboard", sub2: "" },
+  vendite:             { sub1: "Corrispettivi, chiusure cassa, dashboard", sub2: "" },
+  ricette:             { sub1: "Ricette, ingredienti, costi, matching", sub2: "" },
+  "flussi-cassa":      { sub1: "CC, carta, contanti, mance", sub2: "" },
+  "controllo-gestione":{ sub1: "Dashboard P&L, scadenzario, confronto", sub2: "" },
+  statistiche:         { sub1: "Cucina, coperti, trend, grafici", sub2: "" },
+  prenotazioni:        { sub1: "Planning, mappa tavoli, settimana", sub2: "" },
+  clienti:             { sub1: "Anagrafica, CRM, dashboard", sub2: "" },
+  dipendenti:          { sub1: "Buste paga, turni, scadenze", sub2: "" },
+  impostazioni:        { sub1: "Utenti, moduli, backup", sub2: "" },
 };
 
-/* Gobbetta accent colors cycle */
-const GOB = ["#E8402B", "#2EB872", "#2E7BE8"];
-
-/* Azioni rapide (v1 — fisse) */
+/* Azioni rapide (v2 — emoji + colori modulesMenu) */
 const QUICK_ACTIONS = [
-  { label: "Chiusura Turno",     go: "/vendite/fine-turno",      iconKey: "vendite",      accent: "#E8402B" },
-  { label: "Nuova Prenotazione", go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10), iconKey: "prenotazioni", accent: "#2E7BE8" },
-  { label: "Cerca Vino",         go: "/vini/magazzino",           iconKey: "vini",         accent: "#2EB872" },
-  { label: "Food Cost",          go: "/ricette/archivio",         iconKey: "ricette",      accent: "#C05621" },
+  { label: "Chiusura Turno",     go: "/vendite/fine-turno",      icon: "💵", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
+  { label: "Nuova Prenotazione", go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10), icon: "📅", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
+  { label: "Cerca Vino",         go: "/vini/magazzino",           icon: "🍷", color: "bg-amber-50 border-amber-200 text-amber-900" },
+  { label: "Food Cost",          go: "/ricette/archivio",         icon: "📘", color: "bg-orange-50 border-orange-200 text-orange-900" },
 ];
 
 /* Gobbette SVG mini (header) */
@@ -179,7 +175,7 @@ export default function Home() {
               {widgets?.alerts?.length > 0 && (
                 <WidgetCard label="Attenzione" right={<span className="text-sm font-bold text-brand-red">{widgets.alerts.length}</span>}>
                   {widgets.alerts.map((a, i) => {
-                    const IconComp = MODULE_ICONS[a.modulo];
+                    const menuEntry = MODULES_MENU[a.modulo];
                     return (
                       <div
                         key={i}
@@ -187,12 +183,7 @@ export default function Home() {
                           i < widgets.alerts.length - 1 ? "border-b border-brand-cream" : ""
                         }`}
                       >
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{ background: (a.accent || "#999") + "0c", color: a.accent || "#999" }}
-                        >
-                          {IconComp ? <IconComp size={14} /> : null}
-                        </div>
+                        <span className="text-lg flex-shrink-0">{menuEntry?.icon || "⚠️"}</span>
                         <span className="text-[13px] text-brand-ink flex-1 font-medium">{a.testo}</span>
                         <ChevronRight />
                       </div>
@@ -206,7 +197,8 @@ export default function Home() {
 
                 {/* Prenotazioni oggi */}
                 <WidgetCard
-                  label="Prenotazioni oggi"
+                  className="border border-indigo-200"
+                  label="📅 Prenotazioni oggi"
                   right={
                     <div className="flex items-baseline gap-1">
                       <span className="text-xl font-extrabold text-brand-ink leading-none">
@@ -247,10 +239,10 @@ export default function Home() {
 
                 {/* Stats colonna */}
                 <div className="flex flex-row lg:flex-col gap-3.5 sm:gap-4">
-                  <WidgetCard className="flex-1">
+                  <WidgetCard className="flex-1 border border-indigo-200">
                     <div className="p-4">
                       <div className="text-[9px] font-bold uppercase tracking-wider text-[#a8a49e] mb-2">
-                        Incasso ieri
+                        💵 Incasso ieri
                       </div>
                       <div className="text-2xl sm:text-[28px] font-extrabold text-brand-ink leading-none tracking-tight">
                         {"\u20AC"} {(widgets?.incasso_ieri?.totale || 0).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -262,10 +254,10 @@ export default function Home() {
                       )}
                     </div>
                   </WidgetCard>
-                  <WidgetCard className="flex-1">
+                  <WidgetCard className="flex-1 border border-rose-200">
                     <div className="p-4">
                       <div className="text-[9px] font-bold uppercase tracking-wider text-[#a8a49e] mb-2">
-                        Coperti {new Date().toLocaleString("it-IT", { month: "short" })}
+                        📈 Coperti {new Date().toLocaleString("it-IT", { month: "short" })}
                       </div>
                       <div className="text-2xl sm:text-[28px] font-extrabold text-brand-ink leading-none tracking-tight">
                         {widgets?.coperti_mese?.totale || 0}
@@ -283,32 +275,23 @@ export default function Home() {
               {/* Widget: Azioni rapide */}
               <div className="mt-3.5 sm:mt-4">
                 <WidgetCard label="Azioni rapide">
-                  <div className="grid grid-cols-2 gap-1 p-2">
-                    {QUICK_ACTIONS.map((q) => {
-                      const IconComp = MODULE_ICONS[q.iconKey];
-                      return (
-                        <div
-                          key={q.go}
-                          onClick={() => navigate(q.go)}
-                          className="flex items-center gap-3 px-3 py-3 cursor-pointer rounded-[10px] active:scale-[.98] transition"
-                          style={{ background: q.accent + "05" }}
-                        >
-                          <div
-                            className="w-8 h-8 rounded-[9px] flex items-center justify-center flex-shrink-0"
-                            style={{ background: q.accent + "0e", color: q.accent }}
-                          >
-                            {IconComp ? <IconComp size={16} /> : null}
-                          </div>
-                          <span className="text-[13px] font-semibold text-brand-ink">{q.label}</span>
-                        </div>
-                      );
-                    })}
+                  <div className="grid grid-cols-2 gap-1.5 p-2">
+                    {QUICK_ACTIONS.map((q) => (
+                      <div
+                        key={q.go}
+                        onClick={() => navigate(q.go)}
+                        className={`flex items-center gap-3 px-3 py-3 cursor-pointer rounded-[10px] border active:scale-[.98] transition ${q.color}`}
+                      >
+                        <span className="text-lg flex-shrink-0">{q.icon}</span>
+                        <span className="text-[13px] font-semibold">{q.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </WidgetCard>
               </div>
             </div>
 
-            {/* ════════ PAGINA 2: MODULI (Magazine) ════════ */}
+            {/* ════════ PAGINA 2: MODULI (Originale Potenziato) ════════ */}
             <div className="w-full flex-shrink-0 overflow-y-auto px-5 sm:px-8 pb-8">
               <div className="flex items-baseline justify-between mb-5 sm:mb-6">
                 <h2 className="font-playfair text-[22px] sm:text-[26px] font-bold text-brand-ink tracking-tight">
@@ -320,127 +303,87 @@ export default function Home() {
               </div>
 
               {(() => {
-                // Separa "prenotazioni" come hero (se visibile)
                 const heroKey = "prenotazioni";
                 const heroModule = visibleModules.find((m) => m.key === heroKey);
                 const restModules = visibleModules.filter((m) => m.key !== heroKey);
 
                 return (
-                  <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
                     {/* ── Hero: Prenotazioni (span 2 col) ── */}
                     {heroModule && (() => {
                       const menu = MODULES_MENU[heroModule.key];
-                      const style = MODULE_STYLE[heroModule.key];
-                      const IconComp = MODULE_ICONS[heroModule.key];
+                      if (!menu) return null;
+                      const fb = MODULE_FALLBACK[heroModule.key] || {};
                       const summary = widgets?.moduli?.find((s) => s.key === heroModule.key);
                       const badge = summary?.badge || 0;
-                      if (!menu || !style) return null;
 
                       return (
-                        <div className="mb-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#a8a49e] mb-2.5 ml-1">
-                            Oggi
-                          </div>
-                          <div
-                            onClick={() => navigate(menu.go)}
-                            className="bg-white rounded-[14px] cursor-pointer active:scale-[.98] transition-transform relative overflow-hidden"
-                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,.05)" }}
-                          >
-                            {/* Gobbette accent strip */}
-                            <div
-                              className="absolute top-0 left-0 right-0 h-[3px]"
-                              style={{ background: "linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8)" }}
-                            />
-                            <div className="flex items-center gap-3.5 px-5 py-4">
-                              <div
-                                className="w-12 h-12 rounded-[13px] flex items-center justify-center flex-shrink-0"
-                                style={{ background: style.tint, color: style.accent }}
-                              >
-                                {IconComp ? <IconComp size={24} /> : null}
+                        <div
+                          onClick={() => navigate(menu.go)}
+                          className={`col-span-2 rounded-[14px] border cursor-pointer active:scale-[.98] transition-transform relative overflow-hidden ${menu.color}`}
+                          style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)", padding: "16px 20px", minHeight: 80 }}
+                        >
+                          {badge > 0 && (
+                            <span className="absolute top-3 right-3 text-[10px] font-bold text-white rounded-full text-center"
+                              style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20, boxShadow: "0 1px 3px rgba(232,64,43,.3)" }}>
+                              {badge}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-3.5">
+                            <span className="text-[32px] leading-none flex-shrink-0">{menu.icon}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[15px] sm:text-base font-bold leading-tight">
+                                {menu.title}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[15px] font-bold text-brand-ink leading-tight">
-                                  {menu.title}
-                                </div>
-                                <div className="text-[12px] text-[#888] mt-0.5">
-                                  {summary?.line1 || style.sub1 || ""}
-                                </div>
-                                <div className="text-[11px] text-[#aaa]">
-                                  {summary?.line2 || style.sub2 || ""}
-                                </div>
+                              <div className="text-[12px] opacity-75 mt-0.5 truncate">
+                                {summary?.line1 || fb.sub1 || ""}
                               </div>
-                              {badge > 0 && (
-                                <span
-                                  className="flex-shrink-0 text-[10px] font-bold text-white rounded-full text-center"
-                                  style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}
-                                >
-                                  {badge}
-                                </span>
-                              )}
+                              <div className="text-[11px] opacity-60 truncate">
+                                {summary?.line2 || fb.sub2 || ""}
+                              </div>
                             </div>
                           </div>
                         </div>
                       );
                     })()}
 
-                    {/* ── Griglia moduli: 3 col landscape, 2 col portrait ── */}
-                    <div className="text-[10px] font-semibold uppercase tracking-[1.2px] text-[#a8a49e] mb-2.5 ml-1 mt-4">
-                      Tutti i moduli
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                      {restModules.map((m) => {
-                        const menu = MODULES_MENU[m.key];
-                        const style = MODULE_STYLE[m.key];
-                        if (!menu || !style) return null;
-                        const IconComp = MODULE_ICONS[m.key];
-                        const summary = widgets?.moduli?.find((s) => s.key === m.key);
-                        const badge = summary?.badge || 0;
+                    {/* ── Card moduli ── */}
+                    {restModules.map((m) => {
+                      const menu = MODULES_MENU[m.key];
+                      if (!menu) return null;
+                      const fb = MODULE_FALLBACK[m.key] || {};
+                      const summary = widgets?.moduli?.find((s) => s.key === m.key);
+                      const badge = summary?.badge || 0;
 
-                        return (
-                          <div
-                            key={m.key}
-                            onClick={() => navigate(menu.go)}
-                            className="bg-white rounded-[14px] cursor-pointer active:scale-[.97] transition-transform relative overflow-hidden"
-                            style={{ boxShadow: "0 2px 8px rgba(0,0,0,.05)", padding: 16 }}
-                          >
-                            {/* Accent bar top */}
-                            <div
-                              className="absolute top-0 left-0 right-0 h-[3px]"
-                              style={{ background: style.accent }}
-                            />
-                            {/* Badge */}
-                            {badge > 0 && (
-                              <span
-                                className="absolute top-3 right-3 text-[10px] font-bold text-white rounded-full text-center"
-                                style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20 }}
-                              >
-                                {badge}
-                              </span>
-                            )}
-                            {/* Icon */}
-                            <div
-                              className="w-[38px] h-[38px] rounded-[11px] flex items-center justify-center"
-                              style={{ background: style.tint, color: style.accent }}
-                            >
-                              {IconComp ? <IconComp size={20} /> : null}
+                      return (
+                        <div
+                          key={m.key}
+                          onClick={() => navigate(menu.go)}
+                          className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform relative overflow-hidden ${menu.color}`}
+                          style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)", padding: 16, minHeight: 110 }}
+                        >
+                          {badge > 0 && (
+                            <span className="absolute top-2.5 right-2.5 text-[10px] font-bold text-white rounded-full text-center"
+                              style={{ background: "#E8402B", padding: "2px 7px", minWidth: 20, boxShadow: "0 1px 3px rgba(232,64,43,.3)" }}>
+                              {badge}
+                            </span>
+                          )}
+                          <span className="text-[28px] leading-none">{menu.icon}</span>
+                          <div className="mt-2.5">
+                            <div className="text-[13px] sm:text-sm font-bold leading-tight">
+                              {menu.title}
                             </div>
-                            {/* Text — nome completo, 2 righe dinamiche con fallback statico */}
-                            <div className="mt-2.5">
-                              <div className="text-[13px] font-bold text-brand-ink leading-tight">
-                                {menu.title}
-                              </div>
-                              <div className="text-[11px] text-[#888] mt-1 leading-snug truncate">
-                                {summary?.line1 || style.sub1 || ""}
-                              </div>
-                              <div className="text-[11px] text-[#aaa] leading-snug truncate">
-                                {summary?.line2 || style.sub2 || ""}
-                              </div>
+                            <div className="text-[11px] opacity-70 mt-1 leading-snug truncate">
+                              {summary?.line1 || fb.sub1 || ""}
+                            </div>
+                            <div className="text-[11px] opacity-55 leading-snug truncate">
+                              {summary?.line2 || fb.sub2 || ""}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </>
+                        </div>
+                      );
+                    })}
+                  </div>
                 );
               })()}
 

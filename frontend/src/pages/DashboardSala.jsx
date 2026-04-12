@@ -1,11 +1,9 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v3.0 — Home v3.2 Magazine style
+// @version: v4.0 — Originale Potenziato: emoji + colori modulesMenu
 // Dashboard a tile per utenti sala — accesso rapido alle funzioni principali
-// Stile Magazine: card bianche, accent bar colorata, icona tinta, 2 righe testo
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { IconVendite, IconVini, IconPrenotazioni } from "../components/icons";
 
 const TILES = [
   {
@@ -13,30 +11,27 @@ const TILES = [
     title: "Chiusura Turno",
     line1: "Compila la chiusura cassa",
     line2: "Fine servizio",
-    Icon: IconVendite,
+    icon: "💵",
     go: "/vendite/fine-turno",
-    accent: "#5A6B50",
-    tint: "#EBF0E8",
+    color: "bg-indigo-50 border-indigo-200 text-indigo-900",
   },
   {
     key: "cantina",
     title: "Cantina Vini",
     line1: "Cerca vini e giacenze",
     line2: "Magazzino e locazioni",
-    Icon: IconVini,
+    icon: "🍷",
     go: "/vini/magazzino",
-    accent: "#B8860B",
-    tint: "#F5F0E6",
+    color: "bg-amber-50 border-amber-200 text-amber-900",
   },
   {
     key: "prenotazioni",
     title: "Prenotazioni",
     line1: "Tavoli e servizi",
     line2: "Planning di oggi",
-    Icon: IconPrenotazioni,
+    icon: "📅",
     go: "/prenotazioni",
-    accent: "#8B5E3C",
-    tint: "#F3EDE7",
+    color: "bg-indigo-50 border-indigo-200 text-indigo-900",
   },
 ];
 
@@ -60,36 +55,24 @@ export default function DashboardSala() {
           </p>
         </div>
 
-        {/* Tiles — Magazine style */}
+        {/* Tiles — Originale Potenziato */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {TILES.map((tile) => (
             <div
               key={tile.key}
               onClick={() => navigate(tile.go)}
-              className="bg-white cursor-pointer active:scale-[.97] transition-transform overflow-hidden relative"
+              className={`cursor-pointer active:scale-[.97] transition-transform overflow-hidden rounded-[14px] border ${tile.color}`}
               style={{
-                borderRadius: 14,
-                boxShadow: "0 2px 8px rgba(0,0,0,.05)",
+                boxShadow: "0 2px 10px rgba(0,0,0,.06)",
                 padding: 16,
+                minHeight: 110,
               }}
             >
-              {/* Accent bar */}
-              <div
-                className="absolute top-0 left-0 right-0 h-[3px]"
-                style={{ background: tile.accent }}
-              />
-              {/* Icon */}
-              <div
-                className="w-10 h-10 rounded-[11px] flex items-center justify-center"
-                style={{ background: tile.tint, color: tile.accent }}
-              >
-                <tile.Icon size={22} />
-              </div>
-              {/* Text */}
+              <span className="text-[28px] leading-none">{tile.icon}</span>
               <div className="mt-2.5">
-                <div className="text-[14px] font-bold text-brand-ink">{tile.title}</div>
-                <div className="text-[11px] mt-1" style={{ color: "#888" }}>{tile.line1}</div>
-                <div className="text-[11px]" style={{ color: "#aaa" }}>{tile.line2}</div>
+                <div className="text-[14px] font-bold">{tile.title}</div>
+                <div className="text-[11px] opacity-70 mt-1">{tile.line1}</div>
+                <div className="text-[11px] opacity-55">{tile.line2}</div>
               </div>
             </div>
           ))}

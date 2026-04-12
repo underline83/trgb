@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-04-13 — Sessione 30 / HOME v3.3 Originale Potenziato
+
+Redesign pagina moduli (pagina 2): da Magazine (card bianche + accent bar + icone SVG) a stile "Originale Potenziato" — emoji e colori Tailwind da `modulesMenu.js` (stessi del dropdown header). Card con sfondo tintato colorato per modulo, emoji grande, nome completo, 2 righe dati dinamici + badge notifica. Hero Prenotazioni span 2 colonne. Griglia responsive 2/3 col. Pagina widget (pagina 1) allineata: bordi colorati, emoji nei label e azioni rapide. DashboardSala v4.0 nello stesso stile. Rimosso MODULE_STYLE e MODULE_ICONS dalla Home (non più necessari).
+
+---
+
 ## 2026-04-12 — Sessione 29 / HOME v3 REDESIGN — Fase 0 (docs + specifiche)
 
 Redesign completo della Home in ottica app iPad/iPhone. Concept approvato da Marco: due pagine con swipe (pagina 1 = widget personalizzabili, pagina 2 = griglia moduli). Tile moduli con icone SVG (no emoji), colori smorzati, linea gobbetta brand, estetica raffinata (Playfair Display, card bianche, ombre minime). Mockup interattivo `mockup-home-v3.html`. Fase 0 completata: `docs/sessione.md` aggiornato con piano 7 fasi (F.0-F.6), specifiche 5 widget al lancio, regole design per pagine interne. `CLAUDE.md` aggiornato con regole Home v3 per tutti gli agenti. Prossimo: Fase 1 backend endpoint `/dashboard/home`.

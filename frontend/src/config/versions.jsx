@@ -69,7 +69,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   home: {
-    version: "3.2",
+    version: "3.3",
     label: "Home",
     status: "beta",
     color: "blue",

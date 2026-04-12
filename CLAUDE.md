@@ -41,19 +41,19 @@
   - Grafici Recharts: serie anno corrente `#2E7BE8` (brand-blue), serie precedente `#d1d5db`. Categorie: partire da red/green/blue brand
 - **Asset brand**: tutti in `frontend/src/assets/brand/` (SVG) e `frontend/public/icons/` (PNG favicon/PWA)
 
-## Home v3.2 Magazine — Regole design (sessione 29)
+## Home v3.3 Originale Potenziato — Regole design (sessione 30)
 La Home ha due pagine con swipe (widget + moduli). Regole per tutti gli agenti:
-- **NO emoji nei moduli**: icone SVG da `icons.jsx` (stroke 1.5, monocromatiche). Emoji ammesse solo in testi/note
-- **Pagina moduli = Magazine layout**: card bianche con accent bar colorata 3px in alto, icona tinta nel cerchietto, nome + 2 righe dati dinamici dal backend, badge rosso notifica
-- **Hero card**: Prenotazioni è hero (span 2 col) con gobbette strip gradient R/G/B
+- **Emoji + colori da `modulesMenu.js`**: ogni card modulo usa `menu.icon` (emoji) e `menu.color` (classi Tailwind bg/border/text). Stessi colori del dropdown menu nell'header → identità visiva coordinata
+- **NO icone SVG nei moduli Home**: le icone SVG `icons.jsx` restano per il resto dell'app, ma Home usa emoji
+- **Hero card**: Prenotazioni è hero (span 2 col) con emoji + colore coordinato
 - **Griglia responsive**: 3 colonne su landscape/desktop (md:grid-cols-3), 2 su portrait (grid-cols-2)
-- **Dati dinamici**: endpoint `GET /dashboard/home` campo `moduli[]` con `key, line1, line2, badge`
-- **Card/Widget**: bg bianco, border-radius 14px, shadow `0 2px 8px rgba(0,0,0,.05)`, niente bordi pesanti
-- **Colori accent/tint**: palette muted in MODULE_STYLE di Home.jsx (es. Vini accent #B8860B tint #F5F0E6)
+- **Dati dinamici**: endpoint `GET /dashboard/home` campo `moduli[]` con `key, line1, line2, badge`. Fallback statico in `MODULE_FALLBACK` quando backend non ha dati
+- **Card moduli**: sfondo tintato colorato, border colorato, border-radius 14px, shadow `0 2px 10px rgba(0,0,0,.06)`, emoji 28px, titolo completo, 2 righe dati, badge rosso notifica
+- **Widget pagina 1**: card bianche con bordi colorati coordinati (es. prenotazioni → border-indigo-200), emoji nei label
+- **Azioni rapide**: emoji + sfondo colorato come i moduli, stesse classi Tailwind
 - **Titoli pagina**: Playfair Display 700 (già caricato). Tutto il resto: font di sistema
-- **Label sezioni**: 10px uppercase, letter-spacing 1.2px, warm gray `#a8a49e`
 - **Touch target**: minimo 44pt, bottoni 48pt, righe lista ≥ 44pt
-- **Piano completo**: vedi `docs/sessione.md` sezione "HOME v3 REDESIGN"
+- **DashboardSala**: stesso stile originale potenziato (emoji + colori modulesMenu)
 
 ## Migrazioni DB
 - File: `app/migrations/NNN_nome.py`, tracciate in `schema_migrations` di `foodcost.db`.

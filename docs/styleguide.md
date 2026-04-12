@@ -155,46 +155,43 @@ div.bg-white.rounded-xl.border.border-neutral-200.overflow-hidden.shadow-sm
 
 ---
 
-## Home v3.2 — Magazine layout (sessione 29)
+## Home v3.3 — Originale Potenziato (sessione 30)
 
-Card moduli bianche con accent bar colorata in alto (3px), icona tinta, nome + 2 righe dati dinamici dal backend, badge notifica.
+Card moduli con sfondo colorato (stessi colori Tailwind di `modulesMenu.js`), emoji grande, nome completo, 2 righe dati dinamici dal backend, badge rosso notifica. Stile coordinato con il dropdown menu nell'header.
 
 ### Card modulo (griglia 3 col landscape, 2 col portrait)
 ```
-div — bg-white rounded-[14px] shadow 0 2px 8px rgba(0,0,0,.05) relative overflow-hidden p-4
-  div.accent — absolute top-0 left-0 right-0 h-[3px] bg-{accent}
-  div.badge — absolute top-3 right-3, bg #E8402B, text white, rounded-full (se badge > 0)
-  div.icon — 38x38 rounded-[11px] bg-{tint} color-{accent}
-    svg stroke-1.5 (da icons.jsx)
+div — rounded-[14px] border {menu.color} shadow 0 2px 10px rgba(0,0,0,.06) p-4, minHeight 110
+  span.badge — absolute top-2.5 right-2.5, bg #E8402B, text white, rounded-full (se badge > 0)
+  span.emoji — 28px leading-none (da menu.icon in modulesMenu.js)
   div.text
-    div.name — 13px font-bold text-brand-ink
-    div.line1 — 11px color #888 (dato dinamico dal backend)
-    div.line2 — 11px color #aaa (secondo dato)
+    div.name — 13px sm:14px font-bold (menu.title completo)
+    div.line1 — 11px opacity-70 (dato dinamico / fallback MODULE_FALLBACK.sub1)
+    div.line2 — 11px opacity-55 (secondo dato / fallback)
 ```
 
-### Hero card (Prenotazioni — span 2 col)
+### Hero card (Prenotazioni — col-span-2)
 ```
-div — bg-white rounded-[14px] shadow, flex items-center gap-3.5 px-5 py-4
-  div.accent — gobbette strip gradient (R/G/B)
-  div.icon — 48x48
+div — col-span-2 rounded-[14px] border {menu.color}, flex items-center gap-3.5 px-5 py-4
+  span.emoji — 32px
   div.text — 15px name + 12px line1 + 11px line2
-  div.badge — se > 0
+  span.badge — se > 0
 ```
 
-### Colori moduli (accent + tint):
-| Modulo              | Accent    | Tint      |
-|---------------------|-----------|-----------|
-| Vini                | #B8860B   | #F5F0E6   |
-| Acquisti            | #6B4F7A   | #EDE8F0   |
-| Vendite             | #5A6B50   | #EBF0E8   |
-| Ricette             | #4A6A82   | #E9EFF3   |
-| Flussi Cassa        | #2D8F7B   | #E8EFEB   |
-| Controllo Gestione  | #4A5A68   | #EAEAEA   |
-| Statistiche         | #888888   | #EAEAEA   |
-| Prenotazioni        | #8B5E3C   | #F3EDE7   |
-| Clienti             | #4A5E82   | #E8ECF3   |
-| Dipendenti          | #7A6352   | #F0EAE4   |
-| Impostazioni        | #666666   | #EAEAEA   |
+### Colori moduli (da modulesMenu.js):
+| Modulo              | Classi Tailwind                                   | Emoji |
+|---------------------|--------------------------------------------------|-------|
+| Vini                | bg-amber-50 border-amber-200 text-amber-900       | 🍷    |
+| Acquisti            | bg-teal-50 border-teal-200 text-teal-900           | 📦    |
+| Vendite             | bg-indigo-50 border-indigo-200 text-indigo-900     | 💵    |
+| Ricette             | bg-orange-50 border-orange-200 text-orange-900     | 📘    |
+| Flussi Cassa        | bg-emerald-50 border-emerald-200 text-emerald-900  | 🏦    |
+| Controllo Gestione  | bg-sky-50 border-sky-200 text-sky-900              | 🎯    |
+| Statistiche         | bg-rose-50 border-rose-200 text-rose-900           | 📈    |
+| Prenotazioni        | bg-indigo-50 border-indigo-200 text-indigo-900     | 📅    |
+| Clienti             | bg-teal-50 border-teal-200 text-teal-900           | 🤝    |
+| Dipendenti          | bg-purple-50 border-purple-200 text-purple-900     | 👥    |
+| Impostazioni        | bg-neutral-50 border-neutral-300 text-neutral-800  | ⚙️    |
 
 ---
 
