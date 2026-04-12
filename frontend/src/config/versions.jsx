@@ -68,6 +68,12 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  home: {
+    version: "3.0",
+    label: "Home",
+    status: "beta",
+    color: "blue",
+  },
   sistema: {
     version: "5.4",
     label: "Sistema",

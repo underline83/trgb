@@ -1,36 +1,43 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
+// @version: v2.0 — Home v3 style
 // Dashboard a tile per utenti sala — accesso rapido alle funzioni principali
+// Stile coerente con Home v3: icone SVG, colori smorzati, card 14px radius
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { IconVendite, IconVini, IconPrenotazioni } from "../components/icons";
 
+/* ── Palette smorzata coerente con Home v3 ── */
 const TILES = [
   {
     key: "fine-turno",
     title: "Chiusura Turno",
     subtitle: "Compila la chiusura cassa di fine servizio",
-    icon: "🧾",
+    Icon: IconVendite,
     go: "/vendite/fine-turno",
-    color: "bg-yellow-50 border-yellow-300 text-yellow-900",
-    iconBg: "bg-yellow-100",
+    accent: "#5A6B50",   // vendite muted
+    tint: "#EEF0EC",
+    gobbetta: "#E8402B",
   },
   {
     key: "cantina",
     title: "Cantina Vini",
     subtitle: "Cerca vini, controlla giacenze e locazioni",
-    icon: "🍷",
+    Icon: IconVini,
     go: "/vini/magazzino",
-    color: "bg-amber-50 border-amber-300 text-amber-900",
-    iconBg: "bg-amber-100",
+    accent: "#B8860B",   // vini muted
+    tint: "#F5F0E6",
+    gobbetta: "#2EB872",
   },
   {
-    key: "checklist",
-    title: "Checklist Servizio",
-    subtitle: "Controlli apertura e chiusura sala",
-    icon: "✅",
-    go: "/vendite/fine-turno",
-    color: "bg-emerald-50 border-emerald-300 text-emerald-900",
-    iconBg: "bg-emerald-100",
+    key: "prenotazioni",
+    title: "Prenotazioni",
+    subtitle: "Visualizza le prenotazioni di oggi",
+    Icon: IconPrenotazioni,
+    go: "/prenotazioni",
+    accent: "#8B5E3C",   // prenotazioni muted
+    tint: "#F3EDE7",
+    gobbetta: "#2E7BE8",
   },
 ];
 
@@ -38,15 +45,22 @@ export default function DashboardSala() {
   const navigate = useNavigate();
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "Sala";
 
+  /* Saluto contestuale */
+  const h = new Date().getHours();
+  const saluto = h < 12 ? "Buongiorno" : h < 18 ? "Buon pomeriggio" : "Buonasera";
+
   return (
     <div className="min-h-screen bg-brand-cream p-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="bg-white shadow-xl rounded-3xl p-8 border border-neutral-200 mb-6 text-center">
-          <h1 className="text-3xl font-bold text-rose-900 font-playfair">
-            Ciao, {displayName}
+        <div
+          className="bg-white p-8 mb-6 text-center"
+          style={{ borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,.04)" }}
+        >
+          <h1 className="text-2xl font-bold text-brand-ink font-playfair">
+            {saluto}, {displayName}
           </h1>
-          <p className="text-neutral-500 mt-1 text-sm">
+          <p className="mt-1 text-sm" style={{ color: "#a8a49e" }}>
             Cosa devi fare?
           </p>
         </div>
@@ -57,24 +71,35 @@ export default function DashboardSala() {
             <div
               key={tile.key}
               onClick={() => navigate(tile.go)}
-              className={`rounded-2xl border-2 shadow-lg p-6 cursor-pointer
-                hover:shadow-xl hover:-translate-y-1 transition-all duration-200
-                ${tile.color} flex flex-col items-center text-center`}
+              className="bg-white cursor-pointer hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col items-center text-center"
+              style={{
+                borderRadius: 14,
+                boxShadow: "0 1px 3px rgba(0,0,0,.04)",
+                borderTop: `2px solid ${tile.gobbetta}50`,
+              }}
             >
-              <div className={`w-16 h-16 rounded-2xl ${tile.iconBg} flex items-center justify-center text-3xl mb-4`}>
-                {tile.icon}
+              <div className="pt-6 pb-2">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto"
+                  style={{ backgroundColor: tile.tint, color: tile.accent }}
+                >
+                  <tile.Icon size={24} />
+                </div>
               </div>
-              <div className="text-lg font-bold">{tile.title}</div>
-              <div className="text-sm opacity-70 mt-1">{tile.subtitle}</div>
+              <div className="px-5 pb-5">
+                <div className="text-base font-semibold text-brand-ink mt-2">{tile.title}</div>
+                <div className="text-xs mt-1" style={{ color: "#a8a49e" }}>{tile.subtitle}</div>
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Link alla home completa per chi ha bisogno */}
+        {/* Link alla home completa */}
         <div className="mt-8 text-center">
           <button
             onClick={() => navigate("/?full=1")}
-            className="text-sm text-neutral-400 hover:text-neutral-600 transition"
+            className="text-sm transition"
+            style={{ color: "#a8a49e" }}
           >
             Mostra tutti i moduli
           </button>
