@@ -38,6 +38,7 @@ from app.routers.chiusure_turno import router as chiusure_turno_router
 # FATTURAZIONE ELETTRONICA (XML)
 from app.routers import fe_import
 from app.routers import fe_categorie_router
+from app.routers import fe_proforme_router
 
 # DIPENDENTI & TURNI — nuovo modulo
 from app.routers.dipendenti import router as dipendenti_router
@@ -200,6 +201,7 @@ app.include_router(closures_config_router)
 # FATTURAZIONE ELETTRONICA (XML)
 app.include_router(fe_import.router)
 app.include_router(fe_categorie_router.router)
+app.include_router(fe_proforme_router.router)
 
 # DIPENDENTI & TURNI
 # (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)

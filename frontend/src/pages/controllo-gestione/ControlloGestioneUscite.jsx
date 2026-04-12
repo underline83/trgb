@@ -26,6 +26,7 @@ const TIPO_USCITA_STYLE = {
   FATTURA:      { label: "Fattura", color: "bg-sky-50 text-sky-700 border-sky-200" },
   SPESA_FISSA:  { label: "Spesa fissa", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   STIPENDIO:    { label: "Stipendio", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  PROFORMA:     { label: "Proforma", color: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 // ── Sort helper ──
@@ -304,6 +305,12 @@ export default function ControlloGestioneUscite() {
     if (u.stato === "PAGATA") return;
 
     const tipo = u.tipo_uscita || "FATTURA";
+
+    // 0) PROFORMA → vai alla pagina proforme
+    if (tipo === "PROFORMA") {
+      navigate("/acquisti/proforme");
+      return;
+    }
 
     // 1) FATTURA con collegamento → dettaglio INLINE nello stesso pagina
     //    (pattern SchedaVino in MagazzinoVini, niente navigazione)
@@ -756,6 +763,7 @@ export default function ControlloGestioneUscite() {
                   { value: "", label: "Tutti" },
                   { value: "FATTURA", label: "Fatture" },
                   { value: "SPESA_FISSA", label: "Fisse" },
+                  { value: "PROFORMA", label: "Proforme" },
                 ].map(o => {
                   const active = filtroTipo === o.value;
                   return (

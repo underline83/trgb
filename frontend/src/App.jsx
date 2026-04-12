@@ -68,6 +68,7 @@ import FattureDettaglio from "./pages/admin/FattureDettaglio";
 import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
 import FattureInCloud from "./pages/admin/FattureInCloud";
 import FattureImpostazioni from "./pages/admin/FattureImpostazioni";
+import FattureProformeElenco from "./pages/admin/FattureProformeElenco";
 import DipendentiMenu from "./pages/dipendenti/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/dipendenti/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
@@ -203,6 +204,7 @@ export default function App() {
         <Route path="/acquisti/dettaglio/:id" element={<ProtectedRoute module="acquisti" sub="fatture"><FattureDettaglio /></ProtectedRoute>} />
         <Route path="/acquisti/fornitori" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoriElenco /></ProtectedRoute>} />
         <Route path="/acquisti/categorie" element={<Navigate to="/acquisti/impostazioni" replace />} />
+        <Route path="/acquisti/proforme" element={<ProtectedRoute module="acquisti" sub="proforme"><FattureProformeElenco /></ProtectedRoute>} />
         <Route path="/acquisti/impostazioni" element={<ProtectedRoute module="acquisti" sub="impostazioni"><FattureImpostazioni /></ProtectedRoute>} />
         <Route path="/acquisti/fornitore/:piva" element={<ProtectedRoute module="acquisti" sub="fornitori"><FattureFornitoreDettaglio /></ProtectedRoute>} />
         <Route path="/acquisti/elenco" element={<Navigate to="/acquisti/fatture" replace />} />

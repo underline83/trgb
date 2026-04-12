@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Magazine responsive (H + dati dinamici + landscape fix)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  .frame-row { display: flex; gap: 36px; padding: 24px; justify-content: center; flex-wrap: wrap; }
+  .frame-label {
+    text-align: center; padding: 20px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; max-width: 700px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+  .device-frame {
+    background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .device-frame::-webkit-scrollbar { width: 0; }
+  .device-label { text-align: center; font-size: 11px; color: #a8a49e; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .page-inner { padding: 20px 16px 32px; }
+
+  .header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .header h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: #111; }
+  .header span { font-size: 11px; color: #a8a49e; }
+
+  .section-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px;
+    color: #a8a49e; margin: 16px 0 10px 4px; font-weight: 600;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  .dots { display: flex; justify-content: center; gap: 6px; padding: 16px 0 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+  .dot.active { background: #111; width: 18px; border-radius: 3px; }
+
+  .footer { margin-top: 28px; text-align: center; }
+  .footer svg { height: 12px; width: auto; opacity: .3; }
+  .footer span { display: block; font-size: 10px; color: rgba(17,17,17,.3); margin-top: 4px; }
+
+  /* ── Magazine grid ── */
+  .mag-grid { display: grid; gap: 10px; }
+  .mag-grid-2 { grid-template-columns: 1fr 1fr; }
+  .mag-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Magazine card — base */
+  .mag-card {
+    background: #fff; border-radius: 14px; padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05); cursor: pointer;
+    transition: transform .15s; position: relative; overflow: hidden;
+  }
+  .mag-card:active { transform: scale(.97); }
+
+  /* Accent bar top (3px, colore modulo) */
+  .mag-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+
+  /* Icon circle */
+  .mag-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mag-icon svg { width: 20px; height: 20px; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Text */
+  .mag-name { font-size: 13px; font-weight: 700; color: #111; margin-top: 10px; line-height: 1.2; }
+  .mag-line1 { font-size: 11px; color: #888; margin-top: 3px; line-height: 1.3; }
+  .mag-line2 { font-size: 11px; color: #aaa; line-height: 1.3; }
+
+  /* Badge */
+  .mag-badge {
+    position: absolute; top: 12px; right: 12px;
+    background: #E8402B; color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 10px; padding: 2px 7px; min-width: 20px; text-align: center;
+  }
+
+  /* ── Hero card (spans 2 cols) ── */
+  .mag-card.hero {
+    grid-column: span 2;
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 20px;
+  }
+  .mag-card.hero .mag-icon { width: 48px; height: 48px; border-radius: 13px; flex-shrink: 0; }
+  .mag-card.hero .mag-icon svg { width: 24px; height: 24px; }
+  .mag-card.hero .mag-name { font-size: 15px; margin-top: 0; }
+  .mag-card.hero .mag-line1 { font-size: 12px; margin-top: 2px; }
+  .mag-card.hero .mag-line2 { font-size: 11px; }
+  .mag-card.hero .hero-text { flex: 1; min-width: 0; }
+  .mag-card.hero .hero-value {
+    font-size: 28px; font-weight: 800; color: #111; opacity: .12;
+    flex-shrink: 0; line-height: 1; margin-left: 8px;
+  }
+  .mag-card.hero .mag-badge { top: 14px; right: 16px; }
+
+  /* Gobbette strip on hero */
+  .mag-card.hero .mag-accent {
+    background: linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8);
+    height: 3px;
+  }
+</style>
+</head>
+<body>
+
+<p class="frame-label">Magazine responsive — dati dinamici + badge</p>
+<p class="frame-sublabel">Card bianche con accent bar colorato in alto, icona tinta, nome + 2 righe dinamiche, badge notifica. Hero card per i moduli del giorno (span 2 col). Su landscape 3 col, su portrait 2 col.</p>
+
+<div class="frame-row">
+
+  <!-- ═══════ LANDSCAPE / MAC ═══════ -->
+  <div>
+    <div class="device-frame" style="width: 720px; height: 580px;">
+      <div class="page-inner">
+        <div class="header"><h2>Moduli</h2><span>10 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="mag-grid mag-grid-3">
+          <!-- Hero: Prenotazioni (span 2) -->
+          <div class="mag-card hero">
+            <div class="mag-accent" style="background: linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8);"></div>
+            <div class="mag-icon" style="background: #F3EDE7; color: #8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            </div>
+            <div class="hero-text">
+              <div class="mag-name">Prenotazioni</div>
+              <div class="mag-line1">38 pax oggi</div>
+              <div class="mag-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value">38</div>
+            <span class="mag-badge">14</span>
+          </div>
+          <!-- Vendite (card normale nel terzo slot) -->
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #5A6B50;"></div>
+            <div class="mag-icon" style="background: #EBF0E8; color: #5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Vendite</div>
+            <div class="mag-line1">Incasso ieri: € 1.842</div>
+            <div class="mag-line2">+12% vs media · 46 coperti</div>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="mag-grid mag-grid-3">
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #B8860B;"></div>
+            <div class="mag-icon" style="background: #F5F0E6; color: #B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Cantina & Vini</div>
+            <div class="mag-line1">312 etichette attive</div>
+            <div class="mag-line2">2 sotto scorta</div>
+            <span class="mag-badge">2</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A6A82;"></div>
+            <div class="mag-icon" style="background: #E9EFF3; color: #4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Ricette & Food Cost</div>
+            <div class="mag-line1">87 schede attive</div>
+            <div class="mag-line2">Food cost medio 32%</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #6B4F7A;"></div>
+            <div class="mag-icon" style="background: #EDE8F0; color: #6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6M16 13H8M16 17H8" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Acquisti & Fatture</div>
+            <div class="mag-line1">5 fatture da pagare</div>
+            <div class="mag-line2">€ 3.420 in sospeso</div>
+            <span class="mag-badge">5</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #2D8F7B;"></div>
+            <div class="mag-icon" style="background: #E8EFEB; color: #2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Flussi di Cassa</div>
+            <div class="mag-line1">Saldo mese: +€ 4.200</div>
+            <div class="mag-line2">CC · Carta · Contanti · Mance</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A5A68;"></div>
+            <div class="mag-icon" style="background: #EAEAEA; color: #555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Controllo Gestione</div>
+            <div class="mag-line1">Dashboard P&L e confronto</div>
+            <div class="mag-line2">Coperti mese: 312 vs 290</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #7A6352;"></div>
+            <div class="mag-icon" style="background: #F0EAE4; color: #7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name">Dipendenti</div>
+            <div class="mag-line1">8 dipendenti attivi</div>
+            <div class="mag-line2">1 scadenza entro 14gg</div>
+            <span class="mag-badge">1</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A5E82;"></div>
+            <div class="mag-icon" style="background: #E8ECF3; color: #4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name">Clienti</div>
+            <div class="mag-line1">246 clienti in rubrica</div>
+            <div class="mag-line2">Anagrafica · CRM · Dashboard</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #888;"></div>
+            <div class="mag-icon" style="background: #EAEAEA; color: #666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Statistiche</div>
+            <div class="mag-line1">Cucina · Coperti · Trend</div>
+            <div class="mag-line2">Dashboard e grafici</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+        <div class="footer">
+          <svg viewBox="15 28 155 28"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 Q 37 30 55 42" stroke="#E8402B"/><path d="M 75 50 Q 92 30 110 42" stroke="#2EB872"/><path d="M 130 50 Q 147 30 165 42" stroke="#2E7BE8"/></g></svg>
+          <span>TRGB Gestionale v5.4</span>
+        </div>
+      </div>
+    </div>
+    <div class="device-label">iPad Landscape / Mac</div>
+  </div>
+</div>
+
+<div class="frame-row">
+  <!-- ═══════ PORTRAIT IPAD ═══════ -->
+  <div>
+    <div class="device-frame" style="width: 400px; height: 680px;">
+      <div class="page-inner">
+        <div class="header"><h2>Moduli</h2><span>10 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="mag-grid mag-grid-2">
+          <div class="mag-card hero">
+            <div class="mag-accent" style="background: linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8);"></div>
+            <div class="mag-icon" style="background: #F3EDE7; color: #8B5E3C;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            </div>
+            <div class="hero-text">
+              <div class="mag-name">Prenotazioni</div>
+              <div class="mag-line1">38 pax oggi</div>
+              <div class="mag-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value">38</div>
+            <span class="mag-badge">14</span>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="mag-grid mag-grid-2">
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #5A6B50;"></div>
+            <div class="mag-icon" style="background: #EBF0E8; color: #5A6B50;">
+              <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Vendite</div>
+            <div class="mag-line1">€ 1.842 ieri</div>
+            <div class="mag-line2">+12% vs media</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #B8860B;"></div>
+            <div class="mag-icon" style="background: #F5F0E6; color: #B8860B;">
+              <svg viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Cantina & Vini</div>
+            <div class="mag-line1">312 etichette</div>
+            <div class="mag-line2">2 sotto scorta</div>
+            <span class="mag-badge">2</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A6A82;"></div>
+            <div class="mag-icon" style="background: #E9EFF3; color: #4A6A82;">
+              <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Ricette</div>
+            <div class="mag-line1">87 schede</div>
+            <div class="mag-line2">FC medio 32%</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #6B4F7A;"></div>
+            <div class="mag-icon" style="background: #EDE8F0; color: #6B4F7A;">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Acquisti</div>
+            <div class="mag-line1">5 da pagare</div>
+            <div class="mag-line2">€ 3.420</div>
+            <span class="mag-badge">5</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #2D8F7B;"></div>
+            <div class="mag-icon" style="background: #E8EFEB; color: #2D8F7B;">
+              <svg viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Flussi Cassa</div>
+            <div class="mag-line1">+€ 4.200 mese</div>
+            <div class="mag-line2">CC · Carta · Contanti</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A5A68;"></div>
+            <div class="mag-icon" style="background: #EAEAEA; color: #555;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Controllo</div>
+            <div class="mag-line1">P&L e confronto</div>
+            <div class="mag-line2">312 vs 290 coperti</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #7A6352;"></div>
+            <div class="mag-icon" style="background: #F0EAE4; color: #7A6352;">
+              <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name">Dipendenti</div>
+            <div class="mag-line1">8 attivi</div>
+            <div class="mag-line2">1 scadenza 14gg</div>
+            <span class="mag-badge">1</span>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #4A5E82;"></div>
+            <div class="mag-icon" style="background: #E8ECF3; color: #4A5E82;">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name">Clienti</div>
+            <div class="mag-line1">246 in rubrica</div>
+            <div class="mag-line2">Anagrafica · CRM</div>
+          </div>
+          <div class="mag-card">
+            <div class="mag-accent" style="background: #888;"></div>
+            <div class="mag-icon" style="background: #EAEAEA; color: #666;">
+              <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name">Statistiche</div>
+            <div class="mag-line1">Cucina · Coperti</div>
+            <div class="mag-line2">Dashboard e grafici</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+    <div class="device-label">iPad Portrait</div>
+  </div>
+
+  <!-- ═══════ IPHONE ═══════ -->
+  <div>
+    <div class="device-frame" style="width: 320px; height: 680px;">
+      <div class="page-inner">
+        <div class="header"><h2 style="font-size:20px;">Moduli</h2><span>10 attivi</span></div>
+
+        <div class="section-label">Oggi</div>
+        <div class="mag-grid" style="grid-template-columns: 1fr;">
+          <div class="mag-card hero">
+            <div class="mag-accent" style="background: linear-gradient(90deg, #E8402B, #2EB872, #2E7BE8);"></div>
+            <div class="mag-icon" style="background: #F3EDE7; color: #8B5E3C; width:42px; height:42px;">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="currentColor"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="currentColor"/></svg>
+            </div>
+            <div class="hero-text">
+              <div class="mag-name" style="font-size:14px;">Prenotazioni</div>
+              <div class="mag-line1">38 pax oggi</div>
+              <div class="mag-line2">pranzo 12 · cena 26</div>
+            </div>
+            <div class="hero-value" style="font-size:22px;">38</div>
+            <span class="mag-badge">14</span>
+          </div>
+        </div>
+
+        <div class="section-label">Tutti i moduli</div>
+        <div class="mag-grid mag-grid-2" style="gap: 8px;">
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #5A6B50;"></div>
+            <div class="mag-icon" style="background: #EBF0E8; color: #5A6B50; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Vendite</div>
+            <div class="mag-line1" style="font-size:10px;">€ 1.842 ieri</div>
+            <div class="mag-line2" style="font-size:10px;">+12%</div>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #B8860B;"></div>
+            <div class="mag-icon" style="background: #F5F0E6; color: #B8860B; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Vini</div>
+            <div class="mag-line1" style="font-size:10px;">312 etichette</div>
+            <div class="mag-line2" style="font-size:10px;">2 sotto scorta</div>
+            <span class="mag-badge" style="font-size:9px; padding:1px 6px;">2</span>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #4A6A82;"></div>
+            <div class="mag-icon" style="background: #E9EFF3; color: #4A6A82; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M3 3h18v18H3zM12 8v8M8 12h8" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Ricette</div>
+            <div class="mag-line1" style="font-size:10px;">87 schede</div>
+            <div class="mag-line2" style="font-size:10px;">FC 32%</div>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #6B4F7A;"></div>
+            <div class="mag-icon" style="background: #EDE8F0; color: #6B4F7A; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor"/><path d="M14 2v6h6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Acquisti</div>
+            <div class="mag-line1" style="font-size:10px;">5 da pagare</div>
+            <div class="mag-line2" style="font-size:10px;">€ 3.420</div>
+            <span class="mag-badge" style="font-size:9px; padding:1px 6px;">5</span>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #2D8F7B;"></div>
+            <div class="mag-icon" style="background: #E8EFEB; color: #2D8F7B; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Flussi</div>
+            <div class="mag-line1" style="font-size:10px;">+€ 4.200</div>
+            <div class="mag-line2" style="font-size:10px;">CC · Carta</div>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #4A5A68;"></div>
+            <div class="mag-icon" style="background: #EAEAEA; color: #555; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Controllo</div>
+            <div class="mag-line1" style="font-size:10px;">P&L</div>
+            <div class="mag-line2" style="font-size:10px;">312 vs 290</div>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #7A6352;"></div>
+            <div class="mag-icon" style="background: #F0EAE4; color: #7A6352; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="9" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Dipendenti</div>
+            <div class="mag-line1" style="font-size:10px;">8 attivi</div>
+            <div class="mag-line2" style="font-size:10px;">1 scadenza</div>
+            <span class="mag-badge" style="font-size:9px; padding:1px 6px;">1</span>
+          </div>
+          <div class="mag-card" style="padding:14px;">
+            <div class="mag-accent" style="background: #4A5E82;"></div>
+            <div class="mag-icon" style="background: #E8ECF3; color: #4A5E82; width:34px; height:34px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor"/><circle cx="12" cy="7" r="4" stroke="currentColor" fill="none"/></svg>
+            </div>
+            <div class="mag-name" style="font-size:12px;">Clienti</div>
+            <div class="mag-line1" style="font-size:10px;">246 contatti</div>
+            <div class="mag-line2" style="font-size:10px;">CRM</div>
+          </div>
+        </div>
+
+        <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+      </div>
+    </div>
+    <div class="device-label">iPhone</div>
+  </div>
+</div>
+
+</body>
+</html>

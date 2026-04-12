@@ -7,6 +7,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/acquisti/dashboard", icon: "📈" },
   { key: "fatture", label: "Fatture", path: "/acquisti/fatture", icon: "📋" },
   { key: "fornitori", label: "Fornitori", path: "/acquisti/fornitori", icon: "🏢" },
+  { key: "proforme", label: "Pro-forme", path: "/acquisti/proforme", icon: "📝" },
   { key: "impostazioni", label: "Impostazioni", path: "/acquisti/impostazioni", icon: "⚙️" },
 ];
 

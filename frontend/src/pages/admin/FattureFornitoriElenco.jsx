@@ -6,7 +6,7 @@
 //       (sidebar colorata + SectionHeader). Sostituito FatturaInlineDetail con
 //       FattureDettaglio (unification: terzo target).
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
@@ -978,12 +978,17 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
   return (
     <div className="h-full flex flex-col bg-neutral-50">
 
-      {/* ══════ TOP BAR (back + stato esclusione) ══════ */}
+      {/* ══════ TOP BAR (back + proforma + stato esclusione) ══════ */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 bg-white flex-shrink-0">
         <button onClick={onClose}
           className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
           ← Torna alla lista
         </button>
+        <div className="flex items-center gap-2">
+          <a href={`/acquisti/proforme?fornitore=${encodeURIComponent(data?.fornNome || "")}`}
+            className="px-3 py-1.5 rounded-lg text-[10px] font-semibold border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition">
+            + Proforma
+          </a>
         <button onClick={handleToggleExcl} disabled={togglingExcl}
           className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold border transition disabled:opacity-50 ${
             isExcluded
@@ -992,6 +997,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
           }`}>
           {togglingExcl ? "..." : isExcluded ? "✕ Escluso — Ripristina" : "Nascondi da acquisti"}
         </button>
+        </div>
       </div>
 
       {/* ══════ LAYOUT SIDEBAR + MAIN ══════ */}

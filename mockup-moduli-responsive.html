@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Moduli responsive (landscape fix)</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #e8e4de; }
+
+  /* Nav */
+  .nav-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(244,241,236,.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    display: flex; justify-content: center; gap: 8px; padding: 10px 16px;
+  }
+  .nav-btn {
+    padding: 8px 14px; border: none; border-radius: 20px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all .2s; background: transparent; color: #a8a49e;
+  }
+  .nav-btn.active { background: #111; color: #fff; }
+  .proposals { padding-top: 56px; }
+  .proposal { display: none; }
+  .proposal.active { display: block; }
+
+  .frame-label {
+    text-align: center; padding: 20px 0 0;
+    font-family: 'Playfair Display', serif; font-size: 20px; color: #111;
+  }
+  .frame-sublabel { text-align: center; font-size: 13px; color: #a8a49e; margin-top: 4px; padding: 0 32px; max-width: 700px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
+  .frame-row { display: flex; gap: 32px; padding: 24px; justify-content: center; flex-wrap: wrap; }
+
+  .device-frame {
+    background: #F4F1EC; border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.12), inset 0 0 0 1px rgba(0,0,0,.06);
+    overflow-y: auto; overflow-x: hidden;
+  }
+  .device-frame::-webkit-scrollbar { width: 0; }
+  .device-label { text-align: center; font-size: 11px; color: #a8a49e; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .page-inner { padding: 20px 16px 32px; }
+
+  .header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .header h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: #111; }
+  .header span { font-size: 11px; color: #a8a49e; }
+
+  /* ── Shared icon SVG styles ── */
+  svg.icon {
+    width: 22px; height: 22px; stroke-width: 1.5; fill: none;
+    stroke: rgba(255,255,255,.85); stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+  .chevron { flex-shrink: 0; }
+
+  /* ═══════ PROPOSTA K: 2 colonne su landscape, 1 su portrait ═══════ */
+  .k-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .k-row {
+    display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+    border-radius: 14px; cursor: pointer; transition: transform .15s;
+    overflow: hidden;
+  }
+  .k-row:active { transform: scale(.98); }
+  .k-text { flex: 1; min-width: 0; }
+  .k-name { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .k-line { font-size: 10px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .k-badge {
+    background: rgba(255,255,255,.25); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 10px; padding: 2px 7px; min-width: 22px; text-align: center; flex-shrink: 0;
+  }
+
+  /* ═══════ PROPOSTA L: Card gradient compatte (griglia 2-3 col) ═══════ */
+  .l-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .l-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .l-card {
+    border-radius: 14px; padding: 16px; cursor: pointer;
+    transition: transform .15s; overflow: hidden; position: relative;
+    min-height: 90px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .l-card:active { transform: scale(.97); }
+  .l-card svg.icon { margin-bottom: 8px; }
+  .l-card-name { font-size: 13px; font-weight: 700; color: #fff; }
+  .l-card-line { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 2px; line-height: 1.3; }
+  .l-card-badge {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(255,255,255,.25); color: #fff; font-size: 10px; font-weight: 700;
+    border-radius: 10px; padding: 2px 7px; min-width: 22px; text-align: center;
+  }
+  .l-card-shine {
+    position: absolute; top: -30%; right: -20%; width: 50%; height: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ═══════ PROPOSTA M: Mix — righe raggruppate in max-width container ═══════ */
+  .m-container { max-width: 520px; margin: 0 auto; }
+  .m-list { display: flex; flex-direction: column; gap: 8px; }
+  .m-row {
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+    border-radius: 14px; cursor: pointer; transition: transform .15s;
+    overflow: hidden;
+  }
+  .m-row:active { transform: scale(.98); }
+  .m-text { flex: 1; min-width: 0; }
+  .m-name { font-size: 14px; font-weight: 600; color: #fff; }
+  .m-line1 { font-size: 11px; color: rgba(255,255,255,.6); margin-top: 1px; }
+  .m-line2 { font-size: 11px; color: rgba(255,255,255,.45); }
+  .m-badge {
+    background: rgba(255,255,255,.25); color: #fff; font-size: 11px; font-weight: 700;
+    border-radius: 10px; padding: 2px 8px; min-width: 24px; text-align: center; flex-shrink: 0;
+  }
+
+  .dots { display: flex; justify-content: center; gap: 6px; padding: 16px 0 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+  .dot.active { background: #111; width: 18px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<nav class="nav-bar">
+  <button class="nav-btn active" onclick="show('k')">K · Griglia 2 col</button>
+  <button class="nav-btn" onclick="show('l')">L · Card griglia</button>
+  <button class="nav-btn" onclick="show('m')">M · Max-width</button>
+</nav>
+
+<div class="proposals">
+
+<!-- ═══════ K: 2 colonne righe gradient ═══════ -->
+<div class="proposal active" id="prop-k">
+  <p class="frame-label">K · Righe gradient in 2 colonne</p>
+  <p class="frame-sublabel">Le stesse righe colore, ma in griglia 2 colonne su landscape/desktop. Su iPhone portrait tornano a 1 colonna. Compatte, bilanciate.</p>
+  <div class="frame-row">
+    <!-- Landscape -->
+    <div>
+      <div class="device-frame" style="width:680px; height:460px;">
+        <div class="page-inner">
+          <div class="header">
+            <h2>Moduli</h2>
+            <span>10 attivi</span>
+          </div>
+          <div class="k-grid">
+            <div class="k-row" style="background: linear-gradient(135deg, #9B6E4C, #7A5030);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+              <div class="k-text">
+                <div class="k-name">Prenotazioni</div>
+                <div class="k-line">38 pax oggi · pranzo 12, cena 26</div>
+              </div>
+              <span class="k-badge">14</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #6A7B5E, #4E5F42);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <div class="k-text">
+                <div class="k-name">Vendite</div>
+                <div class="k-line">€ 1.842 ieri · +12% vs media</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #C4960F, #A87A00);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+              <div class="k-text">
+                <div class="k-name">Cantina & Vini</div>
+                <div class="k-line">312 etichette · 2 sotto scorta</div>
+              </div>
+              <span class="k-badge">2</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #5A7A92, #44657A);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+              <div class="k-text">
+                <div class="k-name">Ricette & Food Cost</div>
+                <div class="k-line">87 schede · FC medio 32%</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #7B5F8A, #634A70);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>
+              <div class="k-text">
+                <div class="k-name">Acquisti & Fatture</div>
+                <div class="k-line">5 da pagare · € 3.420</div>
+              </div>
+              <span class="k-badge">5</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #3D9F8B, #28806C);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+              <div class="k-text">
+                <div class="k-name">Flussi di Cassa</div>
+                <div class="k-line">Saldo mese: +€ 4.200</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #5A6A78, #444F5C);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+              <div class="k-text">
+                <div class="k-name">Controllo Gestione</div>
+                <div class="k-line">P&L · Coperti 312 vs 290</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #8A7362, #6E5A4A);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              <div class="k-text">
+                <div class="k-name">Dipendenti</div>
+                <div class="k-line">8 attivi · 1 scadenza 14gg</div>
+              </div>
+              <span class="k-badge">1</span>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #5A6E92, #44587A);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div class="k-text">
+                <div class="k-name">Clienti</div>
+                <div class="k-line">246 in rubrica · CRM</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+            <div class="k-row" style="background: linear-gradient(135deg, #707070, #555555);">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+              <div class="k-text">
+                <div class="k-name">Statistiche</div>
+                <div class="k-line">Cucina · Coperti · Trend</div>
+              </div>
+              <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+            </div>
+          </div>
+          <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+        </div>
+      </div>
+      <div class="device-label">iPad Landscape / Mac</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ L: Card gradient in griglia ═══════ -->
+<div class="proposal" id="prop-l">
+  <p class="frame-label">L · Card gradient compatte</p>
+  <p class="frame-sublabel">Card colorate in griglia 3 colonne su landscape, 2 su portrait. Ogni card ha icona + nome + dato. Più app-like, meno lista.</p>
+  <div class="frame-row">
+    <div>
+      <div class="device-frame" style="width:680px; height:520px;">
+        <div class="page-inner">
+          <div class="header"><h2>Moduli</h2><span>10 attivi</span></div>
+          <div class="l-grid-3">
+            <div class="l-card" style="background: linear-gradient(145deg, #9B6E4C, #7A5030);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+              <div>
+                <div class="l-card-name">Prenotazioni</div>
+                <div class="l-card-line">38 pax oggi</div>
+                <div class="l-card-line">pranzo 12 · cena 26</div>
+              </div>
+              <span class="l-card-badge">14</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #6A7B5E, #4E5F42);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <div>
+                <div class="l-card-name">Vendite</div>
+                <div class="l-card-line">Incasso ieri: € 1.842</div>
+                <div class="l-card-line">+12% vs media</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #C4960F, #A87A00);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+              <div>
+                <div class="l-card-name">Cantina & Vini</div>
+                <div class="l-card-line">312 etichette attive</div>
+                <div class="l-card-line">2 sotto scorta</div>
+              </div>
+              <span class="l-card-badge">2</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #5A7A92, #44657A);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+              <div>
+                <div class="l-card-name">Ricette</div>
+                <div class="l-card-line">87 schede attive</div>
+                <div class="l-card-line">Food cost medio 32%</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #7B5F8A, #634A70);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+              <div>
+                <div class="l-card-name">Acquisti</div>
+                <div class="l-card-line">5 fatture da pagare</div>
+                <div class="l-card-line">€ 3.420 in sospeso</div>
+              </div>
+              <span class="l-card-badge">5</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #3D9F8B, #28806C);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+              <div>
+                <div class="l-card-name">Flussi Cassa</div>
+                <div class="l-card-line">Saldo: +€ 4.200</div>
+                <div class="l-card-line">CC · Carta · Contanti</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #5A6A78, #444F5C);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+              <div>
+                <div class="l-card-name">Controllo Gestione</div>
+                <div class="l-card-line">Dashboard P&L</div>
+                <div class="l-card-line">Coperti: 312 vs 290</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #8A7362, #6E5A4A);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              <div>
+                <div class="l-card-name">Dipendenti</div>
+                <div class="l-card-line">8 attivi</div>
+                <div class="l-card-line">1 scadenza 14gg</div>
+              </div>
+              <span class="l-card-badge">1</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #5A6E92, #44587A);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div>
+                <div class="l-card-name">Clienti</div>
+                <div class="l-card-line">246 in rubrica</div>
+                <div class="l-card-line">Anagrafica · CRM</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #707070, #555);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+              <div>
+                <div class="l-card-name">Statistiche</div>
+                <div class="l-card-line">Cucina · Coperti</div>
+                <div class="l-card-line">Dashboard e grafici</div>
+              </div>
+            </div>
+          </div>
+          <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+        </div>
+      </div>
+      <div class="device-label">iPad Landscape / Mac</div>
+    </div>
+
+    <!-- Portrait -->
+    <div>
+      <div class="device-frame" style="width:380px; height:640px;">
+        <div class="page-inner">
+          <div class="header"><h2>Moduli</h2><span>10 attivi</span></div>
+          <div class="l-grid-2">
+            <div class="l-card" style="background: linear-gradient(145deg, #9B6E4C, #7A5030);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+              <div>
+                <div class="l-card-name">Prenotazioni</div>
+                <div class="l-card-line">38 pax oggi</div>
+                <div class="l-card-line">pranzo 12 · cena 26</div>
+              </div>
+              <span class="l-card-badge">14</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #6A7B5E, #4E5F42);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              <div>
+                <div class="l-card-name">Vendite</div>
+                <div class="l-card-line">€ 1.842 ieri</div>
+                <div class="l-card-line">+12% vs media</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #C4960F, #A87A00);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+              <div>
+                <div class="l-card-name">Cantina & Vini</div>
+                <div class="l-card-line">312 etichette</div>
+                <div class="l-card-line">2 sotto scorta</div>
+              </div>
+              <span class="l-card-badge">2</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #5A7A92, #44657A);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+              <div>
+                <div class="l-card-name">Ricette</div>
+                <div class="l-card-line">87 schede</div>
+                <div class="l-card-line">FC medio 32%</div>
+              </div>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #7B5F8A, #634A70);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+              <div>
+                <div class="l-card-name">Acquisti</div>
+                <div class="l-card-line">5 da pagare</div>
+                <div class="l-card-line">€ 3.420</div>
+              </div>
+              <span class="l-card-badge">5</span>
+            </div>
+            <div class="l-card" style="background: linear-gradient(145deg, #3D9F8B, #28806C);">
+              <div class="l-card-shine"></div>
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+              <div>
+                <div class="l-card-name">Flussi Cassa</div>
+                <div class="l-card-line">+€ 4.200</div>
+                <div class="l-card-line">CC · Carta</div>
+              </div>
+            </div>
+          </div>
+          <div class="dots"><div class="dot"></div><div class="dot active"></div></div>
+        </div>
+      </div>
+      <div class="device-label">iPad Portrait</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ M: Max-width centrato ═══════ -->
+<div class="proposal" id="prop-m">
+  <p class="frame-label">M · Righe con max-width</p>
+  <p class="frame-sublabel">Le righe che ti piacevano, ma contenute in un max-width ~520px centrato. Su landscape non si stirano, restano compatte.</p>
+  <div class="frame-row">
+    <div>
+      <div class="device-frame" style="width:680px; height:520px;">
+        <div class="page-inner">
+          <div class="m-container">
+            <div class="header"><h2>Moduli</h2><span>10 attivi</span></div>
+            <div class="m-list">
+              <div class="m-row" style="background: linear-gradient(135deg, #9B6E4C, #7A5030);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                <div class="m-text"><div class="m-name">Prenotazioni</div><div class="m-line1">38 pax oggi</div><div class="m-line2">pranzo 12 · cena 26</div></div>
+                <span class="m-badge">14</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="m-row" style="background: linear-gradient(135deg, #6A7B5E, #4E5F42);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <div class="m-text"><div class="m-name">Vendite</div><div class="m-line1">Incasso ieri: € 1.842</div><div class="m-line2">+12% vs media · 46 coperti</div></div>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="m-row" style="background: linear-gradient(135deg, #C4960F, #A87A00);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M8 21h8M12 15v6M7.5 10.5a4.5 4.5 0 019 0c0 2-1.5 3-1.5 4.5h-6c0-1.5-1.5-2.5-1.5-4.5z"/></svg>
+                <div class="m-text"><div class="m-name">Cantina & Vini</div><div class="m-line1">312 etichette attive</div><div class="m-line2">2 sotto scorta</div></div>
+                <span class="m-badge">2</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="m-row" style="background: linear-gradient(135deg, #5A7A92, #44657A);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+                <div class="m-text"><div class="m-name">Ricette & Food Cost</div><div class="m-line1">87 schede attive</div><div class="m-line2">Food cost medio 32%</div></div>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="m-row" style="background: linear-gradient(135deg, #7B5F8A, #634A70);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+                <div class="m-text"><div class="m-name">Acquisti & Fatture</div><div class="m-line1">5 fatture da pagare</div><div class="m-line2">€ 3.420 in sospeso</div></div>
+                <span class="m-badge">5</span>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+              <div class="m-row" style="background: linear-gradient(135deg, #3D9F8B, #28806C);">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                <div class="m-text"><div class="m-name">Flussi di Cassa</div><div class="m-line1">Saldo mese: +€ 4.200</div><div class="m-line2">CC · Carta · Contanti · Mance</div></div>
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="dots" style="margin-top:16px;"><div class="dot"></div><div class="dot active"></div></div>
+        </div>
+      </div>
+      <div class="device-label">iPad Landscape / Mac</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /proposals -->
+
+<script>
+function show(id) {
+  document.querySelectorAll('.proposal').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('prop-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
