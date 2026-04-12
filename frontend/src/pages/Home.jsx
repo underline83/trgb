@@ -9,19 +9,19 @@ import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 
-/* ── Palette moduli Magazine: accent bar + icona tinta (Home v3.2) ── */
+/* ── Palette moduli Magazine: accent bar + icona tinta + fallback sub (Home v3.2) ── */
 const MODULE_STYLE = {
-  vini:                { accent: "#B8860B", tint: "#F5F0E6" },
-  acquisti:            { accent: "#6B4F7A", tint: "#EDE8F0" },
-  vendite:             { accent: "#5A6B50", tint: "#EBF0E8" },
-  ricette:             { accent: "#4A6A82", tint: "#E9EFF3" },
-  "flussi-cassa":      { accent: "#2D8F7B", tint: "#E8EFEB" },
-  "controllo-gestione":{ accent: "#4A5A68", tint: "#EAEAEA" },
-  statistiche:         { accent: "#888888", tint: "#EAEAEA" },
-  prenotazioni:        { accent: "#8B5E3C", tint: "#F3EDE7" },
-  clienti:             { accent: "#4A5E82", tint: "#E8ECF3" },
-  dipendenti:          { accent: "#7A6352", tint: "#F0EAE4" },
-  impostazioni:        { accent: "#666666", tint: "#EAEAEA" },
+  vini:                { accent: "#B8860B", tint: "#F5F0E6", sub1: "Carta dei Vini · Cantina", sub2: "Vendite · Dashboard" },
+  acquisti:            { accent: "#6B4F7A", tint: "#EDE8F0", sub1: "Fatture · Fornitori", sub2: "Dashboard · Impostazioni" },
+  vendite:             { accent: "#5A6B50", tint: "#EBF0E8", sub1: "Corrispettivi · Chiusura Turno", sub2: "Riepilogo · Dashboard" },
+  ricette:             { accent: "#4A6A82", tint: "#E9EFF3", sub1: "Archivio · Ingredienti", sub2: "Matching · Food Cost" },
+  "flussi-cassa":      { accent: "#2D8F7B", tint: "#E8EFEB", sub1: "CC · Carta · Contanti", sub2: "Mance · Riconciliazione" },
+  "controllo-gestione":{ accent: "#4A5A68", tint: "#EAEAEA", sub1: "Dashboard P&L", sub2: "Scadenzario · Confronto" },
+  statistiche:         { accent: "#888888", tint: "#EAEAEA", sub1: "Cucina · Coperti · Trend", sub2: "Dashboard e grafici" },
+  prenotazioni:        { accent: "#8B5E3C", tint: "#F3EDE7", sub1: "Planning · Mappa Tavoli", sub2: "Settimana" },
+  clienti:             { accent: "#4A5E82", tint: "#E8ECF3", sub1: "Anagrafica · CRM", sub2: "Dashboard" },
+  dipendenti:          { accent: "#7A6352", tint: "#F0EAE4", sub1: "Buste Paga · Turni", sub2: "Scadenze" },
+  impostazioni:        { accent: "#666666", tint: "#EAEAEA", sub1: "Utenti · Moduli", sub2: "Backup" },
 };
 
 /* Gobbetta accent colors cycle */
@@ -362,12 +362,12 @@ export default function Home() {
                                 <div className="text-[15px] font-bold text-brand-ink leading-tight">
                                   {menu.title}
                                 </div>
-                                {summary?.line1 && (
-                                  <div className="text-[12px] text-[#888] mt-0.5">{summary.line1}</div>
-                                )}
-                                {summary?.line2 && (
-                                  <div className="text-[11px] text-[#aaa]">{summary.line2}</div>
-                                )}
+                                <div className="text-[12px] text-[#888] mt-0.5">
+                                  {summary?.line1 || style.sub1 || ""}
+                                </div>
+                                <div className="text-[11px] text-[#aaa]">
+                                  {summary?.line2 || style.sub2 || ""}
+                                </div>
                               </div>
                               {badge > 0 && (
                                 <span
@@ -424,21 +424,17 @@ export default function Home() {
                             >
                               {IconComp ? <IconComp size={20} /> : null}
                             </div>
-                            {/* Text */}
+                            {/* Text — nome completo, 2 righe dinamiche con fallback statico */}
                             <div className="mt-2.5">
                               <div className="text-[13px] font-bold text-brand-ink leading-tight">
-                                {menu.title.replace("Gestione ", "").replace("Ricette & ", "Ricette &\u00a0")}
+                                {menu.title}
                               </div>
-                              {summary?.line1 && (
-                                <div className="text-[11px] text-[#888] mt-1 leading-snug truncate">
-                                  {summary.line1}
-                                </div>
-                              )}
-                              {summary?.line2 && (
-                                <div className="text-[11px] text-[#aaa] leading-snug truncate">
-                                  {summary.line2}
-                                </div>
-                              )}
+                              <div className="text-[11px] text-[#888] mt-1 leading-snug truncate">
+                                {summary?.line1 || style.sub1 || ""}
+                              </div>
+                              <div className="text-[11px] text-[#aaa] leading-snug truncate">
+                                {summary?.line2 || style.sub2 || ""}
+                              </div>
                             </div>
                           </div>
                         );
