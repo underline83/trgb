@@ -28,7 +28,7 @@ function ProformaModal({ open, onClose, onSaved, editData }) {
   const [form, setForm] = useState({
     fornitore_nome: "", fornitore_piva: "", fornitore_cf: "",
     importo: "", data_scadenza: "", data_emissione: "",
-    numero_proforma: "", note: "", crea_fornitore: false,
+    numero_proforma: "", note: "", iban: "", crea_fornitore: false,
   });
   const [fornitori, setFornitori] = useState([]);
   const [searchQ, setSearchQ] = useState("");
@@ -49,6 +49,7 @@ function ProformaModal({ open, onClose, onSaved, editData }) {
         data_emissione: editData.data_emissione || "",
         numero_proforma: editData.numero_proforma || "",
         note: editData.note || "",
+        iban: editData.iban || "",
         crea_fornitore: false,
       });
       setNuovoFornitore(false);
@@ -56,7 +57,7 @@ function ProformaModal({ open, onClose, onSaved, editData }) {
       setForm({
         fornitore_nome: "", fornitore_piva: "", fornitore_cf: "",
         importo: "", data_scadenza: "", data_emissione: "",
-        numero_proforma: "", note: "", crea_fornitore: false,
+        numero_proforma: "", note: "", iban: "", crea_fornitore: false,
       });
       setNuovoFornitore(false);
     }
@@ -232,6 +233,13 @@ function ProformaModal({ open, onClose, onSaved, editData }) {
                 onChange={e => setForm(p => ({ ...p, data_emissione: e.target.value }))}
                 className={fInp} />
             </div>
+          </div>
+
+          <div className="mb-4">
+            <label className={fLbl}>IBAN</label>
+            <input value={form.iban}
+              onChange={e => setForm(p => ({ ...p, iban: e.target.value.toUpperCase() }))}
+              placeholder="IT60 X054 2811 1010 0000 0123 456" className={fInp + " font-mono tracking-wide"} />
           </div>
 
           <div className="mb-4">
@@ -490,6 +498,7 @@ export default function FattureProformeElenco() {
                       <td className="px-4 py-3">
                         <p className="font-medium text-brand-ink">{p.fornitore_nome}</p>
                         {p.fornitore_piva && <p className="text-[10px] text-neutral-400">{p.fornitore_piva}</p>}
+                        {p.iban && <p className="text-[10px] text-neutral-400 font-mono">IBAN {p.iban}</p>}
                         {p.stato === "RICONCILIATA" && p.fattura_numero && (
                           <p className="text-[10px] text-green-600 mt-0.5">
                             → Fattura N° {p.fattura_numero} del {fmtData(p.fattura_data)}

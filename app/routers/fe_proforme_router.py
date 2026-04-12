@@ -62,6 +62,7 @@ class ProformaCreate(BaseModel):
     data_emissione: Optional[str] = None
     numero_proforma: Optional[str] = None
     note: Optional[str] = None
+    iban: Optional[str] = None
     # Se fornitore nuovo (non esiste in fe_fornitore_categoria)
     crea_fornitore: bool = False
 
@@ -75,6 +76,7 @@ class ProformaUpdate(BaseModel):
     data_emissione: Optional[str] = None
     numero_proforma: Optional[str] = None
     note: Optional[str] = None
+    iban: Optional[str] = None
 
 
 class RiconciliaPayload(BaseModel):
@@ -281,8 +283,8 @@ def crea_proforma(
             INSERT INTO fe_proforme
                 (fornitore_piva, fornitore_nome, fornitore_cf,
                  importo, data_scadenza, data_emissione,
-                 numero_proforma, note, stato, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ATTIVA', ?, ?)
+                 numero_proforma, note, iban, stato, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ATTIVA', ?, ?)
         """, (
             payload.fornitore_piva or "",
             payload.fornitore_nome,
@@ -292,6 +294,7 @@ def crea_proforma(
             payload.data_emissione,
             payload.numero_proforma,
             payload.note,
+            payload.iban,
             oggi, oggi,
         ))
         proforma_id = cur.lastrowid
@@ -366,7 +369,7 @@ def modifica_proforma(
         updates = {}
         for field in ["fornitore_piva", "fornitore_nome", "fornitore_cf",
                        "importo", "data_scadenza", "data_emissione",
-                       "numero_proforma", "note"]:
+                       "numero_proforma", "note", "iban"]:
             val = getattr(payload, field, None)
             if val is not None:
                 updates[field] = val

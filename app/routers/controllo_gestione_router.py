@@ -2474,10 +2474,12 @@ def crea_batch_pagamento(
                 s.iban AS fornitore_iban,
                 s.modalita_pagamento_default AS mp_fornitore,
                 sf.titolo AS sf_titolo,
-                sf.iban AS sf_iban
+                sf.iban AS sf_iban,
+                pf.iban AS proforma_iban
             FROM cg_uscite u
             LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
             LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+            LEFT JOIN fe_proforme pf ON pf.cg_uscita_id = u.id
             WHERE u.pagamento_batch_id = ?
             ORDER BY u.data_scadenza ASC, u.fornitore_nome ASC
         """, (batch_id,)).fetchall()
@@ -2539,10 +2541,12 @@ def get_pagamento_batch(
                 s.iban AS fornitore_iban,
                 s.modalita_pagamento_default AS mp_fornitore,
                 sf.titolo AS sf_titolo,
-                sf.iban AS sf_iban
+                sf.iban AS sf_iban,
+                pf.iban AS proforma_iban
             FROM cg_uscite u
             LEFT JOIN suppliers s ON u.fornitore_piva = s.partita_iva
             LEFT JOIN cg_spese_fisse sf ON u.spesa_fissa_id = sf.id
+            LEFT JOIN fe_proforme pf ON pf.cg_uscita_id = u.id
             WHERE u.pagamento_batch_id = ?
             ORDER BY u.data_scadenza ASC, u.fornitore_nome ASC
         """, (batch_id,)).fetchall()

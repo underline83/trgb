@@ -514,10 +514,12 @@ export default function ControlloGestioneUscite() {
       return;
     }
     const righe = (batch.uscite || []).map((u, i) => {
-      const iban = u.fornitore_iban || u.sf_iban || "";
-      const desc = u.numero_fattura && u.numero_fattura !== "—"
-        ? u.numero_fattura
-        : (u.periodo_riferimento || u.sf_titolo || "");
+      const iban = u.fornitore_iban || u.sf_iban || u.proforma_iban || "";
+      const desc = u.tipo_uscita === "PROFORMA"
+        ? (u.note || "Proforma")
+        : u.numero_fattura && u.numero_fattura !== "—"
+          ? u.numero_fattura
+          : (u.periodo_riferimento || u.sf_titolo || "");
       const dataScad = u.data_scadenza
         ? new Date(u.data_scadenza + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" })
         : "—";
