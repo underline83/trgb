@@ -1,316 +1,188 @@
-# TRGB Gestionale — Roadmap & TO-DO
-**Ultimo aggiornamento:** 2026-03-30
+# TRGB Gestionale — Roadmap
+**Ultimo aggiornamento:** 2026-04-12 (sessione 28)
+**Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
-Roadmap ufficiale per lo sviluppo progressivo del gestionale.
-
----
-
-# CRITICI — Sicurezza & Bug bloccanti
-
-## 1. Auth reale (sostituire mock)
-> CHIUSO (2026-03-09) — sha256_crypt hash + python-dotenv + SECRET_KEY da .env
-
-## 2. HTTPS in produzione
-- [x] Aggiornato `.env.production` a `https://trgb.tregobbi.it` — 2026-03-09
-- [x] Nginx reverse proxy funzionante
-- [x] Login e chiamate API in HTTPS
-> CHIUSO
-
-## 3. Endpoint senza autenticazione
-> CHIUSO (2026-03-08) — tutti i router protetti con `Depends(get_current_user)`
+> Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
+> Quando un punto viene completato, spostarlo in "Completati" in fondo con data.
 
 ---
 
-# FUNZIONALI — Bug visibili
+## 1 — Infrastruttura / App
 
-## 5–8. Bug corrispettivi, route annual, token 401, console.log
-> TUTTI CHIUSI (2026-03-08)
-
----
-
-# PULIZIA CODICE
-
-## 9–12. Slugify duplicata, duplicate-check, prezzo=0, DELETE movimento senza check
-> TUTTI CHIUSI (2026-03-08/09)
-
----
-
-# DOCUMENTAZIONE
-
-## 13–15. version.json, changelog, sistema-vini.md
-> TUTTI CHIUSI (2026-03-08)
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 1.1 | PWA Fase 0: riscrivere sw.js network-first | S | DA FARE | Asset gia' pronti, serve solo SW + registrazione |
+| 1.2 | Test PWA su iPad reale | S | BLOCCATO | Bloccato da 1.1 |
+| 1.3 | Fase 1 Capacitor wrapper nativo | L | BLOCCATO | Bloccato da Apple Developer $99/anno |
+| 1.4 | Migrazioni DB per dipendenti.sqlite3 | S | DA FARE | Pulizia tecnica |
+| 1.5 | Riorganizzazione foodcost.db in DB separati | L | FUTURO | Solo se diventa collo di bottiglia |
+| 1.6 | Snapshot Aruba settimanale | S | DA FARE | Da configurare dal pannello |
+| 1.7 | DNS dinamico rete casa | S | IN STANDBY | |
+| 1.8 | Notifiche push browser (scadenze, prenotazioni, backup) | M | DA FARE | Web Push API, Safari 16.4+ |
+| 1.9 | Health check endpoint + uptime monitor | S | DA FARE | /health + UptimeRobot/Betterstack gratis |
+| 1.10 | Aggiornamento automatico frontend (banner nuova versione) | S | DA FARE | Polling BUILD_VERSION ogni 5 min |
 
 ---
 
-# NUOVE FUNZIONALITA' (Roadmap attiva)
+## 2 — Prenotazioni (modulo nuovo)
 
-## 16. Matching FE XML → Ingredienti (Fase 2)
-- [x] Collegamento riga FE → ingrediente con fuzzy SequenceMatcher — 2026-03-10
-- [x] UI conferma match con suggerimenti — 2026-03-10
-- [x] Aggiornamento prezzo ingrediente automatico — 2026-03-10
-- [x] Auto-match batch con mappings esistenti — 2026-03-10
-- [x] Smart Create: creazione ingredienti in blocco da righe fattura — 2026-03-13
-- [x] Esclusione fornitori e descrizioni non-ingrediente — 2026-03-13
-- [ ] Gestione Note di Credito XML
-
-## 17. Modulo Magazzino Vini
-- [x] Movimenti Cantina, Edit vino, Note, Giacenze editabili, Dashboard v2.1 — 2026-03-09
-- [x] Filtri locazione gerarchici cascading — 2026-03-14
-- [x] Modifica massiva ordinabile + dropdown locazioni configurate — 2026-03-14
-- [x] Dashboard KPI valore acquisto/carta + liste espandibili — 2026-03-14
-- [x] Filtro locazione unificato (2 dropdown, ricerca cross-colonna) — 2026-03-16
-- [x] Stampa selezionati diretta PDF (POST con IDs) — 2026-03-16
-- [x] SchedaVino layout sidebar+main con colori dinamici per TIPOLOGIA — 2026-03-16
-- [ ] Flag `DISCONTINUATO` — colonna DB aggiunta, UI edit + filtro da fare
-- [ ] Filtri lato server per dataset molto grandi
-- [ ] Import Excel con diff interattivo
-- [ ] Integrazione carichi automatici da Fatture XML
-- [ ] Integrazione FoodCost → consumo ingredienti da ricetta
-
-## 18. Calcolo food cost nelle ricette
-- [x] Calcolo costo porzione ricorsivo con sub-ricette — 2026-03-10
-- [x] Conversioni unita' personalizzate per ingrediente — 2026-03-13
-- [ ] Esportazione PDF ricette con costi
-- [ ] Dashboard food cost per reparto (cucina/pasticceria/cocktail)
-- [ ] Storico variazione costi ricette
-
-## 19. Migrazioni DB mancanti
-- [ ] Creare sistema migrazioni per `dipendenti.sqlite3`
-- [ ] Migrare creazione tabelle `fe_fatture`/`fe_righe` da runtime a migrazione dedicata
-
-## 20. Carta Vini — miglioramenti
-- [x] Ordinamento tipologie/nazioni/regioni da UI — 2026-03-10
-- [x] Filtri carta configurabili — 2026-03-10
-- [ ] **Pagina web pubblica** — carta vini sempre aggiornata accessibile da internet
-- [ ] PDF con indici cliccabili (TOC con link interni)
-- [ ] Versioning della carta (storico PDF)
-- [ ] Template multipli (eventi, degustazioni)
-
-## 21. FoodCost — UI e dashboard avanzate
-- [x] RicetteDashboard con 5 KPI + tabelle — 2026-03-13
-- [x] RicetteSettings con export/import JSON — 2026-03-13
-- [ ] Dashboard per reparto (cucina / pasticceria / cocktail)
-- [ ] Storico variazione costi ricette
-- [ ] Collegamento consumi → magazzino
-
-## 22. Dipendenti — allegati e buste paga
-- [x] Tab Documenti unificata: allegati manuali + cedolini PDF — 2026-03-30
-- [x] Endpoint documenti: GET/POST/DELETE per allegati + lista unificata — 2026-03-30
-- [x] Import buste paga PDF 2-step con anteprima — 2026-03-30
-- [x] Estrazione cedolini individuali con pikepdf — 2026-03-30
-- [x] Auto-creazione dipendenti da LUL — 2026-03-30
-- [x] Anagrafica layout riscritto: sidebar lista + area dettaglio con tab — 2026-03-30
-
-## 25. Sistema permessi centralizzato
-- [ ] `app/core/permissions.py` con matrice permessi
-- [ ] Dependency `require_role(*roles)` e `require_permission(action)`
-- [ ] Azioni granulari: `vini.vendita`, `admin.utenti`, etc.
-- [ ] Endpoint `GET /auth/permissions` + hook `usePermissions()`
-- [ ] Pagina admin per gestire matrice permessi
-
-## 26. Chiusure Turno — evoluzione (NUOVO)
-- [x] Form chiusura fine servizio pranzo/cena — 2026-03-14
-- [x] Logica cena cumulativa (totali giornalieri - pranzo = parziale cena) — 2026-03-14
-- [x] Pre-conti dinamici (tavoli non battuti) — 2026-03-14
-- [x] Spese dinamiche (scontrino/fattura/personale/altro) — 2026-03-14
-- [x] Fondo cassa inizio/fine servizio — 2026-03-14
-- [x] Lista chiusure admin con dettaglio espandibile — 2026-03-14
-- [x] Fix quadratura: mance statistiche, spese come giustificativo differenza — 2026-03-23
-- [x] Saldo quadratura calcolato lato server (include dati pranzo per cena) — 2026-03-23
-- [ ] Checklist fine turno configurabile (seed dati default pranzo/cena)
-- [ ] **API REST Gestionali AdE**: studiare specifiche tecniche v4.0 per download automatico corrispettivi giornalieri dal portale Fatture e Corrispettivi (certificato digitale, endpoint GET, formato XML aggregati)
-- [ ] Integrazione con import corrispettivi (cross-check chiusura turno vs daily_closures)
-- [ ] Export PDF riepilogo giornaliero/settimanale
-
-## 27. Cambio PIN (NUOVO)
-- [x] Pagina CambioPIN self-service — 2026-03-14
-- [x] Icona nel Header per accesso rapido — 2026-03-14
-- [x] Admin: reset PIN qualsiasi utente a 0000 — 2026-03-14
-
-## 30. Sincronizzazione iPratico — prodotti (NUOVO)
-- [x] Import export Excel iPratico, parsing Bottiglie — 2026-03-21
-- [x] Match diretto per ID 4 cifre → vini_magazzino.id (99.7%) — 2026-03-21
-- [x] Mapping manuale per non-abbinati + Ignora/Ripristina — 2026-03-21
-- [x] Export aggiornato: giacenze TRGB → Warehouse_quantity — 2026-03-21
-- [x] Export aggiornato: nomi ricostruiti da TRGB (priorita' TRGB) — 2026-03-21
-- [x] Export aggiornato: prezzi TRGB → Price_table_1 — 2026-03-21
-- [x] Aggiunta vini mancanti come nuove righe nell'export — 2026-03-21
-- [x] Campi default configurabili da frontend (Family, reparti, listini, prezzi) — 2026-03-21
-- [x] Tile nella home Vini + tab nella nav — 2026-03-21
-- [x] Download automatico DB dal VPS in push.sh — 2026-03-21
-- [ ] Test completo end-to-end (import → verifica → export → reimport iPratico)
-- [ ] Gestione prezzi differenziati per listino (Asporto vs Ristorante vs WebApp)
-- [ ] Sync Description/Internal_name da TRGB (oltre al Name)
-
-## 31. Riorganizzazione database — Fase 2
-> Fase 1 completata (2026-03-28): rimossi DB morti (ingredients.sqlite3, vini.db) e model orfani.
-> Fase 2 da valutare quando foodcost.db diventa un collo di bottiglia (performance, concorrenza write, o crescita moduli).
-
-**Obiettivo:** spezzare `foodcost.db` (37+ tabelle, 5 domini) in database separati per modulo.
-
-- [ ] **fatture.sqlite3** — fe_fatture, fe_righe, fe_categorie, fe_sottocategorie, fe_fornitore_categoria, fe_prodotto_categoria_map, matching_*, fic_config, fic_fatture, fic_sync_log
-- [ ] **controllo-gestione.sqlite3** — cg_uscite, cg_spese_fisse, cg_uscite_log, banca_movimenti, banca_import_log, banca_categorie_map, banca_fatture_link
-- [ ] **ipratico.sqlite3** — ipratico_imports, ipratico_categorie, ipratico_prodotti, ipratico_product_map, ipratico_sync_log, ipratico_export_defaults
-- [ ] **foodcost.db** (ridotto) — ingredients, ingredient_categories, ingredient_prices, suppliers, ingredient_supplier_map, ingredient_unit_conversions, recipes, recipe_categories, recipe_items
-- [ ] Script migrazione dati con backup automatico pre-split
-- [ ] Aggiornare connection function per ogni modulo (get_fatture_conn, get_finanza_conn, etc.)
-- [ ] Aggiornare migration_runner per gestire migrazioni multi-db
-- [ ] Eliminare `vini.sqlite3` quando import Excel viene migrato a vini_magazzino direttamente
-
-**Prerequisiti:** backup automatico funzionante, test coverage minima sui router interessati.
-
-**Trigger per partire:** foodcost.db > 50 MB, oppure problemi di lock SQLite in concorrenza, oppure necessità di backup/restore granulare per modulo.
-
-## 32. Modulo Prenotazioni (NUOVO — 2026-04-06)
 > Specifica completa: `docs/modulo_prenotazioni.md`
 > Checklist operativa: `docs/prenotazioni_todo.md`
+> Obiettivo strategico: eliminare TheFork Manager, commissioni zero sulle dirette.
 
-**Obiettivo:** sostituire TheFork Manager, gestire prenotazioni dirette + widget pubblico.
-
-- [ ] **Fase 1 — Agenda Prenotazioni** (2 sessioni): planning giornaliero, form prenotazione con autocomplete CRM, gestione stati, mini-calendario, vista settimanale
-- [ ] **Fase 2 — Mappa Tavoli** (2 sessioni): editor piantina drag & drop, layout salvabili, assegnazione visuale, combinazioni tavoli, responsive tablet
-- [ ] **Fase 3 — Widget Pubblico** (1-2 sessioni): pagina `tregobbi.it/prenota`, calcolo disponibilita', CAPTCHA, prenotazione online, conferma email
-- [ ] **Fase 4 — Conferme e Notifiche** (1 sessione): email transazionali (conferma/reminder/cancellazione), link WhatsApp precompilati, template configurabili
-- [ ] **Fase 5 — Distacco TheFork Manager** (1 sessione): import automatico TF, periodo parallelo, sostituzione widget TF con widget TRGB
-
-**Decisioni chiave (2026-04-06):**
-- DB: tutto in `clienti.sqlite3`, stessa tabella `clienti_prenotazioni`
-- 14 tavoli interni + 20 esterni, ~20 combinazioni, layout cambia spesso
-- Widget: slot precisi cena, fascia generica pranzo
-- Conferme: email + link WA manuale (poi eventuale WA Business API)
-- Colore tema: indigo
-
-## 28. Modulo Flussi di Cassa (ex Banca) — evoluzione
-- [x] Rename Banca → Flussi di Cassa (routes, nav, modules.json) — 2026-03-30
-- [x] Contanti + Mance spostati da Vendite a Flussi di Cassa — 2026-03-30
-- [x] Movimenti Contanti: pagamento spese in contanti (sub-tab) — 2026-03-30
-- [x] Carta di Credito: scheletro UI pronto — 2026-03-30
-- [ ] Riconciliazione banca: match automatico movimenti → fatture (migliorare cross-ref)
-- [ ] Eliminare scadenza mista BPM
-- [ ] Migliorare categorizzazione scadenze
-- [ ] Dashboard con grafici Recharts (sostituire barre CSS)
-- [ ] Multi-conto corrente (struttura predisposta, UI da implementare)
-- [ ] Carta di Credito: import estratto conto, riconciliazione con CG uscite
-- [ ] Movimenti Contanti: annullamento pagamento, filtri avanzati
-
-## 33. App Apple standalone (NUOVO — 2026-04-11)
-> Analisi completa: `docs/analisi_app_apple.md`
-> Tentativo Fase 0 + Punto 1 piano responsive: vedi `docs/sessione.md` (sessione 26), entrambi rollbackati
-
-**Obiettivo finale:** TRGB come app vera su iPad (primario) + Mac (secondario) + iPhone "lite" (funzionalita' ridotte). Prima distribuzione privata interna, poi App Store pubblico.
-
-**Approccio progressivo in 2 fasi + decisione futura:**
-
-### Fase 0 — PWA (TENTATIVO ROLLBACKATO — sessione 26, da rifare)
-**Stato:** asset PWA scritti su disco ma SW disabilitato in `main.jsx` perché crashava iPad su pagine pesanti (Cantina, RicetteNuova). Da reinvestigare con strategia cache diversa.
-
-- [x] Icone Apple/PWA da logo 5000x5000 (19 file in `frontend/public/icons/`) — 2026-04-11, sul disco ma inerti
-- [x] `manifest.webmanifest` con nome, icone, colori TRGB (teal #14b8a6, slate-900 background) — 2026-04-11, sul disco ma inerte
-- [x] Meta tag Apple in `index.html`: `apple-mobile-web-app-capable`, `apple-touch-icon` multi-size, theme-color, viewport-fit=cover — 2026-04-11, attivi (innocui anche senza SW)
-- [~] Service worker base (`frontend/public/sw.js`): cache shell SWR — **scritto ma DISABILITATO**, causava crash iPad. Da riscrivere
-- [~] Registrazione SW in `main.jsx` — **disabilitata**, sostituita con blocco difensivo `unregister + caches.delete` per ripulire client già registrati
-- [ ] **D.4 — Re-implementare PWA Fase 0** con strategia cache safe per iOS:
-  - `CACHE_NAME` legato a `BUILD_VERSION` (cache buster automatico per ogni deploy)
-  - Network-first per app shell (no stale-while-revalidate)
-  - Nessun precache di chunk Vite (i nomi cambiano per hash, precache stale)
-  - Test in dev tools desktop con throttling + Offline mode prima di toccare il VPS
-  - Test su iPad con Safari devtools collegato (Mac → Safari → Develop → iPad) per vedere errori console reali
-- [ ] **D.1 — Test su iPad reale** (bloccato fino a D.4): "Aggiungi a schermata Home" da Safari, verifica icona, avvio standalone, splash background
-- [ ] **Test su iPhone reale**: bloccato (vedi nota iPhone più sotto)
-- [ ] (opzionale) Splash screens iOS — rimandato a Fase 1
-
-### Lavoro responsive Mac+iPad collegato (piano 7 punti)
-> Documento di riferimento: `docs/piano_responsive_3target.md`
-
-- [~] **Punto 1 — `useAppHeight` hook** — TENTATO E ROLLBACKATO (sessione 26). Crashava Cantina/RicetteNuova anche dopo rollback puntuale dei file pagina, causa probabilmente nell'hook stesso (ResizeObserver loop? race header non montato? interazione con tabelle sticky di MagazzinoVini?). Hook orfano sul disco in `frontend/src/hooks/useAppHeight.js`. **C.3:** reinvestigare con bisezione step-by-step (commit isolato hook, poi 1 pagina alla volta)
-- [ ] **B.1 Punto 2 — Header touch-compatibile** (matchMedia hover:none, tap apre flyout invece di navigare). **Indipendente dal Punto 1, può partire senza aspettare C.3.** ⏱ ~30-45 min
-- [ ] B.2 Punto 3 — Tooltip popover componente
-- [ ] B.3 Punto 4 — Input font-size 16px su touch
-- [ ] B.4 Punto 5 — Tap target 40-44px sidebar filtri
-- [ ] B.5 Punto 6 (opzionale) — Sidebar width → variabile `w-sidebar`
-- [ ] B.6 Punto 7 (CONDIZIONALE) — Tabelle critiche `hidden xl:table-cell`
-
-### Fase 1 — Wrapper Capacitor (DA AVVIARE)
-**Prerequisito:** Apple Developer Program ($99/anno, Marco), Mac con Xcode aggiornato.
-
-- [ ] Setup progetto Capacitor (`@capacitor/core`, `@capacitor/ios`) nel frontend
-- [ ] Generazione progetto Xcode `ios/` con `npx cap add ios`
-- [ ] Icone + splash native iOS (AppIcon.appiconset completo, LaunchScreen.storyboard)
-- [ ] Build locale + test su simulatore iPad
-- [ ] Feature native minime per passare Apple Review Guideline 4.2:
-  - [ ] **FaceID/TouchID** al posto del PIN (plugin `@capacitor/biometric-auth` o custom)
-  - [ ] **AirPrint** share sheet per carta vini, cedolini, PDF fatture
-  - [ ] **Share sheet iOS** per conferme prenotazioni via Messaggi/WhatsApp/Mail
-  - [ ] **Push notifications** (nuova prenotazione, backup fallito, scadenza fattura imminente)
-  - [ ] (opzionale) Scanner codici a barre iPratico via VisionKit
-- [ ] Fix mobile-ready per pagine esistenti: safe-area CSS, scroll momentum, touch target >= 44pt, rimuovere hover-only
-- [ ] Versione iPhone "lite": build separato che nasconde Controllo Gestione, Foodcost, Acquisti (inusabili su 6"), mantiene Dashboard Sala, Prenotazioni, Clienti, Chiusure Turno
-- [ ] Build Mac Catalyst (stesso progetto, target macOS)
-- [ ] Iscrizione Apple Developer Program + App ID + certificati
-- [ ] TestFlight privato (solo Marco + eventuali tester invitati)
-- [ ] Submission App Store pubblica (con screenshot, privacy policy, descrizioni)
-
-**Stima complessiva Fase 1:** 2-3 mesi di lavoro concentrato.
-
-### Fase 2 — decisione futura (NON pianificata)
-Dopo 6-12 mesi di uso reale della Fase 1 valutare se riscrivere (parti di) frontend in SwiftUI nativo. Vedere `docs/analisi_app_apple.md` §3 Scenari C/D/E per stime.
-
-**Regola operativa — "mobile-aware from now on":**
-Da ora in poi, ogni modifica frontend dovrebbe tenere presente il target Capacitor futuro:
-- Niente hover-only interactions (su touch non esiste hover)
-- Touch target minimi 44x44 pt (Apple HIG)
-- Tabelle con scroll orizzontale devono funzionare anche su iPad
-- Evitare `window.print()` diretto, preferire share sheet
-- File upload deve accettare anche sorgente "Fotocamera iOS"
-- Rispetto safe-area insets (`env(safe-area-inset-*)`)
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 2.1 | Fase 1: Agenda prenotazioni | L | DA FARE | Planning giorno, form con CRM, stati, mini-calendario |
+| 2.2 | Fase 2: Mappa tavoli | L | DA FARE | Editor drag&drop, layout salvabili, responsive iPad |
+| 2.3 | Fase 3: Widget pubblico tregobbi.it/prenota | M | DA FARE | Slot cena, CAPTCHA Turnstile, conferma |
+| 2.4 | Fase 4: Conferme e notifiche | M | DA FARE | Email transazionali + link WA |
+| 2.5 | Fase 5: Distacco TheFork Manager | M | DA FARE | Import TF, periodo parallelo |
+| 2.6 | No-show tracking + alert scheda CRM | S | DA FARE | Contatore no-show, alert quando prenota di nuovo |
+| 2.7 | Lista d'attesa con notifica | S | DA FARE | Serata piena → cliente in coda → WA se si libera |
+| 2.8 | Report coperti previsti (prenotati + stima walk-in) | S | DA FARE | Utile per la cucina |
 
 ---
 
-# Rilasci
+## 3 — Flussi di Cassa / Banca
 
-| Versione | Contenuto | Stato |
-|---------|-----------|--------|
-| **2025.12** | FE XML import + Magazzino base | Completato |
-| **2026.03.09** | Fix sicurezza + Auth reale + Dashboard Vini | Completato |
-| **2026.03.10** | Ricette v2 + Acquisti v2 + Vendite v2 | Completato |
-| **2026.03.13** | Banca v1.0 (ora Flussi di Cassa) + Smart Create + Conversioni unita' | Completato |
-| **2026.03.14** | Cantina v3.7 + Chiusure Turno + Cambio PIN | Completato |
-| **2026.03.15** | Statistiche v1.0 + unificazione loader carta + fix delete movimenti | Completato |
-| **2026.03.16** | Cantina v4.0: filtro unificato + stampa selezionati + SchedaVino sidebar | Completato |
-| **2026.03.21** | iPratico Sync v2.0: import/export prodotti, match diretto, TRGB priority, default configurabili | Completato |
-| **2026.03.30** | Sessione 18: Dipendenti v2.1, CG v1.2, Flussi di Cassa v1.1, Sistema v5.0 (flyout header) | Completato |
-| **2026.04.06** | Sessione 22: Clienti CRM v2.0 (coppie, duplicati, segmenti, impostazioni, pulizia dati) | Completato |
-| **Prossimo** | Modulo Prenotazioni v1.0 (Agenda), poi Tavoli, Widget, Notifiche | Pianificato |
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 3.1 | Bug storni difettoso | S | DA FARE | Serve caso concreto da Marco. Vedi docs/problemi.md D1 |
+| 3.2 | Migliorare riconciliazione cross-ref | M | DA FARE | Match automatico piu' intelligente |
+| 3.3 | Multi-conto corrente | M | DA FARE | Struttura predisposta, UI da implementare |
+| 3.4 | Carta di credito: import + riconciliazione | M | DA FARE | Scheletro UI gia' pronto |
+| 3.5 | Movimenti contanti: annullamento + filtri | S | DA FARE | |
+| 3.6 | Dashboard grafici Recharts (banca) | S | DA FARE | Sostituire barre CSS |
+| 3.7 | Scadenziario unificato con alert (calendario) | M | DA FARE | Vista calendario: fatture, rate, stipendi, F24 |
+| 3.8 | Cash flow previsionale 30/60/90 giorni | M | DA FARE | Proiezione saldo banca basata su scadenze + storico |
+| 3.9 | Import automatico movimenti banca | M-L | FUTURO | PSD2/aggregatori o watch cartella CSV |
 
 ---
 
-# Completati (storico recente)
+## 4 — Controllo Gestione / FoodCost
 
-| # | Task | Data |
-|---|------|------|
-| — | Sistema v5.0: Header flyout, Impostazioni standalone, modulesMenu.js | 2026-03-30 |
-| — | Flussi di Cassa v1.1: rename Banca, Contanti+Mance, Movimenti Contanti | 2026-03-30 |
-| — | CG v1.2: sync import, stato contanti PAGATA, cleanFatt, fix ricerca | 2026-03-30 |
-| 22 | Dipendenti v2.1: Buste Paga import PDF, Anagrafica v2.0, Tab Documenti | 2026-03-30 |
-| 30 | iPratico Sync v2.0: import/export, match diretto, TRGB priority, default config | 2026-03-21 |
-| 17 | Cantina v4.0: filtro unificato, stampa selezionati, SchedaVino sidebar | 2026-03-16 |
-| — | Statistiche v1.0 + unificazione loader + fix delete movimenti | 2026-03-15 |
-| 27 | Cambio PIN self-service + reset admin | 2026-03-14 |
-| 26 | Chiusure Turno complete (form + lista + cena cumulativa) | 2026-03-14 |
-| 17 | Filtri locazione gerarchici + Dashboard KPI valore | 2026-03-14 |
-| — | Modulo Banca v1.0 + Conversioni unita' + Smart Create UX | 2026-03-13 |
-| 16 | Matching FE XML → Ingredienti (Fase 2 completa) | 2026-03-13 |
-| 18 | Calcolo food cost ricorsivo + conversioni | 2026-03-10/13 |
-| — | Ricette & Food Cost v2 rebuild completo | 2026-03-10 |
-| — | Gestione Vendite promosso a top-level | 2026-03-10 |
-| — | Gestione Acquisti promosso a top-level | 2026-03-10 |
-| 1–15 | Fix sicurezza, bug, pulizia codice, docs | 2026-03-08/09 |
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 4.1 | Note di credito XML | M | DA FARE | Unico punto aperto del matching fatture |
+| 4.2 | Esportazione PDF ricette con costi | S | DA FARE | |
+| 4.3 | Dashboard food cost per reparto | M | DA FARE | Cucina / pasticceria / cocktail |
+| 4.4 | Storico variazione costi ricette | M | DA FARE | |
+| 4.5 | Conto economico mensile P&L automatico | M | DA FARE | Ricavi - costi = margine, mese per mese, confronto YoY |
+| 4.6 | Alert food cost fuori soglia | S | DA FARE | Badge rosso se ricetta supera soglia % |
+| 4.7 | Margine per piatto su menu (ranking) | S | DA FARE | Food cost x prezzo vendita, top/bottom 5. Serve prezzo in DB |
 
 ---
 
-# Note operative
+## 5 — Clienti / CRM
 
-- Aggiornare **roadmap.md** a ogni milestone
-- Inserire i completamenti nel **changelog.md**
-- Per ogni commit fare riferimento al numero del task
-- Aggiornare `versions.jsx` come fonte di verita' per le versioni
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 5.1 | Mailchimp sync | M | DA FARE | API key in .env, batch sync bidirectional, UI in Import/Export |
+| 5.2 | WhatsApp link rapido (scheda + compleanni) | S | DA FARE | wa.me gratis |
+| 5.3 | Compleanni con azione rapida WA/email | S | DA FARE | Template personalizzabile |
+| 5.4 | Note rapide dalla lista clienti | S | DA FARE | Popup inline senza aprire scheda |
+| 5.5 | Preview merge side-by-side | M | DA FARE | Affiancamento + scelta campo per campo |
+| 5.6 | Filtri combinati avanzati (campagne) | M | DA FARE | Dopo 5.1. Query builder per segmenti marketing |
+| 5.7 | Audit log modifiche CRM | S | DA FARE | Tabella clienti_audit_log |
+| 5.8 | Google Contacts API | M | FUTURO | Bassa priorita', CSV funziona bene |
+| 5.9 | Segmentazione RFM automatica | M | DA FARE | Recency/Frequency/Monetary da storico |
+| 5.10 | Timeline cliente unificata | S | DA FARE | Cronologia: prenotazioni, note, email, no-show |
+| 5.11 | Import clienti da TheFork | S | DA FARE | Dopo 2.5. CSV export da TF |
+
+---
+
+## 6 — Dipendenti
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 6.1 | Template WA personalizzabile buste paga | S | DA FARE | Textarea in Impostazioni con preview live |
+| 6.2 | Allegato PDF reale via URL firmato | M | DA FARE | Link temporaneo 7gg nel testo WA |
+| 6.3 | Checklist fine turno configurabile | M | DA FARE | Seed dati default pranzo/cena |
+| 6.4 | Calendario turni visuale drag&drop | M | DA FARE | Vista mensile/settimanale |
+| 6.5 | Scadenze documenti con alert | S | DA FARE | HACCP, contratti, permessi, visite mediche. Alert 30/15/7 gg |
+| 6.6 | Costo orario e analisi produttivita' | S | DA FARE | Stipendio / ore = costo orario, costo per coperto |
+
+---
+
+## 7 — Cantina / Vini
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 7.1 | Flag DISCONTINUATO UI + filtro | S | DA FARE | Colonna DB gia' aggiunta, serve solo UI |
+| 7.2 | Carta Vini pagina web pubblica | M | DA FARE | tregobbi.it/carta-vini |
+| 7.3 | PDF carta con TOC cliccabile | S | DA FARE | |
+| 7.4 | iPratico test end-to-end completo | S | DA FARE | Import → verifica → export → reimport |
+| 7.5 | Import Excel con diff interattivo | M | DA FARE | |
+| 7.6 | Alert sottoscorta | S | DA FARE | Soglia minima configurabile per vino |
+| 7.7 | Storico prezzi fornitore (grafico) | S | DA FARE | Dati gia' in fe_righe |
+| 7.8 | Inventario rapido da iPad | M | DA FARE | Lista per locazione, +/- giacenza, conferma batch |
+
+---
+
+## 8 — Brand / UX
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 8.1 | Pattern gobbette in empty state | S | DA FARE | Watermark decorativo |
+| 8.2 | Colori tavoli editor → brand | S | BLOCCATO | Bloccato da 2.2 |
+| 8.3 | About/version panel con logo | S | DA FARE | |
+| 8.4 | Dark mode | L | FUTURO | Switch dark: su tutto il FE |
+| 8.5 | PDF/export con header brand | M | DA FARE | Backend Python |
+| 8.6 | Email template brand | S | BLOCCATO | Bloccato da 2.4 |
+| 8.7 | Sistema permessi centralizzato | M | DA FARE | Matrice ruolo/azione, hook usePermissions |
+| 8.8 | Shortcut tastiera + Command Palette Cmd+K | M | DA FARE | useKeyNav + palette fuzzy |
+| 8.9 | Onboarding guidato nuovo utente | S | DA FARE | Wizard primo login per ruolo |
+| 8.10 | Dashboard Home personalizzata per ruolo | S | DA FARE | Card filtrate per ruolo utente |
+| 8.11 | Tema stagionale / branding eventi | S | FUTURO | Nice-to-have cosmetico |
+
+---
+
+## Completati — Piano Responsive Mac+iPad (sessioni 27-28)
+
+| ID | Cosa | Sessione |
+|----|------|----------|
+| B.1 | Header touch tap-toggle | 27 |
+| B.2 | Tooltip popover (88 wrapping, 38 file) | 27+28 |
+| B.3 | Input 16px no-zoom iOS | 27 |
+| B.4 | Tap target ~40px sidebar filtri | 28 |
+| B.5 | Sidebar width variabile (w-sidebar) | 28 |
+| B.6 | Colonne nascoste iPad (hidden xl:table-cell) | 28 |
+| P.1 | 100vh → 100dvh (fix iOS Safari URL bar) | 28 |
+
+## Completati — Brand TRGB-02 (sessione 28)
+
+| Cosa | Note |
+|------|------|
+| Palette Tailwind brand.* | red/green/blue/ink/cream/night |
+| Favicon + icone PWA | 19 file in public/icons/ |
+| Header v5.0 con logo gobbette | |
+| Login + Home wordmark composto | |
+| TrgbLoader animato | 6 dashboard |
+| Grafici Recharts brand colors | 3 dashboard |
+| bg-brand-cream su 90 pagine | |
+
+## Completati — Storico rilasci
+
+| Versione | Contenuto |
+|---------|-----------|
+| 2025.12 | FE XML import + Magazzino base |
+| 2026.03.09 | Fix sicurezza + Auth reale + Dashboard Vini |
+| 2026.03.10 | Ricette v2 + Acquisti v2 + Vendite v2 |
+| 2026.03.13 | Banca v1.0 + Smart Create + Conversioni unita' |
+| 2026.03.14 | Cantina v3.7 + Chiusure Turno + Cambio PIN |
+| 2026.03.15 | Statistiche v1.0 + unificazione loader |
+| 2026.03.16 | Cantina v4.0: filtro unificato + stampa + SchedaVino sidebar |
+| 2026.03.21 | iPratico Sync v2.0 |
+| 2026.03.30 | Dipendenti v2.1, CG v1.2, Flussi di Cassa v1.1, Sistema v5.0 |
+| 2026.04.06 | Clienti CRM v2.0 (coppie, duplicati, segmenti, impostazioni) |
+| 2026.04.11 | Bug fix batch (A1 non-fatture FIC, A2 stipendi duplicati, D2 riconciliazione parziale, D3 doppioni banca) + Dipendenti WA cedolini + CG v2.0 aggregatore completo |
+| 2026.04.12 | Brand TRGB-02 integrazione completa + Piano responsive 7/7 + Tooltip migration 88 wrapping |
+
+---
+
+## Note operative
+
+- Aggiornare **roadmap.md** quando un punto cambia stato
+- Inserire completamenti anche in **changelog.md**
+- Aggiornare `versions.jsx` come fonte di verita' per le versioni dei moduli
+- Per bug/anomalie usare **problemi.md**, non questo file

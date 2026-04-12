@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposta C — Tab Bar Nativa</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #1a1a1a; color: #fff; padding: 32px; }
+  .device-btn { padding: 8px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; color: #fff; border: none; cursor: pointer; margin-right: 8px; }
+  .device-btn.active { background: #2E7BE8; }
+  .device-btn:not(.active) { background: #333; }
+  .tab-btn { padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; color: #fff; border: none; cursor: pointer; margin-right: 4px; }
+  .tab-btn.active { background: #2E7BE8; }
+  .tab-btn:not(.active) { background: #333; color: #999; }
+  .frame { border-radius: 32px; background: #F4F1EC; overflow: hidden; box-shadow: 0 25px 60px rgba(0,0,0,.5); border: 3px solid #333; display: flex; flex-direction: column; margin-top: 24px; position: relative; }
+  .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #999; margin-bottom: 10px; padding-left: 4px; }
+  .features { margin-top: 32px; color: #bbb; font-size: 13px; line-height: 1.8; }
+  .features h3 { color: #fff; font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .features strong { color: #fff; }
+</style>
+</head>
+<body>
+  <h1 style="font-size:28px;font-weight:800;margin-bottom:4px">Proposta C — Tab Bar Nativa</h1>
+  <p style="color:#999;font-size:14px;margin-bottom:24px">Pattern app nativa con tab bar fissa + home dashboard con widget sezioni.</p>
+
+  <div style="margin-bottom:12px">
+    <button class="device-btn active" onclick="setDevice('ipad')">📱 iPad</button>
+    <button class="device-btn" onclick="setDevice('iphone')">📱 iPhone</button>
+  </div>
+  <div style="margin-bottom:4px">
+    <span style="font-size:11px;color:#666;font-weight:600">Simula tab:</span>
+    <button class="tab-btn active" onclick="setTab('home')">🏠 Home</button>
+    <button class="tab-btn" onclick="setTab('altro')">☰ Altro</button>
+  </div>
+
+  <div id="frame" class="frame"></div>
+
+  <div class="features" id="features" style="max-width:820px">
+    <h3>Caratteristiche Proposta C</h3>
+    <div>• <strong>Tab bar fissa</strong> — 4 moduli principali + "Altro", sempre raggiungibili con un tap</div>
+    <div>• <strong>Dashboard operativa</strong> — alert, prenotazioni del giorno, stats, tutto senza navigare</div>
+    <div>• <strong>Pattern nativo</strong> — identico alle app iOS che il personale già conosce</div>
+    <div>• <strong>Prenotazioni in primo piano</strong> — lista del giorno sempre visibile, con pax totali</div>
+    <div>• <strong>"Altro" organizzato</strong> — griglia per i moduli meno frequenti</div>
+    <div style="margin-top:8px;color:#777">Ideale per la transizione a Capacitor/app nativa: tab bar = navigazione primaria dell'app.</div>
+  </div>
+
+<script>
+const B = { red: "#E8402B", green: "#2EB872", blue: "#2E7BE8", ink: "#111111", cream: "#F4F1EC" };
+
+const TABS = [
+  { icon: "🏠", label: "Home" },
+  { icon: "📅", label: "Prenota" },
+  { icon: "🍷", label: "Cantina" },
+  { icon: "💵", label: "Vendite" },
+  { icon: "☰", label: "Altro" },
+];
+
+const TODAY = [
+  { time: "12:30", name: "Fam. Rossi", pax: 4, note: "Allergia glutine", status: "conf" },
+  { time: "12:30", name: "Bianchi", pax: 2, note: "", status: "conf" },
+  { time: "13:00", name: "Tavolo aziendale", pax: 8, note: "Menu degustazione", status: "conf" },
+  { time: "20:00", name: "De Luca", pax: 6, note: "Compleanno", status: "conf" },
+  { time: "20:30", name: "Colombo", pax: 2, note: "", status: "pend" },
+  { time: "21:00", name: "Ferrari", pax: 4, note: "Seconda volta", status: "conf" },
+];
+
+const ALERTS = [
+  { icon: "📦", text: "3 fatture da registrare", accent: B.red },
+  { icon: "📋", text: "Buste paga aprile scadenza martedì", accent: "#F59E0B" },
+  { icon: "🍷", text: "2 vini sotto scorta minima", accent: B.blue },
+];
+
+const MORE = [
+  { icon: "📦", label: "Acquisti", color: "#14B8A6" },
+  { icon: "📘", label: "Ricette", color: "#F97316" },
+  { icon: "🏦", label: "Flussi Cassa", color: "#10B981" },
+  { icon: "🎯", label: "Controllo Gestione", color: "#0EA5E9" },
+  { icon: "📈", label: "Statistiche", color: "#F43F5E" },
+  { icon: "🤝", label: "Clienti", color: "#14B8A6" },
+  { icon: "👥", label: "Dipendenti", color: "#A855F7" },
+  { icon: "⚙️", label: "Impostazioni", color: "#737373" },
+];
+
+const gobSVG = `<svg viewBox="15 28 155 28" style="height:18px;width:auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 Q 37 30 55 42" stroke="${B.red}"/><path d="M 75 50 Q 92 30 110 42" stroke="${B.green}"/><path d="M 130 50 Q 147 30 165 42" stroke="${B.blue}"/></g></svg>`;
+
+let dev = 'ipad', tab = 'home';
+
+function setDevice(d) {
+  dev = d;
+  document.querySelectorAll('.device-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&d==='ipad')||(i===1&&d==='iphone')));
+  render();
+}
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&t==='home')||(i===1&&t==='altro')));
+  render();
+}
+
+function render() {
+  const ph = dev === 'iphone';
+  const fw = ph ? 390 : 820, fh = ph ? 844 : 1100;
+  const pad = ph ? '0 16px 16px' : '0 28px 16px';
+  const totalPax = TODAY.reduce((s,t) => s+t.pax, 0);
+  document.getElementById('features').style.maxWidth = fw+'px';
+
+  const alertHTML = ALERTS.map((a,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;
+      border-radius:${i===0?'14px 14px 2px 2px':i===ALERTS.length-1?'2px 2px 14px 14px':'2px'};
+      margin-bottom:1px;border:1px solid #e5e5e5;cursor:pointer">
+      <span style="font-size:16px">${a.icon}</span>
+      <span style="font-size:13px;font-weight:500;color:${B.ink};flex:1">${a.text}</span>
+      <div style="width:8px;height:8px;border-radius:4px;background:${a.accent}"></div>
+    </div>
+  `).join('');
+
+  const todayHTML = TODAY.map((r,i) => `
+    <div style="display:flex;align-items:center;padding:${ph?'10px 12px':'12px 16px'};border-bottom:${i<TODAY.length-1?'1px solid #f0f0f0':'none'};gap:12px">
+      <span style="font-size:12px;font-weight:700;color:${B.ink};width:42px;flex-shrink:0">${r.time}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:${B.ink}">${r.name}</div>
+        ${r.note ? `<div style="font-size:11px;color:#999;margin-top:1px">${r.note}</div>` : ''}
+      </div>
+      <div style="font-size:13px;font-weight:700;color:${B.ink};width:32px;text-align:center">${r.pax}</div>
+      <div style="width:8px;height:8px;border-radius:4px;background:${r.status==='conf'?B.green:'#F59E0B'}"></div>
+    </div>
+  `).join('');
+
+  const moreHTML = MORE.map(m => `
+    <div style="background:#fff;border-radius:16px;padding:20px 12px;text-align:center;border:1px solid #e5e5e5;cursor:pointer">
+      <div style="width:48px;height:48px;border-radius:14px;background:${m.color}18;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 10px">${m.icon}</div>
+      <div style="font-size:12px;font-weight:600;color:${B.ink}">${m.label}</div>
+    </div>
+  `).join('');
+
+  const tabBarHTML = TABS.map((t,i) => {
+    const isActive = (i===0 && tab==='home') || (i===4 && tab==='altro');
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 12px;min-width:56px;cursor:pointer"
+        onclick="setTab('${i===4?'altro':'home'}')">
+        <span style="font-size:22px">${t.icon}</span>
+        <span style="font-size:10px;font-weight:600;color:${isActive?B.blue:'#999'}">${t.label}</span>
+        ${isActive ? `<div style="width:4px;height:4px;border-radius:2px;background:${B.blue};margin-top:2px"></div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  let contentHTML = '';
+  if (tab === 'home') {
+    contentHTML = `
+      <div style="margin-bottom:20px;padding:0 4px">
+        <h1 style="font-size:${ph?22:28}px;font-weight:800;color:${B.ink}">Buongiorno, Marco</h1>
+        <p style="font-size:13px;color:#999;margin-top:2px">Sabato 12 aprile · Pranzo + Cena</p>
+      </div>
+      <div style="margin-bottom:20px">${alertHTML}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 4px">
+        <div class="section-label" style="margin-bottom:0">Prenotazioni oggi</div>
+        <span style="font-size:20px;font-weight:800;color:${B.blue}">${totalPax} pax</span>
+      </div>
+      <div style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e5e5;margin-bottom:20px">${todayHTML}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:14px;padding:16px;border:1px solid #e5e5e5">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.5px;margin-bottom:6px">Incasso ieri</div>
+          <div style="font-size:22px;font-weight:800;color:${B.ink}">€ 3.420</div>
+          <div style="font-size:11px;color:${B.green};font-weight:600;margin-top:2px">+12% vs media</div>
+        </div>
+        <div style="background:#fff;border-radius:14px;padding:16px;border:1px solid #e5e5e5">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.5px;margin-bottom:6px">Coperti MTD</div>
+          <div style="font-size:22px;font-weight:800;color:${B.ink}">342</div>
+          <div style="font-size:11px;color:${B.blue};font-weight:600;margin-top:2px">vs 310 anno scorso</div>
+        </div>
+      </div>
+    `;
+  } else {
+    contentHTML = `
+      <div style="margin-bottom:16px;padding:0 4px">
+        <h2 style="font-size:22px;font-weight:800;color:${B.ink}">Tutti i moduli</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(${ph?2:4},1fr);gap:10px">${moreHTML}</div>
+    `;
+  }
+
+  const el = document.getElementById('frame');
+  el.style.width = fw+'px'; el.style.height = fh+'px';
+  el.innerHTML = `
+    <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px">
+      <span style="font-size:13px;font-weight:600;color:${B.ink}">9:41</span>
+      <div style="display:flex;align-items:center;gap:8px">${gobSVG}<span style="font-size:15px;font-weight:800;color:${B.ink}">TRGB</span></div>
+      <span style="font-size:12px;color:#999">⚡ 87%</span>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:${pad}">${contentHTML}</div>
+    <div style="background:#fff;border-top:1px solid #e0e0e0;display:flex;justify-content:space-around;align-items:flex-start;padding:8px 0 28px">${tabBarHTML}</div>
+  `;
+}
+render();
+</script>
+</body>
+</html>

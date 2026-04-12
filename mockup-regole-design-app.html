@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regole Design — Pagine Interne App</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #1a1a1a; color: #fff; padding: 32px; }
+  .rule-btn { padding: 10px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; white-space: nowrap; margin-right: 4px; margin-bottom: 4px; }
+  .rule-btn.active { background: #2E7BE8; color: #fff; }
+  .rule-btn:not(.active) { background: #2a2a2a; color: #999; }
+  .content-area { max-width: 1000px; margin-top: 32px; }
+  .device-frame { display: inline-block; margin-right: 24px; margin-bottom: 16px; vertical-align: top; }
+  .device-frame .label { font-size: 11px; font-weight: 600; color: #666; margin-bottom: 8px; text-align: center; }
+  .device-inner { border-radius: 24px; background: #F4F1EC; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,.4); border: 2px solid #444; display: flex; flex-direction: column; }
+  .summary-box { margin-top: 48px; background: #222; border-radius: 16px; padding: 24px; max-width: 800px; }
+  .summary-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <h1 style="font-size:28px;font-weight:800;margin-bottom:4px">Regole Design — Pagine Interne App</h1>
+  <p style="color:#999;font-size:14px;margin-bottom:24px">Linee guida per mantenere coerenza quando si costruiscono le pagine interne, iPad-first.</p>
+
+  <div id="tabs" style="display:flex;flex-wrap:wrap;margin-bottom:0"></div>
+  <div id="content" class="content-area"></div>
+
+  <div class="summary-box">
+    <h3>Riepilogo Regole Chiave</h3>
+    <div style="color:#bbb;font-size:13px;line-height:2">
+      <div><strong style="color:#E8402B">1.</strong> Tap target minimo 44pt, bottoni 48pt, righe lista 48pt</div>
+      <div><strong style="color:#2EB872">2.</strong> iPad: sidebar 220px per navigazione modulo. iPhone: navigazione a stack</div>
+      <div><strong style="color:#2E7BE8">3.</strong> Sfondo SEMPRE brand-cream, nessun bg-neutral/bg-gray</div>
+      <div><strong style="color:#E8402B">4.</strong> borderRadius: 16 card, 14 bottoni, 12 input — coerenti ovunque</div>
+      <div><strong style="color:#2EB872">5.</strong> Nessun hover-only: ogni interazione deve funzionare con tap</div>
+      <div><strong style="color:#2E7BE8">6.</strong> Form iPhone: 1 campo per riga, label sopra, full-width</div>
+      <div><strong style="color:#E8402B">7.</strong> Tabelle iPhone: convertire in card-list o scroll orizzontale</div>
+      <div><strong style="color:#2EB872">8.</strong> Safe area: padding-top per notch, padding-bottom per home indicator</div>
+      <div><strong style="color:#2E7BE8">9.</strong> Font di sistema su app nativa, font-playfair solo su web</div>
+      <div><strong style="color:#E8402B">10.</strong> Colori modulo invariati, palette brand per elementi trasversali</div>
+    </div>
+  </div>
+
+<script>
+const B = { red: "#E8402B", green: "#2EB872", blue: "#2E7BE8", ink: "#111111", cream: "#F4F1EC" };
+
+const rules = [
+  { title: "1. Navigazione", render: renderNav },
+  { title: "2. Touch Target", render: renderTouch },
+  { title: "3. Componenti", render: renderComponents },
+  { title: "4. Layout Responsivo", render: renderLayout },
+  { title: "5. Palette & Font", render: renderPalette },
+];
+
+let activeRule = 0;
+
+function init() {
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = rules.map((r,i) =>
+    `<button class="rule-btn ${i===0?'active':''}" onclick="selectRule(${i})">${r.title}</button>`
+  ).join('');
+  renderActive();
+}
+
+function selectRule(i) {
+  activeRule = i;
+  document.querySelectorAll('.rule-btn').forEach((b,j) => b.classList.toggle('active', j===i));
+  renderActive();
+}
+
+function renderActive() {
+  document.getElementById('content').innerHTML = rules[activeRule].render();
+}
+
+function renderNav() {
+  return `
+    <div style="display:flex;gap:32px;flex-wrap:wrap">
+      <!-- iPad -->
+      <div class="device-frame">
+        <div class="label">iPad — Sidebar + contenuto</div>
+        <div class="device-inner" style="width:600px;height:420px">
+          <div style="display:flex;flex:1">
+            <div style="width:220px;background:#fff;border-right:1px solid #e5e5e5;padding:16px 0;overflow-y:auto">
+              <div style="padding:8px 16px;display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <div style="width:32px;height:32px;border-radius:8px;background:${B.blue}18;display:flex;align-items:center;justify-content:center;font-size:16px">📅</div>
+                <span style="font-size:14px;font-weight:700;color:${B.ink}">Prenotazioni</span>
+              </div>
+              ${["Planning","Mappa Tavoli","Settimana","Editor Tavoli","Impostazioni"].map((s,i) => `
+                <div style="padding:10px 16px 10px 24px;font-size:13px;color:${i===0?B.blue:'#666'};font-weight:${i===0?600:400};background:${i===0?B.blue+'0a':'transparent'};border-left:${i===0?'3px solid '+B.blue:'3px solid transparent'};cursor:pointer">${s}</div>
+              `).join('')}
+            </div>
+            <div style="flex:1;padding:20px;background:${B.cream}">
+              <div style="font-size:11px;color:#999;font-weight:600;margin-bottom:4px">PRENOTAZIONI</div>
+              <div style="font-size:20px;font-weight:800;color:${B.ink};margin-bottom:16px">Planning — 12 aprile</div>
+              <div style="background:#fff;border-radius:12px;height:200px;border:1px solid #e5e5e5;display:flex;align-items:center;justify-content:center;color:#ccc">[contenuto pagina]</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- iPhone -->
+      <div class="device-frame">
+        <div class="label">iPhone — Stack navigation</div>
+        <div class="device-inner" style="width:300px;height:420px">
+          <div style="background:#fff;border-bottom:1px solid #e5e5e5;padding:12px 16px;display:flex;align-items:center;gap:8px">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${B.blue}" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            <span style="font-size:15px;font-weight:700;color:${B.ink}">Planning</span>
+            <span style="flex:1"></span>
+            <span style="font-size:12px;color:${B.blue};font-weight:600">Oggi</span>
+          </div>
+          <div style="flex:1;padding:16px;background:${B.cream}">
+            <div style="background:#fff;border-radius:12px;height:280px;border:1px solid #e5e5e5;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:13px">[contenuto full-width]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTouch() {
+  return `
+    <div style="display:flex;gap:32px;flex-wrap:wrap;margin-bottom:24px">
+      <div>
+        <div style="font-size:12px;font-weight:600;color:${B.green};margin-bottom:8px">✅ CORRETTO — min 44pt</div>
+        <div style="background:#222;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px">
+          ${["Chiusura Turno","Cantina Vini","Cerca Cliente"].map(l => `
+            <div style="height:48px;background:#fff;border-radius:12px;display:flex;align-items:center;padding:0 16px;font-size:14px;font-weight:500;color:${B.ink};gap:12px;border:1px solid #e5e5e5">📌 ${l}</div>
+          `).join('')}
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:${B.red};margin-bottom:8px">❌ SBAGLIATO — troppo piccolo</div>
+        <div style="background:#222;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:2px">
+          ${["Chiusura Turno","Cantina Vini","Cerca Cliente","Dashboard","Import"].map(l => `
+            <div style="height:28px;background:#fff;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:${B.ink};border:1px solid #e5e5e5">${l}</div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+    <div style="color:#bbb;font-size:13px;line-height:1.8">
+      <div><strong style="color:#fff">Regole touch:</strong></div>
+      <div>• Tap target minimo: <strong>44 × 44 pt</strong> (Apple HIG)</div>
+      <div>• Spacing tra elementi tappabili: <strong>≥ 8pt</strong></div>
+      <div>• Bottoni primari: <strong>48pt altezza</strong>, full-width su iPhone</div>
+      <div>• Righe tabella: <strong>≥ 48pt altezza</strong> (non 28pt come desktop)</div>
+      <div>• Label sopra input, MAI affiancate su iPhone</div>
+    </div>
+  `;
+}
+
+function renderComponents() {
+  return `
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <!-- Card -->
+      <div style="width:300px">
+        <div style="font-size:12px;font-weight:600;color:#999;margin-bottom:8px">CARD / TILE</div>
+        <div style="background:#fff;border-radius:16px;padding:20px;border:1px solid #e5e5e5">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <div style="width:44px;height:44px;border-radius:12px;background:${B.blue}14;display:flex;align-items:center;justify-content:center;font-size:22px">📊</div>
+            <div><div style="font-size:15px;font-weight:700;color:${B.ink}">Statistiche</div><div style="font-size:11px;color:#999">Analisi vendite e trend</div></div>
+          </div>
+          <div style="font-size:11px;color:#777;border-top:1px solid #f0f0f0;padding-top:10px">borderRadius: 16, padding: 20, minHeight: 88pt</div>
+        </div>
+      </div>
+      <!-- List -->
+      <div style="width:300px">
+        <div style="font-size:12px;font-weight:600;color:#999;margin-bottom:8px">RIGA LISTA</div>
+        <div style="background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e5e5">
+          ${["Brunello 2019 — 6 bt","Barolo 2020 — 12 bt","Amarone 2018 — 3 bt"].map((w,i) => `
+            <div style="padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:${i<2?'1px solid #f0f0f0':'none'}">
+              <div style="width:36px;height:36px;border-radius:10px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:16px">🍷</div>
+              <span style="font-size:13px;font-weight:500;color:${B.ink};flex:1">${w}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </div>
+          `).join('')}
+        </div>
+        <div style="font-size:11px;color:#777;margin-top:8px">Altezza riga: ≥ 48pt, icona 36pt, chevron dx</div>
+      </div>
+      <!-- Buttons -->
+      <div style="width:300px">
+        <div style="font-size:12px;font-weight:600;color:#999;margin-bottom:8px">BOTTONI</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button style="height:48px;border-radius:14px;background:${B.blue};color:#fff;border:none;font-size:15px;font-weight:700;width:100%">Salva Prenotazione</button>
+          <button style="height:48px;border-radius:14px;background:#fff;color:${B.blue};border:2px solid ${B.blue};font-size:15px;font-weight:600;width:100%">Annulla</button>
+          <button style="height:48px;border-radius:14px;background:#fff;color:${B.red};border:2px solid ${B.red}22;font-size:14px;font-weight:600;width:100%">Elimina</button>
+        </div>
+        <div style="font-size:11px;color:#777;margin-top:8px">48pt altezza, borderRadius 14, full-width su iPhone</div>
+      </div>
+      <!-- Inputs -->
+      <div style="width:300px">
+        <div style="font-size:12px;font-weight:600;color:#999;margin-bottom:8px">INPUT FORM</div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#666;margin-bottom:4px;display:block">Nome cliente</label>
+            <div style="height:48px;border-radius:12px;border:1.5px solid #d4d4d4;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#999">Mario Rossi</div>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#666;margin-bottom:4px;display:block">Coperti</label>
+            <div style="height:48px;border-radius:12px;border:1.5px solid #d4d4d4;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:15px;color:#999">4</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#777;margin-top:8px">48pt altezza, label SOPRA, borderRadius 12</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLayout() {
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
+      <div style="background:#222;border-radius:12px;padding:20px;color:#bbb;font-size:13px;line-height:2">
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:12px">📱 iPad (≥ 768px)</div>
+        <div>• Sidebar navigazione: 220px fissi</div>
+        <div>• Griglia contenuto: 2-3 colonne</div>
+        <div>• Tabelle: tutte le colonne visibili</div>
+        <div>• Form: campi su 2-3 colonne</div>
+        <div>• Dialog/modal: max-width 560px</div>
+        <div>• Tab bar OPPURE sidebar, mai entrambi</div>
+      </div>
+      <div style="background:#222;border-radius:12px;padding:20px;color:#bbb;font-size:13px;line-height:2">
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:12px">📱 iPhone (< 768px)</div>
+        <div>• Niente sidebar: nav a stack (push/pop)</div>
+        <div>• Griglia: 1 colonna, full-width</div>
+        <div>• Tabelle: card-list o scroll orizzontale</div>
+        <div>• Form: campi impilati, 1 per riga</div>
+        <div>• Dialog: full-screen sheet dal basso</div>
+        <div>• Tab bar: sempre visibile, max 5 voci</div>
+      </div>
+    </div>
+    <div style="background:#222;border-radius:12px;padding:20px;color:#bbb;font-size:13px;line-height:2">
+      <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:12px">📐 Breakpoint Tailwind</div>
+      <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:4px 16px">
+        <div style="font-weight:700;color:#999">Token</div><div style="font-weight:700;color:#999">Range</div><div style="font-weight:700;color:#999">Dispositivo</div>
+        <div>sm</div><div>≥ 640px</div><div>iPhone landscape</div>
+        <div>md</div><div>≥ 768px</div><div>iPad portrait</div>
+        <div>lg</div><div>≥ 1024px</div><div>iPad landscape</div>
+        <div>xl</div><div>≥ 1280px</div><div>iPad Pro / Desktop</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPalette() {
+  const colors = [
+    { name:"brand-cream", hex:B.cream, use:"Sfondo pagine", dark:false },
+    { name:"brand-ink", hex:B.ink, use:"Testo principale", dark:true },
+    { name:"brand-red", hex:B.red, use:"Errori, alert", dark:true },
+    { name:"brand-green", hex:B.green, use:"Successo", dark:true },
+    { name:"brand-blue", hex:B.blue, use:"Link, CTA", dark:true },
+    { name:"brand-night", hex:"#0E0E10", use:"Dark mode", dark:true },
+  ];
+  return `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px">
+      ${colors.map(c => `
+        <div style="width:140px;text-align:center">
+          <div style="width:140px;height:80px;border-radius:14px;background:${c.hex};${c.dark?'':'border:2px solid #ddd;'}display:flex;align-items:flex-end;justify-content:center;padding:8px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:${c.dark?'#fff':B.ink}">${c.hex}</span>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:#fff">${c.name}</div>
+          <div style="font-size:10px;color:#999">${c.use}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="color:#bbb;font-size:13px;line-height:2">
+      <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:8px">Tipografia App</div>
+      <div>• Font sistema: <strong>SF Pro (iOS)</strong> — no font custom per performance</div>
+      <div>• Titoli pagina: <strong>22pt bold</strong> (ridotto per mobile)</div>
+      <div>• Titoli sezione: <strong>15pt semibold</strong></div>
+      <div>• Corpo: <strong>15pt regular</strong> (standard iOS)</div>
+      <div>• Label: <strong>12pt medium, uppercase, tracking wider</strong></div>
+      <div>• Caption/badge: <strong>11pt</strong></div>
+      <div style="margin-top:12px"><strong style="color:#fff">Nota:</strong> font-playfair (serif) resta per titoli nella versione web. Nell'app nativa si usa il font di sistema per coerenza iOS.</div>
+    </div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>

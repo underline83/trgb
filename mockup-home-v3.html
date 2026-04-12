@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB Home v3 — Raffinata</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700;800&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Helvetica Neue', -apple-system, sans-serif; background: #0e0e0e; color: #fff; padding: 28px; }
+
+  .controls { display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .ctrl-btn { padding: 7px 16px; border-radius: 8px; font-size: 11px; font-weight: 600; border: 1px solid #333; cursor: pointer; background: transparent; color: #777; transition: all .15s; }
+  .ctrl-btn.active { background: #fff; color: #111; border-color: #fff; }
+  .ctrl-btn:hover:not(.active) { border-color: #555; color: #aaa; }
+  .sep { width: 1px; height: 20px; background: #333; margin: 0 8px; }
+
+  .frame { border-radius: 24px; background: #F4F1EC; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.7); border: 2px solid #2a2a2a; display: flex; flex-direction: column; transition: width .3s, height .3s; position: relative; }
+
+  .dots { display: flex; justify-content: center; gap: 8px; padding: 10px 0 6px; }
+  .dot { width: 7px; height: 7px; border-radius: 4px; background: #d4d0ca; cursor: pointer; transition: all .25s; }
+  .dot.active { background: #111; width: 22px; }
+
+  .swipe-container { flex: 1; overflow: hidden; }
+  .swipe-track { display: flex; transition: transform .4s cubic-bezier(.25,.1,.25,1); height: 100%; }
+  .swipe-page { flex-shrink: 0; width: 100%; height: 100%; overflow-y: auto; }
+  .swipe-page::-webkit-scrollbar { display: none; }
+
+  /* Widget card */
+  .w-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .w-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
+  .w-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #a8a49e; }
+
+  /* Tile v3 — elegant, minimal */
+  .tile3 {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform .12s, box-shadow .12s;
+  }
+  .tile3:active { transform: scale(.98); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+</style>
+</head>
+<body>
+
+<div style="margin-bottom:20px">
+  <h1 style="font-size:22px;font-weight:700;letter-spacing:-.3px">TRGB Home v3</h1>
+  <p style="color:#555;font-size:12px;margin-top:2px">Due pagine · Widget + Moduli · Estetica raffinata</p>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn active" onclick="setDevice('ipad')" id="b-ipad">iPad</button>
+  <button class="ctrl-btn" onclick="setDevice('iphone')" id="b-iphone">iPhone</button>
+  <div class="sep"></div>
+  <button class="ctrl-btn active" onclick="goPage(0)" id="b-p0">Widget</button>
+  <button class="ctrl-btn" onclick="goPage(1)" id="b-p1">Moduli</button>
+</div>
+
+<div id="frame" class="frame"></div>
+
+<script>
+const B = { red:"#E8402B", green:"#2EB872", blue:"#2E7BE8", ink:"#111", cream:"#F4F1EC", warmGray:"#a8a49e" };
+
+/* ── Tile color system: muted, sophisticated ── */
+const MODULES = [
+  { key:"vini",        label:"Vini",              sub:"Carta · Cantina · Vendite",     accent:"#B8860B", tint:"#FAF5EB" },
+  { key:"acquisti",    label:"Acquisti",           sub:"Fatture · Fornitori",            accent:"#2D8F7B", tint:"#EEF9F6" },
+  { key:"vendite",     label:"Vendite",            sub:"Corrispettivi · Chiusure",       accent:"#4F52B5", tint:"#EDEDFA" },
+  { key:"ricette",     label:"Ricette & Food Cost",sub:"Archivio · Ingredienti · Matching",accent:"#C05621", tint:"#FDF3EC" },
+  { key:"flussi",      label:"Flussi di Cassa",   sub:"CC · Carta · Contanti · Mance",  accent:"#1A7F5A", tint:"#EBF8F3" },
+  { key:"controllo",   label:"Controllo Gestione", sub:"Dashboard · Scadenze · Confronto",accent:"#2871B8", tint:"#EBF3FC" },
+  { key:"statistiche", label:"Statistiche",        sub:"Cucina · Coperti · Trend",       accent:"#B83A52", tint:"#FCEDF0" },
+  { key:"prenotazioni",label:"Prenotazioni",       sub:"Planning · Mappa · Settimana",   accent:"#6B4FA8", tint:"#F1EDF9" },
+  { key:"clienti",     label:"Clienti",            sub:"Anagrafica · CRM · Dashboard",   accent:"#1E7E8A", tint:"#ECF7F8" },
+  { key:"dipendenti",  label:"Dipendenti",         sub:"Buste Paga · Turni · Scadenze",  accent:"#7C4FA8", tint:"#F3EEF9" },
+  { key:"impostazioni",label:"Impostazioni",       sub:"Utenti · Moduli · Backup",       accent:"#6B6B6B", tint:"#F2F2F2" },
+];
+
+/* Minimal line icons (thin, elegant) */
+const IC = {
+  vini:        `<path d="M8 2l1.5 7h5L16 2M7.5 9a4.5 4.5 0 009 0M12 13.5V19M8 22h8M12 19v3"/>`,
+  acquisti:    `<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 11h18M7 2v5M17 2v5M8 15h3M8 18h5"/>`,
+  vendite:     `<rect x="2" y="5" width="20" height="15" rx="2"/><path d="M2 10h20M6 15h3M6 18h5"/>`,
+  ricette:     `<path d="M4 19V5a2 2 0 012-2h12a2 2 0 012 2v14l-8-3.5L4 19zM8 7h8M8 11h5"/>`,
+  flussi:      `<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18M13 13h4M13 17h2"/>`,
+  controllo:   `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>`,
+  statistiche: `<path d="M4 20h16M7 16V11M11 16V7M15 16V13M19 16V9"/>`,
+  prenotazioni:`<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/><circle cx="12" cy="15.5" r="1.5" fill="currentColor"/>`,
+  clienti:     `<circle cx="9" cy="7" r="3.5"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M16 3.5a3.5 3.5 0 010 7M21 21v-2a4 4 0 00-3-3.85"/>`,
+  dipendenti:  `<circle cx="12" cy="7" r="4"/><path d="M5.5 21v-2a6.5 6.5 0 0113 0v2"/>`,
+  impostazioni:`<circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>`,
+};
+
+function icon(key, sz, color) {
+  return `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${IC[key]||''}</svg>`;
+}
+
+const TODAY = [
+  { time:"12:30", name:"Fam. Rossi", pax:4, note:"Allergia glutine", ok:true },
+  { time:"12:30", name:"Bianchi", pax:2, note:"", ok:true },
+  { time:"13:00", name:"Tavolo aziendale", pax:8, note:"Menu degustazione", ok:true },
+  { time:"20:00", name:"De Luca", pax:6, note:"Compleanno", ok:true },
+  { time:"20:30", name:"Colombo", pax:2, note:"", ok:false },
+  { time:"21:00", name:"Ferrari", pax:4, note:"Seconda volta", ok:true },
+];
+const ALERTS = [
+  { text:"3 fatture da registrare", accent:B.red, key:"acquisti" },
+  { text:"Buste paga: scadenza martedì", accent:"#B8860B", key:"dipendenti" },
+  { text:"Barolo e Brunello sotto scorta", accent:B.blue, key:"vini" },
+];
+
+const gobSVG = s => `<svg viewBox="15 28 155 28" style="height:${s}px;width:auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 Q 37 30 55 42" stroke="${B.red}"/><path d="M 75 50 Q 92 30 110 42" stroke="${B.green}"/><path d="M 130 50 Q 147 30 165 42" stroke="${B.blue}"/></g></svg>`;
+
+/* Gobbette accents for tiles */
+const GA = [B.red, B.green, B.blue];
+
+let dev='ipad', pg=0;
+
+function setDevice(d){
+  dev=d;
+  document.getElementById('b-ipad').classList.toggle('active',d==='ipad');
+  document.getElementById('b-iphone').classList.toggle('active',d==='iphone');
+  render();
+}
+function goPage(p){
+  pg=p;
+  document.getElementById('b-p0').classList.toggle('active',p===0);
+  document.getElementById('b-p1').classList.toggle('active',p===1);
+  const t=document.querySelector('.swipe-track');
+  if(t) t.style.transform=`translateX(-${p*100}%)`;
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===p));
+}
+
+function render(){
+  const ph = dev==='iphone';
+  const fw = ph?390:820, fh = ph?844:1100;
+  const px = ph?18:32;
+  const totalPax = TODAY.reduce((s,t)=>s+t.pax,0);
+  const el = document.getElementById('frame');
+  el.style.width=fw+'px'; el.style.height=fh+'px';
+
+  /* ════════ PAGE 1: WIDGETS ════════ */
+  const alertRows = ALERTS.map((a,i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;
+      ${i<ALERTS.length-1?'border-bottom:1px solid #f4f1ec;':''}">
+      <div style="width:28px;height:28px;border-radius:8px;background:${a.accent}0c;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${icon(a.key,14,a.accent)}
+      </div>
+      <span style="font-size:13px;color:${B.ink};flex:1;font-weight:500">${a.text}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><path stroke-linecap="round" d="M9 6l6 6-6 6"/></svg>
+    </div>
+  `).join('');
+
+  const resvRows = TODAY.map((r,i) => `
+    <div style="display:flex;align-items:center;padding:${ph?'10px 14px':'11px 16px'};gap:10px;
+      ${i<TODAY.length-1?'border-bottom:1px solid #f8f6f2;':''}">
+      <span style="font-size:11px;font-weight:600;color:${B.warmGray};width:36px;flex-shrink:0;font-variant-numeric:tabular-nums">${r.time}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:${B.ink};line-height:1.3">${r.name}</div>
+        ${r.note?`<div style="font-size:11px;color:${B.warmGray};margin-top:1px">${r.note}</div>`:''}
+      </div>
+      <span style="font-size:13px;font-weight:700;color:${B.ink};width:24px;text-align:right">${r.pax}</span>
+      <div style="width:6px;height:6px;border-radius:3px;background:${r.ok?B.green:'#D4A017'}"></div>
+    </div>
+  `).join('');
+
+  const quickItems = [
+    { label:"Chiusura Turno", key:"vendite", c:B.red },
+    { label:"Nuova Prenotazione", key:"prenotazioni", c:B.blue },
+    { label:"Cerca Vino", key:"vini", c:B.green },
+    { label:"Food Cost", key:"ricette", c:"#C05621" },
+  ].map(q => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;background:${q.c}05;border-radius:10px">
+      <div style="width:32px;height:32px;border-radius:9px;background:${q.c}0e;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${icon(q.key,16,q.c)}
+      </div>
+      <span style="font-size:13px;font-weight:600;color:${B.ink}">${q.label}</span>
+    </div>
+  `).join('');
+
+  const p1 = `<div style="padding:${px}px;padding-top:4px">
+    <!-- Greeting -->
+    <div style="margin-bottom:${ph?20:26}px">
+      <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:${ph?24:30}px;font-weight:700;color:${B.ink};letter-spacing:-.3px;line-height:1.15">
+        Buongiorno, Marco
+      </h1>
+      <p style="font-size:12px;color:${B.warmGray};margin-top:5px;font-weight:500">Sabato 12 aprile · Pranzo + Cena</p>
+    </div>
+
+    <!-- Widget: Attenzione -->
+    <div class="w-card" style="margin-bottom:${ph?14:18}px">
+      <div class="w-head">
+        <span class="w-label">Attenzione</span>
+        <span style="font-size:11px;font-weight:700;color:${B.red}">${ALERTS.length}</span>
+      </div>
+      <div style="padding:0 4px 4px">${alertRows}</div>
+    </div>
+
+    <!-- Widget row: Prenotazioni + Stats -->
+    <div style="display:grid;grid-template-columns:${ph?'1fr':'1.5fr .5fr'};gap:${ph?14:16}px;margin-bottom:${ph?14:18}px">
+      <div class="w-card">
+        <div class="w-head">
+          <span class="w-label">Prenotazioni oggi</span>
+          <div style="display:flex;align-items:baseline;gap:4px">
+            <span style="font-size:20px;font-weight:800;color:${B.ink};line-height:1">${totalPax}</span>
+            <span style="font-size:10px;color:${B.warmGray};font-weight:500">pax</span>
+          </div>
+        </div>
+        <div>${resvRows}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:${ph?14:16}px">
+        <div class="w-card" style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:18px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${B.warmGray};margin-bottom:8px">Incasso ieri</div>
+          <div style="font-size:${ph?24:28}px;font-weight:800;color:${B.ink};line-height:1;letter-spacing:-.5px">€ 3.420</div>
+          <div style="font-size:11px;color:${B.green};font-weight:600;margin-top:6px">↑ 12%</div>
+        </div>
+        <div class="w-card" style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:18px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${B.warmGray};margin-bottom:8px">Coperti aprile</div>
+          <div style="font-size:${ph?24:28}px;font-weight:800;color:${B.ink};line-height:1;letter-spacing:-.5px">342</div>
+          <div style="font-size:11px;color:${B.blue};font-weight:600;margin-top:6px">vs 310 prec.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Widget: Azioni rapide -->
+    <div class="w-card">
+      <div class="w-head">
+        <span class="w-label">Azioni rapide</span>
+        <span style="font-size:11px;font-weight:600;color:${B.blue};cursor:pointer">Modifica</span>
+      </div>
+      <div style="padding:2px 8px 8px;display:grid;grid-template-columns:1fr 1fr;gap:4px">
+        ${quickItems}
+      </div>
+    </div>
+  </div>`;
+
+  /* ════════ PAGE 2: MODULI ════════ */
+  const cols = ph ? 2 : 3;
+  const tileH = ph ? 130 : 150;
+
+  const tiles = MODULES.map((m,i) => {
+    const gob = GA[i%3]; // gobbetta accent cycles R/G/B
+    return `
+    <div class="tile3" style="height:${tileH}px">
+      <!-- Top accent: thin gobbetta-colored line -->
+      <div style="position:absolute;top:0;left:16px;right:16px;height:2px;background:${gob};border-radius:0 0 2px 2px;opacity:.5"></div>
+
+      <div style="padding:${ph?'16px':'20px'};height:100%;display:flex;flex-direction:column;justify-content:space-between">
+        <!-- Icon -->
+        <div style="width:36px;height:36px;border-radius:10px;background:${m.tint};display:flex;align-items:center;justify-content:center">
+          ${icon(m.key,18,m.accent)}
+        </div>
+        <!-- Text -->
+        <div>
+          <div style="font-size:${ph?13:14}px;font-weight:700;color:${B.ink};line-height:1.2;letter-spacing:-.1px">${m.label}</div>
+          <div style="font-size:10px;color:${B.warmGray};margin-top:3px;line-height:1.3">${m.sub}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const p2 = `<div style="padding:${px}px;padding-top:4px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:${ph?18:24}px">
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:${ph?22:26}px;font-weight:700;color:${B.ink};letter-spacing:-.3px">Moduli</h2>
+      <span style="font-size:11px;color:${B.warmGray};font-weight:500">${MODULES.length} attivi</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:${ph?10:14}px">
+      ${tiles}
+    </div>
+  </div>`;
+
+  /* ════════ BUILD ════════ */
+  el.innerHTML = `
+    <!-- Header bar -->
+    <div style="height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 ${px}px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:7px">
+        ${gobSVG(ph?14:16)}
+        <span style="font-size:${ph?13:14}px;font-weight:800;color:${B.ink};letter-spacing:.5px">TRGB</span>
+      </div>
+      <!-- User avatar -->
+      <div style="width:30px;height:30px;border-radius:10px;background:#e8e4de;display:flex;align-items:center;justify-content:center">
+        <span style="font-size:12px;font-weight:700;color:${B.warmGray}">M</span>
+      </div>
+    </div>
+
+    <!-- Page dots -->
+    <div class="dots">
+      <div class="dot ${pg===0?'active':''}" onclick="goPage(0)"></div>
+      <div class="dot ${pg===1?'active':''}" onclick="goPage(1)"></div>
+    </div>
+
+    <!-- Swipe -->
+    <div class="swipe-container">
+      <div class="swipe-track" style="transform:translateX(-${pg*100}%)">
+        <div class="swipe-page">${p1}</div>
+        <div class="swipe-page">${p2}</div>
+      </div>
+    </div>
+    <div style="height:24px;flex-shrink:0"></div>
+  `;
+
+  // Swipe gesture
+  let sx=0;
+  const c=el.querySelector('.swipe-container');
+  c.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
+  c.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-sx;
+    if(Math.abs(dx)>50){if(dx<0&&pg===0)goPage(1);if(dx>0&&pg===1)goPage(0);}
+  },{passive:true});
+}
+
+render();
+</script>
+</body>
+</html>

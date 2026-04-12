@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB Home v2 — Widget + Moduli (swipe)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #111; color: #fff; padding: 24px; }
+  h1 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+  .subtitle { color: #777; font-size: 13px; margin-bottom: 20px; }
+
+  .controls { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .ctrl-btn { padding: 8px 18px; border-radius: 10px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; }
+  .ctrl-btn.active { background: #2E7BE8; color: #fff; }
+  .ctrl-btn:not(.active) { background: #262626; color: #888; }
+
+  .frame { border-radius: 28px; background: #F4F1EC; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,.6); border: 3px solid #333; display: flex; flex-direction: column; transition: width .3s, height .3s; position: relative; }
+
+  /* Page dots */
+  .dots { display: flex; justify-content: center; gap: 8px; padding: 12px 0 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; background: #ccc; cursor: pointer; transition: all .2s; }
+  .dot.active { background: #2E7BE8; width: 24px; }
+
+  /* Swipe container */
+  .swipe-container { flex: 1; overflow: hidden; position: relative; }
+  .swipe-track { display: flex; transition: transform .35s cubic-bezier(.4,0,.2,1); height: 100%; }
+  .swipe-page { flex-shrink: 0; width: 100%; height: 100%; overflow-y: auto; }
+
+  /* Widget styles */
+  .widget { background: #fff; border-radius: 18px; border: 1px solid #e5e5e5; overflow: hidden; }
+  .widget-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 10px; }
+  .widget-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #999; }
+  .widget-action { font-size: 11px; font-weight: 600; color: #2E7BE8; cursor: pointer; }
+
+  /* Module tile - NO emoji, clean design */
+  .tile { border-radius: 16px; cursor: pointer; overflow: hidden; transition: transform .15s; position: relative; }
+  .tile:active { transform: scale(.97); }
+  .tile-inner { padding: 18px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+  .tile-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .tile-icon svg { width: 22px; height: 22px; }
+  .tile-label { font-size: 14px; font-weight: 700; line-height: 1.2; }
+  .tile-sub { font-size: 10px; margin-top: 4px; opacity: .6; line-height: 1.3; }
+  .tile-badge { position: absolute; top: 12px; right: 12px; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+
+  .features-box { margin-top: 28px; background: #1a1a1a; border-radius: 14px; padding: 20px; max-width: 820px; }
+  .features-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .features-box div { color: #999; font-size: 12px; line-height: 1.9; }
+  .features-box strong { color: #ddd; }
+</style>
+</head>
+<body>
+
+<h1>TRGB Home v2 — Due Pagine</h1>
+<p class="subtitle">Pagina 1: widget personalizzabili · Pagina 2: tutti i moduli come tile grafiche</p>
+
+<div class="controls">
+  <button class="ctrl-btn active" onclick="setDevice('ipad')" id="btn-ipad">iPad</button>
+  <button class="ctrl-btn" onclick="setDevice('iphone')" id="btn-iphone">iPhone</button>
+  <span style="width:16px"></span>
+  <button class="ctrl-btn active" onclick="goPage(0)" id="btn-p1">Pagina 1 — Widget</button>
+  <button class="ctrl-btn" onclick="goPage(1)" id="btn-p2">Pagina 2 — Moduli</button>
+</div>
+
+<div id="frame" class="frame"></div>
+
+<div class="features-box">
+  <h3>Concept</h3>
+  <div>
+    <div>• <strong>Due pagine con swipe</strong> (o tap sui dot): pagina 1 = cruscotto widget, pagina 2 = tutti i moduli</div>
+    <div>• <strong>Widget programmabili</strong>: l'admin sceglie quali widget mostrare (prenotazioni, alert, azioni rapide, stats, turni…)</div>
+    <div>• <strong>Widget personalizzabili per ruolo</strong>: il cuoco vede ordini e ricette, la sala vede prenotazioni e chiusure</div>
+    <div>• <strong>Tile moduli senza emoji</strong>: icone SVG monocromatiche + colore forte + testo chiaro</div>
+    <div>• <strong>Indicatore visivo</strong>: gobbetta colorata (R/G/B) come firma brand su ogni tile</div>
+    <div>• <strong>Touch-first</strong>: tap target 48pt+, drag per swipe tra pagine, nessun hover-only</div>
+    <div>• <strong>Pronta per Capacitor</strong>: safe-area, swipe nativo, nessun flyout/dropdown</div>
+  </div>
+</div>
+
+<script>
+const B = { red:"#E8402B", green:"#2EB872", blue:"#2E7BE8", ink:"#111111", cream:"#F4F1EC" };
+
+// SVG icons (simple, monochrome, no emoji)
+const ICONS = {
+  vini: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l1.5 8H14.5L16 2"/><path d="M12 10v6"/><path d="M8 22h8"/><path d="M12 16v6"/><circle cx="12" cy="8" r="0" fill="currentColor"/><path d="M7.5 10a4.5 4.5 0 009 0"/></svg>`,
+  acquisti: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-2 12H5L3 8"/><path d="M1 4h4l2 4"/><path d="M19 4h4"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>`,
+  vendite: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M6 16h4"/></svg>`,
+  ricette: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a2 2 0 012-2h12a2 2 0 012 2v14l-8-4-8 4z"/><path d="M8 8h8"/><path d="M8 12h6"/></svg>`,
+  flussi: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><path d="M9 3v18"/><path d="M13 13h4"/><path d="M13 17h4"/></svg>`,
+  controllo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+  statistiche: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 16V10"/><path d="M10 16V6"/><path d="M14 16V12"/><path d="M18 16V8"/></svg>`,
+  prenotazioni: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M16 2v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>`,
+  clienti: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75"/><path d="M21 21v-2a4 4 0 00-3-3.87"/></svg>`,
+  dipendenti: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21v-2a6.5 6.5 0 0113 0v2"/></svg>`,
+  impostazioni: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/></svg>`,
+};
+
+const MODULES = [
+  { key:"vini", label:"Vini", sub:"Carta · Cantina · Vendite", bg:"#F59E0B", fg:"#78350F", iconBg:"#FDE68A", accent:0 },
+  { key:"acquisti", label:"Acquisti", sub:"Fatture · Fornitori", bg:"#14B8A6", fg:"#134E4A", iconBg:"#99F6E4", accent:1 },
+  { key:"vendite", label:"Vendite", sub:"Corrispettivi · Cassa", bg:"#6366F1", fg:"#312E81", iconBg:"#C7D2FE", accent:2 },
+  { key:"ricette", label:"Ricette", sub:"Food Cost · Matching", bg:"#F97316", fg:"#7C2D12", iconBg:"#FED7AA", accent:0 },
+  { key:"flussi", label:"Flussi di Cassa", sub:"CC · Carta · Contanti", bg:"#10B981", fg:"#064E3B", iconBg:"#A7F3D0", accent:1 },
+  { key:"controllo", label:"Controllo Gestione", sub:"Dashboard · Scadenze", bg:"#0EA5E9", fg:"#0C4A6E", iconBg:"#BAE6FD", accent:2 },
+  { key:"statistiche", label:"Statistiche", sub:"Vendite · Coperti · Trend", bg:"#F43F5E", fg:"#881337", iconBg:"#FECDD3", accent:0 },
+  { key:"prenotazioni", label:"Prenotazioni", sub:"Planning · Mappa · Settimana", bg:"#8B5CF6", fg:"#3B0764", iconBg:"#DDD6FE", accent:1 },
+  { key:"clienti", label:"Clienti", sub:"Anagrafica · CRM", bg:"#06B6D4", fg:"#164E63", iconBg:"#A5F3FC", accent:2 },
+  { key:"dipendenti", label:"Dipendenti", sub:"Buste Paga · Turni", bg:"#A855F7", fg:"#3B0764", iconBg:"#E9D5FF", accent:0 },
+  { key:"impostazioni", label:"Impostazioni", sub:"Utenti · Sistema", bg:"#6B7280", fg:"#1F2937", iconBg:"#E5E7EB", accent:1 },
+];
+
+const TODAY = [
+  { time:"12:30", name:"Fam. Rossi", pax:4, note:"Allergia glutine", ok:true },
+  { time:"12:30", name:"Bianchi", pax:2, note:"", ok:true },
+  { time:"13:00", name:"Tavolo aziendale", pax:8, note:"Menu degustazione", ok:true },
+  { time:"20:00", name:"De Luca", pax:6, note:"Compleanno", ok:true },
+  { time:"20:30", name:"Colombo", pax:2, note:"", ok:false },
+  { time:"21:00", name:"Ferrari", pax:4, note:"Seconda volta", ok:true },
+];
+
+const ALERTS = [
+  { text:"3 fatture da registrare", accent:B.red, iconKey:"acquisti" },
+  { text:"Buste paga scad. martedì", accent:"#F59E0B", iconKey:"dipendenti" },
+  { text:"2 vini sotto scorta minima", accent:B.blue, iconKey:"vini" },
+];
+
+const QUICK_ACTIONS = [
+  { label:"Chiusura Turno", iconKey:"vendite", color:B.red },
+  { label:"Nuova Prenotazione", iconKey:"prenotazioni", color:B.blue },
+  { label:"Cerca Vino", iconKey:"vini", color:B.green },
+  { label:"Food Cost", iconKey:"ricette", color:"#F97316" },
+];
+
+let device = 'ipad', page = 0;
+
+// Gobbette accent (tiny colored bar on tiles)
+const gobbetteAccents = [B.red, B.green, B.blue];
+
+function setDevice(d) {
+  device = d;
+  document.getElementById('btn-ipad').className = 'ctrl-btn' + (d==='ipad'?' active':'');
+  document.getElementById('btn-iphone').className = 'ctrl-btn' + (d==='iphone'?' active':'');
+  render();
+}
+function goPage(p) {
+  page = p;
+  document.getElementById('btn-p1').className = 'ctrl-btn' + (p===0?' active':'');
+  document.getElementById('btn-p2').className = 'ctrl-btn' + (p===1?' active':'');
+  const track = document.querySelector('.swipe-track');
+  if (track) track.style.transform = `translateX(-${p*100}%)`;
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('active', i===p));
+}
+
+function miniIcon(key, size) {
+  return `<div style="width:${size}px;height:${size}px;color:currentColor;display:flex;align-items:center;justify-content:center">${(ICONS[key]||'').replace(/width="22" height="22"/g, `width="${size}" height="${size}"`)}</div>`;
+}
+
+function render() {
+  const ph = device === 'iphone';
+  const fw = ph ? 390 : 820, fh = ph ? 844 : 1100;
+  const pad = ph ? 16 : 28;
+  const totalPax = TODAY.reduce((s,t) => s+t.pax, 0);
+
+  const el = document.getElementById('frame');
+  el.style.width = fw+'px';
+  el.style.height = fh+'px';
+
+  // ─── PAGE 1: WIDGETS ───
+  const alertsHTML = ALERTS.map((a,i) => {
+    const br = i===0 ? '14px 14px 3px 3px' : i===ALERTS.length-1 ? '3px 3px 14px 14px' : '3px';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border-radius:${br};margin-bottom:1px;border:1px solid #eee;cursor:pointer">
+      <div style="width:32px;height:32px;border-radius:8px;background:${a.accent}12;color:${a.accent};display:flex;align-items:center;justify-content:center">${miniIcon(a.iconKey,16)}</div>
+      <span style="font-size:13px;font-weight:500;color:${B.ink};flex:1">${a.text}</span>
+      <div style="width:7px;height:7px;border-radius:4px;background:${a.accent}"></div>
+    </div>`;
+  }).join('');
+
+  const resvHTML = TODAY.map((r,i) => `
+    <div style="display:flex;align-items:center;padding:${ph?'10px 14px':'12px 18px'};border-bottom:${i<TODAY.length-1?'1px solid #f3f3f0':'none'};gap:12px">
+      <span style="font-size:12px;font-weight:700;color:${B.ink};width:40px;flex-shrink:0;font-variant-numeric:tabular-nums">${r.time}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:${B.ink}">${r.name}</div>
+        ${r.note ? `<div style="font-size:11px;color:#999;margin-top:1px">${r.note}</div>` : ''}
+      </div>
+      <div style="font-size:14px;font-weight:700;color:${B.ink};width:28px;text-align:center">${r.pax}</div>
+      <div style="width:8px;height:8px;border-radius:4px;background:${r.ok?B.green:'#F59E0B'}"></div>
+    </div>
+  `).join('');
+
+  const quickHTML = QUICK_ACTIONS.map(q => `
+    <div style="background:#fff;border-radius:14px;padding:${ph?'12px':'16px'};border:1px solid #eee;cursor:pointer;display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;border-radius:12px;background:${q.color}10;color:${q.color};display:flex;align-items:center;justify-content:center;flex-shrink:0">${miniIcon(q.iconKey,20)}</div>
+      <span style="font-size:13px;font-weight:600;color:${B.ink}">${q.label}</span>
+    </div>
+  `).join('');
+
+  const page1 = `
+    <div style="padding:${pad}px;padding-top:0">
+      <!-- Saluto -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+        <div>
+          <h1 style="font-size:${ph?22:28}px;font-weight:800;color:${B.ink};letter-spacing:-.5px">Buongiorno, Marco</h1>
+          <p style="font-size:12px;color:#999;margin-top:3px">Sabato 12 aprile · Pranzo + Cena</p>
+        </div>
+      </div>
+
+      <!-- Widget: Alert -->
+      <div class="widget" style="margin-bottom:16px">
+        <div class="widget-header">
+          <span class="widget-title">Da fare</span>
+          <span style="font-size:18px;font-weight:800;color:${B.red}">${ALERTS.length}</span>
+        </div>
+        <div style="padding:0 6px 6px">${alertsHTML}</div>
+      </div>
+
+      <!-- Widget grid: Prenotazioni + Stats -->
+      <div style="display:grid;grid-template-columns:${ph?'1fr':'1.4fr .6fr'};gap:14px;margin-bottom:16px">
+
+        <!-- Widget: Prenotazioni -->
+        <div class="widget">
+          <div class="widget-header">
+            <span class="widget-title">Prenotazioni oggi</span>
+            <span style="font-size:18px;font-weight:800;color:${B.blue}">${totalPax}<span style="font-size:11px;font-weight:500;color:#999"> pax</span></span>
+          </div>
+          <div>${resvHTML}</div>
+        </div>
+
+        <!-- Widget: Stats compatte -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="widget" style="flex:1">
+            <div style="padding:16px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.5px;margin-bottom:8px">Incasso ieri</div>
+              <div style="font-size:${ph?22:26}px;font-weight:800;color:${B.ink};line-height:1">€ 3.420</div>
+              <div style="font-size:11px;color:${B.green};font-weight:600;margin-top:6px">↑ 12% vs media</div>
+            </div>
+          </div>
+          <div class="widget" style="flex:1">
+            <div style="padding:16px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;letter-spacing:.5px;margin-bottom:8px">Coperti aprile</div>
+              <div style="font-size:${ph?22:26}px;font-weight:800;color:${B.ink};line-height:1">342</div>
+              <div style="font-size:11px;color:${B.blue};font-weight:600;margin-top:6px">vs 310 anno prec.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Widget: Azioni rapide -->
+      <div class="widget" style="margin-bottom:16px">
+        <div class="widget-header">
+          <span class="widget-title">Azioni rapide</span>
+          <span class="widget-action">Modifica</span>
+        </div>
+        <div style="padding:0 10px 10px;display:grid;grid-template-columns:${ph?'1fr':'1fr 1fr'};gap:8px">
+          ${quickHTML}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ─── PAGE 2: MODULI (tile grafiche) ───
+  const tileW = ph ? '100%' : '100%';
+  const tileCols = ph ? 2 : 3;
+  const tileH = ph ? 120 : 140;
+
+  const tilesHTML = MODULES.map((m,i) => {
+    const gob = gobbetteAccents[m.accent];
+    return `
+    <div class="tile" style="background:${m.bg};height:${tileH}px">
+      <!-- Gobbetta brand accent -->
+      <div style="position:absolute;top:0;left:0;right:0;height:4px;background:${gob};border-radius:16px 16px 0 0;opacity:.7"></div>
+      <div class="tile-inner">
+        <div class="tile-icon" style="background:${m.iconBg};color:${m.fg}">
+          ${ICONS[m.key] || ''}
+        </div>
+        <div>
+          <div class="tile-label" style="color:${m.fg}">${m.label}</div>
+          <div class="tile-sub" style="color:${m.fg}">${m.sub}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const page2 = `
+    <div style="padding:${pad}px;padding-top:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <h2 style="font-size:${ph?20:24}px;font-weight:800;color:${B.ink}">Moduli</h2>
+        <div style="font-size:11px;color:#999;font-weight:500">11 moduli attivi</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(${tileCols},1fr);gap:${ph?10:14}px">
+        ${tilesHTML}
+      </div>
+    </div>
+  `;
+
+  // ─── BUILD FRAME ───
+  const gobSVG = `<svg viewBox="15 28 155 28" style="height:18px;width:auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 Q 37 30 55 42" stroke="${B.red}"/><path d="M 75 50 Q 92 30 110 42" stroke="${B.green}"/><path d="M 130 50 Q 147 30 165 42" stroke="${B.blue}"/></g></svg>`;
+
+  el.innerHTML = `
+    <!-- Status bar -->
+    <div style="height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0">
+      <span style="font-size:13px;font-weight:600;color:${B.ink}">9:41</span>
+      <div style="display:flex;align-items:center;gap:6px">${gobSVG}<span style="font-size:14px;font-weight:800;color:${B.ink}">TRGB</span></div>
+      <span style="font-size:12px;color:#999">87%</span>
+    </div>
+
+    <!-- Dots -->
+    <div class="dots">
+      <div class="dot ${page===0?'active':''}" onclick="goPage(0)"></div>
+      <div class="dot ${page===1?'active':''}" onclick="goPage(1)"></div>
+    </div>
+
+    <!-- Swipe area -->
+    <div class="swipe-container">
+      <div class="swipe-track" style="transform:translateX(-${page*100}%)">
+        <div class="swipe-page">${page1}</div>
+        <div class="swipe-page">${page2}</div>
+      </div>
+    </div>
+
+    <!-- Safe area bottom -->
+    <div style="height:28px;flex-shrink:0;background:${B.cream}"></div>
+  `;
+
+  // Touch swipe support
+  let startX = 0;
+  const container = el.querySelector('.swipe-container');
+  container.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive:true});
+  container.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) > 60) {
+      if (dx < 0 && page === 0) goPage(1);
+      if (dx > 0 && page === 1) goPage(0);
+    }
+  }, {passive:true});
+}
+
+render();
+</script>
+</body>
+</html>

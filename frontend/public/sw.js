@@ -1,49 +1,42 @@
 /*
- * TRGB Gestionale — Service Worker (Fase 0 PWA)
+ * TRGB Gestionale — Service Worker v2 (Fase 0 PWA)
+ * Sessione 28 — riscrittura post-rollback sessione 26
  *
- * Strategia:
- *  - Shell app (HTML/JS/CSS/icone/font) → stale-while-revalidate
- *  - API calls (fetch verso VITE_API_BASE_URL)      → network-only (mai cache)
- *  - Navigazioni → network-first, fallback cache shell se offline
+ * Strategia NETWORK-FIRST per tutto:
+ *  - Ogni richiesta va prima alla rete
+ *  - Se la rete risponde, salva in cache e restituisce
+ *  - Se la rete fallisce (offline), serve dalla cache
+ *  - API (origin diverso) → mai cachate, network-only
  *
- * IMPORTANTE:
- *  - Versionare CACHE_NAME per invalidare cache vecchie ad ogni deploy importante.
- *    Al momento usiamo un timestamp build statico, che conviene bumpare quando si
- *    cambia la struttura della app-shell (index.html, entry point JS, routing).
- *  - Non caching-are MAI risposte delle API: i dati (fatture, prenotazioni,
- *    movimenti) devono essere sempre freschi. Offline verr accettato solo in
- *    Fase 1+ con strategia esplicita per modulo.
+ * CACHE_NAME cambia ad ogni build (legato a BUILD_VERSION via query param
+ * passato al momento della registrazione). Al activate, le cache vecchie
+ * vengono cancellate automaticamente.
+ *
+ * PERCHE' network-first e non stale-while-revalidate:
+ * Vite genera chunk JS con hash nel nome (es. index-abc123.js). Dopo un
+ * deploy, i vecchi chunk non esistono piu' sul server. Se il SW serve un
+ * chunk vecchio dalla cache mentre index.html punta a quello nuovo, il
+ * browser carica un mix incoerente → crash. Con network-first il browser
+ * prende sempre i file freschi, la cache serve solo offline.
  */
 
-const CACHE_NAME = "trgb-shell-v1";
-const SHELL_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.webmanifest",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/apple-touch-icon.png",
-  "/icons/favicon.ico"
-];
+// Il CACHE_NAME viene impostato dal messaggio di init (vedi main.jsx).
+// Fallback statico se il messaggio non arriva.
+let CACHE_NAME = "trgb-v2";
 
-// --- INSTALL: precache shell minima -----------------------------------------
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      // addAll fallisce se uno solo degli asset non c' — usiamo addAll singoli
-      Promise.all(
-        SHELL_ASSETS.map((url) =>
-          cache.add(url).catch((err) => {
-            console.warn("[SW] precache skip", url, err);
-          })
-        )
-      )
-    )
-  );
+// Ricevi il CACHE_NAME dinamico da main.jsx
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SET_CACHE_NAME") {
+    CACHE_NAME = event.data.cacheName;
+  }
+});
+
+// --- INSTALL: skipWaiting immediato, niente precache ---
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
-// --- ACTIVATE: pulizia cache vecchie ----------------------------------------
+// --- ACTIVATE: pulizia cache vecchie ---
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -57,74 +50,46 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// --- Helper: capire se una richiesta  "API" ---------------------------------
-// Le API girano su un dominio diverso dal frontend (app.tregobbi.it vs
-// trgb.tregobbi.it, o anche localhost:8000 in dev). Qualunque cosa verso un
-// origin diverso dal frontend la trattiamo come API: niente cache.
+// --- Helper: richiesta API (origin diverso) ---
 function isApiRequest(request) {
   try {
-    const url = new URL(request.url);
-    return url.origin !== self.location.origin;
+    return new URL(request.url).origin !== self.location.origin;
   } catch (_) {
     return false;
   }
 }
 
-// --- Helper: risorsa statica da cache-are -----------------------------------
-function isStaticAsset(request) {
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return false;
-  return /\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|svg|webp|ico|webmanifest)$/i.test(
-    url.pathname
-  );
-}
-
-// --- FETCH: routing strategie -----------------------------------------------
+// --- FETCH: network-first per tutto ---
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
-  // Metodi di scrittura: mai toccati (POST/PUT/DELETE/PATCH)
+  // Solo GET
   if (request.method !== "GET") return;
 
   // API → network-only, nessuna cache
-  if (isApiRequest(request)) {
-    return; // lascia passare al default browser
-  }
+  if (isApiRequest(request)) return;
 
-  // Navigazioni (refresh pagina, apertura deep link) → network-first
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          // Non cachiamo le navigazioni: il fallback offline  index.html
-          return res;
-        })
-        .catch(() =>
-          caches.match("/index.html").then((cached) => cached || Response.error())
-        )
-    );
-    return;
-  }
-
-  // Asset statici stessa origine → stale-while-revalidate
-  if (isStaticAsset(request)) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(request).then((cached) => {
-          const fetchPromise = fetch(request)
-            .then((networkRes) => {
-              if (networkRes && networkRes.status === 200) {
-                cache.put(request, networkRes.clone());
-              }
-              return networkRes;
-            })
-            .catch(() => cached);
-          return cached || fetchPromise;
+  // Tutto il resto: network-first con fallback cache
+  event.respondWith(
+    fetch(request)
+      .then((networkRes) => {
+        // Salva in cache solo risposte valide
+        if (networkRes && networkRes.status === 200) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return networkRes;
+      })
+      .catch(() =>
+        // Offline: prova dalla cache
+        caches.match(request).then((cached) => {
+          if (cached) return cached;
+          // Navigazioni offline: fallback a index.html cachato
+          if (request.mode === "navigate") {
+            return caches.match("/index.html").then((idx) => idx || Response.error());
+          }
+          return Response.error();
         })
       )
-    );
-    return;
-  }
-
-  // Default: lascia al browser
+  );
 });
