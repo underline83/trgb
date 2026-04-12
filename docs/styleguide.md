@@ -155,34 +155,46 @@ div.bg-white.rounded-xl.border.border-neutral-200.overflow-hidden.shadow-sm
 
 ---
 
-## Home v3 — Tile moduli (sessione 29)
+## Home v3.2 — Magazine layout (sessione 29)
 
-Le tile della Home NON usano emoji. Pattern:
+Card moduli bianche con accent bar colorata in alto (3px), icona tinta, nome + 2 righe dati dinamici dal backend, badge notifica.
+
+### Card modulo (griglia 3 col landscape, 2 col portrait)
 ```
-div.tile3 — bg-white rounded-[14px] shadow-[0_1px_3px_rgba(0,0,0,.04)] overflow-hidden relative
-  div — gobbetta accent: 2px top bar, cicla brand-red/green/blue, opacity .5
-  div — padding 20px, flex column, justify-between, height 100%
-    div.icon — 36x36 rounded-[10px] bg-{tint} color-{accent}
-      svg stroke-1.5 (da icons.jsx)
-    div.text
-      div.label — 14px font-bold text-brand-ink
-      div.sub — 10px warm-gray opacity .6
+div — bg-white rounded-[14px] shadow 0 2px 8px rgba(0,0,0,.05) relative overflow-hidden p-4
+  div.accent — absolute top-0 left-0 right-0 h-[3px] bg-{accent}
+  div.badge — absolute top-3 right-3, bg #E8402B, text white, rounded-full (se badge > 0)
+  div.icon — 38x38 rounded-[11px] bg-{tint} color-{accent}
+    svg stroke-1.5 (da icons.jsx)
+  div.text
+    div.name — 13px font-bold text-brand-ink
+    div.line1 — 11px color #888 (dato dinamico dal backend)
+    div.line2 — 11px color #aaa (secondo dato)
 ```
 
-Colori moduli SMORZATI (NON i Tailwind saturi):
+### Hero card (Prenotazioni — span 2 col)
+```
+div — bg-white rounded-[14px] shadow, flex items-center gap-3.5 px-5 py-4
+  div.accent — gobbette strip gradient (R/G/B)
+  div.icon — 48x48
+  div.text — 15px name + 12px line1 + 11px line2
+  div.badge — se > 0
+```
+
+### Colori moduli (accent + tint):
 | Modulo              | Accent    | Tint      |
 |---------------------|-----------|-----------|
-| Vini                | #B8860B   | #FAF5EB   |
-| Acquisti            | #2D8F7B   | #EEF9F6   |
-| Vendite             | #4F52B5   | #EDEDFA   |
-| Ricette             | #C05621   | #FDF3EC   |
-| Flussi Cassa        | #1A7F5A   | #EBF8F3   |
-| Controllo Gestione  | #2871B8   | #EBF3FC   |
-| Statistiche         | #B83A52   | #FCEDF0   |
-| Prenotazioni        | #6B4FA8   | #F1EDF9   |
-| Clienti             | #1E7E8A   | #ECF7F8   |
-| Dipendenti          | #7C4FA8   | #F3EEF9   |
-| Impostazioni        | #6B6B6B   | #F2F2F2   |
+| Vini                | #B8860B   | #F5F0E6   |
+| Acquisti            | #6B4F7A   | #EDE8F0   |
+| Vendite             | #5A6B50   | #EBF0E8   |
+| Ricette             | #4A6A82   | #E9EFF3   |
+| Flussi Cassa        | #2D8F7B   | #E8EFEB   |
+| Controllo Gestione  | #4A5A68   | #EAEAEA   |
+| Statistiche         | #888888   | #EAEAEA   |
+| Prenotazioni        | #8B5E3C   | #F3EDE7   |
+| Clienti             | #4A5E82   | #E8ECF3   |
+| Dipendenti          | #7A6352   | #F0EAE4   |
+| Impostazioni        | #666666   | #EAEAEA   |
 
 ---
 
