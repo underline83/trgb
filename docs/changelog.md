@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-04-12 — Sessione 28 / B.2 COMPLETATA: migrazione title=→Tooltip su tutto il frontend
+
+Migrazione bulk di tutti i `title=` su elementi interattivi (button, link, span-icona, badge) al componente `<Tooltip>` custom con supporto touch iPad. 35 file toccati, 74 wrapping in 6 blocchi (Acquisti 17, Cantina 16, Dipendenti/Clienti/Prenotazioni/Ricette 28, Banca/Statistiche/Admin 13). Fix conflitto Recharts Tooltip in `FattureDashboard.jsx` (rinominato `TrgbTooltip` + `RechartsTooltip`).
+
+Grep finale: **zero `title=` migrabili rimasti** su tutto `frontend/src/pages/`. I 56 residui sono tutti esclusi (td/th truncate, input, component props, iframe, div informativo).
+
+**B.2 del piano responsive è ora CHIUSA.**
+
+---
+
 ## 2026-04-12 — Sessione 28 / Brand TRGB-02: integrazione completa P0+P1
 
 Integrazione del nuovo logo TRGB-02 (gobbette RGB + T) in tutto il frontend. Palette brand definita in Tailwind, favicon/icone PWA sostituite, header e login con logo SVG, Home con wordmark composto (gobbette inline + testo HTML centrato da flexbox), TrgbLoader animato sui dashboard principali, colori Recharts allineati alla palette brand. Sfondo `bg-brand-cream` applicato a tutte le ~90 pagine.

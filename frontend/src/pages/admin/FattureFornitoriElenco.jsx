@@ -21,7 +21,7 @@ const fmt = (v) =>
 
 // ── Stili filtri ──
 const fLbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
-const fInp = "w-full border border-neutral-300 rounded-md px-2 py-1.5 text-[11px] bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
+const fInp = "w-full border border-neutral-300 rounded-md px-2.5 py-2.5 text-[11px] bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
 const fSel = fInp;
 
 // ── Sidebar colors fornitore — uniforme a FattureDettaglio/SchedaVino ──
@@ -381,11 +381,11 @@ export default function FattureFornitoriElenco() {
 
             <div className="flex gap-1.5 pt-1">
               <button onClick={clearFilters}
-                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
+                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
                 ✕ Pulisci {activeFilters > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[9px]">{activeFilters}</span>}
               </button>
               <button onClick={fetchAll}
-                className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-800 transition">
+                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-800 transition">
                 ⟳ Ricarica
               </button>
             </div>

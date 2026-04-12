@@ -713,7 +713,7 @@ export default function ControlloGestioneUscite() {
             <div className="px-3 pt-3 pb-2">
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Cerca fornitore, fattura…"
-                className="w-full border border-neutral-300 rounded-md px-2.5 py-1.5 text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-neutral-400" />
+                className="w-full border border-neutral-300 rounded-md px-2.5 py-2.5 text-xs bg-neutral-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-300 placeholder:text-neutral-400" />
             </div>
 
             {/* Stato — multi-select (si sommano in OR) */}
@@ -737,7 +737,7 @@ export default function ControlloGestioneUscite() {
                   const active = filtroStato.has(o.value);
                   return (
                     <button key={o.value} onClick={() => toggleStato(o.value)}
-                      className={`px-1.5 py-1 rounded-md text-[10px] font-medium border transition flex flex-col items-start leading-tight ${
+                      className={`px-2 py-1.5 rounded-md text-[11px] font-medium border transition flex flex-col items-start leading-tight ${
                         active ? o.act : "bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
                       }`}>
                       <span className="truncate w-full text-left">{o.label}</span>
@@ -760,7 +760,7 @@ export default function ControlloGestioneUscite() {
                   const active = filtroTipo === o.value;
                   return (
                     <button key={o.value} onClick={() => setFiltroTipo(active ? "" : o.value)}
-                      className={`flex-1 px-1 py-1 rounded text-[10px] font-medium transition ${
+                      className={`flex-1 px-2 py-2 rounded text-[11px] font-medium transition ${
                         active ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
                       }`}>
                       {o.label}
@@ -808,7 +808,7 @@ export default function ControlloGestioneUscite() {
                     if (isActive(da, a)) { setFiltroDa(""); setFiltroA(""); }
                     else { setFiltroDa(da); setFiltroA(a); }
                   };
-                  const cls = (active) => `px-1 py-1 rounded text-[9px] font-medium border transition truncate ${
+                  const cls = (active) => `px-2 py-2 rounded text-[10px] font-medium border transition truncate ${
                     active ? "bg-amber-100 text-amber-900 border-amber-300" : "bg-white text-neutral-600 border-neutral-200 hover:border-amber-200 hover:bg-amber-50/50"
                   }`;
                   return (
@@ -828,12 +828,12 @@ export default function ControlloGestioneUscite() {
                 <div className="flex-1 min-w-0">
                   <label className="block text-[9px] text-neutral-400 mb-0.5">Da</label>
                   <input type="date" value={filtroDa} onChange={e => setFiltroDa(e.target.value)}
-                    className="w-full border border-neutral-200 rounded px-1 py-0.5 text-[10px] bg-white" />
+                    className="w-full border border-neutral-200 rounded px-2 py-1.5 text-[11px] bg-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <label className="block text-[9px] text-neutral-400 mb-0.5">A</label>
                   <input type="date" value={filtroA} onChange={e => setFiltroA(e.target.value)}
-                    className="w-full border border-neutral-200 rounded px-1 py-0.5 text-[10px] bg-white" />
+                    className="w-full border border-neutral-200 rounded px-2 py-1.5 text-[11px] bg-white" />
                 </div>
               </div>
             </div>
@@ -844,7 +844,7 @@ export default function ControlloGestioneUscite() {
               <div className="space-y-1">
                 {/* Rateizzate */}
                 <button onClick={() => setIncludiRateizzate(v => !v)}
-                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
                     includiRateizzate
                       ? "bg-purple-50 border-purple-200 text-purple-900"
                       : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
@@ -860,7 +860,7 @@ export default function ControlloGestioneUscite() {
                   className="w-full"
                 >
                   <button onClick={() => setIncludiEscluse(v => !v)}
-                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
                       includiEscluse
                         ? "bg-amber-50 border-amber-200 text-amber-900"
                         : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
@@ -873,7 +873,7 @@ export default function ControlloGestioneUscite() {
                 </Tooltip>
                 {/* Solo in pagamento */}
                 <button onClick={() => setFiltroInPagamento(v => !v)}
-                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-[11px] transition border ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2.5 rounded-md text-[11px] transition border ${
                     filtroInPagamento
                       ? "bg-indigo-50 border-indigo-200 text-indigo-900"
                       : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
@@ -888,7 +888,7 @@ export default function ControlloGestioneUscite() {
                 </button>
                 {/* Gestisci batch */}
                 <button onClick={apriGestioneBatch}
-                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md text-[10px] text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition border border-dashed border-neutral-300">
+                  className="w-full flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-md text-[11px] text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 transition border border-dashed border-neutral-300">
                   <span>⚙</span>
                   <span>Gestisci batch…</span>
                 </button>
@@ -915,11 +915,11 @@ export default function ControlloGestioneUscite() {
           {/* ── FOOTER STICKY: AZIONI ── */}
           <div className="flex gap-1.5 p-2 border-t border-neutral-200 bg-neutral-50 flex-shrink-0">
             <button onClick={clearFilters} disabled={activeFilters === 0}
-              className="flex-1 px-2 py-1.5 rounded-md text-[10px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              className="flex-1 px-2.5 py-2.5 rounded-md text-[11px] font-semibold border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
               Pulisci{activeFilters > 0 && <span className="ml-1 text-sky-600">({activeFilters})</span>}
             </button>
             <button onClick={() => fetchData(true)} disabled={loading}
-              className="flex-1 px-2 py-1.5 rounded-md text-[10px] font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition">
+              className="flex-1 px-2.5 py-2.5 rounded-md text-[11px] font-semibold bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition">
               {loading ? "..." : "Aggiorna"}
             </button>
           </div>

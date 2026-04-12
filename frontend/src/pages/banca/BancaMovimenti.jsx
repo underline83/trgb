@@ -155,20 +155,20 @@ export default function BancaMovimenti() {
             type="date"
             value={dataDa}
             onChange={(e) => { setDataDa(e.target.value); setPage(0); }}
-            className="border rounded-lg px-2 py-1.5 text-sm"
+            className="border rounded-lg px-2.5 py-2.5 text-sm"
           />
           <span className="text-neutral-400 text-xs">→</span>
           <input
             type="date"
             value={dataA}
             onChange={(e) => { setDataA(e.target.value); setPage(0); }}
-            className="border rounded-lg px-2 py-1.5 text-sm"
+            className="border rounded-lg px-2.5 py-2.5 text-sm"
           />
 
           <select
             value={tipo}
             onChange={(e) => { setTipo(e.target.value); setPage(0); }}
-            className="border rounded-lg px-2 py-1.5 text-sm"
+            className="border rounded-lg px-2.5 py-2.5 text-sm"
           >
             <option value="">Tutti</option>
             <option value="entrata">Solo entrate</option>
@@ -178,7 +178,7 @@ export default function BancaMovimenti() {
           <select
             value={categoria}
             onChange={(e) => { setCategoria(e.target.value); setPage(0); }}
-            className="border rounded-lg px-2 py-1.5 text-sm max-w-xs"
+            className="border rounded-lg px-2.5 py-2.5 text-sm max-w-xs"
           >
             <option value="">Tutte le categorie</option>
             {categorie.map((c) => (
@@ -191,7 +191,7 @@ export default function BancaMovimenti() {
             placeholder="Cerca descrizione..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="border rounded-lg px-3 py-1.5 text-sm flex-1 min-w-[200px]"
+            className="border rounded-lg px-3 py-2.5 text-sm flex-1 min-w-[200px]"
           />
         </div>
 
