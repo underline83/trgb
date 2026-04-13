@@ -5,7 +5,9 @@
 
 ## 2026-04-13 — Sessione 30 / HOME v3.3 Originale Potenziato
 
-Redesign pagina moduli (pagina 2): da Magazine (card bianche + accent bar + icone SVG) a stile "Originale Potenziato" — emoji e colori Tailwind da `modulesMenu.js` (stessi del dropdown header). Card con sfondo tintato colorato per modulo, emoji grande, nome completo, 2 righe dati dinamici + badge notifica. Hero Prenotazioni span 2 colonne. Griglia responsive 2/3 col. Pagina widget (pagina 1) allineata: bordi colorati, emoji nei label e azioni rapide. DashboardSala v4.0 nello stesso stile. Rimosso MODULE_STYLE e MODULE_ICONS dalla Home (non più necessari).
+Redesign pagina moduli (pagina 2): da Magazine (card bianche + accent bar + icone SVG) a stile "Originale Potenziato" — emoji e colori Tailwind da `modulesMenu.js` (stessi del dropdown header). Card con sfondo tintato colorato per modulo, emoji grande, nome completo, 2 righe dati dinamici + badge notifica. Hero Prenotazioni span 2 colonne. Griglia responsive 2/3 col. Pagina widget (pagina 1) allineata: bordi colorati, emoji nei label e azioni rapide.
+
+**DashboardSala v5.0 "Sala Operativa"**: redesign completo per ruolo sala. Layout 3 colonne su landscape (prenotazioni con tab pranzo/cena, bacheca comunicazioni con urgenza/letto, azioni rapide colorate). Su portrait: stack verticale. Nuovo hook `useComunicazioni.js` per fetch bacheca staff (`GET /comunicazioni`). Indicatore turno (pranzo/cena) nell'header. Segna-come-letta sulle comunicazioni.
 
 ---
 

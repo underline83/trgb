@@ -67,6 +67,9 @@ from app.routers.clienti_router import router as clienti_router
 # PRENOTAZIONI
 from app.routers.prenotazioni_router import router as prenotazioni_router
 
+# PREVENTIVI — modulo 10 (gestione preventivi eventi)
+from app.routers.preventivi_router import router as preventivi_router
+
 # DASHBOARD HOME — widget aggregatore Home v3
 from app.routers.dashboard_router import router as dashboard_router
 
@@ -237,6 +240,9 @@ app.include_router(clienti_router)
 
 # PRENOTAZIONI
 app.include_router(prenotazioni_router)
+
+# PREVENTIVI (modulo 10 — gestione preventivi eventi, usa clienti.sqlite3)
+app.include_router(preventivi_router)
 
 # DASHBOARD HOME (widget Home v3)
 app.include_router(dashboard_router)

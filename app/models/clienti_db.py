@@ -410,5 +410,96 @@ def init_clienti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tavoli_zona ON tavoli(zona)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tavoli_attivo ON tavoli(attivo)")
 
+    # ── PREVENTIVI (modulo 10 — sessione 31) ──
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_preventivi (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero            TEXT NOT NULL,
+            cliente_id        INTEGER,
+
+            titolo            TEXT NOT NULL,
+            tipo              TEXT NOT NULL DEFAULT 'cena_privata',
+            data_evento       TEXT,
+            ora_evento        TEXT,
+            n_persone         INTEGER,
+            luogo             TEXT DEFAULT 'sala',
+
+            stato             TEXT NOT NULL DEFAULT 'bozza',
+            versione          INTEGER NOT NULL DEFAULT 1,
+
+            note_interne      TEXT,
+            note_cliente      TEXT,
+            condizioni        TEXT,
+
+            scadenza_conferma TEXT,
+            canale            TEXT DEFAULT 'telefono',
+
+            prenotazione_id   INTEGER,
+            template_id       INTEGER,
+
+            totale_calcolato  REAL DEFAULT 0,
+
+            creato_da         TEXT NOT NULL,
+            created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+
+            FOREIGN KEY (cliente_id) REFERENCES clienti(id) ON DELETE SET NULL
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_preventivi_righe (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            preventivo_id   INTEGER NOT NULL,
+            ordine          INTEGER NOT NULL DEFAULT 0,
+            descrizione     TEXT NOT NULL,
+            qta             REAL DEFAULT 1,
+            prezzo_unitario REAL DEFAULT 0,
+            totale_riga     REAL DEFAULT 0,
+            tipo_riga       TEXT DEFAULT 'voce',
+            FOREIGN KEY (preventivo_id) REFERENCES clienti_preventivi(id) ON DELETE CASCADE
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS clienti_preventivi_template (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome            TEXT NOT NULL,
+            tipo            TEXT DEFAULT 'cena_privata',
+            righe_json      TEXT,
+            condizioni_default TEXT,
+            attivo          INTEGER DEFAULT 1,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # Trigger updated_at preventivi
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_preventivi_updated
+        AFTER UPDATE ON clienti_preventivi
+        FOR EACH ROW
+        BEGIN
+            UPDATE clienti_preventivi SET updated_at = datetime('now','localtime') WHERE id = NEW.id;
+        END
+    """)
+
+    cur.execute("""
+        CREATE TRIGGER IF NOT EXISTS trg_preventivi_tpl_updated
+        AFTER UPDATE ON clienti_preventivi_template
+        FOR EACH ROW
+        BEGIN
+            UPDATE clienti_preventivi_template SET updated_at = datetime('now','localtime') WHERE id = NEW.id;
+        END
+    """)
+
+    # Indici preventivi
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_cliente ON clienti_preventivi(cliente_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_stato ON clienti_preventivi(stato)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_data ON clienti_preventivi(data_evento)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_numero ON clienti_preventivi(numero)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_righe_prev ON clienti_preventivi_righe(preventivo_id)")
+
     conn.commit()
     conn.close()
