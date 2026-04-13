@@ -205,8 +205,8 @@ export default function DashboardSala() {
 
           {/* ═══ COL 2: Bacheca comunicazioni ═══ */}
           <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden min-h-[250px] lg:min-h-0">
-            <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-              <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
+            <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
+              <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">
                 📋 Bacheca
               </span>
               {nonLette > 0 && (
@@ -222,30 +222,30 @@ export default function DashboardSala() {
                 comunicazioni.map((c) => (
                   <div
                     key={c.id}
-                    className={`px-4 py-3 border-b border-[#f8f6f2] cursor-pointer transition ${
-                      c.letta ? "opacity-60" : ""
+                    className={`px-4 py-4 border-b border-[#f0ede8] cursor-pointer transition ${
+                      c.letta ? "opacity-50" : ""
                     }`}
                     onClick={() => { if (!c.letta) segnaLetta(c.id); }}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[9px] font-bold uppercase tracking-[.8px] px-1.5 py-0.5 rounded border ${
+                    <div className="flex items-center gap-2.5 mb-1.5">
+                      <span className={`text-[11px] font-bold uppercase tracking-[.6px] px-2 py-1 rounded-md border ${
                         URGENZA_STYLE[c.urgenza] || URGENZA_STYLE.normale
                       }`}>
                         {URGENZA_LABEL[c.urgenza] || "Info"}
                       </span>
                       {!c.letta && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-brand-blue flex-shrink-0"></div>
+                        <div className="w-2 h-2 rounded-full bg-brand-blue flex-shrink-0"></div>
                       )}
                     </div>
-                    <div className="text-[13px] font-bold text-brand-ink leading-tight">
+                    <div className="text-[15px] font-bold text-brand-ink leading-snug">
                       {c.titolo}
                     </div>
                     {c.messaggio && (
-                      <div className="text-[12px] text-[#666] mt-0.5 leading-snug line-clamp-2">
+                      <div className="text-[14px] text-[#555] mt-1 leading-relaxed line-clamp-3">
                         {c.messaggio}
                       </div>
                     )}
-                    <div className="text-[10px] text-[#a8a49e] mt-1">
+                    <div className="text-[12px] text-[#a8a49e] mt-2">
                       {formatComDate(c.created_at)}{c.autore ? ` — ${c.autore}` : ""}
                     </div>
                   </div>
