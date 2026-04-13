@@ -275,8 +275,8 @@ export default function App() {
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
 
-        {/* --- COMUNICAZIONI (Bacheca Staff) --- */}
-        <Route path="/comunicazioni" element={<ProtectedRoute><Comunicazioni /></ProtectedRoute>} />
+        {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
+        <Route path="/comunicazioni" element={<Comunicazioni />} />
 
         {/* --- CAMBIO PIN --- */}
         <Route path="/cambio-pin" element={<CambioPIN />} />
