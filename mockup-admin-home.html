@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRGB — Home Admin Redesign + Sistema Personalizzazione</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#F4F1EC; }
+  .playfair { font-family: 'Playfair Display', serif; }
+
+  /* Tab selector */
+  .tabs { display:flex; gap:8px; padding:16px 24px; background:#fff; border-bottom:1px solid #e5e2dd; position:sticky; top:0; z-index:10; }
+  .tab { padding:8px 18px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid #d4d0ca; background:white; color:#666; transition:all .2s; }
+  .tab.active { background:#111; color:white; border-color:#111; }
+  .tab:hover:not(.active) { background:#f0ede8; }
+
+  .view { display:none; padding:24px; max-width:1200px; margin:0 auto; }
+  .view.active { display:block; }
+
+  /* Cards */
+  .card { background:white; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,.06); overflow:hidden; }
+  .card-header { padding:14px 16px 10px; display:flex; align-items:center; justify-content:space-between; }
+  .card-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:#a8a49e; }
+
+  /* Grid layouts */
+  .grid-3 { display:grid; grid-template-columns:1.3fr 1fr .7fr; gap:14px; height:calc(100vh - 180px); }
+  .grid-2x2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+  /* Prenotazioni */
+  .pren-row { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid #f8f6f2; }
+  .pren-row:last-child { border-bottom:none; }
+  .pren-time { font-size:11px; font-weight:600; color:#a8a49e; width:40px; flex-shrink:0; }
+  .pren-name { font-size:13px; font-weight:600; color:#111; flex:1; }
+  .pren-pax { font-size:13px; font-weight:700; color:#111; width:24px; text-align:right; }
+  .dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+  /* Stat mini */
+  .stat-card { padding:16px; }
+  .stat-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#a8a49e; margin-bottom:8px; }
+  .stat-value { font-size:28px; font-weight:800; color:#111; line-height:1; letter-spacing:-0.5px; }
+  .stat-delta { font-size:11px; font-weight:600; margin-top:6px; }
+  .stat-up { color:#2EB872; }
+  .stat-down { color:#E8402B; }
+
+  /* Bacheca */
+  .com-item { padding:14px 16px; border-bottom:1px solid #f0ede8; }
+  .com-item:last-child { border-bottom:none; }
+  .com-urgenza { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; padding:3px 8px; border-radius:6px; border:1px solid; display:inline-block; }
+  .com-title { font-size:14px; font-weight:700; color:#111; margin-top:6px; }
+  .com-body { font-size:13px; color:#555; margin-top:4px; line-height:1.4; }
+  .com-date { font-size:11px; color:#a8a49e; margin-top:6px; }
+
+  /* Action buttons */
+  .action-btn { border-radius:14px; border:1px solid; cursor:pointer; display:flex; align-items:center; gap:12px; padding:14px 16px; transition:transform .15s; }
+  .action-btn:active { transform:scale(.97); }
+  .action-icon { font-size:24px; line-height:1; }
+  .action-label { font-size:14px; font-weight:700; }
+  .action-sub { font-size:11px; opacity:.6; margin-top:2px; }
+
+  /* Turno tabs */
+  .turno-tabs { display:flex; border-bottom:1px solid #f0ede8; }
+  .turno-tab { flex:1; text-align:center; padding:8px; font-size:11px; font-weight:600; color:#a8a49e; cursor:pointer; border-bottom:2px solid transparent; }
+  .turno-tab.active { color:#111; border-bottom-color:#111; font-weight:700; }
+
+  /* Section title */
+  .section-title { font-size:14px; font-weight:700; color:#111; margin:20px 0 12px; display:flex; align-items:center; gap:8px; }
+
+  /* ── PROPOSTA B: Widget configurabili ── */
+  .widget-grid { display:grid; gap:14px; }
+  .widget-grid.layout-full { grid-template-columns:1fr; }
+  .widget-grid.layout-2col { grid-template-columns:1fr 1fr; }
+  .widget-grid.layout-3col { grid-template-columns:1.3fr 1fr .7fr; }
+
+  /* Config panel */
+  .config-panel { background:white; border-radius:16px; border:2px dashed #2E7BE8; padding:20px; margin:20px 0; }
+  .config-title { font-size:15px; font-weight:700; color:#2E7BE8; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .widget-option { display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:10px; border:1px solid #e5e2dd; margin-bottom:8px; cursor:pointer; transition:all .2s; }
+  .widget-option:hover { border-color:#2E7BE8; background:#f0f6ff; }
+  .widget-option.selected { border-color:#2E7BE8; background:#e8f0fe; }
+  .widget-check { width:20px; height:20px; border-radius:6px; border:2px solid #d4d0ca; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .widget-option.selected .widget-check { background:#2E7BE8; border-color:#2E7BE8; color:white; }
+  .widget-emoji { font-size:20px; flex-shrink:0; }
+  .widget-info { flex:1; }
+  .widget-name { font-size:13px; font-weight:600; color:#111; }
+  .widget-desc { font-size:11px; color:#888; margin-top:2px; }
+
+  .drag-handle { color:#ccc; cursor:grab; font-size:16px; }
+
+  /* Role selector */
+  .role-bar { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  .role-chip { padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid; transition:all .2s; }
+  .role-chip.active { box-shadow:0 2px 8px rgba(0,0,0,.12); }
+
+  /* Info box */
+  .info-box { background:#f0f6ff; border:1px solid #c5d9f2; border-radius:12px; padding:14px 18px; margin:16px 0; }
+  .info-box p { font-size:13px; color:#333; line-height:1.5; }
+
+  .scroll-col { overflow-y:auto; display:flex; flex-direction:column; }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <div class="tab active" onclick="showView('a')">A — Admin 3 Colonne</div>
+  <div class="tab" onclick="showView('b')">B — Admin 4 Widget</div>
+  <div class="tab" onclick="showView('c')">C — Sistema Personalizzazione</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PROPOSTA A: Admin "Command Center" — 3 colonne (come Sala)
+     ═══════════════════════════════════════════════════════ -->
+<div id="view-a" class="view active">
+  <div style="margin-bottom:16px">
+    <h1 class="playfair" style="font-size:24px; color:#111;">Buon pomeriggio, Marco</h1>
+    <p style="font-size:12px; color:#a8a49e; margin-top:4px;">Domenica 13 aprile · ☀️ Pranzo</p>
+  </div>
+
+  <div class="grid-3">
+    <!-- COL 1: Prenotazioni + Incasso -->
+    <div style="display:flex; flex-direction:column; gap:14px; min-height:0;">
+      <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="card-header">
+          <span class="card-label">📅 Prenotazioni oggi</span>
+          <div><span style="font-size:20px; font-weight:800; color:#111;">42</span> <span style="font-size:10px; color:#a8a49e;">pax</span></div>
+        </div>
+        <div class="turno-tabs">
+          <div class="turno-tab active">☀️ Pranzo · 18 pax</div>
+          <div class="turno-tab">🌙 Cena · 24 pax</div>
+        </div>
+        <div style="flex:1; overflow-y:auto;">
+          <div class="pren-row"><span class="pren-time">12:30</span><span class="pren-name">Famiglia Rossi</span><span class="pren-pax">4</span><div class="dot" style="background:#2EB872"></div></div>
+          <div class="pren-row"><span class="pren-time">12:45</span><span class="pren-name">Bianchi Marco</span><span class="pren-pax">2</span><div class="dot" style="background:#D4A017"></div></div>
+          <div class="pren-row"><span class="pren-time">13:00</span><span class="pren-name">Az. Bergamo Sviluppo</span><span class="pren-pax">6</span><div class="dot" style="background:#2EB872"></div></div>
+          <div class="pren-row"><span class="pren-time">13:00</span><span class="pren-name">Colombo Anna</span><span class="pren-pax">3</span><div class="dot" style="background:#D4A017"></div></div>
+          <div class="pren-row"><span class="pren-time">13:15</span><span class="pren-name">Neri/Verdi (compleanno)</span><span class="pren-pax">8</span><div class="dot" style="background:#D4A017"></div></div>
+        </div>
+      </div>
+
+      <!-- Mini stats -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="card" style="border:1px solid #c5d9f2;">
+          <div class="stat-card">
+            <div class="stat-label">💵 Incasso ieri</div>
+            <div class="stat-value">€ 3.420</div>
+            <div class="stat-delta stat-up">↑ 12% vs sett. prec.</div>
+          </div>
+        </div>
+        <div class="card" style="border:1px solid #f5c6cb;">
+          <div class="stat-card">
+            <div class="stat-label">📈 Coperti apr</div>
+            <div class="stat-value">487</div>
+            <div class="stat-delta" style="color:#2E7BE8;">vs 412 prec.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 2: Bacheca + Alert -->
+    <div style="display:flex; flex-direction:column; gap:14px; min-height:0;">
+      <!-- Alert scadenze -->
+      <div class="card" style="border:1px solid #fecaca; flex-shrink:0;">
+        <div class="card-header">
+          <span class="card-label">⚠️ Attenzione</span>
+          <span style="background:#E8402B; color:white; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;">3</span>
+        </div>
+        <div style="padding:0 4px 8px;">
+          <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; font-size:12px; color:#111; font-weight:500;">
+            <span>🍷</span> <span style="flex:1;">5 vini sotto scorta minima</span> <span style="color:#ccc;">›</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; font-size:12px; color:#111; font-weight:500;">
+            <span>📋</span> <span style="flex:1;">Fatture da registrare: 12</span> <span style="color:#ccc;">›</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; font-size:12px; color:#111; font-weight:500;">
+            <span>👤</span> <span style="flex:1;">HACCP Mario scade tra 5gg</span> <span style="color:#ccc;">›</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bacheca -->
+      <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="card-header" style="border-bottom:1px solid #f0ede8;">
+          <span class="card-label">📋 Bacheca</span>
+          <span style="background:#E8402B; color:white; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;">2</span>
+        </div>
+        <div style="flex:1; overflow-y:auto;">
+          <div class="com-item">
+            <span class="com-urgenza" style="background:#FEF2F2; color:#DC2626; border-color:#FECACA;">Urgente</span>
+            <div class="com-title">Chiusura anticipata mercoledì</div>
+            <div class="com-body">Mercoledì 16 chiudiamo alle 14:30 per manutenzione impianto gas. Avvisare i clienti.</div>
+            <div class="com-date">Oggi 09:15 — Marco</div>
+          </div>
+          <div class="com-item" style="opacity:.5;">
+            <span class="com-urgenza" style="background:#EEF2FF; color:#4338CA; border-color:#C7D2FE;">Info</span>
+            <div class="com-title">Nuovo menù degustazione</div>
+            <div class="com-body">Da venerdì 18 attivo il menù primavera. Briefing giovedì alle 16.</div>
+            <div class="com-date">Ieri — Marco</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COL 3: Azioni rapide -->
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div class="action-btn" style="background:#EEF2FF; border-color:#C7D2FE; color:#312E81;">
+        <span class="action-icon">💵</span>
+        <div><div class="action-label">Chiusura Turno</div><div class="action-sub">Fine servizio</div></div>
+      </div>
+      <div class="action-btn" style="background:#EEF2FF; border-color:#C7D2FE; color:#312E81;">
+        <span class="action-icon">📅</span>
+        <div><div class="action-label">Prenotazioni</div><div class="action-sub">Planning completo</div></div>
+      </div>
+      <div class="action-btn" style="background:#FFFBEB; border-color:#FDE68A; color:#78350F;">
+        <span class="action-icon">🍷</span>
+        <div><div class="action-label">Cantina</div><div class="action-sub">Magazzino vini</div></div>
+      </div>
+      <div class="action-btn" style="background:#FFF7ED; border-color:#FED7AA; color:#7C2D12;">
+        <span class="action-icon">📘</span>
+        <div><div class="action-label">Food Cost</div><div class="action-sub">Ricette e costi</div></div>
+      </div>
+      <div class="action-btn" style="background:#ECFDF5; border-color:#A7F3D0; color:#064E3B;">
+        <span class="action-icon">📊</span>
+        <div><div class="action-label">Controllo Gestione</div><div class="action-sub">Dashboard P&L</div></div>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="text-align:center; color:#a8a49e; font-size:12px; cursor:pointer;">Moduli →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PROPOSTA B: Admin "4 Widget" — Layout più classico con griglia
+     ═══════════════════════════════════════════════════════ -->
+<div id="view-b" class="view">
+  <div style="margin-bottom:16px">
+    <h1 class="playfair" style="font-size:24px; color:#111;">Buon pomeriggio, Marco</h1>
+    <p style="font-size:12px; color:#a8a49e; margin-top:4px;">Domenica 13 aprile · ☀️ Pranzo</p>
+  </div>
+
+  <!-- Riga alert -->
+  <div class="card" style="border:1px solid #fecaca; margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:16px; padding:12px 16px; flex-wrap:wrap;">
+      <span style="font-size:10px; font-weight:700; color:#E8402B; text-transform:uppercase; letter-spacing:1px;">⚠️ 3 alert</span>
+      <span style="font-size:12px; color:#111;">🍷 5 vini sotto scorta</span>
+      <span style="font-size:12px; color:#111;">📋 12 fatture da registrare</span>
+      <span style="font-size:12px; color:#111;">👤 HACCP Mario scade 5gg</span>
+    </div>
+  </div>
+
+  <!-- Griglia 2x2 -->
+  <div class="grid-2x2" style="height:calc(100vh - 260px);">
+    <!-- TL: Prenotazioni -->
+    <div class="card" style="display:flex; flex-direction:column;">
+      <div class="card-header">
+        <span class="card-label">📅 Prenotazioni oggi</span>
+        <div><span style="font-size:20px; font-weight:800; color:#111;">42</span> <span style="font-size:10px; color:#a8a49e;">pax</span></div>
+      </div>
+      <div class="turno-tabs">
+        <div class="turno-tab active">☀️ Pranzo · 18 pax</div>
+        <div class="turno-tab">🌙 Cena · 24 pax</div>
+      </div>
+      <div style="flex:1; overflow-y:auto;">
+        <div class="pren-row"><span class="pren-time">12:30</span><span class="pren-name">Famiglia Rossi</span><span class="pren-pax">4</span><div class="dot" style="background:#2EB872"></div></div>
+        <div class="pren-row"><span class="pren-time">12:45</span><span class="pren-name">Bianchi Marco</span><span class="pren-pax">2</span><div class="dot" style="background:#D4A017"></div></div>
+        <div class="pren-row"><span class="pren-time">13:00</span><span class="pren-name">Az. Bergamo Sviluppo</span><span class="pren-pax">6</span><div class="dot" style="background:#2EB872"></div></div>
+        <div class="pren-row"><span class="pren-time">13:00</span><span class="pren-name">Colombo Anna</span><span class="pren-pax">3</span><div class="dot" style="background:#D4A017"></div></div>
+        <div class="pren-row"><span class="pren-time">13:15</span><span class="pren-name">Neri/Verdi</span><span class="pren-pax">8</span><div class="dot" style="background:#D4A017"></div></div>
+      </div>
+    </div>
+
+    <!-- TR: Incasso + Coperti + Fatture -->
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+        <div class="card" style="border:1px solid #c5d9f2;">
+          <div class="stat-card">
+            <div class="stat-label">💵 Incasso ieri</div>
+            <div class="stat-value">€ 3.420</div>
+            <div class="stat-delta stat-up">↑ 12%</div>
+          </div>
+        </div>
+        <div class="card" style="border:1px solid #f5c6cb;">
+          <div class="stat-card">
+            <div class="stat-label">📈 Coperti apr</div>
+            <div class="stat-value">487</div>
+            <div class="stat-delta" style="color:#2E7BE8;">vs 412</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="border:1px solid #fde68a; flex:1;">
+        <div class="stat-card">
+          <div class="stat-label">📄 Fatture da registrare</div>
+          <div class="stat-value">12</div>
+          <div class="stat-delta" style="color:#D97706;">€ 4.850 totale</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BL: Bacheca -->
+    <div class="card" style="display:flex; flex-direction:column;">
+      <div class="card-header" style="border-bottom:1px solid #f0ede8;">
+        <span class="card-label">📋 Bacheca</span>
+        <span style="background:#E8402B; color:white; font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;">2</span>
+      </div>
+      <div style="flex:1; overflow-y:auto;">
+        <div class="com-item">
+          <span class="com-urgenza" style="background:#FEF2F2; color:#DC2626; border-color:#FECACA;">Urgente</span>
+          <div class="com-title">Chiusura anticipata mercoledì</div>
+          <div class="com-body">Mercoledì 16 chiudiamo alle 14:30 per manutenzione.</div>
+          <div class="com-date">Oggi 09:15 — Marco</div>
+        </div>
+        <div class="com-item" style="opacity:.5;">
+          <span class="com-urgenza" style="background:#EEF2FF; color:#4338CA; border-color:#C7D2FE;">Info</span>
+          <div class="com-title">Nuovo menù degustazione</div>
+          <div class="com-body">Da venerdì 18 attivo il menù primavera.</div>
+          <div class="com-date">Ieri — Marco</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BR: Azioni rapide -->
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div class="action-btn" style="background:#EEF2FF; border-color:#C7D2FE; color:#312E81;">
+        <span class="action-icon">💵</span>
+        <div><div class="action-label">Chiusura Turno</div></div>
+      </div>
+      <div class="action-btn" style="background:#EEF2FF; border-color:#C7D2FE; color:#312E81;">
+        <span class="action-icon">📅</span>
+        <div><div class="action-label">Nuova Prenotazione</div></div>
+      </div>
+      <div class="action-btn" style="background:#FFFBEB; border-color:#FDE68A; color:#78350F;">
+        <span class="action-icon">🍷</span>
+        <div><div class="action-label">Cantina Vini</div></div>
+      </div>
+      <div class="action-btn" style="background:#FFF7ED; border-color:#FED7AA; color:#7C2D12;">
+        <span class="action-icon">📘</span>
+        <div><div class="action-label">Food Cost</div></div>
+      </div>
+      <div class="action-btn" style="background:#ECFDF5; border-color:#A7F3D0; color:#064E3B;">
+        <span class="action-icon">📊</span>
+        <div><div class="action-label">Controllo Gestione</div></div>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="text-align:center; color:#a8a49e; font-size:12px; cursor:pointer;">Moduli →</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PROPOSTA C: Sistema Personalizzazione Dashboard
+     ═══════════════════════════════════════════════════════ -->
+<div id="view-c" class="view">
+  <h1 class="playfair" style="font-size:22px; color:#111; margin-bottom:8px;">Sistema Personalizzazione Dashboard</h1>
+  <p style="font-size:13px; color:#666; margin-bottom:20px;">Come funzionerebbe il sistema per configurare le dashboard per ogni ruolo.</p>
+
+  <div class="info-box">
+    <p><strong>Concetto:</strong> Ogni ruolo (admin, chef, sommelier, sala, contabile, viewer) ha la sua dashboard configurabile. L'admin (tu) decide quali widget mostrare per ogni ruolo, in che ordine e con quale layout. Tutto salvato in un JSON su <code>/settings/dashboard-config</code>.</p>
+  </div>
+
+  <!-- Role selector -->
+  <div class="section-title">Seleziona ruolo da configurare:</div>
+  <div class="role-bar">
+    <div class="role-chip active" style="background:#FEF3C7; border-color:#F59E0B; color:#92400E;" onclick="selectRole(this,'admin')">👑 Admin</div>
+    <div class="role-chip" style="background:#ECFDF5; border-color:#10B981; color:#064E3B;" onclick="selectRole(this,'chef')">👨‍🍳 Chef</div>
+    <div class="role-chip" style="background:#F5F3FF; border-color:#8B5CF6; color:#5B21B6;" onclick="selectRole(this,'sommelier')">🍷 Sommelier</div>
+    <div class="role-chip" style="background:#FFF1F2; border-color:#F43F5E; color:#9F1239;" onclick="selectRole(this,'sala')">🍽️ Sala</div>
+    <div class="role-chip" style="background:#ECFEFF; border-color:#06B6D4; color:#155E75;" onclick="selectRole(this,'contabile')">📊 Contabile</div>
+    <div class="role-chip" style="background:#F1F5F9; border-color:#94A3B8; color:#475569;" onclick="selectRole(this,'viewer')">👁️ Viewer</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:12px;">
+    <!-- Left: widget picker -->
+    <div>
+      <div class="section-title">Widget disponibili (trascina per ordinare):</div>
+      <div class="config-panel">
+        <div class="widget-option selected">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check">✓</div>
+          <span class="widget-emoji">📅</span>
+          <div class="widget-info">
+            <div class="widget-name">Prenotazioni oggi</div>
+            <div class="widget-desc">Lista prenotazioni pranzo/cena con pax e stato</div>
+          </div>
+        </div>
+        <div class="widget-option selected">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check">✓</div>
+          <span class="widget-emoji">💵</span>
+          <div class="widget-info">
+            <div class="widget-name">Incasso ieri</div>
+            <div class="widget-desc">Totale + delta vs settimana precedente</div>
+          </div>
+        </div>
+        <div class="widget-option selected">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check">✓</div>
+          <span class="widget-emoji">📈</span>
+          <div class="widget-info">
+            <div class="widget-name">Coperti mese</div>
+            <div class="widget-desc">Totale + confronto anno precedente</div>
+          </div>
+        </div>
+        <div class="widget-option selected">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check">✓</div>
+          <span class="widget-emoji">⚠️</span>
+          <div class="widget-info">
+            <div class="widget-name">Alert e scadenze</div>
+            <div class="widget-desc">Vini sotto scorta, fatture, scadenze documenti</div>
+          </div>
+        </div>
+        <div class="widget-option selected">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check">✓</div>
+          <span class="widget-emoji">📋</span>
+          <div class="widget-info">
+            <div class="widget-name">Bacheca comunicazioni</div>
+            <div class="widget-desc">Comunicazioni staff con urgenza e segna-come-letta</div>
+          </div>
+        </div>
+        <div class="widget-option">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check"></div>
+          <span class="widget-emoji">📄</span>
+          <div class="widget-info">
+            <div class="widget-name">Fatture da registrare</div>
+            <div class="widget-desc">Conteggio fatture pending e totale importo</div>
+          </div>
+        </div>
+        <div class="widget-option">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check"></div>
+          <span class="widget-emoji">🍽️</span>
+          <div class="widget-info">
+            <div class="widget-name">Food Cost del giorno</div>
+            <div class="widget-desc">% food cost medio e top ricette costose</div>
+          </div>
+        </div>
+        <div class="widget-option">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check"></div>
+          <span class="widget-emoji">👥</span>
+          <div class="widget-info">
+            <div class="widget-name">Turni oggi</div>
+            <div class="widget-desc">Chi lavora oggi, pranzo e cena</div>
+          </div>
+        </div>
+        <div class="widget-option">
+          <div class="drag-handle">⠿</div>
+          <div class="widget-check"></div>
+          <span class="widget-emoji">🔄</span>
+          <div class="widget-info">
+            <div class="widget-name">Preventivi in attesa</div>
+            <div class="widget-desc">Preventivi non ancora confermati</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: preview + layout -->
+    <div>
+      <div class="section-title">Layout pagina 1:</div>
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <div style="padding:8px 16px; border-radius:8px; border:2px solid #2E7BE8; background:#e8f0fe; font-size:12px; font-weight:600; color:#2E7BE8; cursor:pointer;">3 colonne</div>
+        <div style="padding:8px 16px; border-radius:8px; border:1px solid #d4d0ca; font-size:12px; font-weight:600; color:#888; cursor:pointer;">2×2 griglia</div>
+        <div style="padding:8px 16px; border-radius:8px; border:1px solid #d4d0ca; font-size:12px; font-weight:600; color:#888; cursor:pointer;">Stack singolo</div>
+      </div>
+
+      <div class="section-title">Azioni rapide per questo ruolo:</div>
+      <div class="config-panel" style="border-color:#2EB872;">
+        <div class="config-title" style="color:#2EB872;">🚀 Azioni rapide (max 6)</div>
+        <div class="widget-option selected" style="border-color:#2EB872; background:#f0fdf4;">
+          <div class="drag-handle">⠿</div>
+          <span>💵</span>
+          <div class="widget-info"><div class="widget-name">Chiusura Turno</div></div>
+        </div>
+        <div class="widget-option selected" style="border-color:#2EB872; background:#f0fdf4;">
+          <div class="drag-handle">⠿</div>
+          <span>📅</span>
+          <div class="widget-info"><div class="widget-name">Nuova Prenotazione</div></div>
+        </div>
+        <div class="widget-option selected" style="border-color:#2EB872; background:#f0fdf4;">
+          <div class="drag-handle">⠿</div>
+          <span>🍷</span>
+          <div class="widget-info"><div class="widget-name">Cantina Vini</div></div>
+        </div>
+        <div class="widget-option selected" style="border-color:#2EB872; background:#f0fdf4;">
+          <div class="drag-handle">⠿</div>
+          <span>📘</span>
+          <div class="widget-info"><div class="widget-name">Food Cost</div></div>
+        </div>
+        <div class="widget-option selected" style="border-color:#2EB872; background:#f0fdf4;">
+          <div class="drag-handle">⠿</div>
+          <span>📊</span>
+          <div class="widget-info"><div class="widget-name">Controllo Gestione</div></div>
+        </div>
+      </div>
+
+      <div class="info-box" style="background:#f0fdf4; border-color:#a7f3d0;">
+        <p><strong>Architettura proposta:</strong></p>
+        <p style="margin-top:8px;">• <strong>Backend:</strong> <code>GET/PUT /settings/dashboard-config/{role}</code> — salva un JSON con widget abilitati, ordine, layout e azioni rapide</p>
+        <p style="margin-top:4px;">• <strong>Frontend:</strong> <code>Home.jsx</code> legge la config per il ruolo corrente e renderizza i widget nell'ordine scelto</p>
+        <p style="margin-top:4px;">• <strong>Editor:</strong> nuova sezione in Impostazioni Sistema per configurare le dashboard</p>
+        <p style="margin-top:4px;">• <strong>Default:</strong> ogni ruolo ha una config di default se non personalizzata</p>
+        <p style="margin-top:4px;">• <strong>Widget = componenti indipendenti</strong> — ognuno sa fetchare i propri dati e renderizzarsi</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function selectRole(el, role) {
+  document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+document.querySelectorAll('.widget-option').forEach(opt => {
+  opt.addEventListener('click', () => opt.classList.toggle('selected'));
+});
+
+document.querySelectorAll('.turno-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    tab.parentElement.querySelectorAll('.turno-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
