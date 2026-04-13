@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-04-13 — Sessione 32 / Modulo Preventivi 10.1+10.2
+
+**Modulo Preventivi** (sotto Clienti/CRM): CRUD completo per gestione preventivi eventi privati, cene aziendali, gruppi.
+
+- Backend: `preventivi_service.py` (CRUD, numerazione progressiva PRE-YYYY-NNN, transizioni stato, duplicazione, ricalcolo totale server-side) + `preventivi_router.py` (14 endpoint REST)
+- Frontend: Lista con filtri (stato, tipo, anno/mese, ricerca) + KPI (in ballo, confermati, valore mese) + Scheda con form testata + griglia righe editabili + totale live + sidebar azioni (cambia stato, duplica, elimina)
+- Template riutilizzabili: sezione in Impostazioni CRM per creare menu tipo con righe precompilate e condizioni default. Applicabili ai nuovi preventivi
+- Tab "Preventivi" nella scheda singolo cliente (storico preventivi per cliente)
+- Navigazione: tab in ClientiNav, voce in modulesMenu dropdown, rotte in App.jsx
+- Transizioni stato: bozza -> inviato -> in_attesa -> confermato -> prenotato -> completato -> fatturato (+ rifiutato/scaduto)
+
+---
+
 ## 2026-04-13 — Sessione 30 / HOME v3.3 Originale Potenziato
 
 Redesign pagina moduli (pagina 2): da Magazine (card bianche + accent bar + icone SVG) a stile "Originale Potenziato" — emoji e colori Tailwind da `modulesMenu.js` (stessi del dropdown header). Card con sfondo tintato colorato per modulo, emoji grande, nome completo, 2 righe dati dinamici + badge notifica. Hero Prenotazioni span 2 colonne. Griglia responsive 2/3 col. Pagina widget (pagina 1) allineata: bordi colorati, emoji nei label e azioni rapide.

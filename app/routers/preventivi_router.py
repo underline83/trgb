@@ -101,7 +101,7 @@ def _require_admin(user: dict):
 
 
 # ---------------------------------------------------------------------------
-# CRUD Preventivi
+# Lista + Stats (path fissi PRIMA di /{preventivo_id})
 # ---------------------------------------------------------------------------
 
 @router.get("")
@@ -128,6 +128,44 @@ def api_stats_preventivi(user: dict = Depends(get_current_user)):
     _require_admin(user)
     return stats_preventivi()
 
+
+# ---------------------------------------------------------------------------
+# Template (path fissi /template/* PRIMA di /{preventivo_id})
+# ---------------------------------------------------------------------------
+
+@router.get("/template/lista")
+def api_lista_template(user: dict = Depends(get_current_user)):
+    return lista_template(solo_attivi=True)
+
+
+@router.post("/template")
+def api_crea_template(body: TemplateIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return crea_template(body.dict())
+
+
+@router.put("/template/{template_id}")
+def api_aggiorna_template(template_id: int, body: TemplateUpdate, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    data = body.dict(exclude_none=True)
+    result = aggiorna_template(template_id, data)
+    if not result:
+        raise HTTPException(status_code=404, detail="Template non trovato")
+    return result
+
+
+@router.delete("/template/{template_id}")
+def api_elimina_template(template_id: int, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    ok = elimina_template(template_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Template non trovato")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# CRUD Preventivi (/{preventivo_id} path parametrici — DOPO i path fissi)
+# ---------------------------------------------------------------------------
 
 @router.get("/{preventivo_id}")
 def api_get_preventivo(preventivo_id: int, user: dict = Depends(get_current_user)):
@@ -184,37 +222,3 @@ def api_duplica_preventivo(preventivo_id: int, user: dict = Depends(get_current_
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
-
-
-# ---------------------------------------------------------------------------
-# Template
-# ---------------------------------------------------------------------------
-
-@router.get("/template/lista")
-def api_lista_template(user: dict = Depends(get_current_user)):
-    return lista_template(solo_attivi=True)
-
-
-@router.post("/template")
-def api_crea_template(body: TemplateIn, user: dict = Depends(get_current_user)):
-    _require_admin(user)
-    return crea_template(body.dict())
-
-
-@router.put("/template/{template_id}")
-def api_aggiorna_template(template_id: int, body: TemplateUpdate, user: dict = Depends(get_current_user)):
-    _require_admin(user)
-    data = body.dict(exclude_none=True)
-    result = aggiorna_template(template_id, data)
-    if not result:
-        raise HTTPException(status_code=404, detail="Template non trovato")
-    return result
-
-
-@router.delete("/template/{template_id}")
-def api_elimina_template(template_id: int, user: dict = Depends(get_current_user)):
-    _require_admin(user)
-    ok = elimina_template(template_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Template non trovato")
-    return {"ok": True}

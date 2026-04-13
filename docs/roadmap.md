@@ -148,7 +148,7 @@
 |----|------|--------|-------|------|
 | 9.1 | Infrastruttura notifiche: tabella + badge header + pannello | M | ✅ FATTO | Sessione 31. DB `notifiche.sqlite3`, servizio `notifiche_service.py`, campanello Header con badge, pannello dropdown |
 | 9.2 | Comunicazioni fissate (bacheca admin → staff) | S | ✅ FATTO | Sessione 31. Pagina `/comunicazioni`, CRUD admin, lettura per ruolo, urgenze, scadenze, archiviazione |
-| 9.3 | Hook notifiche su Preventivi | S | BLOCCATO | Bloccato da 9.1 + 10.1. Notifica automatica quando preventivo cambia stato |
+| 9.3 | Hook notifiche su Preventivi | S | DA FARE | 10.1 completato. Notifica automatica quando preventivo cambia stato (usa M.A) |
 | 9.4 | Hook notifiche su Prenotazioni | S | BLOCCATO | Bloccato da 9.1 + 2.1. Nuova prenotazione, no-show, cancellazione |
 | 9.5 | Hook notifiche su Scadenze dipendenti | S | BLOCCATO | Bloccato da 9.1 + 6.5. Alert documenti in scadenza |
 | 9.6 | Hook notifiche su Cantina (sottoscorta) | S | BLOCCATO | Bloccato da 9.1 + 7.6 |
@@ -160,12 +160,12 @@
 
 > Aggregatore preventivi per eventi privati, cene aziendali, gruppi.
 > Collegato al CRM (cliente) e alle Prenotazioni (conferma → prenotazione).
-> Specifica completa: `docs/modulo_preventivi.md` (da scrivere)
+> Specifica completa: `docs/modulo_preventivi.md`
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| 10.1 | Fase A: DB + CRUD backend + lista/scheda frontend | M | DA FARE | Tabelle `clienti_preventivi` + `_righe` + `_versioni` in clienti.sqlite3. Lista con filtri stato/mese/cliente, scheda con form + righe |
-| 10.2 | Fase B: Template riutilizzabili + righe editabili + totale live | S | DA FARE | Tabella `clienti_preventivi_template`, griglia righe drag&drop, calcolo totale |
+| 10.1 | Fase A: DB + CRUD backend + lista/scheda frontend | M | FATTO ✅ | Sessione 32. Tabelle DB + service + router + lista filtri + scheda form + righe editabili |
+| 10.2 | Fase B: Template riutilizzabili + righe editabili + totale live | S | FATTO ✅ | Sessione 32. Template in Impostazioni CRM, applicazione template a preventivi, totale live |
 | 10.3 | Fase C: Generazione PDF brandizzato + invio WA/email | M | DA FARE | Usa **M.B** PDF + **M.C** WA + **M.D** email. PDF server-side con logo TRGB |
 | 10.4 | Fase D: Versioning + collegamento prenotazione + badge menu | S | DA FARE | Usa **M.A** notifiche. Storico versioni PDF, conferma → crea prenotazione, badge "N in attesa" |
 

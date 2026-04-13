@@ -82,6 +82,8 @@ import ClientiLista from "./pages/clienti/ClientiLista";
 import ClientiScheda from "./pages/clienti/ClientiScheda";
 import ClientiDashboard from "./pages/clienti/ClientiDashboard";
 import ClientiPrenotazioni from "./pages/clienti/ClientiPrenotazioni";
+import ClientiPreventivi from "./pages/clienti/ClientiPreventivi";
+import ClientiPreventivoScheda from "./pages/clienti/ClientiPreventivoScheda";
 import ClientiImport from "./pages/clienti/ClientiImport";
 import ClientiDuplicati from "./pages/clienti/ClientiDuplicati";
 import ClientiMailchimp from "./pages/clienti/ClientiMailchimp";
@@ -261,6 +263,8 @@ export default function App() {
         <Route path="/clienti" element={<ProtectedRoute module="clienti"><ClientiMenu /></ProtectedRoute>} />
         <Route path="/clienti/lista" element={<ProtectedRoute module="clienti" sub="lista"><ClientiLista /></ProtectedRoute>} />
         <Route path="/clienti/prenotazioni" element={<ProtectedRoute module="clienti"><ClientiPrenotazioni /></ProtectedRoute>} />
+        <Route path="/clienti/preventivi" element={<ProtectedRoute module="clienti"><ClientiPreventivi /></ProtectedRoute>} />
+        <Route path="/clienti/preventivi/:id" element={<ProtectedRoute module="clienti"><ClientiPreventivoScheda /></ProtectedRoute>} />
         <Route path="/clienti/dashboard" element={<ProtectedRoute module="clienti" sub="dashboard"><ClientiDashboard /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni/:section" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />

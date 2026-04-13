@@ -11,6 +11,7 @@ import ClientiMailchimp from "./ClientiMailchimp";
 // ── Sidebar items ──
 const SECTIONS = [
   { key: "segmenti", label: "Segmenti", icon: "📊", desc: "Soglie segmentazione clienti" },
+  { key: "template_preventivi", label: "Template Preventivi", icon: "📋", desc: "Menu e condizioni riutilizzabili" },
   { key: "import", label: "Import / Export", icon: "📥", desc: "TheFork, CSV, revisione diff" },
   { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
   { key: "mailchimp", label: "Mailchimp", icon: "📬", desc: "Sync contatti e campagne" },
@@ -79,6 +80,7 @@ export default function ClientiImpostazioni() {
             {/* ── Content ── */}
             <div className="flex-1 min-w-0">
               {section === "segmenti" && <SegmentiSection />}
+              {section === "template_preventivi" && <TemplateSection />}
               {section === "import" && <ClientiImport embedded />}
               {section === "duplicati" && <ClientiDuplicati embedded />}
               {section === "mailchimp" && <ClientiMailchimp embedded />}
@@ -248,6 +250,226 @@ function SegmentiSection() {
           toast.type === "error" ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
         }`} onClick={() => setToast(null)}>
           {toast.message}
+        </div>
+      )}
+    </>
+  );
+}
+
+
+// ── Sezione Template Preventivi ──
+function TemplateSection() {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // null | "new" | template obj
+  const [toast, setToast] = useState(null);
+
+  // Form template
+  const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState("cena_privata");
+  const [condizioni, setCondizioni] = useState("");
+  const [righe, setRighe] = useState([{ descrizione: "", qta: 1, prezzo_unitario: 0, tipo_riga: "voce" }]);
+
+  const showToast = (msg, isError = false) => {
+    setToast({ msg, isError });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/template/lista`);
+      const data = await res.json();
+      setTemplates(Array.isArray(data) ? data : []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchTemplates(); }, []);
+
+  const resetForm = () => {
+    setNome(""); setTipo("cena_privata"); setCondizioni("");
+    setRighe([{ descrizione: "", qta: 1, prezzo_unitario: 0, tipo_riga: "voce" }]);
+    setEditing(null);
+  };
+
+  const startEdit = (tpl) => {
+    setEditing(tpl);
+    setNome(tpl.nome || "");
+    setTipo(tpl.tipo || "cena_privata");
+    setCondizioni(tpl.condizioni_default || "");
+    try {
+      const r = JSON.parse(tpl.righe_json || "[]");
+      setRighe(r.length ? r : [{ descrizione: "", qta: 1, prezzo_unitario: 0, tipo_riga: "voce" }]);
+    } catch {
+      setRighe([{ descrizione: "", qta: 1, prezzo_unitario: 0, tipo_riga: "voce" }]);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!nome.trim()) { showToast("Nome obbligatorio", true); return; }
+    const body = { nome, tipo, condizioni_default: condizioni, righe };
+    try {
+      let res;
+      if (editing === "new") {
+        res = await apiFetch(`${API_BASE}/preventivi/template`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+      } else {
+        res = await apiFetch(`${API_BASE}/preventivi/template/${editing.id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        });
+      }
+      if (!res.ok) throw new Error();
+      showToast("Template salvato");
+      resetForm();
+      fetchTemplates();
+    } catch {
+      showToast("Errore salvataggio", true);
+    }
+  };
+
+  const handleDelete = async (tpl) => {
+    if (!window.confirm(`Disattivare "${tpl.nome}"?`)) return;
+    try {
+      await apiFetch(`${API_BASE}/preventivi/template/${tpl.id}`, { method: "DELETE" });
+      showToast("Template disattivato");
+      fetchTemplates();
+    } catch {
+      showToast("Errore", true);
+    }
+  };
+
+  const updateRiga = (idx, field, value) => {
+    setRighe((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  };
+
+  if (loading) return <div className="py-12 text-center text-neutral-400">Caricamento...</div>;
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Template Preventivi</h1>
+      <p className="text-sm text-neutral-500 mb-6">
+        Crea menu e condizioni riutilizzabili da applicare ai nuovi preventivi.
+      </p>
+
+      {/* Lista template esistenti */}
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-800">Template attivi</h2>
+          <button onClick={() => { resetForm(); setEditing("new"); }}
+            className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition font-medium">
+            + Nuovo template
+          </button>
+        </div>
+        {templates.length === 0 ? (
+          <div className="p-8 text-center text-neutral-400 text-sm">Nessun template. Creane uno!</div>
+        ) : (
+          <div className="divide-y divide-neutral-100">
+            {templates.map((tpl) => {
+              let righeCount = 0;
+              try { righeCount = JSON.parse(tpl.righe_json || "[]").length; } catch {}
+              return (
+                <div key={tpl.id} className="px-5 py-3 flex items-center justify-between hover:bg-neutral-50 transition">
+                  <div>
+                    <span className="font-medium text-sm text-neutral-900">{tpl.nome}</span>
+                    <span className="ml-2 text-xs text-neutral-400">{tpl.tipo} — {righeCount} voci</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => startEdit(tpl)}
+                      className="text-xs px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded transition">Modifica</button>
+                    <button onClick={() => handleDelete(tpl)}
+                      className="text-xs px-2 py-1 text-red-500 hover:bg-red-50 rounded transition">Disattiva</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Form editing */}
+      {editing && (
+        <div className="bg-white rounded-xl border border-indigo-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100">
+            <h2 className="text-sm font-semibold text-indigo-900">
+              {editing === "new" ? "Nuovo template" : `Modifica: ${editing.nome}`}
+            </h2>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-neutral-600 font-medium">Nome template *</label>
+                <input type="text" value={nome} onChange={(e) => setNome(e.target.value)}
+                  placeholder="es. Degustazione 5 portate"
+                  className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-neutral-600 font-medium">Tipo</label>
+                <select value={tipo} onChange={(e) => setTipo(e.target.value)}
+                  className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
+                  <option value="cena_privata">Cena privata</option>
+                  <option value="aperitivo">Aperitivo</option>
+                  <option value="degustazione">Degustazione</option>
+                  <option value="catering">Catering</option>
+                  <option value="altro">Altro</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-neutral-600 font-medium">Condizioni default</label>
+              <textarea value={condizioni} onChange={(e) => setCondizioni(e.target.value)}
+                placeholder="Acconto 30%, conferma entro 7 giorni..."
+                rows={2} className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm resize-none" />
+            </div>
+
+            {/* Righe template */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-neutral-600 font-medium">Voci menu</label>
+                <button onClick={() => setRighe((prev) => [...prev, { descrizione: "", qta: 1, prezzo_unitario: 0, tipo_riga: "voce" }])}
+                  className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100">+ Riga</button>
+              </div>
+              <div className="space-y-1.5">
+                {righe.map((r, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_60px_80px_70px_30px] gap-1.5 items-center">
+                    <input type="text" value={r.descrizione} onChange={(e) => updateRiga(i, "descrizione", e.target.value)}
+                      placeholder="Descrizione" className="border border-neutral-200 rounded px-2 py-1 text-sm" />
+                    <input type="number" min="0" step="0.5" value={r.qta} onChange={(e) => updateRiga(i, "qta", parseFloat(e.target.value) || 0)}
+                      className="border border-neutral-200 rounded px-2 py-1 text-sm text-center" />
+                    <input type="number" min="0" step="0.01" value={r.prezzo_unitario} onChange={(e) => updateRiga(i, "prezzo_unitario", parseFloat(e.target.value) || 0)}
+                      className="border border-neutral-200 rounded px-2 py-1 text-sm text-right" />
+                    <select value={r.tipo_riga || "voce"} onChange={(e) => updateRiga(i, "tipo_riga", e.target.value)}
+                      className="border border-neutral-200 rounded px-1 py-1 text-[10px]">
+                      <option value="voce">Voce</option>
+                      <option value="sconto">Sconto</option>
+                      <option value="supplemento">Suppl.</option>
+                    </select>
+                    <button onClick={() => setRighe((prev) => prev.filter((_, j) => j !== i))}
+                      className="text-red-300 hover:text-red-500 text-xs text-center">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+              <button onClick={resetForm}
+                className="px-4 py-1.5 text-xs text-neutral-600 hover:text-neutral-800 transition">Annulla</button>
+              <button onClick={handleSave}
+                className="px-5 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                Salva template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
+          toast.isError ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
+        }`} onClick={() => setToast(null)}>
+          {toast.msg}
         </div>
       )}
     </>

@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-13 (sessione 31 — Mattoni M.A + M.C + Architettura). Brief modulo Clienti, progettazione Preventivi e Notifiche. Implementati mattoni M.A (notifiche + bacheca staff) e M.C (WA composer centralizzato). Roadmap 10 sezioni + 8 mattoni condivisi. CLAUDE.md aggiornato con regole uso mattoni.
+> Ultima sessione: 2026-04-13 (sessione 32 — Modulo Preventivi 10.1+10.2). Implementato modulo Preventivi completo: DB 3 tabelle, backend service+router (14 endpoint), frontend lista con filtri+KPI, scheda con form+righe editabili+totale live, template riutilizzabili in Impostazioni CRM, tab preventivi in scheda cliente. Transizioni stato complete. Menu e rotte integrati.
 
 ---
 
@@ -26,7 +26,7 @@
 8. **Brand/UX — 8.1→8.11** (roadmap §8) — permessi centralizzati, Command Palette, dark mode (futuro)
 9. **Infra — 1.4→1.10** (roadmap §1) — notifiche push, health check, banner aggiornamento, snapshot Aruba
 10. **Notifiche & Comunicazioni — 9.1→9.7** (roadmap §9) — infrastruttura notifiche, bacheca staff broadcast, hook su tutti i moduli. Pre-requisito per preventivi e alert
-11. **Preventivi — 10.1→10.4** (roadmap §10) — aggregatore preventivi eventi/gruppi, template, PDF brand, versioning, link a prenotazioni
+11. **Preventivi — ~~10.1~~ ~~10.2~~ 10.3→10.4** (roadmap §10) — 10.1+10.2 completati sessione 32. Prossimo: 10.3 PDF brand (richiede M.B), 10.4 versioning + link prenotazioni
 
 ---
 

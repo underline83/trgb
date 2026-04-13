@@ -275,6 +275,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
     { key: "preferenze", label: "Preferenze" },
     { key: "note", label: `Note (${cliente.note?.length || 0})` },
     { key: "prenotazioni", label: `Prenotazioni (${stats.totale || 0})` },
+    { key: "preventivi", label: "Preventivi" },
   ];
 
   return (
@@ -751,6 +752,11 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                   )}
                 </div>
               )}
+
+              {/* PREVENTIVI */}
+              {tab === "preventivi" && (
+                <PreventiviTab clienteId={cliente.id} navigate={navigate} />
+              )}
             </div>
           </div>
         </div>
@@ -765,5 +771,83 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
         </div>
       )}
     </>
+  );
+}
+
+
+// ── Tab Preventivi dentro scheda cliente ──
+function PreventiviTab({ clienteId, navigate }) {
+  const [preventivi, setPreventivi] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/preventivi?cliente_id=${clienteId}&limit=50`)
+      .then((r) => r.json())
+      .then((data) => setPreventivi(data.items || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [clienteId]);
+
+  const STATI_COLORI = {
+    bozza: "bg-neutral-100 text-neutral-600", inviato: "bg-blue-100 text-blue-700",
+    in_attesa: "bg-amber-100 text-amber-700", confermato: "bg-emerald-100 text-emerald-700",
+    prenotato: "bg-indigo-100 text-indigo-700", rifiutato: "bg-red-100 text-red-600",
+    scaduto: "bg-orange-100 text-orange-700",
+  };
+  const STATI_LABEL = {
+    bozza: "Bozza", inviato: "Inviato", in_attesa: "In attesa", confermato: "Confermato",
+    prenotato: "Prenotato", completato: "Completato", fatturato: "Fatturato",
+    rifiutato: "Rifiutato", scaduto: "Scaduto",
+  };
+
+  if (loading) return <div className="py-8 text-center text-neutral-400 text-sm">Caricamento...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm text-neutral-500">{preventivi.length} preventiv{preventivi.length === 1 ? "o" : "i"}</span>
+        <button onClick={() => navigate("/clienti/preventivi/nuovo")}
+          className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition font-medium">
+          + Nuovo preventivo
+        </button>
+      </div>
+      {!preventivi.length ? (
+        <p className="text-sm text-neutral-400 text-center py-8">Nessun preventivo per questo cliente</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-neutral-50 text-[10px] font-semibold text-neutral-500 uppercase">
+              <tr>
+                <th className="px-2 py-2 text-left">Numero</th>
+                <th className="px-2 py-2 text-left">Titolo</th>
+                <th className="px-2 py-2 text-left">Data</th>
+                <th className="px-2 py-2 text-center">Pax</th>
+                <th className="px-2 py-2 text-right">Totale</th>
+                <th className="px-2 py-2 text-left">Stato</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {preventivi.map((p) => (
+                <tr key={p.id} className="hover:bg-indigo-50 cursor-pointer transition"
+                  onClick={() => navigate(`/clienti/preventivi/${p.id}`)}>
+                  <td className="px-2 py-1.5 font-mono text-neutral-500">{p.numero}</td>
+                  <td className="px-2 py-1.5 font-medium text-neutral-800 max-w-[180px] truncate">{p.titolo}</td>
+                  <td className="px-2 py-1.5 text-neutral-600">{p.data_evento || "—"}</td>
+                  <td className="px-2 py-1.5 text-center">{p.n_persone || "—"}</td>
+                  <td className="px-2 py-1.5 text-right font-medium">
+                    {p.totale_calcolato ? `€${p.totale_calcolato.toFixed(2)}` : "—"}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATI_COLORI[p.stato] || "bg-neutral-100"}`}>
+                      {STATI_LABEL[p.stato] || p.stato}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

@@ -96,6 +96,7 @@ const MODULES_MENU = {
     sub: [
       { label: "Anagrafica",    go: "/clienti/lista" },
       { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
+      { label: "Preventivi",    go: "/clienti/preventivi" },
       { label: "Dashboard",     go: "/clienti/dashboard" },
       { label: "Import",        go: "/clienti/import", check: "admin" },
     ],

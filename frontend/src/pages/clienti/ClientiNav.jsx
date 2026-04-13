@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 const TABS = [
   { key: "lista", label: "Anagrafica", path: "/clienti/lista", icon: "📇" },
   { key: "prenotazioni", label: "Prenotazioni", path: "/clienti/prenotazioni", icon: "📅" },
+  { key: "preventivi", label: "Preventivi", path: "/clienti/preventivi", icon: "📋" },
   { key: "dashboard", label: "Dashboard", path: "/clienti/dashboard", icon: "📊" },
   { key: "impostazioni", label: "Impostazioni", path: "/clienti/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];
@@ -34,6 +35,7 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
   // Impostazioni attivo anche per sotto-path
   const isActive = (tab) => {
     if (tab.key === "impostazioni") return location.pathname.startsWith("/clienti/impostazioni");
+    if (tab.key === "preventivi") return location.pathname.startsWith("/clienti/preventivi");
     return current === tab.key;
   };
 

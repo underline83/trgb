@@ -103,9 +103,9 @@ export default function DashboardSala() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-brand-cream flex flex-col">
+    <div className="bg-brand-cream flex flex-col overflow-hidden" style={{ height: "calc(100dvh - 56px)" }}>
       {/* ── Header ── */}
-      <div className="px-5 lg:px-8 pt-5 pb-3">
+      <div className="flex-shrink-0 px-5 lg:px-8 pt-4 pb-2">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="font-playfair text-2xl lg:text-[28px] font-bold text-brand-ink tracking-tight leading-tight">
@@ -125,7 +125,7 @@ export default function DashboardSala() {
       </div>
 
       {/* ── Layout 3 colonne (landscape) / stack (portrait) ── */}
-      <div className="flex-1 px-5 lg:px-8 pb-6 overflow-hidden">
+      <div className="flex-1 min-h-0 px-5 lg:px-8 pb-4">
         <div className="h-full grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_.7fr] gap-3.5">
 
           {/* ═══ COL 1: Prenotazioni oggi ═══ */}
