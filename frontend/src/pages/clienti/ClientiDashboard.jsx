@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
+import { buildWaLink, WA_TEMPLATES } from "../../utils/whatsapp";
 
 export default function ClientiDashboard() {
   const navigate = useNavigate();
@@ -86,8 +87,7 @@ export default function ClientiDashboard() {
               ) : (
                 <div className="space-y-2">
                   {stats.compleanni_prossimi?.map((c) => {
-                    const tel = (c.telefono || "").replace(/[\s\-().]/g, "");
-                    const waLink = tel ? `https://wa.me/${tel.startsWith("+") ? tel.slice(1) : "39" + tel}?text=${encodeURIComponent(`Buon compleanno ${c.nome}! Da parte di tutto lo staff dell'Osteria Tre Gobbi, tanti auguri! 🎂`)}` : null;
+                    const waLink = buildWaLink(c.telefono, WA_TEMPLATES.compleanno, { nome: c.nome });
                     const mailLink = c.email ? `mailto:${c.email}?subject=${encodeURIComponent("Buon Compleanno!")}&body=${encodeURIComponent(`Caro/a ${c.nome},\n\ntanti auguri di buon compleanno da parte di tutto lo staff dell'Osteria Tre Gobbi!\n\nSperiamo di rivederti presto.\n\nUn caro saluto`)}` : null;
                     return (
                       <div key={c.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-amber-50 transition">

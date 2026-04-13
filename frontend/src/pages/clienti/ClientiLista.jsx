@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import ClientiScheda from "./ClientiScheda";
 import Tooltip from "../../components/Tooltip";
+import { buildWaLink, fillTemplate, WA_TEMPLATES } from "../../utils/whatsapp";
 
 // ── Colori rank ──────────────────────────────────────────
 const RANK_COLORS = {
@@ -64,7 +65,7 @@ export default function ClientiLista() {
   // WhatsApp broadcast panel
   const [showWaPanel, setShowWaPanel] = useState(false);
   const [waClients, setWaClients] = useState([]);
-  const [waTemplate, setWaTemplate] = useState("Ciao {nome}, ti aspettiamo all'Osteria Tre Gobbi! A presto.");
+  const [waTemplate, setWaTemplate] = useState(WA_TEMPLATES.broadcast_clienti);
   const [waLoading, setWaLoading] = useState(false);
 
   const salvaNotaRapida = async () => {
@@ -240,12 +241,9 @@ export default function ClientiLista() {
     finally { setWaLoading(false); }
   };
 
-  const buildWaLink = (client) => {
-    const tel = (client.telefono || "").replace(/[\s\-().]/g, "");
-    const num = tel.startsWith("+") ? tel.slice(1) : "39" + tel;
-    const msg = waTemplate.replace(/\{nome\}/g, client.nome || "").replace(/\{cognome\}/g, client.cognome || "").replace(/\{nome2\}/g, client.nome2 || "");
-    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
-  };
+  const getWaLink = (client) => buildWaLink(client.telefono, waTemplate, {
+    nome: client.nome, cognome: client.cognome, nome2: client.nome2 || "",
+  });
 
   const sel = "w-full border border-neutral-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-300";
   const lbl = "block text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-0.5";
@@ -319,7 +317,7 @@ export default function ClientiLista() {
                   className="w-full border border-emerald-300 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
                 />
                 <p className="text-[10px] text-emerald-600 mt-1">
-                  Anteprima: "{waTemplate.replace(/\{nome\}/g, "Mario").replace(/\{cognome\}/g, "Rossi")}"
+                  Anteprima: "{fillTemplate(waTemplate, { nome: "Mario", cognome: "Rossi" })}"
                 </p>
               </div>
               <div className="max-h-64 overflow-y-auto border border-emerald-200 rounded-lg bg-white divide-y divide-emerald-100">
@@ -329,7 +327,7 @@ export default function ClientiLista() {
                       <span className="font-medium text-neutral-800">{c.cognome} {c.nome}{c.nome2 ? ` & ${c.nome2}` : ""}</span>
                       <span className="text-xs text-neutral-400 ml-2">{c.telefono}</span>
                     </div>
-                    <a href={buildWaLink(c)} target="_blank" rel="noopener noreferrer"
+                    <a href={getWaLink(c)} target="_blank" rel="noopener noreferrer"
                       className="px-3 py-1 text-xs font-semibold bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition shadow-sm">
                       Invia WA
                     </a>

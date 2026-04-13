@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
+import { openWhatsApp, WA_TEMPLATES, fillTemplate } from "../../utils/whatsapp";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "\u2014";
 const MESI = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -115,31 +116,18 @@ export default function DipendentiBustePaga() {
     }
   };
 
-  // ── WA: normalizza telefono e apre wa.me con messaggio precompilato ──
+  // ── WA: scarica PDF in locale e apre wa.me con messaggio precompilato ──
   // Il file PDF non puo' essere allegato via URL: viene scaricato in locale e
   // l'utente deve poi trascinarlo/allegarlo nel thread WA che si e' aperto.
-  const normalizePhoneForWA = (raw) => {
-    if (!raw) return null;
-    // Rimuovi tutto eccetto cifre e +
-    let s = String(raw).replace(/[^\d+]/g, "");
-    if (!s) return null;
-    if (s.startsWith("+")) s = s.slice(1);
-    // Se non ha prefisso internazionale e comincia con 3 (cellulare IT) o 0 (fisso), aggiungi 39
-    if (s.length <= 10 && /^[03]/.test(s)) s = "39" + s.replace(/^0/, "");
-    return s;
-  };
-
   const handleShareWA = async (b) => {
-    const phone = normalizePhoneForWA(b.telefono);
-    if (!phone) {
+    if (!b.telefono) {
       alert(`Nessun numero di telefono in anagrafica per ${b.cognome} ${b.nome}. Inseriscilo in Dipendenti → Anagrafica.`);
       return;
     }
     const periodo = `${MESI[b.mese] || b.mese}/${b.anno}`;
-    const testo =
-      `Ciao ${b.nome || ""}, ecco la tua busta paga di ${periodo}.\n` +
-      `Netto: € ${fmt(b.netto)}.\n` +
-      `(Il PDF e' stato scaricato sul mio PC, te lo allego qui.)`;
+    const testo = fillTemplate(WA_TEMPLATES.cedolino, {
+      nome: b.nome || "", mese: MESI[b.mese] || b.mese, anno: b.anno, importo: fmt(b.netto),
+    });
     // Se c'e' il PDF, lo scarica in locale cosi' Marco puo' allegarlo al thread WA
     if (b.pdf_path) {
       try {
@@ -162,9 +150,8 @@ export default function DipendentiBustePaga() {
         console.error("Errore download PDF per WA:", err);
       }
     }
-    // Apre WhatsApp Web / app con testo precompilato
-    const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(testo)}`;
-    window.open(waUrl, "_blank", "noopener,noreferrer");
+    // Apre WhatsApp Web / app con testo precompilato (usa utility M.C)
+    openWhatsApp(b.telefono, testo);
   };
 
   // ── STEP 1: Upload → Anteprima ──

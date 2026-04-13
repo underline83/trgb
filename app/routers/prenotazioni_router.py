@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 
 from app.models.clienti_db import get_clienti_conn, init_clienti_db
 from app.services.auth_service import get_current_user
+from app.utils.whatsapp import build_wa_link, fill_template
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -1210,18 +1211,11 @@ def get_wa_link(
         if not telefono:
             raise HTTPException(status_code=400, detail="Cliente senza telefono")
 
-        # Pulisci telefono per wa.me
-        tel_clean = telefono.replace(" ", "").replace("-", "").replace("+", "")
-        if tel_clean.startswith("39"):
-            tel_clean = tel_clean
-        elif tel_clean.startswith("3") and len(tel_clean) == 10:
-            tel_clean = "39" + tel_clean
-
         config = _get_config(conn)
         template_key = f"template_wa_{tipo}"
         template = config.get(template_key, "Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}.")
 
-        messaggio = template.format(
+        messaggio = fill_template(template,
             nome=row["nome"] or "",
             cognome=row["cognome"] or "",
             pax=row["pax"],
@@ -1229,8 +1223,9 @@ def get_wa_link(
             ora=(row["ora_pasto"] or "")[:5],
         )
 
-        import urllib.parse
-        link = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(messaggio)}"
+        link = build_wa_link(telefono, messaggio)
+        if not link:
+            raise HTTPException(status_code=400, detail="Numero di telefono non valido")
 
         return {"link": link, "messaggio": messaggio, "telefono": telefono}
     finally:

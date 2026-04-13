@@ -5,7 +5,7 @@
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
 > Quando un punto viene completato, spostarlo in "Completati" in fondo con data.
 > **Architettura a mattoni:** vedi `docs/architettura_mattoni.md` per dipendenze e ordine sviluppo a Wave.
-> Mattoni condivisi: M.A Notifiche, M.B PDF brand, M.C WA composer, M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine
+> Mattoni condivisi: ✅ M.A Notifiche, M.B PDF brand, ✅ M.C WA composer, M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine
 
 ---
 
@@ -146,8 +146,8 @@
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| 9.1 | Infrastruttura notifiche: tabella + badge header + pannello | M | DA FARE | Tabella `notifiche` in DB dedicato o foodcost.db, campanello header con contatore, pannello dropdown con lista notifiche lette/non lette |
-| 9.2 | Comunicazioni fissate (bacheca admin → staff) | S | DA FARE | Broadcast monodirezionale: admin scrive, staff legge. Destinatari per ruolo (tutti/sala/cucina/sommelier). Urgente/normale, scadenza opzionale, tracciamento lettura |
+| 9.1 | Infrastruttura notifiche: tabella + badge header + pannello | M | ✅ FATTO | Sessione 31. DB `notifiche.sqlite3`, servizio `notifiche_service.py`, campanello Header con badge, pannello dropdown |
+| 9.2 | Comunicazioni fissate (bacheca admin → staff) | S | ✅ FATTO | Sessione 31. Pagina `/comunicazioni`, CRUD admin, lettura per ruolo, urgenze, scadenze, archiviazione |
 | 9.3 | Hook notifiche su Preventivi | S | BLOCCATO | Bloccato da 9.1 + 10.1. Notifica automatica quando preventivo cambia stato |
 | 9.4 | Hook notifiche su Prenotazioni | S | BLOCCATO | Bloccato da 9.1 + 2.1. Nuova prenotazione, no-show, cancellazione |
 | 9.5 | Hook notifiche su Scadenze dipendenti | S | BLOCCATO | Bloccato da 9.1 + 6.5. Alert documenti in scadenza |
