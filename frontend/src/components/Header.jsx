@@ -1,12 +1,12 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v5.0 — TRGB-02 brand integration (logo SVG + palette cream/ink)
+// @version: v5.2 — wordmark TRGB a sinistra + menu moduli al centro
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
 import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
-import TrgbIcon from "../assets/brand/TRGB-02-icon-transparent.svg";
+import TrgbWordmark from "./TrgbWordmark";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
 
@@ -158,35 +158,41 @@ export default function Header({ onLogout }) {
           </span>
         </div>
       )}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
 
-        {/* LEFT — Logo + titolo/modulo corrente */}
-        <div className="relative" ref={dropRef}>
+        {/* LEFT — Wordmark TRGB (link alla Home) */}
+        <button
+          onClick={() => goTo("/")}
+          className="flex items-center cursor-pointer group shrink-0"
+          aria-label="Vai alla home"
+        >
+          <TrgbWordmark size="md" className="group-hover:opacity-80 transition-opacity" />
+        </button>
+
+        {/* CENTER — Pulsante menu moduli con modulo corrente */}
+        <div className="relative flex-1 flex justify-center" ref={dropRef}>
           <button
             onClick={handleOpen}
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-1.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-white/60 transition"
           >
-            <img src={TrgbIcon} alt="TRGB" className="h-10 w-auto object-contain" />
-            <div className="hidden sm:flex items-center gap-1.5">
-              {currentModule && (
-                <span className="text-base mr-0.5">{currentModule[1].icon}</span>
-              )}
-              <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition">
-                {currentModule ? currentModule[1].title : "TRGB"}
-              </span>
-              <svg
-                className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
+            {currentModule && (
+              <span className="text-base mr-0.5">{currentModule[1].icon}</span>
+            )}
+            <span className="text-sm font-semibold text-brand-ink tracking-wide group-hover:text-brand-ink/80 transition">
+              {currentModule ? currentModule[1].title : "Menu"}
+            </span>
+            <svg
+              className={`w-3.5 h-3.5 text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
           </button>
 
           {/* ── Dropdown + Flyout ── */}
           {open && (
             <div
-              className="absolute top-full left-0 mt-2 z-[100]"
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100]"
               style={{ display: "flex", alignItems: "flex-start" }}
             >
               {/* Colonna principale — lista moduli */}
