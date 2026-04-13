@@ -53,6 +53,13 @@ export default function RicetteMenu() {
       path: "/ricette/ingredienti",
       color: "bg-green-50 border-green-200 text-green-900",
     },
+    {
+      title: "Scelta del Macellaio",
+      subtitle: "Tagli di carne disponibili, gestiti da cucina e sala",
+      icon: "🥩",
+      path: "/macellaio",
+      color: "bg-red-50 border-red-200 text-red-900",
+    },
     ...(isAdmin
       ? [
           {
@@ -90,12 +97,12 @@ export default function RicetteMenu() {
           <div>
             <div className="flex items-center gap-3 mb-1">
               <h1 className="text-3xl lg:text-4xl font-bold text-orange-900 tracking-wide font-playfair">
-                Ricette & Food Cost
+                Gestione Cucina
               </h1>
               <VersionBadge modulo="ricette" />
             </div>
             <p className="text-neutral-600">
-              Archivio strutturato di ricette, ingredienti e costi.
+              Ricette, food cost, ingredienti e scelta del macellaio.
             </p>
           </div>
         </div>

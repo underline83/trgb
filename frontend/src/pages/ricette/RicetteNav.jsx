@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 const TABS = [
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
+  { key: "macellaio", label: "Macellaio", path: "/macellaio", icon: "🥩" },
   { key: "matching", label: "Matching", path: "/ricette/matching", icon: "🔗", roles: ["admin", "sommelier"] },
   { key: "dashboard", label: "Dashboard", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Strumenti", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
@@ -27,7 +28,7 @@ export default function RicetteNav({ current }) {
               onClick={() => navigate("/ricette")}
               className="text-sm font-bold text-orange-900 font-playfair mr-4 hover:text-orange-700 transition whitespace-nowrap"
             >
-              Ricette
+              Gestione Cucina
             </button>
             <div className="flex gap-0.5">
               {visibleTabs.map((tab) => {
