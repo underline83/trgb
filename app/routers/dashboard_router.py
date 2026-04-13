@@ -85,11 +85,23 @@ class ModuloSummary(BaseModel):
     line2: str = ""
     badge: int = 0    # 0 = nessun badge, >0 = notifica
 
+class TaglioBreve(BaseModel):
+    nome: str
+    tipologia: str = "bovino"
+    grammatura_g: Optional[int] = None
+    prezzo_euro: Optional[float] = None
+
+class MacellaioWidget(BaseModel):
+    disponibili: int = 0
+    venduti_oggi: int = 0
+    tagli: List[TaglioBreve] = []  # primi N disponibili per preview
+
 class DashboardHome(BaseModel):
     prenotazioni: PrenotazioniOggi
     incasso_ieri: IncassoIeri
     coperti_mese: CopertiMese
     fatture_pending: FatturePending
+    macellaio: MacellaioWidget = MacellaioWidget()
     alerts: List[AlertItem] = []
     moduli: List[ModuloSummary] = []
 
@@ -220,6 +232,53 @@ def _coperti_mese(oggi: date) -> CopertiMese:
     except Exception as e:
         logger.warning(f"Dashboard: errore coperti mese: {e}")
         return CopertiMese()
+
+
+def _macellaio_widget(oggi: str, max_preview: int = 4) -> MacellaioWidget:
+    """Tagli disponibili + venduti oggi + preview primi N disponibili."""
+    try:
+        conn = get_foodcost_connection()
+        # Count disponibili
+        r1 = conn.execute("""
+            SELECT COUNT(*) as cnt FROM macellaio_tagli
+            WHERE COALESCE(venduto, 0) = 0
+        """).fetchone()
+        disponibili = r1["cnt"] if r1 else 0
+
+        # Venduti oggi (venduto_at inizia con data di oggi)
+        r2 = conn.execute("""
+            SELECT COUNT(*) as cnt FROM macellaio_tagli
+            WHERE COALESCE(venduto, 0) = 1
+              AND venduto_at LIKE ?
+        """, (oggi + "%",)).fetchone()
+        venduti_oggi = r2["cnt"] if r2 else 0
+
+        # Preview: primi N disponibili per id desc (più recenti)
+        rows = conn.execute("""
+            SELECT nome, tipologia, grammatura_g, prezzo_euro
+            FROM macellaio_tagli
+            WHERE COALESCE(venduto, 0) = 0
+            ORDER BY id DESC
+            LIMIT ?
+        """, (max_preview,)).fetchall()
+        tagli = [
+            TaglioBreve(
+                nome=r["nome"] or "",
+                tipologia=r["tipologia"] or "bovino",
+                grammatura_g=r["grammatura_g"],
+                prezzo_euro=r["prezzo_euro"],
+            )
+            for r in rows
+        ]
+        conn.close()
+        return MacellaioWidget(
+            disponibili=disponibili,
+            venduti_oggi=venduti_oggi,
+            tagli=tagli,
+        )
+    except Exception as e:
+        logger.warning(f"Dashboard: errore macellaio widget: {e}")
+        return MacellaioWidget()
 
 
 def _fatture_pending() -> FatturePending:
@@ -514,12 +573,14 @@ def get_dashboard_home():
     incasso = _incasso_ieri(ieri_str, giorno_settimana)
     fatture = _fatture_pending()
     coperti = _coperti_mese(oggi)
+    macellaio = _macellaio_widget(oggi_str)
 
     return DashboardHome(
         prenotazioni=prenotazioni,
         incasso_ieri=incasso,
         coperti_mese=coperti,
         fatture_pending=fatture,
+        macellaio=macellaio,
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )

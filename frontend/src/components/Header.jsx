@@ -1,6 +1,6 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v5.3 — layout grid 3 colonne: menu moduli perfettamente centrato
-import React, { useState, useEffect, useRef, useCallback } from "react";
+// @version: v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
 import useModuleAccess from "../hooks/useModuleAccess";
@@ -9,6 +9,18 @@ import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../uti
 import TrgbWordmark from "./TrgbWordmark";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
+
+// Estrae il nome color Tailwind (es "amber") da una classe "bg-amber-50 border-amber-200 text-amber-900"
+function getAccentColor(colorClass) {
+  if (!colorClass) return "neutral";
+  const m = colorClass.match(/bg-([a-z]+)-\d+/);
+  return m ? m[1] : "neutral";
+}
+
+// Normalizza per ricerca case/accent-insensitive
+function norm(s) {
+  return (s || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
@@ -20,10 +32,8 @@ export default function Header({ onLogout }) {
   const { visibleModules, canAccessSub, modules: modulesData } = useModuleAccess();
 
   const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(null);
-  const [flyoutTop, setFlyoutTop] = useState(0);
-  const [isTouch, setIsTouch] = useState(false);
   const [notificheOpen, setNotificheOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Notifiche (mattone M.A) ──
   const {
@@ -37,40 +47,15 @@ export default function Header({ onLogout }) {
     segnaComunicazioneLetta,
   } = useNotifiche();
   const dropRef = useRef(null);
-  const listRef = useRef(null);
-  const rowRefs = useRef({});
-  const leaveTimer = useRef(null);
-  const intentTimer = useRef(null);
-  const pendingKey = useRef(null);
-
-  // Track mouse position dentro il dropdown (per intent detection)
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e) => { mousePos.current = { x: e.clientX, y: e.clientY }; };
-    document.addEventListener("mousemove", handler);
-    return () => document.removeEventListener("mousemove", handler);
-  }, [open]);
-
-  // B.1 — Detect device touch (iPad/iPhone): matchMedia con listener per cambi (Chrome DevTools toggle)
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(hover: none) and (pointer: coarse)");
-    const update = () => setIsTouch(mq.matches);
-    update();
-    if (mq.addEventListener) mq.addEventListener("change", update);
-    else if (mq.addListener) mq.addListener(update); // fallback Safari < 14
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", update);
-      else if (mq.removeListener) mq.removeListener(update);
-    };
-  }, []);
+  const searchInputRef = useRef(null);
 
   // Click-outside (mousedown per desktop, touchstart per touch)
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) {
-        setOpen(false); setHovered(null);
+        setOpen(false);
+        setSearchQuery("");
       }
     };
     document.addEventListener("mousedown", handler);
@@ -81,8 +66,32 @@ export default function Header({ onLogout }) {
     };
   }, [open]);
 
+  // Autofocus su input ricerca all'apertura (desktop)
+  useEffect(() => {
+    if (open && searchInputRef.current) {
+      // piccolo delay per evitare layout shift iniziale
+      const t = setTimeout(() => {
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [open]);
+
+  // Escape = chiudi dropdown
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setSearchQuery("");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open]);
+
   // Chiudi su navigazione
-  useEffect(() => { setOpen(false); setHovered(null); }, [location.pathname, location.search]);
+  useEffect(() => { setOpen(false); setSearchQuery(""); }, [location.pathname, location.search]);
 
   // Filtra moduli visibili per ruolo (da useModuleAccess)
   const visibleKeys = visibleModules
@@ -97,57 +106,39 @@ export default function Header({ onLogout }) {
   const isHome = currentPath === "/" || currentPath === "";
 
   const handleOpen = () => {
-    if (open) { setOpen(false); setHovered(null); }
-    else { setOpen(true); }
+    setOpen(prev => {
+      if (prev) { setSearchQuery(""); return false; }
+      return true;
+    });
   };
 
-  // Calcola il top del flyout basato sulla riga
-  const computeFlyoutTop = useCallback((key) => {
-    const rowEl = rowRefs.current[key];
-    const listEl = listRef.current;
-    if (!rowEl || !listEl) return 0;
-    const rowRect = rowEl.getBoundingClientRect();
-    const listRect = listEl.getBoundingClientRect();
-    return rowRect.top - listRect.top;
-  }, []);
-
-  // "Intent detection" à la Amazon mega-menu:
-  // Se il mouse si muove verso destra (verso il flyout), aspetta un attimo
-  // prima di cambiare modulo. Altrimenti cambia subito.
-  const activateHover = useCallback((key) => {
-    setHovered(key);
-    if (key) setFlyoutTop(computeFlyoutTop(key));
-  }, [computeFlyoutTop]);
-
-  const handleRowEnter = useCallback((key) => {
-    clearTimeout(leaveTimer.current);
-    clearTimeout(intentTimer.current);
-
-    // Se non c'è flyout aperto, attiva subito
-    if (!hovered) {
-      activateHover(key);
-      return;
-    }
-
-    // Se il mouse si sta muovendo verso destra (verso il flyout),
-    // dai un po' di tempo prima di cambiare
-    pendingKey.current = key;
-    intentTimer.current = setTimeout(() => {
-      activateHover(pendingKey.current);
-    }, 80);
-  }, [hovered, activateHover]);
-
-  const handleContainerLeave = useCallback(() => {
-    clearTimeout(intentTimer.current);
-    leaveTimer.current = setTimeout(() => setHovered(null), 150);
-  }, []);
-
-  const handleFlyoutEnter = useCallback(() => {
-    clearTimeout(leaveTimer.current);
-    clearTimeout(intentTimer.current);
-  }, []);
-
   const goTo = (path) => { navigate(path); };
+
+  // ── Costruisci lista filtrata per dropdown M1 ──
+  const q = norm(searchQuery.trim());
+  const homeMatches = !q || "home".includes(q) || norm("Home").includes(q);
+
+  const filteredGroups = visibleKeys
+    .map(key => {
+      const cfg = MODULES_MENU[key];
+      const titleMatch = !q || norm(cfg.title).includes(q);
+      // Filtra sub per permessi (canAccessSub)
+      const accessibleSubs = (cfg.sub || []).filter(s => {
+        const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
+        const subKey = pathParts.length > 1 ? pathParts[1] : null;
+        return subKey ? canAccessSub(key, subKey) : true;
+      });
+      // Filtra sub per query
+      const matchingSubs = !q ? accessibleSubs : accessibleSubs.filter(s => norm(s.label).includes(q));
+      // Se il titolo matcha, mostra TUTTE le sub accessibili. Se no, solo quelle che matchano.
+      const subsToShow = titleMatch ? accessibleSubs : matchingSubs;
+      const hasAnything = titleMatch || matchingSubs.length > 0;
+      return { key, cfg, subs: subsToShow, visible: hasAnything };
+    })
+    .filter(g => g.visible);
+
+  const totalResults = (homeMatches ? 1 : 0) + filteredGroups.reduce((acc, g) => acc + 1 + g.subs.length, 0);
+  const noResults = q && totalResults === 0;
 
   return (
     <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm">

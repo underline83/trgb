@@ -8,6 +8,7 @@ import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
+import MacellaioCard from "../components/widgets/MacellaioCard";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
 const MODULE_FALLBACK = {
@@ -326,8 +327,11 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* Widget Scelta del macellaio */}
+                  <MacellaioCard data={widgets?.macellaio} />
+
                   {/* Bacheca comunicazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[200px] lg:min-h-0">
+                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[160px] lg:min-h-0">
                     <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
                       <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">📋 Bacheca</span>
                       {nonLette > 0 && (
