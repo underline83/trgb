@@ -70,6 +70,10 @@ from app.routers.prenotazioni_router import router as prenotazioni_router
 # DASHBOARD HOME — widget aggregatore Home v3
 from app.routers.dashboard_router import router as dashboard_router
 
+# NOTIFICHE & COMUNICAZIONI — mattone M.A infrastruttura trasversale
+from app.routers.notifiche_router import router as notifiche_router
+from app.routers.notifiche_router import com_router as comunicazioni_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -236,6 +240,11 @@ app.include_router(prenotazioni_router)
 
 # DASHBOARD HOME (widget Home v3)
 app.include_router(dashboard_router)
+
+# NOTIFICHE & COMUNICAZIONI (mattone M.A — infrastruttura trasversale)
+# (usa DB dedicato app/data/notifiche.sqlite3, inizializzato in notifiche_db.init_notifiche_db)
+app.include_router(notifiche_router)
+app.include_router(comunicazioni_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)

@@ -95,6 +95,9 @@ import PrenotazioniImpostazioni from "./pages/prenotazioni/PrenotazioniImpostazi
 import TavoliEditor from "./pages/prenotazioni/TavoliEditor";
 import TavoliMappa from "./pages/prenotazioni/TavoliMappa";
 
+// --- COMUNICAZIONI (Bacheca Staff — 9.2) ---
+import Comunicazioni from "./pages/Comunicazioni";
+
 // --- CAMBIO PIN ---
 import CambioPIN from "./pages/CambioPIN";
 
@@ -271,6 +274,9 @@ export default function App() {
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
+
+        {/* --- COMUNICAZIONI (Bacheca Staff) --- */}
+        <Route path="/comunicazioni" element={<ProtectedRoute><Comunicazioni /></ProtectedRoute>} />
 
         {/* --- CAMBIO PIN --- */}
         <Route path="/cambio-pin" element={<CambioPIN />} />

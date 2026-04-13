@@ -1,7 +1,32 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-12 (sessione 29 — Home v3 redesign). Redesign completo della Home in ottica app iPad/iPhone. Due pagine con swipe: pagina 1 = widget personalizzabili (alert, prenotazioni oggi, stats, azioni rapide), pagina 2 = griglia moduli con tile grafiche (icone SVG, no emoji, colori smorzati, linea gobbetta brand). Mockup v3 approvato da Marco. **Fase 0 completata**: docs aggiornati, specifiche widget, regole design. **Prossimo passo: Fase 1** — endpoint backend `/dashboard/home` (aggregatore widget data), poi Fase 2 frontend (hook + componenti + riscrittura Home.jsx).
+> Ultima sessione: 2026-04-13 (sessione 31 — Architettura a Mattoni + Roadmap Notifiche/Preventivi). Analisi modulo Clienti, progettazione Preventivi, infrastruttura Notifiche & Comunicazioni staff. Roadmap aggiornata con sezioni 9 e 10 + architettura a mattoni condivisi (8 mattoni, 4 wave). Documento: `docs/architettura_mattoni.md`.
+
+---
+
+## PRIORITÀ — Leggere SUBITO insieme a `docs/problemi.md` e `docs/roadmap.md`
+
+> Questa sezione è il punto di partenza di ogni sessione. Non serve che Marco la ripeta.
+> Roadmap completa con 76 punti su 10 sezioni: **`docs/roadmap.md`**. Bug e anomalie: **`docs/problemi.md`**.
+
+### Urgenze / Bugfix
+1. **D1 — Storni flussi di cassa difettosi** (problemi.md) — serve caso concreto da Marco per riprodurre
+2. ~~D4 — PWA service worker~~ ✅ già in produzione (commit f194870, sessione 28). Nessun crash segnalato
+3. ~~C.3 — useAppHeight~~ → declassato a debito tecnico bassa priorità (sessione 31). Il problema `100vh` su iOS è risolto con `100dvh` (sessione 28). L'hook resta sul disco come orfano per uso futuro (banner dinamici, header variabile), ma oggi il beneficio (eliminare magic number altezze) non giustifica il rischio (crash sessione 26 mai debuggato)
+
+### Evoluzioni — prossimi passi attivi
+1. **Home v3 — F.1→F.6** — Fase 0 completata (sessione 29/30). Prossimo: F.1 endpoint backend `/dashboard/home`, poi F.2 frontend infrastruttura
+2. **Prenotazioni — 2.1→2.8** (roadmap §2) — modulo nuovo, 5 fasi, obiettivo eliminare TheFork Manager. Docs pronti: `docs/modulo_prenotazioni.md`, `docs/prenotazioni_todo.md`
+3. **Flussi di Cassa — 3.2→3.9** (roadmap §3) — riconciliazione smarter, multi-conto, carta di credito, scadenziario calendario, cash flow previsionale
+4. **CG / FoodCost — 4.1→4.7** (roadmap §4) — note di credito XML, P&L mensile, margine per piatto
+5. **CRM — 5.1→5.11** (roadmap §5) — Mailchimp sync, WA compleanni, merge side-by-side, segmentazione RFM, timeline cliente
+6. **Dipendenti — 6.1→6.6** (roadmap §6) — calendario turni, scadenze documenti, costo orario
+7. **Cantina — 7.1→7.8** (roadmap §7) — flag discontinuato UI, carta vini pubblica, inventario iPad
+8. **Brand/UX — 8.1→8.11** (roadmap §8) — permessi centralizzati, Command Palette, dark mode (futuro)
+9. **Infra — 1.4→1.10** (roadmap §1) — notifiche push, health check, banner aggiornamento, snapshot Aruba
+10. **Notifiche & Comunicazioni — 9.1→9.7** (roadmap §9) — infrastruttura notifiche, bacheca staff broadcast, hook su tutti i moduli. Pre-requisito per preventivi e alert
+11. **Preventivi — 10.1→10.4** (roadmap §10) — aggregatore preventivi eventi/gruppi, template, PDF brand, versioning, link a prenotazioni
 
 ---
 

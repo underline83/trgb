@@ -7,6 +7,8 @@ import useModuleAccess from "../hooks/useModuleAccess";
 import Tooltip from "./Tooltip";
 import { canActivateSuperMode, toggleSuperMode, isSuperModeActive } from "../utils/authHelpers";
 import TrgbIcon from "../assets/brand/TRGB-02-icon-transparent.svg";
+import useNotifiche from "../hooks/useNotifiche";
+import NotifichePanel from "./NotifichePanel";
 
 export default function Header({ onLogout }) {
   const navigate = useNavigate();
@@ -21,6 +23,19 @@ export default function Header({ onLogout }) {
   const [hovered, setHovered] = useState(null);
   const [flyoutTop, setFlyoutTop] = useState(0);
   const [isTouch, setIsTouch] = useState(false);
+  const [notificheOpen, setNotificheOpen] = useState(false);
+
+  // ── Notifiche (mattone M.A) ──
+  const {
+    totaleNonLette,
+    notifiche: listaNotifiche,
+    comunicazioni: listaComunicazioni,
+    loading: notificheLoading,
+    caricaTutto: caricaNotifiche,
+    segnaLetta,
+    segnaTutteLette,
+    segnaComunicazioneLetta,
+  } = useNotifiche();
   const dropRef = useRef(null);
   const listRef = useRef(null);
   const rowRefs = useRef({});
@@ -351,6 +366,37 @@ export default function Header({ onLogout }) {
               </div>
             )}
           </div>
+          {/* ── Campanello notifiche (M.A) ── */}
+          <div className="relative">
+            <Tooltip label="Notifiche">
+              <button
+                onClick={() => {
+                  if (!notificheOpen) caricaNotifiche();
+                  setNotificheOpen(prev => !prev);
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-brand-blue/5 hover:border-brand-blue/30 hover:text-brand-blue transition relative"
+              >
+                🔔
+                {totaleNonLette > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center px-1 shadow-sm">
+                    {totaleNonLette > 99 ? "99+" : totaleNonLette}
+                  </span>
+                )}
+              </button>
+            </Tooltip>
+            {notificheOpen && (
+              <NotifichePanel
+                notifiche={listaNotifiche}
+                comunicazioni={listaComunicazioni}
+                loading={notificheLoading}
+                onSegnaLetta={segnaLetta}
+                onSegnaTutteLette={segnaTutteLette}
+                onSegnaComunicazioneLetta={segnaComunicazioneLetta}
+                onChiudi={() => setNotificheOpen(false)}
+              />
+            )}
+          </div>
+
           <Tooltip label="Cambia PIN">
             <button
               onClick={() => navigate("/cambio-pin")}

@@ -8,22 +8,7 @@
 
 ## Aperti — Priorità alta
 
-### D4. PWA Fase 0 — Re-implementare service worker con cache strategy corretta
-**Segnalato:** 2026-04-11 (sessione 26, rollbackato)
-**Modulo:** Infrastruttura / PWA
-**Gravità:** alta — blocca il percorso verso app Apple standalone
-
-**Stato:** Manifest, icone, meta tag iOS sono sul disco e funzionanti. Il service worker (`sw.js`) è disabilitato dal rollback sessione 26. La registrazione in `main.jsx` è rimpiazzata da un blocco difensivo che ripulisce SW/cache residui.
-
-**Causa rollback sessione 26:** `sw.js` con strategia stale-while-revalidate ha servito mix incoerente di chunk Vite su iPad Safari al primo deploy. Crash su Cantina (MagazzinoVini) e Nuova Ricetta (RicetteNuova).
-
-**Piano D.4 (da eseguire):**
-1. Riscrivere `sw.js`: network-first per app shell, cache come fallback offline, `CACHE_NAME` legato a `BUILD_VERSION`, zero precache di chunk Vite
-2. Riattivare registrazione in `main.jsx` (sostituire blocco difensivo cleanup)
-3. Push isolato — test Mac poi iPad (specificamente Cantina e RicetteNuova)
-4. Se crasha: ri-disabilitare registrazione, il blocco cleanup già collaudato ripulisce tutto
-
-**Ref:** `docs/analisi_app_apple.md`, memory `project_app_apple.md`, `docs/sessione.md` sessione 26
+(nessuno al momento)
 
 ---
 
@@ -59,6 +44,12 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 - **`.gitignore`**: aggiunto `app/data/modules.runtime.json` così il file runtime sopravvive ai deploy. Il commento è esplicito sulla ragione del design (bug B1)
 - **Zero-break deploy**: al primo restart dopo il fix, `_load()` bootstrap-a il runtime dal seed attuale. I ruoli sono identici a prima del fix, poi Marco può modificare liberamente senza più perdere lo stato
 - **Nota sul recupero dello stato**: purtroppo le modifiche ai ruoli che Marco aveva fatto negli ultimi deploy e che sono state sovrascritte da push precedenti **non sono recuperabili** (il git tracciato non conserva lo storico VPS). Marco dovrà reimpostare i permessi una volta dopo il primo deploy col fix — da quel momento saranno stabili
+
+---
+
+### D4. PWA Fase 0 — Service worker riscritto network-first ✅ 2026-04-13 (commit f194870)
+**Risolto in:** sessione 28 (ma docs non aggiornati fino a sessione 31).
+**Fix:** `sw.js` riscritto con strategia network-first (zero precache, cache solo fallback offline), `CACHE_NAME` legato a `BUILD_VERSION`, registrazione riattivata in `main.jsx`. Manifest e meta tag iOS già a posto dal sessione 26. In produzione da sessione 28, nessun crash segnalato.
 
 ---
 
