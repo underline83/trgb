@@ -1,7 +1,7 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-13 (sessione 31 — Architettura a Mattoni + Roadmap Notifiche/Preventivi). Analisi modulo Clienti, progettazione Preventivi, infrastruttura Notifiche & Comunicazioni staff. Roadmap aggiornata con sezioni 9 e 10 + architettura a mattoni condivisi (8 mattoni, 4 wave). Documento: `docs/architettura_mattoni.md`.
+> Ultima sessione: 2026-04-13 (sessione 31 — Mattoni M.A + M.C + Architettura). Brief modulo Clienti, progettazione Preventivi e Notifiche. Implementati mattoni M.A (notifiche + bacheca staff) e M.C (WA composer centralizzato). Roadmap 10 sezioni + 8 mattoni condivisi. CLAUDE.md aggiornato con regole uso mattoni.
 
 ---
 

@@ -55,6 +55,22 @@ La Home ha due pagine con swipe (widget + moduli). Regole per tutti gli agenti:
 - **Touch target**: minimo 44pt, bottoni 48pt, righe lista ≥ 44pt
 - **DashboardSala**: stesso stile originale potenziato (emoji + colori modulesMenu)
 
+## Mattoni condivisi — USARE SEMPRE, MAI RISCRIVERE
+> Documento completo: `docs/architettura_mattoni.md`
+
+Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste cose, USARE il mattone esistente:
+
+- **M.A Notifiche** (sessione 31): `from app.services.notifiche_service import crea_notifica`. Frontend: `useNotifiche()` hook. DB: `notifiche.sqlite3`. Serve per avvisare lo staff di qualsiasi evento (preventivi, prenotazioni, scadenze, alert).
+- **M.C WA composer** (sessione 31):
+  - Frontend: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`. MAI costruire `wa.me/` a mano.
+  - Backend: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`. MAI fare `.replace(" ","").replace("-","")` sul telefono a mano.
+- **M.B PDF brand**: DA FARE. Quando serve generare PDF, attendere questo mattone.
+- **M.D Email service**: DA FARE. Quando serve inviare email, attendere questo mattone.
+- **M.E Calendar component**: DA FARE. Quando serve vista calendario, attendere questo mattone.
+- **M.F Alert engine**: DA FARE. Quando serve controllare soglie/scadenze, attendere questo mattone.
+
+**Regola:** se un modulo ha bisogno di una funzionalita' coperta da un mattone non ancora implementato, CHIEDERE a Marco se costruirlo prima o fare inline temporaneo.
+
 ## Migrazioni DB
 - File: `app/migrations/NNN_nome.py`, tracciate in `schema_migrations` di `foodcost.db`.
 - Una migrazione eseguita NON viene rieseguita. Per correggere, crea una nuova migrazione.
