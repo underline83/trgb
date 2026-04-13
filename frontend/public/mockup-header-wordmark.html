@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mockup Header — Wordmark TRGB</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #e7e5e0; }
+  .brand-cream { background: #F4F1EC; }
+  .brand-ink { color: #111111; }
+  .brand-red { color: #E8402B; }
+  .brand-blue { color: #2E7BE8; }
+  .helv { font-family: 'Helvetica Neue', Arial, sans-serif; }
+  /* Sample header — riproduce esattamente l'header reale */
+  .hdr { position: sticky; top: 0; background: #F4F1EC; border-bottom: 1px solid #e5e5e5; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .hdr-inner { max-width: 80rem; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .pill-btn { padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #d4d4d4; color: #525252; }
+</style>
+</head>
+<body class="p-6 space-y-10">
+
+  <h1 class="text-2xl font-bold text-neutral-800">Wordmark TRGB nell'header — proposte</h1>
+  <p class="text-neutral-600 text-sm -mt-6">
+    Stesse gobbette del Login, ora messe a sinistra dell'header al posto della sola icona.
+    Tre dimensioni a confronto. Sotto: con e senza modulo corrente.
+  </p>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE A — size SM (h-6 + text-xl)                              -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div>
+    <h2 class="text-sm font-semibold text-neutral-700 mb-2">Variante A — SM (compatto, simile altezza all'icona attuale)</h2>
+    <div class="hdr rounded-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <button class="flex items-center gap-3 cursor-pointer">
+          <!-- WORDMARK SM -->
+          <div class="flex items-center gap-2">
+            <svg viewBox="15 28 155 28" class="h-6 w-auto">
+              <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+                <path d="M 20 50 L 20.3 48.8 L 20.6 47.7 L 21.0 46.5 L 21.4 45.4 L 21.9 44.3 L 22.4 43.2 L 23.0 42.2 L 23.6 41.1 L 24.3 40.1 L 25.0 39.2 L 25.9 38.2 L 26.8 37.3 L 27.7 36.6 L 28.7 35.9 L 29.7 35.3 L 30.7 34.8 L 31.8 34.4 L 32.9 34.1 L 34.1 33.9 L 35.3 33.8 L 36.5 33.8 L 37.7 33.9 L 38.8 34.1 L 40.0 34.2 L 41.1 34.5 L 42.2 34.8 L 43.3 35.2 L 44.3 35.6 L 45.4 36.1 L 46.4 36.6 L 47.4 37.2 L 48.4 37.8 L 49.4 38.4 L 50.4 39.0 L 51.3 39.7 L 52.3 40.3 L 53.3 41.0 L 54.2 41.7 L 55.2 42.4" stroke="#E8402B"/>
+                <path d="M 75 50 L 75.3 48.8 L 75.6 47.7 L 76.0 46.5 L 76.4 45.4 L 76.9 44.3 L 77.4 43.2 L 78.0 42.2 L 78.6 41.1 L 79.3 40.1 L 80.0 39.2 L 80.9 38.2 L 81.8 37.3 L 82.7 36.6 L 83.7 35.9 L 84.7 35.3 L 85.7 34.8 L 86.8 34.4 L 87.9 34.1 L 89.1 33.9 L 90.3 33.8 L 91.5 33.8 L 92.7 33.9 L 93.8 34.1 L 95.0 34.2 L 96.1 34.5 L 97.2 34.8 L 98.3 35.2 L 99.3 35.6 L 100.4 36.1 L 101.4 36.6 L 102.4 37.2 L 103.4 37.8 L 104.4 38.4 L 105.4 39.0 L 106.3 39.7 L 107.3 40.3 L 108.3 41.0 L 109.2 41.7 L 110.2 42.4" stroke="#2EB872"/>
+                <path d="M 130 50 L 130.3 48.8 L 130.6 47.7 L 131.0 46.5 L 131.4 45.4 L 131.9 44.3 L 132.4 43.2 L 133.0 42.2 L 133.6 41.1 L 134.3 40.1 L 135.0 39.2 L 135.9 38.2 L 136.8 37.3 L 137.7 36.6 L 138.7 35.9 L 139.7 35.3 L 140.7 34.8 L 141.8 34.4 L 142.9 34.1 L 144.1 33.9 L 145.3 33.8 L 146.5 33.8 L 147.7 33.9 L 148.8 34.1 L 150.0 34.2 L 151.1 34.5 L 152.2 34.8 L 153.3 35.2 L 154.3 35.6 L 155.4 36.1 L 156.4 36.6 L 157.4 37.2 L 158.4 37.8 L 159.4 38.4 L 160.4 39.0 L 161.3 39.7 L 162.3 40.3 L 163.3 41.0 L 164.2 41.7 L 165.2 42.4" stroke="#2E7BE8"/>
+              </g>
+            </svg>
+            <span class="helv text-xl font-extrabold brand-ink tracking-tight leading-none">TRGB</span>
+          </div>
+          <div class="hidden sm:flex items-center gap-1.5">
+            <span class="text-base mr-0.5">🍷</span>
+            <span class="text-sm font-semibold brand-ink tracking-wide">Cantina &amp; Vini</span>
+            <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right hidden sm:block">
+            <div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div>
+            <div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div>
+          </div>
+          <button class="pill-btn">🔔</button>
+          <button class="pill-btn">🔑</button>
+          <button class="pill-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE B — size MD (h-7 + text-2xl) — uguale al Login           -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div>
+    <h2 class="text-sm font-semibold text-neutral-700 mb-2">Variante B — MD (uguale al Login, leggermente più alto)</h2>
+    <div class="hdr rounded-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <button class="flex items-center gap-3 cursor-pointer">
+          <!-- WORDMARK MD -->
+          <div class="flex items-center gap-2">
+            <svg viewBox="15 28 155 28" class="h-7 w-auto">
+              <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+                <path d="M 20 50 L 20.3 48.8 L 20.6 47.7 L 21.0 46.5 L 21.4 45.4 L 21.9 44.3 L 22.4 43.2 L 23.0 42.2 L 23.6 41.1 L 24.3 40.1 L 25.0 39.2 L 25.9 38.2 L 26.8 37.3 L 27.7 36.6 L 28.7 35.9 L 29.7 35.3 L 30.7 34.8 L 31.8 34.4 L 32.9 34.1 L 34.1 33.9 L 35.3 33.8 L 36.5 33.8 L 37.7 33.9 L 38.8 34.1 L 40.0 34.2 L 41.1 34.5 L 42.2 34.8 L 43.3 35.2 L 44.3 35.6 L 45.4 36.1 L 46.4 36.6 L 47.4 37.2 L 48.4 37.8 L 49.4 38.4 L 50.4 39.0 L 51.3 39.7 L 52.3 40.3 L 53.3 41.0 L 54.2 41.7 L 55.2 42.4" stroke="#E8402B"/>
+                <path d="M 75 50 L 75.3 48.8 L 75.6 47.7 L 76.0 46.5 L 76.4 45.4 L 76.9 44.3 L 77.4 43.2 L 78.0 42.2 L 78.6 41.1 L 79.3 40.1 L 80.0 39.2 L 80.9 38.2 L 81.8 37.3 L 82.7 36.6 L 83.7 35.9 L 84.7 35.3 L 85.7 34.8 L 86.8 34.4 L 87.9 34.1 L 89.1 33.9 L 90.3 33.8 L 91.5 33.8 L 92.7 33.9 L 93.8 34.1 L 95.0 34.2 L 96.1 34.5 L 97.2 34.8 L 98.3 35.2 L 99.3 35.6 L 100.4 36.1 L 101.4 36.6 L 102.4 37.2 L 103.4 37.8 L 104.4 38.4 L 105.4 39.0 L 106.3 39.7 L 107.3 40.3 L 108.3 41.0 L 109.2 41.7 L 110.2 42.4" stroke="#2EB872"/>
+                <path d="M 130 50 L 130.3 48.8 L 130.6 47.7 L 131.0 46.5 L 131.4 45.4 L 131.9 44.3 L 132.4 43.2 L 133.0 42.2 L 133.6 41.1 L 134.3 40.1 L 135.0 39.2 L 135.9 38.2 L 136.8 37.3 L 137.7 36.6 L 138.7 35.9 L 139.7 35.3 L 140.7 34.8 L 141.8 34.4 L 142.9 34.1 L 144.1 33.9 L 145.3 33.8 L 146.5 33.8 L 147.7 33.9 L 148.8 34.1 L 150.0 34.2 L 151.1 34.5 L 152.2 34.8 L 153.3 35.2 L 154.3 35.6 L 155.4 36.1 L 156.4 36.6 L 157.4 37.2 L 158.4 37.8 L 159.4 38.4 L 160.4 39.0 L 161.3 39.7 L 162.3 40.3 L 163.3 41.0 L 164.2 41.7 L 165.2 42.4" stroke="#2E7BE8"/>
+              </g>
+            </svg>
+            <span class="helv text-2xl font-extrabold brand-ink tracking-tight leading-none">TRGB</span>
+          </div>
+          <div class="hidden sm:flex items-center gap-1.5 ml-2">
+            <span class="text-base mr-0.5">🍷</span>
+            <span class="text-sm font-semibold brand-ink tracking-wide">Cantina &amp; Vini</span>
+            <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right hidden sm:block">
+            <div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div>
+            <div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div>
+          </div>
+          <button class="pill-btn">🔔</button>
+          <button class="pill-btn">🔑</button>
+          <button class="pill-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE C — MD con SEPARATORE prima del modulo corrente          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div>
+    <h2 class="text-sm font-semibold text-neutral-700 mb-2">Variante C — MD con divider verticale prima del modulo</h2>
+    <div class="hdr rounded-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <button class="flex items-center gap-3 cursor-pointer">
+          <div class="flex items-center gap-2">
+            <svg viewBox="15 28 155 28" class="h-7 w-auto">
+              <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+                <path d="M 20 50 L 25 39.2 L 35.3 33.8 L 45.4 36.1 L 55.2 42.4" stroke="#E8402B"/>
+                <path d="M 75 50 L 80 39.2 L 90.3 33.8 L 100.4 36.1 L 110.2 42.4" stroke="#2EB872"/>
+                <path d="M 130 50 L 135 39.2 L 145.3 33.8 L 155.4 36.1 L 165.2 42.4" stroke="#2E7BE8"/>
+              </g>
+            </svg>
+            <span class="helv text-2xl font-extrabold brand-ink tracking-tight leading-none">TRGB</span>
+          </div>
+          <div class="hidden sm:flex items-center gap-1.5">
+            <div class="h-6 w-px bg-neutral-300 mx-2"></div>
+            <span class="text-base mr-0.5">🍷</span>
+            <span class="text-sm font-semibold brand-ink tracking-wide">Cantina &amp; Vini</span>
+            <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right hidden sm:block">
+            <div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div>
+            <div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div>
+          </div>
+          <button class="pill-btn">🔔</button>
+          <button class="pill-btn">🔑</button>
+          <button class="pill-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- HOME (senza modulo corrente)                                      -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div>
+    <h2 class="text-sm font-semibold text-neutral-700 mb-2">Sulla Home (nessun modulo corrente) — variante MD</h2>
+    <div class="hdr rounded-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <button class="flex items-center gap-3 cursor-pointer">
+          <div class="flex items-center gap-2">
+            <svg viewBox="15 28 155 28" class="h-7 w-auto">
+              <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+                <path d="M 20 50 L 25 39.2 L 35.3 33.8 L 45.4 36.1 L 55.2 42.4" stroke="#E8402B"/>
+                <path d="M 75 50 L 80 39.2 L 90.3 33.8 L 100.4 36.1 L 110.2 42.4" stroke="#2EB872"/>
+                <path d="M 130 50 L 135 39.2 L 145.3 33.8 L 155.4 36.1 L 165.2 42.4" stroke="#2E7BE8"/>
+              </g>
+            </svg>
+            <span class="helv text-2xl font-extrabold brand-ink tracking-tight leading-none">TRGB</span>
+          </div>
+          <svg class="w-3.5 h-3.5 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        <div class="flex items-center gap-3">
+          <div class="text-right hidden sm:block">
+            <div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div>
+            <div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div>
+          </div>
+          <button class="pill-btn">🔔</button>
+          <button class="pill-btn">🔑</button>
+          <button class="pill-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-12 p-4 bg-white rounded-lg border border-neutral-300 text-sm text-neutral-600 max-w-3xl">
+    <p class="font-semibold text-neutral-800 mb-1">Quale ti piace?</p>
+    <p>A = compatto (h-6, simile in altezza all'icona attuale)<br>
+       B = come il Login (h-7, più presente)<br>
+       C = come B, ma con divider verticale tra TRGB e modulo corrente per pulire la lettura<br><br>
+    Una volta scelto sostituisco l'icona attuale (la "T" sola) con il wordmark scelto in `Header.jsx`.</p>
+  </div>
+
+</body>
+</html>

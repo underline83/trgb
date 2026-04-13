@@ -4,7 +4,9 @@
 # Uso:
 #   ./push.sh "messaggio commit"      → deploy (via post-receive hook)
 #   ./push.sh "messaggio commit" -f   → deploy + pip install + npm install
-#   ./push.sh "messaggio commit" -m   → deploy + sync modules.json locale → VPS
+#   ./push.sh "messaggio commit" -m   → deploy + sync modules.json locale → VPS (forzato)
+#                                       NB: l'auto-detect attiva -m da solo se il
+#                                       modules.json locale differisce da quello sul VPS.
 #   ./push.sh "messaggio commit" -d   → deploy + sync codice su Google Drive
 #   ./push.sh "messaggio commit" -q   → output compatto (default: verbose)
 #
@@ -137,6 +139,22 @@ if git ls-files --error-unmatch app/data/users.json &>/dev/null; then
   git rm --cached app/data/users.json app/data/modules.json 2>/dev/null || true
   git commit -m "chore: rimuove users.json e modules.json dal tracking" 2>/dev/null
   ok "Rimossi users.json e modules.json dal tracking"
+fi
+
+# ── Auto-detect cambio modules.json ────────────────────────
+# Se modules.json locale differisce da quello sul VPS, attiva -m da solo.
+# Evita la classe di bug "ho aggiunto un modulo nuovo ma non appare in produzione
+# perché ho dimenticato il flag -m".
+if ! $SYNC_MODULES; then
+  if [ -f "$DB_LOCAL/modules.json" ]; then
+    LOCAL_HASH=$(sha256sum "$DB_LOCAL/modules.json" 2>/dev/null | awk '{print $1}')
+    REMOTE_HASH=$(ssh -q "$VPS_HOST" "sha256sum '$DB_REMOTE/modules.json' 2>/dev/null" | awk '{print $1}')
+    if [ -n "$LOCAL_HASH" ] && [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+      SYNC_MODULES=true
+      step "Auto-sync modules.json"
+      warn "modules.json locale differisce dal VPS → attivo -m automaticamente"
+    fi
+  fi
 fi
 
 # ── Backup files runtime VPS ───────────────────────────────
