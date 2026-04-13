@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mockup Dropdown — Mix #4 + #5</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #e7e5e0; }
+  .brand-cream { background: #F4F1EC; }
+  .brand-ink { color: #111111; }
+  .helv { font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .hdr { background: #F4F1EC; border-bottom: 1px solid #e5e5e5; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .hdr-inner { max-width: 80rem; margin: 0 auto; padding: 10px 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+  .pill-btn { padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #d4d4d4; color: #525252; }
+  .wm-wrap { display: flex; align-items: center; gap: 8px; }
+  .wm-text { font-size: 1.5rem; font-weight: 800; color: #111; letter-spacing: -0.02em; line-height: 1; font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .label-variant { font-size: 12px; font-weight: 700; color: #525252; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .label-desc { font-size: 13px; color: #666; margin-bottom: 10px; }
+  .sample-wrap { position: relative; padding-bottom: 700px; }
+  .sample-dropdown { position: absolute; z-index: 20; box-shadow: 0 20px 50px rgba(0,0,0,0.18); }
+  .sub-row { display: flex; align-items: center; padding: 4px 24px 4px 28px; font-size: 13px; color: #525252; cursor: pointer; border-radius: 6px; margin: 0 8px; }
+  .sub-row:hover { background: #f5f5f5; }
+  .sub-row.active { background: #fef3c7; color: #78350f; font-weight: 600; }
+  .sub-row .dot { color: #d4d4d4; margin-right: 6px; }
+  .group-h { padding: 4px 16px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #a3a3a3; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+  kbd { font-family: 'SF Mono', monospace; font-size: 10px; border: 1px solid #e5e5e5; border-radius: 4px; padding: 2px 5px; color: #a3a3a3; }
+  .dot-purple { color: #a855f7 !important; font-weight: 700; }
+  .dot-indigo { color: #6366f1 !important; font-weight: 700; }
+  .dot-amber  { color: #d97706 !important; font-weight: 700; }
+  .dot-orange { color: #ea580c !important; font-weight: 700; }
+  .dot-emerald{ color: #059669 !important; font-weight: 700; }
+  .dot-rose   { color: #e11d48 !important; font-weight: 700; }
+  .dot-sky    { color: #0284c7 !important; font-weight: 700; }
+  .dot-teal   { color: #0d9488 !important; font-weight: 700; }
+  .dot-pink   { color: #db2777 !important; font-weight: 700; }
+</style>
+</head>
+<body class="p-6 space-y-4">
+
+  <header class="max-w-6xl mx-auto mb-6">
+    <h1 class="text-2xl font-bold text-neutral-800">Mix #4 + #5 — lista accordion + ricerca super power</h1>
+    <p class="text-neutral-600 text-sm mt-1">
+      Barra di ricerca in cima (come #5). Sotto, lista accordion sempre aperta con tutti i moduli e sotto-voci (come #4).
+      Digitando filtra in tempo reale. <strong>Tre varianti</strong> di layout sotto.
+    </p>
+  </header>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE M1 — Single column, search in cima                 -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap">
+    <div class="label-variant">M1 — Singola colonna stretta (380px) — vuoto / search</div>
+    <div class="label-desc">Stato di partenza (search vuoto): vedi tutti i moduli con sotto-voci a vista, raggruppati. Click apre la pagina.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 overflow-hidden" style="left: 50%; transform: translateX(-50%); top: 60px; width: 380px; max-height: 640px; overflow-y: auto;">
+      <!-- search bar -->
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 sticky top-0 bg-white">
+        <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" placeholder="Cerca modulo, pagina, vino, cliente…" class="flex-1 bg-transparent text-sm outline-none" />
+        <kbd>⌘K</kbd>
+      </div>
+
+      <!-- home -->
+      <a class="flex items-center gap-3 px-4 py-2.5 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer"><span class="w-6 text-center">🏠</span>Home</a>
+
+      <div class="border-t border-neutral-100 mx-3 my-1"></div>
+
+      <!-- Prenotazioni -->
+      <div class="group-h"><span class="text-base">📅</span><span class="text-indigo-600">Prenotazioni</span></div>
+      <div class="sub-row"><span class="dot dot-indigo">·</span>Planning</div>
+      <div class="sub-row"><span class="dot dot-indigo">·</span>Elenco prenotazioni</div>
+      <div class="sub-row"><span class="dot dot-indigo">·</span>Clienti</div>
+
+      <!-- Cantina (modulo corrente) -->
+      <div class="group-h"><span class="text-base">🍷</span><span class="text-amber-700">Cantina &amp; Vini</span><span class="ml-auto text-amber-700">←</span></div>
+      <div class="sub-row active"><span class="dot dot-amber">·</span>Magazzino</div>
+      <div class="sub-row"><span class="dot dot-amber">·</span>Carta Vini</div>
+      <div class="sub-row"><span class="dot dot-amber">·</span>Statistiche</div>
+      <div class="sub-row"><span class="dot dot-amber">·</span>Importazione</div>
+
+      <!-- Ricette -->
+      <div class="group-h"><span class="text-base">📘</span><span class="text-orange-700">Ricette &amp; Food Cost</span></div>
+      <div class="sub-row"><span class="dot dot-orange">·</span>Archivio ricette</div>
+      <div class="sub-row"><span class="dot dot-orange">·</span>Ingredienti</div>
+      <div class="sub-row"><span class="dot dot-orange">·</span>Nuova ricetta</div>
+
+      <!-- Vendite -->
+      <div class="group-h"><span class="text-base">💵</span><span class="text-emerald-700">Vendite</span></div>
+      <div class="sub-row"><span class="dot dot-emerald">·</span>Fine turno</div>
+      <div class="sub-row"><span class="dot dot-emerald">·</span>Corrispettivi</div>
+      <div class="sub-row"><span class="dot dot-emerald">·</span>Statistiche vendite</div>
+
+      <!-- Acquisti -->
+      <div class="group-h"><span class="text-base">🧾</span><span class="text-rose-700">Acquisti</span></div>
+      <div class="sub-row"><span class="dot dot-rose">·</span>Fatture</div>
+      <div class="sub-row"><span class="dot dot-rose">·</span>Fornitori</div>
+
+      <!-- CG -->
+      <div class="group-h"><span class="text-base">📊</span><span class="text-sky-700">Controllo Gestione</span></div>
+      <div class="sub-row"><span class="dot dot-sky">·</span>Dashboard P&amp;L</div>
+      <div class="sub-row"><span class="dot dot-sky">·</span>Spese fisse</div>
+      <div class="sub-row"><span class="dot dot-sky">·</span>Tabella conti</div>
+
+      <!-- Dipendenti -->
+      <div class="group-h"><span class="text-base">👥</span><span class="text-purple-700">Dipendenti</span></div>
+      <div class="sub-row"><span class="dot dot-purple">·</span>Anagrafica</div>
+      <div class="sub-row"><span class="dot dot-purple">·</span>Turni</div>
+
+      <!-- Flussi cassa -->
+      <div class="group-h"><span class="text-base">💰</span><span class="text-teal-700">Flussi Cassa</span></div>
+      <div class="sub-row"><span class="dot dot-teal">·</span>Mance</div>
+      <div class="sub-row"><span class="dot dot-teal">·</span>Movimenti</div>
+
+      <!-- Footer -->
+      <div class="border-t border-neutral-100 mt-2 px-4 py-2 flex items-center justify-between text-[11px] text-neutral-400 sticky bottom-0 bg-white">
+        <div class="flex items-center gap-2"><kbd>↑↓</kbd>naviga<kbd>↵</kbd>apri</div>
+        <span>esc chiudi</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE M2 — Stessa M1 ma con ricerca ATTIVA              -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 460px;">
+    <div class="label-variant">M2 — Search attivo: ho digitato "mag"</div>
+    <div class="label-desc">Stesso layout M1 ma quando digiti, lista filtrata. Mostra anche ricerca <em>profonda</em>: vini, clienti, fatture (non solo moduli/pagine).</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 overflow-hidden" style="left: 50%; transform: translateX(-50%); top: 60px; width: 480px;">
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-neutral-100">
+        <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" value="mag" class="flex-1 bg-transparent text-sm outline-none" />
+        <kbd>esc</kbd>
+      </div>
+
+      <div class="py-2 max-h-96 overflow-y-auto">
+        <!-- Pagine match -->
+        <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Pagine</div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm bg-neutral-100 cursor-pointer">
+          <span class="w-6 text-center">🍷</span>
+          <div class="flex-1"><div class="font-semibold text-neutral-900"><strong class="bg-yellow-200">Mag</strong>azzino</div><div class="text-[11px] text-neutral-500">Cantina &amp; Vini</div></div>
+          <kbd>↵</kbd>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍷</span>
+          <div class="flex-1"><div class="font-medium text-neutral-800"><strong class="bg-yellow-200">Mag</strong>azzino <span class="text-neutral-400 text-xs">(versione nuova)</span></div><div class="text-[11px] text-neutral-500">Cantina &amp; Vini</div></div>
+        </a>
+
+        <!-- Vini match (deep search) -->
+        <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-2">Vini in cantina (3)</div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍇</span>
+          <div class="flex-1"><div class="text-neutral-800"><strong class="bg-yellow-200">Mag</strong>num Brunello 2018</div><div class="text-[11px] text-neutral-500">Toscana · 12 bottiglie</div></div>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍇</span>
+          <div class="flex-1"><div class="text-neutral-800">Barolo "<strong class="bg-yellow-200">Mag</strong>liana" 2017</div><div class="text-[11px] text-neutral-500">Piemonte · 6 bottiglie</div></div>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍇</span>
+          <div class="flex-1"><div class="text-neutral-800"><strong class="bg-yellow-200">Mag</strong>num Champagne Krug</div><div class="text-[11px] text-neutral-500">Francia · 2 bottiglie</div></div>
+        </a>
+
+        <!-- Comandi match -->
+        <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-2">Azioni rapide</div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">⚡</span>
+          <div class="flex-1"><div class="text-neutral-800">Aggiungi vino al <strong class="bg-yellow-200">mag</strong>azzino</div></div>
+        </a>
+      </div>
+      <div class="px-4 py-2 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-400">
+        <div class="flex items-center gap-2"><kbd>↑↓</kbd>naviga<kbd>↵</kbd>apri</div>
+        <span>4 risultati per "mag"</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VARIANTE M3 — DOUBLE COLUMN: search+lista a sinistra | preview destra -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 720px;">
+    <div class="label-variant">M3 — 2 colonne: navigazione + preview</div>
+    <div class="label-desc">Sinistra search+lista accordion. Destra preview del modulo selezionato (descrizione, ultime azioni, scorciatoie). Stile Notion/Linear deluxe.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 overflow-hidden flex" style="left: 50%; transform: translateX(-50%); top: 60px; width: 720px; height: 660px;">
+      <!-- LEFT: search + list -->
+      <div class="w-80 border-r border-neutral-100 flex flex-col">
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-neutral-100">
+          <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" placeholder="Cerca…" class="flex-1 bg-transparent text-sm outline-none" />
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2">
+          <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 cursor-pointer"><span class="w-6 text-center">🏠</span>Home</a>
+          <div class="border-t border-neutral-100 mx-3 my-1"></div>
+          <div class="group-h"><span class="text-base">📅</span><span class="text-indigo-600">Prenotazioni</span></div>
+          <div class="sub-row"><span class="dot dot-indigo">·</span>Planning</div>
+          <div class="sub-row"><span class="dot dot-indigo">·</span>Elenco</div>
+          <div class="sub-row"><span class="dot dot-indigo">·</span>Clienti</div>
+          <div class="group-h"><span class="text-base">🍷</span><span class="text-amber-700">Cantina &amp; Vini</span><span class="ml-auto text-amber-700">←</span></div>
+          <div class="sub-row active"><span class="dot dot-amber">·</span>Magazzino</div>
+          <div class="sub-row"><span class="dot dot-amber">·</span>Carta Vini</div>
+          <div class="sub-row"><span class="dot dot-amber">·</span>Statistiche</div>
+          <div class="sub-row"><span class="dot dot-amber">·</span>Importazione</div>
+          <div class="group-h"><span class="text-base">📘</span><span class="text-orange-700">Ricette</span></div>
+          <div class="sub-row"><span class="dot dot-orange">·</span>Archivio</div>
+          <div class="sub-row"><span class="dot dot-orange">·</span>Ingredienti</div>
+          <div class="group-h"><span class="text-base">💵</span><span class="text-emerald-700">Vendite</span></div>
+          <div class="sub-row"><span class="dot dot-emerald">·</span>Fine turno</div>
+          <div class="sub-row"><span class="dot dot-emerald">·</span>Corrispettivi</div>
+          <div class="group-h"><span class="text-base">🧾</span><span class="text-rose-700">Acquisti</span></div>
+          <div class="sub-row"><span class="dot dot-rose">·</span>Fatture</div>
+          <div class="group-h"><span class="text-base">📊</span><span class="text-sky-700">Controllo Gestione</span></div>
+          <div class="sub-row"><span class="dot dot-sky">·</span>Dashboard</div>
+          <div class="sub-row"><span class="dot dot-sky">·</span>Spese fisse</div>
+        </div>
+      </div>
+      <!-- RIGHT: preview modulo selezionato -->
+      <div class="flex-1 p-5 bg-amber-50/40">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-3xl">🍷</span>
+          <div>
+            <div class="text-xs uppercase tracking-wider text-amber-700 font-bold">Cantina &amp; Vini</div>
+            <div class="text-lg font-bold text-amber-900">Magazzino</div>
+          </div>
+        </div>
+        <p class="text-sm text-neutral-600 mb-4">Gestisci giacenze, carico e scarico bottiglie, alert sotto-soglia.</p>
+
+        <div class="text-[11px] uppercase tracking-wider font-bold text-neutral-500 mb-1.5">Aperti di recente</div>
+        <div class="space-y-1 mb-4">
+          <a class="block px-3 py-1.5 text-sm rounded-lg hover:bg-white text-neutral-700 cursor-pointer">📄 Brunello 2018 — scheda</a>
+          <a class="block px-3 py-1.5 text-sm rounded-lg hover:bg-white text-neutral-700 cursor-pointer">📄 Carico fattura #2026-0412</a>
+          <a class="block px-3 py-1.5 text-sm rounded-lg hover:bg-white text-neutral-700 cursor-pointer">📄 Inventario marzo 2026</a>
+        </div>
+
+        <div class="text-[11px] uppercase tracking-wider font-bold text-neutral-500 mb-1.5">Azioni rapide</div>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button class="px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs text-amber-900 hover:bg-amber-100">+ Carica vino</button>
+          <button class="px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs text-amber-900 hover:bg-amber-100">📥 Importa CSV</button>
+          <button class="px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs text-amber-900 hover:bg-amber-100">🔍 Cerca etichetta</button>
+          <button class="px-3 py-2 rounded-lg bg-white border border-amber-200 text-xs text-amber-900 hover:bg-amber-100">📊 Esporta inventario</button>
+        </div>
+
+        <div class="text-[11px] text-neutral-400 mt-auto pt-3 border-t border-amber-100">
+          🔥 <strong>3 vini sotto-soglia</strong>: Barolo Magliana, Champagne Krug, Sangiovese Antinori
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- Recap                                                      -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto mt-10 p-5 bg-white rounded-xl border border-neutral-300">
+    <h2 class="text-base font-bold text-neutral-800 mb-3">Quale variante del mix?</h2>
+    <table class="w-full text-sm">
+      <thead class="text-left text-neutral-500 border-b border-neutral-200">
+        <tr><th class="py-2 w-12">Var.</th><th class="py-2">Layout</th><th class="py-2">Larghezza</th><th class="py-2">Forza</th><th class="py-2">Quando</th></tr>
+      </thead>
+      <tbody class="divide-y divide-neutral-100">
+        <tr><td class="py-2 font-bold">M1</td><td>Singola colonna</td><td>380px</td><td>Compatto, ordinato. Tutto a vista.</td><td>Default. Da sviluppare per primo.</td></tr>
+        <tr><td class="py-2 font-bold">M2</td><td>Singola colonna ma con risultati search profondi</td><td>480px</td><td>Cerca anche dentro i dati (vini, clienti, fatture)</td><td>Quando avrai endpoint search globale (tipo /search?q=…)</td></tr>
+        <tr><td class="py-2 font-bold">M3</td><td>Doppia colonna: lista + preview</td><td>720px</td><td>Preview del modulo selezionato (azioni rapide, alert)</td><td>Esperienza "wow" desktop. Più complesso da implementare.</td></tr>
+      </tbody>
+    </table>
+    <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+      <strong class="text-amber-900">Mio consiglio:</strong>
+      <span class="text-amber-800">parti con <strong>M1</strong> (semplice + ricerca live solo su nomi pagine/moduli — facile da implementare). Quando hai voglia, evolvi a <strong>M2</strong> aggiungendo backend search globale (può cercare anche vini/clienti/fatture). <strong>M3</strong> è il sogno futuro ma puoi tenerlo per la v2.</span>
+    </div>
+  </section>
+
+</body>
+</html>
