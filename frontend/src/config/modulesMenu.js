@@ -111,6 +111,11 @@ const MODULES_MENU = {
       { label: "Scadenze",      go: "/dipendenti/scadenze" },
     ],
   },
+  macellaio: {
+    title: "Scelta del Macellaio", icon: "🥩", go: "/macellaio",
+    color: "bg-red-50 border-red-200 text-red-900", hoverBg: "hover:bg-red-50",
+    sub: [],
+  },
   impostazioni: {
     title: "Impostazioni", icon: "\u2699\uFE0F", go: "/impostazioni",
     color: "bg-neutral-50 border-neutral-300 text-neutral-800", hoverBg: "hover:bg-neutral-100",

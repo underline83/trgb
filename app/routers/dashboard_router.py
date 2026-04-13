@@ -483,6 +483,30 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
         line2="Dashboard e grafici",
     ))
 
+    # ── Scelta del Macellaio ──
+    try:
+        conn = get_foodcost_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) as tot, SUM(CASE WHEN venduto=0 THEN 1 ELSE 0 END) as disp "
+            "FROM macellaio_tagli"
+        ).fetchone()
+        conn.close()
+        tot = row["tot"] if row else 0
+        disp = row["disp"] if row else 0
+        if tot > 0:
+            summaries.append(ModuloSummary(
+                key="macellaio",
+                line1=f"{disp} tagli disponibili",
+                line2=f"{tot - disp} venduti su {tot} totali",
+                badge=disp,
+            ))
+        else:
+            summaries.append(ModuloSummary(
+                key="macellaio", line1="Scelta del Macellaio", line2="Nessun taglio inserito",
+            ))
+    except Exception:
+        summaries.append(ModuloSummary(key="macellaio", line1="Scelta del Macellaio", line2=""))
+
     # ── Impostazioni ──
     summaries.append(ModuloSummary(
         key="impostazioni",

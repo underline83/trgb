@@ -68,6 +68,12 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  macellaio: {
+    version: "1.0",
+    label: "Scelta del Macellaio",
+    status: "beta",
+    color: "blue",
+  },
   home: {
     version: "3.4",
     label: "Home",

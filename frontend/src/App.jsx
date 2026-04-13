@@ -99,6 +99,7 @@ import TavoliEditor from "./pages/prenotazioni/TavoliEditor";
 import TavoliMappa from "./pages/prenotazioni/TavoliMappa";
 
 // --- COMUNICAZIONI (Bacheca Staff — 9.2) ---
+import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
 import Comunicazioni from "./pages/Comunicazioni";
 
 // --- CAMBIO PIN ---
@@ -280,6 +281,9 @@ export default function App() {
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
+
+        {/* --- SCELTA DEL MACELLAIO (Cucina) --- */}
+        <Route path="/macellaio" element={<ProtectedRoute module="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />

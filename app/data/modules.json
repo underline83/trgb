@@ -135,6 +135,14 @@
     ]
   },
   {
+    "key": "macellaio",
+    "label": "Scelta del Macellaio",
+    "description": "Tagli di carne disponibili alla vendita, gestiti da cucina e sala",
+    "icon": "🥩",
+    "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"],
+    "sub": []
+  },
+  {
     "key": "impostazioni",
     "label": "Impostazioni",
     "description": "Utenti, ruoli, configurazione sistema",
