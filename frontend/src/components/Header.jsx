@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v5.2 — wordmark TRGB a sinistra + menu moduli al centro
+// @version: v5.3 — layout grid 3 colonne: menu moduli perfettamente centrato
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import MODULES_MENU from "../config/modulesMenu";
@@ -158,19 +158,19 @@ export default function Header({ onLogout }) {
           </span>
         </div>
       )}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 grid grid-cols-3 items-center gap-4">
 
         {/* LEFT — Wordmark TRGB (link alla Home) */}
         <button
           onClick={() => goTo("/")}
-          className="flex items-center cursor-pointer group shrink-0"
+          className="flex items-center cursor-pointer group justify-self-start"
           aria-label="Vai alla home"
         >
           <TrgbWordmark size="md" className="group-hover:opacity-80 transition-opacity" />
         </button>
 
         {/* CENTER — Pulsante menu moduli con modulo corrente */}
-        <div className="relative flex-1 flex justify-center" ref={dropRef}>
+        <div className="relative justify-self-center" ref={dropRef}>
           <button
             onClick={handleOpen}
             className="flex items-center gap-1.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-white/60 transition"
@@ -338,7 +338,7 @@ export default function Header({ onLogout }) {
         </div>
 
         {/* RIGHT — User info + logout */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 justify-self-end">
           <div className="text-right hidden sm:block select-none"
             onDoubleClick={(e) => {
               // Triplo click = doubleClick + click ravvicinato

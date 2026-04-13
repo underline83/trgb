@@ -403,7 +403,7 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
             line2=fc_str or "Archivio ricette",
         ))
     except Exception:
-        summaries.append(ModuloSummary(key="ricette", line1="Ricette & Food Cost", line2=""))
+        summaries.append(ModuloSummary(key="ricette", line1="Gestione Cucina", line2=""))
 
     # ── Acquisti ──
     line1 = f"{fatture.count} fattur{'a' if fatture.count == 1 else 'e'} da pagare"
@@ -482,30 +482,6 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
         line1="Cucina · Coperti · Trend",
         line2="Dashboard e grafici",
     ))
-
-    # ── Scelta del Macellaio ──
-    try:
-        conn = get_foodcost_connection()
-        row = conn.execute(
-            "SELECT COUNT(*) as tot, SUM(CASE WHEN venduto=0 THEN 1 ELSE 0 END) as disp "
-            "FROM macellaio_tagli"
-        ).fetchone()
-        conn.close()
-        tot = row["tot"] if row else 0
-        disp = row["disp"] if row else 0
-        if tot > 0:
-            summaries.append(ModuloSummary(
-                key="macellaio",
-                line1=f"{disp} tagli disponibili",
-                line2=f"{tot - disp} venduti su {tot} totali",
-                badge=disp,
-            ))
-        else:
-            summaries.append(ModuloSummary(
-                key="macellaio", line1="Scelta del Macellaio", line2="Nessun taglio inserito",
-            ))
-    except Exception:
-        summaries.append(ModuloSummary(key="macellaio", line1="Scelta del Macellaio", line2=""))
 
     # ── Impostazioni ──
     summaries.append(ModuloSummary(

@@ -14,14 +14,13 @@ const MODULE_FALLBACK = {
   vini:                { sub1: "Carta, cantina, vendite, dashboard", sub2: "" },
   acquisti:            { sub1: "Fatture XML, fornitori, dashboard", sub2: "" },
   vendite:             { sub1: "Corrispettivi, chiusure cassa, dashboard", sub2: "" },
-  ricette:             { sub1: "Ricette, ingredienti, costi, matching", sub2: "" },
+  ricette:             { sub1: "Archivio, ingredienti, macellaio, food cost", sub2: "" },
   "flussi-cassa":      { sub1: "CC, carta, contanti, mance", sub2: "" },
   "controllo-gestione":{ sub1: "Dashboard P&L, scadenzario, confronto", sub2: "" },
   statistiche:         { sub1: "Cucina, coperti, trend, grafici", sub2: "" },
   prenotazioni:        { sub1: "Planning, mappa tavoli, settimana", sub2: "" },
   clienti:             { sub1: "Anagrafica, CRM, dashboard", sub2: "" },
   dipendenti:          { sub1: "Buste paga, turni, scadenze", sub2: "" },
-  macellaio:           { sub1: "Tagli di carne disponibili", sub2: "" },
   impostazioni:        { sub1: "Utenti, moduli, backup", sub2: "" },
 };
 

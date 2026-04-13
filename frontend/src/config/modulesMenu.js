@@ -37,14 +37,15 @@ const MODULES_MENU = {
     ],
   },
   ricette: {
-    title: "Ricette & Food Cost", icon: "\uD83D\uDCD8", go: "/ricette",
+    title: "Gestione Cucina", icon: "\uD83D\uDCD8", go: "/ricette",
     color: "bg-orange-50 border-orange-200 text-orange-900", hoverBg: "hover:bg-orange-50",
     sub: [
-      { label: "Archivio",      go: "/ricette/archivio" },
-      { label: "Ingredienti",   go: "/ricette/ingredienti" },
-      { label: "Matching",      go: "/ricette/matching",   check: "admin" },
-      { label: "Dashboard",     go: "/ricette/dashboard",  check: "admin" },
-      { label: "Strumenti",     go: "/ricette/settings",   check: "admin" },
+      { label: "Archivio",              go: "/ricette/archivio" },
+      { label: "Ingredienti",           go: "/ricette/ingredienti" },
+      { label: "Scelta del Macellaio",  go: "/macellaio" },
+      { label: "Matching",              go: "/ricette/matching",   check: "admin" },
+      { label: "Dashboard",             go: "/ricette/dashboard",  check: "admin" },
+      { label: "Strumenti",             go: "/ricette/settings",   check: "admin" },
     ],
   },
   "flussi-cassa": {
@@ -110,11 +111,6 @@ const MODULES_MENU = {
       { label: "Turni",         go: "/dipendenti/turni" },
       { label: "Scadenze",      go: "/dipendenti/scadenze" },
     ],
-  },
-  macellaio: {
-    title: "Scelta del Macellaio", icon: "🥩", go: "/macellaio",
-    color: "bg-red-50 border-red-200 text-red-900", hoverBg: "hover:bg-red-50",
-    sub: [],
   },
   impostazioni: {
     title: "Impostazioni", icon: "\u2699\uFE0F", go: "/impostazioni",

@@ -30,16 +30,17 @@
   },
   {
     "key": "ricette",
-    "label": "Gestione Ricette",
-    "description": "Archivio ricette, costi, stampa PDF",
+    "label": "Gestione Cucina",
+    "description": "Archivio ricette, food cost, scelta del macellaio",
     "icon": "📘",
-    "roles": ["superadmin", "admin", "chef", "viewer"],
+    "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"],
     "sub": [
-      { "key": "archivio",    "label": "Archivio",    "roles": ["superadmin", "admin", "chef", "viewer"] },
-      { "key": "ingredienti", "label": "Ingredienti", "roles": ["superadmin", "admin", "chef"] },
-      { "key": "matching",    "label": "Matching",    "roles": ["superadmin", "admin"] },
-      { "key": "dashboard",   "label": "Dashboard",   "roles": ["superadmin", "admin", "chef", "viewer"] },
-      { "key": "settings",    "label": "Strumenti",   "roles": ["superadmin", "admin"] }
+      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef", "viewer"] },
+      { "key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"] },
+      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"] },
+      { "key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"] },
+      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef", "viewer"] },
+      { "key": "settings",    "label": "Strumenti",            "roles": ["superadmin", "admin"] }
     ]
   },
   {
@@ -133,14 +134,6 @@
       { "key": "import",      "label": "Import",      "roles": ["superadmin", "admin"] },
       { "key": "impostazioni","label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
-  },
-  {
-    "key": "macellaio",
-    "label": "Scelta del Macellaio",
-    "description": "Tagli di carne disponibili alla vendita, gestiti da cucina e sala",
-    "icon": "🥩",
-    "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"],
-    "sub": []
   },
   {
     "key": "impostazioni",
