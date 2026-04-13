@@ -136,6 +136,8 @@
 | 8.9 | Onboarding guidato nuovo utente | S | DA FARE | Wizard primo login per ruolo |
 | 8.10 | Dashboard Home personalizzata per ruolo | S | DA FARE | Card filtrate per ruolo utente |
 | 8.11 | Tema stagionale / branding eventi | S | FUTURO | Nice-to-have cosmetico |
+| 8.12 | Dropdown Header M2 — deep search globale | M | DA FARE | Estendere ricerca del dropdown (già M1 in prod, sessione 32) anche a entità: vini per nome, clienti per cognome, fatture per numero, prenotazioni per data. Endpoint backend `/search/global?q=` che restituisce risultati raggruppati per tipo. Sezione dedicata nel dropdown sotto i moduli |
+| 8.13 | Dropdown Header M3 — preview panel a 2 colonne | M | FUTURO | Layout espanso: colonna sinistra gruppi moduli, colonna destra preview del modulo selezionato (ultima attività, shortcut recenti, mini-stats). Evoluzione di M1 per desktop wide (≥1024px), fallback M1 su mobile |
 
 ---
 

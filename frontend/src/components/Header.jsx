@@ -180,150 +180,112 @@ export default function Header({ onLogout }) {
             </svg>
           </button>
 
-          {/* ── Dropdown + Flyout ── */}
+          {/* ── Dropdown M1 — lista accordion sempre aperta + ricerca live ── */}
           {open && (
             <div
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100]"
-              style={{ display: "flex", alignItems: "flex-start" }}
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-[100] w-[380px] max-w-[calc(100vw-24px)] bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden"
             >
-              {/* Colonna principale — lista moduli */}
-              <div
-                ref={listRef}
-                className="w-64 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2 max-h-[calc(100dvh-80px)] overflow-y-auto relative"
-                onMouseLeave={!isTouch ? handleContainerLeave : undefined}
-              >
-                {/* Home */}
-                <button
-                  onClick={() => goTo("/")}
-                  onMouseEnter={() => { clearTimeout(leaveTimer.current); clearTimeout(intentTimer.current); setHovered(null); }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
-                    isHome ? "bg-neutral-100 font-semibold text-neutral-900" : "text-neutral-600 hover:bg-neutral-50"
-                  }`}
-                >
-                  <span className="text-base w-6 text-center">🏠</span>
-                  <span>Home</span>
-                </button>
-
-                <div className="border-t border-neutral-100 my-1 mx-2" />
-
-                {/* Moduli */}
-                {visibleKeys.map(key => {
-                  const cfg = MODULES_MENU[key];
-                  const isActive = currentModule && currentModule[0] === key;
-                  const isHov = hovered === key;
-                  // Filtra sotto-menu: usa permessi granulari da modules.json
-                  const visibleSubs = (cfg.sub || []).filter(s => {
-                    // Estrai sub key dal path (es. "/flussi-cassa/mance" → "mance")
-                    const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
-                    const subKey = pathParts.length > 1 ? pathParts[1] : null;
-                    return subKey ? canAccessSub(key, subKey) : true;
-                  });
-
-                  const hasSubs = visibleSubs.length > 0;
-                  const handleRowClick = () => {
-                    // B.1 — Su touch: se il modulo ha sotto-voci, il primo tap apre il flyout,
-                    // il secondo tap sullo stesso row naviga al path principale.
-                    // Su desktop: comportamento storico (click naviga sempre).
-                    if (isTouch && hasSubs) {
-                      if (isHov) {
-                        goTo(cfg.go);
-                      } else {
-                        activateHover(key);
-                      }
-                    } else {
-                      goTo(cfg.go);
-                    }
-                  };
-
-                  return (
-                    <div
-                      key={key}
-                      ref={el => { rowRefs.current[key] = el; }}
-                      onMouseEnter={!isTouch ? () => handleRowEnter(key) : undefined}
-                      className="relative"
+              {/* Search bar sticky */}
+              <div className="sticky top-0 bg-white border-b border-neutral-100 p-2.5">
+                <div className="relative">
+                  <svg className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cerca modulo o pagina…"
+                    className="w-full pl-9 pr-8 py-2 text-sm bg-neutral-50 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue/40 focus:bg-white transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(""); searchInputRef.current?.focus(); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition"
+                      aria-label="Pulisci ricerca"
                     >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista scrollabile */}
+              <div className="max-h-[calc(100dvh-160px)] overflow-y-auto py-1.5">
+                {/* Home */}
+                {homeMatches && (
+                  <button
+                    onClick={() => goTo("/")}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
+                      isHome ? "bg-neutral-100 font-semibold text-brand-ink" : "text-neutral-700 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <span className="text-base w-6 text-center">🏠</span>
+                    <span>Home</span>
+                  </button>
+                )}
+
+                {homeMatches && filteredGroups.length > 0 && (
+                  <div className="border-t border-neutral-100 my-1.5 mx-2" />
+                )}
+
+                {/* Gruppi moduli */}
+                {filteredGroups.map((g, idx) => {
+                  const { key, cfg, subs } = g;
+                  const isActive = currentModule && currentModule[0] === key;
+                  return (
+                    <div key={key} className={idx > 0 ? "mt-1" : ""}>
+                      {/* Header modulo — pill colorato cliccabile */}
                       <button
-                        onClick={handleRowClick}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition ${
-                          isActive
-                            ? `font-semibold text-neutral-900 ${cfg.hoverBg}`
-                            : isHov
-                              ? `text-neutral-900 ${cfg.hoverBg}`
-                              : `text-neutral-700 hover:bg-neutral-50`
-                        }`}
+                        onClick={() => goTo(cfg.go)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 mx-2 rounded-lg text-left text-[13px] font-semibold transition border ${cfg.color} ${cfg.hoverBg}`}
+                        style={{ width: "calc(100% - 16px)" }}
                       >
-                        <span className="text-base w-6 text-center">{cfg.icon}</span>
+                        <span className="text-base">{cfg.icon}</span>
                         <span className="flex-1">{cfg.title}</span>
-                        {visibleSubs.length > 0 && (
-                          <svg
-                            className={`w-3 h-3 transition-colors ${isHov ? "text-neutral-600" : "text-neutral-300"}`}
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
+                        {isActive && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold opacity-60">attivo</span>
                         )}
                       </button>
+
+                      {/* Sotto-voci */}
+                      {subs.length > 0 && (
+                        <div className="mt-0.5 mb-1">
+                          {subs.map(s => {
+                            const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/")
+                              || (s.go.includes("?") && location.pathname + location.search === s.go);
+                            return (
+                              <button
+                                key={s.go}
+                                onClick={() => goTo(s.go)}
+                                className={`w-full text-left pl-12 pr-4 py-1.5 text-[13px] transition ${
+                                  subActive
+                                    ? "bg-neutral-100 font-semibold text-brand-ink"
+                                    : "text-neutral-600 hover:text-brand-ink hover:bg-neutral-50"
+                                }`}
+                              >
+                                {s.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
-              </div>
 
-              {/* Flyout sotto-menu — posizionato allineato alla riga */}
-              {hovered && (() => {
-                const cfg = MODULES_MENU[hovered];
-                if (!cfg) return null;
-                const visibleSubs = (cfg.sub || []).filter(s => {
-                  const pathParts = s.go.replace(/\?.*$/, "").split("/").filter(Boolean);
-                  const subKey = pathParts.length > 1 ? pathParts[1] : null;
-                  return subKey ? canAccessSub(hovered, subKey) : true;
-                });
-                if (visibleSubs.length === 0) return null;
-
-                return (
-                  <div
-                    className="absolute left-full"
-                    style={{ top: flyoutTop, paddingLeft: 4 }}
-                    onMouseEnter={!isTouch ? handleFlyoutEnter : undefined}
-                    onMouseLeave={!isTouch ? handleContainerLeave : undefined}
-                  >
-                    {/* Ponte invisibile — safe zone tra colonna e flyout (solo desktop) */}
-                    {!isTouch && (
-                      <div
-                        className="absolute"
-                        style={{ left: -16, top: 0, width: 20, height: "100%" }}
-                        onMouseEnter={handleFlyoutEnter}
-                      />
-                    )}
-
-                    <div className="w-52 bg-white rounded-2xl shadow-2xl border border-neutral-200 py-2">
-                      {/* Titoletto */}
-                      <div className="px-4 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-                        {cfg.title}
-                      </div>
-                      <div className="border-t border-neutral-100 mx-2 mb-1" />
-
-                      {visibleSubs.map(s => {
-                        const subActive = currentPath === s.go || currentPath.startsWith(s.go + "/")
-                          || (s.go.includes("?") && location.pathname + location.search === s.go);
-                        return (
-                          <button
-                            key={s.go}
-                            onClick={() => goTo(s.go)}
-                            className={`w-full text-left px-4 py-2 text-[13px] transition ${
-                              subActive
-                                ? "bg-neutral-100 font-semibold text-neutral-900"
-                                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50"
-                            }`}
-                          >
-                            {s.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                {/* Empty state */}
+                {noResults && (
+                  <div className="px-4 py-8 text-center">
+                    <div className="text-2xl mb-2">🔍</div>
+                    <div className="text-sm text-neutral-500">Nessun risultato per <span className="font-semibold text-neutral-700">"{searchQuery}"</span></div>
+                    <div className="text-xs text-neutral-400 mt-1">Prova con un altro termine</div>
                   </div>
-                );
-              })()}
-
+                )}
+              </div>
             </div>
           )}
         </div>
