@@ -52,8 +52,11 @@ function rigaClasses(pren) {
 // COMPONENTE RIGA PRENOTAZIONE
 // ============================================================
 function RigaPrenotazione({ pren, onStatoChange, onExpand, expanded }) {
+  // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
+  // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
+  // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
   const nome = pren.nome
-    ? `${pren.nome}${pren.nome2 ? ` & ${pren.nome2}` : ""} ${pren.cognome || ""}`
+    ? `${pren.nome}${pren.nome2 ? ` & ${pren.nome2}` : ""}${pren.cognome ? ` ${pren.cognome}` : ""}`
     : (pren.canale === "Walk-in" ? "Walk-in" : "—");
 
   const oraShort = pren.ora_pasto ? pren.ora_pasto.slice(0, 5) : "—";

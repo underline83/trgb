@@ -32,6 +32,28 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
+### P1. Prenotazioni — Import TheFork senza nome per ~22% delle righe ✅ 2026-04-13
+**Segnalato:** 2026-04-13
+**Modulo:** Prenotazioni / Import TheFork (Clienti)
+**Gravità:** media
+
+**Sintomo:** molte prenotazioni importate dall'XLSX `tfm-search-results` di TheFork mostrano "—" al posto del nome cliente nel Planning, anche se nel file TheFork il nome c'è.
+
+**Causa:** il file XLSX di TheFork espone `Customer first name` / `Customer last name` direttamente su ogni riga prenotazione, ma l'endpoint `POST /clienti/import/prenotazioni` (clienti_router.py) non leggeva queste due colonne. Affidava il nome al solo JOIN con `clienti` via `Customer ID`. Quando `Customer ID` era NULL (walk-in registrati in TFM, prenotazioni anonimizzate GDPR, clienti rimossi — ~22% delle righe = 6.831 su 31.377 nel file reale di Marco) il JOIN restituiva NULL → frontend mostrava "—". Stesso effetto anche con Customer ID presente ma anagrafica non ancora importata.
+
+**Fix:**
+- **Migrazione 068**: aggiunge `nome_ospite TEXT` e `cognome_ospite TEXT` a `clienti_prenotazioni` in `clienti.sqlite3`. Stessa colonne aggiunte anche al blocco `pren_cols` di `init_clienti_db` per consistenza su DB nuovi.
+- **`import_prenotazioni` (clienti_router.py ~630)**: legge `Customer first name` / `Customer last name` e li salva come snapshot sulla prenotazione. Sopravvivono a tutto: assenza Customer ID, anagrafica non importata, cliente rimosso dal CRM.
+- **`get_planning` (prenotazioni_router.py ~190)**: la SELECT ora usa `COALESCE(c.nome, p.nome_ospite)` / `COALESCE(c.cognome, p.cognome_ospite)`. Preferenza al dato CRM (aggiornabile a mano), fallback al dato TheFork.
+- **Stessa COALESCE nella query TavoliMappa** (prenotazioni_router.py ~960) — così anche la vista planimetria mostra il nome nei tavoli "anonimi".
+- **`PrenotazioniPlanning.jsx`**: micro-fix della stringa nome (no spazio finale se cognome vuoto) e commento che spiega il nuovo comportamento.
+
+**Effetto:** tutte le prenotazioni importate da TheFork mostrano ora un nome nel planning, anche senza Customer ID e senza anagrafica importata. Se e quando Marco collega manualmente la prenotazione a un cliente CRM, il nome CRM prende il sopravvento (COALESCE) e ogni correzione anagrafica viene riflessa.
+
+**Nota operativa:** per popolare i campi su prenotazioni già importate prima della migrazione, serve rilanciare l'import del file XLSX completo (l'upsert aggiorna tutti i record esistenti senza duplicarli).
+
+---
+
 ### B1. Sistema — Ruoli/permessi si "ripristinano" dopo i deploy ✅ 2026-04-11
 **Causa:** `app/data/modules.json` era tracciato in git (con una nota esplicita nel `.gitignore`: _"modules.json è tracciato in git, non contiene dati sensibili, solo config moduli"_). Quando Marco modificava i ruoli/permessi dal pannello Impostazioni in produzione, il backend salvava le modifiche in `modules.json` sul VPS — corretto. Ma al primo `push.sh` successivo, il post-receive hook faceva `git checkout` del working dir ricaricando `modules.json` dal commit di Marco (macchina locale), **sovrascrivendo la versione runtime con il seed hardcoded in git**. Risultato: i ruoli modificati sparivano ad ogni deploy, in modo imprevedibile perché il reset coincideva con un push di codice non correlato.
 

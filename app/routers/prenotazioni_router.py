@@ -186,6 +186,9 @@ def get_planning(
         # Backfill turno/fonte se servono (lazy, max 5000 per chiamata)
         _backfill_turno_fonte(conn, soglia)
 
+        # nome / cognome usano COALESCE: preferiamo il dato CRM (aggiornabile),
+        # fallback allo snapshot TheFork salvato in p.nome_ospite / p.cognome_ospite
+        # (utile quando cliente_id e' NULL — vedi migrazione 068)
         rows = conn.execute("""
             SELECT
                 p.id, p.cliente_id, p.data_pasto, p.ora_pasto, p.stato, p.pax,
@@ -194,7 +197,10 @@ def get_planning(
                 p.allergie_segnalate, p.tavolo_esterno, p.seggioloni,
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
                 p.thefork_booking_id, p.creato_da,
-                c.nome, c.cognome, c.nome2, c.cognome2,
+                p.nome_ospite, p.cognome_ospite,
+                COALESCE(c.nome, p.nome_ospite) AS nome,
+                COALESCE(c.cognome, p.cognome_ospite) AS cognome,
+                c.nome2, c.cognome2,
                 c.telefono, c.email, c.vip, c.allergie,
                 c.pref_cibo, c.restrizioni_dietetiche, c.protetto,
                 (SELECT COUNT(*) FROM clienti_prenotazioni
@@ -952,12 +958,15 @@ def get_mappa_tavoli(
         """).fetchall()
 
         # Prenotazioni del turno (non cancellate)
+        # COALESCE: preferisci nome CRM, fallback a snapshot TheFork (migraz. 068)
         prenotazioni = conn.execute("""
             SELECT
                 p.id, p.cliente_id, p.ora_pasto, p.stato, p.pax,
                 p.tavolo, p.nota_ristorante, p.allergie_segnalate,
                 p.turno, p.occasione, p.seggioloni,
-                c.nome, c.cognome, c.telefono, c.vip, c.allergie
+                COALESCE(c.nome, p.nome_ospite) AS nome,
+                COALESCE(c.cognome, p.cognome_ospite) AS cognome,
+                c.telefono, c.vip, c.allergie
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE p.data_pasto = ? AND p.turno = ?

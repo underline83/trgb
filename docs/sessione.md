@@ -2,6 +2,8 @@
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
 > Ultima sessione: 2026-04-13 (sessione 32 — Modulo Preventivi 10.1+10.2). Implementato modulo Preventivi completo: DB 3 tabelle, backend service+router (14 endpoint), frontend lista con filtri+KPI, scheda con form+righe editabili+totale live, template riutilizzabili in Impostazioni CRM, tab preventivi in scheda cliente. Transizioni stato complete. Menu e rotte integrati.
+>
+> **Patch 2026-04-13 (fine sessione 32)** — Fix P1 "Import TheFork senza nome" (vedi `problemi.md`). Migrazione 068 aggiunge `nome_ospite`/`cognome_ospite` a `clienti_prenotazioni`. Import TheFork ora salva lo snapshot del nome dall'XLSX (`Customer first name`/`Customer last name`), `get_planning` e query TavoliMappa usano `COALESCE(c.nome, p.nome_ospite)`. Marco deve rilanciare l'import completo del file XLSX per popolare le prenotazioni gia' in DB.
 
 ---
 

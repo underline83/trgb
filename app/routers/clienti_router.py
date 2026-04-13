@@ -635,6 +635,23 @@ async def import_prenotazioni(
                 if not data_pasto or not stato:
                     continue
 
+                # Snapshot nome ospite dall'XLSX TheFork
+                # (tfm-search-results espone "Customer first name" / "Customer last name"
+                #  direttamente nella riga prenotazione — utile quando Customer ID manca
+                #  o quando l'anagrafica non e' stata ancora importata)
+                nome_ospite_raw = val(row, "Customer first name")
+                cognome_ospite_raw = val(row, "Customer last name")
+                nome_ospite = (
+                    str(nome_ospite_raw).strip()
+                    if nome_ospite_raw and str(nome_ospite_raw).strip().lower() != "nan"
+                    else None
+                )
+                cognome_ospite = (
+                    str(cognome_ospite_raw).strip()
+                    if cognome_ospite_raw and str(cognome_ospite_raw).strip().lower() != "nan"
+                    else None
+                )
+
                 pax = val(row, "Pax")
                 if isinstance(pax, str):
                     try:
@@ -710,6 +727,8 @@ async def import_prenotazioni(
                     "tavolo_esterno": tav_est,
                     "seggioloni": segg if segg and segg != "nan" else None,
                     "waiting_list": 1 if val(row, "Waiting list") else 0,
+                    "nome_ospite": nome_ospite,
+                    "cognome_ospite": cognome_ospite,
                 }
 
                 # Upsert su booking_id

@@ -291,6 +291,10 @@ def init_clienti_db() -> None:
         ("reminder_inviato", "INTEGER DEFAULT 0"),
         ("token_cancellazione", "TEXT"),
         ("updated_at", "TEXT"),
+        # Snapshot nome ospite da TheFork (fallback quando cliente_id e' NULL,
+        # es. prenotazioni anonimizzate o senza Customer ID) — vedi migraz. 068
+        ("nome_ospite", "TEXT"),
+        ("cognome_ospite", "TEXT"),
     ]
     existing_pren = [r[1] for r in cur.execute("PRAGMA table_info(clienti_prenotazioni)").fetchall()]
     for col_name, col_type in pren_cols:
