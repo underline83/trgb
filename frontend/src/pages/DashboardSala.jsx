@@ -12,7 +12,7 @@ import TrgbLoader from "../components/TrgbLoader";
 const SALA_ACTIONS = [
   { label: "Chiusura Turno", sub: "Fine servizio",    icon: "💵", go: "/vendite/fine-turno",      color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
   { label: "Prenotazioni",   sub: "Planning completo", icon: "📅", go: "/prenotazioni",            color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Cantina Vini",   sub: "Cerca e giacenze",  icon: "🍷", go: "/vini/magazzino",          color: "bg-amber-50 border-amber-200 text-amber-900" },
+  { label: "Carta dei Vini",  sub: "Cerca vini",         icon: "🍷", go: "/vini/carta",              color: "bg-amber-50 border-amber-200 text-amber-900" },
   { label: "Mance",          sub: "Registra mance",    icon: "💰", go: "/flussi-cassa/mance",      color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
 ];
 
