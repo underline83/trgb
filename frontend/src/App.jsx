@@ -283,7 +283,7 @@ export default function App() {
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
 
         {/* --- SCELTA DEL MACELLAIO (Cucina) --- */}
-        <Route path="/macellaio" element={<ProtectedRoute module="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
+        <Route path="/macellaio" element={<ProtectedRoute module="ricette" sub="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />

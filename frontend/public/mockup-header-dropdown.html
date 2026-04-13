@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mockup Dropdown Menu — alternative</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #e7e5e0; }
+  .brand-cream { background: #F4F1EC; }
+  .brand-ink { color: #111111; }
+  .helv { font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .hdr { background: #F4F1EC; border-bottom: 1px solid #e5e5e5; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .hdr-inner { max-width: 80rem; margin: 0 auto; padding: 10px 24px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+  .pill-btn { padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #d4d4d4; color: #525252; }
+  .wm-wrap { display: flex; align-items: center; gap: 8px; }
+  .wm-text { font-size: 1.5rem; font-weight: 800; color: #111; letter-spacing: -0.02em; line-height: 1; font-family: 'Helvetica Neue', Arial, sans-serif; }
+  .label-variant { font-size: 12px; font-weight: 700; color: #525252; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .label-desc { font-size: 13px; color: #666; margin-bottom: 10px; }
+  .sample-wrap { position: relative; padding-bottom: 380px; }
+  .sample-dropdown { position: absolute; z-index: 20; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+</style>
+</head>
+<body class="p-6 space-y-4">
+
+  <header class="max-w-6xl mx-auto mb-6">
+    <h1 class="text-2xl font-bold text-neutral-800">Dropdown menu — alternative</h1>
+    <p class="text-neutral-600 text-sm mt-1">Il dropdown che si apre cliccando sul menu al centro. Attualmente è una lista bianca + flyout laterale. Ecco 5 alternative.</p>
+  </header>
+
+  <!-- Wordmark SVG riusato -->
+  <template id="wm-svg">
+    <svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+      <path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/>
+      <path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/>
+      <path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/>
+    </g></svg>
+  </template>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 1 — ATTUALE: lista compatta + flyout laterale               -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap">
+    <div class="label-variant">1 — Attuale: lista + flyout</div>
+    <div class="label-desc">Colonna 256px con lista moduli. Hover su modulo → appare flyout a destra con sotto-voci. Compatto, "Amazon-style".</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start">
+          <svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg>
+          <span class="wm-text">TRGB</span>
+        </div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm">
+          <span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span>
+          <svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div class="justify-self-end flex items-center gap-3">
+          <div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div>
+          <button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- dropdown -->
+    <div class="sample-dropdown flex items-start" style="left: 50%; transform: translateX(-50%); top: 60px;">
+      <div class="w-64 bg-white rounded-2xl border border-neutral-200 py-2">
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-600 hover:bg-neutral-50"><span class="text-base w-6 text-center">🏠</span>Home</button>
+        <div class="border-t border-neutral-100 my-1 mx-2"></div>
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-indigo-50"><span class="text-base w-6 text-center">📅</span><span class="flex-1">Prenotazioni</span><svg class="w-3 h-3 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm bg-amber-50 text-amber-900 font-semibold"><span class="text-base w-6 text-center">🍷</span><span class="flex-1">Cantina &amp; Vini</span><svg class="w-3 h-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-orange-50"><span class="text-base w-6 text-center">📘</span><span class="flex-1">Ricette</span><svg class="w-3 h-3 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-emerald-50"><span class="text-base w-6 text-center">💵</span><span class="flex-1">Vendite</span><svg class="w-3 h-3 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+        <button class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-sky-50"><span class="text-base w-6 text-center">📊</span><span class="flex-1">Controllo Gestione</span><svg class="w-3 h-3 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+      <div class="w-52 bg-white rounded-2xl border border-neutral-200 py-2 ml-1">
+        <div class="px-4 py-1.5 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Cantina &amp; Vini</div>
+        <div class="border-t border-neutral-100 mx-2 mb-1"></div>
+        <button class="w-full text-left px-4 py-2 text-[13px] bg-neutral-100 font-semibold text-neutral-900">Magazzino</button>
+        <button class="w-full text-left px-4 py-2 text-[13px] text-neutral-600 hover:bg-neutral-50">Carta Vini</button>
+        <button class="w-full text-left px-4 py-2 text-[13px] text-neutral-600 hover:bg-neutral-50">Statistiche</button>
+        <button class="w-full text-left px-4 py-2 text-[13px] text-neutral-600 hover:bg-neutral-50">Importazione</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 2 — MEGA-MENU CARD (griglia card colorati stile Home)       -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 480px;">
+    <div class="label-variant">2 — Mega-menu card colorati (coerente con Home v3.3)</div>
+    <div class="label-desc">Griglia 3 colonne di card colorati (stessi colori della Home). Ogni card mostra modulo + sotto-voci sotto. Impatto visivo forte, coerente col resto dell'app.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 p-4" style="left: 50%; transform: translateX(-50%); top: 60px; width: 820px;">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">Tutti i moduli</div>
+        <button class="text-xs text-neutral-500 hover:text-neutral-800 flex items-center gap-1">🏠 Home</button>
+      </div>
+      <div class="grid grid-cols-3 gap-2.5">
+        <!-- Prenotazioni -->
+        <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">📅</span><span class="text-sm font-semibold text-indigo-900">Prenotazioni</span></div>
+          <div class="text-[11px] text-indigo-700/80 space-y-0.5"><div>• Planning</div><div>• Elenco prenotazioni</div><div>• Clienti</div></div>
+        </div>
+        <!-- Cantina (attivo) -->
+        <div class="p-3 rounded-xl bg-amber-100 border-2 border-amber-400 shadow-md cursor-pointer">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">🍷</span><span class="text-sm font-semibold text-amber-900">Cantina &amp; Vini</span></div>
+          <div class="text-[11px] text-amber-900 space-y-0.5 font-medium"><div>• <span class="underline">Magazzino</span> ←</div><div>• Carta Vini</div><div>• Statistiche</div><div>• Importazione</div></div>
+        </div>
+        <!-- Ricette -->
+        <div class="p-3 rounded-xl bg-orange-50 border border-orange-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">📘</span><span class="text-sm font-semibold text-orange-900">Food Cost</span></div>
+          <div class="text-[11px] text-orange-700/80 space-y-0.5"><div>• Archivio ricette</div><div>• Ingredienti</div><div>• Nuova ricetta</div></div>
+        </div>
+        <!-- Vendite -->
+        <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">💵</span><span class="text-sm font-semibold text-emerald-900">Vendite</span></div>
+          <div class="text-[11px] text-emerald-700/80 space-y-0.5"><div>• Fine turno</div><div>• Corrispettivi</div><div>• Statistiche</div></div>
+        </div>
+        <!-- Acquisti -->
+        <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">🧾</span><span class="text-sm font-semibold text-rose-900">Acquisti</span></div>
+          <div class="text-[11px] text-rose-700/80 space-y-0.5"><div>• Fatture</div><div>• Fornitori</div></div>
+        </div>
+        <!-- CG -->
+        <div class="p-3 rounded-xl bg-sky-50 border border-sky-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">📊</span><span class="text-sm font-semibold text-sky-900">Controllo Gestione</span></div>
+          <div class="text-[11px] text-sky-700/80 space-y-0.5"><div>• Dashboard P&amp;L</div><div>• Spese fisse</div><div>• Tabella conti</div></div>
+        </div>
+        <!-- Dipendenti -->
+        <div class="p-3 rounded-xl bg-purple-50 border border-purple-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">👥</span><span class="text-sm font-semibold text-purple-900">Dipendenti</span></div>
+          <div class="text-[11px] text-purple-700/80 space-y-0.5"><div>• Anagrafica</div><div>• Turni</div></div>
+        </div>
+        <!-- Flussi Cassa -->
+        <div class="p-3 rounded-xl bg-teal-50 border border-teal-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">💰</span><span class="text-sm font-semibold text-teal-900">Flussi Cassa</span></div>
+          <div class="text-[11px] text-teal-700/80 space-y-0.5"><div>• Mance</div><div>• Movimenti</div></div>
+        </div>
+        <!-- Clienti -->
+        <div class="p-3 rounded-xl bg-pink-50 border border-pink-200 hover:shadow-md cursor-pointer transition">
+          <div class="flex items-center gap-2 mb-1.5"><span class="text-xl">⭐</span><span class="text-sm font-semibold text-pink-900">Clienti</span></div>
+          <div class="text-[11px] text-pink-700/80 space-y-0.5"><div>• Anagrafica</div><div>• Preferenze</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 3 — MEGA-MENU GRUPPATO per area funzionale                  -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 430px;">
+    <div class="label-variant">3 — Mega-menu raggruppato per area</div>
+    <div class="label-desc">Colonne verticali per area: "Sala", "Cucina", "Gestione", "Staff". Aiuta a mappare mentalmente l'app come zone di lavoro.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 p-5" style="left: 50%; transform: translateX(-50%); top: 60px; width: 820px;">
+      <div class="grid grid-cols-4 gap-5">
+        <!-- SALA -->
+        <div>
+          <div class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">🍽️ Sala</div>
+          <div class="space-y-0.5">
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-indigo-50 cursor-pointer">📅 Prenotazioni</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-indigo-50 cursor-pointer">⭐ Clienti</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm bg-amber-100 text-amber-900 font-semibold rounded-lg cursor-pointer">🍷 Cantina &amp; Vini</a>
+          </div>
+        </div>
+        <!-- CUCINA -->
+        <div>
+          <div class="text-[11px] font-bold text-orange-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">👨‍🍳 Cucina</div>
+          <div class="space-y-0.5">
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-orange-50 cursor-pointer">📘 Ricette</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-orange-50 cursor-pointer">🥫 Ingredienti</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-orange-50 cursor-pointer">🧾 Acquisti</a>
+          </div>
+        </div>
+        <!-- GESTIONE -->
+        <div>
+          <div class="text-[11px] font-bold text-sky-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">📊 Gestione</div>
+          <div class="space-y-0.5">
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-sky-50 cursor-pointer">📊 Controllo Gestione</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-sky-50 cursor-pointer">💵 Vendite</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-sky-50 cursor-pointer">💰 Flussi Cassa</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-sky-50 cursor-pointer">📈 Statistiche</a>
+          </div>
+        </div>
+        <!-- STAFF -->
+        <div>
+          <div class="text-[11px] font-bold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">👥 Staff</div>
+          <div class="space-y-0.5">
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-purple-50 cursor-pointer">👥 Dipendenti</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-purple-50 cursor-pointer">📅 Turni</a>
+            <a class="flex items-center gap-2 px-2 py-1.5 text-sm text-neutral-700 rounded-lg hover:bg-purple-50 cursor-pointer">📢 Comunicazioni</a>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between">
+        <a class="text-xs text-neutral-500 hover:text-neutral-800 flex items-center gap-1 cursor-pointer">🏠 Torna alla Home</a>
+        <a class="text-xs text-neutral-500 hover:text-neutral-800 flex items-center gap-1 cursor-pointer">⚙️ Impostazioni</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 4 — LISTA con SOTTOPAGINE già aperte (accordion sempre su) -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 560px;">
+    <div class="label-variant">4 — Lista con sottopagine sempre visibili</div>
+    <div class="label-desc">Niente flyout, niente hover. Vedi già tutto il livello 2 rientrato sotto ciascun modulo. Meno "pulito" ma 0 click nascosti, perfetto per tablet/touch.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 py-3" style="left: 50%; transform: translateX(-50%); top: 60px; width: 340px;">
+      <button class="w-full flex items-center gap-3 px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50"><span class="w-6 text-center">🏠</span>Home</button>
+      <div class="border-t border-neutral-100 my-1.5 mx-3"></div>
+      <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Prenotazioni</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-indigo-50 cursor-pointer">· Planning</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-indigo-50 cursor-pointer">· Elenco</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-indigo-50 cursor-pointer">· Clienti</div>
+      <div class="border-t border-neutral-100 my-1.5 mx-3"></div>
+      <div class="px-4 py-1 text-[10px] font-bold text-amber-700 uppercase tracking-wider">🍷 Cantina &amp; Vini ←</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm bg-amber-50 text-amber-900 font-semibold">· Magazzino</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-amber-50 cursor-pointer">· Carta Vini</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-amber-50 cursor-pointer">· Statistiche</div>
+      <div class="border-t border-neutral-100 my-1.5 mx-3"></div>
+      <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Ricette &amp; Food Cost</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-orange-50 cursor-pointer">· Archivio</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-orange-50 cursor-pointer">· Ingredienti</div>
+      <div class="border-t border-neutral-100 my-1.5 mx-3"></div>
+      <div class="px-4 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Vendite</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-emerald-50 cursor-pointer">· Fine turno</div>
+      <div class="flex items-center gap-2 px-6 py-1 text-sm text-neutral-600 hover:bg-emerald-50 cursor-pointer">· Corrispettivi</div>
+      <div class="border-t border-neutral-100 my-1.5 mx-3"></div>
+      <div class="text-center text-[11px] text-neutral-400 px-4 py-1">e altri moduli…</div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 5 — COMMAND PALETTE (Spotlight con ricerca + risultati)    -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 470px;">
+    <div class="label-variant">5 — Command palette (⌘K)</div>
+    <div class="label-desc">Barra di ricerca in alto al dropdown, sotto le voci filtrate live. Puoi digitare "mag" → vedi "Magazzino" subito. Molto veloce da tastiera.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white rounded-2xl border border-neutral-200 overflow-hidden" style="left: 50%; transform: translateX(-50%); top: 60px; width: 480px;">
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-neutral-100">
+        <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" value="mag" placeholder="Cerca modulo o pagina…" class="flex-1 bg-transparent text-sm outline-none" />
+        <kbd class="text-[10px] font-mono border border-neutral-200 rounded px-1.5 py-0.5 text-neutral-400">esc</kbd>
+      </div>
+      <div class="py-2 max-h-80 overflow-y-auto">
+        <div class="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Pagine (2)</div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm bg-neutral-100 cursor-pointer">
+          <span class="w-6 text-center">🍷</span>
+          <div class="flex-1"><div class="font-semibold text-neutral-900">Magazzino</div><div class="text-[11px] text-neutral-500">Cantina &amp; Vini</div></div>
+          <kbd class="text-[10px] font-mono border border-neutral-200 rounded px-1.5 py-0.5 text-neutral-400">↵</kbd>
+        </a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍷</span>
+          <div class="flex-1"><div class="font-medium text-neutral-800">Magazzino <span class="text-neutral-400">(nuovo)</span></div><div class="text-[11px] text-neutral-500">Cantina &amp; Vini</div></div>
+        </a>
+        <div class="px-3 py-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider mt-1">Moduli (1)</div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-neutral-50 cursor-pointer">
+          <span class="w-6 text-center">🍷</span>
+          <div class="flex-1"><div class="font-medium text-neutral-800">Cantina &amp; Vini</div><div class="text-[11px] text-neutral-500">contiene Magazzino</div></div>
+        </a>
+      </div>
+      <div class="px-4 py-2 border-t border-neutral-100 text-[11px] text-neutral-400 flex items-center gap-3">
+        <span>↑↓ naviga</span> <span>↵ apri</span> <span>esc chiudi</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 6 — SIDEBAR SLIDE-IN                                       -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto sample-wrap" style="padding-bottom: 540px;">
+    <div class="label-variant">6 — Sidebar slide-in (da sinistra)</div>
+    <div class="label-desc">Click sul menu → sidebar lunga esce da sinistra. Gerarchia a due livelli sempre visibile senza hover. Ottimo su tablet, stile GMail/Notion.</div>
+    <div class="hdr rounded-t-lg overflow-hidden border border-neutral-300">
+      <div class="hdr-inner">
+        <div class="wm-wrap justify-self-start"><svg viewBox="15 28 155 28" class="h-7 w-auto"><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"><path d="M 20 50 L 25 39 L 35 34 L 45 36 L 55 42" stroke="#E8402B"/><path d="M 75 50 L 80 39 L 90 34 L 100 36 L 110 42" stroke="#2EB872"/><path d="M 130 50 L 135 39 L 145 34 L 155 36 L 165 42" stroke="#2E7BE8"/></g></svg><span class="wm-text">TRGB</span></div>
+        <button class="justify-self-center flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm"><span class="text-lg">🍷</span><span class="text-sm font-semibold">Cantina &amp; Vini</span><svg class="w-3.5 h-3.5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></button>
+        <div class="justify-self-end flex items-center gap-3"><div class="text-right"><div class="text-sm font-medium text-neutral-800 leading-tight">Marco</div><div class="text-[11px] text-neutral-400 uppercase tracking-wider leading-tight">admin</div></div><button class="pill-btn">🔔</button><button class="pill-btn">🔑</button><button class="pill-btn">Logout</button></div>
+      </div>
+    </div>
+
+    <div class="sample-dropdown bg-white border border-neutral-200 overflow-hidden" style="left: 0; top: 60px; width: 300px; height: 480px; border-radius: 0 16px 16px 0;">
+      <div class="p-4 border-b border-neutral-100 flex items-center justify-between">
+        <div class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Moduli</div>
+        <button class="w-7 h-7 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500">✕</button>
+      </div>
+      <div class="py-2">
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"><span class="w-6 text-center">🏠</span>Home</a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-indigo-50">
+          <span class="w-6 text-center">📅</span>Prenotazioni
+          <svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </a>
+        <div class="bg-amber-50 border-l-2 border-amber-400">
+          <a class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-amber-900"><span class="w-6 text-center">🍷</span>Cantina &amp; Vini<svg class="w-3 h-3 text-amber-600 ml-auto rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+          <div class="pl-12 pb-2">
+            <a class="block py-1 text-xs font-semibold text-amber-900">· Magazzino</a>
+            <a class="block py-1 text-xs text-amber-800/70 hover:text-amber-900 cursor-pointer">· Carta Vini</a>
+            <a class="block py-1 text-xs text-amber-800/70 hover:text-amber-900 cursor-pointer">· Statistiche</a>
+            <a class="block py-1 text-xs text-amber-800/70 hover:text-amber-900 cursor-pointer">· Importazione</a>
+          </div>
+        </div>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-orange-50"><span class="w-6 text-center">📘</span>Ricette<svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-emerald-50"><span class="w-6 text-center">💵</span>Vendite<svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-rose-50"><span class="w-6 text-center">🧾</span>Acquisti<svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-sky-50"><span class="w-6 text-center">📊</span>Controllo Gestione<svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+        <a class="flex items-center gap-3 px-4 py-2 text-sm text-neutral-700 hover:bg-purple-50"><span class="w-6 text-center">👥</span>Dipendenti<svg class="w-3 h-3 text-neutral-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- Confronto finale                                           -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <section class="max-w-6xl mx-auto mt-10 p-5 bg-white rounded-xl border border-neutral-300">
+    <h2 class="text-base font-bold text-neutral-800 mb-3">Confronto</h2>
+    <table class="w-full text-sm">
+      <thead class="text-left text-neutral-500 border-b border-neutral-200">
+        <tr>
+          <th class="py-2 w-10">#</th><th class="py-2">Tipo</th><th class="py-2">Forza</th><th class="py-2">Debolezza</th><th class="py-2">Ideale per</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-neutral-100">
+        <tr><td class="py-2 font-bold">1</td><td>Lista + flyout (attuale)</td><td>Compatto, già funziona</td><td>Richiede hover, poco visivo</td><td>Status quo</td></tr>
+        <tr><td class="py-2 font-bold">2</td><td>Mega-menu card</td><td>Bellissimo, coerente con Home</td><td>Occupa spazio (820px)</td><td>Esperienza wow, desktop</td></tr>
+        <tr><td class="py-2 font-bold">3</td><td>Mega-menu raggruppato</td><td>Organizzato per zone</td><td>Richiede decidere i gruppi</td><td>Mente organizzata per aree</td></tr>
+        <tr><td class="py-2 font-bold">4</td><td>Lista con sotto aperte</td><td>Tutto visibile, 0 hover</td><td>Dropdown lungo</td><td>Touch / iPad</td></tr>
+        <tr><td class="py-2 font-bold">5</td><td>Command palette ⌘K</td><td>Velocità estrema da tastiera</td><td>Serve tastiera</td><td>Power user da Mac</td></tr>
+        <tr><td class="py-2 font-bold">6</td><td>Sidebar slide-in</td><td>Gerarchia 2 livelli visibile</td><td>Taglia fuori parte dello schermo</td><td>Tablet landscape</td></tr>
+      </tbody>
+    </table>
+    <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+      <strong class="text-amber-900">Consiglio:</strong>
+      <span class="text-amber-800"> se già ti piaceva il <strong>trigger B</strong> (card colorato), il match naturale è il <strong>dropdown #2</strong> (mega-menu card) — stessa estetica Home + peso visivo bilanciato. Se privilegi efficienza da tastiera Mac + iPad, combinazione vincente è <strong>trigger A + dropdown #5</strong> (command palette).</span>
+    </div>
+  </section>
+
+</body>
+</html>
