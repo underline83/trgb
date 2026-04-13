@@ -46,7 +46,7 @@ export default function RicetteIngredienti() {
     setErrorMsg("");
 
     try {
-      const resp = await apiFetch(`${API_BASE}/foodcost/ingredients`);
+      const resp = await apiFetch(`${API_BASE}/foodcost/ingredients/`);
       if (!resp.ok) throw new Error("Errore caricamento ingredienti");
       const data = await resp.json();
       setItems(data || []);
@@ -111,7 +111,7 @@ export default function RicetteIngredienti() {
 
     try {
       // 1) CREA INGREDIENTE
-      const respIng = await apiFetch(`${API_BASE}/foodcost/ingredients`, {
+      const respIng = await apiFetch(`${API_BASE}/foodcost/ingredients/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadIngredient),

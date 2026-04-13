@@ -21,7 +21,7 @@
 ## Stack e convenzioni codice
 - **Backend**: FastAPI (Python 3.12) + SQLite. Entry point: `main.py`.
 - **Frontend**: React 18 + Vite + TailwindCSS. No CSS separati. Componenti funzionali con hooks.
-- **API calls**: sempre tramite `API_BASE` da `config/api.js`. Mai URL hardcoded.
+- **API calls**: sempre tramite `API_BASE` da `config/api.js`. Mai URL hardcoded. **TRAILING SLASH OBBLIGATORIO** su endpoint root dei router (es. `/vini/magazzino/` non `/vini/magazzino`). FastAPI fa 307 redirect e il browser perde l'header Auth → 401 → crash. Regola: se l'endpoint backend è `@router.get("/")` su un router con prefix, la chiamata FE DEVE avere lo slash finale.
 - **Auth**: JWT con `Depends(get_current_user)` su ogni endpoint.
 - **Pattern UI consolidati**: `SortTh`/`sortRows` per colonne ordinabili, toast per feedback, sidebar filtri a sinistra.
 - **Colori Tailwind — Palette TRGB-02 (sessione 28)**:

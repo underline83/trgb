@@ -60,7 +60,7 @@ export default function DipendentiAnagrafica() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/dipendenti`);
+      const res = await apiFetch(`${API_BASE}/dipendenti/`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Errore nel caricamento dei dipendenti.");

@@ -104,7 +104,7 @@ export default function DipendentiTurni() {
       try {
         // Dipendenti
         {
-          const res = await fetch(`${API_BASE}/dipendenti`, {
+          const res = await fetch(`${API_BASE}/dipendenti/`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },

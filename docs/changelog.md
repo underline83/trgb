@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-04-13 — Sessione 33 / FIX CRITICO: Crash pagine per trailing slash 307
+
+**Bug critico risolto**: Cantina, Mance, Dipendenti (e Ricette/Ingredienti) crashavano → pagina si ricaricava → redirect a login. Causa: le chiamate API senza trailing slash (`/vini/magazzino`, `/admin/finance/shift-closures`, `/dipendenti`, `/foodcost/ingredients`) venivano redirezionate da FastAPI con 307 a versioni con `/`. Durante il redirect il browser perde l'header Authorization (CORS) → backend vede richiesta senza token → 401 → handler frontend cancella JWT e fa `window.location.href = "/login"`.
+
+- Fix: aggiunto trailing slash a tutte le chiamate API root che colpiscono router con prefix (9 file, 11 chiamate)
+- Nuovo `ErrorBoundary.jsx`: cattura errori React e mostra schermata amichevole (invece di crash totale)
+- `App.jsx`: routes wrappate in ErrorBoundary
+- `api.js`: migliorato logging 401 — ora mostra QUALE endpoint ha fallito nella console
+- `Home.jsx`: fix link QUICK_ACTIONS "Cerca Vino" da `/vini/magazzino` a `/vini/carta`
+
+**File modificati**: `api.js`, `App.jsx`, `Home.jsx`, `MagazzinoVini.jsx`, `MagazzinoViniNuovo.jsx`, `MagazzinoAdmin.jsx`, `FlussiCassaMance.jsx`, `MancePage.jsx`, `DipendentiAnagrafica.jsx` (×2), `DipendentiTurni.jsx`, `RicetteIngredienti.jsx`, `RicetteNuova.jsx`, `RicetteModifica.jsx`
+**Nuovo file**: `ErrorBoundary.jsx`
+
+---
+
 ## 2026-04-13 — Sessione 32 / Modulo Preventivi 10.1+10.2
 
 **Modulo Preventivi** (sotto Clienti/CRM): CRUD completo per gestione preventivi eventi privati, cene aziendali, gruppi.

@@ -51,7 +51,7 @@ export default function DipendentiAnagrafica() {
   const loadDipendenti = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/dipendenti?include_inactive=true`);
+      const res = await apiFetch(`${API_BASE}/dipendenti/?include_inactive=true`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Errore");
       const data = await res.json();
       setDipendenti(Array.isArray(data) ? data : []);

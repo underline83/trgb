@@ -501,7 +501,7 @@ export default function MagazzinoVini() {
     setError("");
 
     try {
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino`);
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/`);
 
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 

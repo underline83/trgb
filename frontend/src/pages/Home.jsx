@@ -27,7 +27,7 @@ const MODULE_FALLBACK = {
 const QUICK_ACTIONS = [
   { label: "Chiusura Turno",     go: "/vendite/fine-turno",      icon: "💵", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
   { label: "Nuova Prenotazione", go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10), icon: "📅", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Cerca Vino",         go: "/vini/magazzino",           icon: "🍷", color: "bg-amber-50 border-amber-200 text-amber-900" },
+  { label: "Cerca Vino",         go: "/vini/carta",               icon: "🍷", color: "bg-amber-50 border-amber-200 text-amber-900" },
   { label: "Food Cost",          go: "/ricette/archivio",         icon: "📘", color: "bg-orange-50 border-orange-200 text-orange-900" },
 ];
 

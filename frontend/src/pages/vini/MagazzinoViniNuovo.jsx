@@ -219,7 +219,7 @@ export default function MagazzinoViniNuovo() {
     try {
       const q = encodeURIComponent(form.DESCRIZIONE.trim());
       // usiamo q per ridurre il set lato backend (router supporta ?q=...)
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino?q=${q}`);
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/?q=${q}`);
 
       if (!resp.ok) throw new Error(`Errore server: ${resp.status}`);
 
@@ -309,7 +309,7 @@ export default function MagazzinoViniNuovo() {
 
     setSubmitting(true);
     try {
-      const resp = await apiFetch(`${API_BASE}/vini/magazzino`, {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payloadFinal),

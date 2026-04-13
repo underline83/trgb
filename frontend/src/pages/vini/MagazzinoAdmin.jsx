@@ -117,7 +117,7 @@ export default function MagazzinoAdmin() {
   const fetchVini = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/vini/magazzino?limit=5000`);
+      const res = await apiFetch(`${API_BASE}/vini/magazzino/?limit=5000`);
       if (res.ok) {
         const data = await res.json();
         setVini(Array.isArray(data) ? data : data.items || []);

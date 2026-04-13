@@ -29,7 +29,7 @@ export default function FlussiCassaMance() {
   const fetchMance = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures`);
+      const res = await apiFetch(`${API_BASE}/admin/finance/shift-closures/`);
       if (!res.ok) throw new Error("Errore caricamento");
       const all = await res.json();
       const filtered = all.filter(sc => {

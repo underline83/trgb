@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 // import useAppHeight from "./hooks/useAppHeight"; // disabilitato sessione 26+, da reinvestigare
 import useUpdateChecker from "./hooks/useUpdateChecker";
@@ -154,6 +155,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Header onLogout={handleLogout} />
+      <ErrorBoundary>
       <Routes>
         {/* HOME */}
         <Route path="/" element={<Home />} />
@@ -292,6 +294,7 @@ export default function App() {
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
 
       {/* Banner auto-update — polling /version.json */}
       {updateAvailable && (

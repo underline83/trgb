@@ -24,11 +24,14 @@ export async function apiFetch(url, options = {}) {
   const response = await fetch(url, { ...options, headers });
 
   if (response.status === 401) {
+    // Log QUALE endpoint ha provocato il 401 — fondamentale per debug
+    console.error(`[apiFetch] 401 su: ${url}`);
+    console.error(`[apiFetch] Token presente: ${!!token}, lunghezza: ${token?.length || 0}`);
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     window.location.href = "/login";
     // Lancia un errore per interrompere la catena .then() del chiamante
-    throw new Error("Sessione scaduta. Reindirizzamento al login.");
+    throw new Error(`Sessione scaduta (401 su ${url}). Reindirizzamento al login.`);
   }
 
   return response;

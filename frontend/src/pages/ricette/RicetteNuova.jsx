@@ -39,7 +39,7 @@ export default function RicetteNuova() {
     const load = async () => {
       try {
         const [rIng, rBasi, rCat] = await Promise.all([
-          apiFetch(`${FC}/ingredients`),
+          apiFetch(`${FC}/ingredients/`),
           apiFetch(`${FC}/ricette/basi`),
           apiFetch(`${FC}/ricette/categorie`),
         ]);

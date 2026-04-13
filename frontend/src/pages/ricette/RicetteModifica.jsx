@@ -38,7 +38,7 @@ export default function RicetteModifica() {
     const load = async () => {
       try {
         const [rIng, rBasi, rCat, rRicetta] = await Promise.all([
-          apiFetch(`${FC}/ingredients`),
+          apiFetch(`${FC}/ingredients/`),
           apiFetch(`${FC}/ricette/basi`),
           apiFetch(`${FC}/ricette/categorie`),
           apiFetch(`${FC}/ricette/${id}`),
