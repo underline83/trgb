@@ -336,18 +336,34 @@ modulo Presenze separato. In Turni v2 resta solo:
 - Hook nella copia settimana per consultare (in futuro) il modulo Presenze e
   saltare i giorni con assenza programmata
 
-### Fase 5 — Vera vista mensile a griglia
+### Fase 5 — Vera vista mensile a griglia ✅ COMPLETATA (sessione 38)
 *Obiettivo:* sostituire la "lista per data" con un calendario vero.
 *Dimensione:* media.
 *Rischio:* medio.
 
-- Griglia 6 righe x 7 colonne, intestazioni Lun-Dom
-- Ogni cella giorno: badge compatti colorati con iniziali dipendente (es. "MR" blu pranzo, "GL" verde cena)
-- Click su cella giorno -> pannello laterale destro con dettaglio turni di quel giorno
-- Filtro dipendente/ruolo applicato
-- Non si creano turni dalla vista mese (solo lettura): per editing passa a settimanale
+**Backend — `turni_service.py` + `turni_router.py`:**
+- Nuovo servizio `build_vista_mese(reparto_id, anno, mese)` — griglia 42 giorni (6×7) partendo dal lunedì della settimana che contiene il 1° del mese
+- Helper condiviso `giorni_chiusi_nel_range(date_list)` — generalizza `giorni_chiusi_nella_settimana` a range arbitrari (riuso nel mese)
+- Nuovo endpoint `GET /turni/mese?reparto_id=X&anno=YYYY&mese=MM` (JWT) — default mese corrente
+- Payload: `reparto`, `anno`, `mese`, `mese_inizio/fine`, `giorni[42]`, `settimane_iso[6]`, `dipendenti[]`, `turni[]`, `chiusure[]`
 
-**Commit:** `./push.sh "turni v2 fase 5: vista mensile a griglia"`
+**Frontend — nuova pagina `VistaMensile.jsx` + route `/dipendenti/turni/mese`:**
+- Header: selettore mese ←/→/Oggi, bottone "📅 Settimana" per tornare a FoglioSettimana, tab reparti (con colori reparto)
+- Griglia 6×7: intestazioni Lun..Dom (sabato+domenica rossi), celle altezza 110px
+- Cella giorno: numero giorno, badge compatti 22×18px con iniziali dipendente + colore HEX univoco (contrasto auto), raggruppati per servizio (☀ pranzo / 🌙 cena), max 6 badge per riga con indicatore "+N"
+- Stati visivi cella: fuori-mese → opacity 0.4, oggi → ring brand-blue, selezionata → ring pieno, chiuso → sfondo grigio + "CHIUSO"
+- OPZIONALE → ★ giallo overlay; ANNULLATO → opacity 0.4
+- Click cella → pannello destro con dettaglio: sezione Pranzo + sezione Cena, righe con dipendente+colore+orario+stato+note, badge "📞 a chiamata"
+- Bottone "✏️ Apri settimana per modificare" → passa a `/dipendenti/turni` con `turni_last_settimana` memorizzato in localStorage (deep-link automatico)
+- Persistenza reparto (localStorage `turni_last_reparto`) condivisa tra settimana/mese — cambi reparto nella vista mese, lo trovi selezionato in quella settimana
+- Vista di sola lettura: per editing il pannello indirizza alla vista settimana
+
+**FoglioSettimana.jsx v1.7→v1.8:**
+- Bottone "🗓 Mese" nell'header → naviga a VistaMensile
+- Init legge `turni_last_settimana` / `turni_last_reparto` da localStorage (deep-link da VistaMensile)
+- Persistenza reparto scelto allineata a VistaMensile
+
+**Commit:** `./push.sh "turni v2 fase 5: vista mensile 6x7 con dettaglio giorno + deep-link settimana"`
 
 ### Fase 6 — Vista per dipendente
 *Obiettivo:* "quando lavoro il prossimo mese?" a colpo d'occhio.

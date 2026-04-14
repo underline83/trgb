@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 5 — Vista mensile a griglia 6×7 con dettaglio giorno
+
+Seconda consegna della sessione 38 (dopo Fase 8 PDF). Vista mensile "Google Calendar-like": sola lettura, per avere il colpo d'occhio su tutto il mese con un click. L'editing resta nella vista settimana — la vista mese è deep-link verso la settimana corretta.
+
+### Backend
+- **`app/services/turni_service.py`**:
+  - Nuova `build_vista_mese(reparto_id, anno, mese)` → struttura 42 giorni (6×7) partendo dal lunedì della settimana contenente il 1° del mese.
+  - Refactor chiusure: estratta helper condivisa `giorni_chiusi_nel_range(date_list)` che generalizza `giorni_chiusi_nella_settimana` (ora semplice wrapper). Stessa logica (giorno_chiusura_settimanale + giorni_chiusi espliciti da closures_config), applicata a range arbitrari.
+  - Payload include `settimane_iso[6]` per facilitare deep-link dal FE.
+- **`app/routers/turni_router.py`**: nuovo endpoint **`GET /turni/mese?reparto_id=X&anno=YYYY&mese=MM`** (JWT, default mese corrente).
+
+### Frontend
+- **Nuova pagina `VistaMensile.jsx`** (v1.0) + route **`/dipendenti/turni/mese`** (`App.jsx`).
+  - Header: selettore mese (← MMM YYYY →), Oggi, "📅 Settimana" per tornare a FoglioSettimana, tab reparti.
+  - Griglia 6×7: intestazioni Lun..Dom (sabato+domenica `brand-red`), celle altezza 110px.
+  - Cella giorno: numero giorno, badge compatti (22×18px) con iniziali dipendente + colore univoco (contrasto auto `textOn`), raggruppati per servizio (☀ pranzo / 🌙 cena), max 6 badge per riga con indicatore "+N".
+  - Stati visivi: fuori-mese → opacity 0.4, oggi → `ring-2 ring-brand-blue/60`, selezionato → ring pieno, chiuso → sfondo grigio + "CHIUSO". OPZIONALE → ★ giallo overlay; ANNULLATO → opacity 0.4.
+  - Click cella → pannello destro con dettaglio: sezione Pranzo / Cena, righe dipendente+colore+orari+stato+note, badge "📞 a chiamata".
+  - Bottone "✏️ Apri settimana per modificare" → memorizza `turni_last_settimana` + `turni_last_reparto` in localStorage, naviga a `/dipendenti/turni`.
+  - Persistenza mese scelto (`turni_mese_anno` / `turni_mese_mese` in localStorage).
+- **`FoglioSettimana.jsx` v1.7→v1.8-vista-mensile**:
+  - Bottone "🗓 Mese" nell'header → naviga a VistaMensile.
+  - Init legge `turni_last_settimana` (regex `^\d{4}-W\d{2}$`, one-shot → rimosso dopo uso) e `turni_last_reparto` (condiviso) da localStorage per deep-link dalla vista mese.
+  - Persistenza reparto scelto allineata (`turni_last_reparto` su ogni cambio).
+- **`versions.jsx`**: Dipendenti 2.7 → 2.8.
+
+### Commit
+`./push.sh "turni v2 fase 5: vista mensile 6x7 con dettaglio giorno + deep-link settimana"`
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 8 — PDF server-side + vista immagine per WhatsApp staff
 
 Marco vuole condividere la settimana con i ragazzi ma senza passare dal dialog stampante (che gli cambia la config della stampante di casa). Soluzione: PDF server-side via WeasyPrint + vista immagine per screenshot. **Zero window.print()** → regola CLAUDE.md rispettata.
