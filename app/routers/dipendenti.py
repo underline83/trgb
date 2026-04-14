@@ -60,6 +60,7 @@ class DipendenteBase(BaseModel):
     # Turni v2
     reparto_id: Optional[int] = None
     colore: Optional[str] = None       # HEX, es. "#2E7BE8"
+    a_chiamata: bool = False           # True = pagato a ore, senza contratto fisso
 
 
 class DipendenteCreate(DipendenteBase):
@@ -151,7 +152,7 @@ def list_dipendenti(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
-                   reparto_id, colore,
+                   reparto_id, colore, a_chiamata,
                    created_at, updated_at
             FROM dipendenti
             ORDER BY cognome, nome;
@@ -166,7 +167,7 @@ def list_dipendenti(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
-                   reparto_id, colore,
+                   reparto_id, colore, a_chiamata,
                    created_at, updated_at
             FROM dipendenti
             WHERE attivo = 1
@@ -179,6 +180,7 @@ def list_dipendenti(
 
     for r in rows:
         r["attivo"] = bool(r["attivo"])
+        r["a_chiamata"] = bool(r.get("a_chiamata") or 0)
 
     return JSONResponse(content=rows)
 
@@ -201,8 +203,8 @@ def create_dipendente(
                indirizzo_provincia, indirizzo_paese,
                iban,
                note, attivo,
-               reparto_id, colore)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               reparto_id, colore, a_chiamata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.codice.strip(),
@@ -221,6 +223,7 @@ def create_dipendente(
                 1 if payload.attivo else 0,
                 payload.reparto_id,
                 payload.colore.strip() if payload.colore else None,
+                1 if payload.a_chiamata else 0,
             ),
         )
         new_id = cur.lastrowid
@@ -242,7 +245,7 @@ def create_dipendente(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
-                   reparto_id, colore,
+                   reparto_id, colore, a_chiamata,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -254,6 +257,7 @@ def create_dipendente(
 
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
+    data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     return JSONResponse(content=data)
 
 
@@ -290,7 +294,8 @@ def update_dipendente(
                 note = ?,
                 attivo = ?,
                 reparto_id = ?,
-                colore = ?
+                colore = ?,
+                a_chiamata = ?
             WHERE id = ?;
             """,
             (
@@ -310,6 +315,7 @@ def update_dipendente(
                 1 if payload.attivo else 0,
                 payload.reparto_id,
                 payload.colore.strip() if payload.colore else None,
+                1 if payload.a_chiamata else 0,
                 dipendente_id,
             ),
         )
@@ -331,7 +337,7 @@ def update_dipendente(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
-                   reparto_id, colore,
+                   reparto_id, colore, a_chiamata,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -343,6 +349,7 @@ def update_dipendente(
 
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
+    data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     return JSONResponse(content=data)
 
 
@@ -412,6 +419,7 @@ def list_turni_tipi(
 
     for r in rows:
         r["attivo"] = bool(r["attivo"])
+        r["a_chiamata"] = bool(r.get("a_chiamata") or 0)
 
     return JSONResponse(content=rows)
 
@@ -476,6 +484,7 @@ def create_turno_tipo(
 
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
+    data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     return JSONResponse(content=data)
 
 
@@ -555,6 +564,7 @@ def update_turno_tipo(
 
     data = dict(row)
     data["attivo"] = bool(data["attivo"])
+    data["a_chiamata"] = bool(data.get("a_chiamata") or 0)
     return JSONResponse(content=data)
 
 

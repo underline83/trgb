@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.1-dipendenti-anagrafica (reparto + colore per Turni v2)
+// @version: v2.2-dipendenti-anagrafica (flag a_chiamata per Turni v2)
 // Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +24,7 @@ const EMPTY_FORM = {
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
-  reparto_id: null, colore: "",
+  reparto_id: null, colore: "", a_chiamata: false,
 };
 
 // Palette suggerita per assegnazione colore univoco dipendente (Turni v2)
@@ -109,6 +109,7 @@ export default function DipendentiAnagrafica() {
       indirizzo_provincia: d.indirizzo_provincia || "",
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
+      a_chiamata: !!d.a_chiamata,
     });
     loadDocumenti(d.id);
     setTab("dati");
@@ -137,6 +138,7 @@ export default function DipendentiAnagrafica() {
       note: form.note || null, attivo: !!form.attivo,
       reparto_id: form.reparto_id || null,
       colore: form.colore || null,
+      a_chiamata: !!form.a_chiamata,
     };
     const isEdit = !!form.id;
     try {
@@ -269,6 +271,10 @@ export default function DipendentiAnagrafica() {
                       title={d.colore || "Nessun colore"}
                     />
                     <div className="font-medium text-neutral-800 truncate">{d.cognome} {d.nome}</div>
+                    {d.a_chiamata && (
+                      <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
+                        title="A chiamata — pagata a ore">{"\uD83D\uDCDE"}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 ml-[18px]">
                     {rep && <span className="text-[9px] px-1 rounded bg-neutral-100 text-neutral-600">{rep.icona}{rep.codice}</span>}
@@ -460,11 +466,21 @@ export default function DipendentiAnagrafica() {
                       placeholder="Mansioni, allergie, note contratto..." />
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <input id="attivo" type="checkbox" checked={form.attivo}
-                      onChange={e => handleChange("attivo", e.target.checked)}
-                      className="rounded border-neutral-300 text-purple-600" />
-                    <label htmlFor="attivo" className="text-xs text-neutral-700">Dipendente attivo</label>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                      <input id="attivo" type="checkbox" checked={form.attivo}
+                        onChange={e => handleChange("attivo", e.target.checked)}
+                        className="rounded border-neutral-300 text-purple-600" />
+                      <label htmlFor="attivo" className="text-xs text-neutral-700">Dipendente attivo</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input id="a_chiamata" type="checkbox" checked={!!form.a_chiamata}
+                        onChange={e => handleChange("a_chiamata", e.target.checked)}
+                        className="rounded border-neutral-300 text-amber-600" />
+                      <label htmlFor="a_chiamata" className="text-xs text-neutral-700" title="Persona pagata a ore, senza contratto fisso 40h">
+                        {"\uD83D\uDCDE"} A chiamata (pagata a ore, senza contratto fisso)
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex gap-2 pt-2">

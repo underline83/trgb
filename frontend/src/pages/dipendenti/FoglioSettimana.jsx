@@ -1,10 +1,11 @@
-// @version: v1.3-foglio-settimana (Nome C. - solo primo nome, cognome puntato)
+// @version: v1.5-foglio-settimana (rinomina stato CHIAMATA→OPZIONALE, badge a_chiamata su dipendente)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
 // - Tab reparto (SALA/CUCINA) in alto
-// - Click cella → popover assegnazione (dipendente, orari, stato CHIAMATA)
-// - Asterisco giallo per stato CHIAMATA
+// - Click cella → popover assegnazione (dipendente, orari, stato OPZIONALE)
+// - Asterisco giallo per stato OPZIONALE (turno da confermare all'ultimo)
+// - Badge "a chiamata" per dipendenti pagati a ore senza contratto fisso
 // - Riga grigia per giorno di chiusura (letto da settings/closures-config)
 // - Pannello destro: ore lorde/nette per dipendente con semaforo 40/48
 // - Pulsanti ←/→ per navigazione settimana, pulsante "Copia settimana"
@@ -408,7 +409,7 @@ function SlotCell({ turno, onClick, disabled }) {
     );
   }
   const stato = (turno.stato || "").toUpperCase();
-  const chiamata = stato === "CHIAMATA";
+  const opzionale = stato === "OPZIONALE";
   const annullato = stato === "ANNULLATO";
 
   const bg = turno.dipendente_colore || "#d1d5db";
@@ -424,8 +425,8 @@ function SlotCell({ turno, onClick, disabled }) {
         onClick={onClick}>
       <div className="rounded px-1.5 py-1 leading-tight relative"
            style={{ backgroundColor: bg, color: tone, opacity: annullato ? 0.4 : 1 }}>
-        {chiamata && (
-          <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow">★</span>
+        {opzionale && (
+          <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow" title="Turno opzionale">★</span>
         )}
         <div className="font-semibold truncate text-[12px]">
           {label}
@@ -484,6 +485,10 @@ function OrePanel({ ore, reparto }) {
                 <span className="inline-block w-3 h-3 rounded-full shrink-0"
                       style={{ backgroundColor: d.colore || "#d1d5db" }}></span>
                 <span className="text-sm truncate">{d.nome} {d.cognome}</span>
+                {d.a_chiamata && (
+                  <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
+                        title="A chiamata — contratto a ore">📞</span>
+                )}
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-mono font-semibold">{d.ore_nette.toFixed(1)}h</div>
@@ -571,7 +576,7 @@ function PopoverAssegna({ popover, dipendenti, reparto, onClose, onSubmit }) {
         <div className="flex gap-2 mb-3 flex-wrap">
           {[
             { v: "CONFERMATO", l: "✓ Confermato", bg: "bg-green-600" },
-            { v: "CHIAMATA",   l: "★ Chiamata",   bg: "bg-yellow-500" },
+            { v: "OPZIONALE",  l: "★ Opzionale",  bg: "bg-yellow-500" },
             { v: "ANNULLATO",  l: "✕ Annullato",  bg: "bg-neutral-500" },
           ].map(opt => (
             <button key={opt.v} type="button" onClick={() => update("stato", opt.v)}
@@ -612,9 +617,27 @@ function PopoverAssegna({ popover, dipendenti, reparto, onClose, onSubmit }) {
 
 // ---- DIALOG COPIA SETTIMANA ----------------------------------------------
 function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
-  const [from_settimana, setFrom] = useState(shiftIsoWeek(settimanaCorrente, -1));
-  const [to_settimana, setTo] = useState(settimanaCorrente);
+  // Default sensato: copia DA settimana corrente A settimana prossima
+  const [from_settimana, setFrom] = useState(settimanaCorrente);
+  const [to_settimana, setTo] = useState(shiftIsoWeek(settimanaCorrente, 1));
   const [sovrascrivi, setSovrascrivi] = useState(false);
+
+  // Range range ±8 settimane intorno alla settimana corrente per il selettore
+  const opzioni = useMemo(() => {
+    const out = [];
+    for (let d = -8; d <= 8; d++) {
+      const iso = shiftIsoWeek(settimanaCorrente, d);
+      const monday = mondayOfWeek(iso);
+      const sunday = new Date(monday);
+      sunday.setUTCDate(monday.getUTCDate() + 6);
+      const fmt = (dt) => `${pad(dt.getUTCDate())}/${pad(dt.getUTCMonth()+1)}`;
+      const label = `${iso} — ${fmt(monday)}→${fmt(sunday)}${d === 0 ? "  (corrente)" : ""}`;
+      out.push({ iso, label });
+    }
+    return out;
+  }, [settimanaCorrente]);
+
+  const stessa = from_settimana === to_settimana;
 
   return (
     <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
@@ -624,12 +647,38 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
         <h3 className="font-semibold mb-3">📋 Copia settimana — {reparto?.nome}</h3>
 
         <label className="block text-xs font-medium mb-1">Dalla settimana</label>
-        <input type="text" value={from_settimana} onChange={e => setFrom(e.target.value)}
-               className="w-full min-h-[44px] border rounded px-2 mb-3 font-mono" placeholder="2026-W15" />
+        <div className="flex gap-1 mb-3">
+          <button type="button" onClick={() => setFrom(shiftIsoWeek(from_settimana, -1))}
+                  className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">←</button>
+          <select value={from_settimana} onChange={e => setFrom(e.target.value)}
+                  className="flex-1 min-h-[44px] border rounded px-2 font-mono text-sm">
+            {opzioni.map(o => (
+              <option key={`f-${o.iso}`} value={o.iso}>{o.label}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setFrom(shiftIsoWeek(from_settimana, 1))}
+                  className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">→</button>
+        </div>
 
         <label className="block text-xs font-medium mb-1">Alla settimana</label>
-        <input type="text" value={to_settimana} onChange={e => setTo(e.target.value)}
-               className="w-full min-h-[44px] border rounded px-2 mb-3 font-mono" placeholder="2026-W16" />
+        <div className="flex gap-1 mb-3">
+          <button type="button" onClick={() => setTo(shiftIsoWeek(to_settimana, -1))}
+                  className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">←</button>
+          <select value={to_settimana} onChange={e => setTo(e.target.value)}
+                  className="flex-1 min-h-[44px] border rounded px-2 font-mono text-sm">
+            {opzioni.map(o => (
+              <option key={`t-${o.iso}`} value={o.iso}>{o.label}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => setTo(shiftIsoWeek(to_settimana, 1))}
+                  className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">→</button>
+        </div>
+
+        {stessa && (
+          <div className="mb-3 p-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded">
+            ⚠ Origine e destinazione sono la stessa settimana.
+          </div>
+        )}
 
         <label className="flex items-center gap-2 mb-4 text-sm">
           <input type="checkbox" checked={sovrascrivi} onChange={e => setSovrascrivi(e.target.checked)} />
@@ -642,8 +691,9 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
 
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="min-h-[44px] px-3 bg-neutral-100 rounded">Annulla</button>
-          <button onClick={() => onSubmit({ from_settimana, to_settimana, sovrascrivi })}
-                  className="min-h-[44px] px-3 bg-brand-blue text-white rounded hover:opacity-90">
+          <button disabled={stessa}
+                  onClick={() => onSubmit({ from_settimana, to_settimana, sovrascrivi })}
+                  className="min-h-[44px] px-3 bg-brand-blue text-white rounded hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
             Copia
           </button>
         </div>

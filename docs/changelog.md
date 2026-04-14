@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-04-14 — Sessione 36 / Turni v2 Fase 5 — refactor OPZIONALE + flag `a_chiamata` + pausa condizionale + UX refinements
+
+Sessione di correzione concettuale + raffinamento UX sul Foglio Settimana (v1.2 → v1.5).
+
+### Correzione concettuale CHIAMATA → OPZIONALE
+Il vecchio "stato=CHIAMATA" sul turno era un uso improprio del termine: il concetto corretto è **OPZIONALE** (turno non confermato, zero ore, da confermare all'ultimo). "A chiamata" invece è una proprietà del **dipendente** (pagato a ore, senza 40h fisse).
+
+### Backend
+- Nuova migrazione **073 `turni_v2_opzionale_a_chiamata.py`**: ALTER `dipendenti` + `a_chiamata INTEGER DEFAULT 0`, UPDATE `turni_calendario SET stato='OPZIONALE' WHERE stato='CHIAMATA'`. Idempotente.
+- **`turni_service.py`**: stato turno CHIAMATA → OPZIONALE ovunque (SELECT, calcolo ore, copia settimana). Aggiunte soglie `SOGLIA_PAUSA_PRANZO="11:30"` e `SOGLIA_PAUSA_CENA="18:30"`: pausa staff dedotta solo per chi entra **prima** della soglia (chi entra 12/19 arriva "già mangiato"). Propagato `a_chiamata` nei dati dipendenti.
+- **`turni_router.py`**: stato validato su `("CONFERMATO", "OPZIONALE", "ANNULLATO")`.
+- **`dipendenti.py` router**: `DipendenteBase` + campo `a_chiamata: bool = False`. SELECT/INSERT/UPDATE allineati con serializzazione bool in response.
+- **`dipendenti_db.py`**: colonna `a_chiamata INTEGER DEFAULT 0` nel safe-ALTER loop.
+
+### Frontend
+- **`FoglioSettimana.jsx` v1.2→v1.5**:
+  - v1.2: slot con colgroup + `SLOT_W=92px` (niente spazio vuoto oltre il nome pill, ma font leggibile).
+  - v1.3: label pill `Nome C.` — primo nome + iniziale cognome, per dipendenti multi-nome prende solo il primo (Mirla Stefane → `Mirla S.`).
+  - v1.4: dialog "Copia settimana" con selettore (dropdown ±8 settimane + navigazione ←/→), default from=corrente, to=successiva, submit disabilitato se from==to.
+  - v1.5: popover stato rinominato CHIAMATA → OPZIONALE; ★ con title esplicativo; badge `📞` nel pannello ore per dipendenti `a_chiamata`; nota in legenda sulla regola pausa condizionale.
+- **`DipendentiAnagrafica.jsx` v2.1→v2.2**: checkbox `📞 A chiamata (pagata a ore, senza contratto fisso)` nel form dati, badge 📞 nella sidebar lista per dipendenti a chiamata.
+- **`versions.jsx`**: Dipendenti 2.4 → 2.5.
+
+---
+
 ## 2026-04-14 — Sessione 36 / Turni v2 Fase 4 — CRUD reparti UI + colore dipendente
 
 Completata la configurazione lato utente del modulo Turni v2. Marco puo' ora gestire reparti e colori direttamente da UI senza toccare il DB.

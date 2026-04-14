@@ -342,10 +342,12 @@ def init_dipendenti_db() -> None:
         except Exception:
             pass
 
-    # Colonne extra su dipendenti (reparto + colore univoco)
+    # Colonne extra su dipendenti (reparto + colore univoco + a chiamata)
+    # a_chiamata=1 → dipendente pagato a ore, senza contratto fisso
     for col_def in [
         "reparto_id INTEGER REFERENCES reparti(id)",
         "colore TEXT",
+        "a_chiamata INTEGER DEFAULT 0",
     ]:
         try:
             cur.execute(f"ALTER TABLE dipendenti ADD COLUMN {col_def}")
@@ -366,7 +368,8 @@ def init_dipendenti_db() -> None:
             pass
 
     # Colonne extra su turni_calendario
-    # NB: 'stato' resta TEXT libero — accetta CONFERMATO / CHIAMATA / ANNULLATO
+    # NB: 'stato' resta TEXT libero — accetta CONFERMATO / OPZIONALE / ANNULLATO
+    # (OPZIONALE = turno non ancora confermato, non pesa nel conteggio ore)
     for col_def in [
         "ore_effettive REAL",
         "origine TEXT NOT NULL DEFAULT 'MANUALE'",

@@ -49,7 +49,7 @@ class AssegnaTurnoIn(BaseModel):
     slot_index: int = Field(ge=0)   # 0-based
     ora_inizio: Optional[str] = None
     ora_fine: Optional[str] = None
-    stato: str = "CONFERMATO"       # CONFERMATO / CHIAMATA / ANNULLATO
+    stato: str = "CONFERMATO"       # CONFERMATO / OPZIONALE / ANNULLATO
     note: Optional[str] = None
     turno_tipo_id: Optional[int] = None  # se non specificato → tipo default per servizio
 
@@ -158,7 +158,7 @@ def assegna_turno(
     if servizio not in ("PRANZO", "CENA"):
         raise HTTPException(status_code=400, detail="servizio deve essere PRANZO o CENA")
     stato = payload.stato.upper().strip()
-    if stato not in ("CONFERMATO", "CHIAMATA", "ANNULLATO"):
+    if stato not in ("CONFERMATO", "OPZIONALE", "ANNULLATO"):
         raise HTTPException(status_code=400, detail="stato non valido")
 
     conn = get_dipendenti_conn()
@@ -310,7 +310,7 @@ def modifica_turno(
             params.append(payload.ora_fine.strip())
         if payload.stato is not None:
             st = payload.stato.upper().strip()
-            if st not in ("CONFERMATO", "CHIAMATA", "ANNULLATO"):
+            if st not in ("CONFERMATO", "OPZIONALE", "ANNULLATO"):
                 raise HTTPException(status_code=400, detail="stato non valido")
             updates.append("stato = ?")
             params.append(st)

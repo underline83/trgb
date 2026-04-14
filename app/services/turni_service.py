@@ -14,7 +14,10 @@ Concetti chiave:
   turni vengono aggiunti/rimossi (non ricalcola la posizione).
 - **Servizio**: PRANZO / CENA (derivato dal tipo turno o override su turno
   singolo). Nessun servizio = turno "tutto giorno" (legacy/raro).
-- **Chiamata**: stato='CHIAMATA' sul turno = asterisco giallo nel foglio
+- **Opzionale**: stato='OPZIONALE' sul turno = asterisco giallo nel foglio
+  (turno da confermare all'ultimo; non pesa nel conteggio ore).
+  Il concetto "a chiamata" è invece un flag sul dipendente (a_chiamata=1 →
+  persona pagata a ore senza contratto fisso).
   (da confermare). Uguale semantica del vecchio asterisco Excel.
 - **Ore nette**: ore lorde (ora_fine - ora_inizio) MENO le pause staff
   del reparto (pausa_pranzo_min / pausa_cena_min).
@@ -122,7 +125,7 @@ def calcola_ore_nette_giorno(
     - Pausa CENA dedotta SOLO se almeno un turno CENA ha ora_inizio
       < SOGLIA_PAUSA_CENA (18:30). Chi entra 19:00 arriva già mangiato.
     - Pause applicate UNA VOLTA per servizio, non una per turno.
-    - Stato='CHIAMATA' o 'ANNULLATO' → il turno NON pesa nel conto (è da confermare / annullato).
+    - Stato='OPZIONALE' o 'ANNULLATO' → il turno NON pesa nel conto (da confermare / annullato).
     """
     soglia_p = _parse_hhmm(SOGLIA_PAUSA_PRANZO) or 0
     soglia_c = _parse_hhmm(SOGLIA_PAUSA_CENA) or 0
@@ -133,7 +136,7 @@ def calcola_ore_nette_giorno(
 
     for t in turni_giorno:
         stato = (t.get("stato") or "CONFERMATO").upper()
-        if stato in ("CHIAMATA", "ANNULLATO"):
+        if stato in ("OPZIONALE", "ANNULLATO"):
             continue
 
         oe = t.get("ore_effettive")
@@ -213,13 +216,16 @@ def build_foglio_settimana(
 
         # Dipendenti attivi del reparto
         cur.execute(
-            """SELECT id, nome, cognome, ruolo, colore, reparto_id
+            """SELECT id, nome, cognome, ruolo, colore, reparto_id,
+                      COALESCE(a_chiamata, 0) AS a_chiamata
                FROM dipendenti
                WHERE attivo = 1 AND reparto_id = ?
                ORDER BY cognome, nome""",
             (reparto_id,),
         )
         dipendenti = [dict(r) for r in cur.fetchall()]
+        for d in dipendenti:
+            d["a_chiamata"] = bool(d.get("a_chiamata") or 0)
 
         # Turni della settimana, solo dipendenti del reparto
         cur.execute(
@@ -241,7 +247,8 @@ def build_foglio_settimana(
                   d.nome    AS dipendente_nome,
                   d.cognome AS dipendente_cognome,
                   d.colore  AS dipendente_colore,
-                  d.ruolo   AS dipendente_ruolo
+                  d.ruolo   AS dipendente_ruolo,
+                  COALESCE(d.a_chiamata, 0) AS dipendente_a_chiamata
                 FROM turni_calendario tc
                 JOIN dipendenti d ON d.id = tc.dipendente_id
                 JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
@@ -348,7 +355,7 @@ def ore_nette_settimana_per_reparto(
             lordo = sum(
                 ore_lorde(tt.get("ora_inizio") or "", tt.get("ora_fine") or "")
                 for tt in tt_list
-                if (tt.get("stato") or "CONFERMATO").upper() not in ("CHIAMATA", "ANNULLATO")
+                if (tt.get("stato") or "CONFERMATO").upper() not in ("OPZIONALE", "ANNULLATO")
             )
             netto = calcola_ore_nette_giorno(tt_list, pausa_p, pausa_c)
             per_giorno[g] = {"lordo": round(lordo, 2), "netto": round(netto, 2)}
@@ -368,6 +375,7 @@ def ore_nette_settimana_per_reparto(
             "nome": d["nome"],
             "cognome": d["cognome"],
             "colore": d.get("colore"),
+            "a_chiamata": bool(d.get("a_chiamata") or 0),
             "ore_lorde": round(ore_lorde_tot, 2),
             "ore_nette": round(ore_nette_tot, 2),
             "ore_per_giorno": per_giorno,
