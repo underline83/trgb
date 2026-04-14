@@ -124,6 +124,7 @@ export default function FoglioSettimana() {
 
   // Dialog copia settimana
   const [dlgCopia, setDlgCopia] = useState(false);
+  const [dlgTemplate, setDlgTemplate] = useState(false);
 
   // Vista immagine per screenshot WhatsApp (Fase 8)
   const [imageMode, setImageMode] = useState(false);
@@ -413,6 +414,11 @@ export default function FoglioSettimana() {
               className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
               📋 Copia
             </button>
+            <button onClick={() => setDlgTemplate(true)}
+              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
+              title="Salva la settimana come template ricorrente o applica un template a una settimana">
+              📑 Template
+            </button>
             <button onClick={scaricaPdf} disabled={loadingPdf}
               className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
               title="Genera PDF brandizzato (A4 orizzontale) — niente dialog stampante">
@@ -510,6 +516,24 @@ export default function FoglioSettimana() {
           settimanaCorrente={settimana}
           onClose={() => setDlgCopia(false)}
           onSubmit={onCopiaSettimana}
+        />
+      )}
+
+      {/* DIALOG TEMPLATE (Fase 10) */}
+      {dlgTemplate && (
+        <DialogTemplate
+          reparto={reparto}
+          settimanaCorrente={settimana}
+          onClose={() => setDlgTemplate(false)}
+          onApplicato={(settimanaApplicata) => {
+            // se l'utente ha applicato alla settimana corrente, ricarica
+            if (settimanaApplicata === settimana) {
+              caricaFoglio();
+            } else {
+              // altrimenti sposta l'utente sulla settimana applicata
+              setSettimana(settimanaApplicata);
+            }
+          }}
         />
       )}
     </div>
@@ -1161,5 +1185,297 @@ function SlotMobileRow({ slotIndex, turno, onClick }) {
         {(turno.ora_inizio || "").slice(0, 5)}–{(turno.ora_fine || "").slice(0, 5)}
       </span>
     </button>
+  );
+}
+
+
+// ---- DIALOG GESTIONE TEMPLATE (Fase 10) ----------------------------------
+function DialogTemplate({ reparto, settimanaCorrente, onClose, onApplicato }) {
+  const [mode, setMode] = useState("lista"); // lista | crea | applica
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+
+  // Crea
+  const [nome, setNome] = useState("");
+  const [descrizione, setDescrizione] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Applica
+  const [applicaTo, setApplicaTo] = useState(null); // template row selezionato
+  const [settimanaDst, setSettimanaDst] = useState(shiftIsoWeek(settimanaCorrente, 1));
+  const [sovrascrivi, setSovrascrivi] = useState(false);
+
+  const opzioniSettimana = useMemo(() => {
+    const out = [];
+    for (let d = -4; d <= 12; d++) {
+      const iso = shiftIsoWeek(settimanaCorrente, d);
+      const monday = mondayOfWeek(iso);
+      const sunday = new Date(monday);
+      sunday.setUTCDate(monday.getUTCDate() + 6);
+      const fmt = (dt) => `${pad(dt.getUTCDate())}/${pad(dt.getUTCMonth() + 1)}`;
+      out.push({ iso, label: `${iso} — ${fmt(monday)}→${fmt(sunday)}${d === 0 ? "  (corrente)" : ""}` });
+    }
+    return out;
+  }, [settimanaCorrente]);
+
+  async function caricaLista() {
+    if (!reparto?.id) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/turni/template?reparto_id=${reparto.id}`);
+      if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+      const j = await r.json();
+      setTemplates(j.templates || []);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { caricaLista(); /* eslint-disable-next-line */ }, [reparto?.id]);
+
+  async function salvaTemplate() {
+    if (!nome.trim()) { alert("Il nome è obbligatorio"); return; }
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/turni/template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reparto_id: reparto.id,
+          settimana_sorgente: settimanaCorrente,
+          nome: nome.trim(),
+          descrizione: descrizione.trim() || null,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+      const j = await r.json();
+      alert(`Template "${nome}" salvato (${j.righe_salvate} righe)`);
+      setNome(""); setDescrizione("");
+      setMode("lista");
+      caricaLista();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function eliminaTemplate(tpl) {
+    if (!confirm(`Disattivare "${tpl.nome}"?`)) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/turni/template/${tpl.id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+      caricaLista();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function rinominaTemplate(tpl) {
+    const nuovo = prompt("Nuovo nome:", tpl.nome);
+    if (nuovo == null || nuovo.trim() === "" || nuovo.trim() === tpl.nome) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/turni/template/${tpl.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: nuovo.trim() }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+      caricaLista();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function confermaApplica() {
+    if (!applicaTo) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/turni/template/${applicaTo.id}/applica`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settimana_destinazione: settimanaDst,
+          sovrascrivi,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+      const j = await r.json();
+      alert(
+        `Template "${applicaTo.nome}" applicato:\n` +
+        `• ${j.creati} turni creati\n` +
+        (j.cancellati ? `• ${j.cancellati} turni destinazione cancellati\n` : "") +
+        (j.saltati_chiusure ? `• ${j.saltati_chiusure} saltati per chiusura\n` : "") +
+        (j.saltati_inattivi ? `• ${j.saltati_inattivi} saltati (dipendente non attivo)\n` : "")
+      );
+      onApplicato && onApplicato(settimanaDst);
+      onClose();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4"
+         onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl p-4 w-full max-w-lg max-h-[90vh] overflow-auto"
+           onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">📑 Template — {reparto?.nome}</h3>
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-700 text-xl leading-none">×</button>
+        </div>
+
+        {/* TABS */}
+        <div className="flex gap-2 mb-3 border-b">
+          <button
+            onClick={() => setMode("lista")}
+            className={`px-3 py-2 text-sm ${mode === "lista" ? "border-b-2 border-brand-blue font-semibold" : "text-neutral-500"}`}
+          >
+            📋 Lista ({templates.length})
+          </button>
+          <button
+            onClick={() => setMode("crea")}
+            className={`px-3 py-2 text-sm ${mode === "crea" ? "border-b-2 border-brand-blue font-semibold" : "text-neutral-500"}`}
+          >
+            ➕ Salva settimana come template
+          </button>
+        </div>
+
+        {err && <div className="mb-2 p-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded">{err}</div>}
+
+        {/* MODE: LISTA */}
+        {mode === "lista" && !applicaTo && (
+          <div>
+            {loading && <div className="text-sm text-neutral-500">Caricamento…</div>}
+            {!loading && templates.length === 0 && (
+              <div className="text-sm text-neutral-500 p-4 text-center border border-dashed rounded">
+                Nessun template salvato per questo reparto.<br />
+                Usa <b>➕ Salva settimana come template</b> per crearne uno.
+              </div>
+            )}
+            <div className="space-y-2">
+              {templates.map((t) => (
+                <div key={t.id} className="border rounded-lg p-3 bg-neutral-50">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold truncate">{t.nome}</div>
+                      {t.descrizione && <div className="text-xs text-neutral-600 mt-0.5">{t.descrizione}</div>}
+                      <div className="text-[11px] text-neutral-500 mt-1 font-mono">
+                        {t.n_righe} turni · {t.n_dipendenti} dipendenti
+                        {t.updated_at && ` · agg. ${t.updated_at.slice(0, 10)}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => { setApplicaTo(t); setSettimanaDst(shiftIsoWeek(settimanaCorrente, 1)); setSovrascrivi(false); }}
+                      className="min-h-[36px] px-3 text-sm bg-brand-blue text-white rounded hover:opacity-90"
+                    >
+                      Applica →
+                    </button>
+                    <button
+                      onClick={() => rinominaTemplate(t)}
+                      className="min-h-[36px] px-3 text-sm bg-white border rounded hover:bg-neutral-50"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => eliminaTemplate(t)}
+                      className="min-h-[36px] px-3 text-sm bg-white border border-red-200 text-red-700 rounded hover:bg-red-50"
+                    >
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* MODE: LISTA → APPLICA */}
+        {mode === "lista" && applicaTo && (
+          <div>
+            <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+              Applica <b>{applicaTo.nome}</b> ({applicaTo.n_righe} turni)
+            </div>
+
+            <label className="block text-xs font-medium mb-1">A settimana</label>
+            <div className="flex gap-1 mb-3">
+              <button type="button" onClick={() => setSettimanaDst(shiftIsoWeek(settimanaDst, -1))}
+                className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">←</button>
+              <select value={settimanaDst} onChange={(e) => setSettimanaDst(e.target.value)}
+                className="flex-1 min-h-[44px] border rounded px-2 font-mono text-sm">
+                {opzioniSettimana.map(o => (
+                  <option key={o.iso} value={o.iso}>{o.label}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => setSettimanaDst(shiftIsoWeek(settimanaDst, 1))}
+                className="min-h-[44px] px-2 border rounded hover:bg-neutral-50">→</button>
+            </div>
+
+            <label className="flex items-center gap-2 mb-3 text-sm">
+              <input type="checkbox" checked={sovrascrivi} onChange={(e) => setSovrascrivi(e.target.checked)} />
+              Sovrascrivi turni esistenti nella settimana destinazione
+            </label>
+
+            <div className="text-xs text-neutral-500 mb-4">
+              I giorni chiusi e le righe di dipendenti non attivi vengono saltati automaticamente.
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setApplicaTo(null)} className="min-h-[44px] px-3 bg-neutral-100 rounded">Indietro</button>
+              <button disabled={busy} onClick={confermaApplica}
+                className="min-h-[44px] px-3 bg-brand-blue text-white rounded hover:opacity-90 disabled:opacity-40">
+                {busy ? "Applico…" : "Applica"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* MODE: CREA */}
+        {mode === "crea" && (
+          <div>
+            <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+              Sto creando uno snapshot della settimana <b className="font-mono">{settimanaCorrente}</b> di <b>{reparto?.nome}</b>.
+              Tutti i turni non annullati diventano righe del template.
+            </div>
+
+            <label className="block text-xs font-medium mb-1">Nome <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Es. Settimana standard sala"
+              className="w-full min-h-[44px] border rounded px-3 mb-3 text-sm"
+              maxLength={100}
+            />
+
+            <label className="block text-xs font-medium mb-1">Descrizione (opzionale)</label>
+            <textarea
+              value={descrizione}
+              onChange={(e) => setDescrizione(e.target.value)}
+              placeholder="Note sul quando usarlo…"
+              className="w-full border rounded px-3 py-2 mb-4 text-sm resize-y"
+              rows={3}
+              maxLength={500}
+            />
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setMode("lista")} className="min-h-[44px] px-3 bg-neutral-100 rounded">Annulla</button>
+              <button disabled={busy || !nome.trim()} onClick={salvaTemplate}
+                className="min-h-[44px] px-3 bg-brand-blue text-white rounded hover:opacity-90 disabled:opacity-40">
+                {busy ? "Salvo…" : "Salva template"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

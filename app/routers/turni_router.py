@@ -72,6 +72,24 @@ class CopiaSettimanaIn(BaseModel):
     sovrascrivi: bool = False
 
 
+# Fase 10: Template settimana tipo
+class CreaTemplateIn(BaseModel):
+    reparto_id: int
+    settimana_sorgente: str  # YYYY-Www
+    nome: str
+    descrizione: Optional[str] = None
+
+
+class RinominaTemplateIn(BaseModel):
+    nome: Optional[str] = None
+    descrizione: Optional[str] = None
+
+
+class ApplicaTemplateIn(BaseModel):
+    settimana_destinazione: str  # YYYY-Www
+    sovrascrivi: bool = False
+
+
 # ============================================================
 # HELPER — tipo turno default per servizio/reparto
 # ============================================================
@@ -726,3 +744,95 @@ def get_foglio_pdf(
             "Cache-Control": "no-store",
         },
     )
+
+
+# ============================================================
+# FASE 10 — TEMPLATE SETTIMANA TIPO
+# ============================================================
+@router.get("/template")
+def list_templates(
+    reparto_id: Optional[int] = Query(None, ge=1),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Lista template attivi (opzionalmente filtrati per reparto)."""
+    return JSONResponse(content={
+        "templates": turni_service.lista_templates(reparto_id=reparto_id),
+    })
+
+
+@router.get("/template/{template_id}")
+def get_template(
+    template_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    tpl = turni_service.get_template_dettaglio(template_id)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Template non trovato")
+    return JSONResponse(content=tpl)
+
+
+@router.post("/template")
+def crea_template(
+    payload: CreaTemplateIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Snapshot della settimana corrente → nuovo template."""
+    try:
+        out = turni_service.crea_template_da_settimana(
+            reparto_id=payload.reparto_id,
+            settimana_iso=payload.settimana_sorgente,
+            nome=payload.nome,
+            descrizione=payload.descrizione,
+        )
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/template/{template_id}")
+def aggiorna_template(
+    template_id: int,
+    payload: RinominaTemplateIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Aggiorna nome/descrizione del template."""
+    try:
+        out = turni_service.rinomina_template(
+            template_id=template_id,
+            nome=payload.nome,
+            descrizione=payload.descrizione,
+        )
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/template/{template_id}")
+def rimuovi_template(
+    template_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Soft-delete del template (attivo=0)."""
+    try:
+        out = turni_service.elimina_template(template_id)
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/template/{template_id}/applica")
+def applica_template_ep(
+    template_id: int,
+    payload: ApplicaTemplateIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Applica il template a una settimana destinazione."""
+    try:
+        out = turni_service.applica_template(
+            template_id=template_id,
+            settimana_iso=payload.settimana_destinazione,
+            sovrascrivi=payload.sovrascrivi,
+        )
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -450,18 +450,49 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 9: vista giorno mobile <900px con swipe + navigator giorno"`
 
-### Fase 10 — Template settimana tipo
+### Fase 10 — Template settimana tipo ✅ COMPLETATA (sessione 38)
 *Obiettivo:* salvare pattern ricorrenti e applicarli.
 *Dimensione:* media.
 *Rischio:* medio.
 
-- Pagina/dialog "Gestione template"
-- Salva settimana corrente come template (nome + descrizione)
-- Lista template con preview
-- "Applica template" -> dialog settimana destinazione -> crea turni con origine=TEMPLATE
-- Utile per "Settimana standard", "Settimana estate", "Settimana festivi"
+**Migrazione — `077_turni_template_v2.py`:**
+- Le tabelle `turni_template` e `turni_template_righe` esistevano già da 071 con schema minimale. Estese con i campi servi al Foglio v2:
+  - `turni_template.reparto_id` → template è per reparto specifico
+  - `turni_template_righe`: `servizio`, `slot_index`, `ora_inizio`, `ora_fine`, `stato`
+- Indici: `idx_turni_template_reparto`, `idx_tmpl_righe_giorno`
+- Idempotente (check PRAGMA table_info prima di ogni ALTER)
 
-**Commit:** `./push.sh "turni v2 fase 10: template settimana ricorrenti"`
+**Backend — `turni_service.py`:**
+- `lista_templates(reparto_id)` → lista template attivi con `n_righe` e `n_dipendenti` per preview
+- `get_template_dettaglio(template_id)` → template + tutte le righe join su dipendenti/turni_tipi
+- `crea_template_da_settimana(reparto_id, settimana_iso, nome, descrizione)` → snapshot: tutti i turni LAVORO del reparto non-ANNULLATI diventano righe con `giorno_settimana` (0=lun..6=dom) al posto della data
+- `rinomina_template(template_id, nome, descrizione)` → aggiorna metadata + updated_at
+- `elimina_template(template_id)` → **soft-delete** (attivo=0), le righe restano per audit
+- `applica_template(template_id, settimana_iso, sovrascrivi)` → crea turni_calendario con `origine='TEMPLATE'`, `origine_ref_id=template_id`. Salta giorni chiusi + dipendenti non attivi. Ritorna `{creati, cancellati, saltati_chiusure, saltati_inattivi}`
+
+**Backend — `turni_router.py`:**
+- `GET /turni/template?reparto_id=X` (JWT) — lista
+- `GET /turni/template/{id}` — dettaglio
+- `POST /turni/template` body `{reparto_id, settimana_sorgente, nome, descrizione}` — crea
+- `PUT /turni/template/{id}` body `{nome?, descrizione?}` — rinomina/aggiorna
+- `DELETE /turni/template/{id}` — soft-delete
+- `POST /turni/template/{id}/applica` body `{settimana_destinazione, sovrascrivi}` — applica
+
+**Frontend — `FoglioSettimana.jsx`:**
+- Nuovo pulsante **📑 Template** nell'header (accanto a 📋 Copia)
+- Nuovo state `dlgTemplate` → apre `<DialogTemplate>` modale
+- `DialogTemplate` ha **3 modalità in un solo modale**:
+  1. **📋 Lista**: carica i template del reparto, ogni card mostra nome, descrizione, `n_righe`, `n_dipendenti`, data aggiornamento. Pulsanti `Applica →`, `✏️` (rinomina via prompt), `🗑` (soft-delete con conferma)
+  2. **➕ Salva settimana come template**: input nome (obbligatorio) + textarea descrizione, snapshot della settimana corrente visualizzata nel Foglio
+  3. **Applica** (sub-vista della Lista): select settimana destinazione ±4→+12 settimane, checkbox sovrascrivi, bottone Applica → alert riassuntivo con conteggi (creati/cancellati/saltati_chiusure/saltati_inattivi)
+- Dopo applica: se `settimana_destinazione === settimana corrente` → `caricaFoglio()`; altrimenti `setSettimana(settimana_destinazione)` per saltarci
+
+**Use cases:**
+- "Settimana standard sala" → salvato una volta, applicato ogni settimana con 1 click + aggiustamenti
+- "Settimana estate" → pattern con più turni cena (riusato da giugno a settembre)
+- "Settimana festivi" → pattern ridotto per Natale/Pasqua/ferragosto
+
+**Commit:** `./push.sh "turni v2 fase 10: template settimana tipo (salva/applica pattern ricorrenti)"`
 
 ### Fase 11 (futuro) — Integrazione M.A Notifiche e M.B PDF
 *Obiettivo:* notifiche automatiche e PDF brand.

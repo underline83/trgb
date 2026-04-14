@@ -1009,3 +1009,340 @@ def copia_settimana(
         }
     finally:
         conn.close()
+
+
+# ============================================================
+# FASE 10 — TEMPLATE SETTIMANA TIPO
+# ============================================================
+def lista_templates(reparto_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Lista template (opzionalmente filtrati per reparto).
+
+    Ogni entry include il numero di righe e una piccola preview
+    (n_dipendenti_distinti) utile per la UI.
+    """
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        base = (
+            "SELECT t.id, t.nome, t.descrizione, t.reparto_id, t.attivo, "
+            "       t.created_at, t.updated_at, "
+            "       r.codice AS reparto_codice, r.nome AS reparto_nome, r.colore AS reparto_colore, "
+            "       (SELECT COUNT(*) FROM turni_template_righe tr WHERE tr.template_id = t.id) AS n_righe, "
+            "       (SELECT COUNT(DISTINCT tr.dipendente_id) FROM turni_template_righe tr WHERE tr.template_id = t.id) AS n_dipendenti "
+            "FROM turni_template t "
+            "LEFT JOIN reparti r ON r.id = t.reparto_id "
+            "WHERE t.attivo = 1 "
+        )
+        params: List[Any] = []
+        if reparto_id is not None:
+            base += "AND t.reparto_id = ? "
+            params.append(reparto_id)
+        base += "ORDER BY t.updated_at DESC, t.id DESC"
+        cur.execute(base, params)
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_template_dettaglio(template_id: int) -> Optional[Dict[str, Any]]:
+    """Dettaglio template con tutte le righe (giorni+servizi+dipendenti)."""
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT t.*, r.codice AS reparto_codice, r.nome AS reparto_nome, "
+            "       r.colore AS reparto_colore "
+            "FROM turni_template t "
+            "LEFT JOIN reparti r ON r.id = t.reparto_id "
+            "WHERE t.id = ?",
+            (template_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        out = dict(row)
+
+        cur.execute(
+            "SELECT tr.id, tr.template_id, tr.dipendente_id, tr.giorno_settimana, "
+            "       tr.turno_tipo_id, tr.servizio, tr.slot_index, "
+            "       tr.ora_inizio, tr.ora_fine, tr.stato, tr.note, "
+            "       d.nome AS dipendente_nome, d.cognome AS dipendente_cognome, "
+            "       d.colore AS dipendente_colore, d.attivo AS dipendente_attivo, "
+            "       tt.nome AS turno_tipo_nome, tt.categoria AS turno_tipo_categoria "
+            "FROM turni_template_righe tr "
+            "LEFT JOIN dipendenti d ON d.id = tr.dipendente_id "
+            "LEFT JOIN turni_tipi tt ON tt.id = tr.turno_tipo_id "
+            "WHERE tr.template_id = ? "
+            "ORDER BY tr.giorno_settimana, tr.servizio, tr.slot_index, tr.id",
+            (template_id,),
+        )
+        out["righe"] = [dict(r) for r in cur.fetchall()]
+        return out
+    finally:
+        conn.close()
+
+
+def crea_template_da_settimana(
+    reparto_id: int,
+    settimana_iso: str,
+    nome: str,
+    descrizione: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Snapshot della settimana corrente -> nuovo template.
+
+    Copia tutti i turni LAVORO del reparto nella settimana specificata
+    come righe_template, usando il weekday (0=lun..6=dom) al posto della data.
+    Esclude stato ANNULLATO.
+    """
+    nome = (nome or "").strip()
+    if not nome:
+        raise ValueError("Nome template obbligatorio")
+
+    giorni = [d.isoformat() for d in giorni_settimana(settimana_iso)]
+    if len(giorni) != 7:
+        raise ValueError("Settimana non valida")
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+
+        # Verifica reparto esistente
+        if not _reparto_row(conn, reparto_id):
+            raise ValueError(f"Reparto {reparto_id} non trovato")
+
+        # Crea template
+        cur.execute(
+            "INSERT INTO turni_template (nome, descrizione, reparto_id, attivo) "
+            "VALUES (?, ?, ?, 1)",
+            (nome, (descrizione or "").strip() or None, reparto_id),
+        )
+        tpl_id = cur.lastrowid
+
+        # Carica turni sorgente
+        cur.execute(
+            """SELECT tc.*, d.reparto_id AS dip_reparto
+               FROM turni_calendario tc
+               JOIN dipendenti d ON d.id = tc.dipendente_id
+               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
+                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'""",
+            (reparto_id, giorni[0], giorni[-1]),
+        )
+        src_rows = [dict(r) for r in cur.fetchall()]
+
+        data_to_weekday = {d: idx for idx, d in enumerate(giorni)}
+
+        copiate = 0
+        for r in src_rows:
+            weekday = data_to_weekday.get(r["data"])
+            if weekday is None:
+                continue
+            cur.execute(
+                """INSERT INTO turni_template_righe
+                   (template_id, dipendente_id, giorno_settimana, turno_tipo_id,
+                    servizio, slot_index, ora_inizio, ora_fine, stato, note)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    tpl_id,
+                    r["dipendente_id"],
+                    weekday,
+                    r["turno_tipo_id"],
+                    r.get("servizio") if isinstance(r, dict) else r["servizio"],
+                    r.get("slot_index") if isinstance(r, dict) else r["slot_index"],
+                    r.get("ora_inizio"),
+                    r.get("ora_fine"),
+                    r.get("stato") or "CONFERMATO",
+                    r.get("note"),
+                ),
+            )
+            copiate += 1
+
+        conn.commit()
+        return {
+            "id": tpl_id,
+            "nome": nome,
+            "descrizione": descrizione,
+            "reparto_id": reparto_id,
+            "righe_salvate": copiate,
+            "settimana_sorgente": settimana_iso,
+        }
+    finally:
+        conn.close()
+
+
+def rinomina_template(
+    template_id: int,
+    nome: Optional[str] = None,
+    descrizione: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Aggiorna nome/descrizione. Almeno uno dei due deve essere non-None."""
+    if nome is None and descrizione is None:
+        raise ValueError("Nessun campo da aggiornare")
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM turni_template WHERE id = ?", (template_id,))
+        if not cur.fetchone():
+            raise ValueError(f"Template {template_id} non trovato")
+
+        sets = []
+        params: List[Any] = []
+        if nome is not None:
+            nome = nome.strip()
+            if not nome:
+                raise ValueError("Nome non puo' essere vuoto")
+            sets.append("nome = ?")
+            params.append(nome)
+        if descrizione is not None:
+            sets.append("descrizione = ?")
+            params.append((descrizione or "").strip() or None)
+        sets.append("updated_at = datetime('now','localtime')")
+        params.append(template_id)
+
+        cur.execute(
+            f"UPDATE turni_template SET {', '.join(sets)} WHERE id = ?",
+            params,
+        )
+        conn.commit()
+        return {"id": template_id, "aggiornato": True}
+    finally:
+        conn.close()
+
+
+def elimina_template(template_id: int) -> Dict[str, Any]:
+    """Soft-delete (attivo=0). Le righe NON vengono cancellate (per audit/ripristino)."""
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE turni_template SET attivo = 0, updated_at = datetime('now','localtime') "
+            "WHERE id = ?",
+            (template_id,),
+        )
+        if cur.rowcount == 0:
+            raise ValueError(f"Template {template_id} non trovato")
+        conn.commit()
+        return {"id": template_id, "disattivato": True}
+    finally:
+        conn.close()
+
+
+def applica_template(
+    template_id: int,
+    settimana_iso: str,
+    sovrascrivi: bool = False,
+) -> Dict[str, Any]:
+    """Applica un template a una settimana destinazione.
+
+    - sovrascrivi=False (default): se la settimana destinazione ha già turni
+      del reparto del template, errore.
+    - sovrascrivi=True: cancella i turni del reparto prima di applicare.
+    - Salta i giorni chiusi (dal config vendite).
+    - Salta le righe di dipendenti non piu' attivi.
+    """
+    giorni = [d.isoformat() for d in giorni_settimana(settimana_iso)]
+    if len(giorni) != 7:
+        raise ValueError("Settimana non valida")
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+
+        # Carica template + reparto
+        cur.execute(
+            "SELECT id, reparto_id, attivo FROM turni_template WHERE id = ?",
+            (template_id,),
+        )
+        tpl = cur.fetchone()
+        if not tpl:
+            raise ValueError(f"Template {template_id} non trovato")
+        tpl = dict(tpl)
+        if tpl.get("attivo") == 0:
+            raise ValueError("Template disattivato")
+        reparto_id = tpl.get("reparto_id")
+        if not reparto_id:
+            raise ValueError("Template senza reparto_id (template legacy — rifarlo)")
+
+        chiusi_dst = set(giorni_chiusi_nella_settimana(settimana_iso))
+
+        # Turni destinazione esistenti nel reparto
+        cur.execute(
+            """SELECT COUNT(*) AS n FROM turni_calendario tc
+               JOIN dipendenti d ON d.id = tc.dipendente_id
+               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?""",
+            (reparto_id, giorni[0], giorni[-1]),
+        )
+        n_dst = cur.fetchone()["n"]
+
+        cancellati = 0
+        if n_dst > 0:
+            if not sovrascrivi:
+                raise ValueError(
+                    f"La settimana destinazione ha già {n_dst} turni. "
+                    "Usa sovrascrivi=True per cancellarli."
+                )
+            cur.execute(
+                """DELETE FROM turni_calendario
+                   WHERE id IN (
+                     SELECT tc.id FROM turni_calendario tc
+                     JOIN dipendenti d ON d.id = tc.dipendente_id
+                     WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
+                   )""",
+                (reparto_id, giorni[0], giorni[-1]),
+            )
+            cancellati = cur.rowcount
+
+        # Carica righe template + verifica dipendenti attivi
+        cur.execute(
+            """SELECT tr.*, d.attivo AS dipendente_attivo, d.reparto_id AS dip_reparto
+               FROM turni_template_righe tr
+               LEFT JOIN dipendenti d ON d.id = tr.dipendente_id
+               WHERE tr.template_id = ?
+               ORDER BY tr.giorno_settimana, tr.servizio, tr.slot_index, tr.id""",
+            (template_id,),
+        )
+        righe = [dict(r) for r in cur.fetchall()]
+
+        creati = 0
+        saltati_chiusure = 0
+        saltati_inattivi = 0
+        for r in righe:
+            weekday = r.get("giorno_settimana")
+            if weekday is None or weekday < 0 or weekday > 6:
+                continue
+            data_dst = giorni[weekday]
+            if data_dst in chiusi_dst:
+                saltati_chiusure += 1
+                continue
+            if not r.get("dipendente_attivo"):
+                saltati_inattivi += 1
+                continue
+            cur.execute(
+                """INSERT INTO turni_calendario
+                   (dipendente_id, turno_tipo_id, data, ora_inizio, ora_fine,
+                    stato, note, slot_index, origine, origine_ref_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'TEMPLATE', ?)""",
+                (
+                    r["dipendente_id"],
+                    r["turno_tipo_id"],
+                    data_dst,
+                    r.get("ora_inizio"),
+                    r.get("ora_fine"),
+                    r.get("stato") or "CONFERMATO",
+                    r.get("note"),
+                    r.get("slot_index"),
+                    str(template_id),
+                ),
+            )
+            creati += 1
+
+        conn.commit()
+        return {
+            "template_id": template_id,
+            "settimana_destinazione": settimana_iso,
+            "creati": creati,
+            "cancellati": cancellati,
+            "saltati_chiusure": saltati_chiusure,
+            "saltati_inattivi": saltati_inattivi,
+        }
+    finally:
+        conn.close()

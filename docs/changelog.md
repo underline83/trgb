@@ -24,6 +24,57 @@ Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 10 — Template settimana tipo (salva/applica pattern ricorrenti)
+
+Ultima grande fase del modulo Turni v2 prima dell'integrazione mattoni (Fase 11): la possibilità di **salvare una settimana come template** e **riapplicarla** su qualsiasi settimana futura con un click. Utile per pattern ricorrenti — "Settimana standard", "Settimana estate", "Settimana festivi" — che oggi Marco doveva copiare manualmente settimana per settimana. Raggiungibile dal nuovo pulsante **📑 Template** nell'header del Foglio Settimana.
+
+### Migrazione — `077_turni_template_v2.py`
+Le tabelle `turni_template` e `turni_template_righe` esistevano già da migrazione 071 ma con uno schema **troppo scarno** (solo `dipendente_id`, `giorno_settimana`, `turno_tipo_id`, `note`). Non permettevano di ricreare fedelmente il foglio v2, che ha anche servizio (PRANZO/CENA), slot_index, orari override e appartiene a un reparto. La 077 estende:
+- `turni_template.reparto_id` → template per reparto specifico
+- `turni_template_righe.{servizio, slot_index, ora_inizio, ora_fine, stato}`
+- Nuovi indici `idx_turni_template_reparto`, `idx_tmpl_righe_giorno`
+- Idempotente (PRAGMA table_info prima di ogni ALTER).
+
+### Backend — `turni_service.py`
+- `lista_templates(reparto_id)` → lista con `n_righe`, `n_dipendenti` per preview.
+- `get_template_dettaglio(id)` → dettaglio completo con righe join su dipendenti/turni_tipi (nome+cognome+colore dipendente + nome tipo turno).
+- `crea_template_da_settimana(reparto_id, settimana_iso, nome, descrizione?)` → snapshot della settimana: tutti i turni LAVORO non-ANNULLATI diventano righe con `giorno_settimana` (0=lun..6=dom) al posto della data. Valida reparto, rigetta nome vuoto.
+- `rinomina_template(id, nome?, descrizione?)` → aggiorna metadata + `updated_at`.
+- `elimina_template(id)` → **soft-delete** (`attivo=0`), le righe NON vengono cancellate (ripristino/audit).
+- `applica_template(id, settimana_iso, sovrascrivi)` → crea turni con `origine='TEMPLATE'`, `origine_ref_id=<template_id>`. Salta giorni chiusi (dal config vendite) e dipendenti non attivi. Se la settimana destinazione ha già turni del reparto e `sovrascrivi=false` → errore; altrimenti cancella prima. Ritorna `{creati, cancellati, saltati_chiusure, saltati_inattivi}`.
+
+### Backend — `turni_router.py`
+- `GET /turni/template?reparto_id=X` — lista.
+- `GET /turni/template/{id}` — dettaglio.
+- `POST /turni/template` body `{reparto_id, settimana_sorgente, nome, descrizione}` — crea da settimana.
+- `PUT /turni/template/{id}` body `{nome?, descrizione?}` — aggiorna.
+- `DELETE /turni/template/{id}` — soft-delete.
+- `POST /turni/template/{id}/applica` body `{settimana_destinazione, sovrascrivi}` — applica.
+
+### Frontend — `FoglioSettimana.jsx`
+- Nuovo pulsante **📑 Template** nell'header (accanto a `📋 Copia`).
+- Nuovo componente **`DialogTemplate`** (modale unico con 3 modalità):
+  1. **📋 Lista**: carica i template del reparto all'open, ogni card con nome/descrizione/`n_righe`/`n_dipendenti`/data aggiornamento. Azioni: `Applica →`, `✏️` rinomina via prompt, `🗑` soft-delete con `confirm()`. Empty state con hint "Usa ➕ Salva settimana come template per crearne uno".
+  2. **➕ Salva settimana come template**: input nome (obbligatorio, max 100 char) + textarea descrizione (max 500 char). Banner ambra che spiega "snapshot della settimana X di reparto Y". Dopo save: alert con numero righe + torna alla lista + ricarica.
+  3. **Applica** (sub-vista della Lista): select settimana destinazione ±4 → +12 settimane (default = settimana prossima), checkbox sovrascrivi, text hint "giorni chiusi e dipendenti non attivi saltati automaticamente". Dopo applica: alert multi-riga con tutti i conteggi.
+- Dopo applica: se `settimana_destinazione === settimana corrente` → `caricaFoglio()`. Altrimenti → `setSettimana(settimana_destinazione)` (salta l'utente alla settimana appena applicata per verifica).
+- Touch target 44pt su tutti i bottoni, modale scrollabile con `max-h-[90vh] overflow-auto` per iPad.
+
+### Versioni
+- Modulo Dipendenti: v2.11 → **v2.12**.
+
+### Files toccati
+- `app/migrations/077_turni_template_v2.py` (nuovo)
+- `app/services/turni_service.py` (+6 funzioni CRUD template, ~250 righe)
+- `app/routers/turni_router.py` (+3 Pydantic model, +5 endpoint)
+- `frontend/src/pages/dipendenti/FoglioSettimana.jsx` (+bottone header, +state `dlgTemplate`, +componente `DialogTemplate` ~280 righe)
+- `frontend/src/config/versions.jsx` (2.11 → 2.12)
+- `docs/modulo_dipendenti_turni_v2.md` (Fase 10 ✅ COMPLETATA)
+
+**Resta solo Fase 11**: integrazione mattoni M.A Notifiche (pubblica settimana → notifica per ogni dipendente), M.B PDF brand (quando il mattone PDF sarà pronto, rifattorizzare il template PDF attuale), M.C WhatsApp (bottone "Invia turno via WA" per dipendente).
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 7 — Warning conflitti orari (badge ⚠ + toast)
 
 Controllo sovrapposizioni orarie sullo stesso dipendente nello stesso giorno: non blocca mai il salvataggio (come da spec), ma evidenzia visivamente i turni in conflitto e avvisa subito dopo il save. Il backend calcola gli overlap e li passa al frontend in due forme: dentro ogni turno di `build_foglio_settimana` (per il badge persistente nella griglia) e dentro la risposta di POST `/foglio/assegna` e PUT `/foglio/{id}` (per il toast post-save).
