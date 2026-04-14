@@ -1,12 +1,16 @@
-// @version: v1.2-preventivo-menu-composer (fix prezzo/persona: ogni riga e' gia' 1 menu = 1 persona, il totale va moltiplicato per coperti, non diviso)
-// Pannello "Componi menu" per preventivi: pesca piatti dal Ricettario (Cucina),
-// snapshotta sul preventivo, permette quick-create ("Piatto veloce"), gestisce sconto
-// e ricalcola prezzo/persona lato backend. Le righe salvate sono IMMUTABILI rispetto
-// a modifiche future in Cucina (mig 075).
-// v1.1 (sessione 36, Opzione A): supporta preventivoId=null. Al primo tocco su URL
-// /nuovo chiama onEnsureSaved() che crea una bozza automatica lato parent e
-// restituisce l'id — il composer poi lavora su quello senza cambiare URL.
-import React, { useState, useEffect, useCallback, useRef } from "react";
+// @version: v2.0-preventivo-menu-composer (menu multipli alternativi — mig 079)
+// Pannello "Componi menu" per preventivi con supporto N menu alternativi.
+// Un preventivo puo' avere 1..N menu che il cliente sceglie: i prezzi sono
+// sempre a persona; il backend decide il totale (0 menu → solo extra,
+// 1 menu → menu×pax + extra, ≥2 menu → niente totale aggregato).
+//
+// Tab in alto: per ogni menu nome editabile, ▲▼ riordino, ✕ elimina, + aggiungi,
+// "Duplica menu" duplica il menu attivo (righe incluse).
+//
+// v1.1 (sess 36): supporto preventivoId=null con onEnsureSaved() → bozza auto.
+// v2.0 (sess 39): refactor completo per menu multipli.
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const RIGA_QUICK_VUOTA = { name: "", description: "", price: 0, category_name: "" };
@@ -14,15 +18,21 @@ const RIGA_QUICK_VUOTA = { name: "", description: "", price: 0, category_name: "
 export default function PreventivoMenuComposer({
   preventivoId,
   nPersone,
-  onEnsureSaved,       // async () => pid | null — crea bozza auto se preventivoId e' null
-  onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona})
+  onEnsureSaved,       // async () => pid | null
+  onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona, n_menu})
   onToast,
 }) {
-  const [righe, setRighe] = useState([]);
-  const [subtotale, setSubtotale] = useState(0);
-  const [scontoLocal, setScontoLocal] = useState(0); // input controllato
-  const [prezzoPersona, setPrezzoPersona] = useState(0);
+  // ── Stato menu multipli ──
+  const [menus, setMenus] = useState([]); // [{id, nome, sort_order, sconto, subtotale, prezzo_persona, righe:[...]}]
+  const [activeMenuId, setActiveMenuId] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // ── Editing nome tab ──
+  const [editingNameId, setEditingNameId] = useState(null);
+
+  // ── Sconto local (per menu attivo) ──
+  const [scontoLocal, setScontoLocal] = useState(0);
+  const scontoTimer = useRef(null);
 
   // Picker piatti
   const [showPicker, setShowPicker] = useState(false);
@@ -37,12 +47,9 @@ export default function PreventivoMenuComposer({
   const [quick, setQuick] = useState(RIGA_QUICK_VUOTA);
 
   // Edit inline prezzo
-  const [editingPrice, setEditingPrice] = useState(null); // riga_id | null
+  const [editingPrice, setEditingPrice] = useState(null);
 
-  const scontoTimer = useRef(null);
-
-  // Refs per callback parent, evitano loop di useEffect quando il parent
-  // non le memoizza (passa funzioni fresche ad ogni render).
+  // ── Refs parent callbacks ──
   const onToastRef = useRef(onToast);
   const onTotaleMenuChangeRef = useRef(onTotaleMenuChange);
   const onEnsureSavedRef = useRef(onEnsureSaved);
@@ -54,48 +61,95 @@ export default function PreventivoMenuComposer({
     if (onToastRef.current) onToastRef.current(msg, isError);
   }, []);
 
-  // ── Carica righe + testata per un dato pid (per sconto/subtotale salvato) ──
-  // Accetta pid esplicito per evitare problemi di closure quando appena creata la bozza auto.
+  // ── Derivate ──
+  const activeMenu = useMemo(() => {
+    if (!menus || menus.length === 0) return null;
+    return menus.find((m) => m.id === activeMenuId) || menus[0];
+  }, [menus, activeMenuId]);
+
+  const righe = useMemo(() => (activeMenu?.righe || []), [activeMenu]);
+  const subtotale = parseFloat(activeMenu?.subtotale || 0);
+  const prezzoPersona = Math.max(0, subtotale - (parseFloat(scontoLocal) || 0));
+
+  const notifyParent = useCallback((menusList) => {
+    const primary = (menusList || [])[0];
+    if (onTotaleMenuChangeRef.current) {
+      onTotaleMenuChangeRef.current({
+        n_menu: (menusList || []).length,
+        menu_subtotale: primary ? parseFloat(primary.subtotale || 0) : 0,
+        menu_sconto: primary ? parseFloat(primary.sconto || 0) : 0,
+        menu_prezzo_persona: primary ? parseFloat(primary.prezzo_persona || 0) : 0,
+        menus: (menusList || []).map((m) => ({
+          id: m.id, nome: m.nome, prezzo_persona: parseFloat(m.prezzo_persona || 0),
+        })),
+      });
+    }
+  }, []);
+
+  // ── Carica preventivo + menu_list ──
   const loadWithId = useCallback(async (pid) => {
     if (!pid) { setLoading(false); return; }
     try {
-      const [rMenu, rPrev] = await Promise.all([
-        apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`).then((r) => r.json()),
-        apiFetch(`${API_BASE}/preventivi/${pid}`).then((r) => r.json()),
-      ]);
-      const items = Array.isArray(rMenu?.items) ? rMenu.items : [];
-      setRighe(items);
-      setSubtotale(parseFloat(rPrev?.menu_subtotale || 0));
-      setScontoLocal(parseFloat(rPrev?.menu_sconto || 0));
-      setPrezzoPersona(parseFloat(rPrev?.menu_prezzo_persona || 0));
-      if (onTotaleMenuChangeRef.current) onTotaleMenuChangeRef.current({
-        menu_subtotale: parseFloat(rPrev?.menu_subtotale || 0),
-        menu_sconto: parseFloat(rPrev?.menu_sconto || 0),
-        menu_prezzo_persona: parseFloat(rPrev?.menu_prezzo_persona || 0),
+      const rPrev = await apiFetch(`${API_BASE}/preventivi/${pid}`).then((r) => r.json());
+      const list = Array.isArray(rPrev?.menu_list) ? rPrev.menu_list : [];
+      list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+      setMenus(list);
+      // Seleziona primo menu se niente attivo
+      setActiveMenuId((curr) => {
+        if (curr && list.find((m) => m.id === curr)) return curr;
+        return list[0]?.id || null;
       });
+      // Allinea sconto locale col menu attivo (o primo)
+      const current = list.find((m) => m.id === activeMenuId) || list[0];
+      setScontoLocal(parseFloat(current?.sconto || 0));
+      notifyParent(list);
     } catch {
       toast("Errore caricamento menu", true);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, notifyParent]);
 
-  // Carica solo quando cambia preventivoId (evita loop causati da callback
-  // non memoizzate nel parent).
   useEffect(() => {
     if (!preventivoId) { setLoading(false); return; }
     loadWithId(preventivoId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preventivoId]);
 
-  // ── Helper: risolvi pid (eventualmente creando bozza auto al primo tocco) ──
+  // Sincronizza scontoLocal quando cambia il menu attivo (via click tab)
+  useEffect(() => {
+    if (activeMenu) setScontoLocal(parseFloat(activeMenu.sconto || 0));
+  }, [activeMenuId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Risolvi pid (con eventuale bozza auto) ──
   const resolvePid = useCallback(async () => {
     if (preventivoId) return preventivoId;
     if (onEnsureSavedRef.current) return await onEnsureSavedRef.current();
     return null;
   }, [preventivoId]);
 
-  // ── Carica tipi servizio ──
+  // ── Garantisce esistenza di almeno un menu (usato al primo add riga) ──
+  const ensureActiveMenu = useCallback(async (pid) => {
+    if (activeMenu) return activeMenu.id;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Errore creazione menu");
+      const data = await res.json();
+      setMenus((curr) => [...curr, { ...data, righe: data.righe || [] }]);
+      setActiveMenuId(data.id);
+      return data.id;
+    } catch (e) {
+      toast(e.message, true);
+      return null;
+    }
+  }, [activeMenu, toast]);
+
+  // ── Tipi servizio per picker ──
   useEffect(() => {
     apiFetch(`${API_BASE}/foodcost/service-types`)
       .then((r) => r.json())
@@ -103,7 +157,7 @@ export default function PreventivoMenuComposer({
       .catch(() => setServiceTypes([]));
   }, []);
 
-  // ── Ricerca piatti (quando picker aperto) ──
+  // ── Ricerca piatti ──
   useEffect(() => {
     if (!showPicker) return;
     setSearching(true);
@@ -114,7 +168,6 @@ export default function PreventivoMenuComposer({
       apiFetch(`${API_BASE}/foodcost/ricette?${params.toString()}`)
         .then((r) => r.json())
         .then((data) => {
-          // endpoint ritorna array o {items: [...]}
           const list = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
           setPiatti(list);
         })
@@ -124,24 +177,120 @@ export default function PreventivoMenuComposer({
     return () => clearTimeout(t);
   }, [showPicker, filterServiceId, searchText]);
 
-  // ── Debounce sconto → PUT ──
+  // ── CRUD MENU ──
+  const addMenu = async () => {
+    const pid = await resolvePid();
+    if (!pid) { toast("Impossibile creare bozza", true); return; }
+    try {
+      const nome = (menus.length === 0) ? "Menu" : `Opzione ${String.fromCharCode(65 + menus.length)}`;
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+      if (!res.ok) throw new Error("Errore creazione menu");
+      await loadWithId(pid);
+      const data = await res.json();
+      setActiveMenuId(data.id);
+      toast(`+ ${nome}`);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  const renameMenu = async (menuId, nuovoNome) => {
+    if (!preventivoId || !menuId) return;
+    const nome = (nuovoNome || "").trim() || "Menu";
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu/${menuId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+      if (!res.ok) throw new Error("Errore rinomina");
+      setEditingNameId(null);
+      await loadWithId(preventivoId);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  const deleteMenu = async (menuId) => {
+    if (!preventivoId || !menuId) return;
+    const m = menus.find((x) => x.id === menuId);
+    const nome = m?.nome || "Menu";
+    const nRighe = (m?.righe || []).length;
+    const confirmMsg = nRighe > 0
+      ? `Elimino "${nome}" con ${nRighe} piatti? L'azione non si puo' annullare.`
+      : `Elimino "${nome}"?`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu/${menuId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Errore eliminazione menu");
+      // Se elimino l'attivo, fallback al primo rimasto
+      if (activeMenuId === menuId) setActiveMenuId(null);
+      await loadWithId(preventivoId);
+      toast(`− ${nome}`);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  const duplicateActiveMenu = async () => {
+    if (!preventivoId || !activeMenu) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu/${activeMenu.id}/duplica`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Errore duplicazione");
+      const data = await res.json();
+      await loadWithId(preventivoId);
+      setActiveMenuId(data.id);
+      toast(`+ ${data.nome || "copia"}`);
+    } catch (e) {
+      toast(e.message, true);
+    }
+  };
+
+  const moveMenu = async (idx, dir) => {
+    if (!preventivoId) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= menus.length) return;
+    const reordered = [...menus];
+    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+    setMenus(reordered); // ottimistico
+    try {
+      await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-ordine`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordered_ids: reordered.map((m) => m.id) }),
+      });
+      await loadWithId(preventivoId);
+    } catch {
+      toast("Errore riordino menu", true);
+      loadWithId(preventivoId);
+    }
+  };
+
+  // ── Sconto menu attivo ──
   const pushSconto = (val) => {
     setScontoLocal(val);
     if (scontoTimer.current) clearTimeout(scontoTimer.current);
     scontoTimer.current = setTimeout(async () => {
       const pid = await resolvePid();
-      if (!pid) return; // nessun preventivo da aggiornare: skip silenzioso
+      if (!pid || !activeMenu) return;
       try {
-        const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-sconto`, {
+        const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu/${activeMenu.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sconto: parseFloat(val) || 0 }),
         });
         if (!res.ok) throw new Error("Errore sconto");
-        const data = await res.json();
-        setSubtotale(parseFloat(data.menu_subtotale || 0));
-        setPrezzoPersona(parseFloat(data.menu_prezzo_persona || 0));
-        if (onTotaleMenuChange) onTotaleMenuChange(data);
+        await loadWithId(pid);
       } catch {
         toast("Errore salvataggio sconto", true);
       }
@@ -152,8 +301,10 @@ export default function PreventivoMenuComposer({
   const addFromRecipe = async (recipe) => {
     const pid = await resolvePid();
     if (!pid) { toast("Impossibile creare bozza", true); return; }
+    const mid = await ensureActiveMenu(pid);
+    if (!mid) return;
     try {
-      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`, {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu/${mid}/righe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipe_id: recipe.id }),
@@ -174,8 +325,10 @@ export default function PreventivoMenuComposer({
     if (!quick.name.trim()) { toast("Nome obbligatorio", true); return; }
     const pid = await resolvePid();
     if (!pid) { toast("Impossibile creare bozza", true); return; }
+    const mid = await ensureActiveMenu(pid);
+    if (!mid) return;
     try {
-      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`, {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu/${mid}/righe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,19 +353,21 @@ export default function PreventivoMenuComposer({
 
   // ── Rimuovi riga ──
   const removeRiga = async (riga) => {
+    if (!preventivoId) return;
     try {
       const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe/${riga.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Errore eliminazione");
-      await loadState();
+      await loadWithId(preventivoId);
     } catch (e) {
       toast(e.message, true);
     }
   };
 
-  // ── Aggiorna prezzo riga (quick edit) ──
+  // ── Aggiorna prezzo riga ──
   const updatePrice = async (riga, newPrice) => {
+    if (!preventivoId) return;
     try {
       const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe/${riga.id}`, {
         method: "PUT",
@@ -221,32 +376,36 @@ export default function PreventivoMenuComposer({
       });
       if (!res.ok) throw new Error("Errore aggiornamento");
       setEditingPrice(null);
-      await loadState();
+      await loadWithId(preventivoId);
     } catch (e) {
       toast(e.message, true);
     }
   };
 
-  // ── Riordina (sposta su/giu) ──
+  // ── Riordina righe (nel menu attivo) ──
   const sposta = async (idx, dir) => {
+    if (!preventivoId || !activeMenu) return;
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= righe.length) return;
     const reordered = [...righe];
     [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
-    setRighe(reordered); // ottimistico
+    // ottimistico: aggiorna menus locale
+    setMenus((curr) =>
+      curr.map((m) => (m.id === activeMenu.id ? { ...m, righe: reordered } : m))
+    );
     try {
-      await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe`, {
+      await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu/${activeMenu.id}/righe-ordine`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ordered_ids: reordered.map((r) => r.id) }),
       });
     } catch {
       toast("Errore riordino", true);
-      loadState();
+      loadWithId(preventivoId);
     }
   };
 
-  // Raggruppa per categoria (mantiene sort_order dentro)
+  // ── Rendering raggruppato per categoria ──
   const gruppi = righe.reduce((acc, r) => {
     const key = r.category_name || "— Senza categoria —";
     if (!acc[key]) acc[key] = [];
@@ -255,18 +414,21 @@ export default function PreventivoMenuComposer({
   }, {});
   const gruppoKeys = Object.keys(gruppi);
 
-  const totaleMenu = Math.max(0, subtotale - (parseFloat(scontoLocal) || 0));
+  const hasMultipleMenus = menus.length >= 2;
 
   return (
     <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-neutral-700">🪄 Componi menu dal ricettario</h3>
           <p className="text-[11px] text-neutral-400">
             I piatti aggiunti sono snapshot: eventuali modifiche in Cucina NON cambieranno questo preventivo.
+            {hasMultipleMenus && (
+              <span className="text-indigo-600"> Hai {menus.length} menu alternativi: il cliente ne sceglie uno.</span>
+            )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button type="button" onClick={() => { setShowPicker((v) => !v); setShowQuick(false); }}
             className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${showPicker ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}>
             {showPicker ? "✕ Chiudi ricerca" : "🔎 Aggiungi dal ricettario"}
@@ -276,6 +438,78 @@ export default function PreventivoMenuComposer({
             {showQuick ? "✕ Annulla" : "⚡ Piatto veloce"}
           </button>
         </div>
+      </div>
+
+      {/* ── TAB MENU ALTERNATIVI ── */}
+      <div className="flex items-stretch gap-1 flex-wrap border-b border-neutral-200 pb-0 -mx-1 px-1">
+        {menus.map((m, idx) => {
+          const isActive = m.id === (activeMenu?.id || null);
+          const isEditing = editingNameId === m.id;
+          return (
+            <div key={m.id}
+              className={`group flex items-center gap-0.5 rounded-t-lg border border-b-0 min-h-[40px]
+                ${isActive
+                  ? "bg-white border-neutral-300 text-neutral-900 relative -mb-px"
+                  : "bg-neutral-50 border-neutral-200 text-neutral-500 hover:bg-neutral-100"}`}>
+              {/* Tab nome */}
+              {isEditing ? (
+                <input autoFocus type="text" defaultValue={m.nome}
+                  onBlur={(e) => renameMenu(m.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") renameMenu(m.id, e.target.value);
+                    if (e.key === "Escape") setEditingNameId(null);
+                  }}
+                  className="text-sm px-2 py-1.5 rounded border border-indigo-300 w-32 bg-white" />
+              ) : (
+                <button type="button" onClick={() => setActiveMenuId(m.id)}
+                  onDoubleClick={() => setEditingNameId(m.id)}
+                  title={isActive ? "Doppio click per rinominare" : "Clicca per selezionare"}
+                  className={`text-sm px-3 py-1.5 font-medium whitespace-nowrap ${isActive ? "text-neutral-900" : ""}`}>
+                  {m.nome || "Menu"}
+                  {(m.righe || []).length > 0 && (
+                    <span className={`ml-1.5 text-[10px] ${isActive ? "text-indigo-600" : "text-neutral-400"}`}>
+                      {(m.righe || []).length}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {/* Controlli (solo se attivo) */}
+              {isActive && !isEditing && (
+                <div className="flex items-center gap-0 pr-1">
+                  <button type="button" onClick={() => setEditingNameId(m.id)}
+                    title="Rinomina"
+                    className="text-neutral-400 hover:text-indigo-600 text-xs px-1 py-1 leading-none">✎</button>
+                  <button type="button" onClick={() => moveMenu(idx, -1)} disabled={idx === 0}
+                    title="Sposta a sinistra"
+                    className="text-neutral-400 hover:text-neutral-700 disabled:opacity-20 text-xs px-1 leading-none">◀</button>
+                  <button type="button" onClick={() => moveMenu(idx, +1)} disabled={idx === menus.length - 1}
+                    title="Sposta a destra"
+                    className="text-neutral-400 hover:text-neutral-700 disabled:opacity-20 text-xs px-1 leading-none">▶</button>
+                  <button type="button" onClick={() => deleteMenu(m.id)}
+                    title="Elimina menu"
+                    className="text-red-300 hover:text-red-600 text-sm px-1 leading-none">✕</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Bottone + aggiungi menu */}
+        <button type="button" onClick={addMenu}
+          title="Aggiungi menu alternativo"
+          className="text-sm px-3 py-1.5 rounded-t-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium min-h-[40px] border border-b-0 border-indigo-200">
+          + {menus.length === 0 ? "Menu" : "Aggiungi"}
+        </button>
+
+        {/* Duplica menu attivo */}
+        {activeMenu && (menus.length > 0) && (
+          <button type="button" onClick={duplicateActiveMenu}
+            title="Duplica menu attivo (nome + righe)"
+            className="ml-auto text-xs px-2 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 font-medium min-h-[40px] border border-neutral-200">
+            ⎘ Duplica menu
+          </button>
+        )}
       </div>
 
       {/* ── Picker piatti ── */}
@@ -360,12 +594,16 @@ export default function PreventivoMenuComposer({
         </div>
       )}
 
-      {/* ── Righe raggruppate ── */}
+      {/* ── Righe del menu attivo ── */}
       {loading ? (
         <div className="text-xs text-neutral-400 text-center py-4">Caricamento...</div>
+      ) : !activeMenu ? (
+        <div className="text-center py-6 text-xs text-neutral-400 border border-dashed border-neutral-200 rounded-lg">
+          Nessun menu. Aggiungi piatti o crea un menu alternativo con "+".
+        </div>
       ) : righe.length === 0 ? (
         <div className="text-center py-6 text-xs text-neutral-400 border border-dashed border-neutral-200 rounded-lg">
-          Menu vuoto. Aggiungi piatti dal ricettario o crea un "Piatto veloce".
+          "{activeMenu.nome}" vuoto. Aggiungi piatti dal ricettario o crea un "Piatto veloce".
         </div>
       ) : (
         <div className="space-y-3">
@@ -417,36 +655,41 @@ export default function PreventivoMenuComposer({
         </div>
       )}
 
-      {/* ── Riepilogo prezzi ── */}
-      {/* Nota: ogni riga del menu e' il prezzo PER 1 PERSONA (1 menu).
-           Il totale menu e' il prezzo a persona; per il totale complessivo
-           viene moltiplicato per il numero di coperti. */}
-      <div className="pt-3 border-t border-neutral-200 space-y-1 text-sm">
-        <div className="flex justify-between text-neutral-600">
-          <span>Subtotale menu ({righe.length} {righe.length === 1 ? "piatto" : "piatti"}, per 1 persona)</span>
-          <span className="font-medium">€{subtotale.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <label className="text-neutral-600">Sconto menu (€)</label>
-          <input type="number" min="0" step="0.5" value={scontoLocal}
-            onChange={(e) => pushSconto(e.target.value)}
-            className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right" />
-        </div>
-        <div className="flex justify-between text-base font-semibold text-neutral-900 pt-1 border-t border-neutral-100">
-          <span>Prezzo menu a persona</span>
-          <span className="text-indigo-700">€{totaleMenu.toFixed(2)}</span>
-        </div>
-        {nPersone ? (
-          <div className="flex justify-between text-sm font-semibold text-neutral-900 pt-1">
-            <span>Totale menu × {nPersone} coperti</span>
-            <span className="text-indigo-700">€{(totaleMenu * Number(nPersone)).toFixed(2)}</span>
+      {/* ── Riepilogo prezzi (menu attivo) ── */}
+      {activeMenu && (
+        <div className="pt-3 border-t border-neutral-200 space-y-1 text-sm">
+          <div className="flex justify-between text-neutral-600">
+            <span>Subtotale "{activeMenu.nome}" ({righe.length} {righe.length === 1 ? "piatto" : "piatti"}, per 1 persona)</span>
+            <span className="font-medium">€{subtotale.toFixed(2)}</span>
           </div>
-        ) : (
-          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-            Imposta "N. persone" in testata per calcolare il totale del menu per tutti i coperti.
-          </p>
-        )}
-      </div>
+          <div className="flex justify-between items-center">
+            <label className="text-neutral-600">Sconto menu (€)</label>
+            <input type="number" min="0" step="0.5" value={scontoLocal}
+              onChange={(e) => pushSconto(e.target.value)}
+              className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right" />
+          </div>
+          <div className="flex justify-between text-base font-semibold text-neutral-900 pt-1 border-t border-neutral-100">
+            <span>Prezzo "{activeMenu.nome}" a persona</span>
+            <span className="text-indigo-700">€{prezzoPersona.toFixed(2)}</span>
+          </div>
+          {nPersone ? (
+            <div className="flex justify-between text-sm font-semibold text-neutral-900 pt-1">
+              <span>Totale "{activeMenu.nome}" × {nPersone} coperti</span>
+              <span className="text-indigo-700">€{(prezzoPersona * Number(nPersone)).toFixed(2)}</span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+              Imposta "N. persone" in testata per calcolare il totale del menu per tutti i coperti.
+            </p>
+          )}
+          {hasMultipleMenus && (
+            <p className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 mt-1">
+              Con {menus.length} menu alternativi il totale del preventivo non viene sommato:
+              sul PDF compaiono le opzioni A, B, C… e il cliente sceglie quella che preferisce.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

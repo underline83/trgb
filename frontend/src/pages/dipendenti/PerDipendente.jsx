@@ -1,4 +1,4 @@
-// @version: v1.1-ios-toolbar (Fase 6 + toolbar stile C uniforme: left / center segmented / right)
+// @version: v1.2-print-dropdown (dipendenti → dropdown + tasto Stampa con @media print friendly)
 // Vista Per Dipendente Turni v2 — TRGB Gestionale
 //
 // Timeline di un singolo dipendente su N settimane (default 4) per rispondere
@@ -245,13 +245,24 @@ export default function PerDipendente() {
       <div className="max-w-[1400px] mx-auto">
         {/* HEADER — stile iOS: left (nav) / center (segmented) / right (# settimane) */}
         <div className="mb-4">
-          <div className="mb-2">
+          <div className="mb-2 print:hidden">
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">👤 Vista per Dipendente</h1>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Intestazione PRINT-ONLY */}
+          <div className="hidden print:block mb-3 border-b border-neutral-300 pb-2">
+            <div className="text-lg font-bold">
+              Timeline Dipendente — {vista?.dipendente ? `${vista.dipendente.nome} ${vista.dipendente.cognome}` : ""}
+            </div>
+            <div className="text-sm text-neutral-700">
+              {reparto ? `${reparto.icona || ""} ${reparto.nome} · ` : ""}
+              {labelWeekRange(settimanaInizio)} · {numSettimane} settimane
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap print:hidden">
             {/* LEFT: navigazione periodo */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => shiftSettimane(-numSettimane)}
@@ -292,7 +303,7 @@ export default function PerDipendente() {
               </div>
             </div>
 
-            {/* RIGHT: selettore numero settimane (contestuale a questa vista) */}
+            {/* RIGHT: selettore numero settimane + stampa */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <select
                 value={numSettimane}
@@ -303,12 +314,18 @@ export default function PerDipendente() {
                 <option value={8}>8 settimane</option>
                 <option value={12}>12 settimane</option>
               </select>
+              <button onClick={() => window.print()}
+                disabled={!vista}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
+                title="Stampa questa timeline (usa il dialog nativo del browser per PDF/stampante)">
+                🖨️ Stampa
+              </button>
             </div>
           </div>
         </div>
 
         {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-3 flex-wrap">
+        <div className="flex gap-2 mb-3 flex-wrap print:hidden">
           {reparti.map(r => {
             const active = r.id === repartoId;
             return (
@@ -325,27 +342,35 @@ export default function PerDipendente() {
           })}
         </div>
 
-        {/* SELETTORE DIPENDENTE */}
-        <div className="mb-4">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-sm text-neutral-500">Dipendente:</span>
-            {dipendenti.length === 0 && (
+        {/* SELETTORE DIPENDENTE — dropdown con pallino colore */}
+        <div className="mb-4 print:hidden">
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-sm text-neutral-500">Dipendente:</label>
+            {dipendenti.length === 0 ? (
               <span className="text-sm text-neutral-400">Nessun dipendente attivo in questo reparto</span>
-            )}
-            {dipendenti.map(d => {
-              const active = d.id === dipendenteId;
-              return (
-                <button key={d.id} onClick={() => setDipendenteId(d.id)}
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-4 h-4 rounded-full border border-neutral-300 flex-shrink-0"
                   style={{
-                    borderColor: d.colore || "#6b7280",
-                    backgroundColor: active ? (d.colore || "#6b7280") : "white",
-                    color: active ? textOn(d.colore || "#6b7280") : "#111",
+                    backgroundColor: dipendenti.find(d => d.id === dipendenteId)?.colore || "#6b7280",
                   }}
-                  className="min-h-[44px] px-3 rounded-lg border-2 text-sm font-semibold transition hover:opacity-90">
-                  {d.nome} {d.cognome}
-                </button>
-              );
-            })}
+                  title="Colore dipendente"></span>
+                <select
+                  value={dipendenteId || ""}
+                  onChange={(e) => setDipendenteId(Number(e.target.value))}
+                  className="min-h-[44px] px-3 bg-white border-2 border-neutral-300 rounded-lg text-sm hover:bg-neutral-50 font-semibold min-w-[220px]"
+                  title="Seleziona dipendente">
+                  {dipendenti.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.nome} {d.cognome}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-neutral-400">
+                  ({dipendenti.length} nel reparto)
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -369,15 +394,16 @@ export default function PerDipendente() {
             <TotaliPeriodo vista={vista} />
 
             {/* TIMELINE SETTIMANE */}
-            <div className="grid grid-cols-1 gap-4 mt-4">
+            <div className="grid grid-cols-1 gap-4 mt-4 print:gap-2">
               {vista.settimane.map(sett => (
-                <CardSettimana
-                  key={sett.iso}
-                  settimana={sett}
-                  reparto={reparto}
-                  dipendente={vista.dipendente}
-                  onApriInFoglio={() => apriSettimanaInFoglio(sett.iso)}
-                />
+                <div key={sett.iso} style={{ breakInside: "avoid" }}>
+                  <CardSettimana
+                    settimana={sett}
+                    reparto={reparto}
+                    dipendente={vista.dipendente}
+                    onApriInFoglio={() => apriSettimanaInFoglio(sett.iso)}
+                  />
+                </div>
               ))}
             </div>
           </>
@@ -464,7 +490,7 @@ function CardSettimana({ settimana, reparto, dipendente, onApriInFoglio }) {
           </span>
         </div>
         <button onClick={onApriInFoglio}
-          className="min-h-[40px] px-3 text-sm bg-brand-blue text-white rounded-lg hover:opacity-90">
+          className="min-h-[40px] px-3 text-sm bg-brand-blue text-white rounded-lg hover:opacity-90 print:hidden">
           ✏️ Apri settimana
         </button>
       </div>

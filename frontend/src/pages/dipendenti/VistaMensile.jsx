@@ -1,4 +1,4 @@
-// @version: v1.1-ios-toolbar (Fase 5 + toolbar stile C uniforme: left / center segmented / right)
+// @version: v1.2-print (tasto Stampa con @media print + print:hidden toolbar/sidebar + intestazione print-only)
 // Vista Mensile Turni v2 — TRGB Gestionale
 //
 // Griglia calendario 6 righe × 7 colonne (Lun..Dom), sola lettura.
@@ -194,13 +194,23 @@ export default function VistaMensile() {
       <div className="max-w-[1600px] mx-auto">
         {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni) */}
         <div className="mb-4">
-          <div className="mb-2">
+          <div className="mb-2 print:hidden">
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">🗓 Vista Mensile</h1>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Intestazione PRINT-ONLY */}
+          <div className="hidden print:block mb-3 border-b border-neutral-300 pb-2">
+            <div className="text-lg font-bold">
+              Vista Mensile Turni — {MESI_LUN[mese - 1]} {anno}
+            </div>
+            <div className="text-sm text-neutral-700">
+              {reparto ? `${reparto.icona || ""} ${reparto.nome}` : ""}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap print:hidden">
             {/* LEFT: navigazione mese */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={() => shiftMeseRel(-1)}
@@ -240,13 +250,20 @@ export default function VistaMensile() {
               </div>
             </div>
 
-            {/* RIGHT: spazio per azioni future (placeholder invisibile per bilanciare il flex) */}
-            <div className="flex-shrink-0" style={{ minWidth: 0 }}></div>
+            {/* RIGHT: azioni condivisione */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => window.print()}
+                disabled={!vista}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
+                title="Stampa vista mensile (usa il dialog nativo del browser per PDF/stampante)">
+                🖨️ Stampa
+              </button>
+            </div>
           </div>
         </div>
 
         {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2 mb-4 flex-wrap print:hidden">
           {reparti.map(r => {
             const active = r.id === repartoId;
             return (
@@ -272,9 +289,9 @@ export default function VistaMensile() {
         {loading && <div className="text-center py-10 text-neutral-500">Caricamento…</div>}
 
         {!loading && vista && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 print:block">
             {/* GRIGLIA 6×7 */}
-            <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="bg-white rounded-xl shadow overflow-hidden print:shadow-none print:rounded-none">
               <GrigliaMensile
                 vista={vista}
                 turniByDate={turniByDate}
@@ -286,14 +303,16 @@ export default function VistaMensile() {
             </div>
 
             {/* PANNELLO DETTAGLIO GIORNO */}
-            <PannelloGiorno
-              selectedDate={selectedDate}
-              turni={selectedDate ? (turniByDate[selectedDate] || []) : []}
-              chiuso={selectedDate ? chiusi.has(selectedDate) : false}
-              reparto={reparto}
-              onClose={() => setSelectedDate(null)}
-              onApriSettimana={() => selectedDate && apriSettimanaPerData(selectedDate)}
-            />
+            <div className="print:hidden">
+              <PannelloGiorno
+                selectedDate={selectedDate}
+                turni={selectedDate ? (turniByDate[selectedDate] || []) : []}
+                chiuso={selectedDate ? chiusi.has(selectedDate) : false}
+                reparto={reparto}
+                onClose={() => setSelectedDate(null)}
+                onApriSettimana={() => selectedDate && apriSettimanaPerData(selectedDate)}
+              />
+            </div>
           </div>
         )}
       </div>

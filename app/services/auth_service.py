@@ -42,6 +42,7 @@ def _load_users() -> dict:
             "password_hash": u["password_hash"],
             "role": u["role"],
             "display_name": u.get("display_name", u["username"].capitalize()),
+            "dipendente_id": u.get("dipendente_id"),
         }
         for u in data
     }
@@ -49,15 +50,17 @@ def _load_users() -> dict:
 
 def _save_users(users: dict) -> None:
     """Serializza il dict utenti e lo scrive su users.json."""
-    data = [
-        {
+    data = []
+    for k, v in users.items():
+        row = {
             "username": k,
             "display_name": v.get("display_name", k.capitalize()),
             "password_hash": v["password_hash"],
             "role": v["role"],
         }
-        for k, v in users.items()
-    ]
+        if v.get("dipendente_id") is not None:
+            row["dipendente_id"] = v["dipendente_id"]
+        data.append(row)
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -123,7 +126,11 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Utente non valido",
         )
 
-    return {"username": username, "role": role}
+    return {
+        "username": username,
+        "role": role,
+        "dipendente_id": USERS[username].get("dipendente_id"),
+    }
 
 # ---------------------------------------------------------------------------
 # CRUD UTENTI (usato da users_router)

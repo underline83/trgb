@@ -3,6 +3,58 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Preventivi — Menu multipli alternativi (Opzione A/B/C…)
+
+Marco: _"un preventivo deve poter presentare al cliente più menu alternativi, non compresenti: il cliente ne sceglie uno"_. Fino a ieri un preventivo aveva **UN** menu (`menu_righe` appiattite sulla testata con denorma `menu_subtotale`, `menu_sconto`, `menu_prezzo_persona`). Ora può averne N: ciascuno con nome editabile, ordine, prezzo a persona proprio. Se N≥2 il totale del preventivo **non** viene sommato — il cliente sceglie, poi si aggiorna il preventivo.
+
+### Migrazione 079 (`app/migrations/079_preventivi_menu_multipli.py`)
+- **CREATE TABLE `clienti_preventivi_menu`**: (id, preventivo_id FK cascade, nome, sort_order, sconto, subtotale, prezzo_persona, created_at). Indice `(preventivo_id, sort_order)`.
+- **ALTER `clienti_preventivi_menu_righe` ADD `menu_id INTEGER`** + indice su menu_id.
+- **Backfill**: per ogni preventivo con righe esistenti (mig 075) crea un record `Menu` (sort_order=0) copiando i denorma dalla testata, poi assegna menu_id a tutte le sue righe.
+- **Retro-compat**: colonne denorma `menu_*` su testata restano come *cache del menu primario* (sync automatico in service) per non rompere lista preventivi / stats.
+
+### Backend
+- **`preventivi_service.py`**: nuovi helper (`_menu_table_exists`, `_conta_menu`, `_resolve_menu_id`, `_get_or_create_primary_menu`, `_sync_testata_menu_cache`, `_ricalcola_menu_e_totale`). `_ricalcola_totale` ora implementa la regola: 0 menu → solo Extra, 1 menu → `prezzo_persona × pax + Extra`, ≥2 menu → totale 0 (nessun aggregato). Nuove funzioni CRUD menu: `lista_menu`, `crea_menu`, `aggiorna_menu`, `elimina_menu`, `duplica_menu`, `riordina_menu`. CRUD righe ora risolvono `menu_id` (fallback primario). `get_preventivo` ritorna `menu_list` con righe annidate + `n_menu`; `menu_righe` flat resta (retro-compat col primo menu). `duplica_preventivo` copia anche menu + righe snapshot. `lista_preventivi` ora include `n_menu` via subquery.
+- **`preventivi_router.py`**: Pydantic `MenuCreateIn/UpdateIn/DuplicaIn`; nuovi endpoint REST sotto `/{preventivo_id}/menu` (GET/POST), `/menu/{menu_id}` (PUT/DELETE), `/menu/{menu_id}/duplica` (POST), `/menu-ordine` (PUT), `/menu/{menu_id}/righe` (GET/POST), `/menu/{menu_id}/righe-ordine` (PUT). Endpoint legacy `/menu-righe/{riga_id}` conservati. PDF endpoint passa `menus=prev.menu_list` al template.
+
+### Template PDF (`app/templates/pdf/preventivo.html`)
+- ≥2 menu → intestazione "**Menu proposti — alternative**" con blocchi "Opzione A", "Opzione B"… e prezzo a persona per ciascuno; totale finale "**da definire in base al menu scelto**".
+- 1 menu → rendering classico "Menu proposto" con `prezzo_persona × coperti`.
+- Fallback pre-mig 079 su `prev.menu_righe` se la migrazione non è ancora girata.
+
+### Frontend
+- **`PreventivoMenuComposer.jsx` v2.0**: composer riscritto con **tab per menu** (◀ riordino ▶, ✎ rinomina inline, ✕ elimina con conferma, ➕ aggiungi, ⎘ duplica menu). Auto-naming primo "Menu" poi "Opzione A/B/C…". Banner giallo warning quando `n_menu≥2`: "il totale del preventivo non viene sommato, il cliente sceglie". Righe/snapshot/categorie invariati, ora annidati nel menu attivo. Callback parent via `useRef` per evitare re-render loop.
+- **`ClientiPreventivi.jsx`**: colonna Totale ora mostra badge ambra "**N alternative**" quando `p.n_menu ≥ 2`, altrimenti `€ totale_calcolato` come prima.
+
+### Versioni
+- Modulo Clienti: v2.6 → **v2.7** (menu multipli alternativi).
+
+---
+
+## 2026-04-14 — Sessione 38 / Dipendenti — Stampa Mese + Per Dipendente + dropdown dipendenti
+
+Due richieste correlate di Marco dopo il fix toolbar:
+
+### 1. Tasto **🖨️ Stampa** su Vista Mensile e Per Dipendente
+Prima solo **FoglioSettimana** aveva condivisione (PDF server-side WeasyPrint + vista immagine). Marco ha chiesto di poter stampare anche le altre due tabelle. Non c'è ancora un endpoint PDF per Mese/PerDipendente, quindi la soluzione immediata è `window.print()` del browser con **`@media print` friendly** via Tailwind:
+- **`VistaMensile.jsx` v1.2-print**: tasto `🖨️ Stampa` nel RIGHT del toolbar (slot che prima era placeholder). In stampa: toolbar nascosto, tab reparti nascosti, pannello dettaglio giorno nascosto, griglia 6×7 occupa tutta la larghezza. Intestazione `print:block` con "Vista Mensile Turni — Mese Anno · Reparto".
+- **`PerDipendente.jsx` v1.2-print-dropdown**: tasto `🖨️ Stampa` accanto al select 4/8/12 settimane. In stampa: toolbar/tab reparti/selettore dipendente nascosti, bottone "Apri settimana" nascosto dentro ogni CardSettimana. Ogni settimana ha `breakInside: avoid` per non spezzarsi a metà. Intestazione `print:block` con "Timeline Dipendente — Nome Cognome · Reparto · range · N settimane".
+
+**Mobile-aware**: `window.print()` è accettato qui perché è un flusso di **stampa classica**, non un flusso PDF (regola `feedback_mobile_aware.md` punto 5 — "Niente window.print diretto nei nuovi flussi PDF", qui non genera PDF applicativo). Quando ci sarà l'endpoint PDF backend (task futuro) si aggiungerà anche il download come da regola.
+
+### 2. Dipendenti → dropdown con pallino colore (PerDipendente)
+Marco: _"metti un menu a discesa per i dipendenti se diventano tanti coi tasti e' un problema"_. I bottoni colorati uno per dipendente occupavano 2-3 righe intere al crescere del personale (4 già erano troppi in portrait). Ora:
+- `<select>` (min-width 220px, `min-h-[44px]` per touch Apple HIG) con elenco dipendenti del reparto corrente.
+- **Pallino colore** 16×16 con bordo a sinistra del select mostra sempre il colore del dipendente attualmente selezionato.
+- Counter "(N nel reparto)" a destra per orientarsi.
+- Rimosso il blocco bottoni originale (`{dipendenti.map(d => <button.../>)}`).
+- Empty state identico: "Nessun dipendente attivo in questo reparto".
+
+### Versioni
+- Modulo Dipendenti: v2.15 → **v2.16** (stampa Mese/PerDipendente + dropdown dipendenti).
+
+---
+
 ## 2026-04-14 — Sessione 38 / Dipendenti — Toolbar iOS uniformata sulle 3 viste + Impostazioni hub + fix notifiche superadmin
 
 Tre fix correlati segnalati da Marco dopo il primo restyling:

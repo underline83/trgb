@@ -12,6 +12,9 @@
     'scaduto':    ('pill-red',   'Scaduto'),
 } %}
 
+{# Etichette A, B, C... per i menu alternativi #}
+{% set opt_labels = ['A','B','C','D','E','F','G','H','I','J'] %}
+
 {% block content %}
 
     {# Info cliente + evento #}
@@ -58,10 +61,111 @@
         </div>
     </div>
 
-    {# Menu proposto (snapshot da wizard Componi menu — mig 075) — a corpo:
-       i singoli prezzi piatto NON vengono mostrati al cliente.
-       Si mostra solo il prezzo a persona (se n_persone) o il totale menu. #}
-    {% if prev.menu_righe and prev.menu_righe|length > 0 %}
+    {# Menu proposto (mig 075 + 079 — supporto multi-menu alternativi).
+       Prezzi a corpo: mai prezzi per singolo piatto, solo prezzo a persona. #}
+    {% set menus = menus or [] %}
+    {% set menus_con_righe = menus | selectattr('righe') | list if menus else [] %}
+
+    {% if menus_con_righe|length > 1 %}
+        {# Piu' menu: intestazione unica con spiegazione #}
+        <h2>Menu proposti — alternative</h2>
+        <p class="small text-muted" style="margin-top:-6px; margin-bottom:10px;">
+            Di seguito {{ menus_con_righe|length }} opzioni alternative.
+            {% if prev.n_persone %}Il prezzo indicato e' a persona per {{ prev.n_persone }} coperti.{% endif %}
+            La scelta finale del menu e' del cliente.
+        </p>
+
+        {% for m in menus_con_righe %}
+            {% set opt = opt_labels[loop.index0] if loop.index0 < opt_labels|length else loop.index|string %}
+            <h3 style="margin-top:14px; margin-bottom:6px; font-size:11pt;">
+                Opzione {{ opt }}{% if m.nome and m.nome != 'Menu' %} — {{ m.nome }}{% endif %}
+            </h3>
+            <table class="brand">
+                <tbody>
+                    {% set ns = namespace(current_cat=None) %}
+                    {% for r in m.righe %}
+                        {% set cat = r.category_name or '— Senza categoria —' %}
+                        {% if cat != ns.current_cat %}
+                            <tr>
+                                <td style="background:#F4F1EC; font-weight:bold; font-size:9pt; text-transform:uppercase; letter-spacing:0.4px; padding:6px 10px;">
+                                    {{ cat }}
+                                </td>
+                            </tr>
+                            {% set ns.current_cat = cat %}
+                        {% endif %}
+                        <tr>
+                            <td>
+                                <strong>{{ r.name }}</strong>
+                                {% if r.description %}
+                                    <div class="small text-muted" style="margin-top:2px;">{{ r.description }}</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <table class="brand" style="margin-top:6px; margin-bottom:6px;">
+                <tbody>
+                    <tr class="tot-row">
+                        <td>Opzione {{ opt }} — prezzo a persona</td>
+                        <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        {% endfor %}
+
+    {% elif menus_con_righe|length == 1 %}
+        {# Un solo menu: rendering classico "Menu proposto" #}
+        {% set m = menus_con_righe[0] %}
+        <h2>Menu proposto{% if m.nome and m.nome != 'Menu' %} — {{ m.nome }}{% endif %}</h2>
+        <table class="brand">
+            <tbody>
+                {% set ns = namespace(current_cat=None) %}
+                {% for r in m.righe %}
+                    {% set cat = r.category_name or '— Senza categoria —' %}
+                    {% if cat != ns.current_cat %}
+                        <tr>
+                            <td style="background:#F4F1EC; font-weight:bold; font-size:9pt; text-transform:uppercase; letter-spacing:0.4px; padding:6px 10px;">
+                                {{ cat }}
+                            </td>
+                        </tr>
+                        {% set ns.current_cat = cat %}
+                    {% endif %}
+                    <tr>
+                        <td>
+                            <strong>{{ r.name }}</strong>
+                            {% if r.description %}
+                                <div class="small text-muted" style="margin-top:2px;">{{ r.description }}</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% set menu_tot = (m.prezzo_persona or 0) * (prev.n_persone or 0) %}
+        <table class="brand" style="margin-top:8px;">
+            <tbody>
+                {% if prev.n_persone and (m.prezzo_persona or 0) > 0 %}
+                    <tr class="tot-row">
+                        <td>Menu a persona ({{ prev.n_persone }} coperti)</td>
+                        <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="small text-muted">Totale menu</td>
+                        <td class="num small text-muted">€ {{ '{:,.2f}'.format(menu_tot) }}</td>
+                    </tr>
+                {% else %}
+                    <tr class="tot-row">
+                        <td>Totale menu</td>
+                        <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(m.prezzo_persona or 0) }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+    {% elif prev.menu_righe and prev.menu_righe|length > 0 %}
+        {# Fallback pre-mig 079: usa la vecchia forma "menu_righe" appiattita su preventivo #}
         <h2>Menu proposto</h2>
         <table class="brand">
             <tbody>
@@ -87,8 +191,6 @@
                 {% endfor %}
             </tbody>
         </table>
-
-        {# Prezzo a corpo: solo il valore finale, nessun dettaglio per riga #}
         {% set menu_tot = (prev.menu_subtotale or 0) - (prev.menu_sconto or 0) %}
         <table class="brand" style="margin-top:8px;">
             <tbody>
@@ -96,10 +198,6 @@
                     <tr class="tot-row">
                         <td>Menu a persona ({{ prev.n_persone }} coperti)</td>
                         <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(prev.menu_prezzo_persona or 0) }}</td>
-                    </tr>
-                    <tr>
-                        <td class="small text-muted">Totale menu</td>
-                        <td class="num small text-muted">€ {{ '{:,.2f}'.format(menu_tot) }}</td>
                     </tr>
                 {% else %}
                     <tr class="tot-row">
@@ -113,7 +211,7 @@
 
     {# Righe voci libere (tovagliato, noleggio, supplementi, sconti extra) #}
     {% if righe and righe|length > 0 %}
-        <h2>{% if prev.menu_righe and prev.menu_righe|length > 0 %}Extra{% else %}Dettaglio{% endif %}</h2>
+        <h2>{% if menus_con_righe|length > 0 or (prev.menu_righe and prev.menu_righe|length > 0) %}Extra{% else %}Dettaglio{% endif %}</h2>
         <table class="brand">
             <thead>
                 <tr>
@@ -142,15 +240,29 @@
         </table>
     {% endif %}
 
-    {# Totale complessivo preventivo (include menu × pax + righe extra) #}
-    <table class="brand" style="margin-top:10px;">
-        <tbody>
-            <tr class="tot-row">
-                <td>TOTALE PREVENTIVO</td>
-                <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(prev.totale_calcolato or 0) }}</td>
-            </tr>
-        </tbody>
-    </table>
+    {# Totale complessivo preventivo.
+       Se ci sono >= 2 menu alternativi NON si mostra aggregato (il cliente sceglie). #}
+    {% if menus_con_righe|length > 1 %}
+        <table class="brand" style="margin-top:10px;">
+            <tbody>
+                <tr class="tot-row">
+                    <td>TOTALE PREVENTIVO</td>
+                    <td class="num" style="width:40%; font-style:italic; font-weight:normal; font-size:9.5pt;">
+                        da definire in base al menu scelto
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    {% else %}
+        <table class="brand" style="margin-top:10px;">
+            <tbody>
+                <tr class="tot-row">
+                    <td>TOTALE PREVENTIVO</td>
+                    <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(prev.totale_calcolato or 0) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    {% endif %}
 
     {# Note cliente #}
     {% if prev.note_cliente %}

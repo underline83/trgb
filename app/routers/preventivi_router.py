@@ -31,6 +31,13 @@ from app.services.preventivi_service import (
     elimina_menu_riga,
     riordina_menu_righe,
     set_menu_sconto,
+    # Menu multipli alternativi (mig 079)
+    lista_menu,
+    crea_menu,
+    aggiorna_menu,
+    elimina_menu,
+    duplica_menu,
+    riordina_menu,
 )
 
 router = APIRouter(prefix="/preventivi", tags=["Preventivi"])
@@ -133,13 +140,16 @@ class TemplateUpdate(BaseModel):
 class MenuRigaIn(BaseModel):
     """Input per aggiungere/modificare una riga menu snapshot.
     Se `recipe_id` e' presente la riga viene snapshottata dalla ricetta madre;
-    i campi name/price/description/category_name (se passati) sovrascrivono lo snapshot."""
+    i campi name/price/description/category_name (se passati) sovrascrivono lo snapshot.
+    `menu_id` (mig 079): id del menu alternativo cui la riga appartiene. Se omesso,
+    viene usato/creato il menu primario del preventivo (retro-compat)."""
     recipe_id: Optional[int] = None
     name: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
     category_name: Optional[str] = None
     sort_order: Optional[int] = None
+    menu_id: Optional[int] = None
 
 
 class MenuRigaUpdate(BaseModel):
@@ -156,6 +166,22 @@ class MenuRiordinaIn(BaseModel):
 
 class MenuScontoIn(BaseModel):
     sconto: float = 0
+
+
+# Menu alternativi (mig 079)
+class MenuCreateIn(BaseModel):
+    nome: Optional[str] = None
+    sconto: Optional[float] = 0
+
+
+class MenuUpdateIn(BaseModel):
+    nome: Optional[str] = None
+    sort_order: Optional[int] = None
+    sconto: Optional[float] = None
+
+
+class MenuDuplicaIn(BaseModel):
+    nuovo_nome: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -363,11 +389,112 @@ def api_riordina_menu_righe(preventivo_id: int, body: MenuRiordinaIn, user: dict
 
 @router.put("/{preventivo_id}/menu-sconto")
 def api_set_menu_sconto(preventivo_id: int, body: MenuScontoIn, user: dict = Depends(get_current_user)):
+    """Legacy: imposta lo sconto del menu primario."""
     _require_admin(user)
     result = set_menu_sconto(preventivo_id, body.sconto)
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Menu alternativi (mig 079) — /{preventivo_id}/menu/*
+# Un preventivo puo' avere N menu come alternative al cliente.
+#   0 menu → totale = solo righe Extra
+#   1 menu → totale = (menu.prezzo_persona × n_persone) + righe Extra
+#   >= 2  → nessun totale aggregato (alternative)
+# ---------------------------------------------------------------------------
+
+@router.get("/{preventivo_id}/menu")
+def api_lista_menu(preventivo_id: int, user: dict = Depends(get_current_user)):
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return {"items": lista_menu(preventivo_id)}
+
+
+@router.post("/{preventivo_id}/menu")
+def api_crea_menu(preventivo_id: int, body: MenuCreateIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    try:
+        row = crea_menu(preventivo_id, body.dict(exclude_none=True))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return row
+
+
+@router.put("/{preventivo_id}/menu/{menu_id}")
+def api_aggiorna_menu(preventivo_id: int, menu_id: int, body: MenuUpdateIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    row = aggiorna_menu(preventivo_id, menu_id, body.dict(exclude_none=True))
+    if not row:
+        raise HTTPException(status_code=404, detail="Menu non trovato")
+    return row
+
+
+@router.delete("/{preventivo_id}/menu/{menu_id}")
+def api_elimina_menu(preventivo_id: int, menu_id: int, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    ok = elimina_menu(preventivo_id, menu_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Menu non trovato")
+    return {"ok": True}
+
+
+@router.post("/{preventivo_id}/menu/{menu_id}/duplica")
+def api_duplica_menu(preventivo_id: int, menu_id: int, body: MenuDuplicaIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    row = duplica_menu(preventivo_id, menu_id, body.nuovo_nome)
+    if not row:
+        raise HTTPException(status_code=404, detail="Menu non trovato")
+    return row
+
+
+@router.put("/{preventivo_id}/menu-ordine")
+def api_riordina_menu(preventivo_id: int, body: MenuRiordinaIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return {"items": riordina_menu(preventivo_id, body.ordered_ids)}
+
+
+# ---------------------------------------------------------------------------
+# Righe annidate per menu specifico — /{preventivo_id}/menu/{menu_id}/righe/*
+# (Le righe nella route legacy /menu-righe continuano a funzionare sul menu primario.)
+# ---------------------------------------------------------------------------
+
+@router.get("/{preventivo_id}/menu/{menu_id}/righe")
+def api_lista_menu_righe_per_menu(preventivo_id: int, menu_id: int, user: dict = Depends(get_current_user)):
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return {"items": lista_menu_righe(preventivo_id, menu_id=menu_id)}
+
+
+@router.post("/{preventivo_id}/menu/{menu_id}/righe")
+def api_aggiungi_menu_riga_per_menu(
+    preventivo_id: int, menu_id: int, body: MenuRigaIn, user: dict = Depends(get_current_user)
+):
+    _require_admin(user)
+    data = body.dict(exclude_none=True)
+    data["menu_id"] = menu_id  # il path ha la verita'
+    try:
+        row = aggiungi_menu_riga(preventivo_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Preventivo/menu non trovato")
+    return row
+
+
+@router.put("/{preventivo_id}/menu/{menu_id}/righe-ordine")
+def api_riordina_menu_righe_per_menu(
+    preventivo_id: int, menu_id: int, body: MenuRiordinaIn, user: dict = Depends(get_current_user)
+):
+    _require_admin(user)
+    return {"items": riordina_menu_righe(preventivo_id, body.ordered_ids, menu_id=menu_id)}
 
 
 # ---------------------------------------------------------------------------
@@ -388,12 +515,13 @@ def api_pdf_preventivo(
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
 
     righe = prev.get("righe") or []
+    menus = prev.get("menu_list") or []
     numero = prev.get("numero") or f"preventivo_{preventivo_id}"
 
     try:
         pdf_bytes = genera_pdf_html(
             template="preventivo.html",
-            dati={"prev": prev, "righe": righe},
+            dati={"prev": prev, "righe": righe, "menus": menus},
             titolo=f"Preventivo {numero}",
             sottotitolo=prev.get("titolo") or None,
             orientamento="portrait",

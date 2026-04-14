@@ -1410,9 +1410,12 @@ def pubblica_settimana(reparto_id: int, settimana_iso: str) -> Dict[str, Any]:
         titolo = f"Turni {reparto_nome} pubblicati — {range_human}"
         messaggio = (
             f"Settimana {settimana_iso}: {n_dipendenti} dipendenti, {n_turni} turni. "
-            "Apri il Foglio Settimana per verificare o condividere su WhatsApp."
+            "Apri per vedere i tuoi turni."
         )
-        link = f"/dipendenti/turni?reparto_id={reparto_id}&settimana={settimana_iso}"
+        # Link alla vista self-service "I miei turni" — accessibile a tutti i ruoli.
+        # Gli admin troveranno dentro la pagina un bottone per aprire il Foglio
+        # Settimana completo.
+        link = f"/miei-turni?settimana={settimana_iso}"
         nid = crea_notifica(
             tipo="turni",
             titolo=titolo,

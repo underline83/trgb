@@ -519,6 +519,42 @@ def get_vista_dipendente(
 
 
 # ============================================================
+# GET /turni/miei-turni  — timeline dell'utente loggato (self-service)
+# ============================================================
+@router.get("/miei-turni")
+def get_miei_turni(
+    settimana_inizio: Optional[str] = Query(
+        None, description="'YYYY-Www' prima settimana (default = settimana corrente)"
+    ),
+    num_settimane: int = Query(4, ge=1, le=12),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Timeline dell'utente loggato — risolve username -> dipendente_id
+    tramite il campo `dipendente_id` su users.json.
+
+    Accessibile a qualsiasi ruolo autenticato. Se l'utente non e' collegato
+    a un dipendente (campo `dipendente_id` assente in users.json), risponde
+    404 con un messaggio chiaro per il frontend.
+    """
+    dip_id = current_user.get("dipendente_id")
+    if not dip_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Il tuo utente non è collegato a un dipendente. Contatta l'amministratore.",
+        )
+    settimana = settimana_inizio or turni_service.settimana_corrente()
+    try:
+        vista = turni_service.build_vista_dipendente(
+            dipendente_id=dip_id,
+            settimana_inizio=settimana,
+            num_settimane=num_settimane,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return JSONResponse(content=vista)
+
+
+# ============================================================
 # GET /turni/conflitti  — Fase 7: warning sovrapposizioni orarie
 # ============================================================
 @router.get("/conflitti")

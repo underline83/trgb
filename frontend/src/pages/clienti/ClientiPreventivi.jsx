@@ -255,7 +255,18 @@ export default function ClientiPreventivi() {
                               </td>
                               <td className="px-3 py-2.5 text-center font-medium">{p.n_persone || "—"}</td>
                               <td className="px-3 py-2.5 text-right font-medium text-neutral-900">
-                                {p.totale_calcolato ? `€${p.totale_calcolato.toLocaleString("it-IT", {minimumFractionDigits: 2})}` : "—"}
+                                {p.n_menu >= 2 ? (
+                                  <span
+                                    className="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800 border border-amber-200"
+                                    title="Preventivo con menu alternativi: il cliente ne sceglie uno"
+                                  >
+                                    {p.n_menu} alternative
+                                  </span>
+                                ) : p.totale_calcolato ? (
+                                  `€${p.totale_calcolato.toLocaleString("it-IT", {minimumFractionDigits: 2})}`
+                                ) : (
+                                  "—"
+                                )}
                               </td>
                               <td className="px-3 py-2.5">
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATI_COLORI[p.stato] || "bg-neutral-100 text-neutral-600"}`}>

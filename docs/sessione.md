@@ -1,7 +1,18 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Preventivi v1.3 Opzione A: Componi menu su /nuovo con auto-save silenzioso).
+> Ultima sessione: 2026-04-14 (sessione 39 — Preventivi v2.0 Menu multipli alternativi A/B/C).
+>
+> **Sessione 39 — Preventivi v2.0 — Menu multipli alternativi (Opzione A/B/C):**
+> - ✅ **Problema/feature**: un preventivo può ora presentare al cliente N menu **alternativi** (non compresenti). Il cliente ne sceglie uno. Regole totale: 0 menu → solo Extra; 1 menu → `prezzo_persona × pax + Extra`; ≥2 menu → NESSUN totale aggregato (il cliente sceglie prima).
+> - ✅ **Mig 079 `preventivi_menu_multipli.py`**: nuova tabella `clienti_preventivi_menu` (id, preventivo_id FK cascade, nome, sort_order, sconto, subtotale, prezzo_persona) + `clienti_preventivi_menu_righe.menu_id` + indici. Backfill: per ogni preventivo con righe esistenti crea record "Menu" sort_order=0 copiando denorma dalla testata, assegna menu_id a tutte le sue righe.
+> - ✅ **Backend service**: helper `_menu_table_exists`/`_conta_menu`/`_resolve_menu_id`/`_get_or_create_primary_menu`/`_sync_testata_menu_cache`/`_ricalcola_menu_e_totale`; `_ricalcola_totale` implementa la nuova regola; CRUD menu (`lista/crea/aggiorna/elimina/duplica/riordina`); CRUD righe ora risolvono menu_id (fallback primario); `get_preventivo` ritorna `menu_list[]` con righe annidate + `n_menu`, `menu_righe` flat retro-compat sul primo menu; `duplica_preventivo` copia anche menu + righe; `lista_preventivi` include `n_menu`.
+> - ✅ **Backend router**: Pydantic `MenuCreateIn/UpdateIn/DuplicaIn`; endpoint `/preventivi/{id}/menu` (GET/POST), `/menu/{menu_id}` (PUT/DELETE), `/menu/{menu_id}/duplica` (POST), `/menu-ordine` (PUT), `/menu/{menu_id}/righe` (GET/POST), `/menu/{menu_id}/righe-ordine` (PUT). Endpoint legacy `/menu-righe/{riga_id}` mantenuti.
+> - ✅ **PDF template `preventivo.html`**: 3 branch — ≥2 menu "Menu proposti — alternative" con Opzione A/B/C e prezzo/persona per ciascuno + totale "da definire in base al menu scelto"; 1 menu rendering classico; fallback pre-mig 079 su `prev.menu_righe`.
+> - ✅ **FE `PreventivoMenuComposer.jsx` v2.0**: composer riscritto con tab per menu (◀▶ riordino, ✎ rinomina inline, ✕ elimina con conferma, ➕ aggiungi, ⎘ duplica menu). Auto-naming: primo "Menu", poi "Opzione A/B/C…". Banner giallo warning quando ≥2 menu. Callback parent via useRef per evitare re-render loop.
+> - ✅ **FE `ClientiPreventivi.jsx`**: colonna Totale mostra badge ambra "**N alternative**" quando `n_menu ≥ 2`, altrimenti `€ totale_calcolato`.
+> - ✅ **Versions bump**: clienti 2.6 → **2.7**.
+> - ⚠️ **Da testare in produzione**: flusso completo con 2+ menu (creazione, rinomina, riordino, duplica, PDF). Verificare retro-compat preventivi esistenti (backfill deve creare 1 menu "Menu" per preventivo esistente).
 >
 > **Sessione 36 — Preventivi v1.3 — Componi menu operativo anche su /nuovo (Opzione A):**
 > - ✅ **Problema risolto**: il pannello "🪄 Componi menu dal ricettario" prima era bloccato su `/preventivi/nuovo` con banner "salva prima". Marco lo voleva sempre attivo, anche prima del primo Salva.
