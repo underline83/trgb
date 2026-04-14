@@ -9,7 +9,7 @@
 // - Riga grigia per giorno di chiusura (letto da settings/closures-config)
 // - Pannello destro: ore lorde/nette per dipendente con semaforo 40/48
 // - Pulsanti ←/→ per navigazione settimana, pulsante "Copia settimana"
-// - 🖨 Stampa: @media print + window.print (eccezione motivata fino a M.B PDF brand)
+// - 📄 PDF: fetch server-side (WeasyPrint) → blob → apertura in nuova tab (niente dialog stampante)
 // - 📷 Immagine: vista pulita fullscreen pronta per screenshot → WhatsApp staff
 //
 // Touch target 48pt, mobile-aware.
@@ -291,7 +291,7 @@ export default function FoglioSettimana() {
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
       <div className="max-w-[1600px] mx-auto">
         {/* HEADER */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 no-print">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div>
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
@@ -374,40 +374,9 @@ export default function FoglioSettimana() {
           nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
           reparto={reparto} settimana={settimana}
           onClose={() => setImageMode(false)}
-          onStampa={avviaStampa}
+          onPdf={scaricaPdf}
         />
       )}
-
-      {/* CSS stampa + classi helper */}
-      <style>{`
-        .print-only { display: none !important; }
-        @media print {
-          @page { size: A4 landscape; margin: 8mm; }
-          html, body {
-            background: #ffffff !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .no-print, .no-print * { display: none !important; }
-          .print-only { display: block !important; }
-          .print-only.hidden { display: block !important; }
-          .print-full { display: block !important; grid-template-columns: none !important; }
-          .print-matrix { box-shadow: none !important; border-radius: 0 !important; overflow: visible !important; }
-          .print-matrix table { font-size: 11px !important; }
-          .print-matrix th, .print-matrix td { border-color: #888 !important; }
-          .print-header {
-            text-align: center;
-            margin-bottom: 10px;
-            padding-bottom: 6px;
-            border-bottom: 2px solid #111;
-          }
-          .print-brand { font-size: 13px; font-weight: 600; color: #444; }
-          .print-title { font-size: 18px; font-weight: 800; margin-top: 2px; color: #111; }
-          .print-sub { font-size: 10px; color: #777; margin-top: 2px; font-family: monospace; }
-          /* Evita pagebreak a metà riga */
-          tr, td, th { page-break-inside: avoid !important; break-inside: avoid !important; }
-        }
-      `}</style>
 
       {/* POPOVER */}
       {popover && foglio && (
@@ -808,7 +777,7 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
 // ---- VISTA IMMAGINE (Fase 8) ---------------------------------------------
 // Fullscreen pulito pronto per screenshot da condividere su WhatsApp con lo staff.
 // Nasconde tutta la nav, mostra solo titolo + matrice + legenda.
-function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto, settimana, onClose, onStampa }) {
+function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto, settimana, onClose, onPdf }) {
   // Previeni lo scroll body dietro l'overlay
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -817,17 +786,17 @@ function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, repart
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-white z-[60] overflow-auto no-print">
+    <div className="fixed inset-0 bg-white z-[60] overflow-auto">
       {/* Toolbar — non viene nello screenshot se l'utente ritaglia */}
       <div className="sticky top-0 z-10 bg-neutral-100 border-b border-neutral-200 px-3 py-2 flex items-center justify-between flex-wrap gap-2">
         <div className="text-xs text-neutral-600">
           📷 Vista pulita — fai uno screenshot per condividere su WhatsApp
         </div>
         <div className="flex gap-2">
-          <button onClick={onStampa}
+          <button onClick={onPdf}
             className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded text-sm hover:bg-neutral-50"
-            title="Stampa questa vista">
-            🖨 Stampa
+            title="Scarica PDF brandizzato (A4 orizzontale)">
+            📄 PDF
           </button>
           <button onClick={onClose}
             className="min-h-[44px] px-4 bg-brand-ink text-white rounded text-sm hover:opacity-90">

@@ -3,26 +3,30 @@
 
 ---
 
-## 2026-04-14 — Sessione 38 / Turni v2 Fase 8 — stampa + vista immagine per WhatsApp staff
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 8 — PDF server-side + vista immagine per WhatsApp staff
 
-Marco ha bisogno di condividere la settimana con i ragazzi (stampa in cucina + immagine su WhatsApp). Fase 8 del piano Turni v2 completata.
+Marco vuole condividere la settimana con i ragazzi ma senza passare dal dialog stampante (che gli cambia la config della stampante di casa). Soluzione: PDF server-side via WeasyPrint + vista immagine per screenshot. **Zero window.print()** → regola CLAUDE.md rispettata.
+
+### Backend
+- **`app/routers/turni_router.py`**: nuovo endpoint **`GET /turni/foglio/pdf?reparto_id=X&settimana=Y`** (JWT).
+  - Riusa `build_foglio_settimana` + `giorni_chiusi_nella_settimana` dal service (stessi dati del FE).
+  - Template HTML inline (CSS `@page A4 landscape`, 10mm margini) + WeasyPrint → `StreamingResponse(application/pdf, inline)`.
+  - Celle colorate per dipendente con contrasto auto (`_text_on`), stato OPZIONALE → prefix ★, ANNULLATO → opacity .4.
+  - Header brand: 🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — pill colorata reparto.
+  - Helper interni: `_text_on`, `_format_week_range`, `_nome_giorno`.
+  - Filename: `turni_<codice_reparto>_<settimana>.pdf`.
+  - Nessuna nuova dipendenza (WeasyPrint + Jinja2 già in `requirements.txt`).
 
 ### Frontend
-- **`FoglioSettimana.jsx` v1.5→v1.6-stampa-condivisione**:
-  - Pulsante **🖨 Stampa**: chiude popover/dialog, chiama `window.print()` con `@media print` dedicato (A4 landscape, 8mm margini, nasconde nav/filtri/pannello ore, ingrandisce matrice, bordi neri, intestazione "🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — Reparto").
-  - Pulsante **📷 Immagine**: apre overlay fullscreen `<VistaImmagine>` con layout pulito (titolo Playfair Display, pill colorata reparto, matrice completa, legenda), pronto per screenshot da condividere su WhatsApp. Blocca scroll body dietro.
-  - Classi helper `no-print` / `print-only` / `print-full` / `print-matrix` applicate all'albero componenti.
-  - Nuovo helper `formatWeekRange(iso)` per il range data leggibile.
+- **`FoglioSettimana.jsx` v1.5→v1.7-pdf-server**:
+  - Pulsante **📄 PDF**: `scaricaPdf()` fa fetch dell'endpoint PDF, blob → `URL.createObjectURL` → `window.open(url, "_blank")` (fallback download se popup bloccato). Stato `loadingPdf` per feedback ⏳.
+  - Pulsante **📷 Immagine**: overlay fullscreen `<VistaImmagine>` con titolo Playfair Display, pill colorata reparto, matrice completa, legenda. Toolbar sticky con "📄 PDF" e "✕ Chiudi". Blocca scroll body.
+  - Rimossi tutti i `@media print`, classi `no-print`, intestazioni stampa inline (non più necessari — il PDF è server-side).
+  - Nuovo helper `formatWeekRange(iso)` (solo per Vista Immagine).
 - **`versions.jsx`**: Dipendenti 2.6 → 2.7.
 
-### Deviazione segnata
-- `docs/problemi.md` §T1: aggiunta deviazione temporanea alla regola "no window.print() diretto" di CLAUDE.md. Verrà risolta quando M.B PDF brand sarà pronto (endpoint `/dipendenti/turni/calendario/pdf` server-side).
-
-### No backend
-Nessuna migrazione, nessun endpoint nuovo. Tutto in CSS + React puro, zero nuove dipendenze.
-
 ### Commit
-`./push.sh "turni v2 fase 8: stampa settimana + vista immagine per condivisione staff"`
+`./push.sh "turni v2 fase 8: pdf server-side (weasyprint) + vista immagine per condivisione staff"`
 
 ---
 

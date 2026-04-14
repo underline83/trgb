@@ -374,26 +374,28 @@ modulo Presenze separato. In Turni v2 resta solo:
 **Commit:** `./push.sh "turni v2 fase 7: warning conflitti orari"`
 
 ### Fase 8 — Stampa / Export ✅ COMPLETATA (sessione 38)
-*Obiettivo:* stampare la settimana per affissione in cucina + immagine da girare allo staff su WhatsApp.
+*Obiettivo:* PDF server-side della settimana + vista immagine da girare allo staff su WhatsApp.
 *Dimensione:* media.
 *Rischio:* basso.
 
-**Implementato in `FoglioSettimana.jsx` v1.6-stampa-condivisione:**
-- CSS `@media print` inline: nasconde filtri/tab/pannello ore/pulsanti, mostra solo intestazione + matrice, A4 landscape, margini 8mm
-- Pulsante "🖨 Stampa" -> `avviaStampa()` che chiude popover/dialog e lancia `window.print()` dopo 50ms
-- Pulsante "📷 Immagine" -> `setImageMode(true)` apre overlay fullscreen `<VistaImmagine>` pulito, pronto per screenshot da condividere su WhatsApp
-- Intestazione stampa/immagine: "🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — 🍽️ SALA/CUCINA" con Playfair Display + pill colorata reparto
-- `no-print` / `print-only` / `print-full` / `print-matrix` come classi helper
-- Helper `formatWeekRange(iso)` per il range date leggibile
-- Vista Immagine ha il suo "🖨 Stampa" (riusa la stessa funzione, `no-print` sull'overlay -> la stampa cattura il layout sottostante)
+**Backend — `turni_router.py` + WeasyPrint:**
+- Nuovo endpoint `GET /turni/foglio/pdf?reparto_id=X&settimana=YYYY-Www` (JWT)
+- Riusa `build_foglio_settimana` + `giorni_chiusi_nella_settimana`
+- Template HTML inline (CSS @page A4 landscape, 10mm margini) + WeasyPrint → `StreamingResponse(application/pdf, inline)`
+- Celle colorate per dipendente con contrasto auto (funzione `_text_on`), stato OPZIONALE → prefix ★, ANNULLATO → opacity .4
+- Header: 🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — pill colorata reparto
+- Footer: TRGB Gestionale + data generazione + settimana ISO
+- Filename: `turni_<codice_reparto>_<settimana>.pdf`
+- Anticipo rispetto a M.B PDF brand: template è inline, verrà rifattorizzato quando il mattone sarà pronto
 
-**Rimandato a fase futura (M.B PDF brand):**
-- Endpoint backend `/dipendenti/turni/calendario/pdf` con brand TRGB (attende mattone M.B PDF)
-- Export immagine server-side (html2canvas lato FE richiederebbe npm install, saltato)
+**Frontend — `FoglioSettimana.jsx` v1.5→v1.7-pdf-server:**
+- Pulsante **📄 PDF**: `scaricaPdf()` fa fetch dell'endpoint, blob → `URL.createObjectURL` → `window.open(url, "_blank")` (fallback download se popup bloccato)
+- Niente dialog stampante del browser — il PDF si apre come anteprima, Marco decide se salvare/condividere
+- Pulsante **📷 Immagine**: overlay fullscreen `<VistaImmagine>` con titolo Playfair Display, pill colorata reparto, matrice completa, legenda. Toolbar sticky con "📄 PDF" e "✕ Chiudi". Blocca scroll body dietro. Pronto per screenshot iPad → WhatsApp
+- Helper `formatWeekRange(iso)` lato FE (solo per la Vista Immagine — il PDF usa la versione Python)
+- **Regola "no window.print diretto" RISPETTATA**: zero chiamate a window.print in tutto il modulo
 
-**Note deviazione CLAUDE.md:** la regola "no window.print() diretto" è stata derogata qui per pragmatismo, come previsto nel piano fase 8. Segnato in `problemi.md`. Verrà risolto quando M.B PDF brand sarà pronto.
-
-**Commit:** `./push.sh "turni v2 fase 8: stampa settimana + vista immagine per condivisione staff"`
+**Commit:** `./push.sh "turni v2 fase 8: pdf server-side (weasyprint) + vista immagine per condivisione staff"`
 
 ### Fase 9 — Mobile iPad
 *Obiettivo:* vista giorno automatica su schermi stretti.
