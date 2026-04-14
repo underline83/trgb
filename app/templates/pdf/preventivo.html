@@ -58,37 +58,99 @@
         </div>
     </div>
 
-    {# Righe (voci + sconti) #}
-    <h2>Dettaglio</h2>
-    <table class="brand">
-        <thead>
-            <tr>
-                <th style="width:55%;">Descrizione</th>
-                <th class="num" style="width:10%;">Qta</th>
-                <th class="num" style="width:17%;">Prezzo unit.</th>
-                <th class="num" style="width:18%;">Totale</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for r in righe %}
-                {% set is_sconto = (r.tipo_riga == 'sconto') %}
+    {# Menu proposto (snapshot da wizard Componi menu — mig 075) #}
+    {% if prev.menu_righe and prev.menu_righe|length > 0 %}
+        <h2>Menu proposto</h2>
+        <table class="brand">
+            <thead>
                 <tr>
-                    <td>
-                        {% if is_sconto %}<span class="text-red">Sconto — </span>{% endif %}
-                        {{ r.descrizione or '' }}
-                    </td>
-                    <td class="num">{{ '{:g}'.format(r.qta or 0) }}</td>
-                    <td class="num">€ {{ '{:,.2f}'.format(r.prezzo_unitario or 0) }}</td>
-                    <td class="num {% if is_sconto %}text-red{% endif %}">
-                        {% if is_sconto %}-{% endif %}€ {{ '{:,.2f}'.format((r.qta or 0) * (r.prezzo_unitario or 0)) }}
-                    </td>
+                    <th style="width:78%;">Piatto</th>
+                    <th class="num" style="width:22%;">Prezzo</th>
                 </tr>
-            {% else %}
-                <tr><td colspan="4" class="text-muted" style="text-align:center;">Nessuna riga</td></tr>
-            {% endfor %}
+            </thead>
+            <tbody>
+                {% set ns = namespace(current_cat=None) %}
+                {% for r in prev.menu_righe %}
+                    {% set cat = r.category_name or '— Senza categoria —' %}
+                    {% if cat != ns.current_cat %}
+                        <tr>
+                            <td colspan="2" style="background:#F4F1EC; font-weight:bold; font-size:9pt; text-transform:uppercase; letter-spacing:0.4px; padding:6px 10px;">
+                                {{ cat }}
+                            </td>
+                        </tr>
+                        {% set ns.current_cat = cat %}
+                    {% endif %}
+                    <tr>
+                        <td>
+                            <strong>{{ r.name }}</strong>
+                            {% if r.description %}
+                                <div class="small text-muted" style="margin-top:2px;">{{ r.description }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="num">€ {{ '{:,.2f}'.format(r.price or 0) }}</td>
+                    </tr>
+                {% endfor %}
+                <tr>
+                    <td style="border-top:1px solid #ddd; padding-top:6px;">Subtotale menu ({{ prev.menu_righe|length }} {% if prev.menu_righe|length == 1 %}piatto{% else %}piatti{% endif %})</td>
+                    <td class="num" style="border-top:1px solid #ddd; padding-top:6px;">€ {{ '{:,.2f}'.format(prev.menu_subtotale or 0) }}</td>
+                </tr>
+                {% if (prev.menu_sconto or 0) > 0 %}
+                    <tr>
+                        <td class="text-red">Sconto menu</td>
+                        <td class="num text-red">-€ {{ '{:,.2f}'.format(prev.menu_sconto or 0) }}</td>
+                    </tr>
+                {% endif %}
+                <tr class="tot-row">
+                    <td>Totale menu</td>
+                    <td class="num">€ {{ '{:,.2f}'.format((prev.menu_subtotale or 0) - (prev.menu_sconto or 0)) }}</td>
+                </tr>
+                {% if prev.n_persone and (prev.menu_prezzo_persona or 0) > 0 %}
+                    <tr>
+                        <td class="small text-muted">Prezzo a persona ({{ prev.n_persone }} coperti)</td>
+                        <td class="num small text-muted">€ {{ '{:,.2f}'.format(prev.menu_prezzo_persona or 0) }}</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {# Righe voci libere (tovagliato, noleggio, supplementi, sconti extra) #}
+    {% if righe and righe|length > 0 %}
+        <h2>{% if prev.menu_righe and prev.menu_righe|length > 0 %}Extra{% else %}Dettaglio{% endif %}</h2>
+        <table class="brand">
+            <thead>
+                <tr>
+                    <th style="width:55%;">Descrizione</th>
+                    <th class="num" style="width:10%;">Qta</th>
+                    <th class="num" style="width:17%;">Prezzo unit.</th>
+                    <th class="num" style="width:18%;">Totale</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in righe %}
+                    {% set is_sconto = (r.tipo_riga == 'sconto') %}
+                    <tr>
+                        <td>
+                            {% if is_sconto %}<span class="text-red">Sconto — </span>{% endif %}
+                            {{ r.descrizione or '' }}
+                        </td>
+                        <td class="num">{{ '{:g}'.format(r.qta or 0) }}</td>
+                        <td class="num">€ {{ '{:,.2f}'.format(r.prezzo_unitario or 0) }}</td>
+                        <td class="num {% if is_sconto %}text-red{% endif %}">
+                            {% if is_sconto %}-{% endif %}€ {{ '{:,.2f}'.format((r.qta or 0) * (r.prezzo_unitario or 0)) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {# Totale complessivo preventivo (include menu × pax + righe extra) #}
+    <table class="brand" style="margin-top:10px;">
+        <tbody>
             <tr class="tot-row">
-                <td colspan="3">TOTALE</td>
-                <td class="num">€ {{ '{:,.2f}'.format(prev.totale_calcolato or 0) }}</td>
+                <td>TOTALE PREVENTIVO</td>
+                <td class="num" style="width:22%;">€ {{ '{:,.2f}'.format(prev.totale_calcolato or 0) }}</td>
             </tr>
         </tbody>
     </table>

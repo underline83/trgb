@@ -836,3 +836,50 @@ def applica_template_ep(
         return JSONResponse(content={"ok": True, **out})
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================
+# FASE 11 — Pubblicazione & invio WhatsApp (M.A + M.C)
+# ============================================================
+class PubblicaSettimanaIn(BaseModel):
+    reparto_id: int
+    settimana: str  # YYYY-Www
+
+
+@router.post("/pubblica")
+def pubblica_settimana_ep(
+    payload: PubblicaSettimanaIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Pubblica la settimana: crea una notifica (M.A) per avvisare lo staff admin
+    che i turni di questo reparto sono pronti per la distribuzione.
+    """
+    try:
+        out = turni_service.pubblica_settimana(
+            reparto_id=payload.reparto_id,
+            settimana_iso=payload.settimana,
+        )
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/riepilogo-dipendenti")
+def riepilogo_dipendenti_ep(
+    reparto_id: int = Query(...),
+    settimana: str = Query(..., description="YYYY-Www"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Riepilogo settimana per singolo dipendente: ritorna lista con testo_wa
+    pronto per invio WhatsApp (mattone M.C).
+    """
+    try:
+        out = turni_service.riepilogo_settimana_per_dipendenti(
+            reparto_id=reparto_id,
+            settimana_iso=settimana,
+        )
+        return JSONResponse(content={"ok": True, **out})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

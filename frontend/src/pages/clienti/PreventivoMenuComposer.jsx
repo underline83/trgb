@@ -41,9 +41,18 @@ export default function PreventivoMenuComposer({
 
   const scontoTimer = useRef(null);
 
+  // Refs per callback parent, evitano loop di useEffect quando il parent
+  // non le memoizza (passa funzioni fresche ad ogni render).
+  const onToastRef = useRef(onToast);
+  const onTotaleMenuChangeRef = useRef(onTotaleMenuChange);
+  const onEnsureSavedRef = useRef(onEnsureSaved);
+  useEffect(() => { onToastRef.current = onToast; }, [onToast]);
+  useEffect(() => { onTotaleMenuChangeRef.current = onTotaleMenuChange; }, [onTotaleMenuChange]);
+  useEffect(() => { onEnsureSavedRef.current = onEnsureSaved; }, [onEnsureSaved]);
+
   const toast = useCallback((msg, isError = false) => {
-    if (onToast) onToast(msg, isError);
-  }, [onToast]);
+    if (onToastRef.current) onToastRef.current(msg, isError);
+  }, []);
 
   // ── Carica righe + testata per un dato pid (per sconto/subtotale salvato) ──
   // Accetta pid esplicito per evitare problemi di closure quando appena creata la bozza auto.
@@ -59,7 +68,7 @@ export default function PreventivoMenuComposer({
       setSubtotale(parseFloat(rPrev?.menu_subtotale || 0));
       setScontoLocal(parseFloat(rPrev?.menu_sconto || 0));
       setPrezzoPersona(parseFloat(rPrev?.menu_prezzo_persona || 0));
-      if (onTotaleMenuChange) onTotaleMenuChange({
+      if (onTotaleMenuChangeRef.current) onTotaleMenuChangeRef.current({
         menu_subtotale: parseFloat(rPrev?.menu_subtotale || 0),
         menu_sconto: parseFloat(rPrev?.menu_sconto || 0),
         menu_prezzo_persona: parseFloat(rPrev?.menu_prezzo_persona || 0),
@@ -69,22 +78,22 @@ export default function PreventivoMenuComposer({
     } finally {
       setLoading(false);
     }
-  }, [onTotaleMenuChange, toast]);
+  }, [toast]);
 
-  // Wrapper che usa il preventivoId corrente (utile in useEffect iniziale).
-  const loadState = useCallback(async () => {
+  // Carica solo quando cambia preventivoId (evita loop causati da callback
+  // non memoizzate nel parent).
+  useEffect(() => {
     if (!preventivoId) { setLoading(false); return; }
-    await loadWithId(preventivoId);
-  }, [preventivoId, loadWithId]);
-
-  useEffect(() => { loadState(); }, [loadState]);
+    loadWithId(preventivoId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preventivoId]);
 
   // ── Helper: risolvi pid (eventualmente creando bozza auto al primo tocco) ──
   const resolvePid = useCallback(async () => {
     if (preventivoId) return preventivoId;
-    if (onEnsureSaved) return await onEnsureSaved();
+    if (onEnsureSavedRef.current) return await onEnsureSavedRef.current();
     return null;
-  }, [preventivoId, onEnsureSaved]);
+  }, [preventivoId]);
 
   // ── Carica tipi servizio ──
   useEffect(() => {

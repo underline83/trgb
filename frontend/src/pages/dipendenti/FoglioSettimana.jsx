@@ -17,6 +17,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { openWhatsApp } from "../../utils/whatsapp";
 
 // ---- UTIL DATE / ISO WEEK -------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -125,6 +126,8 @@ export default function FoglioSettimana() {
   // Dialog copia settimana
   const [dlgCopia, setDlgCopia] = useState(false);
   const [dlgTemplate, setDlgTemplate] = useState(false);
+  const [dlgInviaWA, setDlgInviaWA] = useState(false);
+  const [pubblicando, setPubblicando] = useState(false);
 
   // Vista immagine per screenshot WhatsApp (Fase 8)
   const [imageMode, setImageMode] = useState(false);
@@ -174,6 +177,31 @@ export default function FoglioSettimana() {
       alert(e.message || "Errore durante generazione PDF");
     } finally {
       setLoadingPdf(false);
+    }
+  }
+
+  // Fase 11: Pubblica settimana → crea notifica M.A per staff admin
+  async function pubblicaSettimana() {
+    if (!repartoId) return;
+    if (!window.confirm(`Pubblicare i turni di ${reparto?.nome || "questo reparto"} per la settimana ${formatWeekRange(settimana)}?\n\nVerrà creata una notifica per lo staff admin.`)) return;
+    setPubblicando(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/turni/pubblica`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reparto_id: repartoId, settimana }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Errore pubblicazione");
+      setToast({
+        tipo: "success",
+        titolo: "📢 Settimana pubblicata",
+        messaggio: `Notifica creata per lo staff admin.\n${data.n_turni || 0} turni, ${data.n_dipendenti || 0} dipendenti.`,
+      });
+    } catch (e) {
+      alert(e.message || "Errore durante pubblicazione");
+    } finally {
+      setPubblicando(false);
     }
   }
 
@@ -419,6 +447,16 @@ export default function FoglioSettimana() {
               title="Salva la settimana come template ricorrente o applica un template a una settimana">
               📑 Template
             </button>
+            <button onClick={pubblicaSettimana} disabled={pubblicando}
+              className="min-h-[44px] px-3 bg-brand-green text-white rounded-lg hover:opacity-90 text-sm disabled:opacity-50"
+              title="Pubblica la settimana: crea notifica per lo staff admin">
+              {pubblicando ? "⏳ Pubblica…" : "📢 Pubblica"}
+            </button>
+            <button onClick={() => setDlgInviaWA(true)}
+              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
+              title="Invia il riepilogo turni personale ai dipendenti via WhatsApp">
+              📤 Invia WA
+            </button>
             <button onClick={scaricaPdf} disabled={loadingPdf}
               className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
               title="Genera PDF brandizzato (A4 orizzontale) — niente dialog stampante">
@@ -534,6 +572,15 @@ export default function FoglioSettimana() {
               setSettimana(settimanaApplicata);
             }
           }}
+        />
+      )}
+
+      {/* DIALOG INVIA WHATSAPP (Fase 11) */}
+      {dlgInviaWA && (
+        <DialogInviaWA
+          reparto={reparto}
+          settimana={settimana}
+          onClose={() => setDlgInviaWA(false)}
         />
       )}
     </div>
@@ -1475,6 +1522,104 @@ function DialogTemplate({ reparto, settimanaCorrente, onClose, onApplicato }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// FASE 11 — Dialog Invia WhatsApp ai dipendenti
+// ============================================================
+function DialogInviaWA({ reparto, settimana, onClose }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [sent, setSent] = useState(new Set()); // id dipendenti già cliccati
+
+  useEffect(() => {
+    setLoading(true);
+    setErr(null);
+    apiFetch(`${API_BASE}/turni/riepilogo-dipendenti?reparto_id=${reparto.id}&settimana=${settimana}`)
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) throw new Error(d.detail || "Errore caricamento riepilogo");
+        setItems(d.dipendenti || []);
+      })
+      .catch(e => setErr(e.message || String(e)))
+      .finally(() => setLoading(false));
+  }, [reparto.id, settimana]);
+
+  function inviaUno(dip) {
+    if (!dip.telefono) {
+      alert(`${dip.nome} ${dip.cognome || ""} non ha un numero di telefono registrato.`);
+      return;
+    }
+    openWhatsApp(dip.telefono, dip.testo_wa);
+    setSent(prev => new Set(prev).add(dip.dipendente_id));
+  }
+
+  const senzaTelefono = items.filter(d => !d.telefono).length;
+  const senzaTurni = items.filter(d => d.n_turni === 0).length;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <h3 className="font-semibold">📤 Invia turni via WhatsApp — {reparto?.nome}</h3>
+          <button onClick={onClose} className="text-neutral-500 hover:text-neutral-800 text-xl leading-none">×</button>
+        </div>
+
+        <div className="px-4 py-2 text-xs text-neutral-600 border-b bg-neutral-50">
+          Per ogni dipendente si apre WhatsApp con il riepilogo dei suoi turni della settimana.
+          Controlla e premi "Invia" nell'app WhatsApp.
+          {senzaTelefono > 0 && <span className="ml-2 text-amber-700">⚠️ {senzaTelefono} senza telefono</span>}
+          {senzaTurni > 0 && <span className="ml-2 text-neutral-500">· {senzaTurni} senza turni questa settimana</span>}
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading && <div className="p-6 text-center text-neutral-500">Caricamento…</div>}
+          {err && <div className="p-6 text-center text-brand-red">Errore: {err}</div>}
+          {!loading && !err && items.length === 0 && (
+            <div className="p-6 text-center text-neutral-500">Nessun dipendente attivo in questo reparto.</div>
+          )}
+          {!loading && !err && items.map(dip => {
+            const giaInviato = sent.has(dip.dipendente_id);
+            const noTel = !dip.telefono;
+            const noTurni = dip.n_turni === 0;
+            return (
+              <div key={dip.dipendente_id}
+                className={`flex items-center gap-3 px-4 py-3 border-b hover:bg-neutral-50 ${noTurni ? "opacity-60" : ""}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium">{dip.nome} {dip.cognome || ""}</span>
+                    <span className="text-xs text-neutral-500">
+                      {dip.n_turni} turn{dip.n_turni === 1 ? "o" : "i"}
+                    </span>
+                    {giaInviato && <span className="text-xs text-brand-green">✓ aperto</span>}
+                    {noTel && <span className="text-xs text-amber-700">⚠️ no tel</span>}
+                  </div>
+                  {dip.telefono && (
+                    <div className="text-xs text-neutral-500 truncate">📱 {dip.telefono}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => inviaUno(dip)}
+                  disabled={noTel || noTurni}
+                  className="min-h-[44px] px-3 bg-brand-green text-white rounded-lg hover:opacity-90 text-sm whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={noTel ? "Manca numero di telefono" : noTurni ? "Nessun turno questa settimana" : "Apri WhatsApp"}>
+                  {giaInviato ? "Riapri WA" : "📤 Invia"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-end gap-2 px-4 py-3 border-t bg-neutral-50">
+          <button onClick={onClose}
+            className="min-h-[44px] px-4 border border-neutral-300 rounded hover:bg-white text-sm">
+            Chiudi
+          </button>
+        </div>
       </div>
     </div>
   );

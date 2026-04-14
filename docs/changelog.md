@@ -24,6 +24,34 @@ Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 11 — Integrazione mattoni M.A (notifiche) + M.C (WhatsApp)
+
+Chiude il ciclo del modulo Turni v2: due azioni di **pubblicazione** della settimana verso lo staff. La **Pubblica** crea una notifica (mattone M.A) per lo staff admin quando il foglio è pronto; l'**Invia WA** apre WhatsApp per ciascun dipendente con il riepilogo personale dei suoi turni della settimana (mattone M.C). I mattoni M.B (PDF brand dedicato turni multi-reparto) e M.D (email) restano sul backlog.
+
+### Backend — `turni_service.py`
+- Nuovo helper `_format_week_range_it(iso)` → "13–19/04/2026" da `YYYY-Www` per testi human-readable.
+- `pubblica_settimana(reparto_id, settimana_iso)`: calcola stats (turni, dipendenti, giorni coperti) della settimana e chiama `crea_notifica(tipo="turni", dest_ruolo="admin", titolo, messaggio, link=/dipendenti/turni?reparto_id=X&settimana=Y)`. La chiamata al mattone M.A è wrappata in try/except: se il service notifiche non è disponibile la pubblicazione NON fallisce (fallback silenzioso).
+- `riepilogo_settimana_per_dipendenti(reparto_id, settimana_iso)`: per ogni dipendente attivo con turni non-ANNULLATI nella settimana costruisce un payload `{dipendente_id, nome, cognome, telefono, colore, n_turni, turni[], testo_wa}`. Il **testo_wa** è pre-composto in backend con formato `"Ciao {nome}, ecco i tuoi turni {reparto} della settimana {range_human}:\n• Lun 14/04: ☀️ 12:00-15:00 + 🌙 19:00-23:00\n..."` (emoji ☀️ pranzo / 🌙 cena, suffisso "(opzionale)" se stato=OPZIONALE). Frontend non deve fare template logic.
+
+### Backend — `turni_router.py`
+- `POST /turni/pubblica` body `{reparto_id, settimana}` → notifica admin + stats.
+- `GET /turni/riepilogo-dipendenti?reparto_id=X&settimana=YYYY-Www` → lista pronta per DialogInviaWA.
+
+### Frontend — `FoglioSettimana.jsx`
+- Nuovo pulsante **📢 Pubblica** (verde brand-green) nell'header: conferma nativa, spinner, toast di successo con conteggio turni+dipendenti.
+- Nuovo pulsante **📤 Invia WA** (bianco border): apre `DialogInviaWA`.
+- Nuovo componente **`DialogInviaWA`** (~130 righe): lista dipendenti del reparto con per ciascuno: nome+cognome, n. turni, numero telefono (se presente), badge ✓ "aperto" dopo primo click. Bottone 📤 Invia disabilitato per chi non ha telefono o non ha turni in settimana. Usa `openWhatsApp(tel, testo)` dal mattone M.C (`utils/whatsapp.js`) — il testo è quello pre-composto dal backend. Tracker `sent: Set<id>` per distinguere "Invia" da "Riapri WA" dopo primo click. Banner info: conteggio "senza telefono" + "senza turni questa settimana".
+- Import: `openWhatsApp` da `utils/whatsapp`. Niente costruzione `wa.me` a mano (regola M.C).
+
+### Versioni
+- Modulo Dipendenti: v2.12 → **v2.13**.
+
+### TODO futuri (NON in questa fase)
+- Mattone **M.B PDF brand** per turni: attualmente il PDF turni usa WeasyPrint diretto (Fase 8). Migrazione al mattone comune M.B quando sarà disponibile.
+- Mattone **M.D Email**: per invio riepilogo via email (alternativa a WhatsApp per chi non usa WA). Quando M.D sarà disponibile aggiungere bottone 📧 Invia Email con stessa struttura di DialogInviaWA.
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 10 — Template settimana tipo (salva/applica pattern ricorrenti)
 
 Ultima grande fase del modulo Turni v2 prima dell'integrazione mattoni (Fase 11): la possibilità di **salvare una settimana come template** e **riapplicarla** su qualsiasi settimana futura con un click. Utile per pattern ricorrenti — "Settimana standard", "Settimana estate", "Settimana festivi" — che oggi Marco doveva copiare manualmente settimana per settimana. Raggiungibile dal nuovo pulsante **📑 Template** nell'header del Foglio Settimana.

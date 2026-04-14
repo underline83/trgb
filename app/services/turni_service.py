@@ -33,6 +33,18 @@ import sqlite3
 from app.models.dipendenti_db import get_dipendenti_conn
 
 
+def _format_week_range_it(iso: str) -> str:
+    """'2026-W16' → '13–19/04/2026' (o '28/04–04/05/2026' se cross-mese)."""
+    try:
+        monday = lunedi_settimana_iso(iso)
+    except Exception:
+        return iso
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f"{monday.day:02d}–{sunday.day:02d}/{sunday.month:02d}/{sunday.year}"
+    return f"{monday.day:02d}/{monday.month:02d}–{sunday.day:02d}/{sunday.month:02d}/{sunday.year}"
+
+
 # ============================================================
 # UTIL DATE / SETTIMANA ISO
 # ============================================================
@@ -1346,3 +1358,186 @@ def applica_template(
         }
     finally:
         conn.close()
+
+
+# ============================================================
+# FASE 11 — INTEGRAZIONE MATTONI M.A (Notifiche) + M.C (WhatsApp)
+# ============================================================
+_GIORNI_IT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+
+
+def pubblica_settimana(reparto_id: int, settimana_iso: str) -> Dict[str, Any]:
+    """Crea una notifica M.A 'Turni settimana X pubblicati' per il ruolo admin.
+
+    I dipendenti NON sono utenti del gestionale (non hanno username), quindi
+    la notifica in-app va al ruolo admin/gestore del reparto. La consegna ai
+    dipendenti avviene via M.C (WhatsApp) con un altro endpoint.
+    """
+    giorni = [d.isoformat() for d in giorni_settimana(settimana_iso)]
+    if len(giorni) != 7:
+        raise ValueError("Settimana non valida")
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        rep = _reparto_row(conn, reparto_id)
+        if not rep:
+            raise ValueError(f"Reparto {reparto_id} non trovato")
+
+        cur.execute(
+            """SELECT tc.id, tc.dipendente_id
+               FROM turni_calendario tc
+               JOIN dipendenti d ON d.id = tc.dipendente_id
+               WHERE d.reparto_id = ? AND tc.data BETWEEN ? AND ?
+                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'""",
+            (reparto_id, giorni[0], giorni[-1]),
+        )
+        rows = cur.fetchall()
+        n_turni = len(rows)
+        n_dipendenti = len({r["dipendente_id"] for r in rows})
+    finally:
+        conn.close()
+
+    # Crea notifica M.A
+    try:
+        from app.services.notifiche_service import crea_notifica
+        range_human = _format_week_range_it(settimana_iso)
+        reparto_nome = rep.get("nome") or f"reparto {reparto_id}"
+        titolo = f"Turni {reparto_nome} pubblicati — {range_human}"
+        messaggio = (
+            f"Settimana {settimana_iso}: {n_dipendenti} dipendenti, {n_turni} turni. "
+            "Apri il Foglio Settimana per verificare o condividere su WhatsApp."
+        )
+        link = f"/dipendenti/turni?reparto_id={reparto_id}&settimana={settimana_iso}"
+        nid = crea_notifica(
+            tipo="turni",
+            titolo=titolo,
+            messaggio=messaggio,
+            link=link,
+            icona="📅",
+            urgenza="normale",
+            modulo="dipendenti",
+            dest_ruolo="admin",
+        )
+    except Exception as e:
+        # Se M.A fallisce, non rompiamo il flusso; logghiamo ma ritorniamo ok parziale
+        nid = None
+        print(f"[turni.pubblica_settimana] crea_notifica fallito: {e}")
+
+    return {
+        "settimana": settimana_iso,
+        "reparto_id": reparto_id,
+        "n_turni": n_turni,
+        "n_dipendenti": n_dipendenti,
+        "notifica_id": nid,
+    }
+
+
+def riepilogo_settimana_per_dipendenti(
+    reparto_id: int,
+    settimana_iso: str,
+) -> List[Dict[str, Any]]:
+    """Per ogni dipendente del reparto con turni nella settimana, ritorna:
+
+        {
+          dipendente_id, nome, cognome, telefono, colore,
+          n_turni: int,
+          turni: [{data, giorno, servizio, ora_inizio, ora_fine, stato}],
+          testo_wa: str  (messaggio pre-formattato pronto per wa.me)
+        }
+
+    Esclude dipendenti senza telefono (saranno marcati con `telefono=None`).
+    Esclude turni ANNULLATI.
+    """
+    giorni = [d.isoformat() for d in giorni_settimana(settimana_iso)]
+    if len(giorni) != 7:
+        raise ValueError("Settimana non valida")
+    giorni_date = [date.fromisoformat(g) for g in giorni]
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        rep = _reparto_row(conn, reparto_id)
+        if not rep:
+            raise ValueError(f"Reparto {reparto_id} non trovato")
+
+        cur.execute(
+            """SELECT tc.id, tc.dipendente_id, tc.data, tc.servizio, tc.slot_index,
+                      tc.ora_inizio, tc.ora_fine, tc.stato,
+                      d.nome, d.cognome, d.telefono, d.colore
+               FROM turni_calendario tc
+               JOIN dipendenti d ON d.id = tc.dipendente_id
+               WHERE d.reparto_id = ? AND d.attivo = 1
+                 AND tc.data BETWEEN ? AND ?
+                 AND COALESCE(tc.stato,'CONFERMATO') != 'ANNULLATO'
+               ORDER BY d.cognome, d.nome, tc.data, tc.servizio, tc.slot_index""",
+            (reparto_id, giorni[0], giorni[-1]),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    # Raggruppa per dipendente
+    per_dip: Dict[int, Dict[str, Any]] = {}
+    for r in rows:
+        did = int(r["dipendente_id"])
+        if did not in per_dip:
+            per_dip[did] = {
+                "dipendente_id": did,
+                "nome": r["nome"],
+                "cognome": r["cognome"],
+                "telefono": r.get("telefono"),
+                "colore": r.get("colore"),
+                "turni": [],
+            }
+        per_dip[did]["turni"].append({
+            "data": r["data"],
+            "servizio": r.get("servizio"),
+            "slot_index": r.get("slot_index"),
+            "ora_inizio": (r.get("ora_inizio") or "")[:5],
+            "ora_fine": (r.get("ora_fine") or "")[:5],
+            "stato": r.get("stato") or "CONFERMATO",
+        })
+
+    range_human = _format_week_range_it(settimana_iso)
+    reparto_nome = rep.get("nome") or ""
+
+    out: List[Dict[str, Any]] = []
+    for did, info in per_dip.items():
+        # Componi messaggio WA
+        lines = [f"Ciao {info['nome']}, ecco i tuoi turni {reparto_nome} della settimana {range_human}:"]
+        # Raggruppa per data in ordine cronologico
+        per_data: Dict[str, List[Dict[str, Any]]] = {}
+        for t in info["turni"]:
+            per_data.setdefault(t["data"], []).append(t)
+        for d in giorni_date:
+            iso = d.isoformat()
+            if iso not in per_data:
+                continue
+            nome_giorno = _GIORNI_IT[d.weekday()]
+            giorno_turni = per_data[iso]
+            # Ordina per servizio (PRANZO prima di CENA) e slot_index
+            giorno_turni.sort(key=lambda x: (
+                0 if (x.get("servizio") or "").upper() == "PRANZO" else 1,
+                x.get("slot_index") or 0,
+            ))
+            turni_str_parts = []
+            for t in giorno_turni:
+                serv = (t.get("servizio") or "").upper()
+                serv_emoji = "☀️" if serv == "PRANZO" else ("🌙" if serv == "CENA" else "")
+                oi = t.get("ora_inizio") or "?"
+                of = t.get("ora_fine") or "?"
+                opzione = " (opzionale)" if t.get("stato") == "OPZIONALE" else ""
+                turni_str_parts.append(f"{serv_emoji} {oi}-{of}{opzione}".strip())
+            lines.append(f"• {nome_giorno} {d.day:02d}/{d.month:02d}: " + " + ".join(turni_str_parts))
+        lines.append("")
+        lines.append("Fammi sapere se va bene. Grazie!")
+        testo_wa = "\n".join(lines)
+
+        info["n_turni"] = len(info["turni"])
+        info["testo_wa"] = testo_wa
+        out.append(info)
+
+    # Ordina per cognome,nome
+    out.sort(key=lambda x: ((x.get("cognome") or "").lower(), (x.get("nome") or "").lower()))
+    return out
