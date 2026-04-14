@@ -26,17 +26,24 @@
 >   - Dipendenti: aggiunti "Costi" e "Impostazioni".
 >   - Campo `check` marcato cosmetico/legacy nel commento in testa (la source of truth è modules.json via useModuleAccess).
 > - ✅ **Versions**: auth v2.0 → **v2.1**, sistema v5.6 → **v5.7**.
-> - **TODO follow-up**:
->   - Aggiungere bottone "Ripristina ruoli di default" in Impostazioni → Moduli & Permessi (wrapper del nuovo endpoint).
->   - Spostare fisicamente iPratico Sync e Import Clienti DENTRO le rispettive pagine Impostazioni come voci di sidebar (per ora le route esistono ma sono fuori dal dropdown).
 >
-> **Procedura applicazione sul VPS dopo push.sh:**
-> 1. `./push.sh "testo"` — sincronizza seed modules.json via -m auto-detect.
-> 2. Loggato come admin, dalla console DevTools:
->    ```js
->    fetch(API_BASE + "/settings/modules/reset-to-seed", {method:"POST", headers:{Authorization:"Bearer "+localStorage.getItem("token")}}).then(r=>r.json()).then(console.log)
->    ```
-> 3. Ctrl+Shift+R per invalidare cache FE.
+> **Sessione 39 — Auth — Auto-sync modules.json + iPratico in Impostazioni Vini:**
+> - Marco: _"occhio che c'e' sempre il problema di git sul modules.. ragionaci su anche ieri al riavvio aveva ripristinato hardcoded dei privilegi"_ + _"non riesco a fare quella cosa della console.. possiamo evitarlo?"_ + _"mettere ipratico sync dentro impostazioni vini. Mettere l'import di clienti dentro impostazioni clienti"_.
+> - ✅ **Auto-sync seed→runtime hash-based** in `app/routers/modules_router.py`:
+>   - Helper `_seed_hash()` (SHA-256 di `modules.json`) + `_read_applied_hash()`/`_write_applied_hash()` su `modules.runtime.meta.json` (gitignored).
+>   - `_load()` riscritto: se hash seed ≠ hash applicato → ricopia seed in runtime e aggiorna meta alla prima richiesta dopo restart. Altrimenti legge runtime normale (permessi modificati via UI sopravvivono). Fallback ultima istanza su `DEFAULT_MODULES`.
+>   - **Niente piu' console DevTools**: push.sh -m sincronizza il seed, il backend auto-applica al primo request. Verificato con smoke test Python (6 asserzioni).
+> - ✅ **`.gitignore`**: aggiunto `app/data/modules.runtime.meta.json`.
+> - ✅ **iPratico Sync in sidebar ViniImpostazioni**: `ViniImpostazioni.jsx` MENU con voce `{ key: "ipratico", label: "iPratico Sync", icon: "🔄", go: "/vini/ipratico" }`. Rendering differenzia voci `go` (navigate con freccia `→`) da voci sezione. Approccio link-based senza refactor di iPraticoSync.jsx (672 righe).
+> - ✅ **Import Clienti già embedded**: verificato — `ClientiImpostazioni.jsx` montava già `<ClientiImport embedded />` alla sezione `"import"`. Nessuna modifica.
+> - ✅ **Nuova procedura post-push (zero manual step)**:
+>   1. `./push.sh "testo"` (auto-rileva hash modules.json e applica -m).
+>   2. Prima richiesta dopo restart backend → auto-sync del runtime dal seed.
+>   3. Ctrl+Shift+R FE per refresh cache.
+> - **TODO follow-up**:
+>   - Valutare se refactorare `iPraticoSync.jsx` con prop `embedded` (come ClientiImport/GestioneReparti) per rendering inline in ViniImpostazioni invece di navigate.
+>   - Aggiungere bottone "Ripristina ruoli di default" in Impostazioni → Moduli & Permessi (wrapper endpoint `/settings/modules/reset-to-seed`, emergenza only).
+>   - Eventuale auto-refresh FE di `useModuleAccess` dopo un PUT lato admin (oggi serve Ctrl+Shift+R).
 >
 > **Sessione 39 — Dipendenti — Cleanup titoli viste Turni:**
 > - ✅ **FoglioSettimana.jsx**: rimosso "← Dipendenti" e titolo "📅 Foglio Settimana". Motivazione Marco: _"tanto ora c'e' il menu sopra, e Foglio Settimana con loghetto e' inutile"_.

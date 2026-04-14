@@ -67,6 +67,7 @@ function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder
 // ---------------------------------------------------------------
 const MENU = [
   { key: "import",      label: "Import / Export",     icon: "📥" },
+  { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", go: "/vini/ipratico" },
   { key: "carta",       label: "Carta dei Vini",      icon: "📜" },
   { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋" },
   { key: "markup",      label: "Markup Prezzi",       icon: "💰" },
@@ -1934,14 +1935,16 @@ export default function ViniImpostazioni() {
           <nav className="md:w-56 shrink-0">
             <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
               {MENU.map(item => (
-                <button key={item.key} onClick={() => setActiveSection(item.key)}
+                <button key={item.key}
+                  onClick={() => item.go ? navigate(item.go) : setActiveSection(item.key)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition border-l-3 ${
                     activeSection === item.key
                       ? "bg-amber-50 text-amber-900 border-l-amber-700"
                       : "text-neutral-600 hover:bg-neutral-50 border-l-transparent hover:text-neutral-800"
                   }`}>
                   <span className="text-base">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.go && <span className="text-neutral-300 text-xs">→</span>}
                 </button>
               ))}
             </div>

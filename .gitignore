@@ -45,6 +45,7 @@ app/data/users.json
 # Lo stato effettivo vive in modules.runtime.json che NON va in git,
 # altrimenti ogni push.sh riporta i ruoli ai default (bug B1 problemi.md)
 app/data/modules.runtime.json
+app/data/modules.runtime.meta.json
 *.backup
 
 # ⚠️ CARTELLE RUNTIME SCRITTE DAL BACKEND — DEVONO essere ignorate,

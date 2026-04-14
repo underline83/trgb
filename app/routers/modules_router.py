@@ -7,6 +7,7 @@ PUT  /settings/modules   — aggiorna permessi moduli + sotto-moduli (solo admin
 """
 
 import json
+import hashlib
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -19,9 +20,40 @@ router = APIRouter(prefix="/settings/modules", tags=["modules"])
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 # modules.json = seed tracciato in git (default ruoli)
 # modules.runtime.json = stato effettivo, NON tracciato (sopravvive ai push)
+# modules.runtime.meta.json = hash del seed applicato al runtime (per auto-sync)
 MODULES_SEED_FILE = _DATA_DIR / "modules.json"
 MODULES_FILE = _DATA_DIR / "modules.runtime.json"
+MODULES_META_FILE = _DATA_DIR / "modules.runtime.meta.json"
 VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sommelier", "sala", "viewer"}
+
+
+def _seed_hash() -> Optional[str]:
+    """Hash SHA-256 del contenuto del seed, None se manca."""
+    if not MODULES_SEED_FILE.exists():
+        return None
+    try:
+        h = hashlib.sha256()
+        with open(MODULES_SEED_FILE, "rb") as f:
+            h.update(f.read())
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _read_applied_hash() -> Optional[str]:
+    if not MODULES_META_FILE.exists():
+        return None
+    try:
+        with open(MODULES_META_FILE, "r", encoding="utf-8") as f:
+            return json.load(f).get("seed_hash")
+    except Exception:
+        return None
+
+
+def _write_applied_hash(h: Optional[str]) -> None:
+    MODULES_META_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(MODULES_META_FILE, "w", encoding="utf-8") as f:
+        json.dump({"seed_hash": h}, f, indent=2)
 
 # Struttura default — usata se modules.json non esiste (es. primo deploy, file perso)
 # Aggiornata 2026-04-14 — Allineata al seed con matrice ruoli definita da Marco (sessione 39)
@@ -159,26 +191,44 @@ DEFAULT_MODULES = [
 def _load() -> list:
     """
     Strategia di caricamento ruoli/permessi moduli:
-    1. Se esiste modules.runtime.json → lo legge (stato effettivo, mai sovrascritto dal push)
-    2. Altrimenti, copia il seed da modules.json (tracciato in git) e lo salva come runtime
-    3. Se manca anche il seed → cade su DEFAULT_MODULES hardcoded
-    In questo modo Marco puo' modificare i ruoli in produzione senza che un futuro
-    `push.sh` sovrascriva le sue modifiche (era il bug B1 / problemi.md).
+    1. Se il seed (modules.json) e' stato aggiornato rispetto all'ultimo hash
+       applicato (modules.runtime.meta.json), RISCRIVE il runtime dal seed.
+       Questo si attiva automaticamente al primo request dopo un push che
+       aggiorna il seed — NESSUNA azione manuale richiesta.
+    2. Altrimenti, se esiste modules.runtime.json → lo legge (stato effettivo,
+       include le modifiche fatte via PUT /settings/modules).
+    3. Se il runtime non esiste → bootstrap dal seed (se esiste) o da
+       DEFAULT_MODULES hardcoded, e traccia l'hash applicato.
+
+    Conseguenza: le modifiche via UI (PUT) persistono fino a quando il seed
+    in git NON cambia. Quando il seed cambia (hash diverso), le modifiche UI
+    vengono sovrascritte e i nuovi default prendono il sopravvento. Questo e'
+    il comportamento voluto: il seed in git e' la source of truth dopo un
+    rilascio ufficiale.
     """
-    if MODULES_FILE.exists():
-        with open(MODULES_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # Prima volta dopo il fix: bootstrap dal seed tracciato in git
-    if MODULES_SEED_FILE.exists():
+    seed_h = _seed_hash()
+    applied_h = _read_applied_hash()
+
+    # Caso 1: seed esiste e differisce dall'hash applicato → re-bootstrap dal seed
+    if seed_h is not None and seed_h != applied_h:
         try:
             with open(MODULES_SEED_FILE, "r", encoding="utf-8") as f:
                 seed = json.load(f)
         except Exception:
             seed = DEFAULT_MODULES
-    else:
-        seed = DEFAULT_MODULES
-    _save(seed)
-    return seed
+        _save(seed)
+        _write_applied_hash(seed_h)
+        return seed
+
+    # Caso 2: runtime esiste e seed non e' cambiato → usa runtime
+    if MODULES_FILE.exists():
+        with open(MODULES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    # Caso 3: niente runtime ne' seed → fallback hardcoded
+    _save(DEFAULT_MODULES)
+    _write_applied_hash(None)
+    return DEFAULT_MODULES
 
 
 def _save(data: list) -> None:
@@ -218,8 +268,10 @@ def get_modules(current_user: dict = Depends(get_current_user)):
 def reset_modules_to_seed(current_user: dict = Depends(get_current_user)):
     """
     Forza il reset del runtime ai ruoli del seed (modules.json tracciato in git).
-    Usalo quando il seed e' stato aggiornato in git e serve ri-applicare al volo
-    senza cancellare il file manualmente sul VPS.
+    In condizioni normali NON serve: l'auto-sync di _load() rileva il seed
+    aggiornato e riscrive il runtime al primo request dopo il push. Questo
+    endpoint resta come "pulsante d'emergenza" (es. runtime corrotto ma
+    hash identico, oppure serve forzare comunque).
     Solo admin/superadmin.
     """
     if not is_admin(current_user["role"]):
@@ -235,6 +287,7 @@ def reset_modules_to_seed(current_user: dict = Depends(get_current_user)):
         seed = DEFAULT_MODULES
 
     _save(seed)
+    _write_applied_hash(_seed_hash())
     return {"ok": True, "source": "seed" if MODULES_SEED_FILE.exists() else "default", "modules": seed}
 
 

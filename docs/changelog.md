@@ -30,6 +30,44 @@ Bordo del dropdown e label sono colorati in base al `reparto.colore` → identit
 
 ---
 
+## 2026-04-14 — Sessione 39 / Auth — Auto-sync modules.json + iPratico in Impostazioni Vini
+
+Marco: _"occhio che c'e' sempre il problema di git sul modules.. ragionaci su anche ieri al riavvio aveva ripristinato hardcoded dei privilegi"_ + _"non riesco a fare quella cosa della console.. possiamo evitarlo?"_ + _"mettere ipratico sync dentro impostazioni vini. Mettere l'import di clienti dentro impostazioni clienti"_.
+
+### Auto-sync seed → runtime (niente piu' console DevTools)
+
+La procedura della sessione precedente richiedeva un `fetch` manuale alla console DevTools dopo ogni push per forzare il re-bootstrap. Marco non riusciva ad aprire la console → serviva **auto-sync**.
+
+Implementato hash-based sync in `modules_router.py`:
+- Helper `_seed_hash()` legge SHA-256 di `modules.json` (seed).
+- Helper `_read_applied_hash()` / `_write_applied_hash()` gestiscono `modules.runtime.meta.json` (meta file gitignored che memorizza l'hash applicato).
+- `_load()` riscritto con 3 casi:
+  1. **Seed cambiato** (hash del seed ≠ hash applicato) → ricopia seed in runtime, aggiorna meta. Succede automaticamente alla prima richiesta dopo ogni push/restart quando il seed è stato modificato.
+  2. **Runtime esiste e nessun cambio seed** → legge runtime normalmente (Marco può continuare a modificare i permessi dall'UI, sopravvivono al restart finché il seed non cambia).
+  3. **Nessun runtime** → bootstrap da seed o, come ultima istanza, da `DEFAULT_MODULES` hardcoded (anch'esso allineato al seed).
+
+Verificato con smoke test Python: 6 asserzioni passate (idempotenza secondo load, riscrittura su hash mismatch, meta aggiornata).
+
+### iPratico Sync → sidebar Impostazioni Vini
+
+`ViniImpostazioni.jsx`: aggiunta voce `{ key: "ipratico", label: "iPratico Sync", icon: "🔄", go: "/vini/ipratico" }` nel MENU. Il rendering differenzia voci `go` (navigate con freccia `→` grigia) dalle voci sezione (setActiveSection). Approccio **link-based**: clic → naviga a `/vini/ipratico` (pagina standalone con suo ViniNav). Soluzione leggera senza refactoring di iPraticoSync.jsx (672 righe).
+
+### Import Clienti → già embedded
+
+Verificato: `ClientiImpostazioni.jsx` monta già `<ClientiImport embedded />` alla sezione `"import"`. Nessuna modifica necessaria — il pattern era già in place dalla sessione precedente.
+
+### File modificati
+- `app/routers/modules_router.py` — helper hash/meta, `_load()` riscritto con auto-sync.
+- `.gitignore` — aggiunto `app/data/modules.runtime.meta.json`.
+- `frontend/src/pages/vini/ViniImpostazioni.jsx` — MENU + rendering per voci `go`.
+
+### Procedura post-push (nuova, senza console)
+1. `./push.sh "testo"` — push.sh -m auto-detect sincronizza `modules.json`.
+2. Alla **prima richiesta** dopo il restart del backend, il router rileva l'hash diverso e riscrive `modules.runtime.json` dal seed. Zero azione manuale.
+3. Ctrl+Shift+R lato FE per invalidare cache `useModuleAccess`.
+
+---
+
 ## 2026-04-14 — Sessione 39 / Auth — Matrice ruoli per modulo + endpoint reset-to-seed
 
 Marco: _"Fai un controllo su tutti i check 'admin' cosi li verifichiamo in blocco"_, seguito dalla matrice completa ruoli→modulo per tutti e 11 i moduli. Prima applicazione: Marco aveva notato che **dopo un riavvio del backend i privilegi tornavano a valori hardcoded obsoleti** — il `DEFAULT_MODULES` nel router Python non era mai stato allineato al seed e alle modifiche fatte via UI, quindi ogni bootstrap "pulito" (runtime mancante) ripristinava uno stato obsoleto.
@@ -66,13 +104,7 @@ Marco: _"Fai un controllo su tutti i check 'admin' cosi li verifichiamo in blocc
 
 ### Procedura post-push per Marco
 
-1. `./push.sh "testo"` — auto-sync modules.json (seed) al VPS.
-2. Sul frontend, loggato come admin: aprire la console DevTools e chiamare:
-   ```js
-   fetch(API_BASE + "/settings/modules/reset-to-seed", {method:"POST", headers:{Authorization:"Bearer "+localStorage.getItem("token")}}).then(r=>r.json()).then(console.log)
-   ```
-   (O attendiamo un bottone in Impostazioni → Moduli & Permessi — TODO future).
-3. Ctrl+Shift+R per invalidare la cache di `useModuleAccess` lato FE.
+⚠️ **Superato nella entry successiva**: la procedura della console DevTools è stata sostituita dall'auto-sync hash-based. Vedi entry "Auto-sync modules.json + iPratico in Impostazioni Vini" (stessa data, sopra). L'endpoint `reset-to-seed` resta come override manuale di emergenza.
 
 ### Versioni
 - Modulo `auth`: v2.0 → **v2.1**.
