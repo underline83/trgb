@@ -195,12 +195,9 @@ export default function VistaMensile() {
       <div className="print:hidden"><DipendentiNav current="turni" /></div>
       <div className="p-4 sm:p-6">
       <div className="max-w-[1600px] mx-auto">
-        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni) */}
+        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni)
+            Titolo rimosso (sess. 39): il menu modulo in alto gia' indica Turni. */}
         <div className="mb-4">
-          <div className="mb-2 print:hidden">
-            <h1 className="text-2xl sm:text-3xl font-bold mt-1">🗓 Vista Mensile</h1>
-          </div>
-
           {/* Intestazione PRINT-ONLY */}
           <div className="hidden print:block mb-3 border-b border-neutral-300 pb-2">
             <div className="text-lg font-bold">

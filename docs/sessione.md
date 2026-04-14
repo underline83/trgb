@@ -1,6 +1,15 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
+>
+> **Sessione 39 — Dipendenti — Cleanup titoli viste Turni:**
+> - ✅ **FoglioSettimana.jsx**: rimosso "← Dipendenti" e titolo "📅 Foglio Settimana". Motivazione Marco: _"tanto ora c'e' il menu sopra, e Foglio Settimana con loghetto e' inutile"_.
+> - ✅ **VistaMensile.jsx**: rimosso titolo "🗓 Vista Mensile" (back gia' assente). Intestazione PRINT-ONLY intatta.
+> - ✅ **PerDipendente.jsx**: rimosso titolo "👤 Vista per Dipendente". Intestazione PRINT-ONLY intatta.
+> - ✅ **Versions**: dipendenti → **v2.20**.
+> - Rationale: `DipendentiNav` in cima copre gia' breadcrumb/titolo modulo; i titoli duplicavano il segnale visivo e sprecavano riga verticale (critico su portrait iPad).
+>
+
 > Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi + Libreria Menu Template (mig 080) + **DipendentiNav + Impostazioni sidebar + fix Anagrafica**).
 >
 > **Sessione 39 — Dipendenti — Barra menu DipendentiNav + Impostazioni con sidebar:**

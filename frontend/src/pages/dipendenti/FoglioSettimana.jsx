@@ -433,15 +433,10 @@ export default function FoglioSettimana() {
         </div>
       )}
       <div className="max-w-[1600px] mx-auto">
-        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni + ⋯) */}
+        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni + ⋯)
+            Titolo + breadcrumb rimossi (sess. 39): la navigazione e' coperta dal
+            menu modulo in alto. */}
         <div className="mb-4">
-          {/* Riga titolo + breadcrumb */}
-          <div className="mb-2">
-            <button onClick={() => navigate("/dipendenti")}
-              className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
-            <h1 className="text-2xl sm:text-3xl font-bold mt-1">📅 Foglio Settimana</h1>
-          </div>
-
           {/* Toolbar 3-sezioni: left / center / right */}
           <div className="flex items-center gap-2 flex-wrap">
             {/* LEFT: navigazione settimana */}

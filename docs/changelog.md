@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Dipendenti — Cleanup titoli viste Turni
+
+Marco: _"in vista settimanale togli il back verso dipendenti, tanto ora c'e' il menu sopra e anche Foglio Settimana con loghetto e' inutile; in vista mensile il back e' gia' tolto, togli solo Vista Mensile; cosi come in vista dipendente togli Vista Dipendente piu' loghetto"_.
+
+Con il menu modulo "Dipendenti" (DipendentiNav) gia' presente in testa a tutte le viste, titoli + breadcrumb back erano ridondanti e rubavano spazio verticale.
+
+### Frontend
+- **`FoglioSettimana.jsx`**: rimosso link "← Dipendenti" e titolo "📅 Foglio Settimana" sopra la toolbar. `useNavigate` resta usato per i deep-link a Vista Mensile e Per Dipendente.
+- **`VistaMensile.jsx`**: rimosso titolo "🗓 Vista Mensile" sopra la toolbar (il back era gia' stato rimosso). Intestazione PRINT-ONLY intatta.
+- **`PerDipendente.jsx`**: rimosso titolo "👤 Vista per Dipendente" sopra la toolbar. Intestazione PRINT-ONLY intatta.
+
+### Versioni
+- Modulo Dipendenti: v2.19 → **v2.20**.
+
+---
+
 ## 2026-04-14 — Sessione 39 / Dipendenti — Barra menu DipendentiNav + Impostazioni con sidebar
 
 Marco: _"nella sezione dipendenti manca la barra menu (guarda gestione vini per esempio)"_ + _"Non funziona il tasto 'Crea dipendente'"_ + _"Sistema un po' la pagina c'e' moltissimo spazio a destra e zero a sinistra"_ + _"impostazioni dipendenti, metti tutto in un'unica pagina, con un sidebar menu a sinistra non spezzare su piu tile"_. Allineamento UX del modulo Dipendenti al pattern ViniNav/ClientiNav + fix bug anagrafica + riorganizzazione impostazioni.
