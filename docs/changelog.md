@@ -3,6 +3,55 @@
 
 ---
 
+## 2026-04-14 — Sessione 35 / Preventivi v1.1 — cliente inline, luoghi configurabili, menu ristorante
+
+Revisione post-feedback Marco (sessione 34): il preventivo era "troppo generico", adattato da preventivo commerciale ma non dal workflow di un ristorante. Tre cambi strutturali senza breaking:
+
+### Frontend
+- `ClientiPreventivoScheda.jsx` (v1.1): toggle **"🔍 Esistente / ＋ Nuovo"** nel blocco Cliente. In modalità "Nuovo" mostra form 2×2 (nome/cognome/telefono/email) con sfondo indaco. Al save invia `nuovo_cliente` al backend che crea il cliente con `origine='preventivo'` e lo lega al preventivo.
+- Luogo evento: non più hardcoded. `<select>` popolato da `GET /preventivi/config/luoghi`, fallback locale `["Sala","Giardino","Dehor"]`. I valori legacy (es. "terrazza", "esterno") restano selezionabili con label "(non configurato)" per retro-compatibilità.
+- Nuova sezione **"🍽 Menu proposto"**: `menu_nome` (es. "Menu Degustazione 5 portate") + `menu_prezzo_persona` (a testa) + `menu_descrizione` (textarea 10 righe con placeholder Bergamasca: Casoncelli, Polenta taragna, Bresaola…). Sottotitolo live "N coperti × €X = €Y".
+- Vecchia sezione "Voci preventivo" rinominata **"➕ Extra"** con copy chiara: "Voci aggiuntive libere: noleggio attrezzatura, tovagliato, supplementi, sconti…".
+- Totale: `menu_prezzo_persona × n_persone + righe_extra`, le due metà mostrate separate prima del totale.
+- `ClientiImpostazioni.jsx`: nuova sezione **"📍 Luoghi Preventivi"** con CRUD (aggiungi/rimuovi/rinomina/riordina ▲▼) + reset default + save admin-only.
+
+### Backend
+- Migrazione **070 `preventivi_menu_luoghi.py`**: ALTER TABLE `clienti_preventivi` → `menu_nome TEXT`, `menu_prezzo_persona REAL DEFAULT 0`, `menu_descrizione TEXT`. Seed in `clienti_impostazioni.preventivi_luoghi` con JSON `["Sala","Giardino","Dehor"]`.
+- `clienti_db.py`: CREATE TABLE aggiornato per DB vergini + blocco try/except ALTER per DB già popolati.
+- `preventivi_service.py`:
+  - `_crea_cliente_inline(conn, nuovo)` helper: crea cliente minimal con `origine='preventivo'`.
+  - `_ricalcola_totale()` riscritto: somma `menu_prezzo_persona × n_persone + Σ righe`.
+  - `crea_preventivo(data, righe, username, nuovo_cliente=None)` — se `nuovo_cliente` è passato, lo crea e usa il suo id.
+  - `aggiorna_preventivo` idem + supporto menu fields in `campi_ammessi`.
+  - `duplica_preventivo` copia anche campi menu.
+  - `get_luoghi()` / `set_luoghi(list)` — lettura/scrittura `clienti_impostazioni.preventivi_luoghi` con normalizzazione + dedup + upsert via `ON CONFLICT`.
+- `preventivi_router.py`:
+  - Nuovi pydantic: `NuovoClienteIn`, `LuoghiIn`.
+  - `PreventivoCreate`/`PreventivoUpdate` estesi con `nuovo_cliente`, `menu_nome`, `menu_prezzo_persona`, `menu_descrizione`. Default `luogo` ora "Sala".
+  - Nuovi endpoint (PRIMA di `/{preventivo_id}` per evitare collisione path param):
+    - `GET /preventivi/config/luoghi` (auth)
+    - `PUT /preventivi/config/luoghi` (admin)
+  - Handler `crea`/`aggiorna` estraggono `nuovo_cliente` dal body e lo inoltrano al service.
+
+### Versioning
+- Frontend `versions.jsx`: clienti 2.2 → 2.3.
+
+### Non breaking
+- Preventivi esistenti (pre-070) restano validi: campi menu sono nullable, luogo legacy preservato nel select, righe extra restano nella stessa tabella `clienti_preventivi_righe` senza cambi schema.
+
+### File creati
+- `app/migrations/070_preventivi_menu_luoghi.py`
+
+### File modificati
+- `app/models/clienti_db.py`
+- `app/services/preventivi_service.py`
+- `app/routers/preventivi_router.py`
+- `frontend/src/pages/clienti/ClientiPreventivoScheda.jsx`
+- `frontend/src/pages/clienti/ClientiImpostazioni.jsx`
+- `frontend/src/config/versions.jsx`
+
+---
+
 ## 2026-04-14 — Sessione 34 / Mattone M.B PDF Brand + migrazione inventario + ricette + PDF preventivi
 
 **Mattone M.B PDF Brand** (roadmap 8.5): servizio centralizzato per generare PDF con branding TRGB-02. Sblocca PDF preventivi (10.3), P&L mensile (4.5), cash flow (3.8), cedolini (6.2), scheda ricette (4.2).

@@ -12,6 +12,7 @@ import ClientiMailchimp from "./ClientiMailchimp";
 const SECTIONS = [
   { key: "segmenti", label: "Segmenti", icon: "📊", desc: "Soglie segmentazione clienti" },
   { key: "template_preventivi", label: "Template Preventivi", icon: "📋", desc: "Menu e condizioni riutilizzabili" },
+  { key: "luoghi_preventivi", label: "Luoghi Preventivi", icon: "📍", desc: "Sale e spazi per eventi (Sala, Giardino, Dehor…)" },
   { key: "import", label: "Import / Export", icon: "📥", desc: "TheFork, CSV, revisione diff" },
   { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
   { key: "mailchimp", label: "Mailchimp", icon: "📬", desc: "Sync contatti e campagne" },
@@ -81,6 +82,7 @@ export default function ClientiImpostazioni() {
             <div className="flex-1 min-w-0">
               {section === "segmenti" && <SegmentiSection />}
               {section === "template_preventivi" && <TemplateSection />}
+              {section === "luoghi_preventivi" && <LuoghiSection />}
               {section === "import" && <ClientiImport embedded />}
               {section === "duplicati" && <ClientiDuplicati embedded />}
               {section === "mailchimp" && <ClientiMailchimp embedded />}
@@ -464,6 +466,194 @@ function TemplateSection() {
           </div>
         </div>
       )}
+
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${
+          toast.isError ? "bg-red-600 text-white" : "bg-emerald-600 text-white"
+        }`} onClick={() => setToast(null)}>
+          {toast.msg}
+        </div>
+      )}
+    </>
+  );
+}
+
+
+// ── Sezione Luoghi Preventivi ──
+function LuoghiSection() {
+  const [luoghi, setLuoghi] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [nuovo, setNuovo] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, isError = false) => {
+    setToast({ msg, isError });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchLuoghi = async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/config/luoghi`);
+      if (!res.ok) throw new Error("Errore caricamento");
+      const data = await res.json();
+      setLuoghi(Array.isArray(data.luoghi) ? data.luoghi : []);
+      setDirty(false);
+    } catch (err) {
+      showToast(err.message || "Errore", true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchLuoghi(); }, []);
+
+  const aggiungi = () => {
+    const v = (nuovo || "").trim();
+    if (!v) return;
+    if (luoghi.some((l) => l.toLowerCase() === v.toLowerCase())) {
+      showToast("Luogo già presente", true);
+      return;
+    }
+    setLuoghi((prev) => [...prev, v]);
+    setNuovo("");
+    setDirty(true);
+  };
+
+  const rimuovi = (idx) => {
+    setLuoghi((prev) => prev.filter((_, i) => i !== idx));
+    setDirty(true);
+  };
+
+  const muovi = (idx, delta) => {
+    const j = idx + delta;
+    if (j < 0 || j >= luoghi.length) return;
+    const copy = [...luoghi];
+    [copy[idx], copy[j]] = [copy[j], copy[idx]];
+    setLuoghi(copy);
+    setDirty(true);
+  };
+
+  const rinomina = (idx, nuovoNome) => {
+    setLuoghi((prev) => prev.map((l, i) => i === idx ? nuovoNome : l));
+    setDirty(true);
+  };
+
+  const salva = async () => {
+    const puliti = luoghi.map((l) => (l || "").trim()).filter(Boolean);
+    if (!puliti.length) {
+      showToast("Deve esserci almeno un luogo", true);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/config/luoghi`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ luoghi: puliti }),
+      });
+      if (!res.ok) throw new Error("Errore salvataggio");
+      const data = await res.json();
+      setLuoghi(Array.isArray(data.luoghi) ? data.luoghi : puliti);
+      setDirty(false);
+      showToast("Luoghi salvati");
+    } catch (err) {
+      showToast(err.message || "Errore", true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reset = () => {
+    if (!window.confirm("Ripristinare Sala, Giardino, Dehor?")) return;
+    setLuoghi(["Sala", "Giardino", "Dehor"]);
+    setDirty(true);
+  };
+
+  if (loading) return <div className="py-12 text-center text-neutral-400">Caricamento...</div>;
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2">Luoghi Preventivi</h1>
+      <p className="text-sm text-neutral-500 mb-6">
+        Sale e spazi proposti nei preventivi eventi. Ordine e nomi qui configurati appaiono nel form scheda preventivo.
+      </p>
+
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100">
+          <h2 className="text-sm font-semibold text-neutral-800">Elenco luoghi</h2>
+        </div>
+
+        {luoghi.length === 0 ? (
+          <div className="p-8 text-center text-neutral-400 text-sm">Nessun luogo configurato.</div>
+        ) : (
+          <div className="divide-y divide-neutral-100">
+            {luoghi.map((l, i) => (
+              <div key={i} className="px-5 py-2.5 flex items-center gap-3 hover:bg-neutral-50 transition">
+                <span className="text-xs text-neutral-400 w-6 text-center">{i + 1}</span>
+                <input
+                  type="text"
+                  value={l}
+                  onChange={(e) => rinomina(i, e.target.value)}
+                  className="flex-1 border border-neutral-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+                />
+                <button
+                  onClick={() => muovi(i, -1)}
+                  disabled={i === 0}
+                  title="Sposta su"
+                  className="px-2 py-1 text-neutral-400 hover:text-neutral-700 disabled:opacity-30"
+                >▲</button>
+                <button
+                  onClick={() => muovi(i, +1)}
+                  disabled={i === luoghi.length - 1}
+                  title="Sposta giù"
+                  className="px-2 py-1 text-neutral-400 hover:text-neutral-700 disabled:opacity-30"
+                >▼</button>
+                <button
+                  onClick={() => rimuovi(i)}
+                  title="Rimuovi"
+                  className="px-2 py-1 text-red-300 hover:text-red-600"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Aggiungi nuovo */}
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 flex items-center gap-2">
+          <input
+            type="text"
+            value={nuovo}
+            onChange={(e) => setNuovo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aggiungi(); } }}
+            placeholder="Nuovo luogo (es. Privé, Cantina…)"
+            className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm"
+          />
+          <button
+            onClick={aggiungi}
+            className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition"
+          >+ Aggiungi</button>
+        </div>
+      </div>
+
+      {/* Azioni */}
+      <div className="flex items-center justify-between">
+        <button onClick={reset} className="text-xs text-neutral-500 hover:text-red-600 transition">
+          Ripristina default (Sala, Giardino, Dehor)
+        </button>
+        <div className="flex items-center gap-3">
+          {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
+          <button
+            onClick={salva}
+            disabled={!dirty || saving}
+            className="px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
+          >
+            {saving ? "Salvataggio..." : "Salva"}
+          </button>
+        </div>
+      </div>
 
       {toast && (
         <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 ${

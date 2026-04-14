@@ -23,6 +23,8 @@ from app.services.preventivi_service import (
     crea_template,
     aggiorna_template,
     elimina_template,
+    get_luoghi,
+    set_luoghi,
 )
 
 router = APIRouter(prefix="/preventivi", tags=["Preventivi"])
@@ -40,25 +42,39 @@ class RigaIn(BaseModel):
     ordine: int = 0
 
 
+class NuovoClienteIn(BaseModel):
+    """Cliente minimale creato al volo dal form preventivo."""
+    nome: str = ""
+    cognome: str = ""
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+
+
 class PreventivoCreate(BaseModel):
     cliente_id: Optional[int] = None
+    nuovo_cliente: Optional[NuovoClienteIn] = None
     titolo: str
     tipo: str = "cena_privata"
     data_evento: Optional[str] = None
     ora_evento: Optional[str] = None
     n_persone: Optional[int] = None
-    luogo: str = "sala"
+    luogo: str = "Sala"
     note_interne: Optional[str] = None
     note_cliente: Optional[str] = None
     condizioni: Optional[str] = None
     scadenza_conferma: Optional[str] = None
     canale: str = "telefono"
     template_id: Optional[int] = None
+    # Menu proposto (ristorante-oriented)
+    menu_nome: Optional[str] = None
+    menu_prezzo_persona: Optional[float] = 0
+    menu_descrizione: Optional[str] = None
     righe: List[RigaIn] = []
 
 
 class PreventivoUpdate(BaseModel):
     cliente_id: Optional[int] = None
+    nuovo_cliente: Optional[NuovoClienteIn] = None
     titolo: Optional[str] = None
     tipo: Optional[str] = None
     data_evento: Optional[str] = None
@@ -71,7 +87,14 @@ class PreventivoUpdate(BaseModel):
     scadenza_conferma: Optional[str] = None
     canale: Optional[str] = None
     template_id: Optional[int] = None
+    menu_nome: Optional[str] = None
+    menu_prezzo_persona: Optional[float] = None
+    menu_descrizione: Optional[str] = None
     righe: Optional[List[RigaIn]] = None
+
+
+class LuoghiIn(BaseModel):
+    luoghi: List[str] = Field(default_factory=list)
 
 
 class StatoIn(BaseModel):
@@ -133,6 +156,21 @@ def api_stats_preventivi(user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Config luoghi (path fissi /config/* PRIMA di /{preventivo_id})
+# ---------------------------------------------------------------------------
+
+@router.get("/config/luoghi")
+def api_get_luoghi(user: dict = Depends(get_current_user)):
+    return {"luoghi": get_luoghi()}
+
+
+@router.put("/config/luoghi")
+def api_set_luoghi(body: LuoghiIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return {"luoghi": set_luoghi(body.luoghi)}
+
+
+# ---------------------------------------------------------------------------
 # Template (path fissi /template/* PRIMA di /{preventivo_id})
 # ---------------------------------------------------------------------------
 
@@ -181,17 +219,19 @@ def api_get_preventivo(preventivo_id: int, user: dict = Depends(get_current_user
 @router.post("")
 def api_crea_preventivo(body: PreventivoCreate, user: dict = Depends(get_current_user)):
     _require_admin(user)
-    data = body.dict(exclude={"righe"})
+    data = body.dict(exclude={"righe", "nuovo_cliente"})
     righe = [r.dict() for r in body.righe]
-    return crea_preventivo(data, righe, user["username"])
+    nuovo_cliente = body.nuovo_cliente.dict() if body.nuovo_cliente else None
+    return crea_preventivo(data, righe, user["username"], nuovo_cliente=nuovo_cliente)
 
 
 @router.put("/{preventivo_id}")
 def api_aggiorna_preventivo(preventivo_id: int, body: PreventivoUpdate, user: dict = Depends(get_current_user)):
     _require_admin(user)
-    data = body.dict(exclude={"righe"}, exclude_none=True)
+    data = body.dict(exclude={"righe", "nuovo_cliente"}, exclude_none=True)
     righe = [r.dict() for r in body.righe] if body.righe is not None else None
-    result = aggiorna_preventivo(preventivo_id, data, righe)
+    nuovo_cliente = body.nuovo_cliente.dict() if body.nuovo_cliente else None
+    result = aggiorna_preventivo(preventivo_id, data, righe, nuovo_cliente=nuovo_cliente)
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result

@@ -1,8 +1,10 @@
 """
 Servizio Preventivi — logica business per gestione preventivi eventi.
 Fase A (10.1) + Fase B (10.2): CRUD, righe, template, numerazione progressiva.
+Sessione 32 (10.3): menu proposto strutturato, luoghi configurabili, crea cliente inline.
 """
 
+import json
 from datetime import datetime
 from app.models.clienti_db import get_clienti_conn
 
@@ -31,18 +33,33 @@ def _prossimo_numero(conn) -> str:
 # ---------------------------------------------------------------------------
 
 def _ricalcola_totale(conn, preventivo_id: int) -> float:
-    """Ricalcola totale_calcolato dalla somma delle righe."""
+    """
+    Ricalcola totale_calcolato: (menu_prezzo_persona × n_persone) + somma righe.
+    Le righe restano per elementi extra liberi (noleggio, tovagliato, supplementi).
+    """
+    # Testata per menu fisso a persona
+    testata = conn.execute(
+        "SELECT menu_prezzo_persona, n_persone FROM clienti_preventivi WHERE id = ?",
+        (preventivo_id,),
+    ).fetchone()
+    totale = 0.0
+    if testata:
+        prezzo_p = testata["menu_prezzo_persona"] or 0
+        n_pers = testata["n_persone"] or 0
+        totale += float(prezzo_p) * float(n_pers)
+
+    # Righe extra
     rows = conn.execute(
         "SELECT qta, prezzo_unitario, tipo_riga FROM clienti_preventivi_righe WHERE preventivo_id = ?",
         (preventivo_id,),
     ).fetchall()
-    totale = 0.0
     for r in rows:
         sub = (r["qta"] or 0) * (r["prezzo_unitario"] or 0)
         if r["tipo_riga"] == "sconto":
             totale -= abs(sub)
         else:
             totale += sub
+
     conn.execute(
         "UPDATE clienti_preventivi SET totale_calcolato = ? WHERE id = ?",
         (round(totale, 2), preventivo_id),
@@ -77,39 +94,79 @@ def _salva_righe(conn, preventivo_id: int, righe: list):
 # CRUD Preventivi
 # ---------------------------------------------------------------------------
 
-def crea_preventivo(data: dict, righe: list, username: str) -> dict:
-    """Crea un nuovo preventivo con righe. Ritorna il preventivo creato."""
+def _crea_cliente_inline(conn, nuovo: dict) -> int | None:
+    """
+    Crea un cliente minimale (nome+cognome obbligatori) e ritorna il suo id.
+    Usato quando dal form preventivo si sceglie "Nuovo cliente" senza passare
+    dal modulo clienti. Restituisce None se nome/cognome mancano.
+    """
+    nome = (nuovo.get("nome") or "").strip()
+    cognome = (nuovo.get("cognome") or "").strip()
+    if not nome and not cognome:
+        return None
+    cur = conn.execute(
+        """
+        INSERT INTO clienti (nome, cognome, telefono, email, origine, attivo)
+        VALUES (?, ?, ?, ?, 'preventivo', 1)
+        """,
+        (
+            nome or "—",
+            cognome or "—",
+            (nuovo.get("telefono") or "").strip() or None,
+            (nuovo.get("email") or "").strip() or None,
+        ),
+    )
+    return cur.lastrowid
+
+
+def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict | None = None) -> dict:
+    """
+    Crea un nuovo preventivo con righe e campi menu.
+    Se nuovo_cliente e' presente (dict con nome/cognome/telefono/email), crea il
+    cliente al volo e lo collega al preventivo (precedenza su cliente_id).
+    """
     conn = get_clienti_conn()
     try:
+        cliente_id = data.get("cliente_id")
+        if nuovo_cliente:
+            new_id = _crea_cliente_inline(conn, nuovo_cliente)
+            if new_id:
+                cliente_id = new_id
+
         numero = _prossimo_numero(conn)
         conn.execute("""
             INSERT INTO clienti_preventivi
                 (numero, cliente_id, titolo, tipo, data_evento, ora_evento,
                  n_persone, luogo, stato, note_interne, note_cliente, condizioni,
-                 scadenza_conferma, canale, template_id, creato_da)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?)
+                 scadenza_conferma, canale, template_id,
+                 menu_nome, menu_prezzo_persona, menu_descrizione,
+                 creato_da)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             numero,
-            data.get("cliente_id"),
+            cliente_id,
             data.get("titolo", ""),
             data.get("tipo", "cena_privata"),
             data.get("data_evento"),
             data.get("ora_evento"),
             data.get("n_persone"),
-            data.get("luogo", "sala"),
+            data.get("luogo") or "Sala",
             data.get("note_interne"),
             data.get("note_cliente"),
             data.get("condizioni"),
             data.get("scadenza_conferma"),
             data.get("canale", "telefono"),
             data.get("template_id"),
+            data.get("menu_nome"),
+            data.get("menu_prezzo_persona") or 0,
+            data.get("menu_descrizione"),
             username,
         ))
         preventivo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         if righe:
             _salva_righe(conn, preventivo_id, righe)
-            _ricalcola_totale(conn, preventivo_id)
+        _ricalcola_totale(conn, preventivo_id)
 
         conn.commit()
         return get_preventivo(preventivo_id)
@@ -237,13 +294,19 @@ def stats_preventivi() -> dict:
         conn.close()
 
 
-def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = None) -> dict | None:
-    """Aggiorna testata + opzionalmente righe. Ricalcola totale."""
+def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = None, nuovo_cliente: dict | None = None) -> dict | None:
+    """Aggiorna testata + opzionalmente righe. Ricalcola totale.
+    Se nuovo_cliente e' presente crea un cliente al volo e aggiorna cliente_id."""
     conn = get_clienti_conn()
     try:
         existing = conn.execute("SELECT id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)).fetchone()
         if not existing:
             return None
+
+        if nuovo_cliente:
+            new_id = _crea_cliente_inline(conn, nuovo_cliente)
+            if new_id:
+                data = {**data, "cliente_id": new_id}
 
         campi = []
         params = []
@@ -251,6 +314,7 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
             "cliente_id", "titolo", "tipo", "data_evento", "ora_evento",
             "n_persone", "luogo", "note_interne", "note_cliente", "condizioni",
             "scadenza_conferma", "canale", "template_id",
+            "menu_nome", "menu_prezzo_persona", "menu_descrizione",
         ]
         for campo in campi_ammessi:
             if campo in data:
@@ -342,8 +406,10 @@ def duplica_preventivo(preventivo_id: int, username: str) -> dict | None:
             INSERT INTO clienti_preventivi
                 (numero, cliente_id, titolo, tipo, data_evento, ora_evento,
                  n_persone, luogo, stato, note_interne, note_cliente, condizioni,
-                 scadenza_conferma, canale, template_id, creato_da)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?)
+                 scadenza_conferma, canale, template_id,
+                 menu_nome, menu_prezzo_persona, menu_descrizione,
+                 creato_da)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             numero,
             orig["cliente_id"],
@@ -359,6 +425,9 @@ def duplica_preventivo(preventivo_id: int, username: str) -> dict | None:
             orig["scadenza_conferma"],
             orig["canale"],
             orig["template_id"],
+            orig.get("menu_nome"),
+            orig.get("menu_prezzo_persona") or 0,
+            orig.get("menu_descrizione"),
             username,
         ))
         nuovo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -461,5 +530,62 @@ def elimina_template(template_id: int) -> bool:
         conn.execute("UPDATE clienti_preventivi_template SET attivo = 0 WHERE id = ?", (template_id,))
         conn.commit()
         return True
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Configurazione luoghi (persisted in clienti_impostazioni come JSON array)
+# ---------------------------------------------------------------------------
+
+_LUOGHI_DEFAULT = ["Sala", "Giardino", "Dehor"]
+
+
+def get_luoghi() -> list[str]:
+    """Ritorna la lista dei luoghi disponibili per i preventivi."""
+    conn = get_clienti_conn()
+    try:
+        row = conn.execute(
+            "SELECT valore FROM clienti_impostazioni WHERE chiave = 'preventivi_luoghi'"
+        ).fetchone()
+        if not row:
+            return list(_LUOGHI_DEFAULT)
+        try:
+            data = json.loads(row["valore"])
+            if isinstance(data, list) and all(isinstance(x, str) for x in data):
+                return data if data else list(_LUOGHI_DEFAULT)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        return list(_LUOGHI_DEFAULT)
+    finally:
+        conn.close()
+
+
+def set_luoghi(luoghi: list[str]) -> list[str]:
+    """Sostituisce la lista dei luoghi (normalizzata, deduplicata, non vuota)."""
+    pulita = []
+    visti = set()
+    for x in luoghi or []:
+        s = (x or "").strip()
+        if not s:
+            continue
+        key = s.casefold()
+        if key in visti:
+            continue
+        visti.add(key)
+        pulita.append(s)
+    if not pulita:
+        pulita = list(_LUOGHI_DEFAULT)
+
+    payload = json.dumps(pulita, ensure_ascii=False)
+    conn = get_clienti_conn()
+    try:
+        conn.execute("""
+            INSERT INTO clienti_impostazioni (chiave, valore, descrizione)
+            VALUES ('preventivi_luoghi', ?, 'Luoghi disponibili per preventivi eventi (JSON array)')
+            ON CONFLICT(chiave) DO UPDATE SET valore = excluded.valore
+        """, (payload,))
+        conn.commit()
+        return pulita
     finally:
         conn.close()

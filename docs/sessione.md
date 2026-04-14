@@ -1,9 +1,18 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 34 — Mattone M.B PDF Brand + PDF preventivi + migrazione inventario/ricette).
+> Ultima sessione: 2026-04-14 (sessione 35 — Preventivi v1.1: cliente inline, luoghi configurabili, menu ristorante).
 >
-> **Cosa è stato fatto in sessione 34:**
+> **Cosa è stato fatto in sessione 35 (revisioni post-feedback Marco sessione 34):**
+> - ✅ **Crea cliente al volo dal form preventivo**: toggle "🔍 Esistente / ＋ Nuovo" in `ClientiPreventivoScheda.jsx`. Se Marco sceglie "Nuovo" compila nome/cognome/telefono/email (4 campi minimi) e il cliente viene creato con `origine='preventivo'` contestualmente al save del preventivo
+> - ✅ **Luoghi configurabili**: rimossi hardcoded sala/terrazza/esterno/altro → ora lista dinamica caricata da `GET /preventivi/config/luoghi`, default `["Sala","Giardino","Dehor"]` seedati in `clienti_impostazioni.preventivi_luoghi`. Nuova sezione "📍 Luoghi Preventivi" in `ClientiImpostazioni.jsx` con CRUD (aggiungi/rimuovi/rinomina/riordina) e PUT autenticato (admin). Il form scheda preventivo preserva i valori legacy (es. "terrazza") marcati come "(non configurato)"
+> - ✅ **Menu ristorante separato dagli extra**: aggiunte 3 colonne a `clienti_preventivi` (`menu_nome`, `menu_prezzo_persona`, `menu_descrizione`). Nuova sezione "🍽 Menu proposto" nel form con composizione a textarea (placeholder Bergamasca: Casoncelli, Polenta taragna…). La vecchia sezione righe è stata rinominata "➕ Extra" per elementi liberi (noleggio attrezzatura, tovagliato, supplementi, sconti). Totale ricalcolato come `menu_prezzo_persona × n_persone + extra_righe`
+> - ✅ **Migrazione 070** `070_preventivi_menu_luoghi.py`: ALTER TABLE su `clienti_preventivi` per 3 colonne menu + seed `preventivi_luoghi`. `clienti_db.py` aggiornato in parallelo (CREATE TABLE nuova DB + ALTER try/except per retro-compatibilità)
+> - ✅ Backend service: `_crea_cliente_inline()` helper, `_ricalcola_totale()` aggiornato, `get_luoghi()`/`set_luoghi()` con normalizzazione/dedup, `duplica_preventivo()` copia campi menu, `crea_preventivo`/`aggiorna_preventivo` accettano `nuovo_cliente` opzionale
+> - ✅ Router: `NuovoClienteIn`/`LuoghiIn` pydantic, `GET/PUT /preventivi/config/luoghi` (posizionati PRIMA di `/{preventivo_id}` per evitare collisione path param), `menu_*` + `nuovo_cliente` in PreventivoCreate/Update
+> - Versions bump: clienti 2.2→2.3
+>
+> **Sessione precedente (34):**
 > - ✅ Mattone **M.B PDF brand** completato: `app/services/pdf_brand.py` con 2 API (`genera_pdf_html` per nuovo content, `wrappa_html_brand` per migrare endpoint HTML esistenti)
 > - ✅ Template Jinja2: `app/templates/pdf/base.html` (layout brand: logo SVG data-uri + wordmark + striscia gobbette + footer @page)
 > - ✅ Template Jinja2 specifici: `preventivo.html`, `ricetta.html`
@@ -45,7 +54,7 @@
 8. **Brand/UX — 8.1→8.11** (roadmap §8) — permessi centralizzati, Command Palette, dark mode (futuro)
 9. **Infra — 1.4→1.10** (roadmap §1) — notifiche push, health check, banner aggiornamento, snapshot Aruba
 10. **Notifiche & Comunicazioni — 9.1→9.7** (roadmap §9) — infrastruttura notifiche, bacheca staff broadcast, hook su tutti i moduli. Pre-requisito per preventivi e alert
-11. **Preventivi — ~~10.1~~ ~~10.2~~ 10.3→10.4** (roadmap §10) — 10.1+10.2 completati sessione 32. Prossimo: 10.3 PDF brand (richiede M.B), 10.4 versioning + link prenotazioni
+11. **Preventivi — ~~10.1~~ ~~10.2~~ ~~10.3~~ 10.4→10.5** (roadmap §10) — 10.1+10.2 (sessione 32), 10.3 PDF brand (sessione 34), v1.1 revisioni cliente inline + luoghi + menu ristorante (sessione 35). Prossimo: 10.4 versioning + link prenotazioni, 10.5 PDF preventivo con menu strutturato (rendering `menu_nome` + `menu_descrizione` nel template `preventivo.html`)
 
 ---
 

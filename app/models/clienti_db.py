@@ -254,7 +254,8 @@ def init_clienti_db() -> None:
         ('seg_nuovo_giorni',       '90',  'Giorni dalla prima visita per essere "nuovo"'),
         ('seg_nuovo_max_visite',   '2',   'Max visite per restare "nuovo"'),
         ('seg_perso_giorni',       '365', 'Giorni senza visite per essere "perso"'),
-        ('seg_finestra_mesi',      '12',  'Finestra in mesi per contare le visite (abituale/occasionale)')
+        ('seg_finestra_mesi',      '12',  'Finestra in mesi per contare le visite (abituale/occasionale)'),
+        ('preventivi_luoghi',      '["Sala","Giardino","Dehor"]', 'Luoghi disponibili per preventivi eventi (JSON array)')
     """)
 
     # ── ALTER TABLE sicuri per DB esistenti ──
@@ -444,6 +445,11 @@ def init_clienti_db() -> None:
 
             totale_calcolato  REAL DEFAULT 0,
 
+            -- Menu proposto (ristorante-oriented — sessione 32)
+            menu_nome            TEXT,
+            menu_prezzo_persona  REAL DEFAULT 0,
+            menu_descrizione     TEXT,
+
             creato_da         TEXT NOT NULL,
             created_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
             updated_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -497,6 +503,19 @@ def init_clienti_db() -> None:
             UPDATE clienti_preventivi_template SET updated_at = datetime('now','localtime') WHERE id = NEW.id;
         END
     """)
+
+    # ── Aggiunta colonne menu a clienti_preventivi (DB esistenti) ──
+    existing_prev = {r[1] for r in cur.execute("PRAGMA table_info(clienti_preventivi)").fetchall()}
+    for col_name, col_type in [
+        ("menu_nome",           "TEXT"),
+        ("menu_prezzo_persona", "REAL DEFAULT 0"),
+        ("menu_descrizione",    "TEXT"),
+    ]:
+        if col_name not in existing_prev:
+            try:
+                cur.execute(f"ALTER TABLE clienti_preventivi ADD COLUMN {col_name} {col_type}")
+            except sqlite3.OperationalError:
+                pass
 
     # Indici preventivi
     cur.execute("CREATE INDEX IF NOT EXISTS idx_prev_cliente ON clienti_preventivi(cliente_id)")
