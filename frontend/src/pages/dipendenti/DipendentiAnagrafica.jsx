@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.3-dipendenti-anagrafica (flag trasmissione_telematica)
+// @version: v2.4-utente-collegato (campo "Utente collegato" per abilitare /miei-turni)
 // Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +26,8 @@ const EMPTY_FORM = {
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
   trasmissione_telematica: false,
+  // Utente app collegato (per vista self-service "/miei-turni"). "" = nessuno.
+  utente_username: "",
 };
 
 // Palette suggerita per assegnazione colore univoco dipendente (Turni v2)
@@ -40,6 +42,13 @@ export default function DipendentiAnagrafica() {
   const navigate = useNavigate();
   const [dipendenti, setDipendenti] = useState([]);
   const [reparti, setReparti] = useState([]);
+  // Utenti applicazione (per il campo "Utente collegato"). Admin-only endpoint:
+  // se l'utente corrente non e' admin il GET fallisce silenziosamente e
+  // la select mostra solo l'empty state.
+  const [utenti, setUtenti] = useState([]);
+  // Traccia lo stato iniziale del link username -> dipendente per sapere se
+  // al save bisogna fare una chiamata di update.
+  const [utenteInitial, setUtenteInitial] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -80,6 +89,21 @@ export default function DipendentiAnagrafica() {
       .catch(() => setReparti([]));
   }, []);
 
+  // Carica utenti app (admin only). Se 403 -> setUtenti([]), la UI mostra
+  // il campo "solo admin".
+  const loadUtenti = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/users/`);
+      if (res.ok) {
+        const data = await res.json();
+        setUtenti(Array.isArray(data) ? data : []);
+      } else {
+        setUtenti([]);
+      }
+    } catch { setUtenti([]); }
+  }, []);
+  useEffect(() => { loadUtenti(); }, [loadUtenti]);
+
   // Colori già in uso (per segnalare conflitti)
   const coloriUsati = React.useMemo(() => {
     const map = new Map();
@@ -102,6 +126,8 @@ export default function DipendentiAnagrafica() {
 
   // ── SELECT / NEW ──
   const handleSelect = (d) => {
+    const linkedUser = utenti.find(u => u.dipendente_id === d.id);
+    const linkedUsername = linkedUser ? linkedUser.username : "";
     setForm({
       id: d.id, codice: d.codice || "", nome: d.nome || "", cognome: d.cognome || "",
       ruolo: d.ruolo || "", telefono: d.telefono || "", email: d.email || "",
@@ -112,13 +138,16 @@ export default function DipendentiAnagrafica() {
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
       trasmissione_telematica: !!d.trasmissione_telematica,
+      utente_username: linkedUsername,
     });
+    setUtenteInitial(linkedUsername);
     loadDocumenti(d.id);
     setTab("dati");
   };
 
   const handleNew = () => {
     setForm(EMPTY_FORM);
+    setUtenteInitial("");
     setDocs([]);
     setTab("dati");
   };
@@ -153,6 +182,44 @@ export default function DipendentiAnagrafica() {
       const saved = await res.json();
       if (isEdit) setDipendenti(p => p.map(d => d.id === saved.id ? saved : d));
       else { setDipendenti(p => [...p, saved]); setForm(f => ({ ...f, id: saved.id })); }
+
+      // ── Link utente <-> dipendente (solo se cambiato e se l'utente corrente e' admin) ──
+      // `utenti` e' popolato solo per admin (endpoint /auth/users e' admin-only).
+      // Se il valore non e' cambiato rispetto al caricamento, non facciamo nulla.
+      const newLink = form.utente_username || "";
+      if (utenti.length > 0 && newLink !== utenteInitial) {
+        const targetDipId = saved.id;
+        try {
+          // 1) Se prima c'era un utente collegato e ora e' cambiato o azzerato,
+          //    scolleghiamo quell'utente (PUT con dipendente_id=null).
+          if (utenteInitial && utenteInitial !== newLink) {
+            await apiFetch(`${API_BASE}/auth/users/${utenteInitial}/dipendente`, {
+              method: "PUT",
+              headers: jsonHeaders,
+              body: JSON.stringify({ dipendente_id: null }),
+            });
+          }
+          // 2) Se c'e' un nuovo utente da collegare, facciamo il link.
+          //    (set_dipendente lato BE forza unicita' 1:1: se l'utente era
+          //    gia' collegato ad un altro dipendente, quel link viene rimosso.)
+          if (newLink) {
+            const resLink = await apiFetch(`${API_BASE}/auth/users/${newLink}/dipendente`, {
+              method: "PUT",
+              headers: jsonHeaders,
+              body: JSON.stringify({ dipendente_id: targetDipId }),
+            });
+            if (!resLink.ok) {
+              const err = await resLink.json().catch(() => ({}));
+              throw new Error(err.detail || "Errore collegamento utente");
+            }
+          }
+          setUtenteInitial(newLink);
+          // Ricarica la lista utenti per avere i dipendente_id aggiornati
+          loadUtenti();
+        } catch (linkErr) {
+          setError(`Dipendente salvato, ma errore nel collegamento utente: ${linkErr.message}`);
+        }
+      }
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -492,6 +559,53 @@ export default function DipendentiAnagrafica() {
                         {"\uD83D\uDCE1"} Trasmissione dati telematici
                       </label>
                     </div>
+                  </div>
+
+                  {/* ── Utente app collegato (admin only) ──
+                      Abilita la vista self-service /miei-turni per l'utente selezionato.
+                      Link 1:1 forzato lato BE (se l'utente era collegato altrove viene rimosso). */}
+                  <div className="border-t border-neutral-100 pt-3">
+                    <p className="text-[10px] text-neutral-400 font-medium mb-2 uppercase">
+                      Account app — utente collegato
+                    </p>
+                    {utenti.length === 0 ? (
+                      <p className="text-[11px] text-neutral-400 italic">
+                        {"\uD83D\uDD12"} Solo gli amministratori possono collegare un account utente.
+                      </p>
+                    ) : (
+                      <>
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">
+                          Utente dell'app
+                        </label>
+                        <select
+                          value={form.utente_username || ""}
+                          onChange={e => handleChange("utente_username", e.target.value)}
+                          className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white"
+                        >
+                          <option value="">{"\u2014 nessuno \u2014"}</option>
+                          {utenti
+                            .slice()
+                            .sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username))
+                            .map(u => {
+                              const altriDip = u.dipendente_id && u.dipendente_id !== form.id
+                                ? dipendenti.find(d => d.id === u.dipendente_id)
+                                : null;
+                              const nota = altriDip
+                                ? ` \u2014 collegato a ${altriDip.nome} ${altriDip.cognome}`
+                                : "";
+                              return (
+                                <option key={u.username} value={u.username}>
+                                  {(u.display_name || u.username)} ({u.role}){nota}
+                                </option>
+                              );
+                            })}
+                        </select>
+                        <p className="text-[10px] text-neutral-400 mt-1">
+                          Collegando un account, il dipendente potra' vedere i suoi turni da <span className="font-mono">/miei-turni</span>.
+                          Se l'utente era gia' collegato ad un altro dipendente, quel collegamento verra' rimosso (1:1).
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex gap-2 pt-2">

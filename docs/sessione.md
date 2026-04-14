@@ -1,7 +1,15 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi).
+> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi).
+>
+> **Sessione 39 — Dipendenti — Campo "Utente collegato" in anagrafica:**
+> - ✅ **Problema risolto**: il link utente ↔ dipendente (introdotto nella stessa sessione per `/miei-turni`) finora richiedeva SSH + script CLI + restart backend. Marco: _"aggiungi un campo in anagrafica dipendenti che mi permetta di selezionarlo"_.
+> - ✅ **Backend `auth_service.py`**: `list_users()` ora espone `display_name` + `dipendente_id`. Nuova `set_dipendente(username, dipendente_id|None)` con unicita' 1:1 forzata (se il dipendente_id era assegnato ad altro utente, quel link viene rimosso prima di applicare il nuovo).
+> - ✅ **Backend `users_router.py`**: nuovo endpoint `PUT /auth/users/{username}/dipendente` (admin only), body `{"dipendente_id": int | null}` — null scollega.
+> - ✅ **FE `DipendentiAnagrafica.jsx` v2.3 → v2.4-utente-collegato**: nuova sezione "Account app — utente collegato" nel form dettaglio. Select dropdown caricata da `GET /auth/users/` (admin-only; per non-admin si nasconde con nota "🔒 Solo gli amministratori..."). Opzioni annotate "— collegato a Nome Cognome" se l'utente e' gia' linkato altrove. `handleSave` esteso: dopo save del dipendente, se `utente_username !== utenteInitial` chiama PUT per scollegare il vecchio e collegare il nuovo; errori nel link mostrano banner senza rollbackare il save.
+> - ✅ **Versions bump**: dipendenti 2.17 → **2.18**.
+> - ✅ **Impatto operativo**: lo script `scripts/set_dipendente_id.py` resta disponibile per bootstrap/emergency, ma il workflow normale ora e' Dipendenti → dettaglio → select → Salva. Niente piu' SSH per ogni mapping.
 >
 > **Sessione 39 — Dipendenti — Pagina "I miei turni" (Option A, fix notifica turni):**
 > - ✅ **Bug fix**: la notifica "turni pubblicati" (globale, tutti i ruoli) puntava a `/dipendenti/turni?...` ma `ProtectedRoute module="dipendenti"` rediriggeva a `/` i ruoli non-admin. Scelta **Option A**: nuova vista self-service `/miei-turni` accessibile a TUTTI i ruoli autenticati.

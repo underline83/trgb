@@ -15,6 +15,7 @@ from app.services.auth_service import (
     delete_user,
     change_password,
     change_role,
+    set_dipendente,
     is_admin,
 )
 
@@ -37,6 +38,10 @@ class ChangePasswordRequest(BaseModel):
 
 class ChangeRoleRequest(BaseModel):
     new_role: str
+
+
+class SetDipendenteRequest(BaseModel):
+    dipendente_id: int | None = None  # None => scollega
 
 
 # ---------------------------------------------------------------------------
@@ -105,3 +110,17 @@ def update_role(username: str, data: ChangeRoleRequest, current_user: dict = Dep
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
     change_role(username, data.new_role)
     return {"message": "Ruolo aggiornato"}
+
+
+# ---------------------------------------------------------------------------
+# PUT /auth/users/{username}/dipendente — collega/scollega utente a dipendente (admin only)
+#   Body: { "dipendente_id": int | null }
+#   Usato da DipendentiAnagrafica (campo "Utente collegato") per abilitare
+#   la vista self-service "/miei-turni" al dipendente.
+# ---------------------------------------------------------------------------
+@router.put("/{username}/dipendente")
+def update_dipendente(username: str, data: SetDipendenteRequest, current_user: dict = Depends(get_current_user)):
+    if not is_admin(current_user["role"]):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accesso riservato agli amministratori")
+    set_dipendente(username, data.dipendente_id)
+    return {"message": "Collegamento aggiornato", "username": username, "dipendente_id": data.dipendente_id}

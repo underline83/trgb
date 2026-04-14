@@ -33,7 +33,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
-    version: "2.17",
+    version: "2.18",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

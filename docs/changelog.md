@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Dipendenti — Campo "Utente collegato" in anagrafica
+
+Marco: _"aggiungi un campo in anagrafica dipendenti che mi permetta di selezionarlo; oppure inverso in utenti e ruoli"_. Conseguenza naturale della sessione "/miei-turni": il link utente ↔ dipendente finora si impostava solo via script CLI (`scripts/set_dipendente_id.py`) o modificando `users.json` a mano. Ora e' un campo visuale nell'anagrafica dipendenti.
+
+### Backend
+- **`auth_service.py`**
+  - `list_users()` ora espone `display_name` + `dipendente_id` (oltre a username/role).
+  - Nuova funzione `set_dipendente(username, dipendente_id)`: collega o scollega (se `None`) un utente. Forza unicita' 1:1: se il `dipendente_id` era gia' assegnato ad un altro utente, quel link viene rimosso prima di applicare il nuovo. Valida che l'utente esista e che `dipendente_id` sia un int.
+- **`users_router.py`**
+  - Pydantic `SetDipendenteRequest { dipendente_id: int | null }`.
+  - Nuovo endpoint `PUT /auth/users/{username}/dipendente` (admin only). Body `{ "dipendente_id": int | null }` — `null` scollega.
+
+### Frontend
+- **`DipendentiAnagrafica.jsx` v2.3 → v2.4-utente-collegato**
+  - Nuovo campo "Utente collegato" nel form dettaglio dipendente (sezione separata con border-top, sopra i bottoni salva/disattiva).
+  - Select dropdown popolato da `GET /auth/users/` (admin-only; per non-admin la select si nasconde con nota "🔒 Solo gli amministratori possono collegare un account utente").
+  - Opzioni ordinate per display_name; ogni opzione mostra `DisplayName (ruolo)` e, se l'utente e' gia' collegato ad un altro dipendente, annota `— collegato a Nome Cognome`.
+  - Nota informativa sotto la select: "Collegando un account, il dipendente potra' vedere i suoi turni da /miei-turni. Se l'utente era gia' collegato ad un altro dipendente, quel collegamento verra' rimosso (1:1)".
+  - `handleSave` esteso: dopo il save del dipendente, se il valore selezionato e' cambiato rispetto al caricamento, chiama `PUT /auth/users/{username}/dipendente` (prima scollega il vecchio se c'era, poi collega il nuovo). Errori nel link non rollbackano il save del dipendente ma mostrano errore in banner. Dopo il link ricarica `loadUtenti()` per aggiornare le annotazioni "collegato a X" nelle opzioni.
+
+### Cosa cambia per Marco
+- Prima: aprire SSH, modificare `users.json` su VPS, restart backend.
+- Ora: Dipendenti → seleziona dipendente → scegli utente nella select → Salva. Done.
+- Lo script `scripts/set_dipendente_id.py` rimane disponibile per bootstrap CLI o rimediare ad emergenze.
+
+### Versioni
+- Modulo Dipendenti: v2.17 → **v2.18** (campo "Utente collegato" in anagrafica).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Dipendenti — Pagina "I miei turni" (/miei-turni) accessibile a tutti i ruoli
 
 Marco: _"se da un dipendente clicco sulla notifica dei turni non mi visualizza nulla"_. Root cause: la notifica "turni pubblicati" (globale, tutti i ruoli) puntava a `/dipendenti/turni?...`, rotta protetta da `ProtectedRoute module="dipendenti"`. I ruoli senza accesso al modulo (sala/viewer/chef/etc.) venivano rediretti a `/` → clic "inutile". Scelta Option **A**: vista self-service dedicata accessibile a TUTTI i ruoli autenticati.

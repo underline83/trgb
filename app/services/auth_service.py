@@ -148,7 +148,39 @@ def is_superadmin(role: str) -> bool:
     return role == "superadmin"
 
 def list_users() -> list:
-    return [{"username": k, "role": v["role"]} for k, v in USERS.items()]
+    return [
+        {
+            "username": k,
+            "role": v["role"],
+            "display_name": v.get("display_name", k.capitalize()),
+            "dipendente_id": v.get("dipendente_id"),
+        }
+        for k, v in USERS.items()
+    ]
+
+
+def set_dipendente(username: str, dipendente_id) -> None:
+    """Collega (o scollega, se dipendente_id=None) l'utente a un dipendente.
+
+    Se `dipendente_id` e' gia' assegnato ad un altro utente, quel collegamento
+    viene rimosso (1:1 user <-> dipendente).
+    """
+    if username not in USERS:
+        raise HTTPException(status_code=404, detail=f"Utente '{username}' non trovato")
+    if dipendente_id is None:
+        USERS[username].pop("dipendente_id", None)
+        _save_users(USERS)
+        return
+    try:
+        dip_id = int(dipendente_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="dipendente_id non valido")
+    # Forza unicita': rimuovi il link da qualsiasi altro utente che lo avesse
+    for other, info in USERS.items():
+        if other != username and info.get("dipendente_id") == dip_id:
+            info.pop("dipendente_id", None)
+    USERS[username]["dipendente_id"] = dip_id
+    _save_users(USERS)
 
 
 def add_user(username: str, password: str, role: str) -> dict:
