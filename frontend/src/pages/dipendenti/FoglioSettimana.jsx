@@ -1,4 +1,4 @@
-// @version: v1.5-foglio-settimana (rinomina stato CHIAMATA→OPZIONALE, badge a_chiamata su dipendente)
+// @version: v1.6-stampa-condivisione (Fase 8: stampa + vista immagine per WhatsApp)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -9,6 +9,8 @@
 // - Riga grigia per giorno di chiusura (letto da settings/closures-config)
 // - Pannello destro: ore lorde/nette per dipendente con semaforo 40/48
 // - Pulsanti ←/→ per navigazione settimana, pulsante "Copia settimana"
+// - 🖨 Stampa: @media print + window.print (eccezione motivata fino a M.B PDF brand)
+// - 📷 Immagine: vista pulita fullscreen pronta per screenshot → WhatsApp staff
 //
 // Touch target 48pt, mobile-aware.
 
@@ -54,6 +56,18 @@ function formatDayLabel(iso) {
   return `${giorni[dt.getDay()]} ${pad(d)}/${pad(mo)}`;
 }
 
+function formatWeekRange(iso) {
+  const m = mondayOfWeek(iso);
+  const end = new Date(m);
+  end.setUTCDate(m.getUTCDate() + 6);
+  const sameMonth = m.getUTCMonth() === end.getUTCMonth();
+  const left = sameMonth
+    ? `${pad(m.getUTCDate())}`
+    : `${pad(m.getUTCDate())}/${pad(m.getUTCMonth() + 1)}`;
+  const right = `${pad(end.getUTCDate())}/${pad(end.getUTCMonth() + 1)}/${end.getUTCFullYear()}`;
+  return `${left}–${right}`;
+}
+
 const NOMI_GIORNI_LUN = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 
 // Tailwind safelist — i colori reparto via inline style, non Tailwind classes
@@ -77,6 +91,17 @@ export default function FoglioSettimana() {
 
   // Dialog copia settimana
   const [dlgCopia, setDlgCopia] = useState(false);
+
+  // Vista immagine per screenshot WhatsApp (Fase 8)
+  const [imageMode, setImageMode] = useState(false);
+
+  function avviaStampa() {
+    // Chiudi popover/dialog prima di stampare
+    setPopover(null);
+    setDlgCopia(false);
+    // Timeout breve per permettere a React di applicare i cambi di stato
+    setTimeout(() => window.print(), 50);
+  }
 
   // --- LOAD REPARTI ---
   useEffect(() => {
@@ -241,13 +266,13 @@ export default function FoglioSettimana() {
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
       <div className="max-w-[1600px] mx-auto">
         {/* HEADER */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2 no-print">
           <div>
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">📅 Foglio Settimana</h1>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
             <button onClick={() => setSettimana(shiftIsoWeek(settimana, -1))}
               className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50">←</button>
             <div className="min-h-[44px] px-4 flex items-center bg-white border rounded-lg font-mono text-sm">
@@ -259,13 +284,33 @@ export default function FoglioSettimana() {
               className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm">Oggi</button>
             <button onClick={() => setDlgCopia(true)}
               className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
-              📋 Copia settimana
+              📋 Copia
+            </button>
+            <button onClick={avviaStampa}
+              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
+              title="Stampa la settimana (A4 orizzontale)">
+              🖨 Stampa
+            </button>
+            <button onClick={() => setImageMode(true)}
+              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
+              title="Apri vista pulita per screenshot (da condividere su WhatsApp)">
+              📷 Immagine
             </button>
           </div>
         </div>
 
+        {/* INTESTAZIONE STAMPA — visibile solo in stampa */}
+        <div className="print-only print-header hidden">
+          <div className="print-brand">🍷 Osteria Tre Gobbi</div>
+          <div className="print-title">
+            Turni settimana {formatWeekRange(settimana)}
+            {reparto ? ` — ${reparto.icona || ""} ${reparto.nome}` : ""}
+          </div>
+          <div className="print-sub">Settimana {settimana}</div>
+        </div>
+
         {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-4 flex-wrap">
+        <div className="flex gap-2 mb-4 flex-wrap no-print">
           {reparti.map(r => {
             const active = r.id === repartoId;
             return (
@@ -291,9 +336,9 @@ export default function FoglioSettimana() {
         {loading && <div className="text-center py-10 text-neutral-500">Caricamento…</div>}
 
         {!loading && foglio && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 print-full">
             {/* MATRICE */}
-            <div className="bg-white rounded-xl shadow overflow-auto">
+            <div className="bg-white rounded-xl shadow overflow-auto print-matrix">
               <FoglioGrid
                 foglio={foglio} matrice={matrice} chiusi={chiusi}
                 nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
@@ -302,10 +347,59 @@ export default function FoglioSettimana() {
             </div>
 
             {/* PANNELLO ORE */}
-            <OrePanel ore={ore} reparto={reparto} />
+            <div className="no-print">
+              <OrePanel ore={ore} reparto={reparto} />
+            </div>
           </div>
         )}
+
+        {/* FOOTER STAMPA — visibile solo in stampa */}
+        <div className="print-only print-footer hidden text-[10px] text-neutral-500 mt-2">
+          Stampato il {new Date().toLocaleDateString("it-IT")} — TRGB Gestionale
+        </div>
       </div>
+
+      {/* OVERLAY VISTA IMMAGINE (screenshot-ready per WhatsApp) */}
+      {imageMode && foglio && (
+        <VistaImmagine
+          foglio={foglio} matrice={matrice} chiusi={chiusi}
+          nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
+          reparto={reparto} settimana={settimana}
+          onClose={() => setImageMode(false)}
+          onStampa={avviaStampa}
+        />
+      )}
+
+      {/* CSS stampa + classi helper */}
+      <style>{`
+        .print-only { display: none !important; }
+        @media print {
+          @page { size: A4 landscape; margin: 8mm; }
+          html, body {
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print, .no-print * { display: none !important; }
+          .print-only { display: block !important; }
+          .print-only.hidden { display: block !important; }
+          .print-full { display: block !important; grid-template-columns: none !important; }
+          .print-matrix { box-shadow: none !important; border-radius: 0 !important; overflow: visible !important; }
+          .print-matrix table { font-size: 11px !important; }
+          .print-matrix th, .print-matrix td { border-color: #888 !important; }
+          .print-header {
+            text-align: center;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #111;
+          }
+          .print-brand { font-size: 13px; font-weight: 600; color: #444; }
+          .print-title { font-size: 18px; font-weight: 800; margin-top: 2px; color: #111; }
+          .print-sub { font-size: 10px; color: #777; margin-top: 2px; font-family: monospace; }
+          /* Evita pagebreak a metà riga */
+          tr, td, th { page-break-inside: avoid !important; break-inside: avoid !important; }
+        }
+      `}</style>
 
       {/* POPOVER */}
       {popover && foglio && (
@@ -696,6 +790,80 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
                   className="min-h-[44px] px-3 bg-brand-blue text-white rounded hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
             Copia
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ---- VISTA IMMAGINE (Fase 8) ---------------------------------------------
+// Fullscreen pulito pronto per screenshot da condividere su WhatsApp con lo staff.
+// Nasconde tutta la nav, mostra solo titolo + matrice + legenda.
+function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto, settimana, onClose, onStampa }) {
+  // Previeni lo scroll body dietro l'overlay
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 bg-white z-[60] overflow-auto no-print">
+      {/* Toolbar — non viene nello screenshot se l'utente ritaglia */}
+      <div className="sticky top-0 z-10 bg-neutral-100 border-b border-neutral-200 px-3 py-2 flex items-center justify-between flex-wrap gap-2">
+        <div className="text-xs text-neutral-600">
+          📷 Vista pulita — fai uno screenshot per condividere su WhatsApp
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onStampa}
+            className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded text-sm hover:bg-neutral-50"
+            title="Stampa questa vista">
+            🖨 Stampa
+          </button>
+          <button onClick={onClose}
+            className="min-h-[44px] px-4 bg-brand-ink text-white rounded text-sm hover:opacity-90">
+            ✕ Chiudi
+          </button>
+        </div>
+      </div>
+
+      {/* Contenuto da screenshottare */}
+      <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
+        {/* Intestazione */}
+        <div className="text-center mb-4 pb-3 border-b-2 border-neutral-900">
+          <div className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">
+            🍷 Osteria Tre Gobbi
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold mt-1 text-neutral-900" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Turni settimana {formatWeekRange(settimana)}
+          </div>
+          {reparto && (
+            <div className="mt-1 inline-flex items-center gap-2 px-3 py-1 rounded-full text-white text-sm font-semibold"
+                 style={{ backgroundColor: reparto.colore || "#444" }}>
+              <span>{reparto.icona}</span>
+              <span>{reparto.nome}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Matrice */}
+        <div className="bg-white border border-neutral-300 rounded overflow-auto">
+          <FoglioGrid
+            foglio={foglio} matrice={matrice} chiusi={chiusi}
+            nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
+            onCellClick={() => {}}
+          />
+        </div>
+
+        {/* Legenda compatta */}
+        <div className="mt-3 flex flex-wrap gap-3 items-center text-[11px] text-neutral-600">
+          <span><span className="text-yellow-500">★</span> turno opzionale (da confermare)</span>
+          <span>📞 a chiamata</span>
+          <span>— chiuso</span>
+          <span className="ml-auto text-neutral-400">
+            Generato {new Date().toLocaleDateString("it-IT")} • TRGB Gestionale
+          </span>
         </div>
       </div>
     </div>

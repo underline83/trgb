@@ -12,6 +12,25 @@
 
 ---
 
+## Deviazioni tecniche temporanee
+
+### T1. Turni — `window.print()` diretto in FoglioSettimana
+**Data:** 2026-04-14 (sessione 38, Fase 8 Turni v2)
+**File:** `frontend/src/pages/dipendenti/FoglioSettimana.jsx`
+**CLAUDE.md regola derogata:** "Frontend mobile-aware → no window.print diretto"
+
+**Motivazione:**
+Marco ha bisogno subito di una stampa/immagine della settimana turni da girare allo staff. La soluzione pulita (PDF server-side col brand TRGB) richiede il mattone M.B PDF brand che non è ancora implementato. Usare `html2canvas` richiederebbe npm install nuovo. La deviazione era prevista nel piano Fase 8 del modulo.
+
+**Risoluzione prevista:**
+Quando M.B PDF brand sarà pronto → aggiungere endpoint `GET /dipendenti/turni/calendario/pdf` con rendering WeasyPrint + Jinja2, rimuovere pulsante 🖨 che chiama `window.print()` e sostituirlo con download diretto del PDF brandizzato.
+
+**Riferimenti:**
+- `docs/modulo_dipendenti_turni_v2.md` §Fase 8 (piano originale)
+- `docs/architettura_mattoni.md` §M.B (mattone da costruire)
+
+---
+
 ## Aperti — Priorità media
 
 ### D1. Flussi di Cassa — Sistema storni difettoso

@@ -373,18 +373,27 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 7: warning conflitti orari"`
 
-### Fase 8 — Stampa / Export
-*Obiettivo:* stampare la settimana per affissione in cucina.
-*Dimensione:* media (ma semplice se passiamo da window.print).
+### Fase 8 — Stampa / Export ✅ COMPLETATA (sessione 38)
+*Obiettivo:* stampare la settimana per affissione in cucina + immagine da girare allo staff su WhatsApp.
+*Dimensione:* media.
 *Rischio:* basso.
 
-- CSS `@media print` dedicato: nasconde filtri/form, ingrandisce nomi, orientamento A4 landscape
-- Bottone "Stampa settimana" -> window.print()
-- Titolo stampa: "Turni settimana DD/MM - DD/MM 2026 — Osteria Tre Gobbi"
-- Quando M.B PDF brand sara' pronto: endpoint dedicato `/dipendenti/turni/calendario/pdf` con brand TRGB
-- Eccezione alla regola "no window.print() diretto" del CLAUDE.md: motivata e temporanea, segnata in `problemi.md`
+**Implementato in `FoglioSettimana.jsx` v1.6-stampa-condivisione:**
+- CSS `@media print` inline: nasconde filtri/tab/pannello ore/pulsanti, mostra solo intestazione + matrice, A4 landscape, margini 8mm
+- Pulsante "🖨 Stampa" -> `avviaStampa()` che chiude popover/dialog e lancia `window.print()` dopo 50ms
+- Pulsante "📷 Immagine" -> `setImageMode(true)` apre overlay fullscreen `<VistaImmagine>` pulito, pronto per screenshot da condividere su WhatsApp
+- Intestazione stampa/immagine: "🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — 🍽️ SALA/CUCINA" con Playfair Display + pill colorata reparto
+- `no-print` / `print-only` / `print-full` / `print-matrix` come classi helper
+- Helper `formatWeekRange(iso)` per il range date leggibile
+- Vista Immagine ha il suo "🖨 Stampa" (riusa la stessa funzione, `no-print` sull'overlay -> la stampa cattura il layout sottostante)
 
-**Commit:** `./push.sh "turni v2 fase 8: stampa settimana (CSS print, PDF brand in attesa)"`
+**Rimandato a fase futura (M.B PDF brand):**
+- Endpoint backend `/dipendenti/turni/calendario/pdf` con brand TRGB (attende mattone M.B PDF)
+- Export immagine server-side (html2canvas lato FE richiederebbe npm install, saltato)
+
+**Note deviazione CLAUDE.md:** la regola "no window.print() diretto" è stata derogata qui per pragmatismo, come previsto nel piano fase 8. Segnato in `problemi.md`. Verrà risolto quando M.B PDF brand sarà pronto.
+
+**Commit:** `./push.sh "turni v2 fase 8: stampa settimana + vista immagine per condivisione staff"`
 
 ### Fase 9 — Mobile iPad
 *Obiettivo:* vista giorno automatica su schermi stretti.

@@ -50,6 +50,84 @@ export default function RicetteSettings() {
   const [editCatId, setEditCatId] = useState(null);
   const [editCat, setEditCat] = useState({ nome: "", emoji: "", ordine: 999, attivo: true });
 
+  // ── Stato sezione Tipi Servizio (mig 074) ──
+  const [svcTypes, setSvcTypes] = useState([]);
+  const [svcLoading, setSvcLoading] = useState(false);
+  const [svcMsg, setSvcMsg] = useState("");
+  const [svcError, setSvcError] = useState("");
+  const [newSvc, setNewSvc] = useState({ name: "", sort_order: 999 });
+  const [editSvcId, setEditSvcId] = useState(null);
+  const [editSvc, setEditSvc] = useState({ name: "", sort_order: 999, active: true });
+
+  const loadSvcTypes = async () => {
+    setSvcLoading(true);
+    try {
+      const r = await apiFetch(`${FC}/service-types?include_inactive=true`);
+      if (r.ok) setSvcTypes(await r.json());
+    } catch (e) {
+      setSvcError("Errore caricamento tipi servizio");
+    } finally {
+      setSvcLoading(false);
+    }
+  };
+
+  useEffect(() => { if (isAllowed) loadSvcTypes(); }, [isAllowed]);
+
+  const showSvcMsg = (m) => { setSvcMsg(m); setTimeout(() => setSvcMsg(""), 3000); };
+  const showSvcErr = (m) => { setSvcError(m); setTimeout(() => setSvcError(""), 5000); };
+
+  const handleCreateSvc = async () => {
+    if (!newSvc.name.trim()) return;
+    try {
+      const r = await apiFetch(`${FC}/service-types`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newSvc.name.trim(),
+          sort_order: Number(newSvc.sort_order) || 999,
+          active: true,
+        }),
+      });
+      if (!r.ok) { showSvcErr(`Errore: ${await r.text()}`); return; }
+      setNewSvc({ name: "", sort_order: 999 });
+      showSvcMsg("Tipo servizio creato");
+      loadSvcTypes();
+    } catch (e) { showSvcErr(e.message); }
+  };
+
+  const handleStartEditSvc = (s) => {
+    setEditSvcId(s.id);
+    setEditSvc({ name: s.name, sort_order: s.sort_order, active: s.active });
+  };
+
+  const handleSaveEditSvc = async (id) => {
+    try {
+      const r = await apiFetch(`${FC}/service-types/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editSvc.name.trim(),
+          sort_order: Number(editSvc.sort_order) || 999,
+          active: !!editSvc.active,
+        }),
+      });
+      if (!r.ok) { showSvcErr(`Errore: ${await r.text()}`); return; }
+      setEditSvcId(null);
+      showSvcMsg("Tipo servizio salvato");
+      loadSvcTypes();
+    } catch (e) { showSvcErr(e.message); }
+  };
+
+  const handleDeleteSvc = async (id, name) => {
+    if (!window.confirm(`Disattivare "${name}"? Le associazioni con piatti esistenti rimangono, ma non apparirà più tra le scelte.`)) return;
+    try {
+      const r = await apiFetch(`${FC}/service-types/${id}`, { method: "DELETE" });
+      if (!r.ok) { showSvcErr(`Errore: ${await r.text()}`); return; }
+      showSvcMsg("Tipo servizio disattivato");
+      loadSvcTypes();
+    } catch (e) { showSvcErr(e.message); }
+  };
+
   // Carica categorie + config macellaio
   const loadMacellaio = async () => {
     setMacLoading(true);
@@ -598,6 +676,119 @@ export default function RicetteSettings() {
                 disabled={!newCat.nome.trim()}
                 className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white shadow transition"
               >
+                Aggiungi
+              </button>
+            </div>
+          </div>
+        </Section>
+
+        {/* ============================================= */}
+        {/* SEZIONE 5: TIPI SERVIZIO (menu preventivi) */}
+        {/* ============================================= */}
+        <Section title="Tipi servizio (menu preventivi)" icon="🍽️">
+          <p className="text-sm text-neutral-600 mb-4">
+            Configura i tipi di servizio (Alla carta, Banchetto, Pranzo di lavoro, Aperitivo, …) utilizzati per classificare i piatti nei menu preventivi.
+            Ogni piatto può appartenere a più tipi servizio. Disattivare un tipo lo rimuove dalle scelte nuove, ma mantiene le associazioni esistenti.
+          </p>
+
+          {svcMsg && (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-3">{svcMsg}</div>
+          )}
+          {svcError && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 mb-3">{svcError}</div>
+          )}
+
+          <div className="border border-neutral-200 rounded-xl overflow-hidden mb-4">
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-100 text-neutral-600">
+                <tr>
+                  <th className="p-2.5 text-left font-medium">Nome</th>
+                  <th className="p-2.5 text-center font-medium w-24">Ordine</th>
+                  <th className="p-2.5 text-center font-medium w-20">Attivo</th>
+                  <th className="p-2.5 text-right font-medium w-40">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {svcLoading ? (
+                  <tr><td colSpan={4} className="p-4 text-center text-neutral-400">Caricamento…</td></tr>
+                ) : svcTypes.length === 0 ? (
+                  <tr><td colSpan={4} className="p-4 text-center text-neutral-400">Nessun tipo servizio.</td></tr>
+                ) : (
+                  svcTypes.map((s) => (
+                    <tr key={s.id} className="border-t border-neutral-100">
+                      {editSvcId === s.id ? (
+                        <>
+                          <td className="p-2">
+                            <input value={editSvc.name}
+                              onChange={(e) => setEditSvc({ ...editSvc, name: e.target.value })}
+                              className="w-full px-2 py-1 border border-neutral-300 rounded text-sm" />
+                          </td>
+                          <td className="p-2 text-center">
+                            <input type="number" value={editSvc.sort_order}
+                              onChange={(e) => setEditSvc({ ...editSvc, sort_order: e.target.value })}
+                              className="w-20 px-2 py-1 border border-neutral-300 rounded text-sm text-center" />
+                          </td>
+                          <td className="p-2 text-center">
+                            <input type="checkbox" checked={!!editSvc.active}
+                              onChange={(e) => setEditSvc({ ...editSvc, active: e.target.checked })} />
+                          </td>
+                          <td className="p-2 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button onClick={() => handleSaveEditSvc(s.id)}
+                                className="px-2.5 py-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg transition">Salva</button>
+                              <button onClick={() => setEditSvcId(null)}
+                                className="px-2.5 py-1 text-xs font-semibold bg-neutral-200 hover:bg-neutral-300 rounded-lg transition">Annulla</button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="p-2.5 font-medium text-neutral-900">{s.name}</td>
+                          <td className="p-2.5 text-center text-neutral-600">{s.sort_order}</td>
+                          <td className="p-2.5 text-center">
+                            {s.active ? (
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Sì</span>
+                            ) : (
+                              <span className="text-xs bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">No</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button onClick={() => handleStartEditSvc(s)}
+                                className="px-2.5 py-1 text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 rounded-lg transition">Modifica</button>
+                              {s.active && (
+                                <button onClick={() => handleDeleteSvc(s.id, s.name)}
+                                  className="px-2.5 py-1 text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg transition">Disattiva</button>
+                              )}
+                            </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="border border-dashed border-neutral-300 rounded-xl p-4 bg-neutral-50">
+            <p className="text-xs font-semibold text-neutral-700 mb-2">Aggiungi tipo servizio</p>
+            <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[11px] text-neutral-500 mb-1">Nome</label>
+                <input value={newSvc.name}
+                  onChange={(e) => setNewSvc({ ...newSvc, name: e.target.value })}
+                  placeholder="es. Cena aziendale"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-neutral-500 mb-1">Ordine</label>
+                <input type="number" value={newSvc.sort_order}
+                  onChange={(e) => setNewSvc({ ...newSvc, sort_order: e.target.value })}
+                  className="w-24 px-2 py-2 border border-neutral-300 rounded-lg text-sm text-center" />
+              </div>
+              <button onClick={handleCreateSvc} disabled={!newSvc.name.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white shadow transition">
                 Aggiungi
               </button>
             </div>

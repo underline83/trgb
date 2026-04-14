@@ -17,6 +17,7 @@ export default function RicetteModifica() {
   const [ingredienti, setIngredienti] = useState([]);
   const [basi, setBasi] = useState([]);
   const [categorie, setCategorie] = useState([]);
+  const [serviceTypes, setServiceTypes] = useState([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingInit, setLoadingInit] = useState(true);
@@ -30,6 +31,9 @@ export default function RicetteModifica() {
     selling_price: "",
     prep_time: "",
     note: "",
+    menu_name: "",
+    menu_description: "",
+    service_type_ids: [],
     items: [],
   });
 
@@ -37,16 +41,18 @@ export default function RicetteModifica() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [rIng, rBasi, rCat, rRicetta] = await Promise.all([
+        const [rIng, rBasi, rCat, rSt, rRicetta] = await Promise.all([
           apiFetch(`${FC}/ingredients/`),
           apiFetch(`${FC}/ricette/basi`),
           apiFetch(`${FC}/ricette/categorie`),
+          apiFetch(`${FC}/service-types`),
           apiFetch(`${FC}/ricette/${id}`),
         ]);
 
         if (rIng.ok) setIngredienti(await rIng.json());
         if (rBasi.ok) setBasi(await rBasi.json());
         if (rCat.ok) setCategorie(await rCat.json());
+        if (rSt.ok) setServiceTypes(await rSt.json());
 
         if (!rRicetta.ok) throw new Error("Ricetta non trovata");
         const r = await rRicetta.json();
@@ -61,6 +67,9 @@ export default function RicetteModifica() {
           selling_price: r.selling_price != null ? String(r.selling_price) : "",
           prep_time: r.prep_time != null ? String(r.prep_time) : "",
           note: r.note || "",
+          menu_name: r.menu_name || "",
+          menu_description: r.menu_description || "",
+          service_type_ids: (r.service_types || []).map((st) => st.id),
           items: (r.items || []).map((it) => ({
             tipo: it.sub_recipe_id ? "sub_ricetta" : "ingrediente",
             ingredient_id: it.ingredient_id ? String(it.ingredient_id) : "",
@@ -81,6 +90,16 @@ export default function RicetteModifica() {
 
   // Handler
   const set = (field, value) => setForm((p) => ({ ...p, [field]: value }));
+
+  const toggleServiceType = (stId) => {
+    setForm((p) => {
+      const ids = p.service_type_ids || [];
+      return {
+        ...p,
+        service_type_ids: ids.includes(stId) ? ids.filter((x) => x !== stId) : [...ids, stId],
+      };
+    });
+  };
 
   const addItem = (tipo) => {
     setForm((p) => ({
@@ -138,6 +157,10 @@ export default function RicetteModifica() {
       selling_price: form.selling_price ? parseFloat(form.selling_price) : null,
       prep_time: form.prep_time ? parseInt(form.prep_time) : null,
       note: form.note.trim() || null,
+      menu_name: form.menu_name?.trim() || null,
+      menu_description: form.menu_description?.trim() || null,
+      kind: form.is_base ? "base" : "dish",
+      service_type_ids: form.service_type_ids || [],
       items,
     };
 
@@ -250,6 +273,52 @@ export default function RicetteModifica() {
                 className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500" rows={2} />
             </div>
           </div>
+
+          {/* MENU & SERVIZI — per preventivi */}
+          {!form.is_base && (
+            <div className="bg-amber-50/40 border border-amber-200 rounded-2xl p-6 shadow-inner space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold font-playfair text-neutral-800">Menu &amp; servizi</h2>
+                <p className="text-xs text-neutral-600 mt-0.5">
+                  Informazioni usate per comporre menu nei preventivi.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-neutral-700">Nome menu (opzionale)</label>
+                  <input type="text" value={form.menu_name} onChange={(e) => set("menu_name", e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    placeholder="Es. Fettuccine della casa al ragù bianco" />
+                  <p className="text-xs text-neutral-500">Se vuoto, sul menu cliente apparirà "{form.name || 'nome interno'}"</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-neutral-700">Descrizione menu</label>
+                  <textarea value={form.menu_description} onChange={(e) => set("menu_description", e.target.value)}
+                    className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    rows={2} placeholder="Ingredienti, allergeni, presentazione..." />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-700">
+                  Tipi servizio {serviceTypes.length === 0 && <span className="text-xs text-neutral-500 font-normal">(configura in Impostazioni)</span>}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {serviceTypes.filter((s) => s.active).map((st) => {
+                    const selected = (form.service_type_ids || []).includes(st.id);
+                    return (
+                      <button key={st.id} type="button" onClick={() => toggleServiceType(st.id)}
+                        className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
+                          selected ? "bg-amber-600 border-amber-700 text-white shadow"
+                                   : "bg-white border-neutral-300 text-neutral-700 hover:bg-amber-50"
+                        }`}>
+                        {selected ? "✓ " : ""}{st.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ITEMS */}
           <div className="bg-white border border-neutral-300 rounded-2xl p-6 shadow-sm space-y-4">

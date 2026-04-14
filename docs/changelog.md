@@ -3,6 +3,43 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 8 — stampa + vista immagine per WhatsApp staff
+
+Marco ha bisogno di condividere la settimana con i ragazzi (stampa in cucina + immagine su WhatsApp). Fase 8 del piano Turni v2 completata.
+
+### Frontend
+- **`FoglioSettimana.jsx` v1.5→v1.6-stampa-condivisione**:
+  - Pulsante **🖨 Stampa**: chiude popover/dialog, chiama `window.print()` con `@media print` dedicato (A4 landscape, 8mm margini, nasconde nav/filtri/pannello ore, ingrandisce matrice, bordi neri, intestazione "🍷 Osteria Tre Gobbi — Turni settimana DD/MM–DD/MM/AAAA — Reparto").
+  - Pulsante **📷 Immagine**: apre overlay fullscreen `<VistaImmagine>` con layout pulito (titolo Playfair Display, pill colorata reparto, matrice completa, legenda), pronto per screenshot da condividere su WhatsApp. Blocca scroll body dietro.
+  - Classi helper `no-print` / `print-only` / `print-full` / `print-matrix` applicate all'albero componenti.
+  - Nuovo helper `formatWeekRange(iso)` per il range data leggibile.
+- **`versions.jsx`**: Dipendenti 2.6 → 2.7.
+
+### Deviazione segnata
+- `docs/problemi.md` §T1: aggiunta deviazione temporanea alla regola "no window.print() diretto" di CLAUDE.md. Verrà risolta quando M.B PDF brand sarà pronto (endpoint `/dipendenti/turni/calendario/pdf` server-side).
+
+### No backend
+Nessuna migrazione, nessun endpoint nuovo. Tutto in CSS + React puro, zero nuove dipendenze.
+
+### Commit
+`./push.sh "turni v2 fase 8: stampa settimana + vista immagine per condivisione staff"`
+
+---
+
+## 2026-04-14 — Sessione 37b / Anagrafica Dipendenti — flag `trasmissione_telematica`
+
+Micro-evoluzione dopo rollback di PrestO Blocco 1.
+
+### Backend
+- **`dipendenti_db.py`**: aggiunta colonna `trasmissione_telematica INTEGER DEFAULT 0` nel safe-ALTER loop (idempotente).
+- **`dipendenti.py` router**: `DipendenteBase` + campo `trasmissione_telematica: bool = False`; SELECT/INSERT/UPDATE allineati con serializzazione bool in response.
+
+### Frontend
+- **`DipendentiAnagrafica.jsx` v2.2→v2.3**: checkbox `📡 Trasmissione dati telematici` accanto a `📞 A chiamata`.
+- **`versions.jsx`**: Dipendenti 2.5 → 2.6.
+
+---
+
 ## 2026-04-14 — Sessione 36 / Turni v2 Fase 5 — refactor OPZIONALE + flag `a_chiamata` + pausa condizionale + UX refinements
 
 Sessione di correzione concettuale + raffinamento UX sul Foglio Settimana (v1.2 → v1.5).
