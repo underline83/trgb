@@ -443,6 +443,37 @@ def get_vista_mese(
 
 
 # ============================================================
+# GET /turni/dipendente  — Fase 6: timeline N settimane per 1 dipendente
+# ============================================================
+@router.get("/dipendente")
+def get_vista_dipendente(
+    dipendente_id: int = Query(..., ge=1),
+    settimana_inizio: Optional[str] = Query(
+        None, description="'YYYY-Www' prima settimana (default = settimana corrente)"
+    ),
+    num_settimane: int = Query(4, ge=1, le=12),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Timeline di un singolo dipendente su N settimane consecutive.
+
+    Default `settimana_inizio` = settimana ISO corrente. Il servizio calcola
+    per ogni giorno i turni, ore lorde/nette con deduzione pause staff, e
+    produce totali di periodo (ore, giorni lavorati, riposi, chiusure,
+    turni opzionali).
+    """
+    settimana = settimana_inizio or turni_service.settimana_corrente()
+    try:
+        vista = turni_service.build_vista_dipendente(
+            dipendente_id=dipendente_id,
+            settimana_inizio=settimana,
+            num_settimane=num_settimane,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return JSONResponse(content=vista)
+
+
+# ============================================================
 # GET /turni/foglio/pdf  — Fase 8: PDF scaricabile (niente dialog stampante)
 # ============================================================
 def _text_on(hex_color: str) -> str:

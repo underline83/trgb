@@ -513,6 +513,236 @@ def ore_nette_settimana_per_reparto(
 
 
 # ============================================================
+# VISTA PER DIPENDENTE — timeline N settimane (Fase 6)
+# ============================================================
+def build_vista_dipendente(
+    dipendente_id: int,
+    settimana_inizio: str,
+    num_settimane: int = 4,
+) -> Dict[str, Any]:
+    """Costruisce la timeline di un singolo dipendente su N settimane consecutive.
+
+    Input:
+    - dipendente_id: id del dipendente
+    - settimana_inizio: 'YYYY-Www' (prima settimana della timeline)
+    - num_settimane: quante settimane mostrare (default 4, min 1, max 12)
+
+    Restituisce:
+    {
+      'dipendente': { id, nome, cognome, ruolo, colore, reparto_id,
+                      reparto_nome, reparto_colore, a_chiamata, pausa_pranzo_min,
+                      pausa_cena_min },
+      'settimana_inizio': '2026-W16',
+      'settimana_fine':   '2026-W19',
+      'num_settimane': 4,
+      'settimane': [
+        {
+          'iso': '2026-W16',
+          'giorni': ['2026-04-13', ..., '2026-04-19'],
+          'chiusure': ['2026-04-14'],
+          'per_giorno': {
+            '2026-04-13': {
+              'turni': [ { id, data, servizio, slot_index, turno_tipo_id,
+                           turno_nome, colore_bg, colore_testo,
+                           ora_inizio, ora_fine, stato, note, ore_lorde } ],
+              'ore_lorde': 8.0,
+              'ore_nette': 7.5,
+              'is_chiusura': false,
+              'is_riposo': false
+            },
+            ...
+          },
+          'ore_lorde': 40.0,
+          'ore_nette': 37.5,
+          'giorni_lavorati': 5,
+          'riposi': 1,              # giorni non chiusi senza turni
+          'semaforo': 'verde'
+        }, ...
+      ],
+      'totali': {
+        'ore_lorde': 160.0, 'ore_nette': 150.0,
+        'giorni_lavorati': 20, 'riposi': 4, 'chiusure': 4, 'opzionali': 2
+      }
+    }
+    """
+    if num_settimane < 1:
+        num_settimane = 1
+    if num_settimane > 12:
+        num_settimane = 12
+
+    # Range totale: N settimane contigue Lun..Dom
+    lun0 = lunedi_settimana_iso(settimana_inizio)
+    giorni_all: List[date] = [lun0 + timedelta(days=i) for i in range(num_settimane * 7)]
+    from_date = giorni_all[0].isoformat()
+    to_date = giorni_all[-1].isoformat()
+
+    settimane_iso: List[str] = []
+    for i in range(num_settimane):
+        settimane_iso.append(iso_settimana_from_date(giorni_all[i * 7]))
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+
+        # Dipendente + reparto
+        cur.execute(
+            """SELECT d.id, d.nome, d.cognome, d.ruolo, d.colore, d.reparto_id,
+                      COALESCE(d.a_chiamata, 0) AS a_chiamata,
+                      r.nome AS reparto_nome, r.colore AS reparto_colore,
+                      r.codice AS reparto_codice,
+                      COALESCE(r.pausa_pranzo_min, 30) AS pausa_pranzo_min,
+                      COALESCE(r.pausa_cena_min, 30)   AS pausa_cena_min
+               FROM dipendenti d
+               LEFT JOIN reparti r ON r.id = d.reparto_id
+               WHERE d.id = ?""",
+            (dipendente_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise ValueError(f"Dipendente {dipendente_id} non trovato")
+        dip = dict(row)
+        dip["a_chiamata"] = bool(dip.get("a_chiamata") or 0)
+        pausa_p = int(dip.get("pausa_pranzo_min") or 30)
+        pausa_c = int(dip.get("pausa_cena_min") or 30)
+
+        # Turni del dipendente nel range
+        cur.execute(
+            """SELECT
+                  tc.id,
+                  tc.data,
+                  tc.dipendente_id,
+                  tc.turno_tipo_id,
+                  tc.slot_index,
+                  COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+                  COALESCE(tc.ora_fine, tt.ora_fine) AS ora_fine,
+                  tc.stato,
+                  tc.note,
+                  tc.ore_effettive,
+                  tc.origine,
+                  COALESCE(tt.servizio, '') AS servizio,
+                  tt.nome       AS turno_nome,
+                  tt.categoria  AS turno_categoria,
+                  tt.colore_bg, tt.colore_testo
+                FROM turni_calendario tc
+                JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+                WHERE tc.dipendente_id = ?
+                  AND tc.data BETWEEN ? AND ?
+                ORDER BY tc.data, tc.slot_index, tc.id""",
+            (dipendente_id, from_date, to_date),
+        )
+        turni_all = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    # Chiusure su tutto il range (una sola chiamata)
+    chiusure_all = set(giorni_chiusi_nel_range(giorni_all))
+
+    # Raggruppa turni per data
+    by_day: Dict[str, List[Dict[str, Any]]] = {}
+    for t in turni_all:
+        # pre-calcolo ore lorde per singolo turno (utile a FE)
+        t["ore_lorde"] = ore_lorde(t.get("ora_inizio") or "", t.get("ora_fine") or "")
+        by_day.setdefault(t["data"], []).append(t)
+
+    # Totali periodo
+    tot_lorde = 0.0
+    tot_nette = 0.0
+    tot_lavorati = 0
+    tot_riposi = 0
+    tot_chiusure = 0
+    tot_opzionali = 0
+
+    settimane_out: List[Dict[str, Any]] = []
+    for wi in range(num_settimane):
+        giorni_w = giorni_all[wi * 7:(wi + 1) * 7]
+        giorni_w_iso = [g.isoformat() for g in giorni_w]
+        per_giorno: Dict[str, Dict[str, Any]] = {}
+        ore_l_w = 0.0
+        ore_n_w = 0.0
+        lavorati_w = 0
+        riposi_w = 0
+
+        for g_iso in giorni_w_iso:
+            is_ch = g_iso in chiusure_all
+            turni_giorno = by_day.get(g_iso, [])
+            # Separa turni CONFERMATI da OPZIONALI/ANNULLATI per ore
+            turni_attivi = [
+                t for t in turni_giorno
+                if (t.get("stato") or "CONFERMATO").upper() not in ("OPZIONALE", "ANNULLATO")
+            ]
+            lordo_g = sum(
+                t.get("ore_lorde") or 0.0 for t in turni_attivi
+            )
+            netto_g = calcola_ore_nette_giorno(turni_giorno, pausa_p, pausa_c)
+            opzionali_g = sum(
+                1 for t in turni_giorno
+                if (t.get("stato") or "").upper() == "OPZIONALE"
+            )
+
+            is_riposo = (not is_ch) and (len(turni_attivi) == 0)
+            if len(turni_attivi) > 0:
+                lavorati_w += 1
+            elif not is_ch:
+                riposi_w += 1
+
+            tot_opzionali += opzionali_g
+            ore_l_w += lordo_g
+            ore_n_w += netto_g
+
+            per_giorno[g_iso] = {
+                "turni": turni_giorno,
+                "ore_lorde": round(lordo_g, 2),
+                "ore_nette": round(netto_g, 2),
+                "is_chiusura": is_ch,
+                "is_riposo": is_riposo,
+                "opzionali": opzionali_g,
+            }
+
+        chiusure_w = [g for g in giorni_w_iso if g in chiusure_all]
+        tot_chiusure += len(chiusure_w)
+        tot_lavorati += lavorati_w
+        tot_riposi += riposi_w
+        tot_lorde += ore_l_w
+        tot_nette += ore_n_w
+
+        # Semaforo CCNL settimanale (come ore_nette_settimana_per_reparto)
+        if ore_n_w <= 40:
+            sem = "verde"
+        elif ore_n_w <= 48:
+            sem = "giallo"
+        else:
+            sem = "rosso"
+
+        settimane_out.append({
+            "iso": settimane_iso[wi],
+            "giorni": giorni_w_iso,
+            "chiusure": chiusure_w,
+            "per_giorno": per_giorno,
+            "ore_lorde": round(ore_l_w, 2),
+            "ore_nette": round(ore_n_w, 2),
+            "giorni_lavorati": lavorati_w,
+            "riposi": riposi_w,
+            "semaforo": sem,
+        })
+
+    return {
+        "dipendente": dip,
+        "settimana_inizio": settimane_iso[0],
+        "settimana_fine":   settimane_iso[-1],
+        "num_settimane": num_settimane,
+        "settimane": settimane_out,
+        "totali": {
+            "ore_lorde": round(tot_lorde, 2),
+            "ore_nette": round(tot_nette, 2),
+            "giorni_lavorati": tot_lavorati,
+            "riposi": tot_riposi,
+            "chiusure": tot_chiusure,
+            "opzionali": tot_opzionali,
+        },
+    }
+
+
+# ============================================================
 # COPIA SETTIMANA
 # ============================================================
 def copia_settimana(

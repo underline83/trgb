@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 6 — Vista per dipendente (timeline 4/8/12 settimane)
+
+Terza vista del modulo Turni v2: **timeline di un singolo dipendente** su N settimane consecutive, per rispondere a colpo d'occhio alla domanda "quando lavoro il prossimo mese?". Raggiungibile dal pulsante **👤 Per dipendente** nell'header del Foglio Settimana o dalla URL diretta `/dipendenti/turni/dipendente`. Selezione tab reparto → pill dipendenti del reparto → timeline; navigator `←/Oggi/→` scorre di N settimane alla volta; select `4/8/12` settimane. Click su "✏️ Apri settimana" di una riga → salta al Foglio Settimana già sulla settimana giusta.
+
+### Backend
+- **`turni_service.build_vista_dipendente(dipendente_id, settimana_inizio, num_settimane)`**: costruisce payload con dipendente+reparto, lista `settimane[]` (7 giorni ognuna con `per_giorno[iso]` = turni+ore lorde+nette+`is_chiusura`+`is_riposo`+opzionali), totali periodo (ore lorde/nette, giorni lavorati, riposi, chiusure, opzionali), semaforo CCNL per settimana (verde ≤40h, giallo ≤48h, rosso >48h). Range `num_settimane` clampato 1..12. Chiusure calcolate in UN passaggio su tutto il range (`giorni_chiusi_nel_range`, già refactorato in Fase 5). Ore lorde/nette riusano `ore_lorde` e `calcola_ore_nette_giorno` (pause staff deducibili solo se soglia rispettata: 11:30 pranzo / 18:30 cena).
+- **`turni_router.py`**: nuovo `GET /turni/dipendente?dipendente_id=X&settimana_inizio=YYYY-Www&num_settimane=4` con JWT. Default `settimana_inizio` = settimana ISO corrente.
+
+### Frontend
+- **`pages/dipendenti/PerDipendente.jsx` v1.0-vista-per-dipendente** (nuovo file ~490 righe):
+  - Tab reparti + pill selezione dipendente (filtrate lato FE da `allDipendenti` attivi)
+  - Navigator settimana inizio (`←/→` scorre di N settimane), `Oggi` reset, select `4/8/12 settimane`
+  - Pulsanti "📅 Settimana" e "🗓 Mese" per cross-link tra le 3 viste turni
+  - Header totali periodo: ore lorde, ore nette (accent brand-blue), giorni lavorati, riposi, chiusure, opzionali
+  - Card settimana: intestazione con ISO + range date + badge semaforo CCNL colorato (verde/giallo/rosso) + contatori `N lav / N riposi / N chiusure`, pulsante `✏️ Apri settimana` (deep-link su Foglio)
+  - Griglia 7 colonne desktop, card-stack mobile (`grid-cols-1 md:grid-cols-7`)
+  - Cella giorno: data + badge "Oggi" se oggi, "🚪 Chiuso" o "Riposo" o elenco blocchi turno colorati (stessa palette dipendente), footer "Lordo: Xh · Netto: Yh"
+  - `BloccoTurno`: icona ☀️/🌙 per PRANZO/CENA, prefix ★ per opzionale, line-through + opacity per annullato
+  - Persistenza localStorage: `turni_last_reparto` (condiviso con altre viste), `turni_last_dipendente`, `turni_perdip_settimana`, `turni_perdip_n`
+- **`pages/dipendenti/FoglioSettimana.jsx`**: aggiunto pulsante **👤 Per dipendente** nell'header (accanto a 🗓 Mese)
+- **`App.jsx`**: import + route `/dipendenti/turni/dipendente` protetta dal modulo `dipendenti`
+
+### Versioni
+- Modulo Dipendenti: v2.9 → **v2.10**.
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 9 — Vista giorno mobile (<900px) con swipe + navigator
 
 Sotto i 900px (iPad portrait, mobile) la pagina **Foglio Settimana** mostra automaticamente UN solo giorno alla volta invece dell'intera griglia 7 colonne. Si naviga con frecce ←/→, pulsante **Oggi**, oppure swipe orizzontale (threshold 60px). Quando si oltrepassa Domenica/Lunedì la settimana cambia automaticamente. Sopra i 900px nulla cambia: vista settimanale piena come prima. Touch target ≥ 48pt, niente hover-only.

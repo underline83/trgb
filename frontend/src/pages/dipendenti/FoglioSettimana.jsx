@@ -358,6 +358,11 @@ export default function FoglioSettimana() {
               title="Passa alla vista mensile (griglia 6×7, sola lettura)">
               🗓 Mese
             </button>
+            <button onClick={() => navigate("/dipendenti/turni/dipendente")}
+              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm"
+              title="Timeline per singolo dipendente su 4/8/12 settimane">
+              👤 Per dipendente
+            </button>
             <button onClick={() => setDlgCopia(true)}
               className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
               📋 Copia

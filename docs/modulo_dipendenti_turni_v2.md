@@ -365,17 +365,28 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 5: vista mensile 6x7 con dettaglio giorno + deep-link settimana"`
 
-### Fase 6 — Vista per dipendente
+### Fase 6 — Vista per dipendente ✅ COMPLETATA (sessione 38)
 *Obiettivo:* "quando lavoro il prossimo mese?" a colpo d'occhio.
-*Dimensione:* piccola.
-*Rischio:* basso.
 
-- Tab "Per dipendente" in toolbar
-- Select dipendente -> timeline 4 settimane con blocchi turno
-- Totali: ore totali periodo, giorni lavorati, riposi, assenze
-- Stampabile singolarmente
+**Backend — `turni_service.build_vista_dipendente` + `GET /turni/dipendente`:**
+- Service calcola per N settimane (1..12, default 4) una timeline completa per 1 dipendente, con turni raggruppati per data, ore lorde+nette giornaliere (riusa `calcola_ore_nette_giorno` con pause staff deducibili solo se soglia 11:30/18:30 rispettata), totali periodo (ore, giorni lavorati, riposi = giorni non chiusi senza turni, chiusure, opzionali), semaforo CCNL per settimana.
+- Endpoint `GET /turni/dipendente?dipendente_id=X&settimana_inizio=YYYY-Www&num_settimane=4` (JWT). Default settimana = corrente.
+- Payload include anche dipendente+reparto (colore, ruolo, nome reparto, pause staff) per auto-coerenza del FE.
 
-**Commit:** `./push.sh "turni v2 fase 6: vista per dipendente, timeline 4 settimane"`
+**Frontend — `pages/dipendenti/PerDipendente.jsx` (v1.0-vista-per-dipendente, ~490 righe):**
+- Tab reparti + pill dipendenti del reparto (filtraggio FE da `allDipendenti` attivi, sort cognome+nome)
+- Navigator settimana inizio ← Oggi → scorre di N settimane alla volta; select 4/8/12 settimane
+- Totali periodo in testa: ore lorde, ore nette (accent brand-blue), giorni lavorati, riposi, chiusure, opzionali
+- Card settimana: ISO + range date + badge semaforo CCNL colorato + contatori, pulsante "✏️ Apri settimana" che fa deep-link al Foglio Settimana (via `turni_last_settimana` in localStorage)
+- Griglia 7 colonne desktop, card-stack mobile (`grid-cols-1 md:grid-cols-7`)
+- Blocchi turno con colore dipendente/turno-tipo, ☀️/🌙 per PRANZO/CENA, ★ opzionale, line-through + opacity annullato
+- Persistenza: `turni_last_reparto` (condiviso), `turni_last_dipendente`, `turni_perdip_settimana`, `turni_perdip_n`
+
+**Link/navigazione:**
+- Pulsante **👤 Per dipendente** nell'header del `FoglioSettimana.jsx` (accanto a 🗓 Mese)
+- Route `/dipendenti/turni/dipendente` in `App.jsx` protetta dal modulo `dipendenti`
+
+**Commit:** `./push.sh "turni v2 fase 6: vista per dipendente - timeline 4/8/12 settimane con totali + deep-link"`
 
 ### Fase 7 — Controllo conflitti
 *Obiettivo:* avvisare (non bloccare) su sovrapposizioni orarie.
