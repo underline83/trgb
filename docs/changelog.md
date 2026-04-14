@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 — Restyling toolbar Foglio Settimana (stile iOS)
+
+Con l'aggiunta dei pulsanti Fase 11 (📢 Pubblica, 💬 Invia WA) la toolbar del Foglio Settimana era arrivata a **8 pulsanti su una riga**, troppo stretta su iPad portrait e con gerarchia visiva incoerente. Restyling completo in stile iOS (opzione C scelta da Marco sui 3 mockup) con layout a 3 sezioni: **left navigate / center segmented / right actions + overflow ⋯**.
+
+### Frontend
+- **`FoglioSettimana.jsx` v1.10-ios-toolbar**: toolbar rifatta a 3 sezioni.
+  - **LEFT**: `◀ | chip "14–20 apr · W16" | ▶ | Oggi` — chip data ora mostra range human-readable (`formatWeekRange`) + suffisso `W##` monospace grigio al posto del solo `2026-W16`.
+  - **CENTER**: segmented control a 3 posizioni (`Settimana` | `Mese` | `Per dipendente`) stile iOS, `bg-neutral-200` wrapper + pillola bianca attiva con shadow. Naviga verso `/dipendenti/turni/mese` e `/dipendenti/turni/dipendente`.
+  - **RIGHT**: le 2 azioni "forti" della Fase 11 restano fuori (📢 Pubblica verde, 💬 Invia WA bianco), tutto il resto finisce in un dropdown **⋯** con sezioni Settimana (Copia, Template) e Esporta (PDF, Immagine). Click-outside e ESC chiudono il menu.
+- Import `useRef` aggiunto. Nuovo state `overflowOpen` + ref `overflowRef` + `useEffect` per i listener di chiusura.
+- Touch target mantenuti a **44pt** sui bottoni full + **38pt** sui segmented (38 è l'altezza interna, lo hit-target 44 è dato dal wrapper).
+
+### Versioni
+- Modulo Dipendenti: v2.13 → **v2.14**.
+
+---
+
 ## 2026-04-14 — Sessione 36 / Preventivi — Componi menu su /nuovo (auto-save silenzioso)
 
 Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo sui preventivi già salvati, perché aveva bisogno di un `preventivo_id` per snapshottare le righe. Su `/preventivi/nuovo` Marco vedeva un banner ambra "Salva prima il preventivo". Ora il composer è operativo fin dal primo tocco anche su URL `/nuovo`: alla prima azione (aggiungi piatto / piatto veloce / cambio sconto) il frontend crea in modo **silenzioso** una "bozza automatica" lato backend e continua a lavorarci sopra senza cambiare URL. Quando Marco clicca "Crea preventivo" la bozza auto viene **promossa** a bozza utente normale.
@@ -21,6 +38,29 @@ Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo
 
 ### Versioni
 - Modulo Clienti: v2.4 → **v2.5**.
+
+---
+
+## 2026-04-14 — Sessione 38 / Preventivi — Fix prezzo menu/persona (menu va MOLTIPLICATO per coperti, non diviso)
+
+Bug logico nella composizione menu preventivi. Marco inserisce il prezzo **di 1 menu = 1 persona** (es. Brasato 20 €, Pasta 1 €, Antipasto 20 € → subtotale 41 € è il prezzo per 1 coperto, non per tutti). `_ricalcola_menu` divideva erroneamente `(subtotale − sconto) / n_persone` → preventivo da 41 € × 30 coperti diventava 1,33 € a persona e il totale finale era enormemente sottostimato. Giusto: `menu_prezzo_persona = (subtotale − sconto)` e il totale complessivo è `prezzo_persona × n_persone + righe extra`.
+
+### Backend — `preventivi_service._ricalcola_menu`
+- Rimossa divisione per `n_persone`. `menu_prezzo_persona = max(0, menu_subtotale - menu_sconto)`.
+- `_ricalcola_totale` già moltiplica `menu_prezzo_persona × n_persone + righe extra` → ora produce il totale corretto.
+
+### Backend — `migrations/078_preventivi_menu_prezzo_persona_fix.py` (nuova)
+Backfill per preventivi esistenti: ricalcola `menu_prezzo_persona = max(0, menu_subtotale - menu_sconto)` e `totale_calcolato = menu_prezzo_persona × n_persone + somma_righe_extra` su tutti i record. Idempotente.
+
+### Frontend — `PreventivoMenuComposer.jsx` v1.2
+- Label "Subtotale menu" → "Subtotale menu (N piatti, per 1 persona)".
+- Label "Totale menu" → "Prezzo menu a persona".
+- Nuova riga: "Totale menu × {n_persone} coperti = €X" (il prodotto totale che finirà nel totale preventivo).
+- Rimossa riga sbagliata "Prezzo a persona ({coperti} coperti)" che divideva per coperti.
+- Banner ambra se `n_persone` non impostato: "Imposta N. persone per calcolare il totale del menu per tutti i coperti".
+
+### Versioni
+- Modulo Clienti: v2.5 → **v2.6**.
 
 ---
 

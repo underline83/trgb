@@ -1,4 +1,4 @@
-// @version: v1.1-preventivo-menu-composer
+// @version: v1.2-preventivo-menu-composer (fix prezzo/persona: ogni riga e' gia' 1 menu = 1 persona, il totale va moltiplicato per coperti, non diviso)
 // Pannello "Componi menu" per preventivi: pesca piatti dal Ricettario (Cucina),
 // snapshotta sul preventivo, permette quick-create ("Piatto veloce"), gestisce sconto
 // e ricalcola prezzo/persona lato backend. Le righe salvate sono IMMUTABILI rispetto
@@ -418,9 +418,12 @@ export default function PreventivoMenuComposer({
       )}
 
       {/* ── Riepilogo prezzi ── */}
+      {/* Nota: ogni riga del menu e' il prezzo PER 1 PERSONA (1 menu).
+           Il totale menu e' il prezzo a persona; per il totale complessivo
+           viene moltiplicato per il numero di coperti. */}
       <div className="pt-3 border-t border-neutral-200 space-y-1 text-sm">
         <div className="flex justify-between text-neutral-600">
-          <span>Subtotale menu ({righe.length} {righe.length === 1 ? "piatto" : "piatti"})</span>
+          <span>Subtotale menu ({righe.length} {righe.length === 1 ? "piatto" : "piatti"}, per 1 persona)</span>
           <span className="font-medium">€{subtotale.toFixed(2)}</span>
         </div>
         <div className="flex justify-between items-center">
@@ -430,17 +433,17 @@ export default function PreventivoMenuComposer({
             className="w-28 border border-neutral-300 rounded-lg px-2 py-1 text-sm text-right" />
         </div>
         <div className="flex justify-between text-base font-semibold text-neutral-900 pt-1 border-t border-neutral-100">
-          <span>Totale menu</span>
+          <span>Prezzo menu a persona</span>
           <span className="text-indigo-700">€{totaleMenu.toFixed(2)}</span>
         </div>
         {nPersone ? (
-          <div className="flex justify-between text-xs text-neutral-500">
-            <span>Prezzo a persona ({nPersone} coperti)</span>
-            <span>€{prezzoPersona.toFixed(2)}</span>
+          <div className="flex justify-between text-sm font-semibold text-neutral-900 pt-1">
+            <span>Totale menu × {nPersone} coperti</span>
+            <span className="text-indigo-700">€{(totaleMenu * Number(nPersone)).toFixed(2)}</span>
           </div>
         ) : (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-            Imposta "N. persone" in testata per calcolare il prezzo a persona.
+            Imposta "N. persone" in testata per calcolare il totale del menu per tutti i coperti.
           </p>
         )}
       </div>

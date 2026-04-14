@@ -1,4 +1,4 @@
-// @version: v1.9-mobile-day (Fase 9: vista giorno automatica <900px per iPad portrait)
+// @version: v1.10-ios-toolbar (restyling header stile C: left navigate / center segmented / right actions + overflow ⋯)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -14,7 +14,7 @@
 //
 // Touch target 48pt, mobile-aware.
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { openWhatsApp } from "../../utils/whatsapp";
@@ -128,6 +128,25 @@ export default function FoglioSettimana() {
   const [dlgTemplate, setDlgTemplate] = useState(false);
   const [dlgInviaWA, setDlgInviaWA] = useState(false);
   const [pubblicando, setPubblicando] = useState(false);
+
+  // Fase 11 — restyling stile C: dropdown ⋯ (azioni secondarie)
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowRef = useRef(null);
+  useEffect(() => {
+    if (!overflowOpen) return;
+    function handleClickOutside(e) {
+      if (overflowRef.current && !overflowRef.current.contains(e.target)) {
+        setOverflowOpen(false);
+      }
+    }
+    function handleEsc(e) { if (e.key === "Escape") setOverflowOpen(false); }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [overflowOpen]);
 
   // Vista immagine per screenshot WhatsApp (Fase 8)
   const [imageMode, setImageMode] = useState(false);
@@ -411,62 +430,130 @@ export default function FoglioSettimana() {
         </div>
       )}
       <div className="max-w-[1600px] mx-auto">
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div>
+        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni + ⋯) */}
+        <div className="mb-4">
+          {/* Riga titolo + breadcrumb */}
+          <div className="mb-2">
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">📅 Foglio Settimana</h1>
           </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <button onClick={() => setSettimana(shiftIsoWeek(settimana, -1))}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50">←</button>
-            <div className="min-h-[44px] px-4 flex items-center bg-white border rounded-lg font-mono text-sm">
-              {settimana}
+
+          {/* Toolbar 3-sezioni: left / center / right */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* LEFT: navigazione settimana */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => setSettimana(shiftIsoWeek(settimana, -1))}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Settimana precedente">◀</button>
+              <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
+                <span className="text-neutral-900">{formatWeekRange(settimana)}</span>
+                <span className="text-neutral-400 font-mono text-xs">· W{settimana.split("-W")[1]}</span>
+              </div>
+              <button onClick={() => setSettimana(shiftIsoWeek(settimana, 1))}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Settimana successiva">▶</button>
+              <button onClick={() => setSettimana(isoWeek(new Date()))}
+                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                title="Vai a oggi">Oggi</button>
             </div>
-            <button onClick={() => setSettimana(shiftIsoWeek(settimana, 1))}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50">→</button>
-            <button onClick={() => setSettimana(isoWeek(new Date()))}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm">Oggi</button>
-            <button onClick={() => navigate("/dipendenti/turni/mese")}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm"
-              title="Passa alla vista mensile (griglia 6×7, sola lettura)">
-              🗓 Mese
-            </button>
-            <button onClick={() => navigate("/dipendenti/turni/dipendente")}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm"
-              title="Timeline per singolo dipendente su 4/8/12 settimane">
-              👤 Per dipendente
-            </button>
-            <button onClick={() => setDlgCopia(true)}
-              className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
-              📋 Copia
-            </button>
-            <button onClick={() => setDlgTemplate(true)}
-              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
-              title="Salva la settimana come template ricorrente o applica un template a una settimana">
-              📑 Template
-            </button>
-            <button onClick={pubblicaSettimana} disabled={pubblicando}
-              className="min-h-[44px] px-3 bg-brand-green text-white rounded-lg hover:opacity-90 text-sm disabled:opacity-50"
-              title="Pubblica la settimana: crea notifica per lo staff admin">
-              {pubblicando ? "⏳ Pubblica…" : "📢 Pubblica"}
-            </button>
-            <button onClick={() => setDlgInviaWA(true)}
-              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
-              title="Invia il riepilogo turni personale ai dipendenti via WhatsApp">
-              📤 Invia WA
-            </button>
-            <button onClick={scaricaPdf} disabled={loadingPdf}
-              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
-              title="Genera PDF brandizzato (A4 orizzontale) — niente dialog stampante">
-              {loadingPdf ? "⏳ PDF…" : "📄 PDF"}
-            </button>
-            <button onClick={() => setImageMode(true)}
-              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
-              title="Apri vista pulita per screenshot (da condividere su WhatsApp)">
-              📷 Immagine
-            </button>
+
+            {/* CENTER: segmented control viste */}
+            <div className="flex-1 flex justify-center min-w-[260px]">
+              <div className="inline-flex bg-neutral-200 rounded-lg p-1 gap-1">
+                <button
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium bg-white text-neutral-900 shadow-sm cursor-default"
+                  title="Vista settimana (corrente)">
+                  Settimana
+                </button>
+                <button
+                  onClick={() => navigate("/dipendenti/turni/mese")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Passa alla vista mensile (griglia 6×7, sola lettura)">
+                  Mese
+                </button>
+                <button
+                  onClick={() => navigate("/dipendenti/turni/dipendente")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Timeline per singolo dipendente su 4/8/12 settimane">
+                  Per dipendente
+                </button>
+              </div>
+            </div>
+
+            {/* RIGHT: azioni Fase 11 + overflow ⋯ */}
+            <div className="flex items-center gap-2 flex-shrink-0 relative" ref={overflowRef}>
+              <button onClick={pubblicaSettimana} disabled={pubblicando}
+                className="min-h-[44px] px-3 bg-brand-green text-white rounded-lg hover:opacity-90 text-sm disabled:opacity-50 font-medium"
+                title="Pubblica la settimana: crea notifica in-app per lo staff">
+                {pubblicando ? "⏳ Pubblica…" : "📢 Pubblica"}
+              </button>
+              <button onClick={() => setDlgInviaWA(true)}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
+                title="Invia il riepilogo turni personale ai dipendenti via WhatsApp">
+                💬 Invia WA
+              </button>
+              <button
+                onClick={() => setOverflowOpen(v => !v)}
+                className="min-h-[44px] min-w-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-lg leading-none"
+                title="Altre azioni"
+                aria-haspopup="menu"
+                aria-expanded={overflowOpen}>
+                ⋯
+              </button>
+
+              {overflowOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 bg-white border border-neutral-200 rounded-xl shadow-lg z-30 min-w-[240px] p-1.5"
+                  role="menu">
+                  <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-neutral-400">Settimana</div>
+                  <button
+                    onClick={() => { setOverflowOpen(false); setDlgCopia(true); }}
+                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
+                    role="menuitem">
+                    <span className="text-lg">📋</span>
+                    <div>
+                      <div className="font-medium text-neutral-900">Copia settimana</div>
+                      <div className="text-xs text-neutral-500">Duplica i turni su un'altra settimana</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setOverflowOpen(false); setDlgTemplate(true); }}
+                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
+                    role="menuitem">
+                    <span className="text-lg">📑</span>
+                    <div>
+                      <div className="font-medium text-neutral-900">Template</div>
+                      <div className="text-xs text-neutral-500">Salva o applica un template ricorrente</div>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-neutral-100"></div>
+                  <div className="px-3 pt-2 pb-1 text-[11px] uppercase tracking-wider text-neutral-400">Esporta</div>
+                  <button
+                    onClick={() => { setOverflowOpen(false); scaricaPdf(); }}
+                    disabled={loadingPdf}
+                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px] disabled:opacity-50"
+                    role="menuitem">
+                    <span className="text-lg">📄</span>
+                    <div>
+                      <div className="font-medium text-neutral-900">{loadingPdf ? "Generazione PDF…" : "Esporta PDF"}</div>
+                      <div className="text-xs text-neutral-500">A4 orizzontale brandizzato</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setOverflowOpen(false); setImageMode(true); }}
+                    className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg hover:bg-brand-cream text-sm min-h-[44px]"
+                    role="menuitem">
+                    <span className="text-lg">🖼️</span>
+                    <div>
+                      <div className="font-medium text-neutral-900">Esporta immagine</div>
+                      <div className="text-xs text-neutral-500">Vista pulita per screenshot WhatsApp</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

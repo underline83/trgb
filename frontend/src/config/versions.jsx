@@ -33,7 +33,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
-    version: "2.13",
+    version: "2.14",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -57,7 +57,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "2.5",
+    version: "2.6",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

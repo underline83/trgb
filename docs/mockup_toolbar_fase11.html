@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Mockup Toolbar Foglio Settimana — Fase 11</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            red:    "#E8402B",
+            green:  "#2EB872",
+            blue:   "#2E7BE8",
+            ink:    "#111111",
+            cream:  "#F4F1EC",
+            night:  "#0E0E10",
+          }
+        },
+        fontFamily: {
+          display: ['"Playfair Display"', "serif"],
+        }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+<style>
+  body { background: #F4F1EC; }
+  .btn {
+    min-height: 44px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 500;
+    border: 1px solid #d4d4d4;
+    background: #fff;
+    color: #111;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #fafafa; }
+  .btn.primary { background: #2E7BE8; color: #fff; border-color: #2E7BE8; }
+  .btn.success { background: #2EB872; color: #fff; border-color: #2EB872; }
+  .btn.ghost   { background: transparent; border-color: transparent; }
+  .btn.sm      { min-height: 38px; padding: 0 10px; font-size: 13px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 44px; padding: 0 14px;
+    background: #fff; border: 1px solid #d4d4d4;
+    font-size: 14px; color: #111;
+  }
+  .seg {
+    display: inline-flex; background: #ECECEC; border-radius: 10px; padding: 3px; gap: 2px;
+  }
+  .seg button {
+    min-height: 38px; padding: 0 14px; border: 0; background: transparent;
+    font-size: 14px; color: #444; border-radius: 8px; cursor: pointer;
+    font-weight: 500;
+  }
+  .seg button.on {
+    background: #fff; color: #111;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .label-opt {
+    display: inline-block;
+    background: #111; color: #fff;
+    font-size: 11px; font-weight: 600; letter-spacing: .04em;
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .badge-hero {
+    background: #2EB872; color: #fff; font-size: 11px; font-weight: 600;
+    padding: 3px 8px; border-radius: 999px; letter-spacing: .04em;
+  }
+  .divv { width: 1px; background: #e5e5e5; align-self: stretch; margin: 4px 2px; }
+  .dropdown-preview {
+    position: absolute; right: 0; top: 100%;
+    margin-top: 6px;
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.08);
+    min-width: 220px; padding: 6px; z-index: 5;
+  }
+  .dropdown-preview button {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px;
+    font-size: 14px; background: transparent; border: 0; cursor: pointer;
+  }
+  .dropdown-preview button:hover { background: #F4F1EC; }
+  .toolbar-card {
+    background: #fff; border: 1px solid #E5E5E5; border-radius: 16px;
+    padding: 16px 18px; box-shadow: 0 2px 10px rgba(0,0,0,.04);
+  }
+  .bracket {
+    font-size: 11px; color: #888; letter-spacing: .05em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .opt-card {
+    background: #fff; border: 1px solid #E5E5E5; border-radius: 20px;
+    padding: 24px; box-shadow: 0 4px 14px rgba(0,0,0,.05);
+  }
+  .ipad-frame {
+    background: #F4F1EC;
+    border: 2px solid #D8D2C6;
+    border-radius: 18px;
+    padding: 14px 16px;
+  }
+  .title-display {
+    font-family: "Playfair Display", serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #111;
+  }
+</style>
+</head>
+<body class="text-neutral-900">
+
+<div class="max-w-5xl mx-auto px-6 py-8 space-y-10">
+
+  <header class="space-y-2">
+    <h1 class="font-display text-3xl">Foglio Settimana — Mockup toolbar</h1>
+    <p class="text-neutral-600 text-sm">Tre opzioni per l'header dopo l'aggiunta dei pulsanti <b>Pubblica</b> e <b>Invia WA</b> della Fase 11. Stessa palette TRGB-02, stessi touch-target 44pt.</p>
+  </header>
+
+  <!-- CURRENT ============================================================ -->
+  <section class="opt-card">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="label-opt" style="background:#555">STATO ATTUALE</span>
+        <h2 class="mt-2 text-lg font-semibold">Com'è adesso (8 pulsanti in una riga)</h2>
+        <p class="text-sm text-neutral-600">Il problema: su iPad portrait va a capo o comprime troppo. Pubblica verde e Invia WA bianco hanno peso visivo incoerente.</p>
+      </div>
+    </div>
+    <div class="ipad-frame">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="title-display mr-3">Foglio settimana</div>
+        <button class="btn">◀</button>
+        <div class="chip rounded-lg">📅 14–20 apr · <span class="font-mono">2026-W16</span></div>
+        <button class="btn">▶</button>
+        <button class="btn">Oggi</button>
+        <span class="divv"></span>
+        <button class="btn">📋 Vista settimana</button>
+        <button class="btn">🗓️ Vista mese</button>
+        <button class="btn">👥 Per dipendente</button>
+        <span class="divv"></span>
+        <button class="btn success">📢 Pubblica</button>
+        <button class="btn">📤 Invia WA</button>
+        <button class="btn">📄 PDF</button>
+        <button class="btn">🖼️ Immagine</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPTION A =========================================================== -->
+  <section class="opt-card">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="label-opt" style="background:#2E7BE8">OPZIONE A</span>
+        <h2 class="mt-2 text-lg font-semibold">Due righe raggruppate (minimo intervento)</h2>
+        <p class="text-sm text-neutral-600">Riga 1: navigazione + viste. Riga 2: azioni (pubblicazione e condivisione). Solo <b>Pubblica</b> resta verde — tutti gli altri diventano neutri con emoji colorata. Palette coerente.</p>
+      </div>
+    </div>
+    <div class="ipad-frame space-y-2">
+      <!-- Row 1 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="title-display mr-3">Foglio settimana</div>
+        <button class="btn">◀</button>
+        <div class="chip rounded-lg">📅 14–20 apr · <span class="font-mono">2026-W16</span></div>
+        <button class="btn">▶</button>
+        <button class="btn">Oggi</button>
+        <span class="divv"></span>
+        <div class="seg">
+          <button class="on">📋 Settimana</button>
+          <button>🗓️ Mese</button>
+          <button>👥 Per dip.</button>
+        </div>
+      </div>
+      <!-- Row 2 -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="bracket mr-1" style="margin-bottom:0">Azioni</div>
+        <button class="btn success">📢 Pubblica</button>
+        <span class="divv"></span>
+        <button class="btn">💬 Invia WA</button>
+        <button class="btn">📄 PDF</button>
+        <button class="btn">🖼️ Immagine</button>
+      </div>
+    </div>
+    <div class="mt-3 text-sm text-neutral-600">
+      <b>Pro</b>: cambiamento chirurgico, zero logica nuova. Segmented control chiarisce che sono 3 viste alternative.<br/>
+      <b>Contro</b>: due righe sempre visibili, mangia 44pt di altezza in più.
+    </div>
+  </section>
+
+  <!-- OPTION B =========================================================== -->
+  <section class="opt-card">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="label-opt" style="background:#2EB872">OPZIONE B — CONSIGLIATA</span>
+        <h2 class="mt-2 text-lg font-semibold">Dropdown "Condividi ▾" (una riga, estensibile)</h2>
+        <p class="text-sm text-neutral-600">WA + PDF + Immagine vanno dentro un unico menu <b>Condividi</b>. Domani aggiungiamo 📧 Email (mattone M.D) senza rifare l'header. <b>Pubblica</b> resta il CTA verde fuori, perché è l'azione "forte" del Fase 11.</p>
+      </div>
+    </div>
+    <div class="ipad-frame">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="title-display mr-3">Foglio settimana</div>
+        <button class="btn">◀</button>
+        <div class="chip rounded-lg">📅 14–20 apr · <span class="font-mono">2026-W16</span></div>
+        <button class="btn">▶</button>
+        <button class="btn">Oggi</button>
+        <span class="divv"></span>
+        <div class="seg">
+          <button class="on">📋 Settimana</button>
+          <button>🗓️ Mese</button>
+          <button>👥 Per dip.</button>
+        </div>
+        <span class="divv"></span>
+        <button class="btn success">📢 Pubblica</button>
+        <div class="relative">
+          <button class="btn">📤 Condividi <span class="opacity-60">▾</span></button>
+          <!-- dropdown aperto -->
+          <div class="dropdown-preview">
+            <div class="text-[11px] uppercase tracking-wider text-neutral-400 px-3 pt-1 pb-0.5">Ai dipendenti</div>
+            <button>💬 <span>Invia su WhatsApp</span></button>
+            <div class="text-[11px] uppercase tracking-wider text-neutral-400 px-3 pt-2 pb-0.5">Esporta</div>
+            <button>📄 <span>PDF settimana</span></button>
+            <button>🖼️ <span>Immagine</span></button>
+            <div class="text-[11px] uppercase tracking-wider text-neutral-400 px-3 pt-2 pb-0.5 flex items-center gap-2">Presto <span class="bg-neutral-200 text-neutral-500 text-[10px] px-1.5 rounded">SOON</span></div>
+            <button class="opacity-50 cursor-not-allowed">📧 <span>Email riepilogo</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 text-sm text-neutral-600">
+      <b>Pro</b>: una riga sola anche su iPad portrait. Azione "forte" (Pubblica) e azioni "export" (Condividi) visivamente separate. Pronto per M.D Email.<br/>
+      <b>Contro</b>: un tap in più per PDF/Immagine (prima erano sempre visibili).
+    </div>
+  </section>
+
+  <!-- OPTION C =========================================================== -->
+  <section class="opt-card">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <span class="label-opt" style="background:#111">OPZIONE C</span>
+        <h2 class="mt-2 text-lg font-semibold">Stile iOS — left / center / right con overflow ⋯</h2>
+        <p class="text-sm text-neutral-600">Navigazione a sinistra, segmented control centrato, azioni a destra con menu <b>⋯</b> per le esport. Si avvicina all'estetica nativa Apple in vista del porting Capacitor.</p>
+      </div>
+    </div>
+    <div class="ipad-frame">
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- left -->
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button class="btn">◀</button>
+          <div class="chip rounded-lg">14–20 apr · <span class="font-mono">W16</span></div>
+          <button class="btn">▶</button>
+          <button class="btn ghost">Oggi</button>
+        </div>
+        <!-- center -->
+        <div class="flex-1 flex justify-center min-w-[300px]">
+          <div class="seg">
+            <button class="on">Settimana</button>
+            <button>Mese</button>
+            <button>Per dipendente</button>
+          </div>
+        </div>
+        <!-- right -->
+        <div class="flex items-center gap-2 flex-shrink-0 relative">
+          <button class="btn success">📢 Pubblica</button>
+          <button class="btn">💬 Invia WA</button>
+          <div class="relative">
+            <button class="btn" title="Altre azioni">⋯</button>
+            <div class="dropdown-preview">
+              <button>📄 <span>Esporta PDF</span></button>
+              <button>🖼️ <span>Esporta immagine</span></button>
+              <button>🖨️ <span>Stampa</span></button>
+              <button>📧 <span class="opacity-50">Email (soon)</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 text-sm text-neutral-600">
+      <b>Pro</b>: gerarchia chiara (naviga / mostra / agisci). Pubblica e Invia WA sempre a un tap (le 2 azioni Fase 11). Export rari nel ⋯.<br/>
+      <b>Contro</b>: layout 3-colonne collassa a capo se lo zoom è alto. Più codice (flex con min-width centrale).
+    </div>
+  </section>
+
+  <!-- RIEPILOGO =========================================================== -->
+  <section class="opt-card">
+    <h2 class="text-lg font-semibold mb-3">Confronto rapido</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr class="text-left border-b border-neutral-200">
+            <th class="py-2 pr-4"></th>
+            <th class="py-2 px-3">A — 2 righe</th>
+            <th class="py-2 px-3">B — Condividi ▾</th>
+            <th class="py-2 px-3">C — iOS style</th>
+          </tr>
+        </thead>
+        <tbody class="align-top">
+          <tr class="border-b border-neutral-100">
+            <td class="py-2 pr-4 font-medium">Righe</td>
+            <td class="py-2 px-3">2</td>
+            <td class="py-2 px-3">1</td>
+            <td class="py-2 px-3">1</td>
+          </tr>
+          <tr class="border-b border-neutral-100">
+            <td class="py-2 pr-4 font-medium">iPad portrait</td>
+            <td class="py-2 px-3">OK, ma alta</td>
+            <td class="py-2 px-3">Ottimo</td>
+            <td class="py-2 px-3">Buono (attento a zoom)</td>
+          </tr>
+          <tr class="border-b border-neutral-100">
+            <td class="py-2 pr-4 font-medium">Estendibile (M.D Email)</td>
+            <td class="py-2 px-3">Richiede nuovo bottone</td>
+            <td class="py-2 px-3">Si aggiunge in dropdown</td>
+            <td class="py-2 px-3">Si aggiunge nel ⋯</td>
+          </tr>
+          <tr class="border-b border-neutral-100">
+            <td class="py-2 pr-4 font-medium">Tap per PDF</td>
+            <td class="py-2 px-3">1</td>
+            <td class="py-2 px-3">2</td>
+            <td class="py-2 px-3">2</td>
+          </tr>
+          <tr class="border-b border-neutral-100">
+            <td class="py-2 pr-4 font-medium">Sforzo implementazione</td>
+            <td class="py-2 px-3">Minimo</td>
+            <td class="py-2 px-3">Medio (dropdown)</td>
+            <td class="py-2 px-3">Medio-alto (layout 3-col)</td>
+          </tr>
+          <tr>
+            <td class="py-2 pr-4 font-medium">Estetica nativa Apple</td>
+            <td class="py-2 px-3">Neutra</td>
+            <td class="py-2 px-3">Neutra</td>
+            <td class="py-2 px-3">Più vicina</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-4 text-sm text-neutral-600">
+      La mia preferenza resta <b>Opzione B</b>: una sola riga, Pubblica ben distinto, Condividi ▾ è il contenitore naturale per WA/PDF/Immagine/Email. Se vuoi virare nativo-iOS c'è C.
+    </p>
+  </section>
+
+</div>
+
+</body>
+</html>
