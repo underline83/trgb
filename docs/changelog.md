@@ -3,6 +3,83 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Dipendenti — Oggi stile uniforme + selettore reparto dentro la griglia
+
+Marco: _"turni, sia settimana che mese che dipendenti. c'e' il tasto 'oggi' che non ha lo sfondo sembra un po appoggiato a caso. Il tasto dei reparti incastralo nella tabella..."_
+
+### Fix bottone "Oggi"
+
+Il bottone "Oggi" nelle 3 viste Turni (Settimana, Mese, Dipendente) era senza sfondo/bordo → sembrava "appoggiato a caso". Uniformato con `bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50` e `min-h-[44px]` per touch target.
+
+### Selettore reparto dentro la griglia
+
+I tab reparti sopra la tabella sono stati rimpiazzati da un selettore dropdown compatto, incastrato vicino ai dati:
+
+- **FoglioSettimana**: dropdown nella **cella in alto a sinistra** della tabella (rowSpan=2), fra l'header "Giorno" e "Lunedi". Prima colonna allargata 80px → 140px per ospitarlo. Fallback mobile (isNarrow): dropdown compatto sopra `VistaGiornoMobile`.
+- **VistaMensile**: nuova riga thead `colSpan={7}` con label "Reparto" + dropdown, subito sopra la riga dei giorni della settimana.
+- **PerDipendente**: dropdown reparto **inline a sinistra del selettore dipendente**, separati da un divisore verticale, stessa riga flex.
+
+Bordo del dropdown e label sono colorati in base al `reparto.colore` → identita' visiva coerente col reparto attivo.
+
+### File modificati
+
+- `frontend/src/pages/dipendenti/FoglioSettimana.jsx` — tolta sezione "TAB REPARTI", `FoglioGrid` accetta `reparti / repartoId / onRepartoChange`, dropdown nella top-left cell.
+- `frontend/src/pages/dipendenti/VistaMensile.jsx` — tolta sezione "TAB REPARTI", `GrigliaMensile` aggiunge riga thead col selettore.
+- `frontend/src/pages/dipendenti/PerDipendente.jsx` — tolta sezione "TAB REPARTI", selettore reparto+dipendente su un'unica riga.
+- `frontend/src/config/versions.jsx` — dipendenti `2.20 → 2.21`.
+
+---
+
+## 2026-04-14 — Sessione 39 / Auth — Matrice ruoli per modulo + endpoint reset-to-seed
+
+Marco: _"Fai un controllo su tutti i check 'admin' cosi li verifichiamo in blocco"_, seguito dalla matrice completa ruoli→modulo per tutti e 11 i moduli. Prima applicazione: Marco aveva notato che **dopo un riavvio del backend i privilegi tornavano a valori hardcoded obsoleti** — il `DEFAULT_MODULES` nel router Python non era mai stato allineato al seed e alle modifiche fatte via UI, quindi ogni bootstrap "pulito" (runtime mancante) ripristinava uno stato obsoleto.
+
+### Soluzione in 3 livelli (anti-regressione)
+
+1. **Seed `app/data/modules.json`** → aggiornato con la matrice definitiva di Marco. E' il file tracciato in git che viene letto al primo bootstrap quando `modules.runtime.json` non esiste.
+2. **`DEFAULT_MODULES` hardcoded** in `app/routers/modules_router.py` → allineato 1:1 col seed. E' il fallback di ultima istanza se pure il seed dovesse sparire.
+3. **Endpoint `POST /settings/modules/reset-to-seed`** (admin-only) → forza la riscrittura di `modules.runtime.json` copiando il seed. Se in futuro il runtime diverge, basta una chiamata (no SSH, no cancellazione manuale di file sul VPS).
+
+### Matrice ruoli applicata
+
+| Modulo | Ruoli visibili sul modulo |
+| --- | --- |
+| Vini | admin, sommelier, sala (iPratico Sync admin-only, Impostazioni admin-only) |
+| Acquisti | admin, contabile (Impostazioni admin-only) |
+| Ricette/Cucina | admin, chef, sala, sommelier (matching/impostazioni admin-only, rinominato "Strumenti"→"Impostazioni") |
+| Vendite | admin, sala, sommelier, contabile (chiusure/impostazioni admin-only) |
+| Flussi di Cassa | admin, contabile, sala, sommelier, chef (solo per Mance) |
+| Controllo di Gestione | admin, contabile |
+| Statistiche | admin only |
+| Dipendenti | admin, + tutti via "Turni" con filtro interno |
+| Prenotazioni | admin, sala, sommelier (editor tavoli + impostazioni admin-only) |
+| Clienti | admin, sala, sommelier, contabile (import spostato in Impostazioni admin-only) |
+| Impostazioni globali | admin only |
+
+### Frontend — `modulesMenu.js` riorganizzato
+
+- **Vini**: rimosso "iPratico Sync" dal dropdown (resta la route `/vini/ipratico`, da raggiungere via Impostazioni Vini).
+- **Ricette**: "Strumenti" rinominato → "Impostazioni".
+- **Clienti**: rimosso "Import" dal dropdown (resta la route `/clienti/import`), aggiunto "Impostazioni".
+- **Dipendenti**: aggiunti "Costi" e "Impostazioni" nel dropdown.
+- Commento in testa aggiornato: il campo `check` è cosmetico/legacy, i permessi reali passano da `modules.json` via `useModuleAccess`.
+
+### Procedura post-push per Marco
+
+1. `./push.sh "testo"` — auto-sync modules.json (seed) al VPS.
+2. Sul frontend, loggato come admin: aprire la console DevTools e chiamare:
+   ```js
+   fetch(API_BASE + "/settings/modules/reset-to-seed", {method:"POST", headers:{Authorization:"Bearer "+localStorage.getItem("token")}}).then(r=>r.json()).then(console.log)
+   ```
+   (O attendiamo un bottone in Impostazioni → Moduli & Permessi — TODO future).
+3. Ctrl+Shift+R per invalidare la cache di `useModuleAccess` lato FE.
+
+### Versioni
+- Modulo `auth`: v2.0 → **v2.1**.
+- Modulo `sistema`: v5.6 → **v5.7** (endpoint reset-to-seed).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Dipendenti — Cleanup titoli viste Turni
 
 Marco: _"in vista settimanale togli il back verso dipendenti, tanto ora c'e' il menu sopra e anche Foglio Settimana con loghetto e' inutile; in vista mensile il back e' gia' tolto, togli solo Vista Mensile; cosi come in vista dipendente togli Vista Dipendente piu' loghetto"_.

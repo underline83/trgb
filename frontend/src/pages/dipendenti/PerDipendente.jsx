@@ -274,7 +274,7 @@ export default function PerDipendente() {
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
                 title="Periodo successivo">▶</button>
               <button onClick={vaiOggi}
-                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm text-neutral-700"
                 title="Vai a oggi">Oggi</button>
             </div>
 
@@ -322,27 +322,27 @@ export default function PerDipendente() {
           </div>
         </div>
 
-        {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-3 flex-wrap print:hidden">
-          {reparti.map(r => {
-            const active = r.id === repartoId;
-            return (
-              <button key={r.id} onClick={() => setRepartoId(r.id)}
-                style={{
-                  borderColor: active ? r.colore : "transparent",
-                  backgroundColor: active ? r.colore : "white",
-                  color: active ? "white" : "#111",
-                }}
-                className="min-h-[44px] px-4 rounded-lg border-2 font-semibold transition hover:opacity-90">
-                {r.icona} {r.nome}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* SELETTORE DIPENDENTE — dropdown con pallino colore */}
+        {/* SELETTORE REPARTO + DIPENDENTE (sess. 39: tabs reparti sostituite da
+            dropdown compatto, allineato a dipendente) */}
         <div className="mb-4 print:hidden">
           <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-sm text-neutral-500">Reparto:</label>
+            <select
+              value={repartoId || ""}
+              onChange={(e) => setRepartoId(Number(e.target.value))}
+              style={{
+                borderColor: reparto?.colore || "#d4d4d4",
+                color: reparto?.colore || "#111",
+              }}
+              className="min-h-[44px] px-3 bg-white border-2 rounded-lg text-sm font-semibold hover:bg-neutral-50"
+              title="Seleziona reparto">
+              {reparti.map(r => (
+                <option key={r.id} value={r.id}>{r.icona} {r.nome}</option>
+              ))}
+            </select>
+
+            <span className="w-px h-6 bg-neutral-200 mx-1" aria-hidden="true"></span>
+
             <label className="text-sm text-neutral-500">Dipendente:</label>
             {dipendenti.length === 0 ? (
               <span className="text-sm text-neutral-400">Nessun dipendente attivo in questo reparto</span>

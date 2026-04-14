@@ -2,6 +2,42 @@
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
 >
+> **Sessione 39 — Dipendenti Turni — Oggi uniforme + selettore reparto nella griglia:**
+> - Marco: _"il tasto 'oggi' non ha lo sfondo sembra appoggiato a caso. Il tasto dei reparti incastralo nella tabella"_.
+> - ✅ **Oggi uniformato** nelle 3 viste (Settimana/Mese/Dipendente): `bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 min-h-[44px]`.
+> - ✅ **Tab reparti → dropdown dentro la griglia**:
+>   - FoglioSettimana: dropdown nella cella top-left della tabella (rowSpan=2), prima colonna 80→140px. Fallback mobile sopra `VistaGiornoMobile`.
+>   - VistaMensile: nuova riga thead colSpan=7 sopra i giorni.
+>   - PerDipendente: inline a sinistra del selettore dipendente con divisore.
+> - Bordo dropdown colorato con `reparto.colore` → identita' visiva coerente.
+> - `versions.jsx`: dipendenti `2.20 → 2.21`.
+>
+> **Sessione 39 — Auth — Matrice ruoli per modulo + endpoint reset-to-seed:**
+> - ⚠️ **Bug storico noto (B1 rivisitato)**: Marco ha segnalato che **dopo il riavvio del backend i privilegi moduli tornavano a valori hardcoded vecchi**. Causa: `DEFAULT_MODULES` nel router Python non era mai stato allineato al seed, e ogni bootstrap "pulito" (quando `modules.runtime.json` manca) ripristinava lo stato obsoleto.
+> - ✅ **Matrice ruoli definitiva di Marco applicata in 3 livelli** (anti-regressione):
+>   1. Seed `app/data/modules.json` — tracciato in git, bootstrap al primo boot.
+>   2. `DEFAULT_MODULES` hardcoded in `app/routers/modules_router.py` — allineato 1:1 col seed, fallback ultima istanza.
+>   3. **Nuovo endpoint `POST /settings/modules/reset-to-seed`** (admin-only) — riscrive `modules.runtime.json` copiando il seed. Se il runtime diverge di nuovo, basta una chiamata (no SSH, no cancellazione manuale).
+> - ✅ **Matrice applicata**: Vini admin+sommelier+sala (iPratico admin), Acquisti admin+contabile, Ricette admin+chef (+sala/sommelier per macellaio), Vendite admin+sala+sommelier+contabile, Flussi Cassa admin+contabile (mance a tutti), Controllo Gestione admin+contabile, Statistiche solo admin, Dipendenti admin (+tutti per Turni), Prenotazioni admin+sala+sommelier, Clienti admin+sala+sommelier+contabile, Impostazioni globali solo admin.
+> - ✅ **`modulesMenu.js` riorganizzato** (dropdown header + Home):
+>   - Vini: rimosso iPratico Sync (resta route `/vini/ipratico`).
+>   - Ricette: "Strumenti" → "Impostazioni".
+>   - Clienti: rimosso "Import" (resta route), aggiunto "Impostazioni".
+>   - Dipendenti: aggiunti "Costi" e "Impostazioni".
+>   - Campo `check` marcato cosmetico/legacy nel commento in testa (la source of truth è modules.json via useModuleAccess).
+> - ✅ **Versions**: auth v2.0 → **v2.1**, sistema v5.6 → **v5.7**.
+> - **TODO follow-up**:
+>   - Aggiungere bottone "Ripristina ruoli di default" in Impostazioni → Moduli & Permessi (wrapper del nuovo endpoint).
+>   - Spostare fisicamente iPratico Sync e Import Clienti DENTRO le rispettive pagine Impostazioni come voci di sidebar (per ora le route esistono ma sono fuori dal dropdown).
+>
+> **Procedura applicazione sul VPS dopo push.sh:**
+> 1. `./push.sh "testo"` — sincronizza seed modules.json via -m auto-detect.
+> 2. Loggato come admin, dalla console DevTools:
+>    ```js
+>    fetch(API_BASE + "/settings/modules/reset-to-seed", {method:"POST", headers:{Authorization:"Bearer "+localStorage.getItem("token")}}).then(r=>r.json()).then(console.log)
+>    ```
+> 3. Ctrl+Shift+R per invalidare cache FE.
+>
 > **Sessione 39 — Dipendenti — Cleanup titoli viste Turni:**
 > - ✅ **FoglioSettimana.jsx**: rimosso "← Dipendenti" e titolo "📅 Foglio Settimana". Motivazione Marco: _"tanto ora c'e' il menu sopra, e Foglio Settimana con loghetto e' inutile"_.
 > - ✅ **VistaMensile.jsx**: rimosso titolo "🗓 Vista Mensile" (back gia' assente). Intestazione PRINT-ONLY intatta.

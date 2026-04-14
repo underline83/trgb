@@ -1,5 +1,7 @@
 // Configurazione moduli + sotto-menu — usata da Home e Header (dropdown navigazione)
 // Ogni key corrisponde alla key in modules.json
+// NOTA: il controllo accessi reale passa da modules.json (useModuleAccess hook).
+// Il campo `check` qui è cosmetico/legacy — mantenuto per documentazione.
 // sub: sotto-pagine visibili nel dropdown header. check: null=tutti, "admin", "superadmin"
 
 const MODULES_MENU = {
@@ -11,7 +13,6 @@ const MODULES_MENU = {
       { label: "Vendite",        go: "/vini/vendite" },
       { label: "Cantina",        go: "/vini/magazzino" },
       { label: "Dashboard",      go: "/vini/dashboard" },
-      { label: "iPratico Sync",  go: "/vini/ipratico",  check: "admin" },
       { label: "Impostazioni",   go: "/vini/settings",  check: "admin" },
     ],
   },
@@ -44,8 +45,8 @@ const MODULES_MENU = {
       { label: "Ingredienti",           go: "/ricette/ingredienti" },
       { label: "Scelta del Macellaio",  go: "/macellaio" },
       { label: "Matching",              go: "/ricette/matching",   check: "admin" },
-      { label: "Dashboard",             go: "/ricette/dashboard",  check: "admin" },
-      { label: "Strumenti",             go: "/ricette/settings",   check: "admin" },
+      { label: "Dashboard",             go: "/ricette/dashboard" },
+      { label: "Impostazioni",          go: "/ricette/settings",   check: "admin" },
     ],
   },
   "flussi-cassa": {
@@ -99,17 +100,19 @@ const MODULES_MENU = {
       { label: "Prenotazioni",  go: "/clienti/prenotazioni" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
       { label: "Dashboard",     go: "/clienti/dashboard" },
-      { label: "Import",        go: "/clienti/import", check: "admin" },
+      { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },
     ],
   },
   dipendenti: {
     title: "Dipendenti", icon: "\uD83D\uDC65", go: "/dipendenti",
     color: "bg-purple-50 border-purple-200 text-purple-900", hoverBg: "hover:bg-purple-50",
     sub: [
-      { label: "Anagrafica",    go: "/dipendenti/anagrafica" },
-      { label: "Buste Paga",    go: "/dipendenti/buste-paga", check: "admin" },
+      { label: "Anagrafica",    go: "/dipendenti/anagrafica",    check: "admin" },
+      { label: "Buste Paga",    go: "/dipendenti/buste-paga",    check: "admin" },
       { label: "Turni",         go: "/dipendenti/turni" },
-      { label: "Scadenze",      go: "/dipendenti/scadenze" },
+      { label: "Scadenze",      go: "/dipendenti/scadenze",      check: "admin" },
+      { label: "Costi",         go: "/dipendenti/costi",         check: "admin" },
+      { label: "Impostazioni",  go: "/dipendenti/impostazioni",  check: "admin" },
     ],
   },
   impostazioni: {

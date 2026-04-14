@@ -221,7 +221,7 @@ export default function VistaMensile() {
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
                 title="Mese successivo">▶</button>
               <button onClick={vaiOggi}
-                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm text-neutral-700"
                 title="Vai a oggi">Oggi</button>
             </div>
 
@@ -260,23 +260,8 @@ export default function VistaMensile() {
           </div>
         </div>
 
-        {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-4 flex-wrap print:hidden">
-          {reparti.map(r => {
-            const active = r.id === repartoId;
-            return (
-              <button key={r.id} onClick={() => { setRepartoId(r.id); setSelectedDate(null); }}
-                style={{
-                  borderColor: active ? r.colore : "transparent",
-                  backgroundColor: active ? r.colore : "white",
-                  color: active ? "white" : "#111",
-                }}
-                className="min-h-[44px] px-4 rounded-lg border-2 font-semibold transition hover:opacity-90">
-                {r.icona} {r.nome}
-              </button>
-            );
-          })}
-        </div>
+        {/* Selettore reparto: ora incastrato nell'intestazione della griglia mensile
+            (sess. 39). Vedi GrigliaMensile props sotto. */}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
@@ -297,6 +282,9 @@ export default function VistaMensile() {
                 mese={mese}
                 selectedDate={selectedDate}
                 onDateClick={setSelectedDate}
+                reparti={reparti}
+                repartoId={repartoId}
+                onRepartoChange={(id) => { setRepartoId(id); setSelectedDate(null); }}
               />
             </div>
 
@@ -321,13 +309,41 @@ export default function VistaMensile() {
 
 
 // ---- GRIGLIA MENSILE ------------------------------------------------------
-function GrigliaMensile({ vista, turniByDate, chiusi, mese, selectedDate, onDateClick }) {
+function GrigliaMensile({
+  vista, turniByDate, chiusi, mese, selectedDate, onDateClick,
+  reparti = [], repartoId = null, onRepartoChange = null,
+}) {
   const today = oggiIso();
   const giorni = vista.giorni;  // 42 date ISO
+  const repartoAttivo = reparti.find(r => r.id === repartoId) || null;
 
   return (
     <table className="w-full border-collapse text-sm" style={{ tableLayout: "fixed" }}>
       <thead>
+        {/* Riga selettore reparto (sess. 39): incastrata sopra i giorni della settimana */}
+        {onRepartoChange && reparti.length > 0 && (
+          <tr className="bg-neutral-50 print:hidden">
+            <th colSpan={7} className="px-3 py-2 border-b">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium">Reparto</span>
+                <select
+                  value={repartoId || ""}
+                  onChange={(e) => onRepartoChange(Number(e.target.value))}
+                  style={{
+                    borderColor: repartoAttivo?.colore || "#d4d4d4",
+                    color: repartoAttivo?.colore || "#111",
+                  }}
+                  className="min-h-[36px] px-2.5 py-1 bg-white border-2 rounded-md text-sm font-semibold hover:bg-neutral-50 focus:outline-none"
+                  title="Seleziona reparto"
+                >
+                  {reparti.map(r => (
+                    <option key={r.id} value={r.id}>{r.icona} {r.nome}</option>
+                  ))}
+                </select>
+              </div>
+            </th>
+          </tr>
+        )}
         <tr className="bg-neutral-50">
           {GIORNI_SETT_LUN.map((g, idx) => (
             <th key={g} className={`px-2 py-2 border-b text-[11px] font-semibold uppercase tracking-wide

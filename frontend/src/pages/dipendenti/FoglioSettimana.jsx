@@ -452,7 +452,7 @@ export default function FoglioSettimana() {
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
                 title="Settimana successiva">▶</button>
               <button onClick={() => setSettimana(isoWeek(new Date()))}
-                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm text-neutral-700"
                 title="Vai a oggi">Oggi</button>
             </div>
 
@@ -555,23 +555,8 @@ export default function FoglioSettimana() {
           </div>
         </div>
 
-        {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {reparti.map(r => {
-            const active = r.id === repartoId;
-            return (
-              <button key={r.id} onClick={() => setRepartoId(r.id)}
-                style={{
-                  borderColor: active ? r.colore : "transparent",
-                  backgroundColor: active ? r.colore : "white",
-                  color: active ? "white" : "#111",
-                }}
-                className="min-h-[44px] px-4 rounded-lg border-2 font-semibold transition hover:opacity-90">
-                {r.icona} {r.nome}
-              </button>
-            );
-          })}
-        </div>
+        {/* Selettore reparto: ora incastrato nella cella in alto a sinistra
+            del FoglioGrid (sessione 39). Vedi FoglioGrid props sotto. */}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded">
@@ -580,6 +565,27 @@ export default function FoglioSettimana() {
         )}
 
         {loading && <div className="text-center py-10 text-neutral-500">Caricamento…</div>}
+
+        {/* Reparto selector fallback per la vista mobile (su desktop il selettore
+            e' dentro la cella in alto a sinistra di FoglioGrid). */}
+        {!loading && foglio && isNarrow && reparti.length > 0 && (
+          <div className="mb-3">
+            <select
+              value={repartoId || ""}
+              onChange={(e) => setRepartoId(Number(e.target.value))}
+              style={{
+                borderColor: reparto?.colore || "#d4d4d4",
+                color: reparto?.colore || "#111",
+              }}
+              className="min-h-[44px] w-full px-3 bg-white border-2 rounded-lg text-sm font-semibold"
+              title="Seleziona reparto"
+            >
+              {reparti.map(r => (
+                <option key={r.id} value={r.id}>{r.icona} {r.nome}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {!loading && foglio && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
@@ -600,6 +606,7 @@ export default function FoglioSettimana() {
                   foglio={foglio} matrice={matrice} chiusi={chiusi}
                   nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
                   onCellClick={apriCella}
+                  reparti={reparti} repartoId={repartoId} onRepartoChange={setRepartoId}
                 />
               </div>
             )}
@@ -675,32 +682,64 @@ export default function FoglioSettimana() {
 
 
 // ---- FOGLIO GRID ----------------------------------------------------------
-function FoglioGrid({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, onCellClick }) {
+function FoglioGrid({
+  foglio, matrice, chiusi, nSlotPranzo, nSlotCena, onCellClick,
+  reparti = [], repartoId = null, onRepartoChange = null,
+}) {
   const giorni = foglio.giorni;
 
   // Larghezza colonna slot (px). Stretta: il pill colorato riempie meglio.
   const SLOT_W = 92;
-  const totalMin = 80 + (nSlotPranzo + nSlotCena) * SLOT_W;
+  // Prima colonna piu' larga per ospitare il selettore reparto nella casella
+  // in alto a sinistra (sess. 39, "incastralo tra Giorno e Lunedi'").
+  const FIRST_W = 140;
+  const totalMin = FIRST_W + (nSlotPranzo + nSlotCena) * SLOT_W;
+  const repartoAttivo = reparti.find(r => r.id === repartoId) || null;
 
   return (
     <div style={{ minWidth: totalMin }}>
       <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed" }}>
         <colgroup>
-          <col style={{ width: 80 }} />
+          <col style={{ width: FIRST_W }} />
           {Array.from({length: nSlotPranzo + nSlotCena}).map((_, i) =>
             <col key={`cw${i}`} style={{ width: SLOT_W }} />
           )}
         </colgroup>
         <thead>
           <tr className="bg-neutral-50">
-            <th className="px-2 py-1 border-b border-r text-left sticky left-0 bg-neutral-50">Giorno</th>
+            {/* Top-left: Giorno */}
+            <th className="px-2 py-1 border-b border-r text-left sticky left-0 bg-neutral-50"
+                rowSpan={2}>
+              <div className="text-[10px] text-neutral-500 font-medium uppercase leading-tight">Reparto</div>
+              {onRepartoChange ? (
+                <select
+                  value={repartoId || ""}
+                  onChange={(e) => onRepartoChange(Number(e.target.value))}
+                  style={{
+                    borderColor: repartoAttivo?.colore || "#d4d4d4",
+                    color: repartoAttivo?.colore || "#111",
+                  }}
+                  className="mt-1 w-full px-1.5 py-1 bg-white border-2 rounded-md text-xs font-semibold hover:bg-neutral-50 focus:outline-none"
+                  title="Seleziona reparto"
+                >
+                  {reparti.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.icona} {r.nome}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="mt-1 text-xs font-semibold text-neutral-900">
+                  {repartoAttivo ? `${repartoAttivo.icona || ""} ${repartoAttivo.nome}` : "—"}
+                </div>
+              )}
+            </th>
             <th className="px-1 py-1 border-b border-r text-center text-[11px] font-semibold text-amber-700 bg-amber-50"
                 colSpan={nSlotPranzo}>☀️ PRANZO</th>
             <th className="px-1 py-1 border-b text-center text-[11px] font-semibold text-indigo-700 bg-indigo-50"
                 colSpan={nSlotCena}>🌙 CENA</th>
           </tr>
           <tr className="bg-neutral-50 text-[11px] text-neutral-500">
-            <th className="px-1 py-1 border-b border-r sticky left-0 bg-neutral-50"></th>
             {Array.from({length: nSlotPranzo}).map((_, i) =>
               <th key={`p${i}`} className="px-1 py-1 border-b border-r text-center">P{i+1}</th>
             )}

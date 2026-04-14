@@ -4,12 +4,12 @@
     "label": "Gestione Vini",
     "description": "Carta vini, magazzino, vendite, impostazioni",
     "icon": "🍷",
-    "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"],
+    "roles": ["superadmin", "admin", "sommelier", "sala"],
     "sub": [
-      { "key": "carta",     "label": "Carta dei Vini", "roles": ["superadmin", "admin", "sommelier", "sala", "viewer"] },
+      { "key": "carta",     "label": "Carta dei Vini", "roles": ["superadmin", "admin", "sommelier", "sala"] },
       { "key": "vendite",   "label": "Vendite",        "roles": ["superadmin", "admin", "sommelier", "sala"] },
-      { "key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier"] },
-      { "key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "viewer"] },
+      { "key": "magazzino", "label": "Cantina",        "roles": ["superadmin", "admin", "sommelier", "sala"] },
+      { "key": "dashboard", "label": "Dashboard",      "roles": ["superadmin", "admin", "sommelier", "sala"] },
       { "key": "ipratico",  "label": "iPratico Sync",  "roles": ["superadmin", "admin"] },
       { "key": "settings",  "label": "Impostazioni",   "roles": ["superadmin", "admin"] }
     ]
@@ -19,11 +19,11 @@
     "label": "Gestione Acquisti",
     "description": "Fatture XML, fornitori, dashboard acquisti, categorie",
     "icon": "📦",
-    "roles": ["superadmin", "admin", "viewer"],
+    "roles": ["superadmin", "admin", "contabile"],
     "sub": [
-      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "viewer"] },
-      { "key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "viewer"] },
-      { "key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "fatture",      "label": "Fatture",      "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "fornitori",    "label": "Fornitori",    "roles": ["superadmin", "admin", "contabile"] },
       { "key": "proforme",     "label": "Pro-forme",    "roles": ["superadmin", "admin"] },
       { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
@@ -33,14 +33,14 @@
     "label": "Gestione Cucina",
     "description": "Archivio ricette, food cost, scelta del macellaio",
     "icon": "📘",
-    "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"],
+    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
     "sub": [
-      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef", "viewer"] },
+      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef"] },
       { "key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"] },
-      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier", "viewer"] },
+      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] },
       { "key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"] },
-      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef", "viewer"] },
-      { "key": "settings",    "label": "Strumenti",            "roles": ["superadmin", "admin"] }
+      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef"] },
+      { "key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"] }
     ]
   },
   {
@@ -48,12 +48,12 @@
     "label": "Gestione Vendite",
     "description": "Corrispettivi, chiusure cassa, dashboard vendite",
     "icon": "💵",
-    "roles": ["superadmin", "admin", "sala", "viewer"],
+    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"],
     "sub": [
-      { "key": "fine-turno",   "label": "Chiusura Turno", "roles": ["superadmin", "admin", "sala"] },
+      { "key": "fine-turno",   "label": "Chiusura Turno", "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"] },
       { "key": "chiusure",     "label": "Lista Chiusure", "roles": ["superadmin", "admin"] },
-      { "key": "riepilogo",    "label": "Riepilogo",      "roles": ["superadmin", "admin"] },
-      { "key": "dashboard",    "label": "Dashboard",      "roles": ["superadmin", "admin", "viewer"] },
+      { "key": "riepilogo",    "label": "Riepilogo",      "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "dashboard",    "label": "Dashboard",      "roles": ["superadmin", "admin", "contabile"] },
       { "key": "impostazioni", "label": "Impostazioni",   "roles": ["superadmin", "admin"] }
     ]
   },
@@ -62,14 +62,14 @@
     "label": "Flussi di Cassa",
     "description": "Conti correnti, carta di credito, contanti, mance",
     "icon": "🏦",
-    "roles": ["superadmin", "admin", "sala", "viewer"],
+    "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"],
     "sub": [
-      { "key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin"] },
-      { "key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin"] },
-      { "key": "crossref",     "label": "Riconciliazione",  "roles": ["superadmin", "admin"] },
-      { "key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin"] },
+      { "key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "crossref",     "label": "Riconciliazione",  "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin", "contabile"] },
       { "key": "contanti",     "label": "Contanti",         "roles": ["superadmin", "admin"] },
-      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "sala"] },
+      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"] },
       { "key": "impostazioni", "label": "Impostazioni",     "roles": ["superadmin", "admin"] }
     ]
   },
@@ -78,12 +78,12 @@
     "label": "Controllo di Gestione",
     "description": "Panorama finanziario unificato — vendite, acquisti, banca, scadenze, margine",
     "icon": "🎯",
-    "roles": ["superadmin", "admin"],
+    "roles": ["superadmin", "admin", "contabile"],
     "sub": [
-      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin"] },
-      { "key": "uscite",       "label": "Scadenzario",  "roles": ["superadmin", "admin"] },
-      { "key": "confronto",    "label": "Confronto",    "roles": ["superadmin", "admin"] },
-      { "key": "spese-fisse",  "label": "Spese Fisse",  "roles": ["superadmin", "admin"] }
+      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "uscite",       "label": "Scadenzario",  "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "confronto",    "label": "Confronto",    "roles": ["superadmin", "admin", "contabile"] },
+      { "key": "spese-fisse",  "label": "Spese Fisse",  "roles": ["superadmin", "admin", "contabile"] }
     ]
   },
   {
@@ -91,10 +91,10 @@
     "label": "Statistiche",
     "description": "Analisi vendite iPratico, categorie, prodotti, trend",
     "icon": "📈",
-    "roles": ["superadmin", "admin", "viewer"],
+    "roles": ["superadmin", "admin"],
     "sub": [
-      { "key": "dashboard", "label": "Cucina",            "roles": ["superadmin", "admin", "viewer"] },
-      { "key": "coperti",   "label": "Coperti & Incassi", "roles": ["superadmin", "admin", "viewer"] }
+      { "key": "dashboard", "label": "Cucina",            "roles": ["superadmin", "admin"] },
+      { "key": "coperti",   "label": "Coperti & Incassi", "roles": ["superadmin", "admin"] }
     ]
   },
   {
@@ -102,12 +102,14 @@
     "label": "Dipendenti",
     "description": "Personale, buste paga, turni, scadenze documenti, costi",
     "icon": "👥",
-    "roles": ["superadmin", "admin"],
+    "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"],
     "sub": [
-      { "key": "anagrafica",  "label": "Anagrafica",  "roles": ["superadmin", "admin"] },
-      { "key": "buste-paga",  "label": "Buste Paga",  "roles": ["superadmin", "admin"] },
-      { "key": "turni",       "label": "Turni",        "roles": ["superadmin", "admin"] },
-      { "key": "scadenze",    "label": "Scadenze",     "roles": ["superadmin", "admin"] }
+      { "key": "anagrafica",   "label": "Anagrafica",   "roles": ["superadmin", "admin"] },
+      { "key": "buste-paga",   "label": "Buste Paga",   "roles": ["superadmin", "admin"] },
+      { "key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"] },
+      { "key": "scadenze",     "label": "Scadenze",     "roles": ["superadmin", "admin"] },
+      { "key": "costi",        "label": "Costi",        "roles": ["superadmin", "admin"] },
+      { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
   },
   {
@@ -115,11 +117,13 @@
     "label": "Prenotazioni",
     "description": "Planning giornaliero, gestione prenotazioni, tavoli",
     "icon": "📅",
-    "roles": ["superadmin", "admin", "sala"],
+    "roles": ["superadmin", "admin", "sala", "sommelier"],
     "sub": [
-      { "key": "planning",      "label": "Planning",      "roles": ["superadmin", "admin", "sala"] },
-      { "key": "settimana",     "label": "Settimana",     "roles": ["superadmin", "admin", "sala"] },
-      { "key": "impostazioni",  "label": "Impostazioni",  "roles": ["superadmin", "admin"] }
+      { "key": "planning",     "label": "Planning",      "roles": ["superadmin", "admin", "sala", "sommelier"] },
+      { "key": "mappa",        "label": "Mappa Tavoli",  "roles": ["superadmin", "admin", "sala", "sommelier"] },
+      { "key": "settimana",    "label": "Settimana",     "roles": ["superadmin", "admin", "sala", "sommelier"] },
+      { "key": "tavoli",       "label": "Editor Tavoli", "roles": ["superadmin", "admin"] },
+      { "key": "impostazioni", "label": "Impostazioni",  "roles": ["superadmin", "admin"] }
     ]
   },
   {
@@ -127,12 +131,14 @@
     "label": "Gestione Clienti",
     "description": "Anagrafica clienti, CRM, tag, note, import TheFork",
     "icon": "🤝",
-    "roles": ["superadmin", "admin", "sala", "viewer"],
+    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"],
     "sub": [
-      { "key": "lista",       "label": "Anagrafica",  "roles": ["superadmin", "admin", "sala", "viewer"] },
-      { "key": "dashboard",   "label": "Dashboard",   "roles": ["superadmin", "admin", "viewer"] },
-      { "key": "import",      "label": "Import",      "roles": ["superadmin", "admin"] },
-      { "key": "impostazioni","label": "Impostazioni", "roles": ["superadmin", "admin"] }
+      { "key": "lista",        "label": "Anagrafica",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"] },
+      { "key": "prenotazioni", "label": "Prenotazioni", "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"] },
+      { "key": "preventivi",   "label": "Preventivi",   "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"] },
+      { "key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "contabile"] },
+      { "key": "import",       "label": "Import",       "roles": ["superadmin", "admin"] },
+      { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
   },
   {
