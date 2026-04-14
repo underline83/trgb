@@ -170,6 +170,161 @@ def calcola_ore_nette_giorno(
 
 
 # ============================================================
+# CONFLITTI ORARI — Fase 7
+# ============================================================
+def _minuti_start_end(ora_inizio: str, ora_fine: str) -> Optional[Tuple[int, int]]:
+    """Ritorna (start_min, end_min) in minuti dalle 00:00, gestendo mezzanotte.
+
+    - '00:00' come ora_fine viene interpretato come 24:00 (1440).
+    - Se end < start assume attraversamento della mezzanotte → +1440.
+    - Ritorna None se gli orari sono invalidi.
+    """
+    a = _parse_hhmm(ora_inizio)
+    b = _parse_hhmm(ora_fine)
+    if a is None or b is None:
+        return None
+    if b == 0:
+        b = 24 * 60
+    if b < a:
+        b += 24 * 60
+    if b <= a:
+        return None
+    return (a, b)
+
+
+def _overlap_minuti(a_s: int, a_e: int, b_s: int, b_e: int) -> int:
+    """Ritorna i minuti di sovrapposizione tra due intervalli [s,e).
+
+    0 = niente sovrapposizione, >0 = minuti in comune."""
+    lo = max(a_s, b_s)
+    hi = min(a_e, b_e)
+    return max(0, hi - lo)
+
+
+def calcola_conflitti_dipendente_giorno(
+    turni_dipendente_giorno: List[Dict[str, Any]],
+) -> Dict[int, List[Dict[str, Any]]]:
+    """Data una lista di turni dello **stesso dipendente nello stesso giorno**,
+    ritorna un dict { turno_id: [ { other_id, overlap_min, other_ora_inizio,
+    other_ora_fine, other_servizio, other_stato, other_turno_nome } ] }.
+
+    Regole:
+    - Turni con stato ANNULLATO sono ignorati (non generano warning).
+    - Turni OPZIONALE generano warning (è utile vedere un "potenziale doppio
+      turno" da confermare).
+    - Overlap calcolato in minuti; se 0 niente warning.
+    - La mappa contiene solo i turni che HANNO almeno un conflitto.
+    """
+    out: Dict[int, List[Dict[str, Any]]] = {}
+    # Pre-calcolo intervalli validi
+    items: List[Tuple[Dict[str, Any], int, int]] = []
+    for t in turni_dipendente_giorno:
+        stato = (t.get("stato") or "CONFERMATO").upper()
+        if stato == "ANNULLATO":
+            continue
+        rng = _minuti_start_end(t.get("ora_inizio") or "", t.get("ora_fine") or "")
+        if rng is None:
+            continue
+        items.append((t, rng[0], rng[1]))
+
+    n = len(items)
+    for i in range(n):
+        ti, si, ei = items[i]
+        for j in range(i + 1, n):
+            tj, sj, ej = items[j]
+            ov = _overlap_minuti(si, ei, sj, ej)
+            if ov <= 0:
+                continue
+            # Warning per ti rispetto a tj
+            out.setdefault(int(ti["id"]), []).append({
+                "other_id": int(tj["id"]),
+                "overlap_min": ov,
+                "other_ora_inizio": tj.get("ora_inizio"),
+                "other_ora_fine": tj.get("ora_fine"),
+                "other_servizio": (tj.get("servizio") or "").upper(),
+                "other_stato": (tj.get("stato") or "CONFERMATO").upper(),
+                "other_turno_nome": tj.get("turno_nome"),
+            })
+            # Warning simmetrico per tj rispetto a ti
+            out.setdefault(int(tj["id"]), []).append({
+                "other_id": int(ti["id"]),
+                "overlap_min": ov,
+                "other_ora_inizio": ti.get("ora_inizio"),
+                "other_ora_fine": ti.get("ora_fine"),
+                "other_servizio": (ti.get("servizio") or "").upper(),
+                "other_stato": (ti.get("stato") or "CONFERMATO").upper(),
+                "other_turno_nome": ti.get("turno_nome"),
+            })
+    return out
+
+
+def calcola_conflitti_su_turni(
+    turni: List[Dict[str, Any]],
+) -> Dict[int, List[Dict[str, Any]]]:
+    """Versione batch: raggruppa per (dipendente_id, data) e chiama il calcolo
+    sui gruppi con ≥2 turni. Input arbitrario (tipicamente settimana/mese).
+
+    Ritorna `{turno_id: [warning, ...]}` solo per turni coinvolti in conflitti.
+    """
+    by_key: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
+    for t in turni:
+        key = (int(t["dipendente_id"]), t["data"])
+        by_key.setdefault(key, []).append(t)
+
+    out: Dict[int, List[Dict[str, Any]]] = {}
+    for key, lst in by_key.items():
+        if len(lst) < 2:
+            continue
+        gruppi = calcola_conflitti_dipendente_giorno(lst)
+        for tid, warns in gruppi.items():
+            out[tid] = warns
+    return out
+
+
+def carica_conflitti_dipendente_giorno(
+    dipendente_id: int, data_iso: str,
+) -> List[Dict[str, Any]]:
+    """Ritorna i warning per i turni del dipendente in quella data,
+    formato per API:
+    [ { turno_id, warnings: [ { other_id, overlap_min, ... } ] }, ... ].
+    """
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT tc.id, tc.data, tc.dipendente_id, tc.turno_tipo_id,
+                      COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+                      COALESCE(tc.ora_fine, tt.ora_fine) AS ora_fine,
+                      tc.stato, tc.slot_index,
+                      COALESCE(tt.servizio,'') AS servizio,
+                      tt.nome AS turno_nome
+               FROM turni_calendario tc
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               WHERE tc.dipendente_id = ? AND tc.data = ?
+               ORDER BY tc.ora_inizio""",
+            (dipendente_id, data_iso),
+        )
+        turni = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    mapping = calcola_conflitti_dipendente_giorno(turni)
+    out: List[Dict[str, Any]] = []
+    for t in turni:
+        tid = int(t["id"])
+        if tid in mapping:
+            out.append({
+                "turno_id": tid,
+                "ora_inizio": t["ora_inizio"],
+                "ora_fine": t["ora_fine"],
+                "servizio": t["servizio"],
+                "stato": t["stato"],
+                "warnings": mapping[tid],
+            })
+    return out
+
+
+# ============================================================
 # FOGLIO SETTIMANA — BUILD MATRICE
 # ============================================================
 def _reparto_row(conn: sqlite3.Connection, reparto_id: int) -> Optional[Dict[str, Any]]:
@@ -272,6 +427,15 @@ def build_foglio_settimana(
             elif (t.get("servizio") or "").upper() == "CENA":
                 if si > max_slot_cena:
                     max_slot_cena = si
+
+        # Arricchisci turni con info conflitti orari (Fase 7)
+        conflitti_map = calcola_conflitti_su_turni(turni)
+        for t in turni:
+            tid = int(t["id"])
+            warns = conflitti_map.get(tid, [])
+            t["has_conflict"] = len(warns) > 0
+            t["conflict_with_ids"] = [w["other_id"] for w in warns]
+            t["conflicts"] = warns  # dettaglio per tooltip FE
 
         return {
             "reparto": rep,

@@ -248,6 +248,7 @@ def assegna_turno(
                       COALESCE(tc.ora_fine, tt.ora_fine) AS ora_fine,
                       tc.stato, tc.note, tc.slot_index, tc.ore_effettive, tc.origine,
                       COALESCE(tt.servizio,'') AS servizio,
+                      tt.nome AS turno_nome,
                       d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
                       d.colore AS dipendente_colore
                FROM turni_calendario tc
@@ -257,7 +258,19 @@ def assegna_turno(
             (new_id,),
         )
         row = cur.fetchone()
-        return JSONResponse(content=dict(row))
+        out = dict(row) if row else {}
+
+        # Fase 7 — warnings di conflitto orario per il dipendente+data
+        conflitti = turni_service.carica_conflitti_dipendente_giorno(
+            dipendente_id=payload.dipendente_id, data_iso=payload.data,
+        )
+        warns_for_this = next(
+            (c["warnings"] for c in conflitti if c["turno_id"] == new_id),
+            [],
+        )
+        out["warnings"] = warns_for_this
+        out["conflitti_giorno"] = conflitti
+        return JSONResponse(content=out)
     finally:
         conn.close()
 
@@ -336,6 +349,7 @@ def modifica_turno(
                       COALESCE(tc.ora_fine, tt.ora_fine) AS ora_fine,
                       tc.stato, tc.note, tc.slot_index, tc.ore_effettive, tc.origine,
                       COALESCE(tt.servizio,'') AS servizio,
+                      tt.nome AS turno_nome,
                       d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
                       d.colore AS dipendente_colore
                FROM turni_calendario tc
@@ -345,7 +359,20 @@ def modifica_turno(
             (turno_id,),
         )
         r = cur.fetchone()
-        return JSONResponse(content=dict(r) if r else {})
+        out = dict(r) if r else {}
+
+        # Fase 7 — warnings conflitto per dipendente+data del turno modificato
+        if out:
+            conflitti = turni_service.carica_conflitti_dipendente_giorno(
+                dipendente_id=int(out["dipendente_id"]), data_iso=out["data"],
+            )
+            warns_for_this = next(
+                (c["warnings"] for c in conflitti if c["turno_id"] == turno_id),
+                [],
+            )
+            out["warnings"] = warns_for_this
+            out["conflitti_giorno"] = conflitti
+        return JSONResponse(content=out)
     finally:
         conn.close()
 
@@ -471,6 +498,32 @@ def get_vista_dipendente(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return JSONResponse(content=vista)
+
+
+# ============================================================
+# GET /turni/conflitti  — Fase 7: warning sovrapposizioni orarie
+# ============================================================
+@router.get("/conflitti")
+def get_conflitti(
+    dipendente_id: int = Query(..., ge=1),
+    data: str = Query(..., description="YYYY-MM-DD"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Ritorna i warning di sovrapposizione orario per il dipendente in un giorno.
+
+    Utile al FE per controllare preventivamente (anteprima dialog "assegna")
+    se l'aggiunta di un turno genererà conflitti.
+
+    Response:
+      [ { turno_id, ora_inizio, ora_fine, servizio, stato,
+          warnings: [{ other_id, overlap_min, other_ora_inizio,
+                       other_ora_fine, other_servizio, other_stato,
+                       other_turno_nome }] } ]
+    """
+    _valida_data(data)
+    return JSONResponse(content=turni_service.carica_conflitti_dipendente_giorno(
+        dipendente_id=dipendente_id, data_iso=data,
+    ))
 
 
 # ============================================================

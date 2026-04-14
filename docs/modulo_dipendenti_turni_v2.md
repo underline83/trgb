@@ -388,17 +388,29 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 6: vista per dipendente - timeline 4/8/12 settimane con totali + deep-link"`
 
-### Fase 7 — Controllo conflitti
+### Fase 7 — Controllo conflitti ✅ COMPLETATA (sessione 38)
 *Obiettivo:* avvisare (non bloccare) su sovrapposizioni orarie.
 *Dimensione:* piccola.
 *Rischio:* basso.
 
-- Backend su POST/PUT: calcola overlap tra turni stesso dipendente stessa data
-- Risposta include `warnings: []` (non errore HTTP)
-- FE mostra icona ⚠️ sul turno in conflitto, tooltip con dettaglio
-- Modal in creazione se conflitto: "Attenzione, sovrapposizione con [turno]. Salvo lo stesso?"
+**Backend — `turni_service.py` + `turni_router.py`:**
+- Helper `_minuti_start_end(ora_inizio, ora_fine)` → converte HH:MM in (start_min, end_min) con gestione midnight crossing (00:00 fine = 1440; end<start → +1440)
+- Helper `_overlap_minuti(a_s, a_e, b_s, b_e)` → minuti di sovrapposizione, 0 se nessuna
+- `calcola_conflitti_dipendente_giorno(turni)` → pairwise symmetric: per ogni coppia di turni dello stesso dipendente stesso giorno, se overlap>0 genera warning per entrambi. Ignora ANNULLATO (OPZIONALE invece genera warning). Output: `{turno_id: [{other_id, overlap_min, other_ora_inizio, other_ora_fine, other_servizio, other_stato, other_turno_nome}]}`
+- `calcola_conflitti_su_turni(turni)` → versione batch: raggruppa per `(dipendente_id, data)` e applica helper
+- `carica_conflitti_dipendente_giorno(dipendente_id, data_iso)` → DB-loading: carica tutti i turni del dipendente quel giorno e ritorna la lista arricchita per il nuovo endpoint
+- `build_foglio_settimana` arricchito: ogni turno ha `has_conflict: bool`, `conflict_with_ids: int[]`, `conflicts: []` (payload completo per tooltip)
+- POST `/foglio/assegna` e PUT `/foglio/{turno_id}`: risposta include `warnings` (warnings del turno appena creato/modificato) e `conflitti_giorno` (situazione completa del giorno). Nessun errore HTTP, il turno si salva comunque
+- Nuovo endpoint `GET /turni/conflitti?dipendente_id=X&data=YYYY-MM-DD` (JWT) per controllo preventivo
 
-**Commit:** `./push.sh "turni v2 fase 7: warning conflitti orari"`
+**Frontend — `FoglioSettimana.jsx`:**
+- `SlotCell` legge `turno.has_conflict` → aggiunge ring `ring-2 ring-amber-400 ring-inset` sulla cella
+- Badge ⚠ circolare amber in `absolute -top-1 -left-1` (chip 16×16 text-[10px] font-bold)
+- Tooltip (title attribute) costruito multi-line: "Sovrapposizione con:\n• CENA Nome 19:00-23:00 (1h 30m in comune)"
+- Dopo save (create o update): se `response.warnings.length > 0` mostra **toast amber** in alto a destra con titolo "⚠️ Sovrapposizione oraria" + lista sovrapposizioni, auto-dismiss 7s, bottone × per chiudere
+- Stato locale `toast: {titolo, messaggio}` + `useEffect` con setTimeout
+
+**Commit:** `./push.sh "turni v2 fase 7: warning conflitti orari (badge ⚠ + toast conferma)"`
 
 ### Fase 8 — Stampa / Export ✅ COMPLETATA (sessione 38)
 *Obiettivo:* PDF server-side della settimana + vista immagine da girare allo staff su WhatsApp.

@@ -129,6 +129,14 @@ export default function FoglioSettimana() {
   const [imageMode, setImageMode] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
+  // Fase 7: toast warning conflitti
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 7000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   // Fase 9 — Mobile: sotto 900px usiamo "vista giorno", indice 0..6 (Lun..Dom)
   const isNarrow = useIsNarrow(899);
   const [giornoIdx, setGiornoIdx] = useState(() => {
@@ -283,10 +291,11 @@ export default function FoglioSettimana() {
 
   async function onSubmitPopover(form) {
     try {
+      let resp = null;
       if (popover.turno && form.action === "delete") {
         await cancellaTurno(popover.turno.id);
       } else if (popover.turno) {
-        await aggiornaTurno(popover.turno.id, {
+        resp = await aggiornaTurno(popover.turno.id, {
           dipendente_id: form.dipendente_id,
           ora_inizio: form.ora_inizio,
           ora_fine: form.ora_fine,
@@ -294,7 +303,7 @@ export default function FoglioSettimana() {
           note: form.note,
         });
       } else {
-        await assegnaTurno({
+        resp = await assegnaTurno({
           dipendente_id: form.dipendente_id,
           data: popover.data,
           servizio: popover.servizio,
@@ -306,6 +315,24 @@ export default function FoglioSettimana() {
         });
       }
       chiudiPopover();
+      // Fase 7: warning conflitti sovrapposizione
+      if (resp && Array.isArray(resp.warnings) && resp.warnings.length > 0) {
+        const righe = resp.warnings.map((w) => {
+          const oi = (w.other_ora_inizio || "").slice(0, 5);
+          const of = (w.other_ora_fine || "").slice(0, 5);
+          const serv = w.other_servizio || "";
+          const nome = w.other_turno_nome ? ` ${w.other_turno_nome}` : "";
+          const hhmm = w.overlap_min != null
+            ? ` (${Math.floor(w.overlap_min / 60)}h ${String(w.overlap_min % 60).padStart(2, "0")}m in comune)`
+            : "";
+          return `• ${serv}${nome} ${oi}-${of}${hhmm}`;
+        }).join("\n");
+        setToast({
+          tipo: "warning",
+          titolo: "⚠️ Sovrapposizione oraria",
+          messaggio: `Il turno è stato salvato, ma si sovrappone con:\n${righe}\n\nPuoi modificarlo se preferisci.`,
+        });
+      }
       caricaFoglio();
     } catch (e) {
       alert(e.message);
@@ -335,6 +362,25 @@ export default function FoglioSettimana() {
   // ---- RENDER --------------------------------------------------------------
   return (
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
+      {/* Fase 7: Toast warning conflitti */}
+      {toast && (
+        <div
+          className="fixed top-4 right-4 z-[70] max-w-sm bg-amber-50 border-2 border-amber-400 rounded-lg shadow-lg p-3 animate-fadeIn"
+          role="alert"
+        >
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <div className="font-bold text-amber-800 text-sm mb-1">{toast.titolo}</div>
+              <div className="text-xs text-amber-900 whitespace-pre-line">{toast.messaggio}</div>
+            </div>
+            <button
+              onClick={() => setToast(null)}
+              className="text-amber-700 hover:text-amber-900 font-bold text-lg leading-none"
+              title="Chiudi"
+            >×</button>
+          </div>
+        </div>
+      )}
       <div className="max-w-[1600px] mx-auto">
         {/* HEADER */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -550,6 +596,7 @@ function SlotCell({ turno, onClick, disabled }) {
   const stato = (turno.stato || "").toUpperCase();
   const opzionale = stato === "OPZIONALE";
   const annullato = stato === "ANNULLATO";
+  const hasConflict = !!turno.has_conflict;
 
   const bg = turno.dipendente_colore || "#d1d5db";
   const tone = textOn(bg);
@@ -559,13 +606,32 @@ function SlotCell({ turno, onClick, disabled }) {
   const iniCog = (turno.dipendente_cognome || "").trim().charAt(0);
   const label = `${primoNome}${iniCog ? ` ${iniCog}.` : ""}`;
 
+  // Tooltip dettaglio conflitto: elenca altri turni sovrapposti
+  const conflictTitle = hasConflict && Array.isArray(turno.conflicts) && turno.conflicts.length > 0
+    ? "Sovrapposizione con:\n" + turno.conflicts.map(w => {
+        const oi = (w.other_ora_inizio || "").slice(0, 5);
+        const of = (w.other_ora_fine || "").slice(0, 5);
+        const serv = w.other_servizio || "";
+        const hhmm = w.overlap_min != null
+          ? ` — ${Math.floor(w.overlap_min / 60)}h ${w.overlap_min % 60}m in comune`
+          : "";
+        return `• ${serv} ${oi}-${of}${hhmm}`;
+      }).join("\n")
+    : undefined;
+
   return (
-    <td className="border-b border-r p-1 cursor-pointer hover:ring-2 hover:ring-blue-300"
+    <td className={`border-b border-r p-1 cursor-pointer hover:ring-2 hover:ring-blue-300 ${hasConflict ? "ring-2 ring-amber-400 ring-inset" : ""}`}
         onClick={onClick}>
       <div className="rounded px-1.5 py-1 leading-tight relative"
            style={{ backgroundColor: bg, color: tone, opacity: annullato ? 0.4 : 1 }}>
         {opzionale && (
           <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow" title="Turno opzionale">★</span>
+        )}
+        {hasConflict && (
+          <span className="absolute -top-1 -left-1 text-sm leading-none drop-shadow bg-amber-400 text-black rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold"
+                title={conflictTitle}>
+            ⚠
+          </span>
         )}
         <div className="font-semibold truncate text-[12px]">
           {label}

@@ -24,6 +24,42 @@ Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 7 — Warning conflitti orari (badge ⚠ + toast)
+
+Controllo sovrapposizioni orarie sullo stesso dipendente nello stesso giorno: non blocca mai il salvataggio (come da spec), ma evidenzia visivamente i turni in conflitto e avvisa subito dopo il save. Il backend calcola gli overlap e li passa al frontend in due forme: dentro ogni turno di `build_foglio_settimana` (per il badge persistente nella griglia) e dentro la risposta di POST `/foglio/assegna` e PUT `/foglio/{id}` (per il toast post-save).
+
+### Backend — `turni_service.py`
+- Helper `_minuti_start_end(ora_inizio, ora_fine)`: parse HH:MM → `(start_min, end_min)` con gestione midnight crossing (end=00:00 → 1440; end<start → +1440).
+- Helper `_overlap_minuti(a_s, a_e, b_s, b_e)`: minuti di sovrapposizione, 0 se nessuna.
+- `calcola_conflitti_dipendente_giorno(turni)`: pairwise symmetric. Per ogni coppia di turni dello stesso dipendente stesso giorno con overlap>0, genera un warning per entrambi con payload completo (`other_id, overlap_min, other_ora_inizio, other_ora_fine, other_servizio, other_stato, other_turno_nome`). Ignora stato `ANNULLATO`, ma considera `OPZIONALE`.
+- `calcola_conflitti_su_turni(turni)`: batch che raggruppa per `(dipendente_id, data)` e applica l'helper sopra.
+- `carica_conflitti_dipendente_giorno(dipendente_id, data_iso)`: carica da DB tutti i turni del giorno e ritorna la lista arricchita per l'endpoint preventivo.
+- `build_foglio_settimana`: ogni turno esce già con `has_conflict: bool`, `conflict_with_ids: int[]`, `conflicts: []` (payload completo pronto per il tooltip).
+
+### Backend — `turni_router.py`
+- `POST /foglio/assegna`: risposta include ora `warnings` (array per il turno appena creato) + `conflitti_giorno` (situazione completa del giorno). Nessun HTTP error: il turno si salva sempre.
+- `PUT /foglio/{turno_id}`: stesso pattern di POST.
+- Nuovo `GET /turni/conflitti?dipendente_id=X&data=YYYY-MM-DD` (JWT): controllo preventivo standalone.
+
+### Frontend — `FoglioSettimana.jsx`
+- `SlotCell` legge `turno.has_conflict`: `ring-2 ring-amber-400 ring-inset` sulla cella in conflitto + badge ⚠ circolare amber 16×16 in `absolute -top-1 -left-1` (chip `bg-amber-400 text-black text-[10px] font-bold`). Tooltip (title) multi-line con dettaglio: `"Sovrapposizione con:\n• CENA Nome 19:00-23:00 (1h 30m in comune)"`.
+- Dopo `assegnaTurno`/`aggiornaTurno`, se `response.warnings.length > 0`: toast amber in alto a destra (`fixed top-4 right-4 z-[70]`, `bg-amber-50 border-2 border-amber-400`) con titolo "⚠️ Sovrapposizione oraria" + lista sovrapposizioni formattata. Auto-dismiss dopo 7s (`useEffect` + `setTimeout`) + bottone × per chiudere.
+
+### Versioni
+- Modulo Dipendenti: v2.10 → **v2.11**.
+
+### Design — perché "warning" e non "blocco"?
+Come da spec originale Fase 7: la sovrapposizione può essere **intenzionale** (es. stesso dipendente su 2 servizi contigui con 15 min di buffer, o turni spezzati). Bloccare costringe a cancellare + ricreare. Il pattern scelto — salva-sempre + evidenzia — è ergonomico: Marco vede subito se ha fatto un errore e può correggere, ma non perde il flusso.
+
+### Files toccati
+- `app/services/turni_service.py` (helpers overlap + enrichment build_foglio_settimana)
+- `app/routers/turni_router.py` (warnings su POST/PUT, nuovo GET /conflitti)
+- `frontend/src/pages/dipendenti/FoglioSettimana.jsx` (badge + toast)
+- `frontend/src/config/versions.jsx` (2.10 → 2.11)
+- `docs/modulo_dipendenti_turni_v2.md` (Fase 7 ✅ COMPLETATA)
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 6 — Vista per dipendente (timeline 4/8/12 settimane)
 
 Terza vista del modulo Turni v2: **timeline di un singolo dipendente** su N settimane consecutive, per rispondere a colpo d'occhio alla domanda "quando lavoro il prossimo mese?". Raggiungibile dal pulsante **👤 Per dipendente** nell'header del Foglio Settimana o dalla URL diretta `/dipendenti/turni/dipendente`. Selezione tab reparto → pill dipendenti del reparto → timeline; navigator `←/Oggi/→` scorre di N settimane alla volta; select `4/8/12` settimane. Click su "✏️ Apri settimana" di una riga → salta al Foglio Settimana già sulla settimana giusta.
