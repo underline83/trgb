@@ -105,20 +105,21 @@ def _menu_righe_table_exists(conn) -> bool:
 def _ricalcola_menu(conn, preventivo_id: int) -> dict:
     """
     Ricalcola menu_subtotale sommando i prezzi delle righe snapshot.
-    Se n_persone > 0, riallinea menu_prezzo_persona = (subtotale - sconto) / n_persone.
-    Poi richiama _ricalcola_totale che aggrega menu + righe extra.
+    menu_prezzo_persona = subtotale - sconto (ogni riga del menu e' gia' il prezzo
+    PER PERSONA, Marco inserisce il prezzo di 1 menu: non va diviso per coperti,
+    va moltiplicato quando aggregato in _ricalcola_totale).
+    Poi richiama _ricalcola_totale che aggrega menu * n_persone + righe extra.
 
     Ritorna {'menu_subtotale', 'menu_sconto', 'menu_prezzo_persona'}.
     """
     testata = conn.execute(
-        "SELECT menu_sconto, n_persone FROM clienti_preventivi WHERE id = ?",
+        "SELECT menu_sconto FROM clienti_preventivi WHERE id = ?",
         (preventivo_id,),
     ).fetchone()
     if not testata:
         return {"menu_subtotale": 0.0, "menu_sconto": 0.0, "menu_prezzo_persona": 0.0}
 
     sconto = float(testata["menu_sconto"] or 0)
-    n_pers = int(testata["n_persone"] or 0)
 
     if _menu_righe_table_exists(conn):
         row = conn.execute(
@@ -129,8 +130,9 @@ def _ricalcola_menu(conn, preventivo_id: int) -> dict:
     else:
         subtotale = 0.0
 
-    totale_menu = max(0.0, subtotale - sconto)
-    prezzo_pers = round(totale_menu / n_pers, 2) if n_pers > 0 else 0.0
+    # Il prezzo/persona e' semplicemente il totale del menu di 1 coperto
+    # (ogni riga = prezzo per 1 persona). Nessuna divisione per n_persone.
+    prezzo_pers = round(max(0.0, subtotale - sconto), 2)
 
     conn.execute(
         "UPDATE clienti_preventivi SET menu_subtotale = ?, menu_prezzo_persona = ? WHERE id = ?",

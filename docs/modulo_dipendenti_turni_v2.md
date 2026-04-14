@@ -494,14 +494,29 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 10: template settimana tipo (salva/applica pattern ricorrenti)"`
 
-### Fase 11 (futuro) — Integrazione M.A Notifiche e M.B PDF
-*Obiettivo:* notifiche automatiche e PDF brand.
-*Dimensione:* piccola (dipende dai mattoni).
-*Rischio:* basso.
+### Fase 11 — Integrazione mattoni (parziale: M.A + M.C) ✅ COMPLETATA (sessione 38)
+*Obiettivo:* pubblicazione settimana + invio riepilogo WhatsApp ai dipendenti.
+*Stato:* M.A ✅ + M.C ✅ — M.B (PDF brand turni) e M.D (email) rinviati al backlog.
+*Rischio:* basso (wrap try/except su crea_notifica → M.A down non rompe pubblicazione).
 
-- Quando Marco pubblica la settimana (nuovo bottone "Pubblica"), M.A Notifiche crea una notifica per ogni dipendente
-- PDF brand con logo TRGB + palette brand
-- WhatsApp via M.C: bottone "Invia via WA" accanto al turno -> messaggio preformattato con il turno del dipendente
+**Backend — `turni_service.py`**:
+- `pubblica_settimana(reparto_id, settimana_iso)` → calcola stats (turni, dipendenti, giorni coperti) e chiama `crea_notifica(tipo="turni", dest_ruolo="admin", link=/dipendenti/turni?reparto_id=X&settimana=Y)`. La notifica va al ruolo admin (i dipendenti non hanno username nel sistema, ricevono i turni via WA). Fallback silenzioso se M.A fallisce.
+- `riepilogo_settimana_per_dipendenti(reparto_id, settimana_iso)` → per ogni dipendente attivo con turni non-ANNULLATI compone `testo_wa` pronto: "Ciao {nome}, ecco i tuoi turni {reparto} della settimana {range_human}:\n• Lun 14/04: ☀️ 12:00-15:00 + 🌙 19:00-23:00". Emoji ☀️ PRANZO / 🌙 CENA, suffisso "(opzionale)" su stato OPZIONALE. Il templating sta in backend: il frontend riceve il testo pronto e passa a `openWhatsApp()`.
+
+**Backend — `turni_router.py`**:
+- `POST /turni/pubblica` body `{reparto_id, settimana}`.
+- `GET /turni/riepilogo-dipendenti?reparto_id=X&settimana=YYYY-Www`.
+
+**Frontend — `FoglioSettimana.jsx`**:
+- Pulsante **📢 Pubblica** (verde brand-green) → confirm nativo + POST + toast success.
+- Pulsante **📤 Invia WA** (bianco border) → apre `DialogInviaWA`.
+- Componente **`DialogInviaWA`**: lista dipendenti con bottone 📤 Invia per ciascuno. Disabilitato per chi non ha telefono o non ha turni. Tracker `sent: Set<id>` → badge ✓ "aperto" + label "Riapri WA" dopo primo click. Usa `openWhatsApp(tel, testo_wa)` dal mattone M.C.
+
+**Commit:** `./push.sh "turni v2 fase 11 (parziale): integrazione M.A notifiche + M.C whatsapp"`
+
+### Fase 11 — TODO residui (da fare quando i mattoni saranno pronti)
+- **M.B PDF brand per turni**: attualmente `scaricaPdf()` in `FoglioSettimana` usa WeasyPrint diretto (Fase 8). Quando il mattone M.B supporterà i layout multi-reparto/multi-settimana, migrare a `genera_pdf_html()` con template brandizzato coerente con preventivi/ricette.
+- **M.D Email**: bottone 📧 Invia Email parallelo a 📤 Invia WA per chi non usa WhatsApp. Riuso di `riepilogo_settimana_per_dipendenti` (il `testo_wa` diventa `testo_email`).
 
 ---
 
