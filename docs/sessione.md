@@ -1,7 +1,15 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 5 + Fase 4 CRUD reparti UI).
+> Ultima sessione: 2026-04-14 (sessione 36 — Preventivi v1.2 wizard Componi menu + Turni v2 + Cucina tipi servizio).
+>
+> **Sessione 36 — Preventivi v1.2 — Componi menu da Cucina (snapshot immutabile):**
+> - ✅ **Fase 1 backend Cucina**: migrazione **074_recipes_menu_servizi.py** (ADD `recipes.menu_name`/`menu_description`/`kind`, nuove tabelle `service_types` + `recipe_service_types` M:N, seed 4 tipi servizio "Alla carta / Banchetto / Pranzo di lavoro / Aperitivo"). `foodcost_recipes_router.py` esteso: filtri `kind`/`service_type_id`/`search` in `list_ricette`, `service_type_ids[]` in create/update, endpoint `POST /foodcost/ricette/quick`, `PUT /foodcost/ricette/{id}/servizi`, CRUD `/foodcost/service-types`
+> - ✅ **Fase 2 FE Cucina**: `RicetteNuova.jsx` + `RicetteModifica.jsx` con sezione "Menu & servizi" (menu_name, menu_description, chip selector tipi servizio, visibile solo se !is_base). `RicetteSettings.jsx` nuova sezione "🍽️ Tipi servizio (menu preventivi)" con CRUD full
+> - ✅ **Fase 3 backend preventivi**: migrazione **075_preventivi_menu_righe.py** (nuova tabella snapshot `clienti_preventivi_menu_righe` + colonne `menu_sconto`/`menu_subtotale` su `clienti_preventivi`). `preventivi_service.py`: helper `_ricalcola_menu` (subtotale = Σprice, prezzo/persona = (sub−sconto)/pax), `_snapshot_recipe` cross-DB, CRUD righe + `set_menu_sconto`. Router: 6 endpoint sotto `/preventivi/{id}/menu-righe` e `/menu-sconto`
+> - ✅ **Fase 4 FE wizard**: nuovo componente `PreventivoMenuComposer.jsx` (picker piatti con filtro tipo servizio + search, quick-create "⚡ Piatto veloce", righe raggruppate per categoria con ▲▼✕ e edit prezzo inline, riepilogo subtotale/sconto/totale/prezzo a persona). Integrato in `ClientiPreventivoScheda.jsx` (v1.2): il campo `menu_prezzo_persona` testata diventa 🔒 auto quando ci sono righe snapshot; il payload save esclude il campo per non sovrascrivere il valore calcolato dal backend
+> - ✅ **Regola granitica salvata**: "Config sempre in Impostazioni, mai hardcoded" (feedback memory) — applicata a service_types e luoghi preventivi
+> - Versions bump: ricette 3.1→3.2, clienti 2.3→2.4
 >
 > **Sessione 36 — Turni v2 Fase 4 — CRUD reparti UI + colore dipendente:**
 > - ✅ Nuova pagina `GestioneReparti.jsx` (CRUD reparti: codice/nome/icona/colore/ordine, orari pranzo+cena, pause staff, attivo). Lista sidebar + form dettaglio, palette emoji+colori suggeriti.

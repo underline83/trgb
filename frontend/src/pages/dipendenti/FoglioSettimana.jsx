@@ -1,4 +1,4 @@
-// @version: v1.8-vista-mensile (Fase 5: toggle vista mese + deep-link da VistaMensile)
+// @version: v1.9-mobile-day (Fase 9: vista giorno automatica <900px per iPad portrait)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -70,6 +70,28 @@ function formatWeekRange(iso) {
 
 const NOMI_GIORNI_LUN = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 
+// Hook responsive: true sotto 900px (iPad portrait + smartphone)
+function useIsNarrow(maxPx = 899) {
+  const query = `(max-width: ${maxPx}px)`;
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia
+      ? window.matchMedia(query).matches
+      : false
+  );
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mql = window.matchMedia(query);
+    const handler = (e) => setNarrow(e.matches);
+    if (mql.addEventListener) mql.addEventListener("change", handler);
+    else mql.addListener(handler);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", handler);
+      else mql.removeListener(handler);
+    };
+  }, [query]);
+  return narrow;
+}
+
 // Tailwind safelist — i colori reparto via inline style, non Tailwind classes
 // (i reparti.colore sono HEX dinamici)
 
@@ -106,6 +128,13 @@ export default function FoglioSettimana() {
   // Vista immagine per screenshot WhatsApp (Fase 8)
   const [imageMode, setImageMode] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+
+  // Fase 9 — Mobile: sotto 900px usiamo "vista giorno", indice 0..6 (Lun..Dom)
+  const isNarrow = useIsNarrow(899);
+  const [giornoIdx, setGiornoIdx] = useState(() => {
+    const wd = new Date().getDay();
+    return wd === 0 ? 6 : wd - 1;  // 0=lun..6=dom
+  });
 
   // Fase 8: PDF server-side (WeasyPrint) — niente dialog stampante, scarica/apre PDF diretto
   async function scaricaPdf() {
@@ -374,16 +403,28 @@ export default function FoglioSettimana() {
 
         {!loading && foglio && (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
-            {/* MATRICE */}
-            <div className="bg-white rounded-xl shadow overflow-auto">
-              <FoglioGrid
+            {/* VISTA: matrice su desktop/landscape, vista giorno su mobile/portrait */}
+            {isNarrow ? (
+              <VistaGiornoMobile
                 foglio={foglio} matrice={matrice} chiusi={chiusi}
                 nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
+                reparto={reparto}
+                giornoIdx={giornoIdx} setGiornoIdx={setGiornoIdx}
                 onCellClick={apriCella}
+                onPrevSettimana={() => { setSettimana(shiftIsoWeek(settimana, -1)); setGiornoIdx(0); }}
+                onNextSettimana={() => { setSettimana(shiftIsoWeek(settimana, 1)); setGiornoIdx(0); }}
               />
-            </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow overflow-auto">
+                <FoglioGrid
+                  foglio={foglio} matrice={matrice} chiusi={chiusi}
+                  nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
+                  onCellClick={apriCella}
+                />
+              </div>
+            )}
 
-            {/* PANNELLO ORE */}
+            {/* PANNELLO ORE — sempre visibile (su narrow va in fondo, full width) */}
             <OrePanel ore={ore} reparto={reparto} />
           </div>
         )}
@@ -866,5 +907,188 @@ function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, repart
         </div>
       </div>
     </div>
+  );
+}
+
+
+// ---- VISTA GIORNO MOBILE (Fase 9) ----------------------------------------
+// Sotto 900px (iPad portrait + smartphone) la matrice settimanale diventa
+// "vista giorno": un giorno alla volta con due liste verticali (pranzo / cena).
+// Touch target 48pt, swipe left/right per cambiare giorno (con bordo settimana).
+function VistaGiornoMobile({
+  foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto,
+  giornoIdx, setGiornoIdx, onCellClick,
+  onPrevSettimana, onNextSettimana,
+}) {
+  const dataIso = foglio.giorni[giornoIdx];
+  const chiuso = chiusi.has(dataIso);
+  const turniDay = matrice[dataIso] || { PRANZO: {}, CENA: {} };
+  const oggiIso = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  const isOggi = dataIso === oggiIso;
+
+  function vai(delta) {
+    const next = giornoIdx + delta;
+    if (next < 0) {
+      // Giorno precedente "prima del lunedì" → settimana prima, parto da domenica
+      onPrevSettimana();
+      setGiornoIdx(6);
+    } else if (next > 6) {
+      // Oltre la domenica → settimana dopo, parto dal lunedì
+      onNextSettimana();
+      setGiornoIdx(0);
+    } else {
+      setGiornoIdx(next);
+    }
+  }
+
+  function vaiOggi() {
+    const wd = new Date().getDay();
+    setGiornoIdx(wd === 0 ? 6 : wd - 1);
+  }
+
+  // Swipe gesture (touch) — soglia 60px, ignora movimenti verticali dominanti
+  const touch = React.useRef({ x: 0, y: 0, t: 0 });
+  function onTouchStart(e) {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  }
+  function onTouchEnd(e) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touch.current.x;
+    const dy = t.clientY - touch.current.y;
+    const dt = Date.now() - touch.current.t;
+    if (dt > 600) return;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+    vai(dx > 0 ? -1 : 1);  // swipe right → giorno precedente; left → successivo
+  }
+
+  return (
+    <div className="bg-white rounded-xl shadow overflow-hidden"
+         onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* Header navigatore giorno */}
+      <div className="flex items-center justify-between px-2 py-2 bg-neutral-50 border-b sticky top-0 z-10">
+        <button onClick={() => vai(-1)}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center bg-white border rounded-lg active:bg-neutral-100"
+          aria-label="Giorno precedente">←</button>
+        <div className="flex-1 text-center px-2">
+          <div className="text-[11px] text-neutral-500 leading-none uppercase tracking-wide">
+            {NOMI_GIORNI_LUN[giornoIdx]}
+          </div>
+          <div className="text-base font-semibold leading-tight mt-0.5">
+            {formatDayLabel(dataIso)}
+            {isOggi && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-blue text-white align-middle">OGGI</span>}
+            {chiuso && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-neutral-300 text-neutral-700 align-middle">CHIUSO</span>}
+          </div>
+        </div>
+        <button onClick={() => vai(1)}
+          className="min-h-[48px] min-w-[48px] flex items-center justify-center bg-white border rounded-lg active:bg-neutral-100"
+          aria-label="Giorno successivo">→</button>
+      </div>
+
+      {/* Bottone Oggi */}
+      {!isOggi && (
+        <div className="px-3 pt-2">
+          <button onClick={vaiOggi}
+            className="w-full min-h-[44px] px-3 bg-white border rounded-lg text-sm hover:bg-neutral-50">
+            ↩ Vai a oggi
+          </button>
+        </div>
+      )}
+
+      {/* Body */}
+      {chiuso ? (
+        <div className="p-6 text-center text-neutral-500">
+          <div className="text-4xl mb-2">🚪</div>
+          <div className="font-semibold">Osteria chiusa</div>
+          <div className="text-xs text-neutral-400 mt-1">Nessun turno per questa giornata</div>
+        </div>
+      ) : (
+        <div className="p-3 space-y-3">
+          <SezioneServizioMobile
+            etichetta="☀️ Pranzo"
+            orarioStd={`${reparto?.pranzo_inizio || ""}–${reparto?.pranzo_fine || ""}`}
+            servizio="PRANZO"
+            n={nSlotPranzo}
+            slotMap={turniDay.PRANZO || {}}
+            onSlotClick={(si, e) => onCellClick(dataIso, "PRANZO", si, e)}
+          />
+          <SezioneServizioMobile
+            etichetta="🌙 Cena"
+            orarioStd={`${reparto?.cena_inizio || ""}–${reparto?.cena_fine || ""}`}
+            servizio="CENA"
+            n={nSlotCena}
+            slotMap={turniDay.CENA || {}}
+            onSlotClick={(si, e) => onCellClick(dataIso, "CENA", si, e)}
+          />
+        </div>
+      )}
+
+      <div className="px-3 py-2 text-[10px] text-neutral-400 text-center border-t">
+        Scorri ← / → o usa i pulsanti per cambiare giorno
+      </div>
+    </div>
+  );
+}
+
+
+function SezioneServizioMobile({ etichetta, orarioStd, n, slotMap, onSlotClick }) {
+  const slotsArr = Array.from({ length: n }, (_, i) => i);
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-neutral-50 border-b">
+        <div className="text-sm font-semibold">{etichetta}</div>
+        <div className="text-[10px] text-neutral-500 font-mono">{orarioStd}</div>
+      </div>
+      <div>
+        {slotsArr.map(si => (
+          <SlotMobileRow key={si}
+            slotIndex={si}
+            turno={slotMap[si]}
+            onClick={(e) => onSlotClick(si, e)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+function SlotMobileRow({ slotIndex, turno, onClick }) {
+  if (!turno) {
+    return (
+      <button type="button" onClick={onClick}
+        className="w-full min-h-[48px] flex items-center justify-between px-3 py-2 border-b last:border-0 active:bg-blue-50 hover:bg-blue-50 text-left">
+        <span className="text-[11px] text-neutral-400 font-mono shrink-0">#{slotIndex + 1}</span>
+        <span className="text-neutral-300 text-base">+ assegna</span>
+      </button>
+    );
+  }
+  const stato = (turno.stato || "").toUpperCase();
+  const opzionale = stato === "OPZIONALE";
+  const annullato = stato === "ANNULLATO";
+  const bg = turno.dipendente_colore || "#d1d5db";
+  const tone = textOn(bg);
+  const primoNome = (turno.dipendente_nome || "").trim().split(/\s+/)[0] || "";
+  const cognome = (turno.dipendente_cognome || "").trim();
+  const nomeFull = `${primoNome}${cognome ? " " + cognome : ""}`;
+
+  return (
+    <button type="button" onClick={onClick}
+      className="w-full min-h-[48px] flex items-center gap-2 px-3 py-2 border-b last:border-0 active:bg-blue-50 hover:bg-blue-50 text-left">
+      <span className="text-[11px] text-neutral-400 font-mono shrink-0">#{slotIndex + 1}</span>
+      <span className="rounded px-2 py-1 text-sm font-semibold leading-tight relative shrink-0"
+            style={{ backgroundColor: bg, color: tone, opacity: annullato ? 0.4 : 1 }}>
+        {nomeFull}
+        {opzionale && (
+          <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow" title="Opzionale">★</span>
+        )}
+      </span>
+      <span className="ml-auto text-[11px] text-neutral-500 font-mono shrink-0">
+        {(turno.ora_inizio || "").slice(0, 5)}–{(turno.ora_fine || "").slice(0, 5)}
+      </span>
+    </button>
   );
 }

@@ -3,6 +3,55 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Turni v2 Fase 9 — Vista giorno mobile (<900px) con swipe + navigator
+
+Sotto i 900px (iPad portrait, mobile) la pagina **Foglio Settimana** mostra automaticamente UN solo giorno alla volta invece dell'intera griglia 7 colonne. Si naviga con frecce ←/→, pulsante **Oggi**, oppure swipe orizzontale (threshold 60px). Quando si oltrepassa Domenica/Lunedì la settimana cambia automaticamente. Sopra i 900px nulla cambia: vista settimanale piena come prima. Touch target ≥ 48pt, niente hover-only.
+
+### Frontend
+- **`FoglioSettimana.jsx` v1.9-mobile-day**: nuovo hook `useIsNarrow(maxPx)` basato su `window.matchMedia` con listener su change. Stato `isNarrow` + `giornoIdx` (default = oggi, lun=0…dom=6). Render condizionale: `{isNarrow ? <VistaGiornoMobile/> : <FoglioGrid/>}`.
+- **`VistaGiornoMobile`**: header sticky con ← / Oggi / → (min-h 48px), data completa + badge OGGI/CHIUSO. Body card pranzo+cena (`SezioneServizioMobile`) o "🚪 Osteria chiusa". Touch swipe con filtro vertical-dominant. Funzione `vai(delta)` wrappa al cambio settimana.
+- **`SlotMobileRow`**: riga con indice slot, pill nome+cognome completo (più spazio orizzontale rispetto a desktop), orario, placeholder "+ assegna" se vuoto.
+
+### Versioni
+- Modulo Dipendenti: v2.8 → **v2.9**.
+
+---
+
+## 2026-04-14 — Sessione 36 / Preventivi v1.2 — Componi menu da Cucina con snapshot immutabile
+
+Il preventivo evento può ora pescare piatti dal Ricettario (Gestione Cucina) invece di scriverli a mano in una textarea. Una volta aggiunto al preventivo, il piatto viene SNAPSHOTTATO (nome, prezzo, descrizione, categoria copiati): modifiche successive in Cucina non alterano i preventivi già emessi. Supporto a "Piatto veloce" al volo (non finisce nel ricettario) e sconto menu. I tipi servizio (Alla carta, Banchetto, Pranzo di lavoro, Aperitivo…) sono configurabili in Impostazioni Cucina — nessun hardcode.
+
+### Backend
+- **Migrazione `074_recipes_menu_servizi.py`** (foodcost.db): ADD `recipes.menu_name` / `menu_description` / `kind` (`dish` | `base`, popolato da `is_base`). Nuove tabelle `service_types` (con seed 4 tipi base) e `recipe_service_types` (M:N).
+- **Migrazione `075_preventivi_menu_righe.py`** (clienti.sqlite3): ALTER `clienti_preventivi` (`menu_sconto`, `menu_subtotale` REAL DEFAULT 0). Nuova tabella **`clienti_preventivi_menu_righe`** (`preventivo_id` FK CASCADE, `recipe_id` nullable, `sort_order`, `category_name`, `name`, `description`, `price`, `created_at`) + indice `(preventivo_id, sort_order)`.
+- **`foodcost_recipes_router.py`**: campi `menu_name` / `menu_description` / `kind` / `service_type_ids[]` in create/update; `list_ricette` con filtri `kind` / `service_type_id` / `search` + preload junction in una query; nuovi endpoint `POST /foodcost/ricette/quick`, `PUT /foodcost/ricette/{id}/servizi`, CRUD `GET/POST/PUT/DELETE /foodcost/service-types`. Retro-compat via `PRAGMA table_info`.
+- **`preventivi_service.py`**: helper `_ricalcola_menu` (subtotale = Σprice righe snapshot, prezzo/persona = (subtotale − sconto) / pax, poi delega a `_ricalcola_totale` per il grand total). Helper `_snapshot_recipe` (cross-DB: legge da foodcost, scrive in clienti). `lista_menu_righe`, `aggiungi_menu_riga` (supporta recipe_id snapshot o payload manuale, override campi), `aggiorna_menu_riga`, `elimina_menu_riga`, `riordina_menu_righe`, `set_menu_sconto`. `get_preventivo` ora ritorna anche `menu_righe[]`.
+- **`preventivi_router.py`**: 6 nuovi endpoint autenticati admin sotto `/preventivi/{id}/menu-righe` (GET lista, POST add, PUT riordina via `ordered_ids[]`, PUT/DELETE per singola riga) + `PUT /preventivi/{id}/menu-sconto`.
+
+### Frontend
+- **Nuovo componente `PreventivoMenuComposer.jsx`** (Gestione Clienti → Preventivi → Scheda).
+  - Header "🪄 Componi menu dal ricettario" + disclaimer sulla natura snapshot.
+  - Picker "🔎 Aggiungi dal ricettario": filtro dropdown tipo servizio (caricato da `/foodcost/service-types`), ricerca testuale debounced (250ms), lista piatti con nome+descrizione+categoria+prezzo, click per snapshot (min 44pt touch target).
+  - Dialog "⚡ Piatto veloce": nome / categoria / prezzo / descrizione, aggiunge una riga senza recipe_id (badge "⚡ veloce" nella lista).
+  - Righe raggruppate per `category_name`, frecce ▲▼ per riordino (call `ordered_ids`), ✕ per rimuovere, prezzo cliccabile per edit inline (Enter salva, Esc annulla).
+  - Riepilogo: subtotale, input sconto con debounce 400ms (PUT al backend), totale menu, prezzo a persona (con warning se `n_persone` non settato).
+- **`RicetteNuova.jsx` / `RicetteModifica.jsx`**: nuova sezione "Menu & servizi" visibile solo se `!is_base` con input `menu_name`, textarea `menu_description`, chip selector multi-select `service_type_ids`. Payload include `kind` derivato da `is_base`.
+- **`RicetteSettings.jsx`**: nuova `Section` "🍽️ Tipi servizio (menu preventivi)" con tabella (name / sort_order / active), edit inline, disable/enable (soft delete), form "Aggiungi tipo servizio".
+- **`ClientiPreventivoScheda.jsx` v1.2**: integrato `PreventivoMenuComposer` sopra la sezione "Menu proposto (testo libero)" (visibile solo su preventivo esistente, richiede `prevId`). Il campo testata `menu_prezzo_persona` diventa **🔒 auto** (disabled, sfondo grigio) quando esistono righe snapshot; il payload di `handleSalva` esclude `menu_prezzo_persona` quando `menuSnapshot.n_righe > 0` per non sovrascrivere il valore calcolato dal backend. Nuovo stato `menuSnapshot` sincronizzato da callback `onTotaleMenuChange` e da `refreshMenuCount` via `/menu-righe`.
+- **`versions.jsx`**: `ricette` 3.1 → **3.2**, `clienti` 2.3 → **2.4**.
+
+### Regole & decisioni architetturali
+- **Nessun hardcode**: tipi servizio vivono in DB e sono modificabili da Impostazioni Cucina. Regola salvata in memoria (`feedback_no_hardcoded_config.md`).
+- **Snapshot immutabile**: `clienti_preventivi_menu_righe.recipe_id` è nullable (SET NULL non richiesto perché conserviamo comunque name/price locali). Un preventivo firmato non cambia più se il cuoco rinomina il piatto.
+- **Prezzo cliente unico**: totale menu = subtotale − sconto. Nessun "prezzo barrato": lo sconto è esposto solo al ristorante (non al cliente finale, a discrezione del PDF).
+- **Path order FastAPI rispettato**: tutti i path `/{preventivo_id}/menu-righe/...` sono parametrici, posizionati nel blocco param dopo i fissi (`/stats`, `/config/luoghi`, `/template/*`).
+
+### Dove proseguire
+- **PDF preventivo**: il template brand dovrà leggere `menu_righe[]` e mostrarle raggruppate per categoria (oggi usa solo `menu_descrizione` testuale). Marco deciderà se mostrare lo sconto esplicito o solo il totale finale.
+- **Quick edit descrizione/categoria riga**: per ora editabile solo il prezzo inline, nome/descrizione richiedono API (c'è `PUT` già pronto) ma UI non espone il campo.
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 5 — Vista mensile a griglia 6×7 con dettaglio giorno
 
 Seconda consegna della sessione 38 (dopo Fase 8 PDF). Vista mensile "Google Calendar-like": sola lettura, per avere il colpo d'occhio su tutto il mese con un click. L'editing resta nella vista settimana — la vista mese è deep-link verso la settimana corretta.

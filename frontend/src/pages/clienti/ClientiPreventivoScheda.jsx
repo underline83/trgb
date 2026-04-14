@@ -1,10 +1,12 @@
-// @version: v1.1-preventivo-scheda
-// Scheda singolo preventivo: testata + menu proposto (ristorante) + extra liberi + totale live
+// @version: v1.2-preventivo-scheda
+// Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
-import React, { useState, useEffect } from "react";
+// v1.2 (sessione 36): wizard "Componi menu" che pesca piatti dal Ricettario con snapshot immutabile
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import PreventivoMenuComposer from "./PreventivoMenuComposer";
 
 const STATI_COLORI = {
   bozza:      "bg-neutral-100 text-neutral-600",
@@ -92,6 +94,9 @@ export default function ClientiPreventivoScheda() {
   // Righe extra (non menu)
   const [righe, setRighe] = useState([]);
 
+  // Menu snapshot (mig 075) — contatore per sapere se il prezzo/persona e' auto-calcolato
+  const [menuSnapshot, setMenuSnapshot] = useState({ n_righe: 0, menu_subtotale: 0, menu_sconto: 0, menu_prezzo_persona: 0 });
+
   // Cliente: toggle cerca / crea nuovo
   const [clienteMode, setClienteMode] = useState("cerca"); // "cerca" | "nuovo"
   const [clienteSearch, setClienteSearch] = useState("");
@@ -137,6 +142,12 @@ export default function ClientiPreventivoScheda() {
           setNumero(data.numero);
           setPrevId(data.id);
           setRighe(Array.isArray(data.righe) ? data.righe : []);
+          setMenuSnapshot({
+            n_righe: Array.isArray(data.menu_righe) ? data.menu_righe.length : 0,
+            menu_subtotale: parseFloat(data.menu_subtotale || 0),
+            menu_sconto: parseFloat(data.menu_sconto || 0),
+            menu_prezzo_persona: parseFloat(data.menu_prezzo_persona || 0),
+          });
           if (data.cliente_nome || data.cliente_cognome) {
             setClienteNome(`${data.cliente_cognome || ""} ${data.cliente_nome || ""}`.trim());
           }
@@ -215,6 +226,32 @@ export default function ClientiPreventivoScheda() {
     });
   };
 
+  // Callback dal composer: aggiorna il prezzo/persona della testata e mantiene in sync
+  // il conteggio righe per disabilitare l'input manuale quando ci sono piatti snapshot.
+  const handleMenuTotaleChange = useCallback((data) => {
+    setMenuSnapshot((s) => ({
+      ...s,
+      menu_subtotale: parseFloat(data?.menu_subtotale || 0),
+      menu_sconto: parseFloat(data?.menu_sconto || 0),
+      menu_prezzo_persona: parseFloat(data?.menu_prezzo_persona || 0),
+    }));
+    // Sincronizza il campo testata per il riepilogo "Subtotale menu"
+    setForm((f) => ({ ...f, menu_prezzo_persona: parseFloat(data?.menu_prezzo_persona || 0) }));
+  }, []);
+
+  // Ricarico count righe dopo cambi nel composer (il composer ritorna solo totali, non n_righe)
+  const refreshMenuCount = useCallback(async () => {
+    if (!prevId) return;
+    try {
+      const r = await apiFetch(`${API_BASE}/preventivi/${prevId}/menu-righe`);
+      const data = await r.json();
+      const n = Array.isArray(data?.items) ? data.items.length : 0;
+      setMenuSnapshot((s) => ({ ...s, n_righe: n }));
+    } catch { /* silente */ }
+  }, [prevId]);
+
+  useEffect(() => { refreshMenuCount(); }, [refreshMenuCount]);
+
   // Totale live: menu × pax + somma righe extra
   const menuTot = (parseFloat(form.menu_prezzo_persona) || 0) * (parseFloat(form.n_persone) || 0);
   const extraTot = righe.reduce((sum, r) => {
@@ -238,10 +275,14 @@ export default function ClientiPreventivoScheda() {
 
     setSaving(true);
     try {
+      const hasSnapshot = menuSnapshot.n_righe > 0;
+      // Se ci sono righe snapshot il prezzo/persona e' autocalcolato dal backend:
+      // NON lo inviamo per non sovrascriverlo con un valore stantio digitato a mano.
+      const { menu_prezzo_persona: _mpp, ...formSenzaPrezzo } = form;
       const body = {
-        ...form,
+        ...(hasSnapshot ? formSenzaPrezzo : form),
         n_persone: form.n_persone ? parseInt(form.n_persone) : null,
-        menu_prezzo_persona: parseFloat(form.menu_prezzo_persona) || 0,
+        ...(hasSnapshot ? {} : { menu_prezzo_persona: parseFloat(form.menu_prezzo_persona) || 0 }),
         righe: righe.map((r, i) => ({
           descrizione: r.descrizione,
           qta: parseFloat(r.qta) || 1,
@@ -273,6 +314,12 @@ export default function ClientiPreventivoScheda() {
         setStato(data.stato);
         setNumero(data.numero);
         setRighe(Array.isArray(data.righe) ? data.righe : []);
+        setMenuSnapshot({
+          n_righe: Array.isArray(data.menu_righe) ? data.menu_righe.length : 0,
+          menu_subtotale: parseFloat(data.menu_subtotale || 0),
+          menu_sconto: parseFloat(data.menu_sconto || 0),
+          menu_prezzo_persona: parseFloat(data.menu_prezzo_persona || 0),
+        });
         if (data.cliente_nome || data.cliente_cognome) {
           setClienteNome(`${data.cliente_cognome || ""} ${data.cliente_nome || ""}`.trim());
           setClienteMode("cerca");
@@ -562,11 +609,26 @@ export default function ClientiPreventivoScheda() {
                 </div>
               </div>
 
-              {/* ── MENU PROPOSTO (ristorante) ── */}
+              {/* ── COMPONI MENU DAL RICETTARIO (snapshot, mig 075) ── */}
+              {!isNew && prevId && (
+                <PreventivoMenuComposer
+                  preventivoId={prevId}
+                  nPersone={form.n_persone}
+                  onTotaleMenuChange={(data) => {
+                    handleMenuTotaleChange(data);
+                    refreshMenuCount();
+                  }}
+                  onToast={showToast}
+                />
+              )}
+
+              {/* ── MENU PROPOSTO testuale (fallback / integrazione libera) ── */}
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-neutral-700">🍽 Menu proposto</h3>
-                  <span className="text-[11px] text-neutral-400">Prezzo a persona × coperti</span>
+                  <h3 className="text-sm font-semibold text-neutral-700">🍽 Menu proposto (testo libero)</h3>
+                  <span className="text-[11px] text-neutral-400">
+                    {menuSnapshot.n_righe > 0 ? "Prezzo auto-calcolato dalle righe snapshot" : "Prezzo a persona × coperti"}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-[1fr_140px] gap-3">
@@ -578,11 +640,15 @@ export default function ClientiPreventivoScheda() {
                       className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-neutral-600 font-medium">Prezzo a persona (€)</label>
+                    <label className="text-xs text-neutral-600 font-medium">
+                      Prezzo a persona (€)
+                      {menuSnapshot.n_righe > 0 && <span className="ml-1 text-[10px] text-indigo-600">🔒 auto</span>}
+                    </label>
                     <input type="number" min="0" step="0.5" value={form.menu_prezzo_persona}
                       onChange={(e) => setForm({ ...form, menu_prezzo_persona: e.target.value })}
                       placeholder="0.00"
-                      className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm text-right" />
+                      disabled={menuSnapshot.n_righe > 0}
+                      className={`w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm text-right ${menuSnapshot.n_righe > 0 ? "bg-neutral-100 text-neutral-500" : ""}`} />
                   </div>
                 </div>
 
