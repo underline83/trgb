@@ -287,21 +287,149 @@ def build_foglio_settimana(
 
 
 # ============================================================
+# VISTA MESE — griglia 6×7 (Fase 5)
+# ============================================================
+def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
+    """Costruisce la struttura vista mensile a griglia (6×7 = 42 giorni).
+
+    La griglia parte dal LUNEDÌ della settimana che contiene il 1° del mese
+    e copre 6 settimane complete. In questo modo:
+    - le prime celle possono mostrare la coda del mese precedente
+    - le ultime celle possono mostrare l'inizio del mese successivo
+    - ogni riga = 1 settimana Lun..Dom
+
+    Restituisce:
+    {
+      'reparto': {...},
+      'anno': 2026, 'mese': 4,
+      'mese_inizio': '2026-04-01',
+      'mese_fine': '2026-04-30',
+      'giorni': ['2026-03-30', ..., '2026-05-10'],   # 42 date
+      'settimane_iso': ['2026-W14', ..., 'W19'],     # 6 codici ISO
+      'dipendenti': [...],
+      'turni': [...],                                 # solo dati essenziali (no formula)
+      'chiusure': [...]
+    }
+    """
+    if mese < 1 or mese > 12:
+        raise ValueError(f"Mese non valido: {mese}")
+
+    primo_mese = date(anno, mese, 1)
+    # Ultimo giorno del mese
+    if mese == 12:
+        ultimo_mese = date(anno, 12, 31)
+    else:
+        ultimo_mese = date(anno, mese + 1, 1) - timedelta(days=1)
+
+    # Trova lunedì della settimana contenente il 1° del mese
+    delta_lun = primo_mese.weekday()  # 0=lun..6=dom
+    start = primo_mese - timedelta(days=delta_lun)
+    # 42 giorni totali (6 settimane complete)
+    giorni = [start + timedelta(days=i) for i in range(42)]
+    from_date = giorni[0].isoformat()
+    to_date = giorni[-1].isoformat()
+
+    # Codici settimana ISO per le 6 settimane (per deep-link)
+    settimane_iso: List[str] = []
+    for i in range(6):
+        lun = giorni[i * 7]
+        settimane_iso.append(iso_settimana_from_date(lun))
+
+    conn = get_dipendenti_conn()
+    try:
+        rep = _reparto_row(conn, reparto_id)
+        if not rep:
+            raise ValueError(f"Reparto {reparto_id} non trovato")
+
+        cur = conn.cursor()
+
+        # Dipendenti attivi del reparto
+        cur.execute(
+            """SELECT id, nome, cognome, ruolo, colore, reparto_id,
+                      COALESCE(a_chiamata, 0) AS a_chiamata
+               FROM dipendenti
+               WHERE attivo = 1 AND reparto_id = ?
+               ORDER BY cognome, nome""",
+            (reparto_id,),
+        )
+        dipendenti = [dict(r) for r in cur.fetchall()]
+        for d in dipendenti:
+            d["a_chiamata"] = bool(d.get("a_chiamata") or 0)
+
+        # Turni nel range (42 giorni), solo dipendenti del reparto
+        cur.execute(
+            """SELECT
+                  tc.id,
+                  tc.data,
+                  tc.dipendente_id,
+                  tc.turno_tipo_id,
+                  tc.slot_index,
+                  COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+                  COALESCE(tc.ora_fine, tt.ora_fine) AS ora_fine,
+                  tc.stato,
+                  tc.note,
+                  COALESCE(tt.servizio, '') AS servizio,
+                  d.nome    AS dipendente_nome,
+                  d.cognome AS dipendente_cognome,
+                  d.colore  AS dipendente_colore,
+                  COALESCE(d.a_chiamata, 0) AS dipendente_a_chiamata
+                FROM turni_calendario tc
+                JOIN dipendenti d ON d.id = tc.dipendente_id
+                JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+                WHERE d.reparto_id = ?
+                  AND tc.data BETWEEN ? AND ?
+                ORDER BY tc.data, tc.slot_index, tc.id""",
+            (reparto_id, from_date, to_date),
+        )
+        turni = [dict(r) for r in cur.fetchall()]
+        for t in turni:
+            t["dipendente_a_chiamata"] = bool(t.get("dipendente_a_chiamata") or 0)
+
+        chiusure = giorni_chiusi_nel_range(giorni)
+
+        return {
+            "reparto": rep,
+            "anno": anno,
+            "mese": mese,
+            "mese_inizio": primo_mese.isoformat(),
+            "mese_fine": ultimo_mese.isoformat(),
+            "giorni": [g.isoformat() for g in giorni],
+            "settimane_iso": settimane_iso,
+            "dipendenti": dipendenti,
+            "turni": turni,
+            "chiusure": chiusure,
+        }
+    finally:
+        conn.close()
+
+
+# ============================================================
 # CHIUSURE — da modulo Vendite
 # ============================================================
+def _get_closures_cfg() -> Dict[str, Any]:
+    try:
+        from app.routers.closures_config_router import get_closures_config
+        return get_closures_config() or {}
+    except Exception:
+        return {}
+
+
 def giorni_chiusi_nella_settimana(iso_settimana: str) -> List[str]:
     """Restituisce le date chiuse (YYYY-MM-DD) in questa settimana,
     combinando giorno_chiusura_settimanale + giorni_chiusi espliciti."""
-    try:
-        from app.routers.closures_config_router import get_closures_config
-        cfg = get_closures_config()
-    except Exception:
-        cfg = {}
+    return giorni_chiusi_nel_range(giorni_settimana(iso_settimana))
+
+
+def giorni_chiusi_nel_range(date_list: List[date]) -> List[str]:
+    """Restituisce le date chiuse (YYYY-MM-DD) in un range arbitrario di date,
+    combinando giorno_chiusura_settimanale + giorni_chiusi espliciti.
+    Usato da vista mensile (42 giorni) e settimana (7)."""
+    cfg = _get_closures_cfg()
     giorno_fisso = cfg.get("giorno_chiusura_settimanale")  # 0..6 o None
     giorni_chiusi_expl = set(cfg.get("giorni_chiusi") or [])
 
     out = set()
-    for d in giorni_settimana(iso_settimana):
+    for d in date_list:
         iso = d.isoformat()
         if iso in giorni_chiusi_expl:
             out.add(iso)

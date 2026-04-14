@@ -1,4 +1,4 @@
-// @version: v1.7-pdf-server (Fase 8: PDF server-side + vista immagine per WhatsApp)
+// @version: v1.8-vista-mensile (Fase 5: toggle vista mese + deep-link da VistaMensile)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -77,9 +77,20 @@ const NOMI_GIORNI_LUN = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Vener
 export default function FoglioSettimana() {
   const navigate = useNavigate();
 
-  const [settimana, setSettimana] = useState(() => isoWeek(new Date()));
+  // Deep-link da VistaMensile: se è stato memorizzato un target, usalo poi puliscilo
+  const [settimana, setSettimana] = useState(() => {
+    const last = localStorage.getItem("turni_last_settimana");
+    if (last && /^\d{4}-W\d{2}$/.test(last)) {
+      localStorage.removeItem("turni_last_settimana");
+      return last;
+    }
+    return isoWeek(new Date());
+  });
   const [reparti, setReparti] = useState([]);
-  const [repartoId, setRepartoId] = useState(null);
+  const [repartoId, setRepartoId] = useState(() => {
+    const last = Number(localStorage.getItem("turni_last_reparto"));
+    return last || null;
+  });
   const [foglio, setFoglio] = useState(null);
   const [ore, setOre] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -135,13 +146,19 @@ export default function FoglioSettimana() {
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setReparti(list);
-        if (list.length && repartoId == null) {
+        // Se il reparto persisto non esiste più (o non è stato settato), fallback al primo
+        if (list.length && !list.find(r => r.id === repartoId)) {
           setRepartoId(list[0].id);
         }
       })
       .catch(() => setError("Impossibile caricare i reparti"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persisti reparto scelto (condiviso con VistaMensile per navigazione coerente)
+  useEffect(() => {
+    if (repartoId) localStorage.setItem("turni_last_reparto", String(repartoId));
+  }, [repartoId]);
 
   // --- LOAD FOGLIO ---
   const caricaFoglio = useCallback(async () => {
@@ -307,6 +324,11 @@ export default function FoglioSettimana() {
               className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50">→</button>
             <button onClick={() => setSettimana(isoWeek(new Date()))}
               className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm">Oggi</button>
+            <button onClick={() => navigate("/dipendenti/turni/mese")}
+              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm"
+              title="Passa alla vista mensile (griglia 6×7, sola lettura)">
+              🗓 Mese
+            </button>
             <button onClick={() => setDlgCopia(true)}
               className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
               📋 Copia

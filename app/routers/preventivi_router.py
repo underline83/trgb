@@ -25,6 +25,12 @@ from app.services.preventivi_service import (
     elimina_template,
     get_luoghi,
     set_luoghi,
+    lista_menu_righe,
+    aggiungi_menu_riga,
+    aggiorna_menu_riga,
+    elimina_menu_riga,
+    riordina_menu_righe,
+    set_menu_sconto,
 )
 
 router = APIRouter(prefix="/preventivi", tags=["Preventivi"])
@@ -114,6 +120,34 @@ class TemplateUpdate(BaseModel):
     righe: Optional[list] = None
     condizioni_default: Optional[str] = None
     attivo: Optional[bool] = None
+
+
+class MenuRigaIn(BaseModel):
+    """Input per aggiungere/modificare una riga menu snapshot.
+    Se `recipe_id` e' presente la riga viene snapshottata dalla ricetta madre;
+    i campi name/price/description/category_name (se passati) sovrascrivono lo snapshot."""
+    recipe_id: Optional[int] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category_name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class MenuRigaUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category_name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class MenuRiordinaIn(BaseModel):
+    ordered_ids: List[int] = Field(default_factory=list)
+
+
+class MenuScontoIn(BaseModel):
+    sconto: float = 0
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +296,65 @@ def api_cambia_stato(preventivo_id: int, body: StatoIn, user: dict = Depends(get
 def api_duplica_preventivo(preventivo_id: int, user: dict = Depends(get_current_user)):
     _require_admin(user)
     result = duplica_preventivo(preventivo_id, user["username"])
+    if not result:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Menu righe snapshot (mig 075) — /{preventivo_id}/menu-righe/*
+# ---------------------------------------------------------------------------
+
+@router.get("/{preventivo_id}/menu-righe")
+def api_lista_menu_righe(preventivo_id: int, user: dict = Depends(get_current_user)):
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return {"items": lista_menu_righe(preventivo_id)}
+
+
+@router.post("/{preventivo_id}/menu-righe")
+def api_aggiungi_menu_riga(preventivo_id: int, body: MenuRigaIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    try:
+        row = aggiungi_menu_riga(preventivo_id, body.dict(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+    return row
+
+
+@router.put("/{preventivo_id}/menu-righe/{riga_id}")
+def api_aggiorna_menu_riga(preventivo_id: int, riga_id: int, body: MenuRigaUpdate, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    row = aggiorna_menu_riga(preventivo_id, riga_id, body.dict(exclude_none=True))
+    if not row:
+        raise HTTPException(status_code=404, detail="Riga non trovata")
+    return row
+
+
+@router.delete("/{preventivo_id}/menu-righe/{riga_id}")
+def api_elimina_menu_riga(preventivo_id: int, riga_id: int, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    ok = elimina_menu_riga(preventivo_id, riga_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Riga non trovata")
+    return {"ok": True}
+
+
+@router.put("/{preventivo_id}/menu-righe")
+def api_riordina_menu_righe(preventivo_id: int, body: MenuRiordinaIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    return {"items": riordina_menu_righe(preventivo_id, body.ordered_ids)}
+
+
+@router.put("/{preventivo_id}/menu-sconto")
+def api_set_menu_sconto(preventivo_id: int, body: MenuScontoIn, user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    result = set_menu_sconto(preventivo_id, body.sconto)
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result

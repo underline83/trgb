@@ -7,6 +7,7 @@ Sessione 32 (10.3): menu proposto strutturato, luoghi configurabili, crea client
 import json
 from datetime import datetime
 from app.models.clienti_db import get_clienti_conn
+from app.models.foodcost_db import get_foodcost_connection
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +89,288 @@ def _salva_righe(conn, preventivo_id: int, righe: list):
             totale_riga,
             r.get("tipo_riga", "voce"),
         ))
+
+
+# ---------------------------------------------------------------------------
+# Menu righe snapshot (mig 075)
+# ---------------------------------------------------------------------------
+
+def _menu_righe_table_exists(conn) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='clienti_preventivi_menu_righe'"
+    ).fetchone()
+    return bool(row)
+
+
+def _ricalcola_menu(conn, preventivo_id: int) -> dict:
+    """
+    Ricalcola menu_subtotale sommando i prezzi delle righe snapshot.
+    Se n_persone > 0, riallinea menu_prezzo_persona = (subtotale - sconto) / n_persone.
+    Poi richiama _ricalcola_totale che aggrega menu + righe extra.
+
+    Ritorna {'menu_subtotale', 'menu_sconto', 'menu_prezzo_persona'}.
+    """
+    testata = conn.execute(
+        "SELECT menu_sconto, n_persone FROM clienti_preventivi WHERE id = ?",
+        (preventivo_id,),
+    ).fetchone()
+    if not testata:
+        return {"menu_subtotale": 0.0, "menu_sconto": 0.0, "menu_prezzo_persona": 0.0}
+
+    sconto = float(testata["menu_sconto"] or 0)
+    n_pers = int(testata["n_persone"] or 0)
+
+    if _menu_righe_table_exists(conn):
+        row = conn.execute(
+            "SELECT COALESCE(SUM(price), 0) AS s FROM clienti_preventivi_menu_righe WHERE preventivo_id = ?",
+            (preventivo_id,),
+        ).fetchone()
+        subtotale = float(row["s"] or 0)
+    else:
+        subtotale = 0.0
+
+    totale_menu = max(0.0, subtotale - sconto)
+    prezzo_pers = round(totale_menu / n_pers, 2) if n_pers > 0 else 0.0
+
+    conn.execute(
+        "UPDATE clienti_preventivi SET menu_subtotale = ?, menu_prezzo_persona = ? WHERE id = ?",
+        (round(subtotale, 2), prezzo_pers, preventivo_id),
+    )
+    _ricalcola_totale(conn, preventivo_id)
+    return {
+        "menu_subtotale": round(subtotale, 2),
+        "menu_sconto": round(sconto, 2),
+        "menu_prezzo_persona": prezzo_pers,
+    }
+
+
+def _snapshot_recipe(recipe_id: int) -> dict | None:
+    """
+    Legge un piatto da foodcost.db e restituisce il dict snapshot
+    {name, description, price, category_name} da copiare sul preventivo.
+    Usa menu_name in fallback su name, menu_description in fallback su description (vuota).
+    Prezzo: selling_price (puo' essere 0 se non valorizzato).
+    """
+    fconn = get_foodcost_connection()
+    try:
+        row = fconn.execute(
+            """
+            SELECT r.id, r.name, r.menu_name, r.menu_description, r.selling_price,
+                   rc.name AS category_name
+            FROM recipes r
+            LEFT JOIN recipe_categories rc ON r.category_id = rc.id
+            WHERE r.id = ?
+            """,
+            (recipe_id,),
+        ).fetchone()
+        if not row:
+            return None
+        nome = (row["menu_name"] or row["name"] or "").strip()
+        desc = (row["menu_description"] or "").strip() or None
+        return {
+            "name": nome,
+            "description": desc,
+            "price": float(row["selling_price"] or 0),
+            "category_name": row["category_name"],
+        }
+    finally:
+        fconn.close()
+
+
+def lista_menu_righe(preventivo_id: int) -> list:
+    """Ritorna le righe snapshot di un preventivo, ordinate."""
+    conn = get_clienti_conn()
+    try:
+        if not _menu_righe_table_exists(conn):
+            return []
+        rows = conn.execute(
+            """
+            SELECT * FROM clienti_preventivi_menu_righe
+            WHERE preventivo_id = ?
+            ORDER BY sort_order, id
+            """,
+            (preventivo_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def aggiungi_menu_riga(preventivo_id: int, data: dict) -> dict | None:
+    """
+    Aggiunge una riga snapshot.
+    Se `recipe_id` e' valorizzato, legge il piatto da Cucina e ne snapshotta
+    nome/descrizione/prezzo/categoria. I campi passati in `data` (name, price,
+    description, category_name) SOVRASCRIVONO lo snapshot (quick edit).
+    Altrimenti usa solo i campi passati ("piatto veloce" al volo).
+    """
+    conn = get_clienti_conn()
+    try:
+        prev = conn.execute("SELECT id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)).fetchone()
+        if not prev:
+            return None
+        if not _menu_righe_table_exists(conn):
+            raise RuntimeError("clienti_preventivi_menu_righe non esiste: lanciare mig 075")
+
+        recipe_id = data.get("recipe_id")
+        base = {"name": "", "description": None, "price": 0.0, "category_name": None}
+        if recipe_id:
+            snap = _snapshot_recipe(int(recipe_id))
+            if snap:
+                base.update(snap)
+        # override da data (se presenti)
+        for campo in ("name", "description", "price", "category_name"):
+            if data.get(campo) not in (None, ""):
+                base[campo] = data[campo]
+
+        if not (base["name"] or "").strip():
+            raise ValueError("name obbligatorio")
+
+        # sort_order: coda
+        max_order = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) FROM clienti_preventivi_menu_righe WHERE preventivo_id = ?",
+            (preventivo_id,),
+        ).fetchone()[0]
+        sort_order = data.get("sort_order")
+        if sort_order is None:
+            sort_order = int(max_order) + 1
+
+        cur = conn.execute(
+            """
+            INSERT INTO clienti_preventivi_menu_righe
+                (preventivo_id, recipe_id, sort_order, category_name, name, description, price)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                preventivo_id,
+                int(recipe_id) if recipe_id else None,
+                int(sort_order),
+                base["category_name"],
+                base["name"].strip(),
+                base["description"],
+                round(float(base["price"] or 0), 2),
+            ),
+        )
+        riga_id = cur.lastrowid
+        _ricalcola_menu(conn, preventivo_id)
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT * FROM clienti_preventivi_menu_righe WHERE id = ?",
+            (riga_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def aggiorna_menu_riga(preventivo_id: int, riga_id: int, data: dict) -> dict | None:
+    """Aggiorna una riga snapshot. Ricalcola il menu."""
+    conn = get_clienti_conn()
+    try:
+        if not _menu_righe_table_exists(conn):
+            return None
+        row = conn.execute(
+            "SELECT id FROM clienti_preventivi_menu_righe WHERE id = ? AND preventivo_id = ?",
+            (riga_id, preventivo_id),
+        ).fetchone()
+        if not row:
+            return None
+
+        campi = []
+        params = []
+        for campo in ("name", "description", "price", "category_name", "sort_order"):
+            if campo in data:
+                campi.append(f"{campo} = ?")
+                val = data[campo]
+                if campo == "price":
+                    val = round(float(val or 0), 2)
+                elif campo == "sort_order":
+                    val = int(val or 0)
+                params.append(val)
+
+        if campi:
+            params.extend([riga_id, preventivo_id])
+            conn.execute(
+                f"UPDATE clienti_preventivi_menu_righe SET {', '.join(campi)} "
+                f"WHERE id = ? AND preventivo_id = ?",
+                params,
+            )
+
+        _ricalcola_menu(conn, preventivo_id)
+        conn.commit()
+
+        row = conn.execute(
+            "SELECT * FROM clienti_preventivi_menu_righe WHERE id = ?",
+            (riga_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def elimina_menu_riga(preventivo_id: int, riga_id: int) -> bool:
+    conn = get_clienti_conn()
+    try:
+        if not _menu_righe_table_exists(conn):
+            return False
+        row = conn.execute(
+            "SELECT id FROM clienti_preventivi_menu_righe WHERE id = ? AND preventivo_id = ?",
+            (riga_id, preventivo_id),
+        ).fetchone()
+        if not row:
+            return False
+        conn.execute(
+            "DELETE FROM clienti_preventivi_menu_righe WHERE id = ? AND preventivo_id = ?",
+            (riga_id, preventivo_id),
+        )
+        _ricalcola_menu(conn, preventivo_id)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def riordina_menu_righe(preventivo_id: int, ordered_ids: list[int]) -> list:
+    """Applica un nuovo sort_order alle righe del preventivo (drag-drop)."""
+    conn = get_clienti_conn()
+    try:
+        if not _menu_righe_table_exists(conn):
+            return []
+        for i, rid in enumerate(ordered_ids or []):
+            conn.execute(
+                "UPDATE clienti_preventivi_menu_righe SET sort_order = ? "
+                "WHERE id = ? AND preventivo_id = ?",
+                (i, int(rid), preventivo_id),
+            )
+        conn.commit()
+        rows = conn.execute(
+            "SELECT * FROM clienti_preventivi_menu_righe WHERE preventivo_id = ? "
+            "ORDER BY sort_order, id",
+            (preventivo_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def set_menu_sconto(preventivo_id: int, sconto: float) -> dict | None:
+    """Imposta lo sconto menu e ricalcola subtotale/prezzo_persona/totale."""
+    conn = get_clienti_conn()
+    try:
+        prev = conn.execute("SELECT id FROM clienti_preventivi WHERE id = ?", (preventivo_id,)).fetchone()
+        if not prev:
+            return None
+        sc = max(0.0, float(sconto or 0))
+        conn.execute(
+            "UPDATE clienti_preventivi SET menu_sconto = ? WHERE id = ?",
+            (round(sc, 2), preventivo_id),
+        )
+        result = _ricalcola_menu(conn, preventivo_id)
+        conn.commit()
+        return result
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +481,18 @@ def get_preventivo(preventivo_id: int) -> dict | None:
             ORDER BY ordine, id
         """, (preventivo_id,)).fetchall()
         prev["righe"] = [dict(r) for r in righe]
+
+        # Menu righe snapshot (mig 075) — sicurezza: tabella puo' non esistere
+        if _menu_righe_table_exists(conn):
+            mrows = conn.execute("""
+                SELECT * FROM clienti_preventivi_menu_righe
+                WHERE preventivo_id = ?
+                ORDER BY sort_order, id
+            """, (preventivo_id,)).fetchall()
+            prev["menu_righe"] = [dict(r) for r in mrows]
+        else:
+            prev["menu_righe"] = []
+
         return prev
     finally:
         conn.close()

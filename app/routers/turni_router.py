@@ -417,6 +417,32 @@ def get_chiusure_settimana(
 
 
 # ============================================================
+# GET /turni/mese  — Fase 5: vista mensile a griglia (sola lettura)
+# ============================================================
+@router.get("/mese")
+def get_vista_mese(
+    reparto_id: int = Query(...),
+    anno: Optional[int] = Query(None, ge=2000, le=2100),
+    mese: Optional[int] = Query(None, ge=1, le=12),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Vista mensile a griglia 6×7 per un reparto.
+
+    Default = mese corrente. Ritorna 42 giorni (lunedì della settimana che
+    contiene il 1° del mese + 41 giorni a seguire), tutti i turni di quei
+    giorni per i dipendenti del reparto, chiusure e dipendenti attivi.
+    """
+    oggi = date.today()
+    a = anno if anno is not None else oggi.year
+    m = mese if mese is not None else oggi.month
+    try:
+        vista = turni_service.build_vista_mese(reparto_id, a, m)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return JSONResponse(content=vista)
+
+
+# ============================================================
 # GET /turni/foglio/pdf  — Fase 8: PDF scaricabile (niente dialog stampante)
 # ============================================================
 def _text_on(hex_color: str) -> str:
