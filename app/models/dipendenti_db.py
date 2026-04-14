@@ -348,6 +348,7 @@ def init_dipendenti_db() -> None:
         "reparto_id INTEGER REFERENCES reparti(id)",
         "colore TEXT",
         "a_chiamata INTEGER DEFAULT 0",
+        "trasmissione_telematica INTEGER DEFAULT 0",
     ]:
         try:
             cur.execute(f"ALTER TABLE dipendenti ADD COLUMN {col_def}")

@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.2-dipendenti-anagrafica (flag a_chiamata per Turni v2)
+// @version: v2.3-dipendenti-anagrafica (flag trasmissione_telematica)
 // Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,7 @@ const EMPTY_FORM = {
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
+  trasmissione_telematica: false,
 };
 
 // Palette suggerita per assegnazione colore univoco dipendente (Turni v2)
@@ -110,6 +111,7 @@ export default function DipendentiAnagrafica() {
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
+      trasmissione_telematica: !!d.trasmissione_telematica,
     });
     loadDocumenti(d.id);
     setTab("dati");
@@ -139,6 +141,7 @@ export default function DipendentiAnagrafica() {
       reparto_id: form.reparto_id || null,
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
+      trasmissione_telematica: !!form.trasmissione_telematica,
     };
     const isEdit = !!form.id;
     try {
@@ -466,7 +469,7 @@ export default function DipendentiAnagrafica() {
                       placeholder="Mansioni, allergie, note contratto..." />
                   </div>
 
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-6 flex-wrap">
                     <div className="flex items-center gap-2">
                       <input id="attivo" type="checkbox" checked={form.attivo}
                         onChange={e => handleChange("attivo", e.target.checked)}
@@ -479,6 +482,14 @@ export default function DipendentiAnagrafica() {
                         className="rounded border-neutral-300 text-amber-600" />
                       <label htmlFor="a_chiamata" className="text-xs text-neutral-700" title="Persona pagata a ore, senza contratto fisso 40h">
                         {"\uD83D\uDCDE"} A chiamata (pagata a ore, senza contratto fisso)
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input id="trasmissione_telematica" type="checkbox" checked={!!form.trasmissione_telematica}
+                        onChange={e => handleChange("trasmissione_telematica", e.target.checked)}
+                        className="rounded border-neutral-300 text-blue-600" />
+                      <label htmlFor="trasmissione_telematica" className="text-xs text-neutral-700" title="Trasmissione dati telematici">
+                        {"\uD83D\uDCE1"} Trasmissione dati telematici
                       </label>
                     </div>
                   </div>
