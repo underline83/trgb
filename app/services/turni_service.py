@@ -224,7 +224,11 @@ def build_foglio_settimana(
                   tc.origine,
                   COALESCE(tt.servizio, '') AS servizio,
                   tt.categoria AS turno_categoria,
-                  tt.colore_bg, tt.colore_testo, tt.nome AS turno_nome
+                  tt.colore_bg, tt.colore_testo, tt.nome AS turno_nome,
+                  d.nome    AS dipendente_nome,
+                  d.cognome AS dipendente_cognome,
+                  d.colore  AS dipendente_colore,
+                  d.ruolo   AS dipendente_ruolo
                 FROM turni_calendario tc
                 JOIN dipendenti d ON d.id = tc.dipendente_id
                 JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id

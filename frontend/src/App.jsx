@@ -74,6 +74,7 @@ import DipendentiMenu from "./pages/dipendenti/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/dipendenti/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
 import FoglioSettimana from "./pages/dipendenti/FoglioSettimana";
+import GestioneReparti from "./pages/dipendenti/GestioneReparti";
 import DipendentiCosti from "./pages/dipendenti/DipendentiCosti";
 import DipendentiBustePaga from "./pages/dipendenti/DipendentiBustePaga";
 import DipendentiScadenze from "./pages/dipendenti/DipendentiScadenze";
@@ -258,6 +259,7 @@ export default function App() {
         <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti"><DipendentiAnagrafica /></ProtectedRoute>} />
         <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti"><FoglioSettimana /></ProtectedRoute>} />
         <Route path="/dipendenti/turni-legacy" element={<ProtectedRoute module="dipendenti"><DipendentiTurni /></ProtectedRoute>} />
+        <Route path="/dipendenti/reparti" element={<ProtectedRoute module="dipendenti"><GestioneReparti /></ProtectedRoute>} />
         <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti"><DipendentiCosti /></ProtectedRoute>} />
         <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti"><DipendentiBustePaga /></ProtectedRoute>} />
         <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti"><DipendentiScadenze /></ProtectedRoute>} />

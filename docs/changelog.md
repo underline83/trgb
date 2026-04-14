@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-04-14 — Sessione 36 / Turni v2 Fase 4 — CRUD reparti UI + colore dipendente
+
+Completata la configurazione lato utente del modulo Turni v2. Marco puo' ora gestire reparti e colori direttamente da UI senza toccare il DB.
+
+### Frontend
+- Nuovo **`frontend/src/pages/dipendenti/GestioneReparti.jsx`**: pagina CRUD reparti stile Anagrafica (sidebar lista + form dettaglio). Form con codice/nome/ordine, icona (input + palette 8 emoji suggerite), colore (input + HEX + palette 12 colori), orari pranzo/cena (bg amber/indigo), pause staff minuti, attivo/disattivo. Validazione backend su codice univoco e blocco disattivazione se dipendenti attivi associati. Touch target 40pt.
+- **`DipendentiAnagrafica.jsx` v2.1**: nuovi campi `reparto_id` (select con icona+nome da `/reparti/`) e `colore` (input color + HEX + palette 20 colori suggeriti). Warning in-line se colore gia' usato da altro dipendente. Sidebar lista ora mostra pallino colore + badge reparto.
+- **`DipendentiMenu.jsx` v2.2**: sostituita la tile placeholder "Contratti" con tile attiva "Reparti" (colore teal) che apre `/dipendenti/reparti`.
+- **`App.jsx`**: nuova route `/dipendenti/reparti` → `GestioneReparti` protetta dal modulo `dipendenti`.
+- **`versions.jsx`**: Dipendenti 2.3 → 2.4.
+
+### Backend
+Nessuna modifica: router `/reparti/` gia' pronto da Fase 0 (sessione 36), schema `dipendenti.reparto_id/colore` gia' migrato in 070.
+
+---
+
 ## 2026-04-14 — Sessione 36 / Turni v2 Fase 1+2 — foglio settimana live + ore nette + copia settimana
 
 UI operativa del modulo Turni v2. Sostituisce la vecchia vista calendario con un Foglio Settimana che replica l'Excel di Marco. Copertura: assegnazione slot con popover, asterisco CHIAMATA, chiusure giorno da modulo Vendite, pannello ore lorde/nette con pause staff dedotte, navigazione settimana, copia settimana.

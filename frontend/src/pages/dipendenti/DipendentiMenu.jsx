@@ -1,4 +1,4 @@
-// @version: v2.1-dipendenti-hub (allineato a Home.jsx)
+// @version: v2.2-dipendenti-hub (tile Reparti Turni v2)
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -46,12 +46,12 @@ const SEZIONI = [
     ready: false,
   },
   {
-    to: "#",
-    icon: "\uD83D\uDCDD",
-    title: "Contratti",
-    subtitle: "Tipologia, scadenze, allegati PDF — prossimamente",
-    color: "bg-neutral-50 border-neutral-200 text-neutral-500",
-    ready: false,
+    to: "/dipendenti/reparti",
+    icon: "\uD83C\uDFE2",
+    title: "Reparti",
+    subtitle: "SALA, CUCINA... orari standard, pause staff, colore e icona",
+    color: "bg-teal-50 border-teal-200 text-teal-900",
+    ready: true,
   },
 ];
 

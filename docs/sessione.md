@@ -1,7 +1,14 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0+1+2+3: schema DB + reparti + FoglioSettimana.jsx live + ore nette con pause staff + copia settimana).
+> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0+1+2+3+4: schema DB + reparti + FoglioSettimana.jsx live + ore nette + copia settimana + CRUD reparti UI + colore dipendente).
+>
+> **Sessione 36 — Fase 4 (stesso giorno):**
+> - ✅ Nuova pagina `GestioneReparti.jsx` (CRUD reparti: codice/nome/icona/colore/ordine, orari pranzo+cena, pause staff, attivo). Lista sidebar + form dettaglio, palette emoji+colori suggeriti.
+> - ✅ `DipendentiAnagrafica.jsx` v2.1: campi `reparto_id` (select) + `colore` (input color + HEX + palette 20 colori) con warning colori duplicati. Sidebar lista: pallino colore + badge reparto.
+> - ✅ `DipendentiMenu.jsx` v2.2: tile "Reparti" teal attiva (al posto del placeholder "Contratti").
+> - ✅ `App.jsx`: route `/dipendenti/reparti`.
+> - ✅ versions.jsx: dipendenti 2.3 → 2.4.
 >
 > **Sessione 36 — Fase 1+2+3 (stesso giorno di Fase 0):**
 > - ✅ Migrazione 072 `turni_v2_slot_index.py`: `turni_calendario.slot_index` per persistere colonna foglio
