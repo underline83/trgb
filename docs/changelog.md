@@ -3,6 +3,69 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Navigazione — Eliminazione hub `*Menu.jsx`, ingresso diretto su Dashboard (role-aware)
+
+Marco: _"questi menu di ogni modulo vanno eliminati"_ + _"si sono d'accordo i redirect deve sempre role-aware altrimenti aprire pagina che dice che non si hanno i privilegi per aprirla"_.
+
+### Cosa cambia per l'utente
+
+Cliccando un modulo (dal dropdown header o dalle card Home) non si apre piu' la pagina-hub con le 4-6 card grandi, ma si entra direttamente sulla Dashboard del modulo (o la prima sotto-sezione accessibile in base al ruolo). Le barre tab secondarie (`*Nav.jsx`) restano identiche.
+
+### ModuleRedirect — nuovo componente role-aware
+
+Creato `frontend/src/components/ModuleRedirect.jsx`. Riceve `module` + lista ordinata `targets` (ognuno con `path` e opzionalmente `sub` per il check permessi). Comportamento:
+
+1. Se il ruolo non ha accesso al modulo → `<Navigate to="/" />`.
+2. Altrimenti sceglie il primo `target` accessibile (via `useModuleAccess.canAccessSub`) e redirige li.
+3. Se nessun target e' accessibile → mostra pagina "Nessun privilegio per aprire questo modulo col ruolo <X>".
+
+### Default di ogni modulo (ordine fallback)
+
+- **Vini** → `/vini/dashboard` → magazzino → carta → vendite → settings
+- **Ricette (Cucina)** → `/ricette/dashboard` → archivio → ingredienti → settings
+- **Vendite** → `/vendite/dashboard` → chiusure → fine-turno → impostazioni
+- **Flussi Cassa** → `/flussi-cassa/dashboard` → cc → carta → contanti → impostazioni
+- **Controllo Gestione** → `/controllo-gestione/dashboard` → uscite → confronto → spese-fisse
+- **Statistiche** → `/statistiche/dashboard` → coperti → import
+- **Prenotazioni** → `/prenotazioni/planning/{oggi}` → mappa → settimana → tavoli → impostazioni
+- **Clienti** → `/clienti/dashboard` → lista → prenotazioni → preventivi → impostazioni
+- **Dipendenti** → `/dipendenti/dashboard` → anagrafica → turni → buste-paga → scadenze → costi → impostazioni
+
+### DashboardDipendenti (nuovo)
+
+Creato `frontend/src/pages/dipendenti/DashboardDipendenti.jsx` (placeholder v1.0): headcount attivi, scadenze (scaduti + in_scadenza), buste paga mese corrente + 4 shortcut. Endpoint riusati (nessun backend nuovo). Grafici e trend arriveranno nelle prossime sessioni.
+
+### Vini — iPratico spostato dentro Impostazioni
+
+`ViniNav` riordinato: Dashboard → Cantina → Carta → Vendite → Impostazioni (v2.2). La tab "iPratico" e' sparita: `iPraticoSync` ora accetta prop `embedded` e viene renderizzato come sezione interna a `ViniImpostazioni` (voce "iPratico Sync"). La route legacy `/vini/ipratico` redirige a `/vini/settings`. Nota decisione: Marco aveva proposto "due voci separate Import/Export" ma il workflow iPratico e' unificato (import→verifica→export, 673 righe) — splittare significava duplicare codice, quindi **singola voce integrata**.
+
+### DipendentiNav
+
+Sostituita la tab "Home" (che puntava al vecchio hub) con "Dashboard" → `/dipendenti/dashboard` (v1.1).
+
+### File eliminati (12)
+
+`ViniMenu.jsx`, `RicetteMenu.jsx`, `CorrispettiviMenu.jsx`, `FattureMenu.jsx`, `admin/DipendentiMenu.jsx`, `AdminMenu.jsx`, `FlussiCassaMenu.jsx`, `ControlloGestioneMenu.jsx`, `StatisticheMenu.jsx`, `PrenotazioniMenu.jsx`, `dipendenti/DipendentiMenu.jsx`, `ClientiMenu.jsx`.
+
+### File creati/modificati
+
+- `frontend/src/components/ModuleRedirect.jsx` — NEW.
+- `frontend/src/pages/dipendenti/DashboardDipendenti.jsx` — NEW.
+- `frontend/src/App.jsx` — v5.0 → v5.1, rimossi import `*Menu`, route hub sostituite con `<ModuleRedirect>`.
+- `frontend/src/pages/vini/ViniNav.jsx` — v2.1 → v2.2.
+- `frontend/src/pages/vini/iPraticoSync.jsx` — v2.0 → v2.1 (prop `embedded`).
+- `frontend/src/pages/vini/ViniImpostazioni.jsx` — v3.1 → v3.2 (sezione interna iPratico).
+- `frontend/src/pages/dipendenti/DipendentiNav.jsx` — v1.0 → v1.1.
+- `frontend/src/config/modulesMenu.js` — aggiunta voce "Dashboard" nel sub di `dipendenti`.
+- `frontend/src/config/versions.jsx` — bump: vini 3.10→3.11, ricette 3.3→3.4, corrispettivi 4.3→4.4, fatture 2.4→2.5, flussiCassa 1.8→1.9, dipendenti 2.22→2.23, statistiche 1.0→1.1, controlloGestione 2.4→2.5, clienti 2.8→2.9, prenotazioni 2.0→2.1, sistema 5.7→5.8.
+
+### TODO follow-up
+
+- Dashboard Cucina (ricette) oggi e' scarna — da rivedere in una prossima sessione.
+- Valutare se i link "← Home" in alto a destra delle `*Nav.jsx` siano ancora utili o da rimuovere (gia' c'e' il logo TRGB nell'header).
+
+---
+
 ## 2026-04-14 — Sessione 39 / UI — Impostazioni uniformi al pattern Clienti + MieiTurni selettore a step
 
 Marco: _"Quel selettore '4/8/12 settimane' e' inguardabile. Metti due scorrimenti, uno sulla settimana e uno sul mese"_ + _"Uniforma la grafica a quella di Impostazioni gestione clienti"_.

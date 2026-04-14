@@ -107,6 +107,7 @@ const MODULES_MENU = {
     title: "Dipendenti", icon: "\uD83D\uDC65", go: "/dipendenti",
     color: "bg-purple-50 border-purple-200 text-purple-900", hoverBg: "hover:bg-purple-50",
     sub: [
+      { label: "Dashboard",     go: "/dipendenti/dashboard" },
       { label: "Anagrafica",    go: "/dipendenti/anagrafica",    check: "admin" },
       { label: "Buste Paga",    go: "/dipendenti/buste-paga",    check: "admin" },
       { label: "Turni",         go: "/dipendenti/turni" },

@@ -2,6 +2,18 @@
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
 >
+> **Sessione 39 — Navigazione — Eliminazione hub `*Menu.jsx`, entry role-aware diretto su Dashboard:**
+> - Marco: _"questi menu di ogni modulo vanno eliminati"_ (screenshot di ViniMenu e DipendentiMenu) + _"i redirect deve sempre role-aware altrimenti aprire pagina che dice che non si hanno i privilegi per aprirla"_.
+> - ✅ **Nuovo `components/ModuleRedirect.jsx`**: riceve `module` + lista ordinata `targets`, usa `useModuleAccess` per scegliere il primo path accessibile; se nessuno → pagina "nessun privilegio". Tutte le route hub in `App.jsx` sostituite con questo componente (App v5.1).
+> - ✅ **Default ingresso modulo**: Vini→dashboard, Ricette→dashboard, Vendite→dashboard, Flussi→dashboard, CG→dashboard, Statistiche→dashboard, Prenotazioni→planning oggi, Clienti→dashboard, Dipendenti→dashboard.
+> - ✅ **DashboardDipendenti nuova** (v1.0 placeholder): KPI headcount/scadenze/buste paga mese + 4 shortcut, usa endpoint esistenti, nessun backend nuovo.
+> - ✅ **Vini**: `ViniNav` riordinato Dashboard→Cantina→Carta→Vendite→Impostazioni (v2.2), tab iPratico eliminata. `iPraticoSync` ora accetta prop `embedded` (v2.1) → renderizzato come sezione interna di `ViniImpostazioni` (v3.2), route `/vini/ipratico` redirige a `/vini/settings`. Decisione Claude: Marco aveva proposto "Import/Export come 2 voci", ma il workflow iPratico e' unificato → scelto **singola voce integrata** per non duplicare codice.
+> - ✅ **DipendentiNav** v1.1: tab "Home" (hub) → "Dashboard".
+> - ✅ **12 file `*Menu.jsx` hub eliminati fisicamente** (ViniMenu, RicetteMenu, CorrispettiviMenu, FattureMenu, AdminMenu, entrambi i DipendentiMenu, FlussiCassaMenu, ControlloGestioneMenu, StatisticheMenu, PrenotazioniMenu, ClientiMenu).
+> - ✅ `modulesMenu.js`: aggiunta voce "Dashboard" nel sub dipendenti.
+> - ✅ `versions.jsx`: bump vini/ricette/corrispettivi/fatture/flussiCassa/dipendenti/statistiche/controlloGestione/clienti/prenotazioni/sistema.
+> - ❗ **Follow-up**: Dashboard Cucina (ricette) oggi e' scarna, da sistemare. Valutare se i link "← Home" nelle `*Nav.jsx` siano ridondanti col logo TRGB nell'header.
+>
 > **Sessione 39 — UI — Impostazioni uniformi al pattern Clienti + MieiTurni step:**
 > - Marco: _"Quel selettore 4/8/12 settimane e' inguardabile. Metti due scorrimenti, uno sulla settimana e uno sul mese"_ + _"Uniforma la grafica a quella di Impostazioni gestione clienti"_.
 > - ✅ **MieiTurni selettore a step**: rimosso `<select>` 4/8/12, sostituito da 5 bottoni compatti `⏪ mese / ◀ sett / Oggi / sett ▶ / mese ⏩`. Finestra resta 4 settimane, cambia solo la settimana di partenza.

@@ -1,15 +1,15 @@
-// @version: v2.1-ipratico-nav
+// @version: v2.2-no-ipratico-tab — iPratico spostato dentro Impostazioni (sessione 39)
 // Tab navigation persistente per la sezione vini
+// Ordine: Dashboard, Cantina, Carta, Vendite, Impostazioni
 // Impostazioni visibile solo per admin e sommelier
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
+  { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
+  { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
   { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
-  { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
-  { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
-  { key: "ipratico", label: "iPratico", path: "/vini/ipratico", icon: "🔄", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
 

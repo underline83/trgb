@@ -1,13 +1,12 @@
-// @version: v1.0-dipendenti-nav
+// @version: v1.1-dashboard-tab — sostituita voce Home (hub eliminato) con Dashboard (sessione 39)
 // Tab navigation persistente per la sezione Dipendenti (pattern ViniNav).
 // Colore modulo: viola (amber = admin, viola = dipendenti). Si mostra in tutte
-// le pagine del modulo: Anagrafica, Buste Paga, Turni (con sottomenu interno),
-// Scadenze, Costi, Impostazioni.
+// le pagine del modulo: Dashboard, Anagrafica, Buste Paga, Turni, Scadenze, Costi, Impostazioni.
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "home", label: "Home", path: "/dipendenti", icon: "🏠" },
+  { key: "dashboard", label: "Dashboard", path: "/dipendenti/dashboard", icon: "📊" },
   { key: "anagrafica", label: "Anagrafica", path: "/dipendenti/anagrafica", icon: "🗂️" },
   { key: "buste-paga", label: "Buste Paga", path: "/dipendenti/buste-paga", icon: "📋" },
   { key: "turni", label: "Turni", path: "/dipendenti/turni", icon: "📅" },

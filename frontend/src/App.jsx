@@ -1,4 +1,4 @@
-// @version: v5.0-permessi-granulari
+// @version: v5.1-no-hub-pages — eliminate *Menu.jsx hub, ingresso modulo diretto su Dashboard (role-aware)
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState } from "react";
@@ -8,13 +8,13 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 // import useAppHeight from "./hooks/useAppHeight"; // disabilitato sessione 26+, da reinvestigare
 import useUpdateChecker from "./hooks/useUpdateChecker";
 
 // --- GESTIONE VINI ---
-import ViniMenu from "./pages/vini/ViniMenu";
 import ViniCarta from "./pages/vini/ViniCarta";
 import ViniVendite from "./pages/vini/ViniVendite";
 import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
@@ -32,11 +32,11 @@ import RegistroMovimenti from "./pages/vini/RegistroMovimenti";
 // --- DASHBOARD VINI ---
 import DashboardVini from "./pages/vini/DashboardVini";
 
-// --- IPRATICO SYNC ---
-import IPraticoSync from "./pages/vini/iPraticoSync";
+// --- IPRATICO SYNC (ora sezione interna di ViniImpostazioni — sessione 39) ---
+// import rimosso: il file resta in src/pages/vini/iPraticoSync.jsx
+// e viene importato direttamente da ViniImpostazioni per la sezione dedicata.
 
 // --- GESTIONE RICETTE & FOOD COST ---
-import RicetteMenu from "./pages/ricette/RicetteMenu";
 import RicetteNuova from "./pages/ricette/RicetteNuova";
 import RicetteArchivio from "./pages/ricette/RicetteArchivio";
 import RicetteDettaglio from "./pages/ricette/RicetteDettaglio";
@@ -54,13 +54,11 @@ import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
 
 // --- AREA AMMINISTRAZIONE ---
 // AdminMenu rimosso — /admin ora redirect a /impostazioni
-import CorrispettiviMenu from "./pages/admin/CorrispettiviMenu";
 import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
 import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
 import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
 // CorrispettiviAnnual rimosso — integrato nella dashboard unificata
 import CorrispettiviRiepilogo from "./pages/admin/CorrispettiviRiepilogo";
-import FattureMenu from "./pages/admin/FattureMenu";
 import FattureImport from "./pages/admin/FattureImport";
 import FattureDashboard from "./pages/admin/FattureDashboard";
 import FattureFornitoreDettaglio from "./pages/admin/FattureFornitoreDettaglio";
@@ -70,7 +68,6 @@ import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
 import FattureInCloud from "./pages/admin/FattureInCloud";
 import FattureImpostazioni from "./pages/admin/FattureImpostazioni";
 import FattureProformeElenco from "./pages/admin/FattureProformeElenco";
-import DipendentiMenu from "./pages/dipendenti/DipendentiMenu";
 import DipendentiAnagrafica from "./pages/dipendenti/DipendentiAnagrafica";
 import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
 import FoglioSettimana from "./pages/dipendenti/FoglioSettimana";
@@ -82,9 +79,9 @@ import DipendentiImpostazioni from "./pages/dipendenti/DipendentiImpostazioni";
 import DipendentiCosti from "./pages/dipendenti/DipendentiCosti";
 import DipendentiBustePaga from "./pages/dipendenti/DipendentiBustePaga";
 import DipendentiScadenze from "./pages/dipendenti/DipendentiScadenze";
+import DashboardDipendenti from "./pages/dipendenti/DashboardDipendenti";
 
 // --- GESTIONE CLIENTI CRM ---
-import ClientiMenu from "./pages/clienti/ClientiMenu";
 import ClientiLista from "./pages/clienti/ClientiLista";
 import ClientiScheda from "./pages/clienti/ClientiScheda";
 import ClientiDashboard from "./pages/clienti/ClientiDashboard";
@@ -97,7 +94,6 @@ import ClientiMailchimp from "./pages/clienti/ClientiMailchimp";
 import ClientiImpostazioni from "./pages/clienti/ClientiImpostazioni";
 
 // --- PRENOTAZIONI ---
-import PrenotazioniMenu from "./pages/prenotazioni/PrenotazioniMenu";
 import PrenotazioniPlanning from "./pages/prenotazioni/PrenotazioniPlanning";
 import PrenotazioniSettimana from "./pages/prenotazioni/PrenotazioniSettimana";
 import PrenotazioniImpostazioni from "./pages/prenotazioni/PrenotazioniImpostazioni";
@@ -112,7 +108,6 @@ import Comunicazioni from "./pages/Comunicazioni";
 import CambioPIN from "./pages/CambioPIN";
 
 // --- FLUSSI DI CASSA (ex Banca) ---
-import FlussiCassaMenu from "./pages/banca/FlussiCassaMenu";
 import BancaDashboard from "./pages/banca/BancaDashboard";
 import BancaMovimenti from "./pages/banca/BancaMovimenti";
 import BancaImport from "./pages/banca/BancaImport";
@@ -124,7 +119,6 @@ import FlussiCassaContanti from "./pages/banca/FlussiCassaContanti";
 import FlussiCassaMance from "./pages/banca/FlussiCassaMance";
 
 // --- CONTROLLO DI GESTIONE ---
-import ControlloGestioneMenu from "./pages/controllo-gestione/ControlloGestioneMenu";
 import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGestioneDashboard";
 import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
 import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
@@ -132,7 +126,6 @@ import ControlloGestioneSpeseFisse from "./pages/controllo-gestione/ControlloGes
 import ControlloGestioneRiconciliazione from "./pages/controllo-gestione/ControlloGestioneRiconciliazione";
 
 // --- STATISTICHE ---
-import StatisticheMenu from "./pages/statistiche/StatisticheMenu";
 import StatisticheDashboard from "./pages/statistiche/StatisticheDashboard";
 import StatisticheProdotti from "./pages/statistiche/StatisticheProdotti";
 import StatisticheImport from "./pages/statistiche/StatisticheImport";
@@ -168,7 +161,15 @@ export default function App() {
         <Route path="/" element={<Home />} />
 
         {/* --- GESTIONE VINI --- */}
-        <Route path="/vini" element={<ProtectedRoute module="vini"><ViniMenu /></ProtectedRoute>} />
+        <Route path="/vini" element={
+          <ModuleRedirect module="vini" targets={[
+            { sub: "dashboard", path: "/vini/dashboard" },
+            { sub: "magazzino", path: "/vini/magazzino" },
+            { sub: "carta",     path: "/vini/carta" },
+            { sub: "vendite",   path: "/vini/vendite" },
+            { sub: "settings",  path: "/vini/settings" },
+          ]} />
+        } />
         <Route path="/vini/carta" element={<ProtectedRoute module="vini" sub="carta"><ViniCarta /></ProtectedRoute>} />
         <Route path="/vini/vendite" element={<ProtectedRoute module="vini" sub="vendite"><ViniVendite /></ProtectedRoute>} />
         <Route path="/vini/settings" element={<ProtectedRoute module="vini" sub="settings"><ViniImpostazioni /></ProtectedRoute>} />
@@ -179,10 +180,20 @@ export default function App() {
         <Route path="/vini/magazzino/tools" element={<Navigate to="/vini/settings" replace />} />
         <Route path="/vini/magazzino/:id" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoViniDettaglio /></ProtectedRoute>} />
         <Route path="/vini/dashboard" element={<ProtectedRoute module="vini" sub="dashboard"><DashboardVini /></ProtectedRoute>} />
-        <Route path="/vini/ipratico" element={<ProtectedRoute module="vini" sub="ipratico"><IPraticoSync /></ProtectedRoute>} />
+        {/* /vini/ipratico ora è una sezione di ViniImpostazioni (sessione 39) — redirect per link legacy */}
+        <Route path="/vini/ipratico" element={<Navigate to="/vini/settings" replace />} />
 
         {/* --- GESTIONE RICETTE & FOOD COST --- */}
-        <Route path="/ricette" element={<ProtectedRoute module="ricette"><RicetteMenu /></ProtectedRoute>} />
+        <Route path="/ricette" element={
+          <ModuleRedirect module="ricette" targets={[
+            { sub: "dashboard",   path: "/ricette/dashboard" },
+            { sub: "archivio",    path: "/ricette/archivio" },
+            { sub: "ingredienti", path: "/ricette/ingredienti" },
+            { sub: "macellaio",   path: "/macellaio" },
+            { sub: "matching",    path: "/ricette/matching" },
+            { sub: "settings",    path: "/ricette/settings" },
+          ]} />
+        } />
         <Route path="/ricette/nuova" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteNuova /></ProtectedRoute>} />
         <Route path="/ricette/archivio" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteArchivio /></ProtectedRoute>} />
         <Route path="/ricette/:id" element={<ProtectedRoute module="ricette" sub="archivio"><RicetteDettaglio /></ProtectedRoute>} />
@@ -198,7 +209,15 @@ export default function App() {
         <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />
 
         {/* --- GESTIONE VENDITE --- */}
-        <Route path="/vendite" element={<ProtectedRoute module="vendite"><CorrispettiviMenu /></ProtectedRoute>} />
+        <Route path="/vendite" element={
+          <ModuleRedirect module="vendite" targets={[
+            { sub: "dashboard",    path: "/vendite/dashboard" },
+            { sub: "fine-turno",   path: "/vendite/fine-turno" },
+            { sub: "chiusure",     path: "/vendite/chiusure" },
+            { sub: "riepilogo",    path: "/vendite/riepilogo" },
+            { sub: "impostazioni", path: "/vendite/impostazioni" },
+          ]} />
+        } />
         <Route path="/vendite/riepilogo" element={<ProtectedRoute module="vendite" sub="riepilogo"><CorrispettiviRiepilogo /></ProtectedRoute>} />
         <Route path="/vendite/chiusure" element={<ProtectedRoute module="vendite" sub="chiusure"><ChiusureTurnoLista /></ProtectedRoute>} />
         <Route path="/vendite/mance" element={<Navigate to="/flussi-cassa/mance" replace />} />
@@ -226,7 +245,16 @@ export default function App() {
         <Route path="/acquisti/fic" element={<Navigate to="/acquisti/impostazioni" replace />} />
 
         {/* --- FLUSSI DI CASSA (ex Banca) --- */}
-        <Route path="/flussi-cassa" element={<ProtectedRoute module="flussi-cassa"><FlussiCassaMenu /></ProtectedRoute>} />
+        <Route path="/flussi-cassa" element={
+          <ModuleRedirect module="flussi-cassa" targets={[
+            { sub: "dashboard",    path: "/flussi-cassa/dashboard" },
+            { sub: "cc",           path: "/flussi-cassa/cc" },
+            { sub: "carta",        path: "/flussi-cassa/carta" },
+            { sub: "contanti",     path: "/flussi-cassa/contanti" },
+            { sub: "mance",        path: "/flussi-cassa/mance" },
+            { sub: "impostazioni", path: "/flussi-cassa/impostazioni" },
+          ]} />
+        } />
         <Route path="/flussi-cassa/dashboard" element={<ProtectedRoute module="flussi-cassa" sub="dashboard"><BancaDashboard /></ProtectedRoute>} />
         <Route path="/flussi-cassa/cc" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaMovimenti /></ProtectedRoute>} />
         <Route path="/flussi-cassa/cc/crossref" element={<ProtectedRoute module="flussi-cassa" sub="cc"><BancaCrossRef /></ProtectedRoute>} />
@@ -244,7 +272,14 @@ export default function App() {
         <Route path="/banca/categorie" element={<Navigate to="/flussi-cassa/impostazioni" replace />} />
 
         {/* --- CONTROLLO DI GESTIONE --- */}
-        <Route path="/controllo-gestione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneMenu /></ProtectedRoute>} />
+        <Route path="/controllo-gestione" element={
+          <ModuleRedirect module="controllo-gestione" targets={[
+            { path: "/controllo-gestione/dashboard" },
+            { path: "/controllo-gestione/uscite" },
+            { path: "/controllo-gestione/confronto" },
+            { path: "/controllo-gestione/spese-fisse" },
+          ]} />
+        } />
         <Route path="/controllo-gestione/dashboard" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneDashboard /></ProtectedRoute>} />
         <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
         <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
@@ -252,14 +287,32 @@ export default function App() {
         <Route path="/controllo-gestione/riconciliazione" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneRiconciliazione /></ProtectedRoute>} />
 
         {/* --- STATISTICHE --- */}
-        <Route path="/statistiche" element={<ProtectedRoute module="statistiche"><StatisticheMenu /></ProtectedRoute>} />
+        <Route path="/statistiche" element={
+          <ModuleRedirect module="statistiche" targets={[
+            { sub: "dashboard", path: "/statistiche/dashboard" },
+            { sub: "coperti",   path: "/statistiche/coperti" },
+            { path: "/statistiche/prodotti" },
+            { path: "/statistiche/import" },
+          ]} />
+        } />
         <Route path="/statistiche/dashboard" element={<ProtectedRoute module="statistiche" sub="dashboard"><StatisticheDashboard /></ProtectedRoute>} />
         <Route path="/statistiche/prodotti" element={<ProtectedRoute module="statistiche"><StatisticheProdotti /></ProtectedRoute>} />
         <Route path="/statistiche/import" element={<ProtectedRoute module="statistiche"><StatisticheImport /></ProtectedRoute>} />
         <Route path="/statistiche/coperti" element={<ProtectedRoute module="statistiche" sub="coperti"><StatisticheCoperti /></ProtectedRoute>} />
 
         {/* --- DIPENDENTI (modulo top-level) --- */}
-        <Route path="/dipendenti" element={<ProtectedRoute module="dipendenti"><DipendentiMenu /></ProtectedRoute>} />
+        <Route path="/dipendenti" element={
+          <ModuleRedirect module="dipendenti" targets={[
+            { path: "/dipendenti/dashboard" },
+            { path: "/dipendenti/turni" },
+            { path: "/dipendenti/anagrafica" },
+            { path: "/dipendenti/buste-paga" },
+            { path: "/dipendenti/scadenze" },
+            { path: "/dipendenti/costi" },
+            { path: "/dipendenti/impostazioni" },
+          ]} />
+        } />
+        <Route path="/dipendenti/dashboard" element={<ProtectedRoute module="dipendenti"><DashboardDipendenti /></ProtectedRoute>} />
         <Route path="/dipendenti/anagrafica" element={<ProtectedRoute module="dipendenti"><DipendentiAnagrafica /></ProtectedRoute>} />
         <Route path="/dipendenti/turni" element={<ProtectedRoute module="dipendenti"><FoglioSettimana /></ProtectedRoute>} />
         <Route path="/dipendenti/turni/mese" element={<ProtectedRoute module="dipendenti"><VistaMensile /></ProtectedRoute>} />
@@ -277,7 +330,15 @@ export default function App() {
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
 
         {/* --- GESTIONE CLIENTI CRM --- */}
-        <Route path="/clienti" element={<ProtectedRoute module="clienti"><ClientiMenu /></ProtectedRoute>} />
+        <Route path="/clienti" element={
+          <ModuleRedirect module="clienti" targets={[
+            { sub: "dashboard", path: "/clienti/dashboard" },
+            { sub: "lista",     path: "/clienti/lista" },
+            { path: "/clienti/prenotazioni" },
+            { path: "/clienti/preventivi" },
+            { sub: "import",    path: "/clienti/impostazioni" },
+          ]} />
+        } />
         <Route path="/clienti/lista" element={<ProtectedRoute module="clienti" sub="lista"><ClientiLista /></ProtectedRoute>} />
         <Route path="/clienti/prenotazioni" element={<ProtectedRoute module="clienti"><ClientiPrenotazioni /></ProtectedRoute>} />
         <Route path="/clienti/preventivi" element={<ProtectedRoute module="clienti"><ClientiPreventivi /></ProtectedRoute>} />
@@ -288,7 +349,14 @@ export default function App() {
         <Route path="/clienti/:id" element={<ProtectedRoute module="clienti" sub="lista"><ClientiScheda /></ProtectedRoute>} />
 
         {/* --- PRENOTAZIONI --- */}
-        <Route path="/prenotazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMenu /></ProtectedRoute>} />
+        <Route path="/prenotazioni" element={
+          <ModuleRedirect module="prenotazioni" targets={[
+            { path: `/prenotazioni/planning/${new Date().toISOString().slice(0,10)}` },
+            { path: "/prenotazioni/mappa" },
+            { path: `/prenotazioni/settimana/${new Date().toISOString().slice(0,10)}` },
+            { path: "/prenotazioni/impostazioni" },
+          ]} />
+        } />
         <Route path="/prenotazioni/planning/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
         <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />

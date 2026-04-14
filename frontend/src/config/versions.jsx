@@ -3,37 +3,37 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.10",
+    version: "3.11",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
   },
   ricette: {
-    version: "3.3",
+    version: "3.4",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
   },
   corrispettivi: {
-    version: "4.3",
+    version: "4.4",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
   },
   fatture: {
-    version: "2.4",
+    version: "2.5",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
   },
   flussiCassa: {
-    version: "1.8",
+    version: "1.9",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
   },
   dipendenti: {
-    version: "2.22",
+    version: "2.23",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -45,25 +45,25 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   statistiche: {
-    version: "1.0",
+    version: "1.1",
     label: "Statistiche",
     status: "beta",
     color: "blue",
   },
   controlloGestione: {
-    version: "2.4",
+    version: "2.5",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
   },
   clienti: {
-    version: "2.8",
+    version: "2.9",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
-    version: "2.0",
+    version: "2.1",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -81,7 +81,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    version: "5.7",
+    version: "5.8",
     label: "Sistema",
     status: "stabile",
     color: "green",

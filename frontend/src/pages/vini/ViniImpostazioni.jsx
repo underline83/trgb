@@ -1,4 +1,4 @@
-// @version: v3.1-sidebar-clienti-style
+// @version: v3.2-ipratico-inline — iPratico Sync integrato come sezione (non più tab esterno)
 // Impostazioni Modulo Vini — Layout sidebar + contenuto (stile uniformato a ClientiImpostazioni)
 // Visibile solo per admin e sommelier
 
@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
+import IPraticoSync from "./iPraticoSync";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
 } from "../../config/viniConstants";
@@ -67,7 +68,7 @@ function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder
 // ---------------------------------------------------------------
 const MENU = [
   { key: "import",      label: "Import / Export",     icon: "📥", desc: "Sync cantina, import CSV, reset giacenze" },
-  { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", go: "/vini/ipratico", desc: "Sincronizzazione con iPratico Cloud" },
+  { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", desc: "Import / export verso iPratico Cloud" },
   { key: "carta",       label: "Carta dei Vini",      icon: "📜", desc: "Genera PDF/DOCX pubblica e staff" },
   { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋", desc: "Ordine tipologie, regioni, denominazioni" },
   { key: "markup",      label: "Markup Prezzi",       icon: "💰", desc: "Ricarichi per fascia costo / tipologia" },
@@ -1891,8 +1892,11 @@ export default function ViniImpostazioni() {
     </div>
   );
 
+  const renderIPratico = () => (<IPraticoSync embedded />);
+
   const sectionRenderers = {
     import: renderImportExport,
+    ipratico: renderIPratico,
     carta: renderCarta,
     ordinamento: renderOrdinamento,
     markup: renderMarkup,

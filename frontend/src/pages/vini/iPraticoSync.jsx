@@ -1,13 +1,17 @@
-// @version: v2.0-ipratico-workflow
+// @version: v2.1-embeddable — aggiunta prop `embedded` per usarlo dentro ViniImpostazioni (sessione 39)
 // Pagina sincronizzazione iPratico — workflow lineare senza tab
 // Importa → Verifica → Esporta (giacenze + testi TRGB + vini mancanti)
+//
+// Uso:
+//   <IPraticoSync />            → pagina standalone (wrapper + ViniNav)
+//   <IPraticoSync embedded />   → solo contenuto (per embeds dentro altre pagine)
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
 
 const EP = `${API_BASE}/vini/ipratico`;
 
-export default function IPraticoSync() {
+export default function IPraticoSync({ embedded = false }) {
   const [stats, setStats] = useState(null);
   const [section, setSection] = useState("review"); // "review" | "unmatched" | "missing"
 
@@ -22,10 +26,8 @@ export default function IPraticoSync() {
 
   const hasData = stats && stats.total > 0;
 
-  return (
-    <div className="min-h-screen bg-brand-cream font-sans">
-      <ViniNav current="ipratico" />
-      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
+  const body = (
+    <div className={embedded ? "space-y-4" : "max-w-6xl mx-auto p-4 sm:p-6 space-y-4"}>
 
         {/* ── Header compatto ─────────────────────────── */}
         <div className="bg-white shadow rounded-2xl p-5 border border-neutral-200">
@@ -89,6 +91,14 @@ export default function IPraticoSync() {
         {/* ── Storico (collapsible) ───────────────────── */}
         {hasData && <SyncLog />}
       </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <div className="min-h-screen bg-brand-cream font-sans">
+      <ViniNav current="settings" />
+      {body}
     </div>
   );
 }
