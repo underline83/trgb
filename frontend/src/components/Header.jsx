@@ -307,7 +307,7 @@ export default function Header({ onLogout }) {
             <div className="text-sm font-medium text-neutral-800 leading-tight">
               {username}
               {canActivateSuperMode(role) && isSuperModeActive() && (
-                <Tooltip label="Modalità gestione">
+                <Tooltip label="Modalità gestione" placement="bottom">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 ml-1.5 align-middle" />
                 </Tooltip>
               )}
@@ -320,7 +320,7 @@ export default function Header({ onLogout }) {
           </div>
           {/* ── Campanello notifiche (M.A) ── */}
           <div className="relative">
-            <Tooltip label="Notifiche">
+            <Tooltip label="Notifiche" placement="bottom">
               <button
                 onClick={() => {
                   if (!notificheOpen) caricaNotifiche();
@@ -349,7 +349,7 @@ export default function Header({ onLogout }) {
             )}
           </div>
 
-          <Tooltip label="Cambia PIN">
+          <Tooltip label="Cambia PIN" placement="bottom">
             <button
               onClick={() => navigate("/cambio-pin")}
               className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
