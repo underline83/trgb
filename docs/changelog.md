@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Dipendenti — Pagina "I miei turni" (/miei-turni) accessibile a tutti i ruoli
+
+Marco: _"se da un dipendente clicco sulla notifica dei turni non mi visualizza nulla"_. Root cause: la notifica "turni pubblicati" (globale, tutti i ruoli) puntava a `/dipendenti/turni?...`, rotta protetta da `ProtectedRoute module="dipendenti"`. I ruoli senza accesso al modulo (sala/viewer/chef/etc.) venivano rediretti a `/` → clic "inutile". Scelta Option **A**: vista self-service dedicata accessibile a TUTTI i ruoli autenticati.
+
+### Backend
+- **`auth_service.py`**: aggiunto campo opzionale `dipendente_id` al round-trip users.json (`_load_users`, `_save_users`). `get_current_user()` ora ritorna `{username, role, dipendente_id}`. Back-compat: utenti senza il campo funzionano come prima.
+- **`turni_router.py`**: nuovo endpoint `GET /turni/miei-turni?settimana_inizio&num_settimane` che risolve `dipendente_id` dall'utente loggato (non prende parametri sull'identità). Se l'utente non ha `dipendente_id` in users.json → 404 con messaggio chiaro "il tuo utente non è collegato a un dipendente". Riusa `turni_service.build_vista_dipendente()` esistente.
+- **`turni_service.py:1415`**: notifica "turni pubblicati" ora punta a `/miei-turni?settimana=YYYY-Www` invece del Foglio Settimana. Messaggio aggiornato: "Apri per vedere i tuoi turni".
+
+### Frontend
+- **`MieiTurni.jsx` v1.0** (`pages/dipendenti/MieiTurni.jsx`): nuova pagina che riusa la stessa UX di PerDipendente (CardSettimana, TotaliPeriodo, BloccoTurno) ma SENZA tab reparti e SENZA selector dipendente — fetch diretto `/turni/miei-turni`. Toolbar 2-sezioni: LEFT navigatore ◀ periodo ▶ Oggi / RIGHT select 4/8/12 settimane + 🖨️ Stampa + (solo admin) `📋 Foglio Settimana`. Deep-link da notifica: legge `?settimana=` dall'URL. Stato `notLinked` con card informativa 🔗 "Utente non collegato — chiedi all'amministratore" quando 404 specifico. Stampa `@media print` friendly come Mese/PerDipendente (`breakInside: avoid`, print-only header, toolbar/foglio button `print:hidden`).
+- **`App.jsx`**: route `/miei-turni` registrata **SENZA ProtectedRoute** (solo l'auth gate top-level la protegge). Accessibile a ogni ruolo con token valido.
+
+### Mapping utenti → dipendenti
+- `users.json` aggiornato (local dev): marco→1, iryna→7, paolo→4. Ospite resta senza collegamento.
+- `scripts/set_dipendente_id.py`: script CLI per applicare il mapping sul VPS (users.json è .gitignored, le modifiche locali NON vengono pushate). Uso:
+  - `python3 scripts/set_dipendente_id.py` (mostra stato)
+  - `python3 scripts/set_dipendente_id.py --apply` (applica default marco=1, iryna=7, paolo=4)
+  - `python3 scripts/set_dipendente_id.py --set giuseppe=12` (custom)
+  - Poi: `sudo systemctl restart trgb-backend`
+
+### Versioni
+- Modulo Dipendenti: v2.16 → **v2.17** (pagina "I miei turni" + fix notifica deep-link).
+
+### Note
+- Admin/superadmin vedono la stessa pagina con in più il bottone "📋 Foglio Settimana" che apre la vista editoriale completa (`/dipendenti/turni`).
+- La vista è read-only: per modificare turni serve sempre il Foglio Settimana (accesso admin).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Preventivi — Menu multipli alternativi (Opzione A/B/C…)
 
 Marco: _"un preventivo deve poter presentare al cliente più menu alternativi, non compresenti: il cliente ne sceglie uno"_. Fino a ieri un preventivo aveva **UN** menu (`menu_righe` appiattite sulla testata con denorma `menu_subtotale`, `menu_sconto`, `menu_prezzo_persona`). Ora può averne N: ciascuno con nome editabile, ordine, prezzo a persona proprio. Se N≥2 il totale del preventivo **non** viene sommato — il cliente sceglie, poi si aggiorna il preventivo.

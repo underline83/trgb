@@ -76,6 +76,7 @@ import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
 import FoglioSettimana from "./pages/dipendenti/FoglioSettimana";
 import VistaMensile from "./pages/dipendenti/VistaMensile";
 import PerDipendente from "./pages/dipendenti/PerDipendente";
+import MieiTurni from "./pages/dipendenti/MieiTurni";
 import GestioneReparti from "./pages/dipendenti/GestioneReparti";
 import DipendentiImpostazioni from "./pages/dipendenti/DipendentiImpostazioni";
 import DipendentiCosti from "./pages/dipendenti/DipendentiCosti";
@@ -269,6 +270,9 @@ export default function App() {
         <Route path="/dipendenti/costi" element={<ProtectedRoute module="dipendenti"><DipendentiCosti /></ProtectedRoute>} />
         <Route path="/dipendenti/buste-paga" element={<ProtectedRoute module="dipendenti"><DipendentiBustePaga /></ProtectedRoute>} />
         <Route path="/dipendenti/scadenze" element={<ProtectedRoute module="dipendenti"><DipendentiScadenze /></ProtectedRoute>} />
+
+        {/* --- I MIEI TURNI (self-service, accessibile a tutti i ruoli autenticati) --- */}
+        <Route path="/miei-turni" element={<MieiTurni />} />
         {/* Redirect vecchi path admin */}
         <Route path="/admin/dipendenti/*" element={<Navigate to="/dipendenti" replace />} />
 

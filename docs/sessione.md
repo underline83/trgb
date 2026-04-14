@@ -1,7 +1,18 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 39 — Preventivi v2.0 Menu multipli alternativi A/B/C).
+> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi).
+>
+> **Sessione 39 — Dipendenti — Pagina "I miei turni" (Option A, fix notifica turni):**
+> - ✅ **Bug fix**: la notifica "turni pubblicati" (globale, tutti i ruoli) puntava a `/dipendenti/turni?...` ma `ProtectedRoute module="dipendenti"` rediriggeva a `/` i ruoli non-admin. Scelta **Option A**: nuova vista self-service `/miei-turni` accessibile a TUTTI i ruoli autenticati.
+> - ✅ **Backend `auth_service.py`**: campo opzionale `dipendente_id` nel round-trip users.json; `get_current_user()` ritorna `{username, role, dipendente_id}`. Back-compat con utenti senza il campo.
+> - ✅ **Backend `turni_router.py`**: nuovo `GET /turni/miei-turni?settimana_inizio&num_settimane` — risolve dipendente dall'utente loggato, 404 chiaro se non collegato. Riusa `turni_service.build_vista_dipendente()`.
+> - ✅ **Backend `turni_service.py:1415`**: notifica pubblicazione ora linka a `/miei-turni?settimana=YYYY-Www` (messaggio: "Apri per vedere i tuoi turni").
+> - ✅ **FE `MieiTurni.jsx` v1.0**: nuova pagina che riusa UX di PerDipendente (CardSettimana/TotaliPeriodo) senza tab reparti né selettore dipendente. Toolbar 2-sezioni: LEFT nav periodo / RIGHT 4-8-12w + 🖨️ Stampa + (solo admin) `📋 Foglio Settimana` deep-link. Deep-link `?settimana=` dall'URL. Card "🔗 Utente non collegato" quando 404. Stampa `@media print` friendly con `breakInside: avoid`.
+> - ✅ **FE `App.jsx`**: route `/miei-turni` **senza ProtectedRoute** (solo auth gate top-level).
+> - ✅ **Mapping utenti**: `users.json` dev aggiornato (marco→1, iryna→7, paolo→4). Script `scripts/set_dipendente_id.py` per applicare il mapping sul VPS (users.json è .gitignored, va lanciato in prod: `python3 scripts/set_dipendente_id.py --apply && sudo systemctl restart trgb-backend`).
+> - ✅ **Versions bump**: dipendenti 2.16 → **2.17**.
+> - ⚠️ **Post-deploy obbligatorio**: Marco deve SSH sul VPS e lanciare lo script `set_dipendente_id.py --apply` (o editare manualmente users.json) + restart del backend, altrimenti iryna/paolo vedranno la card "Utente non collegato".
 >
 > **Sessione 39 — Preventivi v2.0 — Menu multipli alternativi (Opzione A/B/C):**
 > - ✅ **Problema/feature**: un preventivo può ora presentare al cliente N menu **alternativi** (non compresenti). Il cliente ne sceglie uno. Regole totale: 0 menu → solo Extra; 1 menu → `prezzo_persona × pax + Extra`; ≥2 menu → NESSUN totale aggregato (il cliente sceglie prima).
