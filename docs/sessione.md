@@ -1,9 +1,20 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0+1+2+3+4: schema DB + reparti + FoglioSettimana.jsx live + ore nette + copia settimana + CRUD reparti UI + colore dipendente).
+> Ultima sessione: 2026-04-14 (sessione 37 — Prestazioni Occasionali Blocco 1: backend + anagrafica dietro feature flag).
 >
-> **Sessione 36 — Fase 4 (stesso giorno):**
+> **Sessione 37 — Prestazioni Occasionali Blocco 1 (2026-04-14):**
+> - ✅ Marco aveva chiesto "dipendente in nero", rifiutato → concordato canale legale **Prestazione Occasionale INPS** (art. 54-bis, PrestO / Libretto Famiglia).
+> - ✅ Migrazione 074 `prestazioni_occasionali.py`: `dipendenti.forma_rapporto` (DIPENDENTE|OCCASIONALE|COLLABORATORE|STAGISTA) + tabella `prestazioni_occasionali_log` (ricevute PrestO/LF).
+> - ✅ Router `/occasionali/*` dietro feature flag `FEATURE_OCCASIONALI` (env): 5 endpoint (flag, riepilogo YTD, storico ricevute, POST registra, DELETE soft-delete). Soglie parametrizzabili da env.
+> - ✅ `DipendentiAnagrafica.jsx` v2.3: sezione "Inquadramento" condizionale (select forma rapporto + compenso orario) + badge OCC in sidebar, visibili solo se backend flag=ON.
+> - ✅ Backend `dipendenti.py`: `DipendenteBase` espone `forma_rapporto` + `costo_orario`; dipendenti_db.py schema evolution.
+> - ✅ Docs: `modulo_prestazioni_occasionali.md` (nuovo), changelog aggiornato, `.env` locale con FEATURE_OCCASIONALI=1.
+> - ⏭️ **Blocco 2 (prossima sessione)**: FoglioSettimana con badge OCC + contatore YTD.
+> - ⏭️ **Blocco 3 (sessione successiva)**: pagina `PrestazioniOccasionali.jsx` + integrazione tab Contanti + widget Statistiche.
+> - ⚠ DEPLOY: aggiungere a `/home/marco/trgb/trgb/.env` su VPS `FEATURE_OCCASIONALI=1` + 3 soglie, poi `systemctl restart trgb-backend`.
+>
+> **Sessione 36 — precedente (Turni v2 Fase 4 — CRUD reparti UI + colore dipendente):**
 > - ✅ Nuova pagina `GestioneReparti.jsx` (CRUD reparti: codice/nome/icona/colore/ordine, orari pranzo+cena, pause staff, attivo). Lista sidebar + form dettaglio, palette emoji+colori suggeriti.
 > - ✅ `DipendentiAnagrafica.jsx` v2.1: campi `reparto_id` (select) + `colore` (input color + HEX + palette 20 colori) con warning colori duplicati. Sidebar lista: pallino colore + badge reparto.
 > - ✅ `DipendentiMenu.jsx` v2.2: tile "Reparti" teal attiva (al posto del placeholder "Contratti").

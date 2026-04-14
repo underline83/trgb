@@ -3,6 +3,60 @@
 
 ---
 
+## 2026-04-14 — Sessione 37 / Prestazioni Occasionali Blocco 1 — backend + anagrafica dietro feature flag
+
+Primo dei tre push previsti per introdurre il modulo **Prestazioni Occasionali** (art. 54-bis DL 50/2017 — PrestO / Libretto Famiglia INPS). Questo blocco è **solo plumbing**: schema DB, router backend, feature flag, UI minima in anagrafica. NON tocca ancora Turni, Contanti, Statistiche (blocchi 2 e 3, sessioni successive).
+
+### Contesto
+Marco aveva richiesto inizialmente una gestione "dipendente in nero", rifiutata per motivi legali. Soluzione concordata: **Prestazione Occasionale regolare** (PrestO/LF INPS). Rispetto al dipendente normale: niente contratto 40h né busta paga, pagamento tramite portale INPS con comunicazione preventiva, soglie fiscali 2026 (€2.500/prestatore, €10.000/committente, 280 h/prestatore).
+
+### Feature flag
+- Nuova env var **`FEATURE_OCCASIONALI`** (default `0`). Quando `0`:
+  - Router `/occasionali/*` risponde **404** (tranne `/flag` che dice enabled=false).
+  - UI `DipendentiAnagrafica` NON mostra select "Forma del rapporto" (i record esistenti restano `DIPENDENTE`).
+  - Zero impatto su chi non attiva il modulo.
+- Soglie parametrizzabili via env: `OCC_SOGLIA_EURO_PRESTATORE=2500`, `OCC_SOGLIA_EURO_COMMITTENTE=10000`, `OCC_SOGLIA_ORE_PRESTATORE=280`.
+
+### Backend
+- Nuova migrazione **074 `prestazioni_occasionali.py`**:
+  - `ALTER TABLE dipendenti ADD COLUMN forma_rapporto TEXT DEFAULT 'DIPENDENTE'` (nuova colonna dedicata, separata dalla colonna `tipo_rapporto` già occupata dai valori LUL indeterminato/determinato).
+  - Backfill: tutti i dipendenti esistenti → `forma_rapporto='DIPENDENTE'`.
+  - Nuova tabella **`prestazioni_occasionali_log`** con campi `dipendente_id`, `data_prestazione`, `ore`, `importo_lordo/netto`, `canale` (PRESTO | LIBRETTO_FAMIGLIA), `ricevuta_numero/data`, `uscita_contanti_id` (FK opzionale ad admin_finance), `stato` (REGISTRATO | ANNULLATO), timestamps. Indici su `(dipendente_id)`, `(data_prestazione)`, `(dipendente_id, data_prestazione)`.
+  - Idempotente.
+- **`dipendenti_db.py`**: colonna `forma_rapporto` aggiunta al safe-ALTER loop (per DB già esistenti); `CREATE TABLE IF NOT EXISTS prestazioni_occasionali_log` + indici per DB nuovi.
+- **`dipendenti.py` router**: `DipendenteBase` + campi `forma_rapporto: str = "DIPENDENTE"` e `costo_orario: Optional[float] = None`. SELECT/INSERT/UPDATE allineati; valore normalizzato in uppercase.
+- Nuovo router **`occasionali_router.py`** con prefix `/occasionali` e tag `"Prestazioni Occasionali"`. Endpoint:
+  - `GET /occasionali/flag` — stato feature flag + soglie (sempre disponibile per permettere al FE di decidere cosa mostrare).
+  - `GET /occasionali/riepilogo?anno=YYYY` — riepilogo YTD per ciascun prestatore (ore, importo, % soglia euro, % soglia ore, semaforo verde/giallo/rosso) + totale committente. Fonte: ricevute registrate → fallback `turni_calendario × costo_orario` → `nessun_dato`.
+  - `GET /occasionali/{dipendente_id}/ricevute?anno=YYYY` — storico ricevute PrestO/LF.
+  - `POST /occasionali/ricevute` — registra ricevuta; valida che il dipendente abbia `forma_rapporto='OCCASIONALE'`.
+  - `DELETE /occasionali/ricevute/{id}` — soft-delete (`stato='ANNULLATO'`) per audit trail.
+  - Tutti gli endpoint richiedono JWT e rispondono 404 se feature flag OFF.
+- **`main.py`**: import + `include_router(occasionali_router)`.
+
+### Frontend
+- **`DipendentiAnagrafica.jsx` v2.2→v2.3**:
+  - Fetch `/occasionali/flag` al mount; se `enabled=true` appare la sezione "Inquadramento" con select `Forma del rapporto` (4 opzioni: Dipendente, Occasionale, Collaboratore P.IVA, Stagista) e campo "Compenso orario lordo (€/h)" — obbligatorio solo per OCCASIONALE.
+  - Warning in-line sotto al select quando si seleziona OCCASIONALE: ricorda le soglie fiscali 2026.
+  - Badge **OCC** (arancione) nella sidebar lista per prestatori occasionali — visibile solo se il flag è attivo.
+- **`versions.jsx`**: Dipendenti 2.5 → 2.6.
+
+### Non incluso (blocchi successivi)
+- **Blocco 2 (sessione futura)**: `FoglioSettimana` con badge OCC e contatore YTD ore/euro per prestatore.
+- **Blocco 3 (sessione futura)**: pagina dedicata `PrestazioniOccasionali.jsx` (riepilogo + registrazione ricevute), integrazione con tab Contanti (`admin_finance.cash_expenses`) per linkare pagamento e ricevuta PrestO, widget su pagina Statistiche.
+
+### Deploy
+Abilitare sul VPS aggiungendo a `/home/marco/trgb/trgb/.env`:
+```
+FEATURE_OCCASIONALI=1
+OCC_SOGLIA_EURO_PRESTATORE=2500
+OCC_SOGLIA_EURO_COMMITTENTE=10000
+OCC_SOGLIA_ORE_PRESTATORE=280
+```
+poi `sudo systemctl restart trgb-backend`.
+
+---
+
 ## 2026-04-14 — Sessione 36 / Turni v2 Fase 5 — refactor OPZIONALE + flag `a_chiamata` + pausa condizionale + UX refinements
 
 Sessione di correzione concettuale + raffinamento UX sul Foglio Settimana (v1.2 → v1.5).

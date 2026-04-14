@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.2-dipendenti-anagrafica (flag a_chiamata per Turni v2)
+// @version: v2.3-dipendenti-anagrafica (forma_rapporto + costo_orario per Prestazioni Occasionali)
 // Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,12 +19,25 @@ const DOC_CATEGORIE = [
   { value: "ALTRO", label: "Altro", icon: "\uD83D\uDCCE" },
 ];
 
+// Forma del rapporto di lavoro — determina come viene pagata la persona
+// DIPENDENTE     → CCNL, busta paga, contributi INPS datore (default)
+// OCCASIONALE    → PrestO / Libretto Famiglia INPS (soglie €2.500 / €10.000 / 280h)
+// COLLABORATORE  → P.IVA, collaborazione esterna
+// STAGISTA       → tirocinio formativo
+const FORME_RAPPORTO = [
+  { value: "DIPENDENTE",    label: "Dipendente (CCNL + busta paga)",      icon: "\uD83D\uDCBC" },
+  { value: "OCCASIONALE",   label: "Prestazione occasionale (PrestO/LF)", icon: "\uD83D\uDCDE" },
+  { value: "COLLABORATORE", label: "Collaboratore P.IVA",                 icon: "\uD83E\uDDFE" },
+  { value: "STAGISTA",      label: "Stagista / tirocinio",                icon: "\uD83C\uDF93" },
+];
+
 const EMPTY_FORM = {
   id: null, codice: "", nome: "", cognome: "", ruolo: "",
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
   reparto_id: null, colore: "", a_chiamata: false,
+  forma_rapporto: "DIPENDENTE", costo_orario: "",
 };
 
 // Palette suggerita per assegnazione colore univoco dipendente (Turni v2)
@@ -46,6 +59,16 @@ export default function DipendentiAnagrafica() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("dati"); // "dati" | "documenti"
+
+  // Feature flag Prestazioni Occasionali (backend env FEATURE_OCCASIONALI)
+  // Quando OFF → il select "forma rapporto" non viene mostrato e non appaiono badge OCC.
+  const [occFlag, setOccFlag] = useState({ enabled: false, soglie: null });
+  useEffect(() => {
+    apiFetch(`${API_BASE}/occasionali/flag`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setOccFlag(d); })
+      .catch(() => { /* flag resta false — UI base invariata */ });
+  }, []);
 
   // Documenti
   const [docs, setDocs] = useState([]);
@@ -110,6 +133,8 @@ export default function DipendentiAnagrafica() {
       note: d.note || "", attivo: d.attivo ?? true,
       reparto_id: d.reparto_id ?? null, colore: d.colore || "",
       a_chiamata: !!d.a_chiamata,
+      forma_rapporto: (d.forma_rapporto || "DIPENDENTE").toUpperCase(),
+      costo_orario: d.costo_orario != null ? String(d.costo_orario) : "",
     });
     loadDocumenti(d.id);
     setTab("dati");
@@ -139,6 +164,10 @@ export default function DipendentiAnagrafica() {
       reparto_id: form.reparto_id || null,
       colore: form.colore || null,
       a_chiamata: !!form.a_chiamata,
+      forma_rapporto: (form.forma_rapporto || "DIPENDENTE").toUpperCase(),
+      costo_orario: form.costo_orario !== "" && form.costo_orario != null
+        ? Number(String(form.costo_orario).replace(",", "."))
+        : null,
     };
     const isEdit = !!form.id;
     try {
@@ -274,6 +303,10 @@ export default function DipendentiAnagrafica() {
                     {d.a_chiamata && (
                       <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
                         title="A chiamata — pagata a ore">{"\uD83D\uDCDE"}</span>
+                    )}
+                    {occFlag.enabled && (d.forma_rapporto || "").toUpperCase() === "OCCASIONALE" && (
+                      <span className="text-[9px] px-1 rounded bg-orange-100 text-orange-700 border border-orange-200 shrink-0 font-semibold"
+                        title="Prestazione occasionale (PrestO / Libretto Famiglia)">OCC</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 ml-[18px]">
@@ -437,6 +470,47 @@ export default function DipendentiAnagrafica() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ── Inquadramento: forma rapporto + compenso orario ── */}
+                  {/* Select forma_rapporto visibile SOLO se feature flag OCCASIONALI è ON.
+                      Altrimenti l'unico valore ammesso è 'DIPENDENTE' (default silente). */}
+                  {(occFlag.enabled || form.forma_rapporto === "OCCASIONALE") && (
+                    <div className="border-t border-neutral-100 pt-3">
+                      <p className="text-[10px] text-neutral-400 font-medium mb-2 uppercase">Inquadramento</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] text-neutral-500 font-medium mb-1">Forma del rapporto</label>
+                          <select
+                            value={form.forma_rapporto || "DIPENDENTE"}
+                            onChange={e => handleChange("forma_rapporto", e.target.value)}
+                            className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white">
+                            {FORME_RAPPORTO.map(f => (
+                              <option key={f.value} value={f.value}>{f.icon} {f.label}</option>
+                            ))}
+                          </select>
+                          {form.forma_rapporto === "OCCASIONALE" && (
+                            <p className="text-[10px] text-amber-700 mt-1 leading-snug">
+                              {"\u26A0\uFE0F"} Soglie 2026: €2.500/anno prestatore, €10.000/anno committente, 280 h/anno.
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-neutral-500 font-medium mb-1">
+                            Compenso orario lordo (€/h)
+                            {form.forma_rapporto === "OCCASIONALE" && <span className="text-red-500 ml-0.5">*</span>}
+                          </label>
+                          <input
+                            type="number" step="0.01" min="0"
+                            value={form.costo_orario}
+                            onChange={e => handleChange("costo_orario", e.target.value)}
+                            className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
+                            placeholder={form.forma_rapporto === "OCCASIONALE" ? "es. 10.00" : "opzionale"}
+                            required={form.forma_rapporto === "OCCASIONALE"}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Telefono" value={form.telefono} onChange={v => handleChange("telefono", v)}
