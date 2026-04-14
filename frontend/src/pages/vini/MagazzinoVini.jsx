@@ -358,6 +358,24 @@ export default function MagazzinoVini() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showStampaFiltrata, setShowStampaFiltrata] = useState(false);
+  const [showStampeMenu, setShowStampeMenu] = useState(false);
+  const stampeMenuRef = useRef(null);
+
+  // Click-outside per chiudere il menu Stampe (mobile-aware: niente hover)
+  useEffect(() => {
+    if (!showStampeMenu) return;
+    const handleClickOutside = (e) => {
+      if (stampeMenuRef.current && !stampeMenuRef.current.contains(e.target)) {
+        setShowStampeMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [showStampeMenu]);
 
   const [openSchedaId, setOpenSchedaId] = useState(null);
   const schedaRef = useRef(null);      // ref per scroll al div wrapper
@@ -1021,30 +1039,38 @@ export default function MagazzinoVini() {
               className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition">
               Carta PDF
             </button>
-            <div className="relative group">
-              <button className="px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 transition">
+            <div className="relative" ref={stampeMenuRef}>
+              <button
+                onClick={() => setShowStampeMenu((v) => !v)}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 transition"
+              >
                 Stampe ▾
               </button>
-              <div className="hidden group-hover:flex flex-col absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-30 min-w-[200px]">
-                <button onClick={() => {
-                    const token = localStorage.getItem("token");
-                    window.open(`${API_BASE}/vini/cantina-tools/inventario/pdf?token=${token}`, "_blank");
-                  }}
-                  className="px-3 py-2 text-xs text-left hover:bg-amber-50 rounded-t-lg transition">Tutti i vini</button>
-                <button onClick={() => {
-                    const token = localStorage.getItem("token");
-                    window.open(`${API_BASE}/vini/cantina-tools/inventario/giacenza/pdf?token=${token}`, "_blank");
-                  }}
-                  className="px-3 py-2 text-xs text-left hover:bg-amber-50 transition">Solo con giacenza</button>
-                <button onClick={() => {
-                    const token = localStorage.getItem("token");
-                    window.open(`${API_BASE}/vini/cantina-tools/inventario/locazioni/pdf?token=${token}`, "_blank");
-                  }}
-                  className="px-3 py-2 text-xs text-left hover:bg-amber-50 transition">Per locazione</button>
-                <div className="border-t border-neutral-100" />
-                <button onClick={() => setShowStampaFiltrata(true)}
-                  className="px-3 py-2 text-xs text-left hover:bg-amber-50 rounded-b-lg transition font-medium">Con filtri...</button>
-              </div>
+              {showStampeMenu && (
+                <div className="flex flex-col absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-30 min-w-[200px]">
+                  <button onClick={() => {
+                      const token = localStorage.getItem("token");
+                      window.open(`${API_BASE}/vini/cantina-tools/inventario/pdf?token=${token}`, "_blank");
+                      setShowStampeMenu(false);
+                    }}
+                    className="px-3 py-2 text-xs text-left hover:bg-amber-50 rounded-t-lg transition">Tutti i vini</button>
+                  <button onClick={() => {
+                      const token = localStorage.getItem("token");
+                      window.open(`${API_BASE}/vini/cantina-tools/inventario/giacenza/pdf?token=${token}`, "_blank");
+                      setShowStampeMenu(false);
+                    }}
+                    className="px-3 py-2 text-xs text-left hover:bg-amber-50 transition">Solo con giacenza</button>
+                  <button onClick={() => {
+                      const token = localStorage.getItem("token");
+                      window.open(`${API_BASE}/vini/cantina-tools/inventario/locazioni/pdf?token=${token}`, "_blank");
+                      setShowStampeMenu(false);
+                    }}
+                    className="px-3 py-2 text-xs text-left hover:bg-amber-50 transition">Per locazione</button>
+                  <div className="border-t border-neutral-100" />
+                  <button onClick={() => { setShowStampaFiltrata(true); setShowStampeMenu(false); }}
+                    className="px-3 py-2 text-xs text-left hover:bg-amber-50 rounded-b-lg transition font-medium">Con filtri...</button>
+                </div>
+              )}
             </div>
           </div>
         </div>

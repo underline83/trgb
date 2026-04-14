@@ -139,6 +139,7 @@
 | 8.11 | Tema stagionale / branding eventi | S | FUTURO | Nice-to-have cosmetico |
 | 8.12 | Dropdown Header M2 — deep search globale | M | DA FARE | Estendere ricerca del dropdown (già M1 in prod, sessione 32) anche a entità: vini per nome, clienti per cognome, fatture per numero, prenotazioni per data. Endpoint backend `/search/global?q=` che restituisce risultati raggruppati per tipo. Sezione dedicata nel dropdown sotto i moduli |
 | 8.13 | Dropdown Header M3 — preview panel a 2 colonne | M | FUTURO | Layout espanso: colonna sinistra gruppi moduli, colonna destra preview del modulo selezionato (ultima attività, shortcut recenti, mini-stats). Evoluzione di M1 per desktop wide (≥1024px), fallback M1 su mobile |
+| 8.14 | Tool configurazione/personalizzazione stampe (M.B estensione) | M | DA FARE | UI dedicata (probabile in Impostazioni) per personalizzare i PDF del mattone M.B: scelta logo (wordmark attuale / icon only / nascosto), testo organizzazione (nome+sub), testo footer `@page`, colori accent, toggle strip gobbette, toggle "Generato il ...", campo note libero. Persistenza in tabella `pdf_settings` (org-wide). Preview live. Endpoint `GET/PUT /pdf-settings`. Il servizio `pdf_brand._context_base` legge da DB invece che hardcoded. Include anche selettore per-tipo-documento (preventivo, ricetta, inventario) così ogni tipo può avere override. Valore: Marco vuole poter cambiare copy/brand senza toccare codice — es. logo natalizio, promo, cambio indirizzo |
 
 ---
 

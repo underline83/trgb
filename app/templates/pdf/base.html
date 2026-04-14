@@ -10,13 +10,11 @@
     {# HEADER BRAND TRGB — logo + wordmark + titolo documento  #}
     {# ======================================================== #}
     <div class="brand-header">
-        <div class="logo-cell">
-            {% if logo_data_uri %}
-                <img src="{{ logo_data_uri }}" alt="TRGB"/>
-            {% endif %}
-        </div>
         <div class="wordmark-cell">
-            <div class="wordmark">TRGB</div>
+            <div class="wordmark-inline">
+                <span class="wordmark-svg">{{ wordmark_svg|safe }}</span>
+                <span class="wordmark-text">TRGB</span>
+            </div>
             <div class="org-sub">{{ org_nome }} — {{ org_sub }}</div>
         </div>
         <div class="title-cell">
