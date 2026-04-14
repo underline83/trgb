@@ -3,6 +3,46 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Clienti — Libreria Menu Template (mig 080)
+
+Marco: _"ok il menu generato posso recuperarlo in altri preventivi?"_ → scelta Opzione **B** (libreria completa, non duplicazione inline). Nasce una libreria di menu riutilizzabili con snapshot copy: quando un template viene applicato a un menu, le righe sono COPIATE (non collegate), quindi modifiche successive al template non alterano i preventivi già emessi.
+
+### Backend
+- **Migrazione 080** (`080_menu_templates.py`): nuove tabelle su `clienti.sqlite3`
+  - `clienti_menu_template(id, nome, descrizione, service_type_id, prezzo_persona, sconto, created_at, updated_at)`
+  - `clienti_menu_template_righe(id, template_id FK cascade, recipe_id, sort_order, category_name, name, description, price, created_at)`
+  - Indici: `idx_cmt_service_type(service_type_id, nome)`, `idx_cmtr_template(template_id, sort_order)`
+  - `service_type_id` è soft-FK verso `foodcost.db.service_types` (nessun constraint cross-DB)
+- **`menu_templates_service.py`**: CRUD completo (`lista_templates`, `get_template`, `crea_template`, `aggiorna_template`, `elimina_template`, `duplica_template`) + gestione righe (`aggiungi_riga_template`, `elimina_riga_template`, `riordina_righe_template`) + bridge preventivi (`salva_menu_come_template`, `applica_template_a_menu`). Helper `_get_service_types_map` legge da foodcost.db per enrichment nome service_type. `applica_template_a_menu` invoca `preventivi_service._ricalcola_menu_e_totale(conn, menu_id)` inline nella stessa connection per preservare consistenza transazionale.
+- **`menu_templates_router.py`**: due APIRouter esportati
+  - `router` (prefix `/menu-templates`): CRUD standard
+  - `preventivi_bridge_router` (prefix `/preventivi`): endpoint `POST /preventivi/{pid}/menu/{mid}/salva-come-template` e `POST /preventivi/{pid}/menu/{mid}/carica-template`
+  - Tutte le scritture richiedono `_require_admin`; letture a qualsiasi utente loggato (composer le usa)
+- **`main.py`**: registra entrambi i router dopo `preventivi_router`.
+
+### Frontend
+- **`PreventivoMenuComposer.jsx` v2.1**: due nuovi pulsanti
+  - "📂 Carica template" (barra superiore, amber): apre dialog con filtro service_type + search + checkbox "sostituisci righe esistenti"
+  - "💾 Salva template" (area tab, emerald, disabilitato se menu vuoto): dialog con nome obbligatorio + descrizione + service_type_id
+  - Snapshot puro: le righe caricate sono copie locali, non referenze al template originale
+- **`ClientiMenuTemplates.jsx` v1.0** (nuova pagina): CRUD completo con layout a due colonne
+  - Sinistra: filtri (service_type + search) + lista template
+  - Destra: editor metadati (nome, descrizione, service_type_id, prezzo_persona, sconto) + gestione righe con picker dal ricettario, add veloce, reorder, remove
+  - Azioni: Nuovo (prompt), Duplica, Elimina (con conferma)
+  - Usabile sia standalone sia embedded in Impostazioni Clienti
+- **`ClientiImpostazioni.jsx`**: nuova tile "🍽️ Menu Template" che monta `<ClientiMenuTemplates embedded />`
+
+### Cosa cambia per Marco
+- Prima: ogni menu di preventivo veniva ricostruito a mano o duplicato via "⎘ Duplica menu" (solo intra-preventivo).
+- Ora: menu ricorrenti (Degustazione 5 portate, Aperitivo classico, Matrimonio standard…) vivono in una libreria accessibile da Impostazioni Clienti → Menu Template. Dal composer si salva un menu esistente come template in 1 click, e si carica un template esistente in 1 click (con opzione sostituisci / aggiungi).
+- I preventivi già emessi NON cambiano se modifichi un template: snapshot semantics.
+- Il badge "N alternative" sulla lista preventivi (mig 079) + questa libreria chiudono il cerchio dell'UX multi-menu.
+
+### Versioni
+- Modulo Clienti: v2.7 → **v2.8** (libreria menu template).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Dipendenti — Campo "Utente collegato" in anagrafica
 
 Marco: _"aggiungi un campo in anagrafica dipendenti che mi permetta di selezionarlo; oppure inverso in utenti e ruoli"_. Conseguenza naturale della sessione "/miei-turni": il link utente ↔ dipendente finora si impostava solo via script CLI (`scripts/set_dipendente_id.py`) o modificando `users.json` a mano. Ora e' un campo visuale nell'anagrafica dipendenti.

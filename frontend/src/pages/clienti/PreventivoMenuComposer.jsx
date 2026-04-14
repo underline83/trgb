@@ -1,4 +1,4 @@
-// @version: v2.0-preventivo-menu-composer (menu multipli alternativi — mig 079)
+// @version: v2.1-preventivo-menu-composer (libreria template — mig 080)
 // Pannello "Componi menu" per preventivi con supporto N menu alternativi.
 // Un preventivo puo' avere 1..N menu che il cliente sceglie: i prezzi sono
 // sempre a persona; il backend decide il totale (0 menu → solo extra,
@@ -9,6 +9,7 @@
 //
 // v1.1 (sess 36): supporto preventivoId=null con onEnsureSaved() → bozza auto.
 // v2.0 (sess 39): refactor completo per menu multipli.
+// v2.1 (sess 39): "💾 Salva come template" + "📂 Carica template" (mig 080).
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -48,6 +49,20 @@ export default function PreventivoMenuComposer({
 
   // Edit inline prezzo
   const [editingPrice, setEditingPrice] = useState(null);
+
+  // ── Dialog Salva come template (mig 080) ──
+  const [showSaveTpl, setShowSaveTpl] = useState(false);
+  const [saveTplNome, setSaveTplNome] = useState("");
+  const [saveTplDescrizione, setSaveTplDescrizione] = useState("");
+  const [saveTplServiceId, setSaveTplServiceId] = useState("");
+
+  // ── Dialog Carica template ──
+  const [showLoadTpl, setShowLoadTpl] = useState(false);
+  const [tplList, setTplList] = useState([]);
+  const [tplLoading, setTplLoading] = useState(false);
+  const [tplFilterServiceId, setTplFilterServiceId] = useState("");
+  const [tplSearchText, setTplSearchText] = useState("");
+  const [tplSostituisci, setTplSostituisci] = useState(true);
 
   // ── Refs parent callbacks ──
   const onToastRef = useRef(onToast);
@@ -256,6 +271,107 @@ export default function PreventivoMenuComposer({
     }
   };
 
+  // ── Templates (mig 080) ──
+  const openSaveTplDialog = () => {
+    if (!activeMenu) return;
+    const defaultName = activeMenu.nome && activeMenu.nome !== "Menu"
+      ? activeMenu.nome
+      : "";
+    setSaveTplNome(defaultName);
+    setSaveTplDescrizione("");
+    setSaveTplServiceId("");
+    setShowSaveTpl(true);
+  };
+
+  const confirmSaveTpl = async () => {
+    if (!preventivoId || !activeMenu) return;
+    const nome = (saveTplNome || "").trim();
+    if (!nome) {
+      toast("Nome template obbligatorio", true);
+      return;
+    }
+    try {
+      const res = await apiFetch(
+        `${API_BASE}/preventivi/${preventivoId}/menu/${activeMenu.id}/salva-come-template`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome,
+            descrizione: (saveTplDescrizione || "").trim() || null,
+            service_type_id: saveTplServiceId ? parseInt(saveTplServiceId, 10) : null,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("Errore salvataggio template");
+      const t = await res.json();
+      setShowSaveTpl(false);
+      toast(`💾 Template salvato: ${t.nome}`);
+    } catch (e) {
+      toast(e.message || "Errore salvataggio template", true);
+    }
+  };
+
+  const openLoadTplDialog = async () => {
+    setShowLoadTpl(true);
+    await reloadTplList();
+  };
+
+  const reloadTplList = async () => {
+    setTplLoading(true);
+    try {
+      const qs = new URLSearchParams();
+      if (tplFilterServiceId) qs.set("service_type_id", tplFilterServiceId);
+      if (tplSearchText) qs.set("q", tplSearchText);
+      const url = `${API_BASE}/menu-templates/${qs.toString() ? "?" + qs.toString() : ""}`;
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error("Errore caricamento template");
+      const data = await res.json();
+      setTplList(data.items || []);
+    } catch (e) {
+      toast(e.message || "Errore caricamento template", true);
+      setTplList([]);
+    } finally {
+      setTplLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showLoadTpl) return;
+    const t = setTimeout(() => { reloadTplList(); }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tplFilterServiceId, tplSearchText, showLoadTpl]);
+
+  const applyTpl = async (templateId) => {
+    const pid = await resolvePid();
+    if (!pid || !activeMenu) {
+      toast("Crea prima un menu per caricare un template", true);
+      return;
+    }
+    try {
+      const res = await apiFetch(
+        `${API_BASE}/preventivi/${pid}/menu/${activeMenu.id}/carica-template`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            template_id: templateId,
+            sostituisci_righe: tplSostituisci,
+            aggiorna_nome: tplSostituisci, // se appendo non sovrascrivo il nome
+            aggiorna_prezzo: tplSostituisci,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error("Errore applicazione template");
+      await loadWithId(pid);
+      setShowLoadTpl(false);
+      toast(tplSostituisci ? "📂 Template caricato" : "➕ Righe template aggiunte");
+    } catch (e) {
+      toast(e.message || "Errore applicazione template", true);
+    }
+  };
+
   const moveMenu = async (idx, dir) => {
     if (!preventivoId) return;
     const newIdx = idx + dir;
@@ -437,6 +553,11 @@ export default function PreventivoMenuComposer({
             className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${showQuick ? "bg-neutral-800 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}>
             {showQuick ? "✕ Annulla" : "⚡ Piatto veloce"}
           </button>
+          <button type="button" onClick={openLoadTplDialog}
+            title="Carica un menu salvato in libreria"
+            className="text-xs px-3 py-1.5 rounded-lg font-medium bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition">
+            📂 Carica template
+          </button>
         </div>
       </div>
 
@@ -502,13 +623,21 @@ export default function PreventivoMenuComposer({
           + {menus.length === 0 ? "Menu" : "Aggiungi"}
         </button>
 
-        {/* Duplica menu attivo */}
+        {/* Azioni menu attivo: Salva template + Duplica */}
         {activeMenu && (menus.length > 0) && (
-          <button type="button" onClick={duplicateActiveMenu}
-            title="Duplica menu attivo (nome + righe)"
-            className="ml-auto text-xs px-2 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 font-medium min-h-[40px] border border-neutral-200">
-            ⎘ Duplica menu
-          </button>
+          <div className="ml-auto flex items-center gap-1">
+            <button type="button" onClick={openSaveTplDialog}
+              title="Salva questo menu nella libreria per riusarlo su altri preventivi"
+              disabled={!righe || righe.length === 0}
+              className="text-xs px-2 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-medium min-h-[40px] border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed">
+              💾 Salva template
+            </button>
+            <button type="button" onClick={duplicateActiveMenu}
+              title="Duplica menu attivo (nome + righe)"
+              className="text-xs px-2 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 font-medium min-h-[40px] border border-neutral-200">
+              ⎘ Duplica menu
+            </button>
+          </div>
         )}
       </div>
 
@@ -688,6 +817,133 @@ export default function PreventivoMenuComposer({
               sul PDF compaiono le opzioni A, B, C… e il cliente sceglie quella che preferisce.
             </p>
           )}
+        </div>
+      )}
+
+      {/* ── Dialog: Salva come template ── */}
+      {showSaveTpl && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4">
+            <div>
+              <h3 className="text-base font-semibold text-neutral-900">💾 Salva menu come template</h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                Le righe di "{activeMenu?.nome}" verranno copiate nella libreria come snapshot.
+                Potrai riusarle su altri preventivi.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-neutral-700">Nome template *</label>
+              <input type="text" value={saveTplNome}
+                onChange={(e) => setSaveTplNome(e.target.value)}
+                placeholder="Es. Menu banchetto estate 2026"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-medium text-neutral-700 mt-2">Descrizione (opzionale)</label>
+              <textarea value={saveTplDescrizione}
+                onChange={(e) => setSaveTplDescrizione(e.target.value)}
+                rows={2}
+                placeholder="Note interne, cosa rende questo menu speciale…"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+              <label className="block text-xs font-medium text-neutral-700 mt-2">Tipo servizio</label>
+              <select value={saveTplServiceId}
+                onChange={(e) => setSaveTplServiceId(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                <option value="">— Nessuno —</option>
+                {serviceTypes.filter((st) => st.active).map((st) => (
+                  <option key={st.id} value={st.id}>{st.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setShowSaveTpl(false)}
+                className="text-sm px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200">
+                Annulla
+              </button>
+              <button type="button" onClick={confirmSaveTpl}
+                disabled={!saveTplNome.trim()}
+                className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+                💾 Salva
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dialog: Carica template ── */}
+      {showLoadTpl && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-5 space-y-3 max-h-[85vh] flex flex-col">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-neutral-900">📂 Carica template</h3>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Scegli un menu dalla libreria. Le righe verranno copiate come snapshot nel menu
+                  "{activeMenu?.nome || "corrente"}".
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowLoadTpl(false)}
+                className="text-sm px-2 py-1 rounded hover:bg-neutral-100">✕</button>
+            </div>
+
+            <div className="grid grid-cols-[1fr_220px] gap-2">
+              <input type="search" value={tplSearchText}
+                onChange={(e) => setTplSearchText(e.target.value)}
+                placeholder="Cerca per nome o descrizione…"
+                className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+              <select value={tplFilterServiceId}
+                onChange={(e) => setTplFilterServiceId(e.target.value)}
+                className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white">
+                <option value="">Tutti i tipi servizio</option>
+                {serviceTypes.filter((st) => st.active).map((st) => (
+                  <option key={st.id} value={st.id}>{st.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-neutral-700">
+              <input type="checkbox" checked={tplSostituisci}
+                onChange={(e) => setTplSostituisci(e.target.checked)} />
+              Sostituisci righe correnti (se deselezionato: aggiunge in coda)
+            </label>
+
+            <div className="flex-1 overflow-auto border border-neutral-200 rounded-lg">
+              {tplLoading ? (
+                <div className="p-6 text-center text-sm text-neutral-500">Caricamento…</div>
+              ) : tplList.length === 0 ? (
+                <div className="p-6 text-center text-sm text-neutral-500">
+                  Nessun template trovato.
+                  <div className="text-xs text-neutral-400 mt-1">
+                    Salva un menu come template dal pulsante "💾 Salva template" per popolare la libreria.
+                  </div>
+                </div>
+              ) : (
+                <ul className="divide-y divide-neutral-100">
+                  {tplList.map((t) => (
+                    <li key={t.id}>
+                      <button type="button" onClick={() => applyTpl(t.id)}
+                        className="w-full text-left px-3 py-2.5 hover:bg-amber-50 transition flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-neutral-900 truncate">{t.nome}</div>
+                          <div className="text-xs text-neutral-500 flex flex-wrap gap-x-2">
+                            {t.service_type_name && (
+                              <span className="text-amber-700">🍽️ {t.service_type_name}</span>
+                            )}
+                            <span>{t.n_righe || 0} righ{t.n_righe === 1 ? "a" : "e"}</span>
+                            {t.prezzo_persona > 0 && (
+                              <span>€ {parseFloat(t.prezzo_persona).toFixed(2)}/pax</span>
+                            )}
+                          </div>
+                          {t.descrizione && (
+                            <div className="text-[11px] text-neutral-400 truncate mt-0.5">{t.descrizione}</div>
+                          )}
+                        </div>
+                        <span className="text-xs text-amber-700 self-center">Applica →</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

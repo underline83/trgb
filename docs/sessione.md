@@ -1,8 +1,20 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi).
+> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi + **Libreria Menu Template (mig 080)**).
 >
+> **Sessione 39 — Clienti — Libreria Menu Template (mig 080):**
+> - ✅ **Feature**: Marco chiede _"ok il menu generato posso recuperarlo in altri preventivi?"_. Scelta Opzione **B** (libreria completa, non duplicazione inline). Snapshot copy semantics: righe applicate sono copie locali, non referenze.
+> - ✅ **Mig 080 `080_menu_templates.py`**: tabelle `clienti_menu_template` (id, nome, descrizione, service_type_id, prezzo_persona, sconto, created_at, updated_at) + `clienti_menu_template_righe` (id, template_id FK cascade, recipe_id, sort_order, category_name, name, description, price, created_at). Indici `idx_cmt_service_type` e `idx_cmtr_template`. `service_type_id` è soft-FK verso foodcost.db.service_types.
+> - ✅ **Service `menu_templates_service.py`**: CRUD template + righe + bridge `salva_menu_come_template(preventivo_id, menu_id, nome, descrizione, service_type_id)` e `applica_template_a_menu(preventivo_id, menu_id, template_id, sostituisci_righe, aggiorna_nome, aggiorna_prezzo)`. `applica` invoca `preventivi_service._ricalcola_menu_e_totale(conn, menu_id)` inline nella stessa conn per consistenza transazionale. Ownership check su preventivo_id.
+> - ✅ **Router `menu_templates_router.py`**: due APIRouter esportati — `router` (prefix `/menu-templates`, CRUD) + `preventivi_bridge_router` (prefix `/preventivi`, endpoint bridge). Tutte scritture admin-only. `main.py` registra entrambi dopo preventivi_router.
+> - ✅ **FE `PreventivoMenuComposer.jsx` v2.1**: pulsanti "📂 Carica template" (barra superiore, amber, con dialog filtro+search+sostituisci) e "💾 Salva template" (area tab, emerald, disabilitato se menu vuoto, dialog nome+descrizione+service_type).
+> - ✅ **FE `ClientiMenuTemplates.jsx` v1.0** (nuovo file): CRUD completo 2-colonne — lista filtrabile a sinistra, editor metadati + righe (picker ricettario, add veloce, reorder, remove) a destra. Prop `embedded` per usarla dentro Impostazioni.
+> - ✅ **FE `ClientiImpostazioni.jsx`**: nuova tile "🍽️ Menu Template" che monta `<ClientiMenuTemplates embedded />`.
+> - ✅ **Versions bump**: clienti 2.7 → **2.8**.
+> - ⚠️ **Da testare in prod**: salvataggio da composer, caricamento con sostituisci=true/false, CRUD standalone, ricalcolo totale menu dopo applica.
+>
+
 > **Sessione 39 — Dipendenti — Campo "Utente collegato" in anagrafica:**
 > - ✅ **Problema risolto**: il link utente ↔ dipendente (introdotto nella stessa sessione per `/miei-turni`) finora richiedeva SSH + script CLI + restart backend. Marco: _"aggiungi un campo in anagrafica dipendenti che mi permetta di selezionarlo"_.
 > - ✅ **Backend `auth_service.py`**: `list_users()` ora espone `display_name` + `dipendente_id`. Nuova `set_dipendente(username, dipendente_id|None)` con unicita' 1:1 forzata (se il dipendente_id era assegnato ad altro utente, quel link viene rimosso prima di applicare il nuovo).

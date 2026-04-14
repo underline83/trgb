@@ -7,11 +7,13 @@ import ClientiNav from "./ClientiNav";
 import ClientiImport from "./ClientiImport";
 import ClientiDuplicati from "./ClientiDuplicati";
 import ClientiMailchimp from "./ClientiMailchimp";
+import ClientiMenuTemplates from "./ClientiMenuTemplates";
 
 // ── Sidebar items ──
 const SECTIONS = [
   { key: "segmenti", label: "Segmenti", icon: "📊", desc: "Soglie segmentazione clienti" },
   { key: "template_preventivi", label: "Template Preventivi", icon: "📋", desc: "Menu e condizioni riutilizzabili" },
+  { key: "menu_templates", label: "Menu Template", icon: "🍽️", desc: "Libreria menu riutilizzabili sui preventivi" },
   { key: "luoghi_preventivi", label: "Luoghi Preventivi", icon: "📍", desc: "Sale e spazi per eventi (Sala, Giardino, Dehor…)" },
   { key: "import", label: "Import / Export", icon: "📥", desc: "TheFork, CSV, revisione diff" },
   { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
@@ -82,6 +84,7 @@ export default function ClientiImpostazioni() {
             <div className="flex-1 min-w-0">
               {section === "segmenti" && <SegmentiSection />}
               {section === "template_preventivi" && <TemplateSection />}
+              {section === "menu_templates" && <ClientiMenuTemplates embedded />}
               {section === "luoghi_preventivi" && <LuoghiSection />}
               {section === "import" && <ClientiImport embedded />}
               {section === "duplicati" && <ClientiDuplicati embedded />}
