@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-14 (sessione 34)
+**Ultimo aggiornamento:** 2026-04-14 (sessione 39)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -172,6 +172,27 @@
 | 10.2 | Fase B: Template riutilizzabili + righe editabili + totale live | S | FATTO ✅ | Sessione 32. Template in Impostazioni CRM, applicazione template a preventivi, totale live |
 | 10.3 | Fase C: Generazione PDF brandizzato + invio WA/email | M | DA FARE | Usa **M.B** PDF + **M.C** WA + **M.D** email. PDF server-side con logo TRGB |
 | 10.4 | Fase D: Versioning + collegamento prenotazione + badge menu | S | DA FARE | Usa **M.A** notifiche. Storico versioni PDF, conferma → crea prenotazione, badge "N in attesa" |
+
+---
+
+## Completati — Navigazione diretta (sessione 39)
+
+| Cosa | Note |
+|------|------|
+| Eliminazione hub `*Menu.jsx` | 12 file rimossi, ingresso diretto al modulo (Dashboard o equivalente) |
+| `ModuleRedirect.jsx` role-aware | Prima rotta accessibile in base a `useModuleAccess`, fallback "no privileges" |
+| `DashboardDipendenti.jsx` nuova | KPI reali + 4 shortcut, nessun nuovo endpoint |
+| Vini — Impostazioni unificate | iPratico embedded in `ViniImpostazioni`, nav riordinato |
+| iPad tooltip fix Header | bell + key con `placement="bottom"` |
+| Versioni bump 11 moduli | vini 3.11, ricette 3.4, vendite 4.4, acquisti 2.5, flussi 1.9, dipendenti 2.23, statistiche 1.1, CG 2.5, clienti 2.9, prenotazioni 2.1, sistema 5.8 |
+
+### Follow-up emersi (sessione 39)
+- `DashboardCucina` dedicata (oggi Ricette→Archivio di default)
+- Link "← Home" consistente in tutti i `*Nav.jsx`
+- `DashboardDipendenti` v2 con grafici/trend reali
+- Refactor `IPraticoSync` per componente davvero embeddable
+- `useModuleAccess` auto-refresh sui cambi permessi
+- Pulsante UI "reset to seed" (oggi solo API)
 
 ---
 
