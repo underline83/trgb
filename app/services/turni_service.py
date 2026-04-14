@@ -1367,11 +1367,15 @@ _GIORNI_IT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
 
 
 def pubblica_settimana(reparto_id: int, settimana_iso: str) -> Dict[str, Any]:
-    """Crea una notifica M.A 'Turni settimana X pubblicati' per il ruolo admin.
+    """Crea una notifica M.A 'Turni settimana X pubblicati' globale per lo staff.
 
     I dipendenti NON sono utenti del gestionale (non hanno username), quindi
-    la notifica in-app va al ruolo admin/gestore del reparto. La consegna ai
+    la notifica in-app e' globale (dest_ruolo=None) cosi' tutti i ruoli la vedono:
+    admin, superadmin, contabile, sommelier, sala, chef, viewer. La consegna ai
     dipendenti avviene via M.C (WhatsApp) con un altro endpoint.
+
+    NOTA ruolo: prima usavamo dest_ruolo='admin', ma Marco ha ruolo 'superadmin'
+    quindi l'uguaglianza stretta non faceva match. Notifica globale = tutti la vedono.
     """
     giorni = [d.isoformat() for d in giorni_settimana(settimana_iso)]
     if len(giorni) != 7:
@@ -1417,7 +1421,7 @@ def pubblica_settimana(reparto_id: int, settimana_iso: str) -> Dict[str, Any]:
             icona="📅",
             urgenza="normale",
             modulo="dipendenti",
-            dest_ruolo="admin",
+            dest_ruolo=None,  # globale: admin + superadmin + tutti gli altri ruoli
         )
     except Exception as e:
         # Se M.A fallisce, non rompiamo il flusso; logghiamo ma ritorniamo ok parziale

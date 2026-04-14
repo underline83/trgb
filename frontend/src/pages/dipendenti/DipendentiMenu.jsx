@@ -1,4 +1,4 @@
-// @version: v2.2-dipendenti-hub (tile Reparti Turni v2)
+// @version: v2.3-dipendenti-hub (tile Reparti → Impostazioni hub)
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -46,11 +46,11 @@ const SEZIONI = [
     ready: false,
   },
   {
-    to: "/dipendenti/reparti",
-    icon: "\uD83C\uDFE2",
-    title: "Reparti",
-    subtitle: "SALA, CUCINA... orari standard, pause staff, colore e icona",
-    color: "bg-teal-50 border-teal-200 text-teal-900",
+    to: "/dipendenti/impostazioni",
+    icon: "\u2699\uFE0F",  // ⚙️
+    title: "Impostazioni",
+    subtitle: "Reparti, orari standard, soglie CCNL, template WhatsApp",
+    color: "bg-neutral-50 border-neutral-200 text-neutral-900",
     ready: true,
   },
 ];

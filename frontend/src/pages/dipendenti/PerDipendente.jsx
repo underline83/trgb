@@ -1,4 +1,4 @@
-// @version: v1.0-vista-per-dipendente (Fase 6: timeline N settimane per singolo dipendente)
+// @version: v1.1-ios-toolbar (Fase 6 + toolbar stile C uniforme: left / center segmented / right)
 // Vista Per Dipendente Turni v2 — TRGB Gestionale
 //
 // Timeline di un singolo dipendente su N settimane (default 4) per rispondere
@@ -243,46 +243,67 @@ export default function PerDipendente() {
   return (
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
       <div className="max-w-[1400px] mx-auto">
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div>
+        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (# settimane) */}
+        <div className="mb-4">
+          <div className="mb-2">
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">👤 Vista per Dipendente</h1>
           </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <button onClick={() => shiftSettimane(-numSettimane)}
-              className="min-h-[48px] px-3 bg-white border rounded-lg hover:bg-neutral-50"
-              title="Periodo precedente">←</button>
-            <div className="min-h-[48px] px-4 flex items-center bg-white border rounded-lg font-semibold text-sm">
-              {labelWeekRange(settimanaInizio)} · {numSettimane} sett.
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* LEFT: navigazione periodo */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => shiftSettimane(-numSettimane)}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Periodo precedente">◀</button>
+              <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
+                <span className="text-neutral-900">{labelWeekRange(settimanaInizio)}</span>
+                <span className="text-neutral-400 font-mono text-xs">· {numSettimane}w</span>
+              </div>
+              <button onClick={() => shiftSettimane(numSettimane)}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Periodo successivo">▶</button>
+              <button onClick={vaiOggi}
+                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                title="Vai a oggi">Oggi</button>
             </div>
-            <button onClick={() => shiftSettimane(numSettimane)}
-              className="min-h-[48px] px-3 bg-white border rounded-lg hover:bg-neutral-50"
-              title="Periodo successivo">→</button>
-            <button onClick={vaiOggi}
-              className="min-h-[48px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm">Oggi</button>
 
-            <select
-              value={numSettimane}
-              onChange={e => setNumSettimane(Number(e.target.value))}
-              className="min-h-[48px] px-3 bg-white border rounded-lg text-sm"
-              title="Numero settimane">
-              <option value={4}>4 settimane</option>
-              <option value={8}>8 settimane</option>
-              <option value={12}>12 settimane</option>
-            </select>
+            {/* CENTER: segmented control viste */}
+            <div className="flex-1 flex justify-center min-w-[260px]">
+              <div className="inline-flex bg-neutral-200 rounded-lg p-1 gap-1">
+                <button
+                  onClick={() => navigate("/dipendenti/turni")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Vista settimana (matrice editabile)">
+                  Settimana
+                </button>
+                <button
+                  onClick={() => navigate("/dipendenti/turni/mese")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Vista mese">
+                  Mese
+                </button>
+                <button
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium bg-white text-neutral-900 shadow-sm cursor-default"
+                  title="Vista per dipendente (corrente)">
+                  Per dipendente
+                </button>
+              </div>
+            </div>
 
-            <button onClick={() => navigate("/dipendenti/turni")}
-              className="min-h-[48px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm"
-              title="Torna alla vista settimana">
-              📅 Settimana
-            </button>
-            <button onClick={() => navigate("/dipendenti/turni/mese")}
-              className="min-h-[48px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm"
-              title="Vista mensile">
-              🗓 Mese
-            </button>
+            {/* RIGHT: selettore numero settimane (contestuale a questa vista) */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <select
+                value={numSettimane}
+                onChange={e => setNumSettimane(Number(e.target.value))}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50"
+                title="Numero settimane visualizzate">
+                <option value={4}>4 settimane</option>
+                <option value={8}>8 settimane</option>
+                <option value={12}>12 settimane</option>
+              </select>
+            </div>
           </div>
         </div>
 

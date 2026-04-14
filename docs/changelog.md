@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-04-14 — Sessione 38 / Dipendenti — Toolbar iOS uniformata sulle 3 viste + Impostazioni hub + fix notifiche superadmin
+
+Tre fix correlati segnalati da Marco dopo il primo restyling:
+
+### 1. Toolbar iOS uniformata (FoglioSettimana + VistaMensile + PerDipendente)
+Lo stile C (3-sezioni LEFT navigate / CENTER segmented / RIGHT actions) ora è identico su tutte e 3 le viste turni. Prima **VistaMensile** e **PerDipendente** avevano ancora il vecchio layout con bottoni sparsi. Ora:
+- **VistaMensile** (`v1.1-ios-toolbar`): left `◀ Aprile 2026 ▶ Oggi` · center segmented con Mese attivo · right vuoto (le azioni Fase 11 sono solo sulla settimana editabile).
+- **PerDipendente** (`v1.1-ios-toolbar`): left `◀ 14 apr–11 mag · 4w ▶ Oggi` · center segmented con "Per dipendente" attivo · right select 4/8/12 settimane.
+- Il segmented control usa lo stesso mattone visivo (`bg-neutral-200 wrapper + pillola bianca`) ovunque, click su una voce non-attiva fa `navigate()` alla vista relativa. Touch target 44pt full / 38pt interno.
+
+### 2. Fix notifiche Fase 11 per utenti `superadmin`
+**Bug**: dopo il primo test Marco non vedeva arrivare la notifica sulla campanella. Causa: `pubblica_settimana` inviava con `dest_ruolo="admin"`, ma Marco ha ruolo `superadmin` e la query in `get_notifiche_utente` fa uguaglianza stretta (`dest_ruolo = ?`), quindi la notifica era invisibile. **Fix**: notifica globale (`dest_ruolo=None`) → visibile a tutti i ruoli (admin, superadmin, contabile, sommelier, sala, chef, viewer). I turni interessano lo staff tutto, non solo chi gestisce, quindi la scelta è anche concettualmente più corretta. Aggiornati di conseguenza confirm popup e toast di successo.
+
+### 3. Nuova sezione **⚙️ Impostazioni** nel menu Dipendenti (assorbe Reparti)
+Nel `DipendentiMenu` (`v2.3-dipendenti-hub`) la tile "🏢 Reparti" sembrava una feature di primo livello, mentre è una **configurazione**. Sostituita da "⚙️ Impostazioni" (palette neutrale) che apre il nuovo **`DipendentiImpostazioni.jsx`** (hub con tile):
+- **🏢 Reparti** (attiva): porta a `GestioneReparti` esistente.
+- **⚡ Soglie CCNL** (prossimamente): personalizzare 40h/48h semaforo.
+- **📨 Template WhatsApp** (prossimamente): testo di default per l'invio Fase 11.
+- Route `/dipendenti/reparti` mantenuta per retro-compat; nuova route `/dipendenti/impostazioni` aggiunta in `App.jsx`.
+
+### Versioni
+- Modulo Dipendenti: v2.14 → **v2.15** (toolbar uniformata + Impostazioni hub).
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 — Restyling toolbar Foglio Settimana (stile iOS)
 
 Con l'aggiunta dei pulsanti Fase 11 (📢 Pubblica, 💬 Invia WA) la toolbar del Foglio Settimana era arrivata a **8 pulsanti su una riga**, troppo stretta su iPad portrait e con gerarchia visiva incoerente. Restyling completo in stile iOS (opzione C scelta da Marco sui 3 mockup) con layout a 3 sezioni: **left navigate / center segmented / right actions + overflow ⋯**.

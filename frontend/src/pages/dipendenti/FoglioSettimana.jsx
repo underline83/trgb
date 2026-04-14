@@ -202,7 +202,7 @@ export default function FoglioSettimana() {
   // Fase 11: Pubblica settimana → crea notifica M.A per staff admin
   async function pubblicaSettimana() {
     if (!repartoId) return;
-    if (!window.confirm(`Pubblicare i turni di ${reparto?.nome || "questo reparto"} per la settimana ${formatWeekRange(settimana)}?\n\nVerrà creata una notifica per lo staff admin.`)) return;
+    if (!window.confirm(`Pubblicare i turni di ${reparto?.nome || "questo reparto"} per la settimana ${formatWeekRange(settimana)}?\n\nVerrà creata una notifica visibile a tutto lo staff.`)) return;
     setPubblicando(true);
     try {
       const res = await apiFetch(`${API_BASE}/turni/pubblica`, {
@@ -215,7 +215,7 @@ export default function FoglioSettimana() {
       setToast({
         tipo: "success",
         titolo: "📢 Settimana pubblicata",
-        messaggio: `Notifica creata per lo staff admin.\n${data.n_turni || 0} turni, ${data.n_dipendenti || 0} dipendenti.`,
+        messaggio: `Notifica creata per tutto lo staff.\n${data.n_turni || 0} turni, ${data.n_dipendenti || 0} dipendenti.`,
       });
     } catch (e) {
       alert(e.message || "Errore durante pubblicazione");

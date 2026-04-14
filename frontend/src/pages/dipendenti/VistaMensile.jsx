@@ -1,4 +1,4 @@
-// @version: v1.0-vista-mensile (Fase 5: griglia 6×7 cliccabile, pannello dettaglio giorno)
+// @version: v1.1-ios-toolbar (Fase 5 + toolbar stile C uniforme: left / center segmented / right)
 // Vista Mensile Turni v2 — TRGB Gestionale
 //
 // Griglia calendario 6 righe × 7 colonne (Lun..Dom), sola lettura.
@@ -192,30 +192,56 @@ export default function VistaMensile() {
   return (
     <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
       <div className="max-w-[1600px] mx-auto">
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div>
+        {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni) */}
+        <div className="mb-4">
+          <div className="mb-2">
             <button onClick={() => navigate("/dipendenti")}
               className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">🗓 Vista Mensile</h1>
           </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            <button onClick={() => shiftMeseRel(-1)}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50"
-              title="Mese precedente">←</button>
-            <div className="min-h-[44px] px-4 flex items-center bg-white border rounded-lg font-semibold text-sm">
-              {MESI_LUN[mese - 1]} {anno}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* LEFT: navigazione mese */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => shiftMeseRel(-1)}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Mese precedente">◀</button>
+              <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm">
+                <span className="text-neutral-900 font-medium">{MESI_LUN[mese - 1]} {anno}</span>
+              </div>
+              <button onClick={() => shiftMeseRel(1)}
+                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
+                title="Mese successivo">▶</button>
+              <button onClick={vaiOggi}
+                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                title="Vai a oggi">Oggi</button>
             </div>
-            <button onClick={() => shiftMeseRel(1)}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50"
-              title="Mese successivo">→</button>
-            <button onClick={vaiOggi}
-              className="min-h-[44px] px-3 bg-white border rounded-lg hover:bg-neutral-50 text-sm">Oggi</button>
-            <button onClick={() => navigate("/dipendenti/turni")}
-              className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm"
-              title="Torna alla vista settimana">
-              📅 Settimana
-            </button>
+
+            {/* CENTER: segmented control viste */}
+            <div className="flex-1 flex justify-center min-w-[260px]">
+              <div className="inline-flex bg-neutral-200 rounded-lg p-1 gap-1">
+                <button
+                  onClick={() => navigate("/dipendenti/turni")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Vista settimana (matrice editabile)">
+                  Settimana
+                </button>
+                <button
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium bg-white text-neutral-900 shadow-sm cursor-default"
+                  title="Vista mese (corrente)">
+                  Mese
+                </button>
+                <button
+                  onClick={() => navigate("/dipendenti/turni/dipendente")}
+                  className="min-h-[38px] px-4 rounded-md text-sm font-medium text-neutral-600 hover:text-neutral-900 hover:bg-white/60"
+                  title="Timeline per singolo dipendente su 4/8/12 settimane">
+                  Per dipendente
+                </button>
+              </div>
+            </div>
+
+            {/* RIGHT: spazio per azioni future (placeholder invisibile per bilanciare il flex) */}
+            <div className="flex-shrink-0" style={{ minWidth: 0 }}></div>
           </div>
         </div>
 
