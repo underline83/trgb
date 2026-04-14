@@ -10,7 +10,7 @@ const TABS = [
   { key: "macellaio", label: "Macellaio", path: "/macellaio", icon: "🥩" },
   { key: "matching", label: "Matching", path: "/ricette/matching", icon: "🔗", roles: ["admin", "sommelier"] },
   { key: "dashboard", label: "Dashboard", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
-  { key: "settings", label: "Strumenti", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
+  { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },
 ];
 
 export default function RicetteNav({ current }) {

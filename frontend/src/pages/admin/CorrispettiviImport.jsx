@@ -1,7 +1,6 @@
-// @version: v4.0-import-export
-// Impostazioni Vendite — Layout sidebar: Chiusure + Import/Export
+// @version: v4.1-sidebar-clienti-style
+// Impostazioni Vendite — Layout sidebar uniformato a ClientiImpostazioni
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
 import CalendarioChiusure from "./CalendarioChiusure";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -15,8 +14,8 @@ const MONTH_NAMES = [
 // SIDEBAR MENU
 // ---------------------------------------------------------------
 const MENU = [
-  { key: "chiusure",     label: "Calendario Chiusure", icon: "📅" },
-  { key: "importexport", label: "Import / Export",      icon: "📤" },
+  { key: "chiusure",     label: "Calendario Chiusure", icon: "📅", desc: "Chiusura settimanale e ferie" },
+  { key: "importexport", label: "Import / Export",     icon: "📤", desc: "Excel corrispettivi, template, export" },
 ];
 
 // ---------------------------------------------------------------
@@ -254,7 +253,6 @@ function SezioneChiusure() {
 // MAIN COMPONENT
 // ===============================================================
 export default function CorrispettiviImport() {
-  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("chiusure");
 
   const sectionRenderers = {
@@ -263,54 +261,48 @@ export default function CorrispettiviImport() {
   };
 
   return (
-    <div className="min-h-screen bg-brand-cream font-sans">
+    <>
       <VenditeNav current="impostazioni" />
+      <div className="min-h-screen bg-neutral-50 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex gap-6">
 
-      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-indigo-900 font-playfair">
-              Impostazioni Vendite
-            </h1>
-            <p className="text-neutral-500 text-sm mt-1">
-              Chiusure, import/export dati e configurazione modulo vendite.
-            </p>
-          </div>
-          <button onClick={() => navigate("/vendite")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
-            ← Vendite
-          </button>
-        </div>
-
-        {/* SIDEBAR + CONTENT */}
-        <div className="flex flex-col md:flex-row gap-6">
-
-          {/* SIDEBAR */}
-          <nav className="md:w-56 shrink-0">
-            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
-              {MENU.map(item => (
-                <button key={item.key} onClick={() => setActiveSection(item.key)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition border-l-3 ${
-                    activeSection === item.key
-                      ? "bg-indigo-50 text-indigo-900 border-l-indigo-700"
-                      : "text-neutral-600 hover:bg-neutral-50 border-l-transparent hover:text-neutral-800"
-                  }`}>
-                  <span className="text-base">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
+            {/* SIDEBAR */}
+            <div className="w-56 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni Vendite
+              </h2>
+              <nav className="space-y-0.5">
+                {MENU.map(item => {
+                  const active = activeSection === item.key;
+                  return (
+                    <button key={item.key} onClick={() => setActiveSection(item.key)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-indigo-50 text-indigo-900 shadow-sm border border-indigo-200"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}>
+                      <span className="text-sm mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${active ? "text-indigo-900" : ""}`}>{item.label}</div>
+                        {item.desc && <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{item.desc}</div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-          </nav>
 
-          {/* CONTENT */}
-          <main className="flex-1 bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
-            {sectionRenderers[activeSection]?.()}
-          </main>
+            {/* CONTENT */}
+            <div className="flex-1 min-w-0">
+              <main className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
+                {sectionRenderers[activeSection]?.()}
+              </main>
+            </div>
 
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

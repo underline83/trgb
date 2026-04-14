@@ -1,5 +1,5 @@
-// @version: v1.0-banca-impostazioni
-// Impostazioni Banca: Import CSV + Categorie (unificati in un'unica pagina con tab)
+// @version: v1.1-sidebar-clienti-style
+// Impostazioni Flussi Cassa: Import CSV + Categorie (sidebar stile ClientiImpostazioni)
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
@@ -16,53 +16,68 @@ const COLORI_PRESET = [
   "#db2777", "#0891b2", "#65a30d", "#ea580c", "#6b7280",
 ];
 
-export default function BancaImpostazioni() {
-  const [tab, setTab] = useState("import"); // "import" | "categorie" | "cat-registrazione"
+// ---------------------------------------------------------------
+// SIDEBAR MENU
+// ---------------------------------------------------------------
+const MENU = [
+  { key: "import",            label: "Import CSV",              icon: "📥", desc: "Carica movimenti bancari da CSV" },
+  { key: "categorie",         label: "Categorie Banca",         icon: "🏷️", desc: "Categorie per classificare i movimenti" },
+  { key: "cat-registrazione", label: "Categorie Registrazione", icon: "📋", desc: "Categorie registrazione corrispettivi" },
+];
 
-  const tabCls = (t) =>
-    `px-5 py-2.5 text-sm font-semibold border-b-2 transition ${
-      tab === t
-        ? "border-emerald-600 text-emerald-800"
-        : "border-transparent text-neutral-500 hover:text-neutral-700"
-    }`;
+export default function BancaImpostazioni() {
+  const [activeSection, setActiveSection] = useState("import");
+
+  const sectionRenderers = {
+    "import":            () => <TabImport />,
+    "categorie":         () => <TabCategorie />,
+    "cat-registrazione": () => <TabCategorieRegistrazione />,
+  };
 
   return (
-    <div className="min-h-screen bg-brand-cream font-sans">
+    <>
       <FlussiCassaNav current="impostazioni" />
-      <div className="max-w-5xl mx-auto mt-4">
-        <div className="bg-white shadow-2xl rounded-3xl border border-neutral-200 overflow-hidden">
-          {/* Header */}
-          <div className="px-6 sm:px-10 pt-6 sm:pt-8 pb-0">
-            <h1 className="text-3xl font-bold text-emerald-900 tracking-wide font-playfair mb-1">
-              Impostazioni
-            </h1>
-            <p className="text-neutral-600 text-sm mb-4">
-              Importa movimenti bancari e gestisci le categorie personalizzate.
-            </p>
-          </div>
+      <div className="min-h-screen bg-neutral-50 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex gap-6">
 
-          {/* Tabs */}
-          <div className="flex gap-1 px-6 sm:px-10 border-b border-neutral-200">
-            <button className={tabCls("import")} onClick={() => setTab("import")}>
-              📥 Import CSV
-            </button>
-            <button className={tabCls("categorie")} onClick={() => setTab("categorie")}>
-              🏷️ Categorie Banca
-            </button>
-            <button className={tabCls("cat-registrazione")} onClick={() => setTab("cat-registrazione")}>
-              📋 Categorie Registrazione
-            </button>
-          </div>
+            {/* SIDEBAR */}
+            <div className="w-56 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni Flussi Cassa
+              </h2>
+              <nav className="space-y-0.5">
+                {MENU.map(item => {
+                  const active = activeSection === item.key;
+                  return (
+                    <button key={item.key} onClick={() => setActiveSection(item.key)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-emerald-50 text-emerald-900 shadow-sm border border-emerald-200"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}>
+                      <span className="text-sm mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${active ? "text-emerald-900" : ""}`}>{item.label}</div>
+                        {item.desc && <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{item.desc}</div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-          {/* Content */}
-          <div className="p-6 sm:p-10">
-            {tab === "import" && <TabImport />}
-            {tab === "categorie" && <TabCategorie />}
-            {tab === "cat-registrazione" && <TabCategorieRegistrazione />}
+            {/* CONTENT */}
+            <div className="flex-1 min-w-0">
+              <main className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
+                {sectionRenderers[activeSection]?.()}
+              </main>
+            </div>
+
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

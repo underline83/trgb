@@ -1,4 +1,4 @@
-// @version: v1.0
+// @version: v1.1-scroll-settimana-mese
 // Pagina "I miei turni" — TRGB Gestionale
 //
 // Vista self-service accessibile a TUTTI i ruoli autenticati:
@@ -210,36 +210,34 @@ export default function MieiTurni() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap print:hidden">
-            {/* LEFT: navigazione periodo */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => shiftSettimane(-numSettimane)}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                title="Periodo precedente">◀</button>
-              <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2">
-                <span className="text-neutral-900">{labelWeekRange(settimanaInizio)}</span>
-                <span className="text-neutral-400 font-mono text-xs">· {numSettimane}w</span>
-              </div>
-              <button onClick={() => shiftSettimane(numSettimane)}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50"
-                title="Periodo successivo">▶</button>
+            {/* LEFT: navigazione periodo — doppio scorrimento mese + settimana */}
+            <div className="flex items-center gap-1 flex-shrink-0 bg-white border border-neutral-300 rounded-lg p-1">
+              <button onClick={() => shiftSettimane(-4)}
+                className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
+                title="Mese precedente (-4 settimane)">⏪ mese</button>
+              <button onClick={() => shiftSettimane(-1)}
+                className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
+                title="Settimana precedente">◀ sett</button>
               <button onClick={vaiOggi}
-                className="min-h-[44px] px-3 text-sm text-neutral-700 hover:text-brand-blue hover:bg-neutral-50 rounded-lg"
+                className="min-h-[40px] px-3 text-sm font-semibold text-brand-blue hover:bg-brand-blue/5 rounded-md"
                 title="Vai a oggi">Oggi</button>
+              <button onClick={() => shiftSettimane(1)}
+                className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
+                title="Settimana successiva">sett ▶</button>
+              <button onClick={() => shiftSettimane(4)}
+                className="min-h-[40px] px-2.5 text-neutral-600 hover:bg-neutral-100 rounded-md text-sm font-semibold"
+                title="Mese successivo (+4 settimane)">mese ⏩</button>
+            </div>
+
+            <div className="min-h-[44px] px-3 flex items-center bg-white border border-neutral-300 rounded-lg text-sm gap-2 flex-shrink-0">
+              <span className="text-neutral-900">{labelWeekRange(settimanaInizio)}</span>
+              <span className="text-neutral-400 font-mono text-xs">· {numSettimane}w</span>
             </div>
 
             <div className="flex-1"></div>
 
-            {/* RIGHT: selettore settimane + stampa + (admin) foglio completo */}
+            {/* RIGHT: stampa + (admin) foglio completo */}
             <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-              <select
-                value={numSettimane}
-                onChange={e => setNumSettimane(Number(e.target.value))}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg text-sm hover:bg-neutral-50"
-                title="Numero settimane visualizzate">
-                <option value={4}>4 settimane</option>
-                <option value={8}>8 settimane</option>
-                <option value={12}>12 settimane</option>
-              </select>
               <button onClick={() => window.print()}
                 disabled={!vista}
                 className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"

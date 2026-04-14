@@ -77,8 +77,8 @@ export default function RicetteMenu() {
             color: "bg-indigo-50 border-indigo-200 text-indigo-900",
           },
           {
-            title: "Strumenti",
-            subtitle: "Import/export, backup, PDF ricette",
+            title: "Impostazioni",
+            subtitle: "Import/export, backup, PDF ricette, macellaio, servizi",
             icon: "⚙️",
             path: "/ricette/settings",
             color: "bg-neutral-50 border-neutral-300 text-neutral-800",

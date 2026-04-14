@@ -1,5 +1,5 @@
-// @version: v1.0-ricette-settings
-// Strumenti Ricette — Export JSON, Export PDF, Import JSON
+// @version: v1.1-sidebar-clienti-style
+// Impostazioni Cucina — Export JSON, Export PDF, Import JSON, Macellaio, Tipi Servizio
 // Visibile solo per admin
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,20 +10,24 @@ import RicetteNav from "./RicetteNav";
 const FC = `${API_BASE}/foodcost`;
 
 // ===============================================================
-// SEZIONE COLLASSABILE
+// SIDEBAR MENU
 // ===============================================================
-function Section({ title, icon, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
+const MENU = [
+  { key: "export-json",  label: "Export JSON",       icon: "📤", desc: "Backup ricette in formato JSON" },
+  { key: "export-pdf",   label: "Schede PDF",        icon: "📄", desc: "Schede ricetta con food cost" },
+  { key: "import-json",  label: "Import JSON",       icon: "📥", desc: "Carica ricette da file JSON" },
+  { key: "macellaio",    label: "Scelta Macellaio",  icon: "🥩", desc: "Categorie tagli e widget" },
+  { key: "servizi",      label: "Tipi Servizio",     icon: "🍽️", desc: "Menu preventivi (alla carta, banchetto…)" },
+];
+
+// ===============================================================
+// CONTENITORE SEZIONE (titolo + descrizione)
+// ===============================================================
+function SectionHeader({ title, desc }) {
   return (
-    <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-      <button onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-6 py-4 bg-neutral-50 hover:bg-neutral-100 transition text-left">
-        <h2 className="text-lg font-semibold text-orange-900 font-playfair">
-          {icon} {title}
-        </h2>
-        <span className="text-neutral-400 text-lg">{open ? "▾" : "▸"}</span>
-      </button>
-      {open && <div className="px-6 py-5 border-t border-neutral-200">{children}</div>}
+    <div className="mb-4">
+      <h2 className="text-xl font-bold text-orange-900 font-playfair">{title}</h2>
+      {desc && <p className="text-neutral-500 text-sm mt-1">{desc}</p>}
     </div>
   );
 }
@@ -33,6 +37,7 @@ export default function RicetteSettings() {
   const role = localStorage.getItem("role");
   const isAllowed = isAdminRole(role);
 
+  const [activeSection, setActiveSection] = useState("export-json");
   const [ricette, setRicette] = useState([]);
   const [loadingRicette, setLoadingRicette] = useState(false);
   const [exportMsg, setExportMsg] = useState("");
@@ -364,49 +369,68 @@ export default function RicetteSettings() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-cream font-sans">
+    <>
       <RicetteNav current="settings" />
-      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
+      <div className="min-h-screen bg-neutral-50 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex gap-6">
 
-        {/* HEADER */}
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-bold text-orange-900 tracking-wide font-playfair mb-1">
-            Strumenti Ricette
-          </h1>
-          <p className="text-neutral-600">
-            Export, import, generazione PDF e strumenti di manutenzione.
-          </p>
-        </div>
+            {/* SIDEBAR */}
+            <div className="w-56 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni Cucina
+              </h2>
+              <nav className="space-y-0.5">
+                {MENU.map(item => {
+                  const active = activeSection === item.key;
+                  return (
+                    <button key={item.key} onClick={() => setActiveSection(item.key)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-orange-50 text-orange-900 shadow-sm border border-orange-200"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}>
+                      <span className="text-sm mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium ${active ? "text-orange-900" : ""}`}>{item.label}</div>
+                        {item.desc && <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{item.desc}</div>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-        {error && (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>
-        )}
+            {/* CONTENT */}
+            <div className="flex-1 min-w-0">
+              <main className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
 
-        {exportMsg && (
-          <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3">{exportMsg}</div>
-        )}
+                {error && (
+                  <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">{error}</div>
+                )}
+                {exportMsg && (
+                  <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-4">{exportMsg}</div>
+                )}
 
-        {/* ============================================= */}
-        {/* SEZIONE 1: EXPORT JSON */}
-        {/* ============================================= */}
-        <Section title="Export ricette (JSON)" icon="📤" defaultOpen={true}>
-          <p className="text-sm text-neutral-600 mb-4">
-            Esporta tutte le ricette attive con i loro ingredienti in formato JSON.
-            Utile per backup o per trasferire le ricette ad un'altra installazione.
-          </p>
-          <button onClick={handleExportJson}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition">
-            Scarica JSON completo
-          </button>
-        </Section>
+                {/* ============================================= */}
+                {/* SEZIONE 1: EXPORT JSON */}
+                {/* ============================================= */}
+                {activeSection === "export-json" && (
+                  <section>
+                    <SectionHeader title="Export ricette (JSON)" desc="Esporta tutte le ricette attive con i loro ingredienti in formato JSON. Utile per backup o per trasferire le ricette ad un'altra installazione." />
+                    <button onClick={handleExportJson}
+                      className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition">
+                      Scarica JSON completo
+                    </button>
+                  </section>
+                )}
 
-        {/* ============================================= */}
-        {/* SEZIONE 2: EXPORT PDF SINGOLA */}
-        {/* ============================================= */}
-        <Section title="Schede ricetta (PDF)" icon="📄">
-          <p className="text-sm text-neutral-600 mb-4">
-            Genera la scheda PDF di una singola ricetta con food cost, composizione e note.
-          </p>
+                {/* ============================================= */}
+                {/* SEZIONE 2: EXPORT PDF SINGOLA */}
+                {/* ============================================= */}
+                {activeSection === "export-pdf" && (
+                  <section>
+                    <SectionHeader title="Schede ricetta (PDF)" desc="Genera la scheda PDF di una singola ricetta con food cost, composizione e note." />
           {loadingRicette ? (
             <p className="text-sm text-neutral-400">Caricamento ricette...</p>
           ) : ricette.length === 0 ? (
@@ -453,16 +477,15 @@ export default function RicetteSettings() {
               </table>
             </div>
           )}
-        </Section>
+                  </section>
+                )}
 
-        {/* ============================================= */}
-        {/* SEZIONE 3: IMPORT JSON */}
-        {/* ============================================= */}
-        <Section title="Import ricette (JSON)" icon="📥">
-          <p className="text-sm text-neutral-600 mb-4">
-            Importa ricette da un file JSON (stesso formato dell'export).
-            Le ricette vengono create come nuove — gli ingredienti devono già esistere nel sistema.
-          </p>
+                {/* ============================================= */}
+                {/* SEZIONE 3: IMPORT JSON */}
+                {/* ============================================= */}
+                {activeSection === "import-json" && (
+                  <section>
+                    <SectionHeader title="Import ricette (JSON)" desc="Importa ricette da un file JSON (stesso formato dell'export). Le ricette vengono create come nuove — gli ingredienti devono già esistere nel sistema." />
           <div className="flex flex-wrap gap-3">
             <label className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition cursor-pointer text-center ${
               importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
@@ -488,15 +511,15 @@ export default function RicetteSettings() {
               )}
             </div>
           )}
-        </Section>
+                  </section>
+                )}
 
-        {/* ============================================= */}
-        {/* SEZIONE 4: SCELTA DEL MACELLAIO */}
-        {/* ============================================= */}
-        <Section title="Scelta del Macellaio" icon="🥩">
-          <p className="text-sm text-neutral-600 mb-4">
-            Configura le categorie dei tagli (Filetto, Controfiletto, Costata, ecc.) e il numero massimo di categorie mostrate nel widget della dashboard.
-          </p>
+                {/* ============================================= */}
+                {/* SEZIONE 4: SCELTA DEL MACELLAIO */}
+                {/* ============================================= */}
+                {activeSection === "macellaio" && (
+                  <section>
+                    <SectionHeader title="Scelta del Macellaio" desc="Configura le categorie dei tagli (Filetto, Controfiletto, Costata, ecc.) e il numero massimo di categorie mostrate nel widget della dashboard." />
 
           {macMsg && (
             <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-3">{macMsg}</div>
@@ -680,16 +703,15 @@ export default function RicetteSettings() {
               </button>
             </div>
           </div>
-        </Section>
+                  </section>
+                )}
 
-        {/* ============================================= */}
-        {/* SEZIONE 5: TIPI SERVIZIO (menu preventivi) */}
-        {/* ============================================= */}
-        <Section title="Tipi servizio (menu preventivi)" icon="🍽️">
-          <p className="text-sm text-neutral-600 mb-4">
-            Configura i tipi di servizio (Alla carta, Banchetto, Pranzo di lavoro, Aperitivo, …) utilizzati per classificare i piatti nei menu preventivi.
-            Ogni piatto può appartenere a più tipi servizio. Disattivare un tipo lo rimuove dalle scelte nuove, ma mantiene le associazioni esistenti.
-          </p>
+                {/* ============================================= */}
+                {/* SEZIONE 5: TIPI SERVIZIO (menu preventivi) */}
+                {/* ============================================= */}
+                {activeSection === "servizi" && (
+                  <section>
+                    <SectionHeader title="Tipi servizio (menu preventivi)" desc="Configura i tipi di servizio (Alla carta, Banchetto, Pranzo di lavoro, Aperitivo, …) utilizzati per classificare i piatti nei menu preventivi. Ogni piatto può appartenere a più tipi servizio. Disattivare un tipo lo rimuove dalle scelte nuove, ma mantiene le associazioni esistenti." />
 
           {svcMsg && (
             <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl p-3 mb-3">{svcMsg}</div>
@@ -793,17 +815,23 @@ export default function RicetteSettings() {
               </button>
             </div>
           </div>
-        </Section>
+                  </section>
+                )}
 
-        {/* INFO */}
-        <div className="text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-          <p className="font-semibold mb-1">Note:</p>
-          <p>L'export JSON include tutte le ricette attive con i nomi degli ingredienti.</p>
-          <p>L'import crea le ricette come nuove entry. Per aggiornare ricette esistenti, modificale singolarmente.</p>
-          <p>Il PDF viene generato dal server con i dati aggiornati al momento della richiesta.</p>
+                {/* INFO (sempre visibile in fondo) */}
+                <div className="mt-6 text-xs text-neutral-500 bg-neutral-50 rounded-xl p-4 border border-neutral-200">
+                  <p className="font-semibold mb-1">Note:</p>
+                  <p>L'export JSON include tutte le ricette attive con i nomi degli ingredienti.</p>
+                  <p>L'import crea le ricette come nuove entry. Per aggiornare ricette esistenti, modificale singolarmente.</p>
+                  <p>Il PDF viene generato dal server con i dati aggiornati al momento della richiesta.</p>
+                </div>
+
+              </main>
+            </div>
+
+          </div>
         </div>
-
       </div>
-    </div>
+    </>
   );
 }

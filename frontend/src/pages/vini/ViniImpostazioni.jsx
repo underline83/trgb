@@ -1,5 +1,5 @@
-// @version: v3.0-sidebar-layout
-// Impostazioni Modulo Vini — Layout sidebar + contenuto
+// @version: v3.1-sidebar-clienti-style
+// Impostazioni Modulo Vini — Layout sidebar + contenuto (stile uniformato a ClientiImpostazioni)
 // Visibile solo per admin e sommelier
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -66,14 +66,14 @@ function OrderList({ items, labelKey, onReorder, onRemove, onAdd, addPlaceholder
 // SIDEBAR MENU ITEMS
 // ---------------------------------------------------------------
 const MENU = [
-  { key: "import",      label: "Import / Export",     icon: "📥" },
-  { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", go: "/vini/ipratico" },
-  { key: "carta",       label: "Carta dei Vini",      icon: "📜" },
-  { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋" },
-  { key: "markup",      label: "Markup Prezzi",       icon: "💰" },
-  { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍" },
-  { key: "stati",       label: "Stati",               icon: "🏷️" },
-  { key: "manutenzione",label: "Manutenzione",        icon: "🔧" },
+  { key: "import",      label: "Import / Export",     icon: "📥", desc: "Sync cantina, import CSV, reset giacenze" },
+  { key: "ipratico",    label: "iPratico Sync",       icon: "🔄", go: "/vini/ipratico", desc: "Sincronizzazione con iPratico Cloud" },
+  { key: "carta",       label: "Carta dei Vini",      icon: "📜", desc: "Genera PDF/DOCX pubblica e staff" },
+  { key: "ordinamento", label: "Ordinamento Carta",   icon: "📋", desc: "Ordine tipologie, regioni, denominazioni" },
+  { key: "markup",      label: "Markup Prezzi",       icon: "💰", desc: "Ricarichi per fascia costo / tipologia" },
+  { key: "locazioni",   label: "Locazioni Fisiche",   icon: "📍", desc: "Frigo, cantina, sale, matrici posti" },
+  { key: "stati",       label: "Stati",               icon: "🏷️", desc: "Stati vendita, riordino, conservazione" },
+  { key: "manutenzione",label: "Manutenzione",        icon: "🔧", desc: "Cleanup DB, backup, integrità dati" },
 ];
 
 // ===============================================================
@@ -1905,58 +1905,56 @@ export default function ViniImpostazioni() {
   // RENDER MAIN
   // -------------------------------------------------------
   return (
-    <div className="min-h-screen bg-brand-cream font-sans">
+    <>
       <ViniNav current="settings" />
-      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="min-h-screen bg-neutral-50 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="flex gap-6">
 
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-amber-900 tracking-wide font-playfair">
-              Impostazioni Vini
-            </h1>
-            <p className="text-neutral-600 mt-1">Configurazione, import/export, ordinamento e manutenzione.</p>
-          </div>
-          <div className="flex gap-2 items-start">
-            <button onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">Cantina</button>
-            <button onClick={() => navigate("/vini/magazzino/registro")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">Registro</button>
-          </div>
-        </div>
-
-        {/* ERRORE GLOBALE */}
-        {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>}
-
-        {/* SIDEBAR + CONTENT */}
-        <div className="flex flex-col md:flex-row gap-6">
-
-          {/* SIDEBAR */}
-          <nav className="md:w-56 shrink-0">
-            <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden shadow-sm">
-              {MENU.map(item => (
-                <button key={item.key}
-                  onClick={() => item.go ? navigate(item.go) : setActiveSection(item.key)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition border-l-3 ${
-                    activeSection === item.key
-                      ? "bg-amber-50 text-amber-900 border-l-amber-700"
-                      : "text-neutral-600 hover:bg-neutral-50 border-l-transparent hover:text-neutral-800"
-                  }`}>
-                  <span className="text-base">{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
-                  {item.go && <span className="text-neutral-300 text-xs">→</span>}
-                </button>
-              ))}
+            {/* SIDEBAR */}
+            <div className="w-56 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni Vini
+              </h2>
+              <nav className="space-y-0.5">
+                {MENU.map(item => {
+                  const active = activeSection === item.key;
+                  return (
+                    <button key={item.key}
+                      onClick={() => item.go ? navigate(item.go) : setActiveSection(item.key)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-amber-50 text-amber-900 shadow-sm border border-amber-200"
+                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}>
+                      <span className="text-sm mt-0.5">{item.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium flex items-center gap-1 ${active ? "text-amber-900" : ""}`}>
+                          <span className="flex-1 truncate">{item.label}</span>
+                          {item.go && <span className="text-neutral-300 text-xs">→</span>}
+                        </div>
+                        {item.desc && (
+                          <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{item.desc}</div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
-          </nav>
 
-          {/* CONTENT */}
-          <main className="flex-1 bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
-            {sectionRenderers[activeSection]?.()}
-          </main>
+            {/* CONTENT */}
+            <div className="flex-1 min-w-0">
+              {/* ERRORE GLOBALE */}
+              {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</div>}
+              <main className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm min-h-[500px]">
+                {sectionRenderers[activeSection]?.()}
+              </main>
+            </div>
 
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -2,6 +2,18 @@
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
 >
+> **Sessione 39 — UI — Impostazioni uniformi al pattern Clienti + MieiTurni step:**
+> - Marco: _"Quel selettore 4/8/12 settimane e' inguardabile. Metti due scorrimenti, uno sulla settimana e uno sul mese"_ + _"Uniforma la grafica a quella di Impostazioni gestione clienti"_.
+> - ✅ **MieiTurni selettore a step**: rimosso `<select>` 4/8/12, sostituito da 5 bottoni compatti `⏪ mese / ◀ sett / Oggi / sett ▶ / mese ⏩`. Finestra resta 4 settimane, cambia solo la settimana di partenza.
+> - ✅ **5 pagine Impostazioni uniformate al pattern Clienti** (sidebar w-56 + content, heading uppercase, items icona+label+desc, bg-neutral-50, max-w-7xl):
+>   - Vini (amber) v3.0→v3.1
+>   - Vendite (indigo) v4.0→v4.1
+>   - Acquisti / FattureImpostazioni (teal) v2.0→v2.1
+>   - **Cucina / RicetteSettings** (orange) v1.0→v1.1 — **rinominata "Strumenti Ricette" → "Impostazioni Cucina"** (titolo, nav tab, card menu); sezioni collassabili sostituite da sidebar (Export JSON, Schede PDF, Import JSON, Macellaio, Tipi Servizio)
+>   - Flussi Cassa / BancaImpostazioni (emerald) v1.0→v1.1 — tab orizzontali → sidebar
+> - Ogni modulo conserva la propria tinta brand. Dipendenti e Prenotazioni gia' uniformi, non toccati.
+> - `versions.jsx`: vini, ricette, corrispettivi, fatture, flussiCassa, dipendenti bump.
+>
 > **Sessione 39 — Dipendenti Turni — Oggi uniforme + selettore reparto nella griglia:**
 > - Marco: _"il tasto 'oggi' non ha lo sfondo sembra appoggiato a caso. Il tasto dei reparti incastralo nella tabella"_.
 > - ✅ **Oggi uniformato** nelle 3 viste (Settimana/Mese/Dipendente): `bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 min-h-[44px]`.

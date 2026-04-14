@@ -3,37 +3,37 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.9",
+    version: "3.10",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
   },
   ricette: {
-    version: "3.2",
+    version: "3.3",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
   },
   corrispettivi: {
-    version: "4.2",
+    version: "4.3",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
   },
   fatture: {
-    version: "2.3",
+    version: "2.4",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
   },
   flussiCassa: {
-    version: "1.7",
+    version: "1.8",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
   },
   dipendenti: {
-    version: "2.21",
+    version: "2.22",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

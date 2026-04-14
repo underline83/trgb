@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / UI — Impostazioni uniformi al pattern Clienti + MieiTurni selettore a step
+
+Marco: _"Quel selettore '4/8/12 settimane' e' inguardabile. Metti due scorrimenti, uno sulla settimana e uno sul mese"_ + _"Uniforma la grafica a quella di Impostazioni gestione clienti"_.
+
+### MieiTurni — selettore periodo a step
+
+Sostituito il `<select>` 4/8/12 settimane (giudicato brutto) con un gruppo compatto a 5 bottoni: `⏪ mese` / `◀ sett` / `Oggi` / `sett ▶` / `mese ⏩`. La durata della finestra resta 4 settimane (default); cambia solo la settimana di partenza. Handlers: `shiftSettimane(±1)` per "sett", `shiftSettimane(±4)` per "mese".
+
+### Cinque pagine Impostazioni uniformate al pattern Clienti
+
+Layout sidebar (w-56) + content a destra, heading uppercase, items con icona/label/desc, sfondo `bg-neutral-50`, container `max-w-7xl`, activo `bg-<color>-50 border-<color>-200`. Ogni modulo conserva la propria tinta brand:
+
+- **ViniImpostazioni** (amber) — v3.0 → v3.1
+- **CorrispettiviImport / Vendite** (indigo) — v4.0 → v4.1
+- **FattureImpostazioni / Acquisti** (teal) — v2.0 → v2.1
+- **RicetteSettings → Impostazioni Cucina** (orange) — v1.0 → v1.1. Rinominata da "Strumenti Ricette" → "Impostazioni Cucina" (titolo, nav tab, card menu). Sezioni collassabili sostituite da sidebar: Export JSON, Schede PDF, Import JSON, Scelta Macellaio, Tipi Servizio.
+- **BancaImpostazioni / Flussi Cassa** (emerald) — v1.0 → v1.1. Tab orizzontali sostituiti da sidebar.
+
+Rimaste gia' corrette: `DipendentiImpostazioni`, `PrenotazioniImpostazioni`.
+
+### File modificati
+
+- `frontend/src/pages/dipendenti/MieiTurni.jsx` — selettore 5-step al posto del `<select>`.
+- `frontend/src/pages/vini/ViniImpostazioni.jsx` — sidebar stile Clienti (amber).
+- `frontend/src/pages/admin/CorrispettiviImport.jsx` — sidebar stile Clienti (indigo).
+- `frontend/src/pages/admin/FattureImpostazioni.jsx` — sidebar stile Clienti (teal).
+- `frontend/src/pages/ricette/RicetteSettings.jsx` — sidebar + rename Impostazioni Cucina.
+- `frontend/src/pages/ricette/RicetteNav.jsx` — tab "Strumenti" → "Impostazioni".
+- `frontend/src/pages/ricette/RicetteMenu.jsx` — card "Strumenti" → "Impostazioni".
+- `frontend/src/pages/banca/BancaImpostazioni.jsx` — sidebar stile Clienti (emerald).
+- `frontend/src/config/versions.jsx` — vini, ricette, corrispettivi, fatture, flussiCassa, dipendenti bump.
+
+---
+
 ## 2026-04-14 — Sessione 39 / Dipendenti — Oggi stile uniforme + selettore reparto dentro la griglia
 
 Marco: _"turni, sia settimana che mese che dipendenti. c'e' il tasto 'oggi' che non ha lo sfondo sembra un po appoggiato a caso. Il tasto dei reparti incastralo nella tabella..."_
