@@ -1,4 +1,4 @@
-// @version: v1.1-foglio-settimana (celle compatte)
+// @version: v1.2-foglio-settimana (colonne slot strette, contenuto leggibile)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -335,24 +335,34 @@ export default function FoglioSettimana() {
 function FoglioGrid({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, onCellClick }) {
   const giorni = foglio.giorni;
 
+  // Larghezza colonna slot (px). Stretta: il pill colorato riempie meglio.
+  const SLOT_W = 92;
+  const totalMin = 80 + (nSlotPranzo + nSlotCena) * SLOT_W;
+
   return (
-    <div className="min-w-[780px]">
-      <table className="w-full text-xs border-collapse">
+    <div style={{ minWidth: totalMin }}>
+      <table className="w-full text-sm border-collapse" style={{ tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: 80 }} />
+          {Array.from({length: nSlotPranzo + nSlotCena}).map((_, i) =>
+            <col key={`cw${i}`} style={{ width: SLOT_W }} />
+          )}
+        </colgroup>
         <thead>
           <tr className="bg-neutral-50">
-            <th className="px-2 py-1 border-b border-r text-left sticky left-0 bg-neutral-50 w-20">Giorno</th>
-            <th className="px-1 py-0.5 border-b border-r text-center text-[10px] font-semibold text-amber-700 bg-amber-50"
+            <th className="px-2 py-1 border-b border-r text-left sticky left-0 bg-neutral-50">Giorno</th>
+            <th className="px-1 py-1 border-b border-r text-center text-[11px] font-semibold text-amber-700 bg-amber-50"
                 colSpan={nSlotPranzo}>☀️ PRANZO</th>
-            <th className="px-1 py-0.5 border-b text-center text-[10px] font-semibold text-indigo-700 bg-indigo-50"
+            <th className="px-1 py-1 border-b text-center text-[11px] font-semibold text-indigo-700 bg-indigo-50"
                 colSpan={nSlotCena}>🌙 CENA</th>
           </tr>
-          <tr className="bg-neutral-50 text-[10px] text-neutral-500">
-            <th className="px-1 py-0.5 border-b border-r sticky left-0 bg-neutral-50"></th>
+          <tr className="bg-neutral-50 text-[11px] text-neutral-500">
+            <th className="px-1 py-1 border-b border-r sticky left-0 bg-neutral-50"></th>
             {Array.from({length: nSlotPranzo}).map((_, i) =>
-              <th key={`p${i}`} className="px-1 py-0.5 border-b border-r text-center">P{i+1}</th>
+              <th key={`p${i}`} className="px-1 py-1 border-b border-r text-center">P{i+1}</th>
             )}
             {Array.from({length: nSlotCena}).map((_, i) =>
-              <th key={`c${i}`} className="px-1 py-0.5 border-b border-r text-center">C{i+1}</th>
+              <th key={`c${i}`} className="px-1 py-1 border-b border-r text-center">C{i+1}</th>
             )}
           </tr>
         </thead>
@@ -387,14 +397,13 @@ function FoglioGrid({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, onCellCli
 // ---- SLOT CELL ------------------------------------------------------------
 function SlotCell({ turno, onClick, disabled }) {
   if (disabled) {
-    return <td className="border-b border-r px-0.5 py-0.5 text-center text-neutral-300 text-xs">—</td>;
+    return <td className="border-b border-r px-1 py-1 text-center text-neutral-300">—</td>;
   }
   if (!turno) {
     return (
-      <td className="border-b border-r px-0.5 py-0.5 cursor-pointer hover:bg-blue-50"
-          onClick={onClick}
-          style={{ height: 30 }}>
-        <div className="text-center text-neutral-300 text-sm leading-none">+</div>
+      <td className="border-b border-r p-1 cursor-pointer hover:bg-blue-50"
+          onClick={onClick}>
+        <div className="text-center text-neutral-300 text-base leading-none">+</div>
       </td>
     );
   }
@@ -405,21 +414,22 @@ function SlotCell({ turno, onClick, disabled }) {
   const bg = turno.dipendente_colore || "#d1d5db";
   const tone = textOn(bg);
 
-  // Cognome breve (max 8 char) per compattezza
-  const cog = (turno.dipendente_cognome || "").slice(0, 8);
+  // Cognome + iniziale nome (es. "Sola P.")
+  const cog = turno.dipendente_cognome || "";
+  const ini = (turno.dipendente_nome || "").slice(0, 1);
 
   return (
-    <td className="border-b border-r px-0.5 py-0.5 cursor-pointer hover:ring-1 hover:ring-blue-300"
+    <td className="border-b border-r p-1 cursor-pointer hover:ring-2 hover:ring-blue-300"
         onClick={onClick}>
-      <div className="rounded px-1.5 py-0.5 leading-tight relative"
+      <div className="rounded px-1.5 py-1 leading-tight relative"
            style={{ backgroundColor: bg, color: tone, opacity: annullato ? 0.4 : 1 }}>
         {chiamata && (
-          <span className="absolute -top-1 -right-1 text-yellow-400 text-xs leading-none drop-shadow">★</span>
+          <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow">★</span>
         )}
-        <div className="font-semibold truncate text-[11px]">
-          {cog} {turno.dipendente_nome?.[0]}.
+        <div className="font-semibold truncate text-[12px]">
+          {cog}{ini ? ` ${ini}.` : ""}
         </div>
-        <div className="opacity-80 text-[9px] font-mono leading-none">
+        <div className="opacity-80 text-[10px] font-mono leading-tight">
           {(turno.ora_inizio || "").slice(0,5)}-{(turno.ora_fine || "").slice(0,5)}
         </div>
       </div>
