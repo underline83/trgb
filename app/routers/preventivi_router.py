@@ -8,7 +8,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, is_admin
 from app.services.pdf_brand import genera_pdf_html, safe_filename
 from app.services.preventivi_service import (
     crea_preventivo,
@@ -98,7 +98,8 @@ class TemplateUpdate(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _require_admin(user: dict):
-    if user.get("role") != "admin":
+    # Accetta sia admin sia superadmin (coerente con is_admin() in auth_service)
+    if not is_admin(user.get("role")):
         raise HTTPException(status_code=403, detail="Solo admin")
 
 
