@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-04-14 — Sessione 36 / Preventivi — Componi menu su /nuovo (auto-save silenzioso)
+
+Fix UX: prima il pannello **"🪄 Componi menu dal ricettario"** funzionava solo sui preventivi già salvati, perché aveva bisogno di un `preventivo_id` per snapshottare le righe. Su `/preventivi/nuovo` Marco vedeva un banner ambra "Salva prima il preventivo". Ora il composer è operativo fin dal primo tocco anche su URL `/nuovo`: alla prima azione (aggiungi piatto / piatto veloce / cambio sconto) il frontend crea in modo **silenzioso** una "bozza automatica" lato backend e continua a lavorarci sopra senza cambiare URL. Quando Marco clicca "Crea preventivo" la bozza auto viene **promossa** a bozza utente normale.
+
+### Backend
+- **`migrations/076_preventivi_bozza_auto.py`** (nuovo): `ALTER TABLE clienti_preventivi ADD COLUMN is_bozza_auto INTEGER DEFAULT 0` + `idx_cp_bozza_auto`. La migrazione apre direttamente `clienti.sqlite3` (pattern ereditato da 075).
+- **`preventivi_service.crea_preventivo`**: accetta `data.is_bozza_auto`. Se flag=1 e titolo vuoto/assente → placeholder `"Preventivo in compilazione"` (permette al FE di creare la bozza prima che l'utente scriva il titolo). Colonna inclusa in INSERT solo se presente (guard per retro-compat).
+- **`preventivi_service.aggiorna_preventivo`**: `"is_bozza_auto"` aggiunto a `campi_ammessi` con normalizzazione 0/1. Permette al FE di "promuovere" la bozza auto a bozza utente su save esplicito.
+- **`preventivi_service.lista_preventivi`**: nuovo param `includi_bozze_auto: bool = False`. Quando `False` (default) e la colonna esiste, aggiunge `COALESCE(p.is_bozza_auto, 0) = 0` al where → le bozze auto sono invisibili in lista.
+- **`preventivi_service.stats_preventivi`**: applica `AND COALESCE(is_bozza_auto, 0) = 0` a tutte le query aggregate → le bozze auto non contano nelle statistiche.
+- **`preventivi_router`**: `PreventivoCreate.titolo` ora `Optional[str]`; `is_bozza_auto: Optional[int] = 0` su create + update. `GET /preventivi` espone `includi_bozze_auto: bool = False`.
+
+### Frontend
+- **`ClientiPreventivoScheda.jsx` v1.3**: nuovo `ensureSaved()` (useCallback + useRef per dedup concorrenti) che su `/nuovo` crea una POST silenziosa con `is_bozza_auto: 1` e setta `prevId/stato/numero` senza navigare. `handleSalva` usa POST per creazione esplicita o PUT con `is_bozza_auto: 0` per promuovere l'auto-bozza. Banner ambra "⏳ Bozza in compilazione" quando `isNew && prevId`.
+- **`PreventivoMenuComposer.jsx` v1.1**: nuovo prop `onEnsureSaved`, helper interno `resolvePid()` che risolve il pid (delegando al parent se serve). `loadState` scomposto in `loadWithId(pid)` per evitare problemi di closure dopo la creazione. `addFromRecipe`, `addQuick`, `pushSconto` chiamano `resolvePid()` prima di ogni azione. Rimossa l'early-return con banner "salva prima" — il composer è sempre visibile.
+
+### Versioni
+- Modulo Clienti: v2.4 → **v2.5**.
+
+---
+
 ## 2026-04-14 — Sessione 38 / Turni v2 Fase 6 — Vista per dipendente (timeline 4/8/12 settimane)
 
 Terza vista del modulo Turni v2: **timeline di un singolo dipendente** su N settimane consecutive, per rispondere a colpo d'occhio alla domanda "quando lavoro il prossimo mese?". Raggiungibile dal pulsante **👤 Per dipendente** nell'header del Foglio Settimana o dalla URL diretta `/dipendenti/turni/dipendente`. Selezione tab reparto → pill dipendenti del reparto → timeline; navigator `←/Oggi/→` scorre di N settimane alla volta; select `4/8/12` settimane. Click su "✏️ Apri settimana" di una riga → salta al Foglio Settimana già sulla settimana giusta.

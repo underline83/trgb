@@ -59,7 +59,8 @@ class NuovoClienteIn(BaseModel):
 class PreventivoCreate(BaseModel):
     cliente_id: Optional[int] = None
     nuovo_cliente: Optional[NuovoClienteIn] = None
-    titolo: str
+    # Titolo opzionale: se vuoto e is_bozza_auto=1 il backend usa un placeholder
+    titolo: Optional[str] = None
     tipo: str = "cena_privata"
     data_evento: Optional[str] = None
     ora_evento: Optional[str] = None
@@ -76,6 +77,10 @@ class PreventivoCreate(BaseModel):
     menu_prezzo_persona: Optional[float] = 0
     menu_descrizione: Optional[str] = None
     righe: List[RigaIn] = []
+    # Flag auto-salvataggio silenzioso (sess 36, Opzione A): se 1 il preventivo
+    # viene creato come bozza automatica, nascosta da lista/stats, pensata per
+    # permettere al composer menu di funzionare sull'URL /nuovo.
+    is_bozza_auto: Optional[int] = 0
 
 
 class PreventivoUpdate(BaseModel):
@@ -97,6 +102,9 @@ class PreventivoUpdate(BaseModel):
     menu_prezzo_persona: Optional[float] = None
     menu_descrizione: Optional[str] = None
     righe: Optional[List[RigaIn]] = None
+    # Permette al frontend di "promuovere" una bozza auto a bozza normale su
+    # salvataggio esplicito (is_bozza_auto=0).
+    is_bozza_auto: Optional[int] = None
 
 
 class LuoghiIn(BaseModel):
@@ -174,12 +182,14 @@ def api_lista_preventivi(
     q: Optional[str] = None,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
+    includi_bozze_auto: bool = False,
     user: dict = Depends(get_current_user),
 ):
     return lista_preventivi(
         stato=stato, mese=mese, anno=anno,
         cliente_id=cliente_id, tipo=tipo, q=q,
         limit=limit, offset=offset,
+        includi_bozze_auto=includi_bozze_auto,
     )
 
 

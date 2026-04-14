@@ -407,6 +407,11 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
     Crea un nuovo preventivo con righe e campi menu.
     Se nuovo_cliente e' presente (dict con nome/cognome/telefono/email), crea il
     cliente al volo e lo collega al preventivo (precedenza su cliente_id).
+
+    is_bozza_auto (data.is_bozza_auto, default 0):
+      - 1 = preventivo creato in modo silenzioso dal composer menu su URL /nuovo;
+            nascosto da lista/stats finche' l'utente non clicca "Salva".
+      - 0 = creazione esplicita dell'utente.
     """
     conn = get_clienti_conn()
     try:
@@ -416,6 +421,13 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
             if new_id:
                 cliente_id = new_id
 
+        is_bozza_auto = 1 if data.get("is_bozza_auto") else 0
+
+        # Titolo placeholder per auto-bozza (cosi' la colonna NOT-NULL e' sempre valida)
+        titolo = (data.get("titolo") or "").strip()
+        if not titolo:
+            titolo = "Preventivo in compilazione" if is_bozza_auto else ""
+
         numero = _prossimo_numero(conn)
         conn.execute("""
             INSERT INTO clienti_preventivi
@@ -423,12 +435,13 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
                  n_persone, luogo, stato, note_interne, note_cliente, condizioni,
                  scadenza_conferma, canale, template_id,
                  menu_nome, menu_prezzo_persona, menu_descrizione,
+                 is_bozza_auto,
                  creato_da)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bozza', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             numero,
             cliente_id,
-            data.get("titolo", ""),
+            titolo,
             data.get("tipo", "cena_privata"),
             data.get("data_evento"),
             data.get("ora_evento"),
@@ -443,6 +456,7 @@ def crea_preventivo(data: dict, righe: list, username: str, nuovo_cliente: dict 
             data.get("menu_nome"),
             data.get("menu_prezzo_persona") or 0,
             data.get("menu_descrizione"),
+            is_bozza_auto,
             username,
         ))
         preventivo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -498,6 +512,14 @@ def get_preventivo(preventivo_id: int) -> dict | None:
         conn.close()
 
 
+def _bozza_auto_colonna_esiste(conn) -> bool:
+    """La colonna is_bozza_auto viene introdotta dalla mig 076.
+    Se e' assente (DB legacy non migrato) i filtri/stats si comportano come se
+    il flag fosse sempre 0."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(clienti_preventivi)").fetchall()}
+    return "is_bozza_auto" in cols
+
+
 def lista_preventivi(
     stato: str | None = None,
     mese: int | None = None,
@@ -507,12 +529,21 @@ def lista_preventivi(
     q: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    includi_bozze_auto: bool = False,
 ) -> dict:
-    """Lista preventivi con filtri. Ritorna {items, total}."""
+    """Lista preventivi con filtri. Ritorna {items, total}.
+
+    Per default le bozze automatiche (is_bozza_auto=1) sono ESCLUSE: sono
+    preventivi creati in modo silenzioso dal composer menu su /nuovo e non
+    confermati dall'utente. Usare includi_bozze_auto=True per vederle (uso
+    amministrativo/debug)."""
     conn = get_clienti_conn()
     try:
         where = ["1=1"]
         params = []
+
+        if not includi_bozze_auto and _bozza_auto_colonna_esiste(conn):
+            where.append("COALESCE(p.is_bozza_auto, 0) = 0")
 
         if stato:
             where.append("p.stato = ?")
@@ -560,23 +591,35 @@ def lista_preventivi(
 
 
 def stats_preventivi() -> dict:
-    """Contatori: in_ballo, confermati_mese, valore_totale_mese."""
+    """Contatori: in_ballo, confermati_mese, valore_totale_mese.
+
+    Esclude sempre le bozze automatiche (is_bozza_auto=1)."""
     conn = get_clienti_conn()
     try:
-        oggi = datetime.now().strftime("%Y-%m-%d")
         mese_corrente = datetime.now().strftime("%Y-%m")
 
+        filtro_auto = (
+            " AND COALESCE(is_bozza_auto, 0) = 0"
+            if _bozza_auto_colonna_esiste(conn)
+            else ""
+        )
+
         in_ballo = conn.execute(
-            "SELECT COUNT(*) FROM clienti_preventivi WHERE stato IN ('bozza','inviato','in_attesa')"
+            f"SELECT COUNT(*) FROM clienti_preventivi "
+            f"WHERE stato IN ('bozza','inviato','in_attesa'){filtro_auto}"
         ).fetchone()[0]
 
         confermati_mese = conn.execute(
-            "SELECT COUNT(*) FROM clienti_preventivi WHERE stato IN ('confermato','prenotato') AND strftime('%Y-%m', data_evento) = ?",
+            f"SELECT COUNT(*) FROM clienti_preventivi "
+            f"WHERE stato IN ('confermato','prenotato') "
+            f"AND strftime('%Y-%m', data_evento) = ?{filtro_auto}",
             (mese_corrente,),
         ).fetchone()[0]
 
         valore_mese = conn.execute(
-            "SELECT COALESCE(SUM(totale_calcolato), 0) FROM clienti_preventivi WHERE stato NOT IN ('rifiutato','scaduto') AND strftime('%Y-%m', data_evento) = ?",
+            f"SELECT COALESCE(SUM(totale_calcolato), 0) FROM clienti_preventivi "
+            f"WHERE stato NOT IN ('rifiutato','scaduto') "
+            f"AND strftime('%Y-%m', data_evento) = ?{filtro_auto}",
             (mese_corrente,),
         ).fetchone()[0]
 
@@ -610,11 +653,15 @@ def aggiorna_preventivo(preventivo_id: int, data: dict, righe: list | None = Non
             "n_persone", "luogo", "note_interne", "note_cliente", "condizioni",
             "scadenza_conferma", "canale", "template_id",
             "menu_nome", "menu_prezzo_persona", "menu_descrizione",
+            "is_bozza_auto",
         ]
         for campo in campi_ammessi:
             if campo in data:
                 campi.append(f"{campo} = ?")
-                params.append(data[campo])
+                val = data[campo]
+                if campo == "is_bozza_auto":
+                    val = 1 if val else 0
+                params.append(val)
 
         if campi:
             params.append(preventivo_id)

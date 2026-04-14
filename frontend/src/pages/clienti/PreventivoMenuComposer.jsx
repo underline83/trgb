@@ -1,8 +1,11 @@
-// @version: v1.0-preventivo-menu-composer
+// @version: v1.1-preventivo-menu-composer
 // Pannello "Componi menu" per preventivi: pesca piatti dal Ricettario (Cucina),
 // snapshotta sul preventivo, permette quick-create ("Piatto veloce"), gestisce sconto
 // e ricalcola prezzo/persona lato backend. Le righe salvate sono IMMUTABILI rispetto
 // a modifiche future in Cucina (mig 075).
+// v1.1 (sessione 36, Opzione A): supporta preventivoId=null. Al primo tocco su URL
+// /nuovo chiama onEnsureSaved() che crea una bozza automatica lato parent e
+// restituisce l'id — il composer poi lavora su quello senza cambiare URL.
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
@@ -11,7 +14,8 @@ const RIGA_QUICK_VUOTA = { name: "", description: "", price: 0, category_name: "
 export default function PreventivoMenuComposer({
   preventivoId,
   nPersone,
-  onTotaleMenuChange, // callback({menu_subtotale, menu_sconto, menu_prezzo_persona})
+  onEnsureSaved,       // async () => pid | null — crea bozza auto se preventivoId e' null
+  onTotaleMenuChange,  // callback({menu_subtotale, menu_sconto, menu_prezzo_persona})
   onToast,
 }) {
   const [righe, setRighe] = useState([]);
@@ -41,13 +45,14 @@ export default function PreventivoMenuComposer({
     if (onToast) onToast(msg, isError);
   }, [onToast]);
 
-  // ── Carica righe + testata (per sconto/subtotale salvato) ──
-  const loadState = useCallback(async () => {
-    if (!preventivoId) return;
+  // ── Carica righe + testata per un dato pid (per sconto/subtotale salvato) ──
+  // Accetta pid esplicito per evitare problemi di closure quando appena creata la bozza auto.
+  const loadWithId = useCallback(async (pid) => {
+    if (!pid) { setLoading(false); return; }
     try {
       const [rMenu, rPrev] = await Promise.all([
-        apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe`).then((r) => r.json()),
-        apiFetch(`${API_BASE}/preventivi/${preventivoId}`).then((r) => r.json()),
+        apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`).then((r) => r.json()),
+        apiFetch(`${API_BASE}/preventivi/${pid}`).then((r) => r.json()),
       ]);
       const items = Array.isArray(rMenu?.items) ? rMenu.items : [];
       setRighe(items);
@@ -64,9 +69,22 @@ export default function PreventivoMenuComposer({
     } finally {
       setLoading(false);
     }
-  }, [preventivoId, onTotaleMenuChange, toast]);
+  }, [onTotaleMenuChange, toast]);
+
+  // Wrapper che usa il preventivoId corrente (utile in useEffect iniziale).
+  const loadState = useCallback(async () => {
+    if (!preventivoId) { setLoading(false); return; }
+    await loadWithId(preventivoId);
+  }, [preventivoId, loadWithId]);
 
   useEffect(() => { loadState(); }, [loadState]);
+
+  // ── Helper: risolvi pid (eventualmente creando bozza auto al primo tocco) ──
+  const resolvePid = useCallback(async () => {
+    if (preventivoId) return preventivoId;
+    if (onEnsureSaved) return await onEnsureSaved();
+    return null;
+  }, [preventivoId, onEnsureSaved]);
 
   // ── Carica tipi servizio ──
   useEffect(() => {
@@ -102,8 +120,10 @@ export default function PreventivoMenuComposer({
     setScontoLocal(val);
     if (scontoTimer.current) clearTimeout(scontoTimer.current);
     scontoTimer.current = setTimeout(async () => {
+      const pid = await resolvePid();
+      if (!pid) return; // nessun preventivo da aggiornare: skip silenzioso
       try {
-        const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-sconto`, {
+        const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-sconto`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sconto: parseFloat(val) || 0 }),
@@ -121,8 +141,10 @@ export default function PreventivoMenuComposer({
 
   // ── Aggiungi da ricetta ──
   const addFromRecipe = async (recipe) => {
+    const pid = await resolvePid();
+    if (!pid) { toast("Impossibile creare bozza", true); return; }
     try {
-      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe`, {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipe_id: recipe.id }),
@@ -131,7 +153,7 @@ export default function PreventivoMenuComposer({
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || "Errore aggiunta");
       }
-      await loadState();
+      await loadWithId(pid);
       toast(`+ ${recipe.menu_name || recipe.name}`);
     } catch (e) {
       toast(e.message, true);
@@ -141,8 +163,10 @@ export default function PreventivoMenuComposer({
   // ── Piatto veloce ──
   const addQuick = async () => {
     if (!quick.name.trim()) { toast("Nome obbligatorio", true); return; }
+    const pid = await resolvePid();
+    if (!pid) { toast("Impossibile creare bozza", true); return; }
     try {
-      const res = await apiFetch(`${API_BASE}/preventivi/${preventivoId}/menu-righe`, {
+      const res = await apiFetch(`${API_BASE}/preventivi/${pid}/menu-righe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,7 +182,7 @@ export default function PreventivoMenuComposer({
       }
       setQuick(RIGA_QUICK_VUOTA);
       setShowQuick(false);
-      await loadState();
+      await loadWithId(pid);
       toast("Piatto aggiunto");
     } catch (e) {
       toast(e.message, true);
@@ -223,14 +247,6 @@ export default function PreventivoMenuComposer({
   const gruppoKeys = Object.keys(gruppi);
 
   const totaleMenu = Math.max(0, subtotale - (parseFloat(scontoLocal) || 0));
-
-  if (!preventivoId) {
-    return (
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-        Salva prima il preventivo per poter comporre il menu dalla cucina.
-      </div>
-    );
-  }
 
   return (
     <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">

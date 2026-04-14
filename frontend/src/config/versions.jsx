@@ -57,7 +57,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "2.4",
+    version: "2.5",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

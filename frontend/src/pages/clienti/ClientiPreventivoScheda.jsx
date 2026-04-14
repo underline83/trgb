@@ -1,8 +1,10 @@
-// @version: v1.2-preventivo-scheda
+// @version: v1.3-preventivo-scheda
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
 // v1.2 (sessione 36): wizard "Componi menu" che pesca piatti dal Ricettario con snapshot immutabile
-import React, { useState, useEffect, useCallback } from "react";
+// v1.3 (sessione 36, Opzione A): auto-save silenzioso (is_bozza_auto) quando si usa il
+// composer su URL /nuovo, cosi' il pannello funziona anche prima del salvataggio esplicito.
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
@@ -199,6 +201,52 @@ export default function ClientiPreventivoScheda() {
     setNuovoCliente({ nome: "", cognome: "", telefono: "", email: "" });
   };
 
+  // ── Auto-save silenzioso (Opzione A) ──
+  // Chiamato dal composer quando si tenta un'azione (aggiungi piatto, ecc.)
+  // su URL /nuovo: crea una bozza automatica (is_bozza_auto=1) con i campi
+  // gia' compilati, senza cambiare URL. La bozza e' nascosta da lista/stats
+  // finche' l'utente non clicca "Salva" (handleSalva la promuove a bozza
+  // normale via PUT is_bozza_auto=0).
+  const ensuringRef = useRef(null);
+  const ensureSaved = useCallback(async () => {
+    if (prevId) return prevId;
+    // Deduplica: se piu' chiamate arrivano in parallelo (es. doppio click),
+    // condividiamo la stessa Promise in modo da creare UNA sola bozza.
+    if (ensuringRef.current) return ensuringRef.current;
+    ensuringRef.current = (async () => {
+      try {
+        const body = {
+          ...form,
+          titolo: (form.titolo || "").trim(),  // backend mette placeholder se vuoto
+          n_persone: form.n_persone ? parseInt(form.n_persone) : null,
+          menu_prezzo_persona: parseFloat(form.menu_prezzo_persona) || 0,
+          righe: [],  // gli extra vengono salvati solo col "Salva" esplicito
+          is_bozza_auto: 1,
+          // Non creiamo il cliente inline in auto-bozza: se Marco ha scritto
+          // nuovoCliente con dati parziali lo posticipiamo all'esplicito.
+        };
+        const res = await apiFetch(`${API_BASE}/preventivi`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error("auto-save fallito");
+        const data = await res.json();
+        setPrevId(data.id);
+        setStato(data.stato);
+        setNumero(data.numero);
+        return data.id;
+      } catch {
+        showToast("Errore avvio bozza automatica", true);
+        return null;
+      } finally {
+        // Libera il lock (pur se setPrevId non si e' ancora propagato)
+        setTimeout(() => { ensuringRef.current = null; }, 0);
+      }
+    })();
+    return ensuringRef.current;
+  }, [prevId, form]);
+
   // ── Template ──
   const applicaTemplate = (tplId) => {
     const tpl = templates.find((t) => t.id === parseInt(tplId));
@@ -293,11 +341,26 @@ export default function ClientiPreventivoScheda() {
         ...(nuovoClientePayload ? { nuovo_cliente: nuovoClientePayload } : {}),
       };
 
+      // Tre casi:
+      // 1) URL /nuovo SENZA bozza auto → POST (creazione esplicita)
+      // 2) URL /nuovo CON bozza auto (prevId set dal composer) → PUT con
+      //    is_bozza_auto=0 per "promuoverla" a bozza utente
+      // 3) URL /{id} esistente → PUT normale
       let res;
-      if (isNew) {
-        res = await apiFetch(`${API_BASE}/preventivi`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (isNew && !prevId) {
+        res = await apiFetch(`${API_BASE}/preventivi`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
       } else {
-        res = await apiFetch(`${API_BASE}/preventivi/${prevId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        // Promuovi l'eventuale auto-bozza a bozza normale
+        const putBody = { ...body, is_bozza_auto: 0 };
+        res = await apiFetch(`${API_BASE}/preventivi/${prevId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(putBody),
+        });
       }
 
       if (!res.ok) {
@@ -609,17 +672,25 @@ export default function ClientiPreventivoScheda() {
                 </div>
               </div>
 
-              {/* ── COMPONI MENU DAL RICETTARIO (snapshot, mig 075) ── */}
-              {!isNew && prevId && (
-                <PreventivoMenuComposer
-                  preventivoId={prevId}
-                  nPersone={form.n_persone}
-                  onTotaleMenuChange={(data) => {
-                    handleMenuTotaleChange(data);
-                    refreshMenuCount();
-                  }}
-                  onToast={showToast}
-                />
+              {/* ── COMPONI MENU DAL RICETTARIO (snapshot, mig 075) ──
+                  Sempre visibile. Se siamo su /nuovo senza preventivoId il
+                  composer chiama onEnsureSaved che crea una bozza automatica
+                  (is_bozza_auto=1) al primo tocco — URL resta /nuovo finche'
+                  l'utente non clicca "Salva". */}
+              <PreventivoMenuComposer
+                preventivoId={prevId}
+                nPersone={form.n_persone}
+                onEnsureSaved={ensureSaved}
+                onTotaleMenuChange={(data) => {
+                  handleMenuTotaleChange(data);
+                  refreshMenuCount();
+                }}
+                onToast={showToast}
+              />
+              {isNew && prevId && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                  ⏳ Bozza in compilazione — ricorda di cliccare <span className="font-semibold">"{isNew ? "Crea preventivo" : "Salva"}"</span> per finalizzarla.
+                </div>
               )}
 
               {/* ── MENU PROPOSTO testuale (fallback / integrazione libera) ── */}

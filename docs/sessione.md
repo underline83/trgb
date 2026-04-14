@@ -1,7 +1,18 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Preventivi v1.2 wizard Componi menu + Turni v2 + Cucina tipi servizio).
+> Ultima sessione: 2026-04-14 (sessione 36 — Preventivi v1.3 Opzione A: Componi menu su /nuovo con auto-save silenzioso).
+>
+> **Sessione 36 — Preventivi v1.3 — Componi menu operativo anche su /nuovo (Opzione A):**
+> - ✅ **Problema risolto**: il pannello "🪄 Componi menu dal ricettario" prima era bloccato su `/preventivi/nuovo` con banner "salva prima". Marco lo voleva sempre attivo, anche prima del primo Salva.
+> - ✅ **Soluzione scelta (Opzione A = auto-save silenzioso)**: quando Marco tocca il composer su `/nuovo`, il FE crea in backend una **bozza automatica** (`is_bozza_auto=1`) senza toast né cambio URL. Marco continua a comporre, le righe vengono snapshottate su quel preventivo embrione. Al click "Crea preventivo" la bozza auto viene promossa a bozza utente normale (`is_bozza_auto=0`, stato resta `bozza`).
+> - ✅ **Migrazione 076** `preventivi_bozza_auto.py`: `clienti_preventivi.is_bozza_auto INTEGER DEFAULT 0` + indice.
+> - ✅ **Backend `preventivi_service`**: `crea_preventivo` accetta flag + titolo opzionale (placeholder "Preventivo in compilazione"); `aggiorna_preventivo` promuove la bozza; `lista_preventivi` e `stats_preventivi` escludono `is_bozza_auto=1` di default → bozze auto invisibili nella lista e nelle stats.
+> - ✅ **Router**: `PreventivoCreate.titolo` Optional, flag `is_bozza_auto`; `GET /preventivi?includi_bozze_auto=bool` per eventuali tool di pulizia.
+> - ✅ **FE `ClientiPreventivoScheda` v1.3**: `ensureSaved()` (useRef dedup) crea POST silenzioso; `handleSalva` usa PUT con `is_bozza_auto=0` per promuovere. Banner "⏳ Bozza in compilazione" visibile finché l'utente non clicca "Crea preventivo".
+> - ✅ **FE `PreventivoMenuComposer` v1.1**: nuovo prop `onEnsureSaved`, helper `resolvePid()`, `loadWithId(pid)` per evitare closure stale. Rimosso early-return "salva prima".
+> - ✅ **Versions bump**: clienti 2.4 → **2.5**.
+> - ⚠️ **Aperto**: cleanup orfani (bozze auto create e mai promosse) da rimandare a job schedulato — oggi sono invisibili ma restano in DB.
 >
 > **Sessione 36 — Preventivi v1.2 — Componi menu da Cucina (snapshot immutabile):**
 > - ✅ **Fase 1 backend Cucina**: migrazione **074_recipes_menu_servizi.py** (ADD `recipes.menu_name`/`menu_description`/`kind`, nuove tabelle `service_types` + `recipe_service_types` M:N, seed 4 tipi servizio "Alla carta / Banchetto / Pranzo di lavoro / Aperitivo"). `foodcost_recipes_router.py` esteso: filtri `kind`/`service_type_id`/`search` in `list_ricette`, `service_type_ids[]` in create/update, endpoint `POST /foodcost/ricette/quick`, `PUT /foodcost/ricette/{id}/servizi`, CRUD `/foodcost/service-types`
