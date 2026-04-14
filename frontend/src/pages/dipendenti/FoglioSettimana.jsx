@@ -1,4 +1,4 @@
-// @version: v1.2-foglio-settimana (colonne slot strette, contenuto leggibile)
+// @version: v1.3-foglio-settimana (Nome C. - solo primo nome, cognome puntato)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -414,9 +414,10 @@ function SlotCell({ turno, onClick, disabled }) {
   const bg = turno.dipendente_colore || "#d1d5db";
   const tone = textOn(bg);
 
-  // Cognome + iniziale nome (es. "Sola P.")
-  const cog = turno.dipendente_cognome || "";
-  const ini = (turno.dipendente_nome || "").slice(0, 1);
+  // Solo primo nome + iniziale cognome puntata (es. "Paolo S.", "Mirla D.")
+  const primoNome = (turno.dipendente_nome || "").trim().split(/\s+/)[0] || "";
+  const iniCog = (turno.dipendente_cognome || "").trim().charAt(0);
+  const label = `${primoNome}${iniCog ? ` ${iniCog}.` : ""}`;
 
   return (
     <td className="border-b border-r p-1 cursor-pointer hover:ring-2 hover:ring-blue-300"
@@ -427,7 +428,7 @@ function SlotCell({ turno, onClick, disabled }) {
           <span className="absolute -top-1 -right-1 text-yellow-400 text-sm leading-none drop-shadow">★</span>
         )}
         <div className="font-semibold truncate text-[12px]">
-          {cog}{ini ? ` ${ini}.` : ""}
+          {label}
         </div>
         <div className="opacity-80 text-[10px] font-mono leading-tight">
           {(turno.ora_inizio || "").slice(0,5)}-{(turno.ora_fine || "").slice(0,5)}
@@ -505,6 +506,9 @@ function OrePanel({ ore, reparto }) {
 
       <div className="mt-3 text-[10px] text-neutral-400 leading-snug">
         Semaforo: ≤40h <span className="text-green-600">verde</span>, 40–48 <span className="text-amber-600">giallo</span>, &gt;48 <span className="text-red-600">rosso</span>
+      </div>
+      <div className="mt-1 text-[10px] text-neutral-400 leading-snug">
+        Pausa pranzo dedotta solo per arrivi &lt; 11:30; pausa cena per arrivi &lt; 18:30 (chi entra 12/19 arriva già mangiato).
       </div>
     </div>
   );

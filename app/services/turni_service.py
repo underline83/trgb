@@ -96,6 +96,13 @@ def ore_lorde(ora_inizio: str, ora_fine: str) -> float:
     return round(diff / 60.0, 2)
 
 
+# Soglie orarie per pausa staff: la pausa vale SOLO per chi arriva prima
+# della soglia. Chi entra 12:00 (pranzo) o 19:00 (cena) arriva "già
+# mangiato" → nessuna pausa dedotta.
+SOGLIA_PAUSA_PRANZO = "11:30"   # arrivo < 11:30 → diritto pausa pranzo
+SOGLIA_PAUSA_CENA   = "18:30"   # arrivo < 18:30 → diritto pausa cena
+
+
 def calcola_ore_nette_giorno(
     turni_giorno: List[Dict[str, Any]],
     pausa_pranzo_min: int,
@@ -110,14 +117,19 @@ def calcola_ore_nette_giorno(
     Regole:
     - Se 'ore_effettive' è impostato sul turno, lo si usa così (override).
     - Altrimenti parte dalle ore lorde (fine - inizio).
-    - Se tra i turni del giorno c'è servizio=PRANZO → togli pausa_pranzo.
-    - Se tra i turni c'è servizio=CENA → togli pausa_cena.
+    - Pausa PRANZO dedotta SOLO se almeno un turno PRANZO ha ora_inizio
+      < SOGLIA_PAUSA_PRANZO (11:30). Chi entra 12:00 arriva già mangiato.
+    - Pausa CENA dedotta SOLO se almeno un turno CENA ha ora_inizio
+      < SOGLIA_PAUSA_CENA (18:30). Chi entra 19:00 arriva già mangiato.
     - Pause applicate UNA VOLTA per servizio, non una per turno.
     - Stato='CHIAMATA' o 'ANNULLATO' → il turno NON pesa nel conto (è da confermare / annullato).
     """
+    soglia_p = _parse_hhmm(SOGLIA_PAUSA_PRANZO) or 0
+    soglia_c = _parse_hhmm(SOGLIA_PAUSA_CENA) or 0
+
     totale_lordo = 0.0
-    ha_pranzo = False
-    ha_cena = False
+    diritto_pausa_pranzo = False
+    diritto_pausa_cena = False
 
     for t in turni_giorno:
         stato = (t.get("stato") or "CONFERMATO").upper()
@@ -137,16 +149,17 @@ def calcola_ore_nette_giorno(
             )
 
         serv = (t.get("servizio") or "").upper()
-        if serv == "PRANZO":
-            ha_pranzo = True
-        elif serv == "CENA":
-            ha_cena = True
+        ini = _parse_hhmm(t.get("ora_inizio") or "")
+        if serv == "PRANZO" and ini is not None and ini < soglia_p:
+            diritto_pausa_pranzo = True
+        elif serv == "CENA" and ini is not None and ini < soglia_c:
+            diritto_pausa_cena = True
 
-    # deduci pause staff
+    # deduci pause staff solo se spetta
     pausa_min = 0
-    if ha_pranzo:
+    if diritto_pausa_pranzo:
         pausa_min += int(pausa_pranzo_min or 0)
-    if ha_cena:
+    if diritto_pausa_cena:
         pausa_min += int(pausa_cena_min or 0)
 
     nette = totale_lordo - (pausa_min / 60.0)
