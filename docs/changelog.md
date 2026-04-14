@@ -3,6 +3,54 @@
 
 ---
 
+## 2026-04-14 — Sessione 36 / Turni v2 Fase 0 — schema DB + reparti + mockup foglio settimana
+
+Riprogettazione del modulo Dipendenti-Turni per replicare il workflow Excel reale di Marco (due fogli SALA/CUCINA, matrice giorno×slot con pillole colorate, asterisco=chiamata). **Fase 0 = solo schema DB + backend base + mockup**. La UI `FoglioSettimana.jsx` arriva in Fase 1.
+
+### Backend — Migrazione 071
+- Nuovo `app/migrations/071_turni_v2_schema.py` (opera su `dipendenti.sqlite3`):
+  - **`reparti`** (nuova tabella): `codice` UNIQUE (SALA, CUCINA…), `nome`, `icona` (emoji), `colore` (HEX), `ordine`, `attivo`, orari standard pranzo/cena (default SALA 10:30-15:30/18:00-24:00, CUCINA 09:30-15:30/17:30-23:00), `pausa_pranzo_min`/`pausa_cena_min` (default 30+30 minuti da scalare dal calcolo ore nette).
+  - **`dipendenti`**: +`reparto_id` (FK), +`colore` (HEX personale univoco). Backfill da `ruolo` via keyword matching (cuoc*/chef/pizz → CUCINA, sala/cameri → SALA). Palette PALETTE_DIPENDENTI = 14 colori distinti assegnati in ordine.
+  - **`turni_tipi`**: +`categoria` (LAVORO/ASSENZA), +`ore_lavoro` (decimali da ora_inizio/ora_fine), +`icona` (emoji), +`servizio` (PRANZO/CENA/DOPPIO backfill euristico su nome+ora).
+  - **`turni_calendario`**: +`ore_effettive` (nette staff break), +`origine` (MANUALE/TEMPLATE/COPIA), +`origine_ref_id`.
+  - **Indici**: `idx_turni_cal_dip_data`, `idx_turni_cal_data_servizio` per query foglio settimana.
+  - **Tabelle template**: `turni_template`, `turni_template_righe` (preparatorie per Fase 3 "copia settimana").
+  - Seed SALA+CUCINA con colori brand (rosso/blu), nessun seed di turni RIPOSO/FERIE/MALATTIA (gestione assenze va nel modulo Presenze).
+  - Migrazione idempotente (try/except su ogni ALTER), testata su copia del DB produzione.
+
+### Backend — Modelli e Router
+- `app/models/dipendenti_db.py` sincronizzato con migrazione 071: CREATE TABLE `reparti` con seed, nuove colonne in `dipendenti`/`turni_tipi`, tabelle template.
+- Nuovo `app/routers/reparti.py`: CRUD completo `/reparti/` con JWT + soft-delete con guard "dipendenti attivi associati" (blocca disattivazione reparto se legato a staff).
+- `app/routers/dipendenti.py`:
+  - `DipendenteBase` esteso con `reparto_id` + `colore` (Optional).
+  - `TurnoTipoBase` esteso con `categoria`, `servizio`, `ore_lavoro`, `icona`.
+  - Tutte le query SELECT/INSERT/UPDATE aggiornate per i nuovi campi.
+- `main.py`: registrato `reparti_router`.
+
+### Docs e mockup
+- `docs/modulo_dipendenti_turni_v2.md` riscritto: decisioni finalizzate (reparti first-class, slot 2-6 variabili, asterisco=CHIAMATA, colori univoci, chiusura settimanale letta da Vendite via `/settings/closures-config`, pause staff configurabili per reparto).
+- `docs/mockups/turni_v2_foglio_settimana.html` (nuovo): mockup interattivo con tab SALA/CUCINA, matrice 7×(P1..P4+C1..C4), pillole colorate dipendente, asterisco giallo per chiamate, riga grigia per chiusura settimanale, pannello laterale ore lorde→nette con semaforo 40/48.
+
+### Integrazione cross-modulo
+- Chiusura settimanale **non duplicata**: il foglio settimana leggerà `get_closures_config()` da `closures_config_router` (modulo Vendite).
+
+### File creati
+- `app/migrations/071_turni_v2_schema.py`
+- `app/routers/reparti.py`
+- `docs/mockups/turni_v2_foglio_settimana.html`
+
+### File modificati
+- `app/models/dipendenti_db.py`
+- `app/routers/dipendenti.py`
+- `main.py`
+- `docs/modulo_dipendenti_turni_v2.md`
+- `docs/sessione.md`
+
+### Non breaking
+- Tutti i campi aggiunti sono nullable o con DEFAULT. Dipendenti esistenti restano validi (`reparto_id=NULL` per 2 casi ambigui da mappare a mano). Turni esistenti restano validi (`servizio` backfillato con best-effort).
+
+---
+
 ## 2026-04-14 — Sessione 35 / Preventivi v1.1 — cliente inline, luoghi configurabili, menu ristorante
 
 Revisione post-feedback Marco (sessione 34): il preventivo era "troppo generico", adattato da preventivo commerciale ma non dal workflow di un ristorante. Tre cambi strutturali senza breaking:

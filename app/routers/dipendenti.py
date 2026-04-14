@@ -57,6 +57,9 @@ class DipendenteBase(BaseModel):
     iban: Optional[str] = None
     note: Optional[str] = None
     attivo: bool = True
+    # Turni v2
+    reparto_id: Optional[int] = None
+    colore: Optional[str] = None       # HEX, es. "#2E7BE8"
 
 
 class DipendenteCreate(DipendenteBase):
@@ -80,6 +83,11 @@ class TurnoTipoBase(BaseModel):
     ora_fine: str    # "HH:MM"
     ordine: int = 0
     attivo: bool = True
+    # Turni v2
+    categoria: Optional[str] = "LAVORO"     # LAVORO / RIPOSO / ASSENZA
+    servizio: Optional[str] = None          # PRANZO / CENA / None=tutto-giorno
+    ore_lavoro: Optional[float] = None      # se None si calcola da ora_inizio/fine
+    icona: Optional[str] = None             # emoji breve
 
 
 class TurnoTipoCreate(TurnoTipoBase):
@@ -143,6 +151,7 @@ def list_dipendenti(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
+                   reparto_id, colore,
                    created_at, updated_at
             FROM dipendenti
             ORDER BY cognome, nome;
@@ -157,6 +166,7 @@ def list_dipendenti(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
+                   reparto_id, colore,
                    created_at, updated_at
             FROM dipendenti
             WHERE attivo = 1
@@ -190,8 +200,9 @@ def create_dipendente(
                indirizzo_via, indirizzo_cap, indirizzo_citta,
                indirizzo_provincia, indirizzo_paese,
                iban,
-               note, attivo)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               note, attivo,
+               reparto_id, colore)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.codice.strip(),
@@ -208,6 +219,8 @@ def create_dipendente(
                 payload.iban.strip() if payload.iban else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
+                payload.reparto_id,
+                payload.colore.strip() if payload.colore else None,
             ),
         )
         new_id = cur.lastrowid
@@ -229,6 +242,7 @@ def create_dipendente(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
+                   reparto_id, colore,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -274,7 +288,9 @@ def update_dipendente(
                 indirizzo_paese = ?,
                 iban = ?,
                 note = ?,
-                attivo = ?
+                attivo = ?,
+                reparto_id = ?,
+                colore = ?
             WHERE id = ?;
             """,
             (
@@ -292,6 +308,8 @@ def update_dipendente(
                 payload.iban.strip() if payload.iban else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
+                payload.reparto_id,
+                payload.colore.strip() if payload.colore else None,
                 dipendente_id,
             ),
         )
@@ -313,6 +331,7 @@ def update_dipendente(
                    indirizzo_provincia, indirizzo_paese,
                    iban,
                    note, attivo,
+                   reparto_id, colore,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -369,6 +388,7 @@ def list_turni_tipi(
             """
             SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
                    ora_inizio, ora_fine, ordine, attivo,
+                   categoria, servizio, ore_lavoro, icona,
                    created_at, updated_at
             FROM turni_tipi
             ORDER BY ordine, nome;
@@ -379,6 +399,7 @@ def list_turni_tipi(
             """
             SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
                    ora_inizio, ora_fine, ordine, attivo,
+                   categoria, servizio, ore_lavoro, icona,
                    created_at, updated_at
             FROM turni_tipi
             WHERE attivo = 1
@@ -408,8 +429,9 @@ def create_turno_tipo(
             """
             INSERT INTO turni_tipi (
               codice, nome, ruolo, colore_bg, colore_testo,
-              ora_inizio, ora_fine, ordine, attivo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ora_inizio, ora_fine, ordine, attivo,
+              categoria, servizio, ore_lavoro, icona
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.codice.strip(),
@@ -421,6 +443,10 @@ def create_turno_tipo(
                 payload.ora_fine.strip(),
                 payload.ordine,
                 1 if payload.attivo else 0,
+                (payload.categoria or "LAVORO").strip(),
+                payload.servizio.strip() if payload.servizio else None,
+                payload.ore_lavoro,
+                payload.icona.strip() if payload.icona else None,
             ),
         )
         new_id = cur.lastrowid
@@ -438,6 +464,7 @@ def create_turno_tipo(
             """
             SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
                    ora_inizio, ora_fine, ordine, attivo,
+                   categoria, servizio, ore_lavoro, icona,
                    created_at, updated_at
             FROM turni_tipi
             WHERE id = ?;
@@ -478,7 +505,11 @@ def update_turno_tipo(
                 ora_inizio = ?,
                 ora_fine = ?,
                 ordine = ?,
-                attivo = ?
+                attivo = ?,
+                categoria = ?,
+                servizio = ?,
+                ore_lavoro = ?,
+                icona = ?
             WHERE id = ?;
             """,
             (
@@ -491,6 +522,10 @@ def update_turno_tipo(
                 payload.ora_fine.strip(),
                 payload.ordine,
                 1 if payload.attivo else 0,
+                (payload.categoria or "LAVORO").strip(),
+                payload.servizio.strip() if payload.servizio else None,
+                payload.ore_lavoro,
+                payload.icona.strip() if payload.icona else None,
                 turno_tipo_id,
             ),
         )
@@ -508,6 +543,7 @@ def update_turno_tipo(
             """
             SELECT id, codice, nome, ruolo, colore_bg, colore_testo,
                    ora_inizio, ora_fine, ordine, attivo,
+                   categoria, servizio, ore_lavoro, icona,
                    created_at, updated_at
             FROM turni_tipi
             WHERE id = ?;

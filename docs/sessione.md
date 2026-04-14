@@ -1,9 +1,30 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 35 — Preventivi v1.1: cliente inline, luoghi configurabili, menu ristorante).
+> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0: ripensamento modulo Dipendenti-Turni, schema DB, reparti SALA/CUCINA, foglio settimana mockup).
 >
-> **Cosa è stato fatto in sessione 35 (revisioni post-feedback Marco sessione 34):**
+> **Cosa è stato fatto in sessione 36 (Fase 0 di Turni v2):**
+> - ✅ Piano completo in `docs/modulo_dipendenti_turni_v2.md` (12 fasi, Fase 4 assenze rimossa → va nel modulo Presenze v2.3)
+> - ✅ Mockup "Foglio Settimana" in `docs/mockups/turni_v2_foglio_settimana.html` — replica Excel di Marco, tab reparto SALA/CUCINA, righe lun-dom, colonne P1..P4 + C1..C4 (estendibili a 6+6), pillola colorata per dipendente, asterisco giallo per stato CHIAMATA, riga grigia per giorno chiuso, pannello ore nette laterale
+> - ✅ Migrazione **071_turni_v2_schema.py** su `dipendenti.sqlite3`:
+>   - Nuova tabella `reparti` + seed SALA (10:30-15:30 / 18:00-24:00) e CUCINA (09:30-15:30 / 17:30-23:00) con pause staff 30+30 min configurabili
+>   - `dipendenti.reparto_id` + `dipendenti.colore` (HEX univoco, palette 14 tinte) con backfill automatico dal campo `ruolo`
+>   - `turni_tipi` esteso: `categoria` (LAVORO/RIPOSO/ASSENZA), `ore_lavoro` REAL, `icona`, `servizio` (PRANZO/CENA)
+>   - `turni_calendario` esteso: `ore_effettive`, `origine` (MANUALE/COPIA/TEMPLATE), `origine_ref_id`. Il campo `stato` accetta anche `CHIAMATA` (nessuna migration: campo TEXT libero)
+>   - Backfill ore_lavoro calcolate da ora_inizio/ora_fine + backfill heuristico servizio (da nome o da orario)
+>   - Indici su turni_calendario(data), (dipendente_id, data), dipendenti(reparto_id)
+>   - NIENTE seed RIPOSO/FERIE/MALATTIA (workflow Marco: chi non compare = a casa; assenze → modulo Presenze v2.3)
+>   - Tabelle template `turni_template` + `turni_template_righe` (per Fase 10)
+> - ✅ `dipendenti_db.py` in sync con la migration (per DB nuovi)
+> - ✅ Router `dipendenti.py`: pydantic DipendenteBase + TurnoTipoBase estesi; SELECT/INSERT/UPDATE dipendenti e turni_tipi espongono e accettano i nuovi campi
+> - ✅ Nuovo router **`app/routers/reparti.py`** (`/reparti/` CRUD: GET list + GET {id} + POST + PUT + DELETE soft con guard "dipendenti attivi associati"). Incluso in main.py
+> - ✅ **Chiusure settimanali non duplicate**: il Foglio Settimana leggerà da `app/data/closures_config.json` via `GET /settings/closures-config` (modulo Vendite)
+> - ✅ **Pause staff**: 30 min pranzo + 30 min cena scalati dal calcolo ore lavorate, configurabili per reparto (`reparti.pausa_pranzo_min`, `reparti.pausa_cena_min`). Logica effettiva verrà implementata in Fase 2 (servizio `turni_service.py`, campo API `ore_nette`)
+> - ⏭️ **Fase 1 prossima sessione**: componente `FoglioSettimana.jsx` (tab reparto, matrice slot, popover click-to-assign con toggle CHIAMATA, riga chiuso da closures_config)
+>
+> **Test migration**: idempotente su copia DB produzione (seconda esecuzione no-op). 8/13 dipendenti auto-mappati al reparto dal ruolo; 2 con ruolo ambiguo (aiuto cuoc., operaia) restano `reparto_id NULL` — Marco li sistemerà da anagrafica.
+>
+> **Sessione precedente (35 — Preventivi v1.1):**
 > - ✅ **Crea cliente al volo dal form preventivo**: toggle "🔍 Esistente / ＋ Nuovo" in `ClientiPreventivoScheda.jsx`. Se Marco sceglie "Nuovo" compila nome/cognome/telefono/email (4 campi minimi) e il cliente viene creato con `origine='preventivo'` contestualmente al save del preventivo
 > - ✅ **Luoghi configurabili**: rimossi hardcoded sala/terrazza/esterno/altro → ora lista dinamica caricata da `GET /preventivi/config/luoghi`, default `["Sala","Giardino","Dehor"]` seedati in `clienti_impostazioni.preventivi_luoghi`. Nuova sezione "📍 Luoghi Preventivi" in `ClientiImpostazioni.jsx` con CRUD (aggiungi/rimuovi/rinomina/riordina) e PUT autenticato (admin). Il form scheda preventivo preserva i valori legacy (es. "terrazza") marcati come "(non configurato)"
 > - ✅ **Menu ristorante separato dagli extra**: aggiunte 3 colonne a `clienti_preventivi` (`menu_nome`, `menu_prezzo_persona`, `menu_descrizione`). Nuova sezione "🍽 Menu proposto" nel form con composizione a textarea (placeholder Bergamasca: Casoncelli, Polenta taragna…). La vecchia sezione righe è stata rinominata "➕ Extra" per elementi liberi (noleggio attrezzatura, tovagliato, supplementi, sconti). Totale ricalcolato come `menu_prezzo_persona × n_persone + extra_righe`
