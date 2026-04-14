@@ -227,6 +227,7 @@ export default function CalendarioChiusure() {
             return (
               <Tooltip
                 key={idx}
+                className="w-full"
                 label={
                   isChiuso ? `${cell.iso} — CHIUSO (clicca per rimuovere)`
                   : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale`
@@ -236,7 +237,7 @@ export default function CalendarioChiusure() {
               >
                 <button
                   onClick={() => toggleGiornoChiuso(cell.iso)}
-                  className={`relative rounded-lg border text-xs h-9 font-medium transition ${
+                  className={`relative w-full rounded-lg border text-xs h-9 font-medium transition ${
                     isChiuso
                       ? "bg-red-500 border-red-600 text-white"
                       : isGiornoSettimanale

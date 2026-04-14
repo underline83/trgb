@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Foglio Settimana — Turni v2 Mockup</title>
+<style>
+  :root{
+    --brand-red:#E8402B;
+    --brand-blue:#2E7BE8;
+    --brand-green:#2EB872;
+    --brand-ink:#111;
+    --brand-cream:#F4F1EC;
+    --gray-50:#fafafa; --gray-100:#f3f4f6; --gray-200:#e5e7eb;
+    --gray-300:#d1d5db; --gray-400:#9ca3af; --gray-500:#6b7280;
+    --gray-600:#4b5563; --gray-700:#374151; --gray-900:#111827;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0; padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--brand-cream); color:var(--brand-ink);
+    font-size:14px; line-height:1.4;
+  }
+  header.app{
+    background:white; border-bottom:1px solid var(--gray-200);
+    padding:14px 22px; display:flex; align-items:center; gap:18px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  h1{margin:0; font-family:"Playfair Display",Georgia,serif; font-weight:700; font-size:22px}
+  .week-nav{display:flex; align-items:center; gap:6px; margin-left:auto}
+  .week-nav button{
+    width:36px; height:36px; border:1px solid var(--gray-300); background:white;
+    border-radius:8px; cursor:pointer; font-size:16px;
+  }
+  .week-label{font-weight:600; padding:0 12px; min-width:200px; text-align:center}
+  .week-nav .today{
+    width:auto; padding:0 14px; height:36px;
+    background:var(--brand-blue); color:white; border:none; font-weight:600;
+  }
+
+  .toolbar{
+    background:white; border-bottom:1px solid var(--gray-200);
+    padding:10px 22px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .btn{
+    border:1px solid var(--gray-300); background:white; color:var(--brand-ink);
+    padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:500;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{background:var(--gray-50)}
+  .btn.primary{background:var(--brand-blue); color:white; border-color:var(--brand-blue)}
+  .btn.danger{color:var(--brand-red); border-color:var(--brand-red)}
+  .btn.ghost{border-color:transparent}
+
+  /* Reparto tabs */
+  .reparto-tabs{display:flex; gap:4px; padding:14px 22px 0; background:transparent}
+  .reparto-tab{
+    padding:10px 18px; border-radius:10px 10px 0 0; cursor:pointer;
+    background:var(--gray-100); border:1px solid var(--gray-200); border-bottom:none;
+    font-weight:600; color:var(--gray-600); display:flex; align-items:center; gap:8px;
+  }
+  .reparto-tab.active{
+    background:white; color:var(--brand-ink);
+    border-top:3px solid var(--reparto-color, var(--brand-blue));
+    margin-top:-2px;
+  }
+  .reparto-tab .count{
+    background:var(--gray-200); color:var(--gray-700);
+    padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700;
+  }
+  .reparto-tab.active .count{background:var(--reparto-color); color:white}
+
+  /* Foglio = grid */
+  .foglio-wrap{padding:0 22px 22px}
+  .foglio{
+    background:white; border-radius:0 12px 12px 12px; overflow:hidden;
+    border:1px solid var(--gray-200); box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  .foglio-header{
+    display:grid;
+    grid-template-columns:140px repeat(8, 1fr) 110px;
+    background:var(--gray-50); border-bottom:1px solid var(--gray-200);
+  }
+  .foglio-header .col{
+    padding:10px 8px; text-align:center; font-weight:600; font-size:12px;
+    color:var(--gray-600); text-transform:uppercase; letter-spacing:.04em;
+    border-right:1px solid var(--gray-200);
+  }
+  .foglio-header .col:last-child{border-right:none}
+  .foglio-header .col.servizio-pranzo{background:#FEF3C7; color:#92400E}
+  .foglio-header .col.servizio-cena{background:#DBEAFE; color:#1E40AF}
+  .foglio-header .col-day{background:transparent}
+  .col .orario{display:block; font-weight:400; color:var(--gray-500); font-size:11px; margin-top:2px}
+
+  .foglio-row{
+    display:grid;
+    grid-template-columns:140px repeat(8, 1fr) 110px;
+    border-bottom:1px solid var(--gray-200);
+  }
+  .foglio-row:last-child{border-bottom:none}
+  .foglio-row.weekend .day-cell{background:#FEF7ED}
+  .foglio-row.chiuso{background:repeating-linear-gradient(45deg, var(--gray-100), var(--gray-100) 8px, #f9fafb 8px, #f9fafb 16px); color:var(--gray-400)}
+  .foglio-row.oggi .day-cell{box-shadow:inset 0 0 0 2px var(--brand-blue)}
+
+  .day-cell{
+    padding:10px 8px; border-right:1px solid var(--gray-200);
+    font-weight:600; display:flex; flex-direction:column; gap:2px; justify-content:center;
+  }
+  .day-cell .giorno{font-size:13px; text-transform:capitalize}
+  .day-cell .data{font-size:11px; color:var(--gray-500); font-weight:400}
+  .day-cell .badge-chiuso{
+    margin-top:4px; font-size:10px; background:var(--gray-300); color:var(--gray-700);
+    padding:2px 6px; border-radius:4px; align-self:flex-start; font-weight:700;
+  }
+
+  .slot-cell{
+    padding:6px; border-right:1px solid var(--gray-100);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; min-height:54px; transition:background .12s;
+  }
+  .slot-cell:hover{background:var(--gray-50)}
+  .slot-cell.empty{color:var(--gray-300); font-size:18px}
+  .slot-cell.empty:hover{background:#EFF6FF; color:var(--brand-blue)}
+
+  .pill-dipendente{
+    display:inline-flex; align-items:center; gap:4px;
+    padding:6px 10px; border-radius:8px; font-size:13px; font-weight:600;
+    color:white; line-height:1.2; max-width:100%; text-align:center;
+    box-shadow:0 1px 3px rgba(0,0,0,.15);
+  }
+  .pill-dipendente .ast{color:#FFE94D; font-weight:900; margin-right:2px}
+  .pill-dipendente.chiamata{
+    box-shadow:0 1px 3px rgba(0,0,0,.15), 0 0 0 2px #FBBF24;
+  }
+
+  .totali-cell{
+    padding:10px 8px; text-align:center; font-weight:700;
+    background:var(--gray-50); display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .totali-cell .ore{font-size:18px}
+  .totali-cell .label{font-size:10px; color:var(--gray-500); font-weight:400; text-transform:uppercase}
+
+  /* Footer */
+  .foglio-footer{
+    display:grid;
+    grid-template-columns:140px repeat(8, 1fr) 110px;
+    background:#F9FAFB; border-top:2px solid var(--gray-200);
+    font-size:12px;
+  }
+  .foglio-footer .label-cell{padding:10px 8px; font-weight:700; color:var(--gray-700); border-right:1px solid var(--gray-200)}
+  .foglio-footer .cov-cell{padding:8px 4px; text-align:center; border-right:1px solid var(--gray-200); display:flex; flex-direction:column; gap:2px; align-items:center}
+  .cov-badge{display:inline-block; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px}
+  .cov-badge.ok{background:#DCFCE7; color:#15803D}
+  .cov-badge.warn{background:#FEF3C7; color:#92400E}
+  .cov-badge.err{background:#FEE2E2; color:#B91C1C}
+
+  /* Side panel — totali per dipendente (colonna destra ESTERNA al foglio) */
+  .layout{display:grid; grid-template-columns:1fr 280px; gap:18px; padding:0 22px 22px}
+  .totali-panel{
+    background:white; border-radius:12px; border:1px solid var(--gray-200);
+    padding:14px; box-shadow:0 2px 10px rgba(0,0,0,.05);
+  }
+  .totali-panel h3{margin:0 0 10px; font-size:14px; text-transform:uppercase; color:var(--gray-600); letter-spacing:.04em}
+  .totali-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; border-bottom:1px solid var(--gray-100);
+  }
+  .totali-row:last-child{border-bottom:none}
+  .totali-name{display:flex; align-items:center; gap:8px}
+  .swatch{width:14px; height:14px; border-radius:4px}
+  .totali-ore{font-weight:700}
+  .totali-ore.warn{color:#D97706}
+  .totali-ore.err{color:var(--brand-red)}
+  .totali-ore .lordo{display:block; font-size:10px; color:var(--gray-400); font-weight:400}
+
+  /* Popover */
+  .pop-overlay{position:fixed; inset:0; background:rgba(0,0,0,.18); display:none; align-items:center; justify-content:center; z-index:50}
+  .pop-overlay.show{display:flex}
+  .popover{
+    background:white; border-radius:14px; padding:18px;
+    width:320px; box-shadow:0 12px 40px rgba(0,0,0,.18);
+  }
+  .popover h4{margin:0 0 12px; font-size:14px; text-transform:uppercase; color:var(--gray-600); letter-spacing:.04em}
+  .popover .field{margin-bottom:12px}
+  .popover label{display:block; font-size:12px; font-weight:600; margin-bottom:4px; color:var(--gray-700)}
+  .popover select, .popover input[type=text]{
+    width:100%; padding:10px; border:1px solid var(--gray-300); border-radius:8px; font-size:14px;
+  }
+  .popover .toggle{display:flex; align-items:center; gap:8px; padding:8px; background:#FEF3C7; border-radius:8px; cursor:pointer}
+  .popover .toggle input{margin:0}
+  .popover .toggle .label-strong{font-weight:700; color:#92400E}
+  .popover .actions{display:flex; gap:8px; margin-top:14px}
+  .popover .actions .btn{flex:1; justify-content:center}
+
+  .legend{padding:10px 22px; display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--gray-600)}
+  .legend .item{display:flex; align-items:center; gap:6px}
+  .legend .swatch-mini{width:12px; height:12px; border-radius:3px}
+
+  .note-block{background:#FEF7ED; border-left:3px solid var(--brand-red); padding:10px 14px; margin:14px 22px; border-radius:6px; font-size:13px; color:#7C2D12}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>📋 Turni Settimanali</h1>
+  <div class="week-nav">
+    <button title="Settimana precedente">◀</button>
+    <span class="week-label">Lun 13 — Dom 19 Apr 2026</span>
+    <button title="Settimana successiva">▶</button>
+    <button class="today">Oggi</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="btn primary">📋 Copia settimana precedente</button>
+  <button class="btn">+ Slot pranzo</button>
+  <button class="btn">+ Slot cena</button>
+  <button class="btn ghost">📅 Vista mensile</button>
+  <button class="btn ghost">👤 Per dipendente</button>
+  <button class="btn ghost">🖨️ Stampa</button>
+  <span style="flex:1"></span>
+  <button class="btn">⚙️ Tipi turno</button>
+</div>
+
+<div class="note-block">
+  <strong>Mockup — Foglio Settimana stile Excel.</strong> Ogni reparto è una matrice indipendente
+  (tab in alto). Click su cella vuota → scegli dipendente. Click su cella piena → modifica.
+  L'asterisco (*) e il bordo giallo indicano un turno "in chiamata" (da confermare).
+  Mercoledì è chiuso (letto da modulo Vendite, non duplicato).
+</div>
+
+<div class="reparto-tabs">
+  <div class="reparto-tab active" style="--reparto-color:#2E7BE8">
+    🍽️ Sala <span class="count">5</span>
+  </div>
+  <div class="reparto-tab" style="--reparto-color:#E8402B">
+    👨‍🍳 Cucina <span class="count">6</span>
+  </div>
+  <div class="reparto-tab" style="--reparto-color:#9CA3AF">
+    + Aggiungi reparto
+  </div>
+</div>
+
+<div class="layout">
+  <div class="foglio-wrap" style="padding:0">
+    <div class="foglio">
+      <!-- HEADER -->
+      <div class="foglio-header">
+        <div class="col col-day">Giorno</div>
+        <div class="col servizio-pranzo">P1<span class="orario">10:30–15:30</span></div>
+        <div class="col servizio-pranzo">P2<span class="orario">10:30–15:30</span></div>
+        <div class="col servizio-pranzo">P3<span class="orario">10:30–15:30</span></div>
+        <div class="col servizio-pranzo">P4<span class="orario">10:30–15:30</span></div>
+        <div class="col servizio-cena">C1<span class="orario">18:00–24:00</span></div>
+        <div class="col servizio-cena">C2<span class="orario">18:00–24:00</span></div>
+        <div class="col servizio-cena">C3<span class="orario">18:00–24:00</span></div>
+        <div class="col servizio-cena">C4<span class="orario">18:00–24:00</span></div>
+        <div class="col">Tot reparto</div>
+      </div>
+
+      <!-- LUN 13 -->
+      <div class="foglio-row">
+        <div class="day-cell"><span class="giorno">lunedì</span><span class="data">13/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="totali-cell"><span class="ore">5</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- MAR 14 -->
+      <div class="foglio-row oggi">
+        <div class="day-cell"><span class="giorno">martedì</span><span class="data">14/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente chiamata" style="background:#F59E0B"><span class="ast">★</span>Paolo S.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente chiamata" style="background:#F59E0B"><span class="ast">★</span>Paolo S.</div></div>
+        <div class="totali-cell"><span class="ore">6</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- MER 15 — CHIUSO -->
+      <div class="foglio-row chiuso">
+        <div class="day-cell"><span class="giorno">mercoledì</span><span class="data">15/04</span><span class="badge-chiuso">CHIUSO</span></div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="slot-cell empty">—</div>
+        <div class="totali-cell"><span class="ore">—</span></div>
+      </div>
+
+      <!-- GIO 16 -->
+      <div class="foglio-row">
+        <div class="day-cell"><span class="giorno">giovedì</span><span class="data">16/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="totali-cell"><span class="ore">7</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- VEN 17 -->
+      <div class="foglio-row">
+        <div class="day-cell"><span class="giorno">venerdì</span><span class="data">17/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="totali-cell"><span class="ore">8</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- SAB 18 -->
+      <div class="foglio-row weekend">
+        <div class="day-cell"><span class="giorno">sabato</span><span class="data">18/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="totali-cell"><span class="ore">8</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- DOM 19 -->
+      <div class="foglio-row weekend">
+        <div class="day-cell"><span class="giorno">domenica</span><span class="data">19/04</span></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F59E0B">Paolo S.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell empty">+</div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#2E7BE8">Sara L.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#8B5CF6">Mirla A.</div></div>
+        <div class="slot-cell"><div class="pill-dipendente" style="background:#F97316">Davide R.</div></div>
+        <div class="slot-cell empty">+</div>
+        <div class="totali-cell"><span class="ore">5</span><span class="label">turni</span></div>
+      </div>
+
+      <!-- FOOTER COPERTURA -->
+      <div class="foglio-footer">
+        <div class="label-cell">Copertura</div>
+        <div class="cov-cell"><span class="cov-badge ok">6/6</span><span style="color:var(--gray-500)">P1</span></div>
+        <div class="cov-cell"><span class="cov-badge ok">6/6</span><span style="color:var(--gray-500)">P2</span></div>
+        <div class="cov-cell"><span class="cov-badge warn">3/6</span><span style="color:var(--gray-500)">P3</span></div>
+        <div class="cov-cell"><span class="cov-badge err">2/6</span><span style="color:var(--gray-500)">P4</span></div>
+        <div class="cov-cell"><span class="cov-badge ok">6/6</span><span style="color:var(--gray-500)">C1</span></div>
+        <div class="cov-cell"><span class="cov-badge ok">6/6</span><span style="color:var(--gray-500)">C2</span></div>
+        <div class="cov-cell"><span class="cov-badge ok">6/6</span><span style="color:var(--gray-500)">C3</span></div>
+        <div class="cov-cell"><span class="cov-badge warn">4/6</span><span style="color:var(--gray-500)">C4</span></div>
+        <div class="totali-cell"><span class="ore">39</span><span class="label">tot turni</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE: ore per dipendente -->
+  <div class="totali-panel">
+    <h3>Ore settimanali (nette)</h3>
+    <div class="totali-row">
+      <div class="totali-name"><span class="swatch" style="background:#2E7BE8"></span>Sara Lentini</div>
+      <div class="totali-ore err">52h <span class="lordo">lorde 58h</span></div>
+    </div>
+    <div class="totali-row">
+      <div class="totali-name"><span class="swatch" style="background:#F59E0B"></span>Paolo Sola</div>
+      <div class="totali-ore warn">44h <span class="lordo">lorde 49h</span></div>
+    </div>
+    <div class="totali-row">
+      <div class="totali-name"><span class="swatch" style="background:#8B5CF6"></span>Mirla Albuquerque</div>
+      <div class="totali-ore">38h <span class="lordo">lorde 42h</span></div>
+    </div>
+    <div class="totali-row">
+      <div class="totali-name"><span class="swatch" style="background:#F97316"></span>Davide Rota</div>
+      <div class="totali-ore">36h <span class="lordo">lorde 40h</span></div>
+    </div>
+    <div class="totali-row">
+      <div class="totali-name"><span class="swatch" style="background:#06B6D4"></span>Iryna Perdei</div>
+      <div class="totali-ore" style="color:var(--gray-400)">0h <span class="lordo">non assegnata</span></div>
+    </div>
+
+    <h3 style="margin-top:18px">Note pause staff</h3>
+    <div style="font-size:11px; color:var(--gray-500); line-height:1.5">
+      Da ogni turno PRANZO si scalano 30 min di pausa staff. Idem per CENA.
+      Chi fa doppio turno: −1h al netto.<br>
+      Configurabile per reparto (oggi: SALA 30+30, CUCINA 30+30).
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="item"><span class="swatch-mini" style="background:#FEF3C7; border:1px solid #FDE68A"></span> Servizio pranzo</div>
+  <div class="item"><span class="swatch-mini" style="background:#DBEAFE; border:1px solid #BFDBFE"></span> Servizio cena</div>
+  <div class="item"><span class="swatch-mini" style="background:#FEF7ED"></span> Weekend</div>
+  <div class="item"><span class="swatch-mini" style="background:repeating-linear-gradient(45deg, var(--gray-200), var(--gray-200) 4px, var(--gray-100) 4px, var(--gray-100) 8px)"></span> Giorno chiuso (da modulo Vendite)</div>
+  <div class="item"><span style="color:#FBBF24; font-weight:900">★</span> Turno in chiamata (da confermare)</div>
+  <div class="item">Bordo blu = oggi</div>
+</div>
+
+<!-- POPOVER demo -->
+<div class="pop-overlay" id="pop">
+  <div class="popover">
+    <h4>Assegna turno — Mar 14/04 PRANZO P2</h4>
+    <div class="field">
+      <label>Dipendente (Sala)</label>
+      <select>
+        <option>— scegli —</option>
+        <option>● Sara Lentini</option>
+        <option>● Paolo Sola</option>
+        <option>● Mirla Albuquerque</option>
+        <option>● Davide Rota</option>
+        <option>● Iryna Perdei</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Note</label>
+      <input type="text" placeholder="es. apertura, evento privato">
+    </div>
+    <div class="field">
+      <label class="toggle">
+        <input type="checkbox" checked>
+        <span class="label-strong">★ Da confermare (chiamata)</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button class="btn ghost danger">Rimuovi</button>
+      <button class="btn primary">Salva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // demo: click cella vuota apre popover
+  document.querySelectorAll('.slot-cell.empty').forEach(c => {
+    c.addEventListener('click', () => document.getElementById('pop').classList.add('show'));
+  });
+  document.querySelectorAll('.pill-dipendente').forEach(c => {
+    c.addEventListener('click', e => { e.stopPropagation(); document.getElementById('pop').classList.add('show'); });
+  });
+  document.getElementById('pop').addEventListener('click', e => {
+    if (e.target.id === 'pop') e.currentTarget.classList.remove('show');
+  });
+</script>
+
+</body>
+</html>

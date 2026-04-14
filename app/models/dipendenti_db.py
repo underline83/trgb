@@ -299,5 +299,117 @@ def init_dipendenti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_presenze_data ON dipendenti_presenze(data)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_contratti_dip ON dipendenti_contratti(dipendente_id)")
 
+    # ────────────────────────────────────────────────────────────
+    # TURNI v2 — reparti, colonne extra, indici, template
+    # (in sync con migrazione 071_turni_v2_schema.py)
+    # ────────────────────────────────────────────────────────────
+
+    # Tabella reparti (SALA, CUCINA, …)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reparti (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          codice TEXT NOT NULL UNIQUE,
+          nome TEXT NOT NULL,
+          icona TEXT,
+          colore TEXT,
+          ordine INTEGER NOT NULL DEFAULT 0,
+          attivo INTEGER NOT NULL DEFAULT 1,
+          pranzo_inizio TEXT,
+          pranzo_fine   TEXT,
+          cena_inizio   TEXT,
+          cena_fine     TEXT,
+          pausa_pranzo_min INTEGER NOT NULL DEFAULT 30,
+          pausa_cena_min   INTEGER NOT NULL DEFAULT 30,
+          created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    for s in [
+        ("SALA",   "Sala",   "🍽️", "#2E7BE8", 10, "10:30", "15:30", "18:00", "24:00"),
+        ("CUCINA", "Cucina", "👨‍🍳", "#E8402B", 20, "09:30", "15:30", "17:30", "23:00"),
+    ]:
+        try:
+            cur.execute(
+                """
+                INSERT OR IGNORE INTO reparti
+                (codice, nome, icona, colore, ordine, attivo,
+                 pranzo_inizio, pranzo_fine, cena_inizio, cena_fine,
+                 pausa_pranzo_min, pausa_cena_min)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 30, 30)
+                """,
+                s
+            )
+        except Exception:
+            pass
+
+    # Colonne extra su dipendenti (reparto + colore univoco)
+    for col_def in [
+        "reparto_id INTEGER REFERENCES reparti(id)",
+        "colore TEXT",
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE dipendenti ADD COLUMN {col_def}")
+        except Exception:
+            pass
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_dipendenti_reparto ON dipendenti(reparto_id)")
+
+    # Colonne extra su turni_tipi
+    for col_def in [
+        "categoria TEXT NOT NULL DEFAULT 'LAVORO'",
+        "ore_lavoro REAL",
+        "icona TEXT",
+        "servizio TEXT",            # 'PRANZO' / 'CENA' / NULL
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE turni_tipi ADD COLUMN {col_def}")
+        except Exception:
+            pass
+
+    # Colonne extra su turni_calendario
+    # NB: 'stato' resta TEXT libero — accetta CONFERMATO / CHIAMATA / ANNULLATO
+    for col_def in [
+        "ore_effettive REAL",
+        "origine TEXT NOT NULL DEFAULT 'MANUALE'",
+        "origine_ref_id TEXT",
+    ]:
+        try:
+            cur.execute(f"ALTER TABLE turni_calendario ADD COLUMN {col_def}")
+        except Exception:
+            pass
+
+    # Indici turni_calendario
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_turni_cal_data ON turni_calendario(data)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_turni_cal_dip_data ON turni_calendario(dipendente_id, data)")
+
+    # Tabelle template settimanali
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS turni_template (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT NOT NULL,
+          descrizione TEXT,
+          attivo INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS turni_template_righe (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          template_id INTEGER NOT NULL,
+          dipendente_id INTEGER NOT NULL,
+          giorno_settimana INTEGER NOT NULL,
+          turno_tipo_id INTEGER NOT NULL,
+          note TEXT,
+          FOREIGN KEY (template_id) REFERENCES turni_template(id) ON DELETE CASCADE,
+          FOREIGN KEY (dipendente_id) REFERENCES dipendenti(id),
+          FOREIGN KEY (turno_tipo_id) REFERENCES turni_tipi(id)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tmpl_righe_tmpl ON turni_template_righe(template_id)")
+
+    # NB: nessun seed RIPOSO/FERIE/ecc.
+    #  - il workflow di Marco non usa il "tipo riposo": chi non compare in foglio = a casa
+    #  - le assenze (FERIE/MALATTIA/PERMESSO) vivono nel modulo Presenze v2.3
+
     conn.commit()
     conn.close()

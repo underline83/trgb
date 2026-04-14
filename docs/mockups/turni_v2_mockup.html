@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Turni v2 — Mockup scelte</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --brand-red: #E8402B;
+    --brand-green: #2EB872;
+    --brand-blue: #2E7BE8;
+    --brand-ink: #111111;
+    --brand-cream: #F4F1EC;
+  }
+  body { background: var(--brand-cream); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--brand-ink); }
+  .playfair { font-family: "Playfair Display", Georgia, serif; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .cell { min-height: 64px; border: 1px solid #e5e7eb; position: relative; padding: 4px; }
+  .cell-empty:hover { background: #f3f4f6; cursor: pointer; }
+  .shift-pill { font-size: 11px; padding: 4px 6px; border-radius: 8px; margin-top: 2px; line-height: 1.2; cursor: pointer; }
+  .absence { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56px; border-radius: 8px; font-weight: 700; font-size: 12px; }
+  .diag {
+    background-image: repeating-linear-gradient(45deg, rgba(46,123,232,0.2) 0 10px, rgba(46,123,232,0.05) 10px 20px);
+  }
+  .tabbtn { padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; border: 1px solid #d4d4d4; background: white; cursor: pointer; }
+  .tabbtn.active { background: var(--brand-ink); color: white; border-color: var(--brand-ink); }
+  .section { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+  .option { border: 2px solid transparent; border-radius: 12px; padding: 12px; background: #fafafa; transition: all .15s; cursor: pointer; }
+  .option:hover { border-color: var(--brand-blue); background: white; }
+  .option.chosen { border-color: var(--brand-green); background: white; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .pop {
+    position: absolute; z-index: 20; top: 100%; left: 0;
+    background: white; border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.2); padding: 14px; width: 260px;
+    margin-top: 6px;
+  }
+  .bottomsheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: white; border-radius: 18px 18px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.2); padding: 16px;
+  }
+  .semaforo-g { background: #d1fae5; color: #065f46; }
+  .semaforo-y { background: #fef3c7; color: #92400e; }
+  .semaforo-r { background: #fee2e2; color: #991b1b; }
+  details summary { cursor: pointer; }
+</style>
+</head>
+<body class="p-6">
+
+<div class="max-w-7xl mx-auto space-y-8">
+
+  <header class="section">
+    <h1 class="playfair text-3xl font-bold">📅 Turni v2 — Mockup scelte</h1>
+    <p class="text-sm text-neutral-600 mt-2">
+      Sei scelte progettuali da confermare. Ogni scelta mostra le opzioni in affiancamento.
+      Di' a Claude quale preferisci per ogni punto (es. "1A, 2A, 3A, 4A, 5A, 6=Fase 0").
+    </p>
+    <div class="mt-4 text-xs text-neutral-500">
+      Legenda turni usata in tutti i mockup:
+      <span class="chip" style="background:#dbeafe;color:#1e40af">Pranzo 11-15</span>
+      <span class="chip" style="background:#ede9fe;color:#5b21b6">Cena 18-23</span>
+      <span class="chip" style="background:#fef3c7;color:#92400e">Split 11-23</span>
+      <span class="chip" style="background:#e5e7eb;color:#374151">💤 Riposo</span>
+      <span class="chip" style="background:#cffafe;color:#155e75">🏖️ Ferie</span>
+      <span class="chip" style="background:#ffedd5;color:#9a3412">🤒 Malattia</span>
+    </div>
+  </header>
+
+  <!-- SCELTA 1: POPOVER vs MODAL vs SIDEBAR -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">Scelta 1 — Creazione / edit turno</h2>
+    <p class="text-sm text-neutral-600 mb-4">Cosa appare quando Marco clicca su una cella?</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <!-- OPZIONE A: POPOVER INLINE -->
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 1.A — Popover inline (desktop) + bottom sheet (mobile)</div>
+        <div class="relative bg-neutral-50 border border-neutral-200 rounded-lg p-2 h-80">
+          <div class="text-xs text-neutral-500 mb-1">Rossi Mario — Mer 15/04</div>
+          <div class="cell cell-empty bg-white">
+            <div class="text-xs text-neutral-400">Clic per assegnare</div>
+          </div>
+          <div class="pop" style="left: 0; top: 60px;">
+            <div class="text-xs font-semibold text-neutral-700 mb-2">Nuovo turno — Rossi · 15/04</div>
+            <label class="block text-xs text-neutral-600 mb-1">Tipo</label>
+            <select class="w-full border border-neutral-300 rounded-lg px-2 py-2 text-sm mb-2">
+              <option>— scegli —</option>
+              <option>Pranzo (11-15)</option>
+              <option>Cena (18-23)</option>
+              <option>Split (11-23)</option>
+              <option>— assenze —</option>
+              <option>💤 Riposo</option>
+              <option>🏖️ Ferie</option>
+            </select>
+            <label class="block text-xs text-neutral-600 mb-1">Note</label>
+            <input class="w-full border border-neutral-300 rounded-lg px-2 py-2 text-sm mb-3" placeholder="opzionale" />
+            <div class="flex gap-2 justify-end">
+              <button class="text-xs px-3 py-2 rounded-lg border border-neutral-300">Annulla</button>
+              <button class="text-xs px-3 py-2 rounded-lg text-white" style="background:var(--brand-blue)">Salva</button>
+            </div>
+          </div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">
+          ✅ Veloce, contestuale, zero scroll.<br>
+          ⚠️ Su iPad portrait serve bottom sheet (conversione automatica).
+        </div>
+      </div>
+
+      <!-- OPZIONE B: MODAL -->
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 1.B — Modal centrato sempre</div>
+        <div class="relative bg-neutral-50 border border-neutral-200 rounded-lg p-2 h-80">
+          <div class="absolute inset-0 bg-black/30 rounded-lg"></div>
+          <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-4 shadow-xl w-[80%]">
+            <div class="text-sm font-semibold mb-3">Nuovo turno</div>
+            <div class="text-xs text-neutral-500 mb-2">Rossi Mario — 15/04/2026</div>
+            <select class="w-full border rounded-lg px-2 py-2 text-sm mb-2">
+              <option>Tipo turno...</option>
+            </select>
+            <input class="w-full border rounded-lg px-2 py-2 text-sm mb-3" placeholder="Note" />
+            <div class="flex gap-2 justify-end">
+              <button class="text-xs px-3 py-2 rounded-lg border">Annulla</button>
+              <button class="text-xs px-3 py-2 rounded-lg text-white" style="background:var(--brand-blue)">Salva</button>
+            </div>
+          </div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">
+          ✅ Semplice, uniforme desktop/mobile.<br>
+          ⚠️ Perde contesto visivo (la cella sparisce dietro overlay).
+        </div>
+      </div>
+
+      <!-- OPZIONE C: SIDEBAR -->
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 1.C — Sidebar destra persistente</div>
+        <div class="relative bg-neutral-50 border border-neutral-200 rounded-lg p-2 h-80 flex">
+          <div class="flex-1 p-2">
+            <div class="text-xs text-neutral-500 mb-1">Griglia...</div>
+            <div class="cell cell-empty bg-white">15/04</div>
+          </div>
+          <div class="w-36 bg-white border-l border-neutral-300 p-2 text-xs">
+            <div class="font-semibold mb-2">Dettaglio</div>
+            <div class="text-neutral-500 mb-2">Rossi 15/04</div>
+            <select class="w-full border rounded px-1 py-1 text-[10px] mb-1">
+              <option>Pranzo</option>
+            </select>
+            <button class="w-full text-[10px] py-1 rounded text-white" style="background:var(--brand-blue)">Salva</button>
+          </div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">
+          ✅ Contesto sempre visibile, no popup.<br>
+          ⚠️ Ruba 25% dello spazio orizzontale, brutta su iPad portrait.
+        </div>
+      </div>
+
+    </div>
+    <div class="mt-4 text-sm">
+      <strong>Raccomandazione Claude:</strong> <span style="color:var(--brand-green)">1.A</span> — popover desktop + bottom sheet mobile.
+    </div>
+  </section>
+
+  <!-- SCELTA 2: VISTA MENSILE -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">Scelta 2 — Vista mensile</h2>
+    <p class="text-sm text-neutral-600 mb-4">Stile griglia mensile.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- 2.A CALENDARIO GOOGLE -->
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 2.A — Calendario stile Google</div>
+        <div class="grid grid-cols-7 text-[10px]" style="border:1px solid #e5e7eb">
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Lun</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Mar</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Mer</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Gio</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Ven</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Sab</div>
+          <div class="bg-neutral-100 p-1 text-center font-semibold">Dom</div>
+          <!-- week 1 -->
+          <div class="p-1 border-t border-neutral-200 h-20">
+            <div class="font-semibold">1</div>
+            <div class="chip" style="background:#dbeafe;color:#1e40af">MR</div>
+            <div class="chip" style="background:#ede9fe;color:#5b21b6">GL</div>
+          </div>
+          <div class="p-1 border-t h-20"><div>2</div>
+            <div class="chip" style="background:#dbeafe;color:#1e40af">MR</div>
+            <div class="chip" style="background:#dbeafe;color:#1e40af">AB</div>
+            <div class="chip" style="background:#ede9fe;color:#5b21b6">GL</div>
+          </div>
+          <div class="p-1 border-t h-20"><div>3</div>
+            <div class="chip" style="background:#cffafe;color:#155e75">🏖️GL</div>
+          </div>
+          <div class="p-1 border-t h-20"><div>4</div>
+            <div class="chip" style="background:#dbeafe;color:#1e40af">MR</div>
+          </div>
+          <div class="p-1 border-t h-20"><div>5</div>
+            <div class="chip" style="background:#ede9fe;color:#5b21b6">MR</div>
+            <div class="chip" style="background:#ede9fe;color:#5b21b6">AB</div>
+          </div>
+          <div class="p-1 border-t h-20"><div class="font-semibold text-blue-700">6</div>
+            <div class="chip" style="background:#fef3c7;color:#92400e">MR</div>
+            <div class="chip" style="background:#fef3c7;color:#92400e">GL</div>
+            <div class="chip" style="background:#fef3c7;color:#92400e">AB</div>
+          </div>
+          <div class="p-1 border-t h-20"><div class="font-semibold text-red-700">7</div>
+            <div class="chip" style="background:#e5e7eb;color:#374151">💤</div>
+          </div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">
+          ✅ Familiare, panoramica per giorno.<br>
+          ⚠️ Non mostra chi manca (serve sapere se un dipendente sta lavorando abbastanza).
+        </div>
+      </div>
+
+      <!-- 2.B HEATMAP -->
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 2.B — Heatmap dipendenti × giorni</div>
+        <div class="overflow-x-auto">
+          <table class="text-[9px]">
+            <thead>
+              <tr>
+                <th class="text-left pr-1">Dip.</th>
+                <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th>
+                <th>8</th><th>9</th><th>10</th><th>11</th><th>12</th><th>13</th><th>14</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="pr-1">MR</td>
+                <td style="background:#dbeafe" class="w-5 h-5"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#fef3c7"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#fef3c7"></td>
+                <td style="background:#e5e7eb"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#fef3c7"></td>
+                <td style="background:#e5e7eb"></td>
+              </tr>
+              <tr><td class="pr-1">GL</td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#cffafe"></td>
+                <td style="background:#cffafe"></td>
+                <td style="background:#cffafe"></td>
+                <td style="background:#cffafe"></td>
+                <td style="background:#cffafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#e5e7eb"></td>
+              </tr>
+              <tr><td class="pr-1">AB</td>
+                <td style="background:#e5e7eb"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#fef3c7"></td>
+                <td style="background:#ffedd5"></td>
+                <td style="background:#ffedd5"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#dbeafe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#ede9fe"></td>
+                <td style="background:#fef3c7"></td>
+                <td style="background:#e5e7eb"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">
+          ✅ Vedi a colpo d'occhio chi lavora e chi no tutto il mese.<br>
+          ⚠️ Dettagli di ogni giorno richiedono hover/tooltip.
+        </div>
+      </div>
+
+    </div>
+    <div class="mt-4 text-sm">
+      <strong>Raccomandazione Claude:</strong> <span style="color:var(--brand-green)">2.A + link "Vista heatmap"</span> come tab alternativo.
+      Il calendario Google-like e' piu' naturale come default.
+    </div>
+  </section>
+
+  <!-- SCELTA 3+4: TOTALI + COPERTURA -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">Scelta 3-4 — Totali ore e Copertura (in contesto)</h2>
+    <p class="text-sm text-neutral-600 mb-4">Ecco come apparirebbe la griglia settimanale con TOTALI a destra e COPERTURA in fondo.</p>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs border border-neutral-200 bg-white">
+        <thead>
+          <tr class="bg-neutral-50">
+            <th class="text-left p-2 border-b border-neutral-200 w-36">Dipendente</th>
+            <th class="p-2 border-b border-neutral-200">Lun 13/04</th>
+            <th class="p-2 border-b border-neutral-200">Mar 14/04</th>
+            <th class="p-2 border-b border-neutral-200">Mer 15/04</th>
+            <th class="p-2 border-b border-neutral-200">Gio 16/04</th>
+            <th class="p-2 border-b border-neutral-200">Ven 17/04</th>
+            <th class="p-2 border-b border-neutral-200">Sab 18/04</th>
+            <th class="p-2 border-b border-neutral-200">Dom 19/04</th>
+            <th class="p-2 border-b border-neutral-200 text-center w-20" style="background:#fafaf9">Tot ore</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="p-2 border-b border-neutral-100">
+              <div class="font-semibold">Rossi Mario</div>
+              <div class="text-[10px] text-neutral-500">Sala</div>
+            </td>
+            <td class="cell"><div class="shift-pill" style="background:#dbeafe;color:#1e40af">Pranzo<br><span class="text-[10px]">11-15</span></div></td>
+            <td class="cell"><div class="shift-pill" style="background:#dbeafe;color:#1e40af">Pranzo<br><span class="text-[10px]">11-15</span></div></td>
+            <td class="cell"><div class="shift-pill" style="background:#fef3c7;color:#92400e">Split<br><span class="text-[10px]">11-23</span></div></td>
+            <td class="cell cell-empty"></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena<br><span class="text-[10px]">18-23</span></div></td>
+            <td class="cell"><div class="shift-pill" style="background:#fef3c7;color:#92400e">Split<br><span class="text-[10px]">11-23</span></div></td>
+            <td class="cell"><div class="absence" style="background:#e5e7eb">💤<span class="text-[10px]">Riposo</span></div></td>
+            <td class="text-center"><span class="chip semaforo-y">44h ⚠️</span></td>
+          </tr>
+          <tr>
+            <td class="p-2 border-b border-neutral-100">
+              <div class="font-semibold">Gialli Luca</div>
+              <div class="text-[10px] text-neutral-500">Cucina</div>
+            </td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="cell"><div class="absence diag" style="background:#cffafe;color:#155e75">🏖️<span class="text-[10px]">Ferie</span></div></td>
+            <td class="cell"><div class="absence diag" style="background:#cffafe;color:#155e75">🏖️<span class="text-[10px]">Ferie</span></div></td>
+            <td class="cell"><div class="absence diag" style="background:#cffafe;color:#155e75">🏖️<span class="text-[10px]">Ferie</span></div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="text-center"><span class="chip semaforo-g">20h</span></td>
+          </tr>
+          <tr>
+            <td class="p-2 border-b border-neutral-100">
+              <div class="font-semibold">Bianchi Anna</div>
+              <div class="text-[10px] text-neutral-500">Sala</div>
+            </td>
+            <td class="cell cell-empty"></td>
+            <td class="cell"><div class="shift-pill" style="background:#dbeafe;color:#1e40af">Pranzo</div></td>
+            <td class="cell"><div class="shift-pill" style="background:#dbeafe;color:#1e40af">Pranzo</div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="cell"><div class="absence" style="background:#ffedd5;color:#9a3412">🤒<span class="text-[10px]">Malattia</span></div></td>
+            <td class="cell"><div class="shift-pill" style="background:#ede9fe;color:#5b21b6">Cena</div></td>
+            <td class="text-center"><span class="chip semaforo-g">23h</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#fafaf9">
+            <td class="p-2 text-xs font-semibold text-neutral-700 border-t-2 border-neutral-300">Copertura</td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#dbeafe;color:#1e40af">Sala P:1</span><br>
+              <span class="chip" style="background:#ede9fe;color:#5b21b6">Cucina C:1</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#dbeafe;color:#1e40af">Sala P:2</span>
+              <span class="chip" style="background:#ede9fe;color:#5b21b6">Cucina C:1</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#dbeafe;color:#1e40af">Sala P:1</span>
+              <span class="chip" style="background:#fef3c7;color:#92400e">Sala S:1</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px] text-red-600 font-bold">
+              ⚠️ nessuno pranzo
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#ede9fe;color:#5b21b6">Sala C:2</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#ede9fe;color:#5b21b6">Sala C:1</span>
+              <span class="chip" style="background:#fef3c7;color:#92400e">Sala S:1</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300 text-center text-[10px]">
+              <span class="chip" style="background:#ede9fe;color:#5b21b6">Sala C:1</span>
+            </td>
+            <td class="p-2 border-t-2 border-neutral-300"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="mt-4 grid md:grid-cols-2 gap-4 text-sm">
+      <div class="option">
+        <strong>Scelta 3 (totali):</strong> <span style="color:var(--brand-green)">Colonna destra fissa</span> con semaforo.
+        Alternativa (3.B) pannello laterale toggle, (3.C) riga in fondo. Il "Tot ore" a destra e' il piu' pratico.
+      </div>
+      <div class="option">
+        <strong>Scelta 4 (copertura):</strong> <span style="color:var(--brand-green)">Riga in fondo (tfoot)</span>
+        con chip colorate per ruolo e servizio. Riga evidenzia buchi in rosso.
+        Alternativa (4.B) barrette sopra ogni colonna, (4.C) tabella separata.
+      </div>
+    </div>
+  </section>
+
+  <!-- SCELTA 5: ASSENZE -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">Scelta 5 — Rappresentazione assenze</h2>
+    <p class="text-sm text-neutral-600 mb-4">Come segnare FERIE/MALATTIA/PERMESSO nella griglia?</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 5.A — Blocco a tutta cella con emoji</div>
+        <div class="cell" style="height:80px">
+          <div class="absence" style="background:#cffafe;color:#155e75;height:100%">🏖️ <span>FERIE</span></div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">✅ Massima visibilita', impossibile confondere.</div>
+      </div>
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 5.B — Strip diagonale sullo sfondo</div>
+        <div class="cell diag" style="height:80px">
+          <div class="text-[10px] text-neutral-500">Riposo / Ferie</div>
+          <div class="chip" style="background:white;border:1px solid #0891b2;color:#0e7490">🏖️ Ferie</div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">✅ Pulito, stile "calendario tradizionale".</div>
+      </div>
+      <div class="option">
+        <div class="text-xs font-bold text-neutral-500 mb-2">OPZIONE 5.C — Badge piccolo in alto</div>
+        <div class="cell" style="height:80px">
+          <div class="flex items-center justify-between">
+            <div class="chip" style="background:#cffafe;color:#155e75">🏖️</div>
+          </div>
+          <div class="text-[10px] text-neutral-500 mt-4 text-center">(cella neutra)</div>
+        </div>
+        <div class="text-xs text-neutral-600 mt-2">⚠️ Meno leggibile, rischio di assegnare turni per sbaglio.</div>
+      </div>
+    </div>
+    <div class="mt-4 text-sm">
+      <strong>Raccomandazione Claude:</strong> <span style="color:var(--brand-green)">5.A</span> — blocco pieno con emoji.
+    </div>
+  </section>
+
+  <!-- SCELTA 6: COPIA SETTIMANA -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">Scelta 6 — Copia settimana (preview)</h2>
+    <p class="text-sm text-neutral-600 mb-4">Flusso consigliato dello strumento piu' utile del modulo.</p>
+
+    <div class="grid md:grid-cols-3 gap-4 text-xs">
+      <div class="option">
+        <div class="font-bold mb-2">Step 1 — Apri</div>
+        <div class="border border-neutral-200 rounded-lg p-3 bg-white">
+          <button class="px-3 py-2 rounded-lg text-white text-xs" style="background:var(--brand-blue)">📋 Copia settimana...</button>
+          <div class="text-neutral-500 mt-2 text-[10px]">Bottone in toolbar sopra la griglia</div>
+        </div>
+      </div>
+      <div class="option">
+        <div class="font-bold mb-2">Step 2 — Scegli sorgente</div>
+        <div class="border border-neutral-200 rounded-lg p-3 bg-white space-y-2">
+          <div class="text-neutral-700">Copia turni DA:</div>
+          <select class="w-full border rounded px-2 py-1 text-[11px]">
+            <option>← Settimana precedente (6-12 Apr)</option>
+            <option>2 settimane fa (30 Mar - 5 Apr)</option>
+            <option>Settimana personalizzata...</option>
+          </select>
+          <div class="text-neutral-700">A (destinazione):</div>
+          <div class="text-neutral-500">Settimana corrente (13-19 Apr)</div>
+          <div class="mt-2 space-y-1">
+            <label class="flex items-center gap-2 text-[11px]"><input type="checkbox" checked> Salta se destinazione ha gia' assenze (ferie, malattia)</label>
+            <label class="flex items-center gap-2 text-[11px]"><input type="checkbox"> Sovrascrivi turni esistenti in destinazione</label>
+          </div>
+        </div>
+      </div>
+      <div class="option">
+        <div class="font-bold mb-2">Step 3 — Preview + conferma</div>
+        <div class="border border-neutral-200 rounded-lg p-3 bg-white space-y-1 text-[11px]">
+          <div class="text-neutral-700 font-semibold">Anteprima:</div>
+          <div>✅ 18 turni verranno creati</div>
+          <div>⚠️ 2 saltati (Luca in ferie 15-17)</div>
+          <div>🔁 0 da sovrascrivere</div>
+          <div class="mt-3 flex gap-2">
+            <button class="px-2 py-1 rounded border text-[10px]">Annulla</button>
+            <button class="px-2 py-1 rounded text-white text-[10px]" style="background:var(--brand-green)">Conferma copia</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 text-sm">
+      <strong>Conferma:</strong> ok cosi' il flusso copia? Altrimenti dimmi se preferisci "copia automatica giornaliera" o un altro approccio.
+    </div>
+  </section>
+
+  <!-- RIASSUNTO -->
+  <section class="section">
+    <h2 class="playfair text-2xl font-bold mb-1">📋 Riassunto scelte da confermare</h2>
+    <p class="text-sm text-neutral-600 mb-4">
+      Rispondi con una riga tipo: <code class="bg-neutral-100 px-2 py-1 rounded">1A 2A 3A 4A 5A 6OK, parti da Fase 0</code>
+      oppure specifica le varianti.
+    </p>
+    <ol class="list-decimal list-inside space-y-2 text-sm">
+      <li><strong>Creazione/edit turno:</strong> 1.A Popover + bottom sheet / 1.B Modal / 1.C Sidebar</li>
+      <li><strong>Vista mensile:</strong> 2.A Calendario Google / 2.B Heatmap / 2.C Entrambe</li>
+      <li><strong>Totali ore:</strong> 3.A Colonna destra / 3.B Pannello toggle / 3.C Riga footer</li>
+      <li><strong>Copertura giornaliera:</strong> 4.A Riga footer / 4.B Barrette testa colonna / 4.C Tabella separata</li>
+      <li><strong>Assenze:</strong> 5.A Blocco pieno emoji / 5.B Strip diagonale / 5.C Badge piccolo</li>
+      <li><strong>Copia settimana (flusso step 1-2-3):</strong> OK cosi' / varianti?</li>
+      <li><strong>Ordine partenza:</strong> Fase 0 (DB) -&gt; 1 (UX) -&gt; 2 (totali) -&gt; 3 (copia) -&gt; 4 (assenze) oppure un altro ordine?</li>
+    </ol>
+  </section>
+
+</div>
+
+</body>
+</html>
