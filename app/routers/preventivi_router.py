@@ -1,13 +1,15 @@
 """
-Router Preventivi — API CRUD preventivi eventi + template.
+Router Preventivi — API CRUD preventivi eventi + template + PDF.
 Prefix: /preventivi
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from app.services.auth_service import get_current_user
+from app.services.pdf_brand import genera_pdf_html, safe_filename
 from app.services.preventivi_service import (
     crea_preventivo,
     get_preventivo,
@@ -222,3 +224,43 @@ def api_duplica_preventivo(preventivo_id: int, user: dict = Depends(get_current_
     if not result:
         raise HTTPException(status_code=404, detail="Preventivo non trovato")
     return result
+
+
+# ---------------------------------------------------------------------------
+# PDF preventivo (mattone M.B — pdf_brand)
+# ---------------------------------------------------------------------------
+
+@router.get("/{preventivo_id}/pdf")
+def api_pdf_preventivo(
+    preventivo_id: int,
+    inline: bool = Query(False, description="Se True apre inline nel browser, altrimenti download"),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Genera il PDF brandizzato di un preventivo usando il mattone M.B (pdf_brand).
+    """
+    prev = get_preventivo(preventivo_id)
+    if not prev:
+        raise HTTPException(status_code=404, detail="Preventivo non trovato")
+
+    righe = prev.get("righe") or []
+    numero = prev.get("numero") or f"preventivo_{preventivo_id}"
+
+    try:
+        pdf_bytes = genera_pdf_html(
+            template="preventivo.html",
+            dati={"prev": prev, "righe": righe},
+            titolo=f"Preventivo {numero}",
+            sottotitolo=prev.get("titolo") or None,
+            orientamento="portrait",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    filename = safe_filename(numero.replace("-", "_").lower(), ext="pdf")
+    disposition = "inline" if inline else "attachment"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
+    )

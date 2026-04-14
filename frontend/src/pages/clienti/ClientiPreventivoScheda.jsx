@@ -241,6 +241,26 @@ export default function ClientiPreventivoScheda() {
     }
   };
 
+  // ── Scarica PDF (mattone M.B) ──
+  const handlePDF = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/preventivi/${prevId}/pdf`);
+      if (!res.ok) throw new Error("Errore generazione PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `preventivo_${(numero || prevId).toString().toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("PDF scaricato");
+    } catch (err) {
+      showToast(err.message || "Errore PDF", true);
+    }
+  };
+
   // ── Duplica ──
   const handleDuplica = async () => {
     try {
@@ -559,6 +579,11 @@ export default function ClientiPreventivoScheda() {
                     )}
 
                     <hr className="border-neutral-200" />
+
+                    <button onClick={handlePDF}
+                      className="w-full text-left px-3 py-1.5 text-xs text-brand-blue hover:text-blue-800 rounded-lg border border-blue-200 hover:bg-blue-50 transition font-medium">
+                      📥 Scarica PDF
+                    </button>
 
                     <button onClick={handleDuplica}
                       className="w-full text-left px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition">

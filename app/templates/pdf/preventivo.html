@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% set stato_pill = {
+    'bozza':      ('pill-gray',  'Bozza'),
+    'inviato':    ('pill-blue',  'Inviato'),
+    'in_attesa':  ('pill-blue',  'In attesa'),
+    'confermato': ('pill-green', 'Confermato'),
+    'prenotato':  ('pill-green', 'Prenotato'),
+    'completato': ('pill-green', 'Completato'),
+    'fatturato':  ('pill-green', 'Fatturato'),
+    'rifiutato':  ('pill-red',   'Rifiutato'),
+    'scaduto':    ('pill-red',   'Scaduto'),
+} %}
+
+{% block content %}
+
+    {# Info cliente + evento #}
+    <div class="info-grid">
+        <div class="info-cell">
+            <div class="label">Cliente</div>
+            <div class="value">
+                {% if prev.cliente_nome or prev.cliente_cognome %}
+                    <strong>{{ prev.cliente_nome or '' }} {{ prev.cliente_cognome or '' }}</strong>
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </div>
+            {% if prev.cliente_telefono %}
+                <div class="label">Telefono</div>
+                <div class="value">{{ prev.cliente_telefono }}</div>
+            {% endif %}
+            {% if prev.cliente_email %}
+                <div class="label">Email</div>
+                <div class="value">{{ prev.cliente_email }}</div>
+            {% endif %}
+        </div>
+        <div class="info-cell">
+            <div class="label">Documento</div>
+            <div class="value">
+                <strong>{{ prev.numero }}</strong>
+                {% set st = stato_pill.get(prev.stato, ('pill-gray', prev.stato)) %}
+                <span class="pill {{ st[0] }}" style="margin-left:8px;">{{ st[1] }}</span>
+            </div>
+            {% if prev.titolo %}
+                <div class="label">Titolo evento</div>
+                <div class="value">{{ prev.titolo }}</div>
+            {% endif %}
+            {% if prev.data_evento %}
+                <div class="label">Data evento</div>
+                <div class="value">
+                    {{ prev.data_evento }}{% if prev.ora_evento %} — ore {{ prev.ora_evento }}{% endif %}
+                </div>
+            {% endif %}
+            {% if prev.n_persone %}
+                <div class="label">Persone</div>
+                <div class="value">{{ prev.n_persone }} pax{% if prev.luogo %} — {{ prev.luogo }}{% endif %}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Righe (voci + sconti) #}
+    <h2>Dettaglio</h2>
+    <table class="brand">
+        <thead>
+            <tr>
+                <th style="width:55%;">Descrizione</th>
+                <th class="num" style="width:10%;">Qta</th>
+                <th class="num" style="width:17%;">Prezzo unit.</th>
+                <th class="num" style="width:18%;">Totale</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in righe %}
+                {% set is_sconto = (r.tipo_riga == 'sconto') %}
+                <tr>
+                    <td>
+                        {% if is_sconto %}<span class="text-red">Sconto — </span>{% endif %}
+                        {{ r.descrizione or '' }}
+                    </td>
+                    <td class="num">{{ '{:g}'.format(r.qta or 0) }}</td>
+                    <td class="num">€ {{ '{:,.2f}'.format(r.prezzo_unitario or 0) }}</td>
+                    <td class="num {% if is_sconto %}text-red{% endif %}">
+                        {% if is_sconto %}-{% endif %}€ {{ '{:,.2f}'.format((r.qta or 0) * (r.prezzo_unitario or 0)) }}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="text-muted" style="text-align:center;">Nessuna riga</td></tr>
+            {% endfor %}
+            <tr class="tot-row">
+                <td colspan="3">TOTALE</td>
+                <td class="num">€ {{ '{:,.2f}'.format(prev.totale_calcolato or 0) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    {# Note cliente #}
+    {% if prev.note_cliente %}
+        <h2>Note</h2>
+        <div style="background:#F4F1EC; padding:10px 14px; border-radius:4px; white-space:pre-wrap; font-size:9.5pt;">
+            {{ prev.note_cliente }}
+        </div>
+    {% endif %}
+
+    {# Condizioni #}
+    {% if prev.condizioni %}
+        <h2>Condizioni</h2>
+        <div class="small" style="white-space:pre-wrap;">{{ prev.condizioni }}</div>
+    {% endif %}
+
+    {# Scadenza conferma #}
+    {% if prev.scadenza_conferma %}
+        <p class="small" style="margin-top:18px;">
+            <strong>Scadenza accettazione:</strong> {{ prev.scadenza_conferma }}
+        </p>
+    {% endif %}
+
+{% endblock %}
+
+{% block after_content %}
+    <div class="small" style="margin-top:30px; border-top:1px solid #ddd; padding-top:8px;">
+        Grazie per la fiducia. Per conferme e chiarimenti: Osteria Tre Gobbi — Bergamo.
+    </div>
+{% endblock %}

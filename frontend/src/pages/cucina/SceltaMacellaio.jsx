@@ -1,5 +1,5 @@
 // ============================================================
-// Scelta del Macellaio — v1.0
+// Scelta del Macellaio — v2.0 (categorie configurabili)
 // Cucina gestisce tagli disponibili, sala li segna venduti
 // ============================================================
 
@@ -7,14 +7,9 @@ import { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { VersionBadge } from "../../config/versions";
 
-const TIPOLOGIE_DEFAULT = [
-  "bovino", "suino", "agnello", "vitello",
-  "selvaggina", "pollame", "altro",
-];
-
 // ── Form vuoto ──
 const EMPTY_FORM = {
-  nome: "", tipologia: "bovino", grammatura_g: "", prezzo_euro: "", note: "",
+  nome: "", categoria: "", grammatura_g: "", prezzo_euro: "", note: "",
 };
 
 export default function SceltaMacellaio() {
@@ -26,7 +21,7 @@ export default function SceltaMacellaio() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
-  const [tipologie, setTipologie] = useState(TIPOLOGIE_DEFAULT);
+  const [categorie, setCategorie] = useState([]); // [{id, nome, emoji, ordine, attivo}]
 
   // ── Toast helper ──
   const flash = useCallback((msg, type = "ok") => {
@@ -47,16 +42,23 @@ export default function SceltaMacellaio() {
     }
   }, [filtro, flash]);
 
-  // ── Fetch tipologie ──
-  const fetchTipologie = useCallback(async () => {
+  // ── Fetch categorie ──
+  const fetchCategorie = useCallback(async () => {
     try {
-      const res = await apiFetch(`${API_BASE}/macellaio/tipologie/`);
-      if (res.ok) setTipologie(await res.json());
+      const res = await apiFetch(`${API_BASE}/macellaio/categorie/`);
+      if (res.ok) setCategorie(await res.json());
     } catch { /* silent */ }
   }, []);
 
   useEffect(() => { fetchTagli(); }, [fetchTagli]);
-  useEffect(() => { fetchTipologie(); }, [fetchTipologie]);
+  useEffect(() => { fetchCategorie(); }, [fetchCategorie]);
+
+  // Se al primo caricamento la categoria del form è vuota e ci sono categorie, preseleziona la prima
+  useEffect(() => {
+    if (!form.categoria && categorie.length > 0 && !editId) {
+      setForm(f => ({ ...f, categoria: categorie[0].nome }));
+    }
+  }, [categorie, editId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Save (create / update) ──
   const handleSave = async (e) => {
@@ -66,7 +68,7 @@ export default function SceltaMacellaio() {
     try {
       const payload = {
         nome: form.nome.trim(),
-        tipologia: form.tipologia || "bovino",
+        categoria: form.categoria || null,
         grammatura_g: form.grammatura_g ? parseInt(form.grammatura_g) : null,
         prezzo_euro: form.prezzo_euro ? parseFloat(form.prezzo_euro) : null,
         note: form.note || null,
@@ -85,11 +87,10 @@ export default function SceltaMacellaio() {
         throw new Error(err.detail || "Errore salvataggio");
       }
       flash(editId ? "Taglio aggiornato" : "Taglio aggiunto");
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM, categoria: categorie[0]?.nome || "" });
       setEditId(null);
       setShowForm(false);
       fetchTagli();
-      fetchTipologie();
     } catch (e) {
       flash(e.message, "err");
     } finally {
@@ -130,7 +131,7 @@ export default function SceltaMacellaio() {
   const startEdit = (t) => {
     setForm({
       nome: t.nome,
-      tipologia: t.tipologia,
+      categoria: t.categoria || "",
       grammatura_g: t.grammatura_g ?? "",
       prezzo_euro: t.prezzo_euro ?? "",
       note: t.note ?? "",
@@ -148,8 +149,12 @@ export default function SceltaMacellaio() {
   const fmtPrezzo = (v) => v != null ? `€ ${v.toFixed(2)}` : "—";
   const fmtGrammi = (v) => v != null ? `${v}g` : "—";
 
-  // ── Capitalize tipologia ──
-  const capTipo = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+  // ── Mappa categoria → emoji ──
+  const emojiFor = (nome) => {
+    if (!nome) return "";
+    const c = categorie.find(x => x.nome === nome);
+    return c?.emoji || "";
+  };
 
   return (
     <div className="min-h-screen bg-brand-cream">
@@ -204,7 +209,11 @@ export default function SceltaMacellaio() {
 
           {/* Bottone nuovo */}
           <button
-            onClick={() => { setForm(EMPTY_FORM); setEditId(null); setShowForm(!showForm); }}
+            onClick={() => {
+              setForm({ ...EMPTY_FORM, categoria: categorie[0]?.nome || "" });
+              setEditId(null);
+              setShowForm(!showForm);
+            }}
             className="flex items-center gap-1.5 bg-brand-blue text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors min-h-[44px]"
           >
             {showForm ? "✕ Chiudi" : "+ Nuovo taglio"}
@@ -225,24 +234,32 @@ export default function SceltaMacellaio() {
                   type="text"
                   value={form.nome}
                   onChange={e => setForm({ ...form, nome: e.target.value })}
-                  placeholder="Es. Costata di manzo frollata 45gg"
+                  placeholder="Es. Fiorentina frollata 45gg"
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none"
                   autoFocus
                 />
               </div>
 
-              {/* Tipologia */}
+              {/* Categoria */}
               <div>
-                <label className="block text-xs font-medium text-neutral-500 mb-1">Tipologia</label>
+                <label className="block text-xs font-medium text-neutral-500 mb-1">Categoria</label>
                 <select
-                  value={form.tipologia}
-                  onChange={e => setForm({ ...form, tipologia: e.target.value })}
+                  value={form.categoria}
+                  onChange={e => setForm({ ...form, categoria: e.target.value })}
                   className="w-full border border-neutral-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none bg-white"
                 >
-                  {tipologie.map(t => (
-                    <option key={t} value={t}>{capTipo(t)}</option>
+                  <option value="">— Nessuna —</option>
+                  {categorie.map(c => (
+                    <option key={c.id} value={c.nome}>
+                      {c.emoji ? `${c.emoji} ` : ""}{c.nome}
+                    </option>
                   ))}
                 </select>
+                {categorie.length === 0 && (
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Aggiungi categorie da Gestione Cucina → Strumenti
+                  </p>
+                )}
               </div>
 
               {/* Grammatura */}
@@ -320,7 +337,11 @@ export default function SceltaMacellaio() {
             </div>
             {filtro === "disponibili" && (
               <button
-                onClick={() => { setForm(EMPTY_FORM); setEditId(null); setShowForm(true); }}
+                onClick={() => {
+                  setForm({ ...EMPTY_FORM, categoria: categorie[0]?.nome || "" });
+                  setEditId(null);
+                  setShowForm(true);
+                }}
                 className="mt-3 text-brand-blue text-sm font-medium hover:underline"
               >
                 Aggiungi il primo taglio
@@ -345,9 +366,11 @@ export default function SceltaMacellaio() {
                       <span className={`font-semibold text-brand-ink ${t.venduto ? "line-through" : ""}`}>
                         {t.nome}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 font-medium">
-                        {capTipo(t.tipologia)}
-                      </span>
+                      {t.categoria && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 font-medium">
+                          {emojiFor(t.categoria) && <>{emojiFor(t.categoria)} </>}{t.categoria}
+                        </span>
+                      )}
                       {t.venduto && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-semibold">
                           VENDUTO

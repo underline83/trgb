@@ -1,20 +1,9 @@
 // FILE: frontend/src/components/widgets/MacellaioCard.jsx
-// @version: v1.0 — Widget Scelta del Macellaio per Home e DashboardSala
-// Mostra count tagli disponibili + preview primi 4 tagli. Click → /macellaio.
+// @version: v2.0 — Widget Scelta del Macellaio raggruppato per categoria
+// Mostra count tagli disponibili + preview per categoria. Click → /macellaio.
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
-
-// ── Icona tipologia (emoji) ──
-const TIPO_EMOJI = {
-  bovino:      "🐂",
-  suino:       "🐖",
-  agnello:     "🐑",
-  vitello:     "🐄",
-  selvaggina:  "🦌",
-  pollame:     "🐓",
-  altro:       "🥩",
-};
 
 function formatPrezzo(p) {
   if (p == null) return "";
@@ -28,16 +17,22 @@ function formatGrammi(g) {
 }
 
 /**
- * Widget Scelta del Macellaio.
+ * Widget Scelta del Macellaio, raggruppato per categoria.
  *
  * Props:
- *   data: { disponibili, venduti_oggi, tagli: [{nome, tipologia, grammatura_g, prezzo_euro}] }
+ *   data: {
+ *     disponibili: int,
+ *     venduti_oggi: int,
+ *     categorie: [{nome, emoji, disponibili, tagli: [{nome, categoria, grammatura_g, prezzo_euro}]}],
+ *     altre: int
+ *   }
  */
 export default function MacellaioCard({ data }) {
   const navigate = useNavigate();
   const disp = data?.disponibili ?? 0;
   const venduti = data?.venduti_oggi ?? 0;
-  const tagli = data?.tagli || [];
+  const categorie = data?.categorie || [];
+  const altre = data?.altre ?? 0;
 
   return (
     <div
@@ -66,34 +61,62 @@ export default function MacellaioCard({ data }) {
         </div>
       )}
 
-      {/* Lista tagli */}
-      {tagli.length > 0 ? (
+      {/* Categorie */}
+      {categorie.length > 0 ? (
         <div className="border-t border-[#f0ede8]">
-          {tagli.map((t, i) => (
+          {categorie.map((cat, ci) => (
             <div
-              key={i}
-              className={`flex items-center gap-2.5 px-4 py-2 ${i < tagli.length - 1 ? "border-b border-[#f8f6f2]" : ""}`}
+              key={ci}
+              className={`${ci < categorie.length - 1 ? "border-b border-[#f0ede8]" : ""}`}
             >
-              <span className="text-base flex-shrink-0" aria-hidden="true">
-                {TIPO_EMOJI[t.tipologia] || "🥩"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">
-                  {t.nome}
-                </div>
-                {(t.grammatura_g || t.tipologia) && (
-                  <div className="text-[11px] text-[#a8a49e] mt-0.5 truncate">
-                    {t.tipologia}{t.grammatura_g ? ` · ${formatGrammi(t.grammatura_g)}` : ""}
-                  </div>
-                )}
-              </div>
-              {t.prezzo_euro != null && (
-                <span className="text-[13px] font-bold text-brand-ink tabular-nums flex-shrink-0">
-                  {formatPrezzo(t.prezzo_euro)}
+              {/* Header categoria */}
+              <div className="flex items-center justify-between px-4 pt-2 pb-1 bg-[#fafaf7]">
+                <span className="text-[11px] font-bold uppercase tracking-[.6px] text-brand-ink">
+                  {cat.emoji ? `${cat.emoji} ` : ""}{cat.nome}
                 </span>
+                <span className="text-[10px] text-[#a8a49e] font-medium tabular-nums">
+                  {cat.disponibili}
+                </span>
+              </div>
+
+              {/* Tagli preview */}
+              {cat.tagli && cat.tagli.length > 0 ? (
+                cat.tagli.map((t, ti) => (
+                  <div
+                    key={ti}
+                    className={`flex items-center gap-2.5 px-4 py-1.5 ${ti < cat.tagli.length - 1 ? "border-b border-[#f8f6f2]" : ""}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">
+                        {t.nome}
+                      </div>
+                      {t.grammatura_g && (
+                        <div className="text-[11px] text-[#a8a49e] mt-0.5 truncate">
+                          {formatGrammi(t.grammatura_g)}
+                        </div>
+                      )}
+                    </div>
+                    {t.prezzo_euro != null && (
+                      <span className="text-[13px] font-bold text-brand-ink tabular-nums flex-shrink-0">
+                        {formatPrezzo(t.prezzo_euro)}
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-1.5 text-[11px] text-[#a8a49e] italic">
+                  —
+                </div>
               )}
             </div>
           ))}
+
+          {/* Footer: altre categorie non mostrate */}
+          {altre > 0 && (
+            <div className="px-4 py-2 text-[11px] text-[#a8a49e] text-center border-t border-[#f0ede8] bg-[#fafaf7]">
+              + {altre} altre categor{altre === 1 ? "ia" : "ie"}
+            </div>
+          )}
         </div>
       ) : (
         <div className="border-t border-[#f0ede8] px-4 py-5 text-center text-[12px] text-[#a8a49e]">

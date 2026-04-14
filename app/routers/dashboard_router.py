@@ -87,14 +87,21 @@ class ModuloSummary(BaseModel):
 
 class TaglioBreve(BaseModel):
     nome: str
-    tipologia: str = "bovino"
+    categoria: Optional[str] = None
     grammatura_g: Optional[int] = None
     prezzo_euro: Optional[float] = None
+
+class CategoriaGruppo(BaseModel):
+    nome: str
+    emoji: Optional[str] = None
+    disponibili: int = 0
+    tagli: List[TaglioBreve] = []  # preview primi N tagli disponibili in questa categoria
 
 class MacellaioWidget(BaseModel):
     disponibili: int = 0
     venduti_oggi: int = 0
-    tagli: List[TaglioBreve] = []  # primi N disponibili per preview
+    categorie: List[CategoriaGruppo] = []  # raggruppamento per categoria, limitato da config
+    altre: int = 0  # count categorie extra non mostrate
 
 class DashboardHome(BaseModel):
     prenotazioni: PrenotazioniOggi
@@ -234,18 +241,33 @@ def _coperti_mese(oggi: date) -> CopertiMese:
         return CopertiMese()
 
 
-def _macellaio_widget(oggi: str, max_preview: int = 4) -> MacellaioWidget:
-    """Tagli disponibili + venduti oggi + preview primi N disponibili."""
+def _macellaio_widget(oggi: str, tagli_per_cat: int = 2) -> MacellaioWidget:
+    """
+    Widget macellaio raggruppato per categoria.
+    Rispetta la config `widget_max_categorie` da macellaio_config (default 4).
+    Per ogni categoria mostra fino a `tagli_per_cat` tagli come preview.
+    """
     try:
         conn = get_foodcost_connection()
-        # Count disponibili
+
+        # ── Config max categorie da mostrare ──
+        try:
+            r_cfg = conn.execute(
+                "SELECT valore FROM macellaio_config WHERE chiave = 'widget_max_categorie'"
+            ).fetchone()
+            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+        except Exception:
+            max_cat = 4
+        if max_cat < 1:
+            max_cat = 1
+
+        # ── Count totali ──
         r1 = conn.execute("""
             SELECT COUNT(*) as cnt FROM macellaio_tagli
             WHERE COALESCE(venduto, 0) = 0
         """).fetchone()
         disponibili = r1["cnt"] if r1 else 0
 
-        # Venduti oggi (venduto_at inizia con data di oggi)
         r2 = conn.execute("""
             SELECT COUNT(*) as cnt FROM macellaio_tagli
             WHERE COALESCE(venduto, 0) = 1
@@ -253,28 +275,69 @@ def _macellaio_widget(oggi: str, max_preview: int = 4) -> MacellaioWidget:
         """, (oggi + "%",)).fetchone()
         venduti_oggi = r2["cnt"] if r2 else 0
 
-        # Preview: primi N disponibili per id desc (più recenti)
-        rows = conn.execute("""
-            SELECT nome, tipologia, grammatura_g, prezzo_euro
+        # ── Mappa categoria → (emoji, ordine). Categorie attive ordinate. ──
+        cat_rows = conn.execute("""
+            SELECT nome, emoji, ordine FROM macellaio_categorie
+            WHERE attivo = 1
+            ORDER BY ordine ASC, nome ASC
+        """).fetchall()
+        cat_meta = {
+            r["nome"]: {"emoji": r["emoji"], "ordine": r["ordine"]}
+            for r in cat_rows
+        }
+        ordine_categorie = [r["nome"] for r in cat_rows]
+
+        # ── Aggrega tagli disponibili per categoria (NULL → "Senza categoria") ──
+        tagli_rows = conn.execute("""
+            SELECT nome, categoria, grammatura_g, prezzo_euro, id
             FROM macellaio_tagli
             WHERE COALESCE(venduto, 0) = 0
             ORDER BY id DESC
-            LIMIT ?
-        """, (max_preview,)).fetchall()
-        tagli = [
-            TaglioBreve(
-                nome=r["nome"] or "",
-                tipologia=r["tipologia"] or "bovino",
-                grammatura_g=r["grammatura_g"],
-                prezzo_euro=r["prezzo_euro"],
-            )
-            for r in rows
-        ]
+        """).fetchall()
+
+        gruppi: dict[str, list] = {}
+        for r in tagli_rows:
+            cat_nome = r["categoria"] or "Senza categoria"
+            gruppi.setdefault(cat_nome, []).append(r)
+
+        # ── Ordinamento: prima categorie ufficiali in ordine, poi ad-hoc alfabetiche ──
+        ordered_keys: List[str] = []
+        for nome in ordine_categorie:
+            if nome in gruppi:
+                ordered_keys.append(nome)
+        extra = sorted(k for k in gruppi.keys() if k not in ordered_keys)
+        ordered_keys.extend(extra)
+
+        totale_gruppi = len(ordered_keys)
+        visibili = ordered_keys[:max_cat]
+        altre = max(0, totale_gruppi - len(visibili))
+
+        categorie_out: List[CategoriaGruppo] = []
+        for nome in visibili:
+            rows_cat = gruppi[nome]
+            meta = cat_meta.get(nome, {})
+            preview = [
+                TaglioBreve(
+                    nome=rr["nome"] or "",
+                    categoria=rr["categoria"],
+                    grammatura_g=rr["grammatura_g"],
+                    prezzo_euro=rr["prezzo_euro"],
+                )
+                for rr in rows_cat[:tagli_per_cat]
+            ]
+            categorie_out.append(CategoriaGruppo(
+                nome=nome,
+                emoji=meta.get("emoji"),
+                disponibili=len(rows_cat),
+                tagli=preview,
+            ))
+
         conn.close()
         return MacellaioWidget(
             disponibili=disponibili,
             venduti_oggi=venduti_oggi,
-            tagli=tagli,
+            categorie=categorie_out,
+            altre=altre,
         )
     except Exception as e:
         logger.warning(f"Dashboard: errore macellaio widget: {e}")

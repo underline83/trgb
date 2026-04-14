@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+    {# Titolo ricetta + info #}
+    <h1 style="color: var(--brand-red); margin-top: 0;">{{ r.name }}</h1>
+
+    <div class="small" style="margin-bottom: 14px;">
+        {% set info = [] %}
+        {% if r.category_name %}{% set _ = info.append('Categoria: ' ~ r.category_name) %}{% endif %}
+        {% set _ = info.append('Resa: ' ~ ('%g' % (r.yield_qty or 0)) ~ ' ' ~ (r.yield_unit or '')) %}
+        {% if r.prep_time %}{% set _ = info.append('Tempo: ' ~ r.prep_time ~ ' min') %}{% endif %}
+        {% if r.is_base %}{% set _ = info.append('(Ricetta base)') %}{% endif %}
+        {{ info | join(' &nbsp;|&nbsp; ') | safe }}
+    </div>
+
+    {# KPI box #}
+    <h2>Food cost</h2>
+    <table class="brand" style="text-align:center;">
+        <thead>
+            <tr>
+                <th style="text-align:center;">Costo totale</th>
+                <th style="text-align:center;">Costo / unità</th>
+                <th style="text-align:center;">Prezzo vendita</th>
+                <th style="text-align:center;">Food cost %</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="text-align:center;">€ {{ '{:,.2f}'.format(r.total_cost or 0) }}</td>
+                <td style="text-align:center;">€ {{ '{:,.2f}'.format(r.cost_per_unit or 0) }}</td>
+                <td style="text-align:center;">
+                    {% if r.selling_price %}€ {{ '{:,.2f}'.format(r.selling_price) }}{% else %}—{% endif %}
+                </td>
+                <td style="text-align:center;">
+                    {% if r.food_cost_pct %}
+                        {% set fc = r.food_cost_pct %}
+                        <strong class="{% if fc > 35 %}text-red{% elif fc > 28 %}text-blue{% else %}text-green{% endif %}">
+                            {{ '{:.1f}'.format(fc) }}%
+                        </strong>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    {# Composizione #}
+    <h2>Composizione</h2>
+    <table class="brand">
+        <thead>
+            <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:55%;">Ingrediente</th>
+                <th class="num" style="width:10%;">Qtà</th>
+                <th style="width:10%;">Unità</th>
+                <th style="width:20%;">Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for it in items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        {% if it.sub_recipe_id %}<span class="pill pill-blue" style="margin-right:6px;">SUB</span>{% endif %}
+                        {{ it.ingredient_name or it.sub_recipe_name or '?' }}
+                    </td>
+                    <td class="num">{{ '{:.2f}'.format(it.qty or 0) }}</td>
+                    <td>{{ it.unit or '' }}</td>
+                    <td class="small">{{ it.note or '' }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5" class="text-muted" style="text-align:center;">Nessun ingrediente</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Note ricetta #}
+    {% if r.note %}
+        <h2>Note</h2>
+        <div style="background:#F4F1EC; padding:10px 14px; border-radius:4px; white-space:pre-wrap; font-size:9.5pt;">
+            {{ r.note }}
+        </div>
+    {% endif %}
+
+{% endblock %}

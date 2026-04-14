@@ -1040,109 +1040,23 @@ def export_ricetta_pdf(recipe_id: int):
 
     conn.close()
 
-    # Genera PDF
-    import io
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import mm
-    from fastapi.responses import StreamingResponse
+    # ── Genera PDF con mattone M.B (pdf_brand) ──
+    from app.services.pdf_brand import genera_pdf_html
+    from fastapi.responses import Response
 
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20*mm, bottomMargin=15*mm,
-                            leftMargin=20*mm, rightMargin=20*mm)
-    styles = getSampleStyleSheet()
-    story = []
+    items_dicts = [dict(it) for it in items]
 
-    # Titolo
-    title_style = ParagraphStyle("RTitle", parent=styles["Heading1"],
-                                  fontSize=18, spaceAfter=6, textColor=colors.HexColor("#78350f"))
-    story.append(Paragraph(r["name"], title_style))
-
-    # Info
-    info_parts = []
-    if r.get("category_name"):
-        info_parts.append(f"Categoria: {r['category_name']}")
-    info_parts.append(f"Resa: {r['yield_qty']} {r['yield_unit']}")
-    if r.get("prep_time"):
-        info_parts.append(f"Tempo: {r['prep_time']} min")
-    if r.get("is_base"):
-        info_parts.append("(Ricetta base)")
-    story.append(Paragraph(" | ".join(info_parts), styles["Normal"]))
-    story.append(Spacer(1, 8))
-
-    # KPI
-    kpi_data = [["Costo totale", "Costo/unità", "Prezzo vendita", "Food Cost %"]]
-    kpi_row = [
-        f"€ {r.get('total_cost', 0):.2f}",
-        f"€ {r.get('cost_per_unit', 0):.2f}",
-        f"€ {r.get('selling_price', 0):.2f}" if r.get("selling_price") else "—",
-        f"{r.get('food_cost_pct', 0):.1f}%" if r.get("food_cost_pct") else "—",
-    ]
-    kpi_data.append(kpi_row)
-    kpi_table = Table(kpi_data, colWidths=[doc.width / 4] * 4)
-    kpi_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fef3c7")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#78350f")),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d4d4d4")),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-    ]))
-    story.append(kpi_table)
-    story.append(Spacer(1, 12))
-
-    # Tabella ingredienti
-    story.append(Paragraph("Composizione", styles["Heading2"]))
-    story.append(Spacer(1, 4))
-
-    table_data = [["#", "Ingrediente", "Qtà", "Unità", "Note"]]
-    for idx, item in enumerate(items, 1):
-        it = dict(item)
-        name = it.get("ingredient_name") or it.get("sub_recipe_name") or "?"
-        if it.get("sub_recipe_id"):
-            name = f"[SUB] {name}"
-        table_data.append([
-            str(idx),
-            name,
-            f"{it['qty']:.2f}",
-            it["unit"],
-            it.get("note") or "",
-        ])
-
-    col_widths = [20, doc.width - 160, 50, 40, 50]
-    t = Table(table_data, colWidths=col_widths)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f5f5f5")),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e5e5")),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
-    story.append(t)
-
-    # Note
-    if r.get("note"):
-        story.append(Spacer(1, 10))
-        story.append(Paragraph(f"Note: {r['note']}", styles["Italic"]))
-
-    # Footer
-    story.append(Spacer(1, 20))
-    footer_style = ParagraphStyle("Footer", parent=styles["Normal"],
-                                   fontSize=7, textColor=colors.grey)
-    story.append(Paragraph(f"Generato da TRGB Gestionale — {datetime.now().strftime('%d/%m/%Y %H:%M')}", footer_style))
-
-    doc.build(story)
-    buf.seek(0)
+    pdf_bytes = genera_pdf_html(
+        template="ricetta.html",
+        dati={"r": r, "items": items_dicts},
+        titolo=f"Ricetta — {r['name']}",
+        sottotitolo=r.get("category_name") or None,
+        orientamento="portrait",
+    )
 
     safe_name = r["name"].replace(" ", "_").replace("/", "-")[:40]
-    return StreamingResponse(
-        buf,
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=ricetta_{safe_name}.pdf"},
     )

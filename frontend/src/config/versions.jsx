@@ -3,13 +3,13 @@
 
 const MODULE_VERSIONS = {
   vini: {
-    version: "3.8",
+    version: "3.9",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
   },
   ricette: {
-    version: "3.0",
+    version: "3.1",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -57,7 +57,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "2.1",
+    version: "2.2",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

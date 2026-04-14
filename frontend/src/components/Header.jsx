@@ -10,13 +10,6 @@ import TrgbWordmark from "./TrgbWordmark";
 import useNotifiche from "../hooks/useNotifiche";
 import NotifichePanel from "./NotifichePanel";
 
-// Estrae il nome color Tailwind (es "amber") da una classe "bg-amber-50 border-amber-200 text-amber-900"
-function getAccentColor(colorClass) {
-  if (!colorClass) return "neutral";
-  const m = colorClass.match(/bg-([a-z]+)-\d+/);
-  return m ? m[1] : "neutral";
-}
-
 // Normalizza per ricerca case/accent-insensitive
 function norm(s) {
   return (s || "").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

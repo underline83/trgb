@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <title>{{ titolo }}</title>
+</head>
+<body>
+
+    {# ======================================================== #}
+    {# HEADER BRAND TRGB — logo + wordmark + titolo documento  #}
+    {# ======================================================== #}
+    <div class="brand-header">
+        <div class="logo-cell">
+            {% if logo_data_uri %}
+                <img src="{{ logo_data_uri }}" alt="TRGB"/>
+            {% endif %}
+        </div>
+        <div class="wordmark-cell">
+            <div class="wordmark">TRGB</div>
+            <div class="org-sub">{{ org_nome }} — {{ org_sub }}</div>
+        </div>
+        <div class="title-cell">
+            <div class="doc-title">{{ titolo }}</div>
+            {% if sottotitolo %}
+                <div class="doc-sub">{{ sottotitolo }}</div>
+            {% endif %}
+            <div class="doc-sub">Generato il {{ data_oggi_lunga }}</div>
+        </div>
+    </div>
+
+    {# Striscia decorativa gobbette (rosso/verde/blu) #}
+    {% block strip %}
+        <div class="gobbette-strip"></div>
+    {% endblock %}
+
+    {# ======================================================== #}
+    {# CONTENUTO — ciascun template specializzato riempie qui  #}
+    {# ======================================================== #}
+    {% block content %}{% endblock %}
+
+    {# Footer (se serve un blocco custom; il footer pagina è gestito da @page CSS) #}
+    {% block after_content %}{% endblock %}
+
+</body>
+</html>

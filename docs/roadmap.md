@@ -1,11 +1,12 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-13 (sessione 31)
+**Ultimo aggiornamento:** 2026-04-14 (sessione 34)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
 > Quando un punto viene completato, spostarlo in "Completati" in fondo con data.
 > **Architettura a mattoni:** vedi `docs/architettura_mattoni.md` per dipendenze e ordine sviluppo a Wave.
-> Mattoni condivisi: ✅ M.A Notifiche, M.B PDF brand, ✅ M.C WA composer, M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine
+> Mattoni condivisi: ✅ M.A Notifiche, ✅ M.B PDF brand (sessione 34), ✅ M.C WA composer, M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine
+> **Nota M.B:** la Carta Vini resta con motore separato (`carta_vini_service.py`), non usare M.B per 7.3 PDF — è già stato escluso esplicitamente.
 
 ---
 

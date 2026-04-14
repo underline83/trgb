@@ -1,6 +1,15 @@
 # TRGB — Architettura a Mattoni Condivisi
 **Creato:** 2026-04-13 (sessione 31)
+**Ultimo aggiornamento:** 2026-04-14 (sessione 34 — M.B PDF brand in produzione)
 **Scopo:** Mappa delle dipendenze tra moduli e servizi condivisi. Guida l'ordine di sviluppo.
+
+**Stato mattoni:**
+- ✅ M.A Notifiche (sessione 31)
+- ✅ M.C WA composer (sessione 31)
+- ✅ **M.B PDF brand** (sessione 34) — `app/services/pdf_brand.py`, template in `app/templates/pdf/`. Sblocca 10.3 ✅, 4.2 ✅, inventario ✅. Da sblocco: 4.5 P&L, 3.8 cash flow, 6.2 cedolini, 7.3 carta vini NO (motore separato)
+- ⏳ M.D Email service, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine — DA FARE
+
+**Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
 
 ---
 

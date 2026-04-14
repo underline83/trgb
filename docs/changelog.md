@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-04-14 — Sessione 34 / Mattone M.B PDF Brand + migrazione inventario + ricette + PDF preventivi
+
+**Mattone M.B PDF Brand** (roadmap 8.5): servizio centralizzato per generare PDF con branding TRGB-02. Sblocca PDF preventivi (10.3), P&L mensile (4.5), cash flow (3.8), cedolini (6.2), scheda ricette (4.2).
+
+### Backend
+- Nuovo `app/services/pdf_brand.py` — motore centralizzato con 2 funzioni pubbliche:
+  - `genera_pdf_html(template, dati, titolo, ...)` → PDF da template Jinja2 (per contenuti nuovi)
+  - `wrappa_html_brand(titolo, body_html, ...)` → wrappa HTML già esistente con layout brand (per migrazione veloce endpoint esistenti)
+- Nuovi template in `app/templates/pdf/`:
+  - `base.html` — layout brand (header logo+wordmark, striscia gobbette rosso/verde/blu, footer @page con numero pagina)
+  - `preventivo.html` — scheda preventivo con info cliente+evento, tabella righe, pill stato, note e condizioni
+  - `ricetta.html` — scheda ricetta con KPI food cost, composizione, note
+- CSS brand integrato in `_base_css_brand()`: palette TRGB-02, tipografia Helvetica Neue, tabelle uniformi, pill semantiche
+
+### Endpoint nuovi
+- `GET /preventivi/{id}/pdf?inline=false` — scarica PDF preventivo (primo endpoint che sfrutta M.B al 100%)
+
+### Migrazioni (stesso branding ovunque)
+- `vini_cantina_tools_router.py`: 5 endpoint inventario migrati da `HTML().write_pdf()` inline a `wrappa_html_brand()`:
+  - `/vini/cantina-tools/inventario/pdf` (completo)
+  - `/vini/cantina-tools/inventario/giacenza/pdf`
+  - `/vini/cantina-tools/inventario/locazioni/pdf`
+  - `/vini/cantina-tools/inventario/filtrato/pdf`
+  - `/vini/cantina-tools/inventario/selezione/pdf`
+  - Rimossi anche i write su `STATIC_DIR/inventario_*.pdf` → ora tutto in memory, `Response` diretto
+- `foodcost_recipes_router.py`: endpoint `/foodcost/ricette/{id}/pdf` migrato da ReportLab (~140 righe) a WeasyPrint + template `ricetta.html` (~20 righe)
+
+### Esclusione esplicita
+- **Carta Vini** (`carta_vini_service.py` + `/vini/carta/pdf`/`/vini/carta/pdf-staff`): motore separato, NON toccato per volere di Marco
+
+### Frontend
+- `ClientiPreventivoScheda.jsx`: nuovo bottone "📥 Scarica PDF" nella sidebar azioni. Usa `apiFetch` + blob + objectURL + download trigger (preserva JWT, no redirect)
+
+### Smoke test
+- Sintassi Python OK (pdf_brand, preventivi_router, vini_cantina_tools_router, foodcost_recipes_router)
+- Jinja2 render template OK (preventivo.html, ricetta.html, base.html)
+- CSS @page portrait/landscape OK, SVG logo embed via data-uri OK
+
+**File modificati**: `app/services/pdf_brand.py` (nuovo), `app/templates/pdf/base.html` (nuovo), `app/templates/pdf/preventivo.html` (nuovo), `app/templates/pdf/ricetta.html` (nuovo), `app/templates/pdf/logo-icon.svg` (asset), `app/templates/pdf/gobbette-strip.svg` (asset), `app/routers/preventivi_router.py`, `app/routers/vini_cantina_tools_router.py`, `app/routers/foodcost_recipes_router.py`, `frontend/src/pages/clienti/ClientiPreventivoScheda.jsx`
+
+---
+
 ## 2026-04-13 — Sessione 33 / FIX CRITICO: Crash pagine per trailing slash 307
 
 **Bug critico risolto**: Cantina, Mance, Dipendenti (e Ricette/Ingredienti) crashavano → pagina si ricaricava → redirect a login. Causa: le chiamate API senza trailing slash (`/vini/magazzino`, `/admin/finance/shift-closures`, `/dipendenti`, `/foodcost/ingredients`) venivano redirezionate da FastAPI con 307 a versioni con `/`. Durante il redirect il browser perde l'header Authorization (CORS) → backend vede richiesta senza token → 401 → handler frontend cancella JWT e fa `window.location.href = "/login"`.

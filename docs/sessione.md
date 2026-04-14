@@ -1,7 +1,24 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-13 (sessione 32 — Modulo Preventivi 10.1+10.2). Implementato modulo Preventivi completo: DB 3 tabelle, backend service+router (14 endpoint), frontend lista con filtri+KPI, scheda con form+righe editabili+totale live, template riutilizzabili in Impostazioni CRM, tab preventivi in scheda cliente. Transizioni stato complete. Menu e rotte integrati.
+> Ultima sessione: 2026-04-14 (sessione 34 — Mattone M.B PDF Brand + PDF preventivi + migrazione inventario/ricette).
+>
+> **Cosa è stato fatto in sessione 34:**
+> - ✅ Mattone **M.B PDF brand** completato: `app/services/pdf_brand.py` con 2 API (`genera_pdf_html` per nuovo content, `wrappa_html_brand` per migrare endpoint HTML esistenti)
+> - ✅ Template Jinja2: `app/templates/pdf/base.html` (layout brand: logo SVG data-uri + wordmark + striscia gobbette + footer @page)
+> - ✅ Template Jinja2 specifici: `preventivo.html`, `ricetta.html`
+> - ✅ Endpoint nuovo: `GET /preventivi/{id}/pdf` con bottone "📥 Scarica PDF" in `ClientiPreventivoScheda.jsx`
+> - ✅ Migrati 5 endpoint inventario cantina da `HTML().write_pdf()` inline a `wrappa_html_brand()` (stesso branding del resto dell'app)
+> - ✅ Ricetta PDF migrata da ReportLab (140 righe) a WeasyPrint + `ricetta.html` (20 righe)
+> - 🚫 **Carta Vini NON toccata** (come richiesto da Marco): `carta_vini_service.py` e `/vini/carta/pdf*` hanno motore separato
+> - Versions bump: clienti 2.1→2.2, vini 3.8→3.9, ricette 3.0→3.1
+>
+> **Roadmap sbloccata con M.B:** ora si possono fare rapidamente 4.5 (P&L PDF), 3.8 (cash flow PDF), 6.2 (cedolini PDF) riusando `genera_pdf_html`.
+> Mattoni ancora da fare: M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine.
+>
+> **Smoke test OK** (sintassi Python + render Jinja2 templates). La verifica PDF reale va fatta in produzione dopo il push (WeasyPrint non è nel sandbox).
+>
+> **Sessione precedente (32):** Modulo Preventivi 10.1+10.2 — DB 3 tabelle, backend service+router (14 endpoint), frontend lista+scheda, template riutilizzabili, tab preventivi in scheda cliente.
 >
 > **Patch 2026-04-13 (fine sessione 32)** — Fix P1 "Import TheFork senza nome" (vedi `problemi.md`). Migrazione 068 aggiunge `nome_ospite`/`cognome_ospite` a `clienti_prenotazioni`. Import TheFork ora salva lo snapshot del nome dall'XLSX (`Customer first name`/`Customer last name`), `get_planning` e query TavoliMappa usano `COALESCE(c.nome, p.nome_ospite)`. Marco deve rilanciare l'import completo del file XLSX per popolare le prenotazioni gia' in DB.
 

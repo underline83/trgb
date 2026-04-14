@@ -41,6 +41,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from weasyprint import HTML, CSS
 
+from app.services.pdf_brand import wrappa_html_brand, safe_filename
 from app.services.auth_service import get_current_user, decode_access_token, is_admin
 from app.models import vini_magazzino_db as mag_db
 from app.models.vini_model import normalize_dataframe
@@ -876,14 +877,7 @@ def inventario_pdf(
 
     table_html = _build_inventario_table(vini, show_locations=True)
 
-    full_html = f"""
-    <html><head><meta charset="utf-8">
-    <style>{_inventario_css()}</style>
-    </head><body>
-        <div class="header">
-            <h1>INVENTARIO CANTINA &mdash; TUTTI I VINI</h1>
-            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
-        </div>
+    body_html = f"""
         <div class="summary-row">
             <div class="summary-box">
                 <div class="label">Referenze</div>
@@ -899,19 +893,21 @@ def inventario_pdf(
             </div>
         </div>
         {table_html}
-    </body></html>
     """
 
-    out_path = STATIC_DIR / "inventario_completo.pdf"
-    HTML(string=full_html).write_pdf(
-        str(out_path),
-        stylesheets=[CSS(string=_inventario_css())],
+    pdf_bytes = wrappa_html_brand(
+        titolo="Inventario Cantina — Tutti i vini",
+        body_html=body_html,
+        css_extra=_inventario_css(),
+        orientamento="landscape",
     )
 
-    return FileResponse(
-        str(out_path),
-        filename=f"inventario_completo_{datetime.now().strftime('%Y%m%d')}.pdf",
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename("inventario_completo")}"'
+        },
     )
 
 
@@ -931,14 +927,7 @@ def inventario_giacenza_pdf(
 
     table_html = _build_inventario_table(vini, show_locations=True)
 
-    full_html = f"""
-    <html><head><meta charset="utf-8">
-    <style>{_inventario_css()}</style>
-    </head><body>
-        <div class="header">
-            <h1>INVENTARIO CANTINA &mdash; VINI CON GIACENZA</h1>
-            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
-        </div>
+    body_html = f"""
         <div class="summary-row">
             <div class="summary-box">
                 <div class="label">Referenze con giacenza</div>
@@ -950,19 +939,21 @@ def inventario_giacenza_pdf(
             </div>
         </div>
         {table_html}
-    </body></html>
     """
 
-    out_path = STATIC_DIR / "inventario_giacenza.pdf"
-    HTML(string=full_html).write_pdf(
-        str(out_path),
-        stylesheets=[CSS(string=_inventario_css())],
+    pdf_bytes = wrappa_html_brand(
+        titolo="Inventario Cantina — Vini con giacenza",
+        body_html=body_html,
+        css_extra=_inventario_css(),
+        orientamento="landscape",
     )
 
-    return FileResponse(
-        str(out_path),
-        filename=f"inventario_giacenza_{datetime.now().strftime('%Y%m%d')}.pdf",
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename("inventario_giacenza")}"'
+        },
     )
 
 
@@ -1075,14 +1066,7 @@ def inventario_locazioni_pdf(
 
     tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
 
-    full_html = f"""
-    <html><head><meta charset="utf-8">
-    <style>{_inventario_css()}</style>
-    </head><body>
-        <div class="header">
-            <h1>INVENTARIO CANTINA &mdash; PER LOCAZIONE</h1>
-            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
-        </div>
+    body_html = f"""
         <div class="summary-row">
             <div class="summary-box">
                 <div class="label">Locazioni</div>
@@ -1098,19 +1082,21 @@ def inventario_locazioni_pdf(
             </div>
         </div>
         {sections_html}
-    </body></html>
     """
 
-    out_path = STATIC_DIR / "inventario_locazioni.pdf"
-    HTML(string=full_html).write_pdf(
-        str(out_path),
-        stylesheets=[CSS(string=_inventario_css())],
+    pdf_bytes = wrappa_html_brand(
+        titolo="Inventario Cantina — Per locazione",
+        body_html=body_html,
+        css_extra=_inventario_css(),
+        orientamento="landscape",
     )
 
-    return FileResponse(
-        str(out_path),
-        filename=f"inventario_locazioni_{datetime.now().strftime('%Y%m%d')}.pdf",
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename("inventario_locazioni")}"'
+        },
     )
 
 
@@ -1245,15 +1231,7 @@ def inventario_filtrato_pdf(
 
     table_html = _build_inventario_table(vini, show_locations=True)
 
-    full_html = f"""
-    <html><head><meta charset="utf-8">
-    <style>{_inventario_css()}</style>
-    </head><body>
-        <div class="header">
-            <h1>INVENTARIO CANTINA &mdash; FILTRATO</h1>
-            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
-            <div class="subtitle" style="margin-top:3px;">{filtri_str}</div>
-        </div>
+    body_html = f"""
         <div class="summary-row">
             <div class="summary-box">
                 <div class="label">Referenze</div>
@@ -1265,19 +1243,22 @@ def inventario_filtrato_pdf(
             </div>
         </div>
         {table_html}
-    </body></html>
     """
 
-    out_path = STATIC_DIR / "inventario_filtrato.pdf"
-    HTML(string=full_html).write_pdf(
-        str(out_path),
-        stylesheets=[CSS(string=_inventario_css())],
+    pdf_bytes = wrappa_html_brand(
+        titolo="Inventario Cantina — Filtrato",
+        sottotitolo=filtri_str,
+        body_html=body_html,
+        css_extra=_inventario_css(),
+        orientamento="landscape",
     )
 
-    return FileResponse(
-        str(out_path),
-        filename=f"inventario_filtrato_{datetime.now().strftime('%Y%m%d')}.pdf",
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename("inventario_filtrato")}"'
+        },
     )
 
 
@@ -1308,19 +1289,10 @@ def inventario_selezione_pdf(
     if not vini:
         raise HTTPException(status_code=404, detail="Nessun vino trovato per gli ID forniti.")
 
-    data_oggi = datetime.now().strftime("%d/%m/%Y %H:%M")
     tot_bott = sum(v.get("QTA_TOTALE") or 0 for v in vini)
     table_html = _build_inventario_table(vini, show_locations=True)
 
-    full_html = f"""
-    <html><head><meta charset="utf-8">
-    <style>{_inventario_css()}</style>
-    </head><body>
-        <div class="header">
-            <h1>INVENTARIO CANTINA &mdash; SELEZIONE</h1>
-            <div class="subtitle">Osteria Tre Gobbi &mdash; Generato il {data_oggi}</div>
-            <div class="subtitle" style="margin-top:3px;">Selezione di {len(vini)} referenze</div>
-        </div>
+    body_html = f"""
         <div class="summary-row">
             <div class="summary-box">
                 <div class="label">Referenze</div>
@@ -1332,18 +1304,21 @@ def inventario_selezione_pdf(
             </div>
         </div>
         {table_html}
-    </body></html>
     """
 
-    pdf_bytes = HTML(string=full_html).write_pdf(
-        stylesheets=[CSS(string=_inventario_css())],
+    pdf_bytes = wrappa_html_brand(
+        titolo="Inventario Cantina — Selezione",
+        sottotitolo=f"Selezione di {len(vini)} referenze",
+        body_html=body_html,
+        css_extra=_inventario_css(),
+        orientamento="landscape",
     )
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="selezione_{datetime.now().strftime("%Y%m%d")}.pdf"'
+            "Content-Disposition": f'inline; filename="{safe_filename("selezione")}"'
         },
     )
 
