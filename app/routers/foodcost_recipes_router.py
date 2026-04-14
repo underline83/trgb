@@ -65,6 +65,11 @@ class RecipeCreate(BaseModel):
     selling_price: Optional[float] = None
     prep_time: Optional[int] = None
     note: Optional[str] = None
+    # Campi menu/preventivi (mig 074)
+    menu_name: Optional[str] = None
+    menu_description: Optional[str] = None
+    kind: Optional[str] = None               # 'dish' | 'base' (override di is_base se fornito)
+    service_type_ids: Optional[List[int]] = None  # tipi servizio a cui appartiene il piatto
     items: List[RecipeItemIn] = []
 
 
@@ -77,7 +82,35 @@ class RecipeUpdate(BaseModel):
     selling_price: Optional[float] = None
     prep_time: Optional[int] = None
     note: Optional[str] = None
+    # Campi menu/preventivi (mig 074)
+    menu_name: Optional[str] = None
+    menu_description: Optional[str] = None
+    kind: Optional[str] = None
+    service_type_ids: Optional[List[int]] = None
     items: Optional[List[RecipeItemIn]] = None
+
+
+class RecipeQuickCreate(BaseModel):
+    """Crea un piatto minimal dal wizard preventivo — solo i campi essenziali."""
+    name: str = Field(..., min_length=1)
+    category_id: Optional[int] = None
+    selling_price: Optional[float] = None
+    menu_name: Optional[str] = None
+    menu_description: Optional[str] = None
+    service_type_ids: Optional[List[int]] = None
+
+
+class ServiceTypeOut(BaseModel):
+    id: int
+    name: str
+    sort_order: int = 0
+    active: bool = True
+
+
+class ServiceTypeIn(BaseModel):
+    name: str = Field(..., min_length=1)
+    sort_order: int = 0
+    active: bool = True
 
 
 class RecipeItemOut(BaseModel):
@@ -109,6 +142,11 @@ class RecipeOut(BaseModel):
     is_active: bool = True
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    # Campi menu/preventivi (mig 074)
+    menu_name: Optional[str] = None
+    menu_description: Optional[str] = None
+    kind: Optional[str] = None
+    service_types: List[ServiceTypeOut] = []
     items: List[RecipeItemOut] = []
     # Food cost calcolati
     total_cost: Optional[float] = None         # costo totale ricetta
@@ -128,6 +166,11 @@ class RecipeListItem(BaseModel):
     total_cost: Optional[float] = None
     cost_per_unit: Optional[float] = None
     food_cost_pct: Optional[float] = None
+    # Campi menu/preventivi (mig 074)
+    menu_name: Optional[str] = None
+    menu_description: Optional[str] = None
+    kind: Optional[str] = None
+    service_type_ids: List[int] = []
 
 
 # ─────────────────────────────────────────────
@@ -507,6 +550,29 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
 
     items_enriched = _enrich_items_with_costs(cur, items_raw)
 
+    # Service types (M:N) — se tabelle esistono
+    service_types: List[ServiceTypeOut] = []
+    try:
+        st_rows = cur.execute(
+            """
+            SELECT st.id, st.name, st.sort_order, st.active
+            FROM recipe_service_types rst
+            JOIN service_types st ON st.id = rst.service_type_id
+            WHERE rst.recipe_id = ?
+            ORDER BY st.sort_order, st.name
+            """,
+            (recipe_id,),
+        ).fetchall()
+        service_types = [
+            ServiceTypeOut(
+                id=r["id"], name=r["name"],
+                sort_order=r["sort_order"] or 0,
+                active=bool(r["active"]),
+            ) for r in st_rows
+        ]
+    except Exception:
+        service_types = []
+
     return RecipeOut(
         id=rec_dict["id"],
         name=rec_dict["name"],
@@ -521,6 +587,10 @@ def _fetch_recipe_full(conn, recipe_id: int) -> RecipeOut:
         is_active=bool(rec_dict["is_active"]),
         created_at=rec_dict.get("created_at"),
         updated_at=rec_dict.get("updated_at"),
+        menu_name=rec_dict.get("menu_name"),
+        menu_description=rec_dict.get("menu_description"),
+        kind=rec_dict.get("kind") or ("base" if bool(rec_dict.get("is_base")) else "dish"),
+        service_types=service_types,
         items=[
             RecipeItemOut(
                 id=it["id"],
@@ -754,28 +824,75 @@ def list_basi():
 def list_ricette(
     solo_basi: bool = False,
     solo_piatti: bool = False,
+    kind: Optional[str] = None,                # 'dish' | 'base'
+    service_type_id: Optional[int] = None,     # filtra piatti associati a un tipo servizio
+    search: Optional[str] = None,              # cerca in name / menu_name
 ):
-    """Lista ricette con food cost calcolato in tempo reale."""
+    """Lista ricette con food cost calcolato in tempo reale.
+
+    Filtri (per wizard preventivi):
+      - kind: 'dish' o 'base'
+      - service_type_id: solo piatti associati a quel tipo servizio
+      - search: match parziale su name/menu_name
+    """
     conn = get_foodcost_connection()
     cur = conn.cursor()
 
     where = "WHERE r.is_active = 1"
+    params: List[Any] = []
+
     if solo_basi:
         where += " AND r.is_base = 1"
     elif solo_piatti:
         where += " AND r.is_base = 0"
 
+    if kind:
+        where += " AND COALESCE(r.kind, CASE WHEN r.is_base=1 THEN 'base' ELSE 'dish' END) = ?"
+        params.append(kind)
+
+    if service_type_id:
+        where += """ AND r.id IN (
+            SELECT recipe_id FROM recipe_service_types WHERE service_type_id = ?
+        )"""
+        params.append(service_type_id)
+
+    if search:
+        like = f"%{search.strip()}%"
+        where += " AND (r.name LIKE ? OR COALESCE(r.menu_name,'') LIKE ?)"
+        params.extend([like, like])
+
+    # Verifica se colonne menu esistono (robusto pre-migrazione)
+    cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+    has_menu_cols = "menu_name" in cols and "kind" in cols
+    select_extra = ", r.menu_name, r.menu_description, r.kind" if has_menu_cols else ""
+
     rows = cur.execute(
         f"""
         SELECT r.id, r.name, r.is_base, r.yield_qty, r.yield_unit,
                r.selling_price, r.is_active,
-               rc.name AS category_name
+               rc.name AS category_name{select_extra}
         FROM recipes r
         LEFT JOIN recipe_categories rc ON rc.id = r.category_id
         {where}
         ORDER BY rc.sort_order, r.name COLLATE NOCASE
-        """
+        """,
+        params,
     ).fetchall()
+
+    # Pre-carica mappa service_type_ids per tutti i piatti restituiti (una query sola)
+    rst_map: Dict[int, List[int]] = {}
+    if rows:
+        ids = [r["id"] for r in rows]
+        placeholders = ",".join("?" * len(ids))
+        try:
+            rst_rows = cur.execute(
+                f"SELECT recipe_id, service_type_id FROM recipe_service_types WHERE recipe_id IN ({placeholders})",
+                ids,
+            ).fetchall()
+            for rr in rst_rows:
+                rst_map.setdefault(rr["recipe_id"], []).append(rr["service_type_id"])
+        except Exception:
+            pass
 
     result = []
     for row in rows:
@@ -793,6 +910,10 @@ def list_ricette(
             total_cost=d.get("total_cost"),
             cost_per_unit=d.get("cost_per_unit"),
             food_cost_pct=d.get("food_cost_pct"),
+            menu_name=d.get("menu_name"),
+            menu_description=d.get("menu_description"),
+            kind=d.get("kind") or ("base" if bool(d.get("is_base")) else "dish"),
+            service_type_ids=rst_map.get(d["id"], []),
         ))
 
     conn.close()
@@ -836,25 +957,65 @@ def create_ricetta(payload: RecipeCreate):
     cur = conn.cursor()
 
     try:
-        cur.execute(
-            """
-            INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit,
-                                 selling_price, prep_time, note, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-            """,
-            (
-                payload.name.strip(),
-                payload.category_id,
-                1 if payload.is_base else 0,
-                payload.yield_qty,
-                payload.yield_unit.strip(),
-                payload.selling_price,
-                payload.prep_time,
-                payload.note,
-                now,
-                now,
-            ),
-        )
+        # Derivazione kind <-> is_base
+        kind = (payload.kind or "").strip().lower() if payload.kind else None
+        if kind not in ("dish", "base", None, ""):
+            raise HTTPException(status_code=400, detail="kind deve essere 'dish' o 'base'")
+        if kind:
+            is_base_val = 1 if kind == "base" else 0
+        else:
+            is_base_val = 1 if payload.is_base else 0
+            kind = "base" if is_base_val == 1 else "dish"
+
+        # Columns esistenti (per INSERT robusta pre-mig)
+        cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+        has_menu_cols = "menu_name" in cols and "kind" in cols
+
+        if has_menu_cols:
+            cur.execute(
+                """
+                INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit,
+                                     selling_price, prep_time, note,
+                                     menu_name, menu_description, kind,
+                                     is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (
+                    payload.name.strip(),
+                    payload.category_id,
+                    is_base_val,
+                    payload.yield_qty,
+                    payload.yield_unit.strip(),
+                    payload.selling_price,
+                    payload.prep_time,
+                    payload.note,
+                    (payload.menu_name or None),
+                    (payload.menu_description or None),
+                    kind,
+                    now,
+                    now,
+                ),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit,
+                                     selling_price, prep_time, note, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                (
+                    payload.name.strip(),
+                    payload.category_id,
+                    is_base_val,
+                    payload.yield_qty,
+                    payload.yield_unit.strip(),
+                    payload.selling_price,
+                    payload.prep_time,
+                    payload.note,
+                    now,
+                    now,
+                ),
+            )
         recipe_id = cur.lastrowid
 
         for idx, item in enumerate(payload.items):
@@ -875,6 +1036,17 @@ def create_ricetta(payload: RecipeCreate):
                     now,
                 ),
             )
+
+        # Servizi (M:N)
+        if payload.service_type_ids:
+            for st_id in payload.service_type_ids:
+                try:
+                    cur.execute(
+                        "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+                        (recipe_id, st_id),
+                    )
+                except Exception:
+                    pass
 
         conn.commit()
         return _fetch_recipe_full(conn, recipe_id)
@@ -903,19 +1075,40 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
         raise HTTPException(status_code=404, detail="Ricetta non trovata")
 
     try:
+        # Columns esistenti (per UPDATE robusta pre-mig)
+        cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+        has_menu_cols = "menu_name" in cols and "kind" in cols
+
+        # Derivazione kind <-> is_base se uno dei due fornito
+        new_kind = None
+        new_is_base = None
+        if payload.kind is not None:
+            k = payload.kind.strip().lower()
+            if k not in ("dish", "base"):
+                raise HTTPException(status_code=400, detail="kind deve essere 'dish' o 'base'")
+            new_kind = k
+            new_is_base = 1 if k == "base" else 0
+        elif payload.is_base is not None:
+            new_is_base = 1 if payload.is_base else 0
+            new_kind = "base" if new_is_base == 1 else "dish"
+
         # Aggiorna campi header (solo quelli forniti)
         updates = []
         params = []
         field_map = {
             "name": payload.name,
             "category_id": payload.category_id,
-            "is_base": (1 if payload.is_base else 0) if payload.is_base is not None else None,
+            "is_base": new_is_base,
             "yield_qty": payload.yield_qty,
             "yield_unit": payload.yield_unit,
             "selling_price": payload.selling_price,
             "prep_time": payload.prep_time,
             "note": payload.note,
         }
+        if has_menu_cols:
+            field_map["menu_name"] = payload.menu_name
+            field_map["menu_description"] = payload.menu_description
+            field_map["kind"] = new_kind
 
         for col, val in field_map.items():
             if val is not None:
@@ -930,6 +1123,21 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
                 f"UPDATE recipes SET {', '.join(updates)} WHERE id = ?",
                 params,
             )
+
+        # Aggiorna servizi (M:N) se forniti: sostituzione completa
+        if payload.service_type_ids is not None:
+            try:
+                cur.execute(
+                    "DELETE FROM recipe_service_types WHERE recipe_id = ?",
+                    (recipe_id,),
+                )
+                for st_id in payload.service_type_ids:
+                    cur.execute(
+                        "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+                        (recipe_id, st_id),
+                    )
+            except Exception:
+                pass
 
         # Sostituisci items se forniti
         if payload.items is not None:
@@ -972,6 +1180,244 @@ def update_ricetta(recipe_id: int, payload: RecipeUpdate):
         raise HTTPException(status_code=500, detail=f"Errore aggiornamento: {e}") from e
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: QUICK CREATE (dal wizard preventivi)
+#   Crea un piatto minimal senza items/ricetta — puo' essere arricchito dopo
+# ─────────────────────────────────────────────
+
+@router.post("/ricette/quick", response_model=RecipeOut)
+def quick_create_piatto(payload: RecipeQuickCreate):
+    """Crea un piatto minimal dal wizard preventivo.
+
+    - yield_qty/yield_unit default 1/porzione
+    - kind = 'dish' (non una base)
+    - is_active = 1
+    - servizi opzionali
+    """
+    now = datetime.utcnow().isoformat()
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    try:
+        cols = {row[1] for row in cur.execute("PRAGMA table_info(recipes)").fetchall()}
+        has_menu_cols = "menu_name" in cols and "kind" in cols
+
+        if has_menu_cols:
+            cur.execute(
+                """
+                INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit,
+                                     selling_price, menu_name, menu_description, kind,
+                                     is_active, created_at, updated_at)
+                VALUES (?, ?, 0, 1, 'porzione', ?, ?, ?, 'dish', 1, ?, ?)
+                """,
+                (
+                    payload.name.strip(),
+                    payload.category_id,
+                    payload.selling_price,
+                    (payload.menu_name or None),
+                    (payload.menu_description or None),
+                    now,
+                    now,
+                ),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO recipes (name, category_id, is_base, yield_qty, yield_unit,
+                                     selling_price, is_active, created_at, updated_at)
+                VALUES (?, ?, 0, 1, 'porzione', ?, 1, ?, ?)
+                """,
+                (
+                    payload.name.strip(),
+                    payload.category_id,
+                    payload.selling_price,
+                    now,
+                    now,
+                ),
+            )
+        recipe_id = cur.lastrowid
+
+        if payload.service_type_ids:
+            for st_id in payload.service_type_ids:
+                try:
+                    cur.execute(
+                        "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+                        (recipe_id, st_id),
+                    )
+                except Exception:
+                    pass
+
+        conn.commit()
+        return _fetch_recipe_full(conn, recipe_id)
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore quick create: {e}") from e
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: SET SERVIZI DI UN PIATTO
+# ─────────────────────────────────────────────
+
+class RecipeServiziPayload(BaseModel):
+    service_type_ids: List[int] = []
+
+
+@router.put("/ricette/{recipe_id}/servizi", response_model=RecipeOut)
+def set_recipe_servizi(recipe_id: int, payload: RecipeServiziPayload):
+    """Imposta (sostituisce) la lista dei tipi servizio associati a un piatto."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Ricetta non trovata")
+
+    try:
+        cur.execute("DELETE FROM recipe_service_types WHERE recipe_id = ?", (recipe_id,))
+        for st_id in payload.service_type_ids:
+            cur.execute(
+                "INSERT OR IGNORE INTO recipe_service_types (recipe_id, service_type_id) VALUES (?, ?)",
+                (recipe_id, st_id),
+            )
+        conn.commit()
+        return _fetch_recipe_full(conn, recipe_id)
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore servizi: {e}") from e
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+#   ENDPOINT: CRUD SERVICE TYPES (Impostazioni Cucina)
+#   Regola granitica: configurazioni in Impostazioni, mai hardcoded
+# ─────────────────────────────────────────────
+
+@router.get("/service-types", response_model=List[ServiceTypeOut])
+def list_service_types(include_inactive: bool = False):
+    """Lista tipi servizio (Alla carta, Banchetto, Pranzo lavoro, Aperitivo, custom...)."""
+    conn = get_foodcost_connection()
+    where = "" if include_inactive else "WHERE active = 1"
+    rows = conn.execute(
+        f"""
+        SELECT id, name, sort_order, active
+        FROM service_types
+        {where}
+        ORDER BY sort_order, name COLLATE NOCASE
+        """
+    ).fetchall()
+    conn.close()
+    return [
+        ServiceTypeOut(
+            id=r["id"], name=r["name"],
+            sort_order=r["sort_order"] or 0,
+            active=bool(r["active"]),
+        ) for r in rows
+    ]
+
+
+@router.post("/service-types", response_model=ServiceTypeOut)
+def create_service_type(payload: ServiceTypeIn):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    name = payload.name.strip()
+    existing = cur.execute(
+        "SELECT id, name, sort_order, active FROM service_types WHERE LOWER(name) = LOWER(?)",
+        (name,),
+    ).fetchone()
+    if existing:
+        conn.close()
+        return ServiceTypeOut(
+            id=existing["id"], name=existing["name"],
+            sort_order=existing["sort_order"] or 0,
+            active=bool(existing["active"]),
+        )
+
+    try:
+        cur.execute(
+            "INSERT INTO service_types (name, sort_order, active) VALUES (?, ?, ?)",
+            (name, payload.sort_order, 1 if payload.active else 0),
+        )
+        new_id = cur.lastrowid
+        conn.commit()
+        row = cur.execute(
+            "SELECT id, name, sort_order, active FROM service_types WHERE id = ?",
+            (new_id,),
+        ).fetchone()
+        return ServiceTypeOut(
+            id=row["id"], name=row["name"],
+            sort_order=row["sort_order"] or 0,
+            active=bool(row["active"]),
+        )
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore creazione tipo servizio: {e}") from e
+    finally:
+        conn.close()
+
+
+@router.put("/service-types/{st_id}", response_model=ServiceTypeOut)
+def update_service_type(st_id: int, payload: ServiceTypeIn):
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute(
+        "SELECT id FROM service_types WHERE id = ?", (st_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Tipo servizio non trovato")
+
+    try:
+        cur.execute(
+            """
+            UPDATE service_types
+            SET name = ?, sort_order = ?, active = ?
+            WHERE id = ?
+            """,
+            (payload.name.strip(), payload.sort_order, 1 if payload.active else 0, st_id),
+        )
+        conn.commit()
+        row = cur.execute(
+            "SELECT id, name, sort_order, active FROM service_types WHERE id = ?",
+            (st_id,),
+        ).fetchone()
+        return ServiceTypeOut(
+            id=row["id"], name=row["name"],
+            sort_order=row["sort_order"] or 0,
+            active=bool(row["active"]),
+        )
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Errore aggiornamento tipo servizio: {e}") from e
+    finally:
+        conn.close()
+
+
+@router.delete("/service-types/{st_id}")
+def delete_service_type(st_id: int):
+    """Soft delete: imposta active=0. Non cancella associazioni esistenti con piatti."""
+    conn = get_foodcost_connection()
+    cur = conn.cursor()
+
+    existing = cur.execute(
+        "SELECT id FROM service_types WHERE id = ?", (st_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Tipo servizio non trovato")
+
+    cur.execute("UPDATE service_types SET active = 0 WHERE id = ?", (st_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "detail": "Tipo servizio disattivato"}
 
 
 # ─────────────────────────────────────────────
