@@ -158,12 +158,17 @@ export default function ClientiPreventivoScheda() {
 
   // ── Autocomplete cliente (solo in modalita "cerca") ──
   useEffect(() => {
-    if (clienteMode !== "cerca" || clienteSearch.length < 2) { setClienteResults([]); return; }
+    if (clienteMode !== "cerca" || clienteSearch.length < 2) { setClienteResults([]); setShowClienteDD(false); return; }
     const t = setTimeout(() => {
       apiFetch(`${API_BASE}/prenotazioni/clienti/search?q=${encodeURIComponent(clienteSearch)}`)
         .then((r) => r.json())
-        .then((data) => { setClienteResults(data); setShowClienteDD(true); })
-        .catch(() => {});
+        .then((data) => {
+          // L'endpoint ritorna { clienti: [...] } (non un array diretto)
+          const lista = Array.isArray(data) ? data : (Array.isArray(data?.clienti) ? data.clienti : []);
+          setClienteResults(lista);
+          setShowClienteDD(true);
+        })
+        .catch(() => { setClienteResults([]); setShowClienteDD(false); });
     }, 300);
     return () => clearTimeout(t);
   }, [clienteSearch, clienteMode]);
