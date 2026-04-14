@@ -21,10 +21,11 @@ Prefisso: /turni
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-from datetime import date
+from datetime import date, datetime
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.models.dipendenti_db import get_dipendenti_conn, init_dipendenti_db
@@ -413,3 +414,205 @@ def get_chiusure_settimana(
 ):
     iso = settimana or turni_service.settimana_corrente()
     return JSONResponse(content={"settimana": iso, "chiusure": turni_service.giorni_chiusi_nella_settimana(iso)})
+
+
+# ============================================================
+# GET /turni/foglio/pdf  — Fase 8: PDF scaricabile (niente dialog stampante)
+# ============================================================
+def _text_on(hex_color: str) -> str:
+    """Contrasto bianco/nero su bg HEX (stessa logica del FE)."""
+    if not hex_color:
+        return "#111"
+    h = hex_color.lstrip("#")
+    try:
+        r = int(h[0:2], 16); g = int(h[2:4], 16); b = int(h[4:6], 16)
+    except Exception:
+        return "#111"
+    yiq = (r * 299 + g * 587 + b * 114) / 1000
+    return "#111" if yiq >= 160 else "#fff"
+
+
+def _format_week_range(iso: str) -> str:
+    """'2026-W16' → '13–19/04/2026' (o con mese diverso '28/04–04/05/2026')."""
+    from datetime import timedelta
+    try:
+        year, week = iso.split("-W")
+        year = int(year); week = int(week)
+    except Exception:
+        return iso
+    jan4 = date(year, 1, 4)
+    monday_w1 = jan4 - timedelta(days=jan4.isoweekday() - 1)
+    monday = monday_w1 + timedelta(weeks=week - 1)
+    sunday = monday + timedelta(days=6)
+    if monday.month == sunday.month:
+        return f"{monday.day:02d}–{sunday.day:02d}/{sunday.month:02d}/{sunday.year}"
+    return f"{monday.day:02d}/{monday.month:02d}–{sunday.day:02d}/{sunday.month:02d}/{sunday.year}"
+
+
+def _nome_giorno(iso_date: str) -> str:
+    giorni = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+    try:
+        d = date.fromisoformat(iso_date)
+        return f"{giorni[d.weekday()]} {d.day:02d}/{d.month:02d}"
+    except Exception:
+        return iso_date
+
+
+@router.get("/foglio/pdf")
+def get_foglio_pdf(
+    reparto_id: int = Query(...),
+    settimana: Optional[str] = Query(None, description="YYYY-Www, default = settimana corrente"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Genera un PDF A4 landscape del foglio settimana (brand TRGB).
+
+    Usa lo stesso build_foglio_settimana del FE + WeasyPrint per il rendering.
+    In attesa del mattone M.B PDF brand; per ora template inline.
+    """
+    iso = settimana or turni_service.settimana_corrente()
+    try:
+        foglio = turni_service.build_foglio_settimana(reparto_id, iso)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    chiusure = set(turni_service.giorni_chiusi_nella_settimana(iso))
+    reparto = foglio.get("reparto") or {}
+    giorni = foglio.get("giorni") or []
+    turni = foglio.get("turni") or []
+
+    # Matrice [data][servizio][slot_index] → turno
+    matrice: Dict[str, Dict[str, Dict[int, Dict[str, Any]]]] = {
+        g: {"PRANZO": {}, "CENA": {}} for g in giorni
+    }
+    for t in turni:
+        serv = (t.get("servizio") or "").upper()
+        si = t.get("slot_index")
+        d = t.get("data")
+        if serv in ("PRANZO", "CENA") and si is not None and d in matrice:
+            matrice[d][serv][int(si)] = t
+
+    max_p = max(4, (foglio.get("max_slot_pranzo") or 3) + 1)
+    max_c = max(4, (foglio.get("max_slot_cena") or 3) + 1)
+
+    # Costruisci righe tabella (HTML puro — niente Jinja per evitare dipendenze loop)
+    def cella_html(t: Optional[Dict[str, Any]]) -> str:
+        if not t:
+            return '<td class="empty">&nbsp;</td>'
+        bg = t.get("dipendente_colore") or "#d1d5db"
+        fg = _text_on(bg)
+        nome = (t.get("dipendente_nome") or "").strip()
+        cog = (t.get("dipendente_cognome") or "").strip()
+        primo = nome.split()[0] if nome else ""
+        ini = cog[0] if cog else ""
+        label = f"{primo}{' ' + ini + '.' if ini else ''}"
+        oi = (t.get("ora_inizio") or "")[:5]
+        of = (t.get("ora_fine") or "")[:5]
+        stato = (t.get("stato") or "").upper()
+        opz = "★ " if stato == "OPZIONALE" else ""
+        annul = ' style="opacity:.4"' if stato == "ANNULLATO" else ""
+        return (
+            f'<td class="turno" style="background:{bg};color:{fg};"{annul}>'
+            f'<div class="nm">{opz}{label}</div>'
+            f'<div class="or">{oi}-{of}</div>'
+            f'</td>'
+        )
+
+    righe_html = []
+    for g in giorni:
+        chiuso = g in chiusure
+        row_cls = "chiuso" if chiuso else ""
+        celle = [f'<td class="day"><div class="dn">{_nome_giorno(g)}</div>'
+                 + (f'<div class="cl">CHIUSO</div>' if chiuso else "") + '</td>']
+        for si in range(max_p):
+            celle.append('<td class="empty">—</td>' if chiuso else cella_html(matrice[g]["PRANZO"].get(si)))
+        for si in range(max_c):
+            celle.append('<td class="empty">—</td>' if chiuso else cella_html(matrice[g]["CENA"].get(si)))
+        righe_html.append(f'<tr class="{row_cls}">{"".join(celle)}</tr>')
+
+    # Header slot
+    th_p = "".join(f'<th class="sp">P{i+1}</th>' for i in range(max_p))
+    th_c = "".join(f'<th class="sc">C{i+1}</th>' for i in range(max_c))
+
+    rep_colore = reparto.get("colore") or "#444"
+    rep_nome = reparto.get("nome") or ""
+    rep_icona = reparto.get("icona") or ""
+    settimana_range = _format_week_range(iso)
+    generato_il = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Turni {iso}</title>
+<style>
+  @page {{ size: A4 landscape; margin: 10mm 8mm; }}
+  body {{ font-family: Helvetica, Arial, sans-serif; color: #111; margin: 0; }}
+  .header {{ text-align: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }}
+  .brand {{ font-size: 11px; color: #666; letter-spacing: 1px; text-transform: uppercase; }}
+  .title {{ font-size: 20px; font-weight: 800; margin-top: 2px; }}
+  .pill {{ display: inline-block; background: {rep_colore}; color: #fff; padding: 2px 10px; border-radius: 999px; font-size: 11px; margin-top: 4px; font-weight: 600; }}
+  table {{ width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }}
+  th, td {{ border: 1px solid #888; padding: 2px 3px; vertical-align: middle; }}
+  thead th {{ background: #f5f5f5; font-size: 10px; }}
+  th.pr {{ background: #fef3c7; color: #92400e; font-weight: 700; }}
+  th.cn {{ background: #e0e7ff; color: #3730a3; font-weight: 700; }}
+  th.sp, th.sc {{ font-size: 9px; color: #666; font-weight: 600; }}
+  td.day {{ background: #fafafa; font-weight: 600; font-size: 10px; width: 60px; }}
+  td.day .dn {{ font-size: 10px; }}
+  td.day .cl {{ font-size: 8px; color: #dc2626; }}
+  td.empty {{ color: #ccc; text-align: center; }}
+  td.turno {{ padding: 3px 4px; line-height: 1.2; }}
+  td.turno .nm {{ font-weight: 700; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  td.turno .or {{ font-family: monospace; font-size: 8.5px; opacity: .85; }}
+  tr.chiuso td.day {{ color: #aaa; }}
+  tr.chiuso td {{ background: #fafafa; color: #bbb; }}
+  .footer {{ margin-top: 8px; font-size: 8px; color: #888; display: flex; justify-content: space-between; }}
+  .legenda {{ margin-top: 6px; font-size: 8.5px; color: #555; }}
+  .legenda span {{ margin-right: 10px; }}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">🍷 Osteria Tre Gobbi</div>
+    <div class="title">Turni settimana {settimana_range}</div>
+    <div class="pill">{rep_icona} {rep_nome}</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Giorno</th>
+        <th class="pr" colspan="{max_p}">☀ PRANZO</th>
+        <th class="cn" colspan="{max_c}">🌙 CENA</th>
+      </tr>
+      <tr>
+        <th></th>{th_p}{th_c}
+      </tr>
+    </thead>
+    <tbody>
+      {''.join(righe_html)}
+    </tbody>
+  </table>
+  <div class="legenda">
+    <span>★ turno opzionale (da confermare)</span>
+    <span>— giorno di chiusura</span>
+  </div>
+  <div class="footer">
+    <span>TRGB Gestionale — Turni v2</span>
+    <span>Generato il {generato_il}</span>
+    <span>Settimana ISO {iso}</span>
+  </div>
+</body></html>"""
+
+    # Genera PDF con WeasyPrint
+    try:
+        from weasyprint import HTML as WeasyHTML
+        pdf_bytes = WeasyHTML(string=html).write_pdf()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {e}")
+
+    filename = f"turni_{(reparto.get('codice') or 'reparto').lower()}_{iso}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )

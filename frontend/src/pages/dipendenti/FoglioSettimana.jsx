@@ -1,4 +1,4 @@
-// @version: v1.6-stampa-condivisione (Fase 8: stampa + vista immagine per WhatsApp)
+// @version: v1.7-pdf-server (Fase 8: PDF server-side + vista immagine per WhatsApp)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -94,13 +94,38 @@ export default function FoglioSettimana() {
 
   // Vista immagine per screenshot WhatsApp (Fase 8)
   const [imageMode, setImageMode] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
-  function avviaStampa() {
-    // Chiudi popover/dialog prima di stampare
-    setPopover(null);
-    setDlgCopia(false);
-    // Timeout breve per permettere a React di applicare i cambi di stato
-    setTimeout(() => window.print(), 50);
+  // Fase 8: PDF server-side (WeasyPrint) — niente dialog stampante, scarica/apre PDF diretto
+  async function scaricaPdf() {
+    if (!repartoId) return;
+    setLoadingPdf(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/turni/foglio/pdf?reparto_id=${repartoId}&settimana=${settimana}`);
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(`Errore PDF ${res.status}: ${msg}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      // Apri in nuova tab: il browser mostra anteprima PDF, l'utente sceglie se salvare/condividere
+      const w = window.open(url, "_blank");
+      if (!w) {
+        // Popup bloccato → fallback download
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `turni_${settimana}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      // Libera l'URL dopo un po' (il PDF è già caricato)
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (e) {
+      alert(e.message || "Errore durante generazione PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
   }
 
   // --- LOAD REPARTI ---
@@ -286,10 +311,10 @@ export default function FoglioSettimana() {
               className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm">
               📋 Copia
             </button>
-            <button onClick={avviaStampa}
-              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
-              title="Stampa la settimana (A4 orizzontale)">
-              🖨 Stampa
+            <button onClick={scaricaPdf} disabled={loadingPdf}
+              className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
+              title="Genera PDF brandizzato (A4 orizzontale) — niente dialog stampante">
+              {loadingPdf ? "⏳ PDF…" : "📄 PDF"}
             </button>
             <button onClick={() => setImageMode(true)}
               className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
@@ -299,18 +324,8 @@ export default function FoglioSettimana() {
           </div>
         </div>
 
-        {/* INTESTAZIONE STAMPA — visibile solo in stampa */}
-        <div className="print-only print-header hidden">
-          <div className="print-brand">🍷 Osteria Tre Gobbi</div>
-          <div className="print-title">
-            Turni settimana {formatWeekRange(settimana)}
-            {reparto ? ` — ${reparto.icona || ""} ${reparto.nome}` : ""}
-          </div>
-          <div className="print-sub">Settimana {settimana}</div>
-        </div>
-
         {/* TAB REPARTI */}
-        <div className="flex gap-2 mb-4 flex-wrap no-print">
+        <div className="flex gap-2 mb-4 flex-wrap">
           {reparti.map(r => {
             const active = r.id === repartoId;
             return (
@@ -336,9 +351,9 @@ export default function FoglioSettimana() {
         {loading && <div className="text-center py-10 text-neutral-500">Caricamento…</div>}
 
         {!loading && foglio && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 print-full">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
             {/* MATRICE */}
-            <div className="bg-white rounded-xl shadow overflow-auto print-matrix">
+            <div className="bg-white rounded-xl shadow overflow-auto">
               <FoglioGrid
                 foglio={foglio} matrice={matrice} chiusi={chiusi}
                 nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
@@ -347,16 +362,9 @@ export default function FoglioSettimana() {
             </div>
 
             {/* PANNELLO ORE */}
-            <div className="no-print">
-              <OrePanel ore={ore} reparto={reparto} />
-            </div>
+            <OrePanel ore={ore} reparto={reparto} />
           </div>
         )}
-
-        {/* FOOTER STAMPA — visibile solo in stampa */}
-        <div className="print-only print-footer hidden text-[10px] text-neutral-500 mt-2">
-          Stampato il {new Date().toLocaleDateString("it-IT")} — TRGB Gestionale
-        </div>
       </div>
 
       {/* OVERLAY VISTA IMMAGINE (screenshot-ready per WhatsApp) */}
