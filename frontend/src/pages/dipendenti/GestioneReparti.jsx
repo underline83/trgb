@@ -1,9 +1,10 @@
 // FILE: frontend/src/pages/dipendenti/GestioneReparti.jsx
-// @version: v1.0-reparti-crud (Turni v2 Fase 4)
+// @version: v1.1-embeddable (supporta prop `embedded` per essere renderizzato dentro DipendentiImpostazioni)
 // CRUD reparti: lista + form dettaglio con orari, pause staff, colore e icona
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import DipendentiNav from "./DipendentiNav";
 
 const EMPTY = {
   id: null,
@@ -38,7 +39,7 @@ const EMOJI_REPARTO = [
   "\uD83D\uDEBF", // 🚿
 ];
 
-export default function GestioneReparti() {
+export default function GestioneReparti({ embedded = false }) {
   const navigate = useNavigate();
   const [reparti, setReparti] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -143,19 +144,14 @@ export default function GestioneReparti() {
 
   const attivi = reparti.filter((r) => r.attivo).length;
 
-  return (
-    <div className="min-h-screen bg-brand-cream">
-      {/* HEADER */}
-      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
+  const content = (
+    <>
+      {/* HEADER interno */}
+      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate("/dipendenti")}
-            className="text-neutral-400 hover:text-neutral-600 text-sm">
-            {"\u2190"}
-          </button>
-          <h1 className="text-lg font-bold text-purple-900 font-playfair">
+          <h2 className="text-lg font-bold text-purple-900 font-playfair">
             {"\uD83C\uDFE2"} Reparti
-          </h1>
+          </h2>
           <span className="text-[10px] text-neutral-400">
             {attivi} attiv{attivi === 1 ? "o" : "i"}
           </span>
@@ -169,13 +165,13 @@ export default function GestioneReparti() {
       </div>
 
       {error && (
-        <div className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+        <div className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 flex-shrink-0">
           {error}
           <button onClick={() => setError(null)} className="ml-2 text-red-500">{"\u00D7"}</button>
         </div>
       )}
 
-      <div className="flex" style={{ height: "calc(100dvh - 49px)" }}>
+      <div className="flex flex-1 min-h-0">
         {/* SIDEBAR LISTA */}
         <div className="w-72 bg-white border-r border-neutral-200 flex flex-col">
           <div className="flex-1 overflow-y-auto">
@@ -437,6 +433,21 @@ export default function GestioneReparti() {
           )}
         </div>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full min-h-0">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-cream flex flex-col">
+      <DipendentiNav current="impostazioni" />
+      {content}
     </div>
   );
 }

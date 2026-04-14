@@ -1,8 +1,9 @@
-// @version: v2.3-dipendenti-hub (tile Reparti → Impostazioni hub)
+// @version: v2.4-dipendenti-hub-nav (DipendentiNav aggiunta in cima)
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import MODULE_VERSIONS, { VersionBadge } from "../../config/versions";
+import DipendentiNav from "./DipendentiNav";
 
 const SEZIONI = [
   {
@@ -70,7 +71,9 @@ export default function DipendentiMenu() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6">
+    <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="home" />
+      <div className="p-6">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
         {/* HEADER — stesso pattern di Home.jsx */}
         <div className="flex items-center justify-between mb-2">
@@ -129,6 +132,7 @@ export default function DipendentiMenu() {
         <div className="mt-12 text-center text-xs text-neutral-400">
           Modulo Dipendenti v{MODULE_VERSIONS.dipendenti?.version} — Osteria Tre Gobbi
         </div>
+      </div>
       </div>
     </div>
   );

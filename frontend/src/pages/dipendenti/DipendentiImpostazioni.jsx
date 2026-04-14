@@ -1,85 +1,103 @@
-// @version: v1.0-impostazioni-hub (hub impostazioni modulo Dipendenti: reparti + future configurazioni)
-import React from "react";
-import { useNavigate } from "react-router-dom";
+// @version: v2.0-impostazioni-sidebar (pagina unica con sidebar a sinistra, no tile)
+// Layout impostazioni modulo Dipendenti: sidebar a sinistra con sezioni, contenuto a destra.
+// Modello: ClientiImpostazioni.jsx. Le sezioni "reparti" embeddano GestioneReparti.
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import DipendentiNav from "./DipendentiNav";
+import GestioneReparti from "./GestioneReparti";
 
-const SEZIONI = [
-  {
-    to: "/dipendenti/reparti",
-    icon: "\uD83C\uDFE2",  // 🏢
-    title: "Reparti",
-    subtitle: "SALA, CUCINA... orari standard, pause staff, colore e icona",
-    color: "bg-teal-50 border-teal-200 text-teal-900",
-    ready: true,
-  },
-  // Placeholder per future impostazioni (template turni centralizzati, soglie CCNL personalizzate, ecc.)
-  {
-    icon: "\u26A1",  // ⚡
-    title: "Soglie CCNL",
-    subtitle: "Personalizza soglie 40h/48h per semaforo ore (prossimamente)",
-    color: "bg-amber-50 border-amber-200 text-amber-900",
-    ready: false,
-  },
-  {
-    icon: "\uD83D\uDCE8",  // 📨
-    title: "Template WhatsApp",
-    subtitle: "Modifica il testo di default per l'invio turni via WA (prossimamente)",
-    color: "bg-emerald-50 border-emerald-200 text-emerald-900",
-    ready: false,
-  },
+// ── Sidebar items ──
+const SECTIONS = [
+  { key: "reparti",          label: "Reparti",           icon: "🏢", desc: "SALA, CUCINA, ... orari standard, pause staff, colore e icona", ready: true  },
+  { key: "soglie_ccnl",      label: "Soglie CCNL",       icon: "⚡", desc: "Personalizza soglie 40h/48h per semaforo ore",                   ready: false },
+  { key: "template_wa",      label: "Template WhatsApp", icon: "📨", desc: "Modifica il testo di default per l'invio turni via WA",         ready: false },
 ];
 
 export default function DipendentiImpostazioni() {
+  const { section: urlSection } = useParams();
   const navigate = useNavigate();
+  const [section, setSection] = useState(urlSection || "reparti");
+
+  useEffect(() => {
+    if (urlSection && urlSection !== section) setSection(urlSection);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSection]);
+
+  const goTo = (key) => {
+    setSection(key);
+    // URL statico: non abbiamo route parametrico, quindi manteniamo solo lo state
+    // (se in futuro si vuole deep-link, cambiare la route in App.jsx con /:section?)
+  };
+
+  const currentSection = SECTIONS.find((s) => s.key === section) || SECTIONS[0];
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6">
-      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-4xl font-bold text-center flex-1">
-            <span className="mr-2">{"\u2699\uFE0F"}</span> Impostazioni Dipendenti
-          </h1>
-        </div>
-        <p className="text-center text-neutral-600 mb-6">
-          Configurazioni del modulo: reparti, soglie, template.
-        </p>
-        <div className="text-center mb-10">
-          <button onClick={() => navigate("/dipendenti")}
-            className="text-sm text-neutral-500 hover:text-neutral-700 transition">
-            {"\u2190"} Torna al menu Dipendenti
-          </button>
-        </div>
+    <div className="min-h-screen bg-brand-cream flex flex-col">
+      <DipendentiNav current="impostazioni" />
+      <div className="flex-1 min-h-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 h-full">
+          <div className="flex gap-6 h-full">
+            {/* ── Sidebar ── */}
+            <div className="w-60 flex-shrink-0">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-3 px-3">
+                Impostazioni Dipendenti
+              </h2>
+              <nav className="space-y-0.5">
+                {SECTIONS.map((s) => {
+                  const active = section === s.key;
+                  const disabled = !s.ready;
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => !disabled && goTo(s.key)}
+                      disabled={disabled}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                        active
+                          ? "bg-purple-50 text-purple-900 shadow-sm border border-purple-200"
+                          : disabled
+                            ? "text-neutral-300 cursor-not-allowed"
+                            : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                      }`}
+                    >
+                      <span className="text-sm mt-0.5">{s.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium flex items-center gap-1.5 ${active ? "text-purple-900" : ""}`}>
+                          {s.label}
+                          {disabled && (
+                            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full font-normal">
+                              Prossimamente
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{s.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-        {/* GRID tile */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {SEZIONI.map((s) => {
-            if (!s.ready) {
-              return (
-                <div key={s.title}
-                  className={`rounded-2xl border shadow-lg p-6 opacity-50 cursor-default ${s.color}`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="text-4xl">{s.icon}</div>
-                    <span className="inline-flex items-center text-[10px] bg-neutral-200 text-neutral-500 px-2 py-0.5 rounded-full font-medium">
-                      Prossimamente
-                    </span>
-                  </div>
-                  <div className="text-xl font-semibold">{s.title}</div>
-                  <div className="text-sm opacity-80">{s.subtitle}</div>
-                </div>
-              );
-            }
-            return (
-              <div key={s.title} onClick={() => navigate(s.to)}
-                className={`rounded-2xl border shadow-lg p-6 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition ${s.color}`}>
-                <div className="flex justify-between items-start mb-2">
-                  <div className="text-4xl">{s.icon}</div>
-                </div>
-                <div className="text-xl font-semibold">{s.title}</div>
-                <div className="text-sm opacity-80">{s.subtitle}</div>
-              </div>
-            );
-          })}
+            {/* ── Content ── */}
+            <div className="flex-1 min-w-0 bg-white shadow-sm rounded-xl border border-neutral-200 overflow-hidden flex flex-col">
+              {section === "reparti" && <GestioneReparti embedded />}
+              {section === "soglie_ccnl" && <PlaceholderSection s={currentSection} />}
+              {section === "template_wa" && <PlaceholderSection s={currentSection} />}
+            </div>
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PlaceholderSection({ s }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-12 text-center">
+      <div>
+        <div className="text-5xl mb-3">{s.icon}</div>
+        <h3 className="text-lg font-semibold text-neutral-800 mb-1">{s.label}</h3>
+        <p className="text-sm text-neutral-500 max-w-md">{s.desc}</p>
+        <p className="text-xs text-neutral-400 mt-4 italic">Sezione in preparazione.</p>
       </div>
     </div>
   );

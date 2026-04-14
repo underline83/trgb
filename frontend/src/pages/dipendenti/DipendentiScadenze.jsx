@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
+import DipendentiNav from "./DipendentiNav";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 0 }) : "\u2014";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : null;
@@ -133,11 +134,10 @@ export default function DipendentiScadenze() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="scadenze" />
       {/* HEADER — pattern standard sotto-modulo */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/dipendenti")}
-            className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
           <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDEA8"} Scadenze Documenti</h1>
         </div>
         <button onClick={() => { resetForm(); setShowForm(true); }}

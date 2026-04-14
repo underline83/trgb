@@ -419,12 +419,22 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
   const bg = chiuso ? "bg-neutral-100" : (isToday ? "bg-brand-blue/5" : "bg-white");
   const borderToday = isToday ? "ring-2 ring-inset ring-brand-blue" : "";
 
-  const turni = [...(dato.turni || [])].sort((a, b) => {
-    const sa = (a.servizio || "").toUpperCase();
-    const sb = (b.servizio || "").toUpperCase();
-    if (sa !== sb) return sa === "PRANZO" ? -1 : 1;
-    return (a.slot_index || 0) - (b.slot_index || 0);
-  });
+  // Raggruppa per servizio per allineare visivamente pranzo sopra / cena sotto
+  // fra tutte le celle della settimana (placeholder invisibile se manca uno dei due).
+  const allTurni = [...(dato.turni || [])];
+  const pranziTurni = allTurni
+    .filter(t => (t.servizio || "").toUpperCase() === "PRANZO")
+    .sort((a, b) => (a.slot_index || 0) - (b.slot_index || 0));
+  const ceneTurni = allTurni
+    .filter(t => (t.servizio || "").toUpperCase() === "CENA")
+    .sort((a, b) => (a.slot_index || 0) - (b.slot_index || 0));
+  const altriTurni = allTurni
+    .filter(t => {
+      const s = (t.servizio || "").toUpperCase();
+      return s !== "PRANZO" && s !== "CENA";
+    })
+    .sort((a, b) => (a.slot_index || 0) - (b.slot_index || 0));
+  const hasAnyTurno = pranziTurni.length + ceneTurni.length + altriTurni.length > 0;
 
   return (
     <div className={`${bg} ${borderToday} p-3 min-h-[140px] flex flex-col`}>
@@ -451,9 +461,26 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
         </div>
       )}
 
-      {!chiuso && !riposo && turni.length > 0 && (
+      {!chiuso && !riposo && hasAnyTurno && (
         <div className="flex-1 flex flex-col gap-1">
-          {turni.map(t => (
+          {/* Slot PRANZO — sempre in alto. Placeholder se assente, così cena resta allineata. */}
+          <div className="flex flex-col gap-1">
+            {pranziTurni.length > 0
+              ? pranziTurni.map(t => (
+                  <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
+                ))
+              : <SlotPlaceholder />}
+          </div>
+          {/* Slot CENA — sempre in basso. Placeholder se assente, così pranzo resta allineato. */}
+          <div className="flex flex-col gap-1">
+            {ceneTurni.length > 0
+              ? ceneTurni.map(t => (
+                  <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
+                ))
+              : <SlotPlaceholder />}
+          </div>
+          {/* Eventuali turni senza servizio classificato: coda */}
+          {altriTurni.map(t => (
             <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
           ))}
         </div>
@@ -465,6 +492,24 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
           <span>Netto: <span className="font-semibold text-brand-blue">{dato.ore_nette.toFixed(1)}h</span></span>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ---- PLACEHOLDER SLOT ----------------------------------------------------
+// Mantiene lo spazio di un BloccoTurno per allineare pranzi/cene fra le celle.
+function SlotPlaceholder() {
+  return (
+    <div
+      aria-hidden="true"
+      className="rounded-md px-2 py-1 text-xs border border-transparent invisible"
+    >
+      {/* stesso contenuto strutturale di BloccoTurno per preservare altezza */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-semibold">·</span>
+        <span className="tabular-nums text-[10px]">00:00</span>
+      </div>
     </div>
   );
 }

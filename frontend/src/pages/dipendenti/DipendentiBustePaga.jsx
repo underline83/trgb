@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { openWhatsApp, WA_TEMPLATES, fillTemplate } from "../../utils/whatsapp";
+import DipendentiNav from "./DipendentiNav";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "\u2014";
 const MESI = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -312,11 +313,10 @@ export default function DipendentiBustePaga() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="buste-paga" />
       {/* HEADER */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/dipendenti")}
-            className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
           <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDCCB"} Buste Paga</h1>
           <span className="text-[10px] text-neutral-400">{buste.length} cedolini</span>
         </div>

@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
+import DipendentiNav from "./DipendentiNav";
 
 function toISODate(d) {
   const copy = new Date(d.getTime());
@@ -356,7 +357,9 @@ const handleDeleteTurno = async (turnoId) => {
         })();
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
+      <DipendentiNav current="turni" />
+      <div className="p-6">
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
@@ -692,6 +695,7 @@ const handleDeleteTurno = async (turnoId) => {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.4-utente-collegato (campo "Utente collegato" per abilitare /miei-turni)
-// Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
+// @version: v2.5-nav-layout-fix (barra menu + layout pieno + fix "Crea dipendente")
+// Layout: DipendentiNav + header bar + sidebar lista + dettaglio con tabs
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import DipendentiNav from "./DipendentiNav";
 
 const RUOLI = [
   "Sala - Cameriere", "Sala - Chef de Rang", "Sala - Sommelier",
@@ -56,6 +57,9 @@ export default function DipendentiAnagrafica() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState("dati"); // "dati" | "documenti"
+  // true quando l'utente ha cliccato "+ Nuovo dipendente" ma non ha ancora salvato.
+  // Serve per aprire il form vuoto (altrimenti il placeholder "seleziona..." resta).
+  const [isCreating, setIsCreating] = useState(false);
 
   // Documenti
   const [docs, setDocs] = useState([]);
@@ -126,6 +130,7 @@ export default function DipendentiAnagrafica() {
 
   // ── SELECT / NEW ──
   const handleSelect = (d) => {
+    setIsCreating(false);
     const linkedUser = utenti.find(u => u.dipendente_id === d.id);
     const linkedUsername = linkedUser ? linkedUser.username : "";
     setForm({
@@ -150,6 +155,7 @@ export default function DipendentiAnagrafica() {
     setUtenteInitial("");
     setDocs([]);
     setTab("dati");
+    setIsCreating(true);
   };
 
   const handleChange = (f, v) => setForm(p => ({ ...p, [f]: v }));
@@ -181,7 +187,11 @@ export default function DipendentiAnagrafica() {
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Errore");
       const saved = await res.json();
       if (isEdit) setDipendenti(p => p.map(d => d.id === saved.id ? saved : d));
-      else { setDipendenti(p => [...p, saved]); setForm(f => ({ ...f, id: saved.id })); }
+      else {
+        setDipendenti(p => [...p, saved]);
+        setForm(f => ({ ...f, id: saved.id }));
+        setIsCreating(false);  // il record ora esiste: esci dalla modalita' "nuovo"
+      }
 
       // ── Link utente <-> dipendente (solo se cambiato e se l'utente corrente e' admin) ──
       // `utenti` e' popolato solo per admin (endpoint /auth/users e' admin-only).
@@ -287,12 +297,12 @@ export default function DipendentiAnagrafica() {
   const docCategIcon = (cat) => DOC_CATEGORIE.find(c => c.value === cat)?.icon || "\uD83D\uDCCE";
 
   return (
-    <div className="min-h-screen bg-brand-cream">
+    <div className="min-h-screen bg-brand-cream flex flex-col">
+      <DipendentiNav current="anagrafica" />
+
       {/* ── HEADER ── */}
-      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between">
+      <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/dipendenti")}
-            className="text-neutral-400 hover:text-neutral-600 text-sm">{"\u2190"}</button>
           <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDC65"} Anagrafica Dipendenti</h1>
           <span className="text-[10px] text-neutral-400">{dipendenti.filter(d => d.attivo).length} attivi</span>
         </div>
@@ -303,13 +313,13 @@ export default function DipendentiAnagrafica() {
       </div>
 
       {error && (
-        <div className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+        <div className="mx-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 flex-shrink-0">
           {error}
           <button onClick={() => setError(null)} className="ml-2 text-red-500">{"\u00D7"}</button>
         </div>
       )}
 
-      <div className="flex" style={{ height: "calc(100dvh - 49px)" }}>
+      <div className="flex flex-1 min-h-0">
         {/* ── SIDEBAR LISTA ── */}
         <div className="w-72 bg-white border-r border-neutral-200 flex flex-col">
           <div className="p-3 border-b border-neutral-100">
@@ -363,12 +373,12 @@ export default function DipendentiAnagrafica() {
 
         {/* ── AREA DETTAGLIO ── */}
         <div className="flex-1 overflow-y-auto">
-          {!form.id && !form.codice ? (
+          {!form.id && !isCreating ? (
             <div className="flex items-center justify-center h-full text-neutral-400 text-sm">
               Seleziona un dipendente dalla lista o creane uno nuovo
             </div>
           ) : (
-            <div className="p-5 max-w-3xl">
+            <div className="px-6 py-5 max-w-5xl mx-auto">
               {/* Nome dipendente + badge */}
               <div className="flex items-center gap-3 mb-4">
                 <h2 className="text-xl font-bold text-neutral-800 font-playfair">

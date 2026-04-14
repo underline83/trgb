@@ -15,6 +15,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import DipendentiNav from "./DipendentiNav";
 
 // ---- UTIL DATE ------------------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -190,13 +191,13 @@ export default function VistaMensile() {
 
   // ---- RENDER --------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
+    <div className="min-h-screen bg-brand-cream">
+      <div className="print:hidden"><DipendentiNav current="turni" /></div>
+      <div className="p-4 sm:p-6">
       <div className="max-w-[1600px] mx-auto">
         {/* HEADER — stile iOS: left (nav) / center (segmented) / right (azioni) */}
         <div className="mb-4">
           <div className="mb-2 print:hidden">
-            <button onClick={() => navigate("/dipendenti")}
-              className="text-sm text-neutral-500 hover:text-neutral-700">← Dipendenti</button>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">🗓 Vista Mensile</h1>
           </div>
 
@@ -315,6 +316,7 @@ export default function VistaMensile() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

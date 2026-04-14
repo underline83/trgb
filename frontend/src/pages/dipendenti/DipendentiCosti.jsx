@@ -1,11 +1,14 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import DipendentiNav from "./DipendentiNav";
 
 export default function DipendentiCosti() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6">
+    <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="costi" />
+      <div className="p-6">
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
@@ -17,12 +20,6 @@ export default function DipendentiCosti() {
               Modulo per analizzare il costo del personale per mese, ruolo e dipendente.
             </p>
           </div>
-          <button
-            onClick={() => navigate("/dipendenti")}
-            className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition self-start"
-          >
-            {"\u2190"} Dipendenti
-          </button>
         </div>
 
         {/* CONTENUTO PRINCIPALE (placeholder) */}
@@ -40,6 +37,7 @@ export default function DipendentiCosti() {
             <li>{"\u2022"} Integrazione futura con turni e stipendio teorico</li>
           </ul>
         </div>
+      </div>
       </div>
     </div>
   );

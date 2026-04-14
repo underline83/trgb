@@ -1,8 +1,20 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi + **Libreria Menu Template (mig 080)**).
+> Ultima sessione: 2026-04-14 (sessione 39 — Dipendenti "Utente collegato" UI + "I miei turni" self-service + stampa Mese/PerDip + Preventivi v2.0 Menu alternativi + Libreria Menu Template (mig 080) + **DipendentiNav + Impostazioni sidebar + fix Anagrafica**).
 >
+> **Sessione 39 — Dipendenti — Barra menu DipendentiNav + Impostazioni con sidebar:**
+> - ✅ **Polish UX richiesto da Marco**: _"nella sezione dipendenti manca la barra menu (guarda gestione vini per esempio)"_ + _"Non funziona il tasto 'Crea dipendente'"_ + _"Sistema un po' la pagina c'e' moltissimo spazio a destra e zero a sinistra"_ + _"impostazioni dipendenti, metti tutto in un'unica pagina, con un sidebar menu a sinistra non spezzare su piu tile"_. Allineamento al pattern ViniNav/ClientiNav.
+> - ✅ **`DipendentiNav.jsx` v1.0** (nuovo file): tab navigation persistente tema viola (Home/Anagrafica/Buste Paga/Turni/Scadenze/Costi/Impostazioni), pattern identico a ViniNav.
+> - ✅ **Integrata in tutte le pagine admin Dipendenti**: DipendentiMenu, DipendentiAnagrafica, DipendentiBustePaga, DipendentiScadenze, DipendentiCosti, DipendentiTurni, FoglioSettimana, VistaMensile, PerDipendente, GestioneReparti, DipendentiImpostazioni. Esclusa MieiTurni (accessibile a tutti i ruoli, non solo admin). Nelle pagine con @media print wrappata in `print:hidden`.
+> - ✅ **Fix bug "Crea dipendente"** (`DipendentiAnagrafica.jsx` v2.4 → v2.5-nav-layout-fix): dopo `handleNew()` form era EMPTY con `id=null` e `codice=""` → la condizione placeholder `!form.id && !form.codice` restava vera e il form non si mostrava mai. Aggiunto stato `isCreating` che distingue "nessuna selezione" da "nuova creazione". Placeholder ora usa `!form.id && !isCreating`. `setIsCreating(true)` in handleNew, `false` in handleSelect e dopo POST success.
+> - ✅ **Fix layout Anagrafica sbilanciato**: da `max-w-3xl` a `max-w-5xl mx-auto`, root container a `flex flex-col` con `flex-1 min-h-0` sull'area lista+dettaglio. Sostituito `height: calc(100dvh - 49px)` con flex layout per sfruttare tutta la larghezza.
+> - ✅ **`DipendentiImpostazioni.jsx` v1.0 → v2.0-impostazioni-sidebar**: consolidato da layout a tile a layout **sidebar+content** (modello ClientiImpostazioni). Sezione "Reparti" monta `<GestioneReparti embedded />` direttamente nel pannello destro; "Soglie CCNL" e "Template WhatsApp" restano placeholder "Prossimamente" nella sidebar. Niente piu' salto a `/dipendenti/reparti`: tutto vive in `/dipendenti/impostazioni`.
+> - ✅ **`GestioneReparti.jsx` v1.0 → v1.1-embeddable**: aggiunta prop `embedded` (default false). Modalita' embedded rende solo il contenuto dentro `flex flex-col h-full min-h-0`. Route standalone `/dipendenti/reparti` resta funzionante con DipendentiNav. Sostituito height calc con flex.
+> - ✅ **Turni — allineamento pranzo/cena griglia settimanale** (MieiTurni + PerDipendente): polish UX per cui il pranzo va sempre in alto e la cena sempre in basso nelle celle giorno, anche se un giorno ha solo uno dei due servizi. Separazione in `pranziTurni`/`ceneTurni`/`altriTurni` + `SlotPlaceholder` invisibile per preservare altezza.
+> - ✅ **Versions bump**: dipendenti 2.18 → **2.19**.
+>
+
 > **Sessione 39 — Clienti — Libreria Menu Template (mig 080):**
 > - ✅ **Feature**: Marco chiede _"ok il menu generato posso recuperarlo in altri preventivi?"_. Scelta Opzione **B** (libreria completa, non duplicazione inline). Snapshot copy semantics: righe applicate sono copie locali, non referenze.
 > - ✅ **Mig 080 `080_menu_templates.py`**: tabelle `clienti_menu_template` (id, nome, descrizione, service_type_id, prezzo_persona, sconto, created_at, updated_at) + `clienti_menu_template_righe` (id, template_id FK cascade, recipe_id, sort_order, category_name, name, description, price, created_at). Indici `idx_cmt_service_type` e `idx_cmtr_template`. `service_type_id` è soft-FK verso foodcost.db.service_types.

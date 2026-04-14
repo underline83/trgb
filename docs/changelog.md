@@ -3,6 +3,25 @@
 
 ---
 
+## 2026-04-14 — Sessione 39 / Dipendenti — Barra menu DipendentiNav + Impostazioni con sidebar
+
+Marco: _"nella sezione dipendenti manca la barra menu (guarda gestione vini per esempio)"_ + _"Non funziona il tasto 'Crea dipendente'"_ + _"Sistema un po' la pagina c'e' moltissimo spazio a destra e zero a sinistra"_ + _"impostazioni dipendenti, metti tutto in un'unica pagina, con un sidebar menu a sinistra non spezzare su piu tile"_. Allineamento UX del modulo Dipendenti al pattern ViniNav/ClientiNav + fix bug anagrafica + riorganizzazione impostazioni.
+
+### Frontend
+- **`DipendentiNav.jsx` v1.0** (nuovo): tab navigation persistente tema viola per tutte le pagine del modulo — Home / Anagrafica / Buste Paga / Turni / Scadenze / Costi / Impostazioni. Pattern identico a ViniNav.
+- **DipendentiNav integrata** in: DipendentiMenu, DipendentiAnagrafica, DipendentiBustePaga, DipendentiScadenze, DipendentiCosti, DipendentiTurni, FoglioSettimana, VistaMensile, PerDipendente, GestioneReparti, DipendentiImpostazioni. Esclusa da MieiTurni (accessibile a tutti i ruoli, non solo admin dipendenti). Nelle pagine con @media print (FoglioSettimana, VistaMensile, PerDipendente) la nav ha `print:hidden`.
+- **`DipendentiAnagrafica.jsx` v2.4 → v2.5-nav-layout-fix**:
+  - Fix bug "Crea dipendente" non funzionava: dopo `handleNew()` il form restava EMPTY con `id=null` e `codice=""` → la condizione placeholder `!form.id && !form.codice` restava vera e il form non si mostrava mai. Introdotto stato `isCreating` (boolean) che distingue "nessun dipendente selezionato" da "sto creando un dipendente nuovo". Il placeholder ora usa `!form.id && !isCreating`.
+  - Fix layout sbilanciato (troppo vuoto a destra): da `max-w-3xl` a `max-w-5xl mx-auto`, root container a `flex flex-col` con `flex-1 min-h-0` sull'area lista+dettaglio per sfruttare tutta la larghezza. Altezza calcolata via flex invece di `calc(100dvh - 49px)`.
+- **`DipendentiImpostazioni.jsx` v1.0 → v2.0-impostazioni-sidebar**: consolidato da layout a tile (Reparti / Soglie CCNL / Template WA come card separate) a layout **sidebar a sinistra + content a destra** (modello ClientiImpostazioni). Sezione "Reparti" monta `<GestioneReparti embedded />` direttamente nel pannello; le altre due sezioni (Soglie CCNL, Template WhatsApp) sono placeholder "Prossimamente". Niente piu' navigazione verso `/dipendenti/reparti`: tutto vive in `/dipendenti/impostazioni`.
+- **`GestioneReparti.jsx` v1.0 → v1.1-embeddable**: aggiunta prop `embedded` (default false). In modalita' embedded rende solo il contenuto (senza `min-h-screen` ne' DipendentiNav) dentro un wrapper `flex flex-col h-full min-h-0`. Route standalone `/dipendenti/reparti` continua a funzionare con DipendentiNav in cima. Sostituito `height: calc(100dvh - 49px)` con `flex flex-1 min-h-0` per compatibilita' embed.
+- **Turni — allineamento pranzo/cena nella griglia settimanale (MieiTurni + PerDipendente)**: piccola polish UX — il pranzo va sempre in alto nella cella giorno, la cena sempre in basso, anche se un giorno ha solo uno dei due servizi. Implementato separando i turni in `pranziTurni` / `ceneTurni` / `altriTurni` e rendendo due slot fissi con `SlotPlaceholder` invisibile per preservare l'altezza visiva quando un servizio manca.
+
+### Versioni
+- Modulo Dipendenti: v2.18 → **v2.19** (DipendentiNav + Impostazioni sidebar + fix anagrafica).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Clienti — Libreria Menu Template (mig 080)
 
 Marco: _"ok il menu generato posso recuperarlo in altri preventivi?"_ → scelta Opzione **B** (libreria completa, non duplicazione inline). Nasce una libreria di menu riutilizzabili con snapshot copy: quando un template viene applicato a un menu, le righe sono COPIATE (non collegate), quindi modifiche successive al template non alterano i preventivi già emessi.

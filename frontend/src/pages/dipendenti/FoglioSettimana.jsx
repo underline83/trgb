@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { openWhatsApp } from "../../utils/whatsapp";
+import DipendentiNav from "./DipendentiNav";
 
 // ---- UTIL DATE / ISO WEEK -------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -409,7 +410,9 @@ export default function FoglioSettimana() {
 
   // ---- RENDER --------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
+    <div className="min-h-screen bg-brand-cream">
+      <DipendentiNav current="turni" />
+      <div className="p-4 sm:p-6">
       {/* Fase 7: Toast warning conflitti */}
       {toast && (
         <div
@@ -670,6 +673,7 @@ export default function FoglioSettimana() {
           onClose={() => setDlgInviaWA(false)}
         />
       )}
+      </div>
     </div>
   );
 }
