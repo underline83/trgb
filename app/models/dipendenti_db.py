@@ -299,31 +299,6 @@ def init_dipendenti_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_presenze_data ON dipendenti_presenze(data)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_contratti_dip ON dipendenti_contratti(dipendente_id)")
 
-    # ── PRESTAZIONI OCCASIONALI (PrestO / Libretto Famiglia INPS) ──
-    # in sync con migrazione 074_prestazioni_occasionali.py
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS prestazioni_occasionali_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            dipendente_id   INTEGER NOT NULL REFERENCES dipendenti(id),
-            data_prestazione TEXT NOT NULL,
-            ore             REAL NOT NULL,
-            importo_lordo   REAL NOT NULL,
-            importo_netto   REAL,
-            canale          TEXT NOT NULL DEFAULT 'PRESTO',
-            ricevuta_numero TEXT,
-            ricevuta_data   TEXT,
-            uscita_contanti_id INTEGER,
-            note            TEXT,
-            stato           TEXT NOT NULL DEFAULT 'REGISTRATO',
-            created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-        )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_presto_log_dip ON prestazioni_occasionali_log(dipendente_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_presto_log_data ON prestazioni_occasionali_log(data_prestazione)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_presto_log_dip_data ON prestazioni_occasionali_log(dipendente_id, data_prestazione)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_dipendenti_forma_rapporto ON dipendenti(forma_rapporto)")
-
     # ────────────────────────────────────────────────────────────
     # TURNI v2 — reparti, colonne extra, indici, template
     # (in sync con migrazione 071_turni_v2_schema.py)
@@ -373,7 +348,6 @@ def init_dipendenti_db() -> None:
         "reparto_id INTEGER REFERENCES reparti(id)",
         "colore TEXT",
         "a_chiamata INTEGER DEFAULT 0",
-        "forma_rapporto TEXT DEFAULT 'DIPENDENTE'",
     ]:
         try:
             cur.execute(f"ALTER TABLE dipendenti ADD COLUMN {col_def}")

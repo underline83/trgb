@@ -61,11 +61,6 @@ class DipendenteBase(BaseModel):
     reparto_id: Optional[int] = None
     colore: Optional[str] = None       # HEX, es. "#2E7BE8"
     a_chiamata: bool = False           # True = pagato a ore, senza contratto fisso
-    # Forma del rapporto di lavoro
-    # DIPENDENTE (default) | OCCASIONALE (PrestO/LF INPS) | COLLABORATORE | STAGISTA
-    forma_rapporto: str = "DIPENDENTE"
-    # Compenso orario (obbligatorio per OCCASIONALE, opzionale per altri)
-    costo_orario: Optional[float] = None
 
 
 class DipendenteCreate(DipendenteBase):
@@ -158,7 +153,6 @@ def list_dipendenti(
                    iban,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
-                   forma_rapporto, costo_orario,
                    created_at, updated_at
             FROM dipendenti
             ORDER BY cognome, nome;
@@ -174,7 +168,6 @@ def list_dipendenti(
                    iban,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
-                   forma_rapporto, costo_orario,
                    created_at, updated_at
             FROM dipendenti
             WHERE attivo = 1
@@ -210,9 +203,8 @@ def create_dipendente(
                indirizzo_provincia, indirizzo_paese,
                iban,
                note, attivo,
-               reparto_id, colore, a_chiamata,
-               forma_rapporto, costo_orario)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               reparto_id, colore, a_chiamata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.codice.strip(),
@@ -232,8 +224,6 @@ def create_dipendente(
                 payload.reparto_id,
                 payload.colore.strip() if payload.colore else None,
                 1 if payload.a_chiamata else 0,
-                (payload.forma_rapporto or "DIPENDENTE").strip().upper(),
-                payload.costo_orario if payload.costo_orario is not None else None,
             ),
         )
         new_id = cur.lastrowid
@@ -256,7 +246,6 @@ def create_dipendente(
                    iban,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
-                   forma_rapporto, costo_orario,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;
@@ -306,9 +295,7 @@ def update_dipendente(
                 attivo = ?,
                 reparto_id = ?,
                 colore = ?,
-                a_chiamata = ?,
-                forma_rapporto = ?,
-                costo_orario = ?
+                a_chiamata = ?
             WHERE id = ?;
             """,
             (
@@ -329,8 +316,6 @@ def update_dipendente(
                 payload.reparto_id,
                 payload.colore.strip() if payload.colore else None,
                 1 if payload.a_chiamata else 0,
-                (payload.forma_rapporto or "DIPENDENTE").strip().upper(),
-                payload.costo_orario if payload.costo_orario is not None else None,
                 dipendente_id,
             ),
         )
@@ -353,7 +338,6 @@ def update_dipendente(
                    iban,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
-                   forma_rapporto, costo_orario,
                    created_at, updated_at
             FROM dipendenti
             WHERE id = ?;

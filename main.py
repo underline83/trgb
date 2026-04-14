@@ -45,9 +45,6 @@ from app.routers.dipendenti import router as dipendenti_router
 from app.routers.reparti import router as reparti_router
 from app.routers.turni_router import router as turni_router
 
-# PRESTAZIONI OCCASIONALI (PrestO / Libretto Famiglia INPS) — feature flag FEATURE_OCCASIONALI
-from app.routers.occasionali_router import router as occasionali_router
-
 # BANCA — movimenti bancari
 from app.routers import banca_router
 
@@ -223,9 +220,6 @@ app.include_router(fe_proforme_router.router)
 app.include_router(dipendenti_router)
 app.include_router(reparti_router)
 app.include_router(turni_router)
-
-# PRESTAZIONI OCCASIONALI (router autonomo; 404 se FEATURE_OCCASIONALI=0)
-app.include_router(occasionali_router)
 
 # BANCA
 app.include_router(banca_router.router)
