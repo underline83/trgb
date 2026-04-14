@@ -413,18 +413,19 @@ modulo Presenze separato. In Turni v2 resta solo:
 
 **Commit:** `./push.sh "turni v2 fase 8: pdf server-side (weasyprint) + vista immagine per condivisione staff"`
 
-### Fase 9 — Mobile iPad
+### Fase 9 — Mobile iPad ✅ COMPLETATA (sessione 38)
 *Obiettivo:* vista giorno automatica su schermi stretti.
-*Dimensione:* media.
-*Rischio:* medio (responsive).
 
-- Breakpoint: sotto 900px la vista settimanale si trasforma in "vista giorno" (una sola colonna per volta)
-- Navigator swipe oppure ← Oggi → tra giorni
-- Griglia compatta: lista dipendenti con il loro turno di oggi
-- Tile Home "Turni oggi" con conteggio (usa dashboard/home endpoint)
-- Verifica safe-area iOS e touch 48pt
+- **`useIsNarrow(maxPx=899)`** in `FoglioSettimana.jsx` — hook su `window.matchMedia` con listener `change` (compat addListener legacy). Default = `false` SSR-safe.
+- **Render condizionale**: sotto 900px la `<FoglioGrid>` viene sostituita da `<VistaGiornoMobile>` (sopra 900px tutto invariato, vista settimanale piena).
+- **`VistaGiornoMobile`**: header sticky con frecce ← / pulsante **Oggi** / → (min-h 48px), data completa "Lunedì 14 aprile 2026" + badge OGGI/CHIUSO, body con due card servizio (`SezioneServizioMobile`) per Pranzo e Cena, oppure messaggio "🚪 Osteria chiusa" se giorno chiuso.
+- **Touch swipe**: `onTouchStart`/`onTouchEnd` con threshold 60px e filtro vertical-dominant (ignorato se |dy| > |dx|, evita trigger durante scroll). Funzione `vai(delta)` wrappa al cambio settimana quando si oltrepassa Lun/Dom (chiama `onPrevSettimana`/`onNextSettimana` props).
+- **`SezioneServizioMobile`**: card colorata per servizio con conteggio "X/N assegnati", lista slot ordinati. Stati: "🌙 Servizio chiuso" se non c'è il servizio quel giorno, oppure "Nessuno slot configurato".
+- **`SlotMobileRow`**: riga con indice slot (1°, 2°…), pill colorata con nome+cognome COMPLETO (mobile ha più spazio orizzontale rispetto alla cella desktop), orario, oppure "+ assegna" placeholder grigio se vuoto.
+- **`giornoIdx`** state inizializzato a oggi (lun=0 … dom=6), persiste l'indice all'interno della stessa settimana (su cambio settimana resta sull'indice corrente).
+- **Mobile-aware**: tutti i pulsanti hanno `min-h 48px`, niente hover-only, swipe + frecce + tap-to-Today, footer hint "Scorri ← / → o usa i pulsanti per cambiare giorno".
 
-**Commit:** `./push.sh "turni v2 fase 9: mobile/iPad - vista giorno automatica"`
+**Commit:** `./push.sh "turni v2 fase 9: vista giorno mobile <900px con swipe + navigator giorno"`
 
 ### Fase 10 — Template settimana tipo
 *Obiettivo:* salvare pattern ricorrenti e applicarli.
