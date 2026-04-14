@@ -1,7 +1,14 @@
 # TRGB — Briefing per Nuova Sessione
 > File scritto da Claude a Claude. Leggilo per intero prima di iniziare a lavorare.
 > **Aggiornalo alla fine di ogni sessione.**
-> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0: ripensamento modulo Dipendenti-Turni, schema DB, reparti SALA/CUCINA, foglio settimana mockup).
+> Ultima sessione: 2026-04-14 (sessione 36 — Turni v2 Fase 0+1+2+3: schema DB + reparti + FoglioSettimana.jsx live + ore nette con pause staff + copia settimana).
+>
+> **Sessione 36 — Fase 1+2+3 (stesso giorno di Fase 0):**
+> - ✅ Migrazione 072 `turni_v2_slot_index.py`: `turni_calendario.slot_index` per persistere colonna foglio
+> - ✅ Service `turni_service.py`: `build_foglio_settimana`, `calcola_ore_nette_giorno` (deduce pause staff da reparto), `ore_nette_settimana_per_reparto` (semaforo 40/48), `copia_settimana`, `giorni_chiusi_nella_settimana` (legge `get_closures_config()` da Vendite — NO duplicazione)
+> - ✅ Router `/turni`: GET foglio, POST/PUT/DELETE slot, GET ore-nette, POST copia-settimana, GET chiusure
+> - ✅ `FoglioSettimana.jsx` live: tab reparto colorato, matrice 7×(P1..Pn + C1..Cn), pillola colore dipendente, ★ CHIAMATA, riga chiuso grigia, popover assegna/modifica/rimuovi, dialog copia settimana, pannello ore laterale con semaforo + totali. Sostituisce legacy su `/dipendenti/turni`. Touch 44pt, navigazione ←/→ + Oggi.
+> - ⏭️ **Fase 4 prossima**: UI CRUD reparti (impostazioni) + picker colore dipendenti
 >
 > **Cosa è stato fatto in sessione 36 (Fase 0 di Turni v2):**
 > - ✅ Piano completo in `docs/modulo_dipendenti_turni_v2.md` (12 fasi, Fase 4 assenze rimossa → va nel modulo Presenze v2.3)

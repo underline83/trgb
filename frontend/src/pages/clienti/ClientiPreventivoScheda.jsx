@@ -444,9 +444,17 @@ export default function ClientiPreventivoScheda() {
                     </div>
                   ) : clienteMode === "cerca" ? (
                     <div className="relative">
-                      <input type="text" value={clienteSearch}
+                      <input type="search" value={clienteSearch}
                         onChange={(e) => setClienteSearch(e.target.value)}
                         placeholder="Cerca per nome, cognome o telefono..."
+                        name="trgb_cliente_search"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        data-form-type="other"
+                        aria-autocomplete="list"
                         className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-300 outline-none" />
                       {showClienteDD && clienteResults.length > 0 && (
                         <div className="absolute z-20 mt-1 w-full bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">

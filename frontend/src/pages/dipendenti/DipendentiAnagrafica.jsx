@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.0-dipendenti-anagrafica
+// @version: v2.1-dipendenti-anagrafica (reparto + colore per Turni v2)
 // Layout: header bar + sidebar lista + dettaglio con tabs (Dati / Documenti)
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -24,11 +24,21 @@ const EMPTY_FORM = {
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
+  reparto_id: null, colore: "",
 };
+
+// Palette suggerita per assegnazione colore univoco dipendente (Turni v2)
+const PALETTE_DIPENDENTI = [
+  "#E8402B", "#2EB872", "#2E7BE8", "#F59E0B", "#A855F7",
+  "#EC4899", "#14B8A6", "#6366F1", "#84CC16", "#F97316",
+  "#0EA5E9", "#DC2626", "#059669", "#7C3AED", "#DB2777",
+  "#0891B2", "#CA8A04", "#4F46E5", "#16A34A", "#BE185D",
+];
 
 export default function DipendentiAnagrafica() {
   const navigate = useNavigate();
   const [dipendenti, setDipendenti] = useState([]);
+  const [reparti, setReparti] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -61,6 +71,23 @@ export default function DipendentiAnagrafica() {
 
   useEffect(() => { loadDipendenti(); }, [loadDipendenti]);
 
+  // Carica reparti attivi per la select
+  useEffect(() => {
+    apiFetch(`${API_BASE}/reparti/?include_inactive=false`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setReparti(Array.isArray(data) ? data : []))
+      .catch(() => setReparti([]));
+  }, []);
+
+  // Colori già in uso (per segnalare conflitti)
+  const coloriUsati = React.useMemo(() => {
+    const map = new Map();
+    dipendenti.forEach(d => {
+      if (d.colore && d.id !== form.id) map.set(d.colore.toUpperCase(), d);
+    });
+    return map;
+  }, [dipendenti, form.id]);
+
   const loadDocumenti = async (dipId) => {
     if (!dipId) return;
     setDocsLoading(true);
@@ -81,6 +108,7 @@ export default function DipendentiAnagrafica() {
       indirizzo_cap: d.indirizzo_cap || "", indirizzo_citta: d.indirizzo_citta || "",
       indirizzo_provincia: d.indirizzo_provincia || "",
       note: d.note || "", attivo: d.attivo ?? true,
+      reparto_id: d.reparto_id ?? null, colore: d.colore || "",
     });
     loadDocumenti(d.id);
     setTab("dati");
@@ -107,6 +135,8 @@ export default function DipendentiAnagrafica() {
       indirizzo_citta: form.indirizzo_citta || null,
       indirizzo_provincia: form.indirizzo_provincia || null,
       note: form.note || null, attivo: !!form.attivo,
+      reparto_id: form.reparto_id || null,
+      colore: form.colore || null,
     };
     const isEdit = !!form.id;
     try {
@@ -220,23 +250,38 @@ export default function DipendentiAnagrafica() {
               <div className="p-3 text-xs text-neutral-400">Caricamento...</div>
             ) : filtered.length === 0 ? (
               <div className="p-3 text-xs text-neutral-400">Nessun dipendente.</div>
-            ) : filtered.map(d => (
-              <div key={d.id}
-                onClick={() => handleSelect(d)}
-                className={`px-3 py-2.5 border-b border-neutral-50 cursor-pointer transition text-xs
-                  ${form.id === d.id ? "bg-purple-50 border-l-2 border-l-purple-500" : "hover:bg-neutral-50"}
-                  ${!d.attivo ? "opacity-50" : ""}`}>
-                <div className="font-medium text-neutral-800">{d.cognome} {d.nome}</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-neutral-500">{d.ruolo}</span>
-                  <span className="text-neutral-300">{"\u00B7"}</span>
-                  <span className="text-neutral-400 font-mono">{d.codice}</span>
-                  {!d.attivo && (
-                    <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1 rounded">inattivo</span>
-                  )}
+            ) : filtered.map(d => {
+              const rep = reparti.find(r => r.id === d.reparto_id);
+              return (
+                <div key={d.id}
+                  onClick={() => handleSelect(d)}
+                  className={`px-3 py-2.5 border-b border-neutral-50 cursor-pointer transition text-xs
+                    ${form.id === d.id ? "bg-purple-50 border-l-2 border-l-purple-500" : "hover:bg-neutral-50"}
+                    ${!d.attivo ? "opacity-50" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block rounded-full flex-shrink-0"
+                      style={{
+                        width: 10, height: 10,
+                        backgroundColor: d.colore || "#e5e5e5",
+                        border: d.colore ? "none" : "1px dashed #bbb",
+                      }}
+                      title={d.colore || "Nessun colore"}
+                    />
+                    <div className="font-medium text-neutral-800 truncate">{d.cognome} {d.nome}</div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 ml-[18px]">
+                    {rep && <span className="text-[9px] px-1 rounded bg-neutral-100 text-neutral-600">{rep.icona}{rep.codice}</span>}
+                    <span className="text-neutral-500 truncate">{d.ruolo}</span>
+                    <span className="text-neutral-300">{"\u00B7"}</span>
+                    <span className="text-neutral-400 font-mono">{d.codice}</span>
+                    {!d.attivo && (
+                      <span className="text-[9px] bg-neutral-200 text-neutral-600 px-1 rounded">inattivo</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -300,6 +345,91 @@ export default function DipendentiAnagrafica() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Nome" value={form.nome} onChange={v => handleChange("nome", v)} required />
                     <Field label="Cognome" value={form.cognome} onChange={v => handleChange("cognome", v)} required />
+                  </div>
+
+                  {/* ── Turni v2: Reparto + Colore ── */}
+                  <div className="border-t border-neutral-100 pt-3">
+                    <p className="text-[10px] text-neutral-400 font-medium mb-2 uppercase">
+                      Turni — Reparto e colore
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">Reparto</label>
+                        <select
+                          value={form.reparto_id || ""}
+                          onChange={e => handleChange("reparto_id", e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm bg-white">
+                          <option value="">— non assegnato —</option>
+                          {reparti.map(r => (
+                            <option key={r.id} value={r.id}>
+                              {r.icona ? `${r.icona} ` : ""}{r.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-neutral-500 font-medium mb-1">Colore univoco (turni)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={form.colore || "#999999"}
+                            onChange={e => handleChange("colore", e.target.value.toUpperCase())}
+                            className="h-9 w-12 border border-neutral-200 rounded-lg cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={form.colore || ""}
+                            onChange={e => handleChange("colore", e.target.value.toUpperCase())}
+                            className="flex-1 px-3 py-2 border border-neutral-200 rounded-lg text-xs font-mono"
+                            placeholder="#E8402B"
+                            maxLength={7}
+                          />
+                          {form.colore && (
+                            <button type="button"
+                              onClick={() => handleChange("colore", "")}
+                              className="text-neutral-400 hover:text-red-600 text-xs"
+                              title="Rimuovi">{"\u00D7"}</button>
+                          )}
+                        </div>
+                        {form.colore && coloriUsati.has(form.colore.toUpperCase()) && (
+                          <p className="text-[10px] text-amber-600 mt-1">
+                            {"\u26A0\uFE0F"} Già usato da {coloriUsati.get(form.colore.toUpperCase()).nome} {coloriUsati.get(form.colore.toUpperCase()).cognome}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Palette rapida */}
+                    <div className="mt-2">
+                      <p className="text-[10px] text-neutral-400 mb-1">Palette suggerita:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PALETTE_DIPENDENTI.map(hex => {
+                          const used = coloriUsati.has(hex);
+                          const selected = form.colore?.toUpperCase() === hex;
+                          return (
+                            <button
+                              key={hex}
+                              type="button"
+                              onClick={() => handleChange("colore", hex)}
+                              className={`relative rounded-md transition ${
+                                selected ? "ring-2 ring-offset-1 ring-neutral-800" : ""
+                              }`}
+                              style={{
+                                backgroundColor: hex,
+                                width: 28,
+                                height: 28,
+                                opacity: used && !selected ? 0.35 : 1,
+                              }}
+                              title={used ? `${hex} (già usato)` : hex}
+                            >
+                              {selected && (
+                                <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">{"\u2713"}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

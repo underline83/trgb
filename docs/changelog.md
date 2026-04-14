@@ -3,6 +3,67 @@
 
 ---
 
+## 2026-04-14 — Sessione 36 / Turni v2 Fase 1+2 — foglio settimana live + ore nette + copia settimana
+
+UI operativa del modulo Turni v2. Sostituisce la vecchia vista calendario con un Foglio Settimana che replica l'Excel di Marco. Copertura: assegnazione slot con popover, asterisco CHIAMATA, chiusure giorno da modulo Vendite, pannello ore lorde/nette con pause staff dedotte, navigazione settimana, copia settimana.
+
+### Backend
+- Nuova migrazione **072 `turni_v2_slot_index.py`**: ALTER `turni_calendario` + `slot_index INTEGER` per persistere la colonna nel foglio settimana (idempotente, lavora su dipendenti.sqlite3). Indice `idx_turni_cal_data_servizio_slot`.
+- Nuovo **`app/services/turni_service.py`**:
+  - `build_foglio_settimana(reparto_id, iso)` — matrice giorni×turni, dipendenti del reparto, max_slot.
+  - `calcola_ore_nette_giorno(turni, pausa_p, pausa_c)` — sottrae pause staff dal lordo, ignora CHIAMATA/ANNULLATO.
+  - `ore_nette_settimana_per_reparto()` — aggrega per dipendente con semaforo (<=40 verde, <=48 giallo, >48 rosso).
+  - `copia_settimana(reparto_id, from, to, sovrascrivi)` — copia turni con origine='COPIA', salta giorni chiusi destinazione.
+  - `giorni_chiusi_nella_settimana(iso)` — integrazione con `closures_config_router.get_closures_config()` (modulo Vendite, non duplica).
+- Nuovo **`app/routers/turni_router.py`** (prefix `/turni`, JWT):
+  - `GET  /turni/foglio?reparto_id&settimana` — matrice + chiusure
+  - `POST /turni/foglio/assegna` — assegna slot (crea turno_tipo default se serve)
+  - `PUT  /turni/foglio/{id}` — modifica turno
+  - `DELETE /turni/foglio/{id}` — rimuove turno
+  - `GET  /turni/ore-nette?reparto_id&settimana` — pannello laterale
+  - `POST /turni/copia-settimana` — copia settimana → settimana
+  - `GET  /turni/chiusure?settimana` — lettura chiusure
+- `main.py`: registrato `turni_router`.
+- `app/models/dipendenti_db.py`: aggiunta colonna `slot_index` per DB nuovi.
+
+### Frontend
+- Nuovo **`frontend/src/pages/dipendenti/FoglioSettimana.jsx`** (530 righe):
+  - Tab reparto SALA/CUCINA con colore brand + icona dal reparto.
+  - Matrice 7 giorni × (P1..Pn + C1..Cn), slot dinamici (default 4+4, espandibili).
+  - Cella vuota = placeholder `+`, click apre popover.
+  - Pillola colorata con `dipendente.colore`, contrasto automatico testo bianco/nero.
+  - Asterisco ★ giallo su stato CHIAMATA, opacità 0.4 su ANNULLATO.
+  - Riga grigia su giorno chiuso (letto da backend), disabilita click.
+  - Pannello laterale `OrePanel`: lista dipendenti ordinata per ore_nette, semaforo pallino colorato, totali settimana, nota pause staff "30+30 min".
+  - Popover `PopoverAssegna`: select dipendente, orari time-picker, radio stato (Confermato/Chiamata/Annullato), note, tasto Rimuovi.
+  - Dialog `DialogCopia`: input ISO week from/to, checkbox sovrascrivi.
+  - Navigazione ←/→ settimana + "Oggi", display `YYYY-Www`.
+  - Touch target 44pt ovunque, responsive `grid-cols-[1fr_340px]` su lg+.
+- `App.jsx`: rotta `/dipendenti/turni` ora punta a `FoglioSettimana`, vecchia vista su `/dipendenti/turni-legacy`.
+- `DipendentiMenu.jsx`: sottotitolo tile Turni aggiornato.
+- `versions.jsx`: dipendenti 2.2 → 2.3.
+
+### Convenzioni nuove
+- **Slot index** = intero 0-based in `turni_calendario.slot_index`: persiste la posizione della pillola nella griglia. Un turno senza slot_index è "libero" (legacy).
+- **Stato CHIAMATA** va in `turni_calendario.stato` (TEXT libero, no ALTER). Non pesa nel calcolo ore, asterisco in UI.
+- **Auto-creazione `turni_tipi`**: se manca il tipo per `<REPARTO>-<SERVIZIO>`, l'endpoint assegna lo crea al volo (categoria=LAVORO).
+- **Chiusure**: mai duplicare, sempre lettura da `get_closures_config()`.
+
+### File creati
+- `app/migrations/072_turni_v2_slot_index.py`
+- `app/services/turni_service.py`
+- `app/routers/turni_router.py`
+- `frontend/src/pages/dipendenti/FoglioSettimana.jsx`
+
+### File modificati
+- `app/models/dipendenti_db.py`
+- `main.py`
+- `frontend/src/App.jsx`
+- `frontend/src/pages/dipendenti/DipendentiMenu.jsx`
+- `frontend/src/config/versions.jsx`
+
+---
+
 ## 2026-04-14 — Sessione 36 / Turni v2 Fase 0 — schema DB + reparti + mockup foglio settimana
 
 Riprogettazione del modulo Dipendenti-Turni per replicare il workflow Excel reale di Marco (due fogli SALA/CUCINA, matrice giorno×slot con pillole colorate, asterisco=chiamata). **Fase 0 = solo schema DB + backend base + mockup**. La UI `FoglioSettimana.jsx` arriva in Fase 1.

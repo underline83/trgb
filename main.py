@@ -43,6 +43,7 @@ from app.routers import fe_proforme_router
 # DIPENDENTI & TURNI — nuovo modulo
 from app.routers.dipendenti import router as dipendenti_router
 from app.routers.reparti import router as reparti_router
+from app.routers.turni_router import router as turni_router
 
 # BANCA — movimenti bancari
 from app.routers import banca_router
@@ -218,6 +219,7 @@ app.include_router(fe_proforme_router.router)
 # (usa DB dedicato app/data/dipendenti.sqlite3, inizializzato in dipendenti_db.init_dipendenti_db)
 app.include_router(dipendenti_router)
 app.include_router(reparti_router)
+app.include_router(turni_router)
 
 # BANCA
 app.include_router(banca_router.router)

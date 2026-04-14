@@ -371,6 +371,7 @@ def init_dipendenti_db() -> None:
         "ore_effettive REAL",
         "origine TEXT NOT NULL DEFAULT 'MANUALE'",
         "origine_ref_id TEXT",
+        "slot_index INTEGER",   # posizione colonna foglio settimana (0-based)
     ]:
         try:
             cur.execute(f"ALTER TABLE turni_calendario ADD COLUMN {col_def}")
@@ -380,6 +381,7 @@ def init_dipendenti_db() -> None:
     # Indici turni_calendario
     cur.execute("CREATE INDEX IF NOT EXISTS idx_turni_cal_data ON turni_calendario(data)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_turni_cal_dip_data ON turni_calendario(dipendente_id, data)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_turni_cal_data_servizio_slot ON turni_calendario(data, slot_index)")
 
     # Tabelle template settimanali
     cur.execute("""

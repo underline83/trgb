@@ -25,7 +25,7 @@ const SEZIONI = [
     to: "/dipendenti/turni",
     icon: "\uD83D\uDCC5",
     title: "Turni",
-    subtitle: "Calendario turni settimanale e mensile del personale",
+    subtitle: "Foglio settimana SALA/CUCINA con assegnazione slot e ore nette",
     color: "bg-indigo-50 border-indigo-200 text-indigo-900",
     ready: true,
   },
