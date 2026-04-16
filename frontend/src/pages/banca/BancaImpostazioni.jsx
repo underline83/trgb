@@ -962,14 +962,20 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
   const [keepId, setKeepId] = useState(null);
   const movimenti = group.movimenti || [];
 
-  // Auto-select: tieni quello con link, oppure quello con data_contabile più recente
+  // Auto-select: per preautorizzazioni, tieni il contabilizzato (is_preauth=0).
+  // Altrimenti: tieni quello con link, oppure il più recente.
   useEffect(() => {
     if (movimenti.length > 0) {
+      // Preautorizzazione: tieni il contabilizzato
+      const contabilizzato = movimenti.find(m => !m.is_preauth);
+      if (contabilizzato) {
+        setKeepId(contabilizzato.id);
+        return;
+      }
       const withLink = movimenti.find(m => m.has_links);
       if (withLink) {
         setKeepId(withLink.id);
       } else {
-        // Tieni il più recente (data_contabile DESC)
         const sorted = [...movimenti].sort((a, b) => (b.data_contabile || "").localeCompare(a.data_contabile || ""));
         setKeepId(sorted[0].id);
       }
@@ -1023,12 +1029,17 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
                 {isKeep ? <span className="text-[10px]">✓</span> : <span className="text-[10px] text-red-400">✕</span>}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                   <span className="text-xs font-mono text-neutral-400">#{m.id}</span>
                   <span className="text-xs text-neutral-500">{fmtDate(m.data_contabile)}</span>
                   {m.data_valuta && m.data_valuta !== m.data_contabile && (
                     <span className="text-[10px] text-neutral-400">(val: {fmtDate(m.data_valuta)})</span>
                   )}
+                  {m.is_preauth ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">pre-autoriz.</span>
+                  ) : isPreauth ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">contabilizzato</span>
+                  ) : null}
                   {m.has_links ? (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">collegato</span>
                   ) : null}

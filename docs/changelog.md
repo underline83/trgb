@@ -11,7 +11,7 @@ I pagamenti bancomat/carta generano due movimenti nel CSV bancario: una pre-auto
 ### Backend
 - **Endpoint `/banca/duplicati/` potenziato**: ora rileva due tipi di duplicati:
   1. **Classici**: stessa `data_contabile` + `importo` + descrizione simile (come prima)
-  2. **Pre-autorizzazioni**: stessa `data_valuta` + `importo`, `data_contabile` diversa, pattern "carta/bancomat/cash&carry" nella descrizione
+  2. **Pre-autorizzazioni**: cerca movimenti con suffisso `-da contab` nella descrizione (flag della banca per pre-autorizzazioni), poi trova il gemello contabilizzato (stessa `data_valuta` + `importo`, senza `-da contab`). Flag `is_preauth` su ogni movimento.
 - Helper `_enrich_movimenti()` estratto per riuso
 - Ogni gruppo ha campo `tipo` ("classico" / "preautorizzazione")
 - L'endpoint DELETE `/duplicati/{keep_id}` resta invariato — migra link prima di eliminare

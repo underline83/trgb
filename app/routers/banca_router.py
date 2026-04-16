@@ -1822,42 +1822,46 @@ def get_duplicati():
                 "movimenti": mlist,
             })
 
-    # ── Tipo 2: preautorizzazioni (stessa data_valuta, data_contabile diversa) ──
+    # ── Tipo 2: preautorizzazioni "-da contab" ──
+    # La banca flagga le pre-autorizzazioni con "-da contab" in coda alla descrizione.
+    # Quando il pagamento viene contabilizzato, appare un secondo movimento
+    # con stessa data_valuta + importo ma senza "-da contab".
     cur.execute("""
-        SELECT data_valuta, importo, COUNT(*) AS cnt,
-               GROUP_CONCAT(id) AS ids
+        SELECT id, data_contabile, data_valuta, importo, descrizione
         FROM banca_movimenti
-        WHERE data_valuta IS NOT NULL AND data_valuta != ''
-        GROUP BY data_valuta, importo
-        HAVING cnt > 1
-        ORDER BY data_valuta DESC
+        WHERE LOWER(descrizione) LIKE '%-da contab%'
+        ORDER BY data_contabile DESC
     """)
+    preauth_rows = cur.fetchall()
 
-    for row in cur.fetchall():
-        ids = [int(x) for x in row["ids"].split(",")]
-        # Salta se tutti gli ID sono già stati catturati dal tipo 1
-        if all(i in seen_ids for i in ids):
+    for pa in preauth_rows:
+        pa_id = pa["id"]
+        if pa_id in seen_ids:
             continue
-        movimenti = _enrich_movimenti(conn, ids)
+        # Cerca gemello contabilizzato: stessa data_valuta + importo, senza -da contab
+        cur2 = conn.cursor()
+        cur2.execute("""
+            SELECT id FROM banca_movimenti
+            WHERE data_valuta = ? AND importo = ? AND id != ?
+              AND LOWER(descrizione) NOT LIKE '%-da contab%'
+        """, (pa["data_valuta"], pa["importo"], pa_id))
+        gemelli = [r["id"] for r in cur2.fetchall()]
+        if not gemelli:
+            continue  # non ancora contabilizzato → non è un duplicato
 
-        # Filtra: almeno 2 movimenti con data_contabile DIVERSA
-        date_contabili = set(m["data_contabile"] for m in movimenti)
-        if len(date_contabili) < 2:
-            continue  # stessa data_contabile → già catturato sopra
+        all_ids = [pa_id] + gemelli
+        movimenti = _enrich_movimenti(conn, all_ids)
+        # Marca quale è la preautorizzazione
+        for m in movimenti:
+            m["is_preauth"] = 1 if "-da contab" in (m.get("descrizione") or "").lower() else 0
 
-        # Ulteriore check: almeno uno con pattern carta/bancomat nella descrizione
-        carta_pattern = re.compile(r"carta|bancomat|cash\s*&?\s*carry|pos\s|contactless", re.IGNORECASE)
-        has_carta = any(carta_pattern.search(m.get("descrizione") or "") for m in movimenti)
-        if not has_carta:
-            continue
-
-        group_ids = frozenset(m["id"] for m in movimenti)
+        group_ids = frozenset(all_ids)
         seen_ids.update(group_ids)
         groups.append({
             "tipo": "preautorizzazione",
-            "data": row["data_valuta"],
-            "data_valuta": row["data_valuta"],
-            "importo": row["importo"],
+            "data": pa["data_valuta"],
+            "data_valuta": pa["data_valuta"],
+            "importo": pa["importo"],
             "count": len(movimenti),
             "movimenti": movimenti,
         })
