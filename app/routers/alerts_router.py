@@ -10,7 +10,7 @@ Protetti da auth JWT. POST /run e PUT /config richiedono admin/superadmin.
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 from app.services.auth_service import get_current_user
 from app.services.alert_engine import (
     run_all_checks, run_check, list_checkers
@@ -109,7 +109,7 @@ def get_alert_config(user=Depends(get_current_user)):
             "soglia_giorni": r["soglia_giorni"],
             "antidup_ore": r["antidup_ore"],
             "dest_ruolo": r["dest_ruolo"],
-            "dest_username": r["dest_username"],
+            "dest_username": [u.strip() for u in (r["dest_username"] or "").split(",") if u.strip()],
             "canale_app": bool(r["canale_app"]),
             "canale_wa": bool(r["canale_wa"]),
             "canale_email": bool(r["canale_email"]),
@@ -124,7 +124,7 @@ class AlertConfigUpdate(BaseModel):
     soglia_giorni: Optional[int] = None
     antidup_ore: Optional[int] = None
     dest_ruolo: Optional[str] = None
-    dest_username: Optional[str] = None
+    dest_username: Optional[List[str]] = None  # lista utenti, salvata comma-separated
     canale_app: Optional[bool] = None
     canale_wa: Optional[bool] = None
     canale_email: Optional[bool] = None
@@ -152,6 +152,9 @@ def update_alert_config(checker_name: str, body: AlertConfigUpdate, user=Depends
             # bool → int per SQLite
             if isinstance(value, bool):
                 value = 1 if value else 0
+            # list → comma-separated string (dest_username)
+            elif isinstance(value, list):
+                value = ",".join(v.strip() for v in value if v.strip()) or None
             updates.append(f"{field_name} = ?")
             values.append(value)
 

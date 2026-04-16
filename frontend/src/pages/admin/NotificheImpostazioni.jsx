@@ -23,19 +23,28 @@ const CANALI = [
 // ---------------------------------------------------------------------------
 export default function NotificheImpostazioni() {
   const [configs, setConfigs] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [saving, setSaving] = useState(null); // checker name in salvataggio
+  const [saving, setSaving] = useState(null);
   const [toast, setToast] = useState("");
 
   async function loadConfig() {
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch(`${API_BASE}/alerts/config/`);
-      if (!res.ok) throw new Error("Errore nel caricamento");
-      const data = await res.json();
-      setConfigs(data.configs || []);
+      const [cfgRes, usersRes] = await Promise.all([
+        apiFetch(`${API_BASE}/alerts/config/`),
+        apiFetch(`${API_BASE}/auth/users/`),
+      ]);
+      if (!cfgRes.ok) throw new Error("Errore caricamento config");
+      const cfgData = await cfgRes.json();
+      setConfigs(cfgData.configs || []);
+
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(Array.isArray(usersData) ? usersData : []);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -70,7 +79,7 @@ export default function NotificheImpostazioni() {
           soglia_giorni: cfg.soglia_giorni,
           antidup_ore: cfg.antidup_ore,
           dest_ruolo: cfg.dest_ruolo || "admin",
-          dest_username: cfg.dest_username || null,
+          dest_username: cfg.dest_username || [],
           canale_app: cfg.canale_app,
           canale_wa: cfg.canale_wa,
           canale_email: cfg.canale_email,
@@ -128,14 +137,9 @@ export default function NotificheImpostazioni() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-neutral-500 text-sm">
-            Configura soglie, destinatari e canali per ogni tipo di alert automatico.
-          </p>
-        </div>
-      </div>
+      <p className="text-neutral-500 text-sm">
+        Configura soglie, destinatari e canali per ogni tipo di alert automatico.
+      </p>
 
       {/* Toast */}
       {toast && (
@@ -149,6 +153,7 @@ export default function NotificheImpostazioni() {
         <CheckerCard
           key={cfg.checker}
           cfg={cfg}
+          users={users}
           saving={saving === cfg.checker}
           onUpdate={(field, value) => updateLocal(cfg.checker, field, value)}
           onSave={() => saveChecker(cfg.checker)}
@@ -169,8 +174,18 @@ export default function NotificheImpostazioni() {
 // ---------------------------------------------------------------------------
 // CARD SINGOLO CHECKER
 // ---------------------------------------------------------------------------
-function CheckerCard({ cfg, saving, onUpdate, onSave, onRun }) {
+function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
   const [expanded, setExpanded] = useState(false);
+
+  // dest_username è un array di username
+  const selectedUsers = Array.isArray(cfg.dest_username) ? cfg.dest_username : [];
+
+  function toggleUser(username) {
+    const newList = selectedUsers.includes(username)
+      ? selectedUsers.filter((u) => u !== username)
+      : [...selectedUsers, username];
+    onUpdate("dest_username", newList);
+  }
 
   return (
     <div className={`border rounded-2xl transition-all ${
@@ -254,10 +269,10 @@ function CheckerCard({ cfg, saving, onUpdate, onSave, onRun }) {
             </div>
           </div>
 
-          {/* Riga 2: Destinatario */}
+          {/* Riga 2: Destinatari — Ruolo */}
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-2">
-              Destinatario notifiche
+              Ruolo destinatario
             </label>
             <div className="flex flex-wrap gap-2">
               {RUOLI.map((r) => (
@@ -274,7 +289,44 @@ function CheckerCard({ cfg, saving, onUpdate, onSave, onRun }) {
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Tutti gli utenti con questo ruolo riceveranno la notifica
+            </p>
           </div>
+
+          {/* Riga 2b: Destinatari — Utenti specifici (multi-select) */}
+          {users.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-neutral-500 mb-2">
+                Utenti aggiuntivi (opzionale)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {users.map((u) => {
+                  const uname = u.username || u;
+                  const role = u.role || "";
+                  const isSelected = selectedUsers.includes(uname);
+                  return (
+                    <button
+                      key={uname}
+                      onClick={() => toggleUser(uname)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                        isSelected
+                          ? "bg-amber-50 text-amber-800 border-amber-300"
+                          : "bg-white text-neutral-500 border-neutral-200 hover:border-neutral-300"
+                      }`}
+                    >
+                      {isSelected && <span>✓</span>}
+                      <span>{uname}</span>
+                      {role && <span className="text-[10px] text-neutral-400">({role})</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-1">
+                Questi utenti ricevono la notifica indipendentemente dal ruolo
+              </p>
+            </div>
+          )}
 
           {/* Riga 3: Canali */}
           <div>

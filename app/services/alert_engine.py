@@ -165,15 +165,25 @@ def _notifica_recente_esiste(tipo: str, ore: int = 24, entity_id: int = None) ->
 # ─────────────────────────────────────────────
 
 def _send_notification(config: dict, **kwargs):
-    """Crea notifica in-app e/o via WA/email in base alla config canali."""
+    """Crea notifica in-app e/o via WA/email in base alla config canali.
+    dest_username può essere una lista comma-separated → crea una notifica per utente."""
     # Canale app (notifica in-app via M.A)
     if config.get("canale_app", True):
         from app.services.notifiche_service import crea_notifica
-        crea_notifica(
-            dest_ruolo=config.get("dest_ruolo"),
-            dest_username=config.get("dest_username"),
-            **kwargs
-        )
+        dest_ruolo = config.get("dest_ruolo")
+        dest_usernames_raw = config.get("dest_username") or ""
+        dest_usernames = [u.strip() for u in dest_usernames_raw.split(",") if u.strip()]
+
+        if dest_usernames:
+            # Notifica individuale per ogni utente selezionato
+            for uname in dest_usernames:
+                crea_notifica(dest_ruolo=None, dest_username=uname, **kwargs)
+            # Anche per il ruolo se impostato (altri utenti con quel ruolo)
+            if dest_ruolo:
+                crea_notifica(dest_ruolo=dest_ruolo, dest_username=None, **kwargs)
+        else:
+            # Solo per ruolo (comportamento default)
+            crea_notifica(dest_ruolo=dest_ruolo, dest_username=None, **kwargs)
 
     # Canale WhatsApp (M.C) — solo se abilitato
     if config.get("canale_wa", False):
