@@ -1,4 +1,4 @@
-// @version: v2.1-sidebar-clienti-style
+// @version: v2.2-debug-detail-fic
 // Pagina Impostazioni Acquisti — Layout sidebar uniformato a ClientiImpostazioni
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -72,6 +72,12 @@ export default function FattureImpostazioni() {
   const [syncSoloNuove, setSyncSoloNuove] = useState(false);
   const [syncForceDetail, setSyncForceDetail] = useState(false);
   const [syncLog, setSyncLog] = useState([]);
+
+  // ─── S40-15 DEBUG DETTAGLIO FIC ──────────────────────
+  const [debugFicId, setDebugFicId] = useState("");
+  const [debugResult, setDebugResult] = useState(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugError, setDebugError] = useState("");
 
   // ─── CATEGORIE STATE ────────────────────────────────
   const [categorie, setCategorie] = useState([]);
@@ -232,6 +238,24 @@ export default function FattureImpostazioni() {
       else alert("Errore di rete durante sync");
     }
     setSyncing(false);
+  };
+
+  // ─── S40-15 DEBUG dettaglio fattura FIC ────────────────
+  const handleDebugDetail = async () => {
+    const id = (debugFicId || "").trim();
+    if (!id) return;
+    setDebugLoading(true);
+    setDebugError("");
+    setDebugResult(null);
+    try {
+      const r = await apiFetch(`${FC}/debug-detail/${id}`);
+      const d = await r.json();
+      if (r.ok) setDebugResult(d);
+      else setDebugError(d.detail || `HTTP ${r.status}`);
+    } catch (e) {
+      setDebugError("Errore di rete");
+    }
+    setDebugLoading(false);
   };
 
   // ═══════════════════════════════════════════════════════
@@ -679,6 +703,104 @@ export default function FattureImpostazioni() {
               </div>
             </div>
           )}
+
+          {/* S40-15 — Debug dettaglio fattura FIC */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4">
+            <h3 className="text-sm font-bold text-neutral-700 mb-1 flex items-center gap-2">
+              🔬 Debug dettaglio fattura FIC
+            </h3>
+            <p className="text-xs text-neutral-500 mb-3">
+              Interroga direttamente FIC per un singolo <code className="bg-neutral-100 px-1 rounded">fic_id</code> e mostra cosa restituisce il dettaglio (righe, scadenze, numero). Utile per capire perché una fattura arriva senza righe.
+            </p>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <input
+                type="text"
+                value={debugFicId}
+                onChange={(e) => setDebugFicId(e.target.value.replace(/\D/g, ""))}
+                placeholder="fic_id (es. 405656723)"
+                className="px-3 py-2 border border-neutral-200 rounded-lg text-sm w-56 font-mono focus:ring-blue-400 focus:outline-none focus:ring-2"
+                onKeyDown={(e) => { if (e.key === "Enter") handleDebugDetail(); }}
+              />
+              <button
+                onClick={handleDebugDetail}
+                disabled={debugLoading || !debugFicId.trim()}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition ${
+                  debugLoading || !debugFicId.trim()
+                    ? "bg-neutral-400 cursor-not-allowed"
+                    : "bg-blue-700 hover:bg-blue-800 shadow-sm"
+                }`}
+              >
+                {debugLoading ? "Interrogazione..." : "Analizza"}
+              </button>
+              {(debugResult || debugError) && (
+                <button
+                  onClick={() => { setDebugResult(null); setDebugError(""); }}
+                  className="px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-100 rounded-lg"
+                >
+                  Pulisci
+                </button>
+              )}
+            </div>
+            {debugError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 font-mono">
+                ⚠ {debugError}
+              </div>
+            )}
+            {debugResult && (
+              <div className="space-y-3">
+                {/* Sintesi */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="bg-neutral-50 rounded-lg p-2 border border-neutral-200">
+                    <div className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">N. righe</div>
+                    <div className={`text-lg font-bold ${debugResult.n_items > 0 ? "text-emerald-700" : "text-red-700"}`}>
+                      {debugResult.n_items ?? "—"}
+                    </div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg p-2 border border-neutral-200">
+                    <div className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">Detailed</div>
+                    <div className={`text-lg font-bold ${debugResult.is_detailed ? "text-emerald-700" : "text-red-700"}`}>
+                      {debugResult.is_detailed ? "sì" : "no"}
+                    </div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg p-2 border border-neutral-200">
+                    <div className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">Numero FIC</div>
+                    <div className="text-sm font-mono text-neutral-800 truncate" title={debugResult.numero || ""}>
+                      {debugResult.numero || "—"}
+                    </div>
+                  </div>
+                  <div className="bg-neutral-50 rounded-lg p-2 border border-neutral-200">
+                    <div className="text-[10px] uppercase text-neutral-500 font-semibold tracking-wider">N. pagamenti</div>
+                    <div className="text-lg font-bold text-neutral-700">
+                      {debugResult.n_payments ?? "—"}
+                    </div>
+                  </div>
+                </div>
+                {/* Verdict */}
+                {debugResult.n_items === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                    <strong>Verdict:</strong> FIC restituisce {debugResult.is_detailed ? "fieldset=detailed" : "fieldset di default"} con <code>items_list</code> vuoto.
+                    {debugResult.is_detailed
+                      ? " La fattura è header-only anche su FIC — dobbiamo aspettare l'XML SdI per le righe."
+                      : " Proviamo a forzare fieldset=detailed (potrebbe essere un problema di parametro)."}
+                  </div>
+                )}
+                {debugResult.n_items > 0 && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900">
+                    <strong>Verdict:</strong> FIC restituisce {debugResult.n_items} righe. Se in DB risultano 0 righe, il bug è nel parser o nella scrittura (exception swallowed in <code>_fetch_detail_and_righe</code>).
+                  </div>
+                )}
+                {/* Payload raw */}
+                <details className="bg-neutral-900 rounded-lg overflow-hidden">
+                  <summary className="px-3 py-2 text-xs text-neutral-300 cursor-pointer hover:bg-neutral-800 select-none">
+                    Payload raw FIC (click per espandere)
+                  </summary>
+                  <pre className="px-3 py-3 text-[11px] text-emerald-300 font-mono overflow-x-auto max-h-96">
+                    {JSON.stringify(debugResult, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+          </div>
 
           {/* Sync Log */}
           {syncLog.length > 0 && (
