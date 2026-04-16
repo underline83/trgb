@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.5-nav-layout-fix (barra menu + layout pieno + fix "Crea dipendente")
+// @version: v2.6-trailing-slash (fix crash POST nuovo dipendente — sessione 40)
 // Layout: DipendentiNav + header bar + sidebar lista + dettaglio con tabs
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -180,8 +180,12 @@ export default function DipendentiAnagrafica() {
     };
     const isEdit = !!form.id;
     try {
+      // NB: POST su `/dipendenti/` con trailing slash obbligatorio.
+      // Senza slash FastAPI fa 307 redirect, il browser droppa l'header Auth,
+      // arriva un 401, apiFetch cancella il token e manda l'utente a /login
+      // → all'utente sembra "crash + ritorno in home". Vedi CLAUDE.md.
       const res = await apiFetch(
-        isEdit ? `${API_BASE}/dipendenti/${form.id}` : `${API_BASE}/dipendenti`,
+        isEdit ? `${API_BASE}/dipendenti/${form.id}` : `${API_BASE}/dipendenti/`,
         { method: isEdit ? "PUT" : "POST", headers: jsonHeaders, body: JSON.stringify(payload) }
       );
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Errore");

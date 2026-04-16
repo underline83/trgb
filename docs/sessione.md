@@ -1,8 +1,37 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-14 (chiusura sessione 39)
+**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 chiusa)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 40 — Wave 1 bugfix (IN CORSO 🟢)
+
+Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5), UI generica (2), Acquisti (2), Controllo Gestione (2), Flussi di Cassa (4), Statistiche (2). Triage: 3 wave ordinate per impatto × sforzo, dettaglio completo in `problemi.md` (punti `S40-1 ... S40-17`).
+
+### Wave 1 completata — 3 fix bloccanti
+
+- **S40-1 Dipendenti crash al save** (`DipendentiAnagrafica` v2.6) — mancava trailing slash sul POST, ennesima occorrenza dello stesso pattern documentato in CLAUDE.md.
+- **S40-2 "+ Nuovo reparto" non fa nulla** (`GestioneReparti` v1.2) — flag `isCreating` mancante, allineato al pattern di `DipendentiAnagrafica`.
+- **S40-3 Campanello iPad click non apre** (`Tooltip` v1.2 + `Header`) — nuova prop `disableOnTouch` sul Tooltip, applicata a 🔔 e 🔑 per evitare il double-tap friction su icone universali.
+
+### Rimangono in indagine
+
+- **S40-14 Duplicati Sogegros €597,08** — servono ID `banca_movimenti` da Marco per decidere regola dedup.
+- **S40-16 "Import iPratico sparito" Statistiche** — serve chiarimento da Marco se intendeva l'iPratico Vini (spostato in Vini → Impostazioni sessione 39) o davvero quello delle Statistiche (tab esiste ancora).
+- **S40-17 "menu con più opzioni sparito"** — serve sapere quale menu esattamente.
+
+### Prossime wave
+
+- **Wave 2** (prossima sessione): Dipendenti #1/#2/#5 (inattivo libera colore, auto-ID, nickname) + Flussi #1 matching date inverosimili + CG #1/#2 (default filtri + somma selezione Excel-style).
+- **Wave 3**: Acquisti #2 flag fornitori ignorati + Flussi #2 selezione multipla parcheggio + Flussi #3 iPad descrizione + UI #2 uniformare barra CG.
+- **Fuori wave** (indagine): Acquisti #1 FIC righe mancanti — serve fattura di riferimento.
+
+### Versioni bump sessione 40
+
+- `dipendenti` 2.23 → 2.24
+- `sistema` 5.8 → 5.9 (il Tooltip è condiviso tra tutti i moduli)
 
 ---
 

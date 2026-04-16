@@ -3,6 +3,43 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / Wave 1 — Bugfix bloccanti Dipendenti + Tooltip iPad
+
+Marco ha aperto la sessione con 17 bug distribuiti su 6 moduli. Wave 1 copre i 3 fix bloccanti (più 2 rimasti in indagine).
+
+### Dipendenti — Crash al salvataggio nuovo dipendente (S40-1)
+
+`DipendentiAnagrafica.jsx` faceva POST su `${API_BASE}/dipendenti` (senza trailing slash). Backend: `@router.post("/")` in `dipendenti.py:192`. FastAPI emetteva 307 Redirect verso `/dipendenti/`, il browser droppava l'header `Authorization` sul redirect, arrivava 401, `apiFetch` cancellava il token e mandava a `/login` → all'utente sembrava "crash + ritorno in home".
+
+**Fix**: riga 184, `${API_BASE}/dipendenti` → `${API_BASE}/dipendenti/`. Commento esplicativo aggiunto. Bump versione file a v2.6. Pattern già documentato in CLAUDE.md, è il quinto o sesto endpoint dove lo ripetiamo.
+
+### Dipendenti — "+ Nuovo reparto" in Impostazioni non apriva il form (S40-2)
+
+`GestioneReparti.jsx` condizionava il form del dettaglio a `{!form.id && !form.codice ? (placeholder) : (form)}`. `handleNew()` faceva `setForm(EMPTY)` con `EMPTY.codice = ""` → la condizione restava vera → il placeholder "Seleziona un reparto o creane uno nuovo" restava visibile anche dopo il click.
+
+**Fix**: introdotto flag esplicito `isCreating` (già usato in `DipendentiAnagrafica.jsx` — ora allineato). `handleNew` → `setIsCreating(true)`. `handleSelect` → `setIsCreating(false)`. Post-save successo → `setIsCreating(false)`. Condizione render: `!form.id && !isCreating`. Bump versione file a v1.2.
+
+### UI — Campanello notifiche su iPad: tooltip compariva ma click non apriva il panel (S40-3)
+
+Introdotto in sessione 39 quando ho cambiato `placement="bottom"` sul bell e sulla key dell'Header. Il `Tooltip` su touch usa un pattern double-tap (primo tap apre tooltip + blocca click, secondo tap passa). Su icone universali come 🔔 e 🔑 il tooltip è ridondante e il double-tap è una friction seria: se l'utente aspetta oltre 2,5s (auto-close) tra primo e secondo tap, `firstTouchShown` si resetta e il secondo tap viene trattato come "primo tap" → l'azione non parte mai.
+
+**Fix**: nuova prop `disableOnTouch` sul `Tooltip` (default false). Quando true e `isTouch === true`, il componente fa passthrough dei children (ritorna i figli direttamente, niente popup, niente double-tap). Header marca 🔔 e 🔑 con `disableOnTouch`. Bump versione Tooltip a v1.2.
+
+### Rimangono in indagine (da riprodurre con Marco nella prossima sessione)
+
+- **S40-14 Flussi — duplicati Sogegros €597,08**: servono gli ID `banca_movimenti` delle due righe per capire se è import doppio (stessa data/causale) o due movimenti legittimi confusi.
+- **S40-16 Statistiche — "Import iPratico sparito"**: ambiguità con l'iPratico **Vini** che nella sessione 39 ho spostato da voce autonoma a "embedded" dentro `ViniImpostazioni`. La tab "📥 Import iPratico" nelle Statistiche (`StatisticheNav.jsx:10`) esiste ancora, rotta montata. Marco deve chiarire quale ha perso.
+
+### Altri 12 bug catalogati
+
+Tutti documentati in `docs/problemi.md` con causa ipotizzata e fix previsto. Wave 2 e Wave 3 nella prossima sessione.
+
+### Versioni bump
+
+`dipendenti` 2.23 → 2.24 (fix #3 + #4). `sistema` 5.8 → 5.9 (fix Tooltip a livello di componente condiviso).
+
+---
+
 ## 2026-04-14 — Sessione 39 / Navigazione — Eliminazione hub `*Menu.jsx`, ingresso diretto su Dashboard (role-aware)
 
 Marco: _"questi menu di ogni modulo vanno eliminati"_ + _"si sono d'accordo i redirect deve sempre role-aware altrimenti aprire pagina che dice che non si hanno i privilegi per aprirla"_.

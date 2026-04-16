@@ -8,11 +8,217 @@
 
 ## Aperti — Priorità alta
 
-(nessuno al momento)
+### S40-1. Dipendenti — Crash al salvataggio nuovo dipendente
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Dipendenti / Anagrafica
+**Gravità:** alta (bloccante)
+
+**Sintomo:** al salvataggio di un nuovo dipendente l'app crasha e torna in Home.
+
+**Causa:** `DipendentiAnagrafica.jsx` riga 184 faceva POST su `${API_BASE}/dipendenti` (senza trailing slash). Il backend espone l'endpoint root come `@router.post("/")` (dipendenti.py:192) con prefix `/dipendenti` → FastAPI emette 307 Temporary Redirect verso `/dipendenti/`. Durante il redirect cross-origin il browser droppa l'header `Authorization` → la seconda richiesta è anonima → 401 → `apiFetch` (config/api.js:26-35) cancella token/role e fa `window.location.href = "/login"` → all'utente sembra "crash e torna in home".
+
+Stesso pattern già documentato in CLAUDE.md sotto "API calls — TRAILING SLASH OBBLIGATORIO".
+
+**Fix previsto:** riga 184, `${API_BASE}/dipendenti` → `${API_BASE}/dipendenti/`.
 
 ---
 
 ## Aperti — Priorità media
+
+### S40-2. Dipendenti — "+ Nuovo reparto" in Impostazioni non fa nulla
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Dipendenti / Impostazioni → Reparti (`GestioneReparti.jsx`)
+**Gravità:** media
+
+**Sintomo:** click su "+ Nuovo reparto" non apre il form.
+
+**Causa:** `GestioneReparti.jsx` riga 213: il form del dettaglio è nascosto da `{!form.id && !form.codice ? (placeholder) : (form)}`. `handleNew()` (riga 89) fa `setForm(EMPTY)` dove `EMPTY.codice = ""` → la condizione resta vera → il placeholder "Seleziona un reparto o creane uno nuovo" rimane visibile anche dopo il click.
+
+La sorella `DipendentiAnagrafica.jsx` ha già il flag esplicito `isCreating` (riga 62) che risolve proprio questo pattern — `GestioneReparti` è rimasto indietro.
+
+**Fix previsto:** aggiungere `const [isCreating, setIsCreating] = useState(false)`. `handleNew` → `setIsCreating(true)`. `handleSelect` → `setIsCreating(false)`. Post-save successo → `setIsCreating(false)` (il record ora ha id). Condizione render: `!form.id && !isCreating`.
+
+---
+
+### S40-3. UI — Campanello notifiche su iPad: tooltip compare ma click non apre panel
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Header (tutto il gestionale)
+**Gravità:** media
+
+**Sintomo:** su iPad il tooltip "Notifiche" compare nella posizione corretta (sessione 39 fix placement="bottom"), ma cliccando il campanello il pannello notifiche non si apre più. Stesso comportamento probabile anche su 🔑 Cambia PIN.
+
+**Causa probabile:** `Tooltip.jsx` su touch usa il pattern "double-tap" — primo tap mostra il tooltip e blocca il click, secondo tap lascia passare. Per icone universali come 🔔 e 🔑 il tooltip è ridondante e il double-tap introduce friction: se Marco aspetta oltre 2,5s (auto-close) tra primo e secondo tap, `firstTouchShown` si resetta e il secondo tap è di nuovo "primo tap" → non apre mai.
+
+**Fix previsto:** aggiungere prop `disableOnTouch` al `Tooltip`. Quando true e `isTouch === true`, il componente si comporta come passthrough (return children, niente double-tap). Nel Header marcare 🔔 e 🔑 con questa prop.
+
+---
+
+### S40-4. Dipendenti — Inattivo mantiene colore occupato
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Dipendenti / Anagrafica
+**Gravità:** bassa
+
+**Richiesta:** quando un dipendente viene settato inattivo, togliere il colore assegnato e metterne uno grigio di default, così il colore torna disponibile per altri dipendenti attivi.
+
+---
+
+### S40-5. Dipendenti — Auto-ID alla creazione
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Dipendenti / Anagrafica
+**Gravità:** bassa
+
+**Richiesta:** assegnare automaticamente un ID/codice dipendente alla creazione, invece di richiederlo manualmente.
+
+**Da capire:** il campo `codice` oggi è inserito da Marco (SALA01, CUC02, ecc.). Marco vuole che venga generato? Pattern consigliato: prefisso reparto + progressivo (es. SALA03) calcolato lato backend al POST.
+
+---
+
+### S40-6. Dipendenti — Campo nickname in anagrafica
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Dipendenti / Anagrafica + Stampe turni
+**Gravità:** bassa
+
+**Richiesta:** aggiungere campo `nickname` all'anagrafica. Nelle stampe turni, se presente, usare il nickname invece del nome + iniziale cognome.
+
+**Impatto tecnico:** migrazione (colonna `nickname TEXT` su `dipendenti`), form anagrafica, logica stampa in `FoglioSettimana.jsx` + altri componenti che stampano turni.
+
+---
+
+### S40-7. UI — Barra menu Controllo Gestione diversa dagli altri moduli
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Controllo Gestione / Nav
+**Gravità:** bassa
+
+**Richiesta:** uniformare la tab bar di Controllo Gestione allo stile degli altri moduli (dopo la revisione nav sessione 39). Serve vedere quale dettaglio è diverso.
+
+---
+
+### S40-8. Acquisti — Fornitori ignorati vanno nascosti di default in Fatture
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Acquisti / Fatture
+**Gravità:** media
+
+**Richiesta:** i fornitori ignorati (Banca, Cattaneo, Pontiggia, Nexi, Cassa Affitto, ecc.) oggi compaiono in lista fatture. Vanno flaggati come "ignorati" e nascosti di default. Un toggle "Mostra anche ignorati" permette di rivederli.
+
+**Stato attuale:** `fe_fornitore_categoria.escluso_acquisti` esiste già (vedi CLAUDE.md) → usare quello come filtro default nel router lista fatture + aggiungere toggle UI.
+
+---
+
+### S40-9. Controllo Gestione — Default filtri dashboard
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Controllo Gestione / Dashboard
+**Gravità:** bassa
+
+**Richiesta:** all'apertura della dashboard pre-selezionare i filtri: **stati programmati + pagati + scaduti**, **periodo mese corrente**. Ora il default è probabilmente "tutto" o "solo pagati".
+
+---
+
+### S40-10. Controllo Gestione — Somma importi su selezione multipla (stile Excel)
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Controllo Gestione / Lista spese
+**Gravità:** bassa
+
+**Richiesta:** quando si selezionano più righe con checkbox, accanto a "N selezionate" mostrare la somma degli importi, come fa Excel selezionando più celle.
+
+---
+
+### S40-11. Flussi di Cassa — Suggerimenti con distanza date inverosimile
+**Segnalato:** 2026-04-16 (sessione 40, con screenshot)
+**Modulo:** Flussi di Cassa / Riconciliazione (suggerimenti automatici)
+**Gravità:** media
+
+**Sintomo:** addebito diretto SDD 08 apr 26 (€94,81) propone match con fatture Amazon Business da 11 ago 25, 01 set 25, 15 nov 25, 26 feb 26 — finestra di anni invece che settimane.
+
+**Da capire:** la logica di scoring matching probabilmente pesa troppo l'importo e poco la vicinanza temporale. Serve capire:
+1. File sorgente: probabilmente `banca_router.py` o servizio riconciliazione
+2. Ridurre la finestra temporale (es. ±30 giorni max per addebiti SDD / ±90 giorni per bonifici)
+3. Penalizzare fortemente distanze > 60 giorni anche con importo uguale
+
+---
+
+### S40-12. Flussi di Cassa — Selezione multipla "parcheggia" in riconciliazione
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Flussi di Cassa / Riconciliazione
+**Gravità:** media
+
+**Richiesta:** aggiungere checkbox di selezione multipla sui movimenti. Opzioni bulk:
+- **Parcheggia** → sposta in uno stato "in attesa" per riconciliarli dopo, senza chiuderli come "senza match" definitivo
+- **Flagga "senza match"** → come già fatto oggi singolarmente, ma in bulk
+
+Deve sempre essere possibile tornare indietro e riconciliare manualmente.
+
+---
+
+### S40-13. Flussi di Cassa — Descrizione troppo stretta su iPad
+**Segnalato:** 2026-04-16 (sessione 40, con screenshot)
+**Modulo:** Flussi di Cassa / Riconciliazione (tabella movimenti)
+**Gravità:** media
+
+**Sintomo:** su iPad la colonna Descrizione si tronca su "addebito diretto sdd - sdd core: 4xh2224z2gsse p..." e non è leggibile.
+
+**Opzioni:**
+- A: wrap a capo della descrizione se la tabella è larga < N px
+- B: tap sulla riga → espande la cella in overlay con descrizione completa
+
+Marco preferisce l'opzione più comoda da decidere in implementazione.
+
+---
+
+### S40-14. Flussi di Cassa — Duplicati Sogegros ancora presenti
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Flussi di Cassa / Banca movimenti
+**Gravità:** media
+
+**Sintomo:** due voci identiche Sogegros (cash and carry) per €597,08 visibili in lista.
+
+**Contesto:** già chiusi 5 interventi dedup (migrazioni 041, 042, 046, 051, 058). Evidentemente la logica non copre tutti i casi.
+
+**Da capire:**
+1. Data dei due duplicati? (serve per distinguere: stesso giorno = import doppio; giorni diversi = incasso e restituzione legittimi male identificati)
+2. Causale/riferimento identico?
+3. Decidere regola dedup aggiuntiva (es. se stesso importo + stessa data + stessa descrizione → dedup aggressivo)
+
+Serve caso concreto da Marco (ID banca_movimenti dei due record).
+
+---
+
+### S40-15. Acquisti — Import FIC salta dettaglio righe
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Acquisti / Import Fatture in Cloud
+**Gravità:** media
+
+**Sintomo:** alcune fatture importate da FIC non hanno il dettaglio righe, nonostante su FIC il dettaglio ci sia. Marco sospetta anche che dopo gli ultimi aggiornamenti l'import abbia smesso di funzionare.
+
+**Da capire:**
+1. Caso concreto: ID fattura FIC + fattura nel DB TRGB senza righe
+2. Verificare se la cosa è peggiorata dopo commit recente (regressione) o è pre-esistente
+3. Log `fattureincloud_router.py` e verificare come arriva il payload da FIC
+
+---
+
+### S40-16. Statistiche — "Import iPratico" sembra sparito
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Statistiche / Import
+**Gravità:** bassa
+
+**Status verifica:** la tab "📥 Import iPratico" ESISTE ancora in `StatisticheNav.jsx` (riga 10), visibile solo ad admin. La rotta `/statistiche/import` è montata in `App.jsx` (riga 300). Il componente `StatisticheImport.jsx` esiste.
+
+Due ipotesi:
+- A: Marco su iPad è loggato con ruolo diverso da admin → non vede la tab (filtro roles:["admin"])
+- B: Marco sta confondendo con l'iPratico **Vini** (import/export sincronizzazione anagrafica) che nella sessione 39 ho effettivamente spostato da voce autonoma a "embedded" dentro `ViniImpostazioni` → quella può sembrare "sparita"
+
+**Da chiarire con Marco**: quale iPratico intendeva. Se B: ripristinare voce separata o segnalargli che è dentro Vini → Impostazioni.
+
+---
+
+### S40-17. Statistiche — Menu con più opzioni sparito nella revisione
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Statistiche (dashboard o sub-menu non identificato)
+**Gravità:** bassa
+
+**Da chiarire con Marco**: quale menu? Statistiche → Dashboard oppure Statistiche → Cucina (`CucinaMenu.jsx`)? Serve sapere quali opzioni mancano per capire se sono state tolte nella revisione nav (sessione 39) e vanno ripristinate o se sono state spostate in altro modulo.
+
+---
 
 ### D1. Flussi di Cassa — Sistema storni difettoso
 **Segnalato:** 2026-04-10

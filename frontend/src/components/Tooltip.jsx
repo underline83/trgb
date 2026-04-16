@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/Tooltip.jsx
-// @version: v1.1 — fix detect iPad desktop-mode + long-press callout/zoom
+// @version: v1.2 — prop `disableOnTouch` (passthrough su touch) — sessione 40
 //
 // Wrapper sostitutivo per `title=` nativo HTML.
 // Su desktop: hover con delay → popup. Comportamento storico.
@@ -7,6 +7,12 @@
 // child (via onClickCapture in fase capture con preventDefault+stopPropagation).
 // Secondo tap sullo stesso child esegue l'azione normalmente (firstTouch reset).
 // Tap fuori o timeout 2.5s → chiude.
+//
+// v1.2 — Nuova prop `disableOnTouch` (default false):
+//  su touch, quando true, il tooltip NON appare e il click arriva al child al
+//  primo tap — utile per icone universali (🔔 notifiche, 🔑 cambio PIN) dove
+//  il double-tap è friction inutile e rischia che il secondo tap arrivi dopo
+//  il timeout di 2,5s e l'azione non parta mai (bug sessione 40).
 //
 // v1.1 — BUGFIX iPad:
 //  1) iPad in modalità "Desktop Website" (default iPadOS 13+) riporta
@@ -18,7 +24,7 @@
 //     testo. Aggiunto -webkit-touch-callout:none + user-select:none al wrapper.
 //
 // Uso tipico:
-//   <Tooltip label="Cambia PIN">
+//   <Tooltip label="Cambia PIN" disableOnTouch>
 //     <button onClick={...}>🔑</button>
 //   </Tooltip>
 //
@@ -32,6 +38,7 @@ export default function Tooltip({
   placement = "top",
   delay = 400,
   className = "",
+  disableOnTouch = false,
 }) {
   const [open, setOpen] = useState(false);
   const [isTouch, setIsTouch] = useState(false);
@@ -139,6 +146,10 @@ export default function Tooltip({
   );
 
   if (!label) return children;
+
+  // Passthrough su touch quando richiesto: niente double-tap, niente popup,
+  // il click arriva al child al primo tap. Utile per icone universali.
+  if (disableOnTouch && isTouch) return children;
 
   const placementClass =
     placement === "bottom"

@@ -320,7 +320,10 @@ export default function Header({ onLogout }) {
           </div>
           {/* ── Campanello notifiche (M.A) ── */}
           <div className="relative">
-            <Tooltip label="Notifiche" placement="bottom">
+            {/* disableOnTouch: su iPad il double-tap bloccava l'apertura del
+                pannello (bug sessione 40). L'icona 🔔 è universale, il tooltip
+                è ridondante su touch. */}
+            <Tooltip label="Notifiche" placement="bottom" disableOnTouch>
               <button
                 onClick={() => {
                   if (!notificheOpen) caricaNotifiche();
@@ -349,7 +352,7 @@ export default function Header({ onLogout }) {
             )}
           </div>
 
-          <Tooltip label="Cambia PIN" placement="bottom">
+          <Tooltip label="Cambia PIN" placement="bottom" disableOnTouch>
             <button
               onClick={() => navigate("/cambio-pin")}
               className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"

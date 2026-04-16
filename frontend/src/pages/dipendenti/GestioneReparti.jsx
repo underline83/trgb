@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/GestioneReparti.jsx
-// @version: v1.1-embeddable (supporta prop `embedded` per essere renderizzato dentro DipendentiImpostazioni)
+// @version: v1.2-isCreating (fix "Nuovo reparto" non apriva il form — sessione 40)
 // CRUD reparti: lista + form dettaglio con orari, pause staff, colore e icona
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -46,6 +46,10 @@ export default function GestioneReparti({ embedded = false }) {
   const [error, setError] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  // true quando l'utente ha cliccato "+ Nuovo reparto" ma non ha ancora salvato.
+  // Senza questo flag il form vuoto non viene mostrato perché EMPTY.codice === ""
+  // soddisfa la condizione `!form.id && !form.codice` che mostra il placeholder.
+  const [isCreating, setIsCreating] = useState(false);
 
   const jsonHeaders = { "Content-Type": "application/json" };
 
@@ -69,6 +73,7 @@ export default function GestioneReparti({ embedded = false }) {
   }, [load]);
 
   const handleSelect = (r) => {
+    setIsCreating(false);
     setForm({
       id: r.id,
       codice: r.codice || "",
@@ -86,7 +91,10 @@ export default function GestioneReparti({ embedded = false }) {
     });
   };
 
-  const handleNew = () => setForm(EMPTY);
+  const handleNew = () => {
+    setForm(EMPTY);
+    setIsCreating(true);
+  };
   const handleChange = (f, v) => setForm((p) => ({ ...p, [f]: v }));
 
   const handleSave = async (e) => {
@@ -119,6 +127,7 @@ export default function GestioneReparti({ embedded = false }) {
       else {
         setReparti((p) => [...p, saved]);
         setForm((f) => ({ ...f, id: saved.id }));
+        setIsCreating(false); // il record ora esiste: esci dalla modalità "nuovo"
       }
     } catch (e) {
       setError(e.message);
@@ -210,7 +219,7 @@ export default function GestioneReparti({ embedded = false }) {
 
         {/* FORM DETTAGLIO */}
         <div className="flex-1 overflow-y-auto">
-          {!form.id && !form.codice ? (
+          {!form.id && !isCreating ? (
             <div className="flex items-center justify-center h-full text-neutral-400 text-sm text-center px-6">
               <div>
                 <div className="text-5xl mb-3">{"\uD83C\uDFE2"}</div>
