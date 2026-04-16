@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-04-16 — Pulizia Duplicati Banca (pre-autorizzazioni bancomat)
+
+### Problema
+I pagamenti bancomat/carta generano due movimenti nel CSV bancario: una pre-autorizzazione (immediata) e una contabilizzazione (giorni dopo). Stessa `data_valuta` e `importo`, ma `data_contabile` e `descrizione` diversi → il dedup_hash non li cattura.
+
+### Backend
+- **Endpoint `/banca/duplicati/` potenziato**: ora rileva due tipi di duplicati:
+  1. **Classici**: stessa `data_contabile` + `importo` + descrizione simile (come prima)
+  2. **Pre-autorizzazioni**: stessa `data_valuta` + `importo`, `data_contabile` diversa, pattern "carta/bancomat/cash&carry" nella descrizione
+- Helper `_enrich_movimenti()` estratto per riuso
+- Ogni gruppo ha campo `tipo` ("classico" / "preautorizzazione")
+- L'endpoint DELETE `/duplicati/{keep_id}` resta invariato — migra link prima di eliminare
+
+### Frontend
+- **Nuova sezione "🧹 Pulizia Duplicati"** in Banca → Impostazioni (sidebar)
+- UI con card per ogni gruppo: pre-autorizzazioni in alto (ambra), classici sotto (rosso)
+- Auto-selezione: mantiene il movimento con link, o il più recente
+- Click per cambiare quale mantenere, bottone rosso per eliminare
+
+---
+
 ## 2026-04-16 — Sessione 40 / Dipendenti — Assenze (Ferie / Malattia / Permesso)
 
 Marco: _"bisogna prevedere il concetto di 'ferie' — gente che mi avvisa che non c'è"_

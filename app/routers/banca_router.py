@@ -1753,17 +1753,44 @@ def annulla_registrazione(movimento_id: int):
 # 9e. DUPLICATI — rilevamento e pulizia
 # ═══════════════════════════════════════════════════════
 
+def _enrich_movimenti(conn, ids: list[int]) -> list[dict]:
+    """Carica movimenti per IDs con flag has_links."""
+    ph = ",".join("?" * len(ids))
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT m.*,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM banca_fatture_link WHERE movimento_id = m.id
+               ) THEN 1
+               WHEN EXISTS (
+                   SELECT 1 FROM cg_uscite WHERE banca_movimento_id = m.id
+               ) THEN 1
+               WHEN EXISTS (
+                   SELECT 1 FROM cg_entrate WHERE banca_movimento_id = m.id
+               ) THEN 1
+               ELSE 0 END AS has_links
+        FROM banca_movimenti m
+        WHERE m.id IN ({ph})
+        ORDER BY m.id ASC
+    """, ids)
+    return [dict(r) for r in cur.fetchall()]
+
+
 @router.get("/duplicati")
 def get_duplicati():
     """
-    Rileva movimenti duplicati: stessa data + stesso importo + descrizione simile.
-    NON segnala come duplicati movimenti con descrizione diversa (es. commissioni
-    bonifici diversi nello stesso giorno).
+    Rileva movimenti duplicati in due modi:
+    1. CLASSICI: stessa data_contabile + importo + descrizione simile
+    2. PREAUTORIZZAZIONI: stessa data_valuta + importo ma data_contabile diversa
+       (bancomat/carta che genera pre-autorizzazione e poi contabilizzazione)
     """
     conn = get_db()
     cur = conn.cursor()
 
-    # Trova gruppi con stessa data + stesso importo (almeno 2 movimenti)
+    groups = []
+    seen_ids = set()  # evita duplicati tra i due tipi
+
+    # ── Tipo 1: duplicati classici (stessa data_contabile) ────────
     cur.execute("""
         SELECT data_contabile, importo, COUNT(*) AS cnt,
                GROUP_CONCAT(id) AS ids
@@ -1773,31 +1800,10 @@ def get_duplicati():
         ORDER BY data_contabile DESC
     """)
 
-    groups = []
     for row in cur.fetchall():
         ids = [int(x) for x in row["ids"].split(",")]
-        ph = ",".join("?" * len(ids))
-        cur2 = conn.cursor()
-        cur2.execute(f"""
-            SELECT m.*,
-                   CASE WHEN EXISTS (
-                       SELECT 1 FROM banca_fatture_link WHERE movimento_id = m.id
-                   ) THEN 1
-                   WHEN EXISTS (
-                       SELECT 1 FROM cg_uscite WHERE banca_movimento_id = m.id
-                   ) THEN 1
-                   WHEN EXISTS (
-                       SELECT 1 FROM cg_entrate WHERE banca_movimento_id = m.id
-                   ) THEN 1
-                   ELSE 0 END AS has_links
-            FROM banca_movimenti m
-            WHERE m.id IN ({ph})
-            ORDER BY m.id ASC
-        """, ids)
-        movimenti = [dict(r) for r in cur2.fetchall()]
+        movimenti = _enrich_movimenti(conn, ids)
 
-        # Raggruppa per descrizione normalizzata — solo gruppi con desc simile
-        # sono veri duplicati (commissioni diverse non lo sono)
         by_desc = {}
         for m in movimenti:
             norm = _normalize_desc(m["descrizione"])
@@ -1806,12 +1812,55 @@ def get_duplicati():
         for norm_desc, mlist in by_desc.items():
             if len(mlist) < 2:
                 continue
+            group_ids = frozenset(m["id"] for m in mlist)
+            seen_ids.update(group_ids)
             groups.append({
+                "tipo": "classico",
                 "data": row["data_contabile"],
                 "importo": row["importo"],
                 "count": len(mlist),
                 "movimenti": mlist,
             })
+
+    # ── Tipo 2: preautorizzazioni (stessa data_valuta, data_contabile diversa) ──
+    cur.execute("""
+        SELECT data_valuta, importo, COUNT(*) AS cnt,
+               GROUP_CONCAT(id) AS ids
+        FROM banca_movimenti
+        WHERE data_valuta IS NOT NULL AND data_valuta != ''
+        GROUP BY data_valuta, importo
+        HAVING cnt > 1
+        ORDER BY data_valuta DESC
+    """)
+
+    for row in cur.fetchall():
+        ids = [int(x) for x in row["ids"].split(",")]
+        # Salta se tutti gli ID sono già stati catturati dal tipo 1
+        if all(i in seen_ids for i in ids):
+            continue
+        movimenti = _enrich_movimenti(conn, ids)
+
+        # Filtra: almeno 2 movimenti con data_contabile DIVERSA
+        date_contabili = set(m["data_contabile"] for m in movimenti)
+        if len(date_contabili) < 2:
+            continue  # stessa data_contabile → già catturato sopra
+
+        # Ulteriore check: almeno uno con pattern carta/bancomat nella descrizione
+        carta_pattern = re.compile(r"carta|bancomat|cash\s*&?\s*carry|pos\s|contactless", re.IGNORECASE)
+        has_carta = any(carta_pattern.search(m.get("descrizione") or "") for m in movimenti)
+        if not has_carta:
+            continue
+
+        group_ids = frozenset(m["id"] for m in movimenti)
+        seen_ids.update(group_ids)
+        groups.append({
+            "tipo": "preautorizzazione",
+            "data": row["data_valuta"],
+            "data_valuta": row["data_valuta"],
+            "importo": row["importo"],
+            "count": len(movimenti),
+            "movimenti": movimenti,
+        })
 
     conn.close()
     return groups
