@@ -843,33 +843,53 @@ export default function BancaCrossRef() {
               </div>
               {showDup && (
                 <div className="mt-3 space-y-3">
-                  {dupGroups.map((g, gi) => (
+                  <p className="text-xs text-amber-700">
+                    Vai in <strong>Impostazioni → 🧹 Pulizia Duplicati</strong> per gestirli con auto-selezione intelligente.
+                  </p>
+                  {dupGroups.map((g, gi) => {
+                    // Per preautorizzazioni: il keep è il contabilizzato (senza is_preauth)
+                    const isPreauth = g.tipo === "preautorizzazione";
+                    const keepMov = isPreauth
+                      ? g.movimenti.find(m => !m.is_preauth) || g.movimenti.find(m => m.has_links) || g.movimenti[0]
+                      : g.movimenti.find(m => m.has_links) || g.movimenti[0];
+                    const keepId = keepMov.id;
+                    const deleteIds = g.movimenti.filter(m => m.id !== keepId).map(m => m.id);
+                    return (
                     <div key={gi} className="bg-white rounded-lg border border-amber-200 p-3">
-                      <div className="text-xs font-semibold text-neutral-700 mb-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-neutral-700 mb-2">
                         {fmtDate(g.data)} — € {fmt(g.importo)} — {g.count} movimenti
+                        {isPreauth && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium text-[10px]">pre-autoriz.</span>
+                        )}
                       </div>
-                      {g.movimenti.map((m, mi) => (
-                        <div key={m.id} className="flex items-center gap-3 py-1.5 border-b border-neutral-100 last:border-0">
+                      {g.movimenti.map((m) => {
+                        const isKeep = m.id === keepId;
+                        return (
+                        <div key={m.id} className={`flex items-center gap-3 py-1.5 border-b border-neutral-100 last:border-0 ${!isKeep ? "opacity-60" : ""}`}>
                           <span className="text-[10px] text-neutral-400 font-mono">#{m.id}</span>
                           <span className="text-xs text-neutral-700 flex-1 truncate">{m.descrizione}</span>
+                          {m.is_preauth ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">da contab</span>
+                          ) : null}
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${m.has_links ? "bg-emerald-100 text-emerald-700" : "bg-neutral-100 text-neutral-500"}`}>
                             {m.has_links ? "collegato" : "libero"}
                           </span>
-                          {mi > 0 && !m.has_links && (
+                          {!isKeep ? (
                             <button
-                              onClick={() => handleDeleteDup(g.movimenti[0].id, [m.id])}
+                              onClick={() => handleDeleteDup(keepId, [m.id])}
                               disabled={dupDeleting}
                               className="px-2 py-1 rounded text-[10px] font-medium border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40">
                               Elimina
                             </button>
-                          )}
-                          {mi === 0 && (
+                          ) : (
                             <span className="text-[10px] text-emerald-600 font-medium">mantieni</span>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
