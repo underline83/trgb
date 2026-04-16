@@ -1026,11 +1026,19 @@ export default function FattureImpostazioni() {
                       <div className="font-semibold">
                         ✅ Candidate batch: {bulkXmlResult.candidate} · Processate: {bulkXmlResult.processate} ·
                         Ok: {bulkXmlResult.ok_count} · Fail: {bulkXmlResult.fail_count}
+                        {bulkXmlResult.skipped_non_fe > 0 && (
+                          <span className="text-neutral-500 font-normal"> · {bulkXmlResult.skipped_non_fe} non-FE</span>
+                        )}
                         {bulkXmlResult.elapsed_seconds != null && (
                           <span className="text-neutral-600 font-normal"> · {bulkXmlResult.elapsed_seconds}s</span>
                         )}
                       </div>
                       <div>Totale righe recuperate: <strong>{bulkXmlResult.righe_recuperate}</strong></div>
+                      {bulkXmlResult.skipped_non_fe > 0 && (
+                        <div className="mt-1 px-2 py-1 rounded bg-neutral-100 text-neutral-600 text-xs">
+                          ℹ {bulkXmlResult.skipped_non_fe} fatture non elettroniche (affitti, marketplace) — non hanno XML SDI, le righe vanno inserite a mano se servono.
+                        </div>
+                      )}
                       {bulkXmlResult.stopped_by_timeout && (
                         <div className="mt-1 px-2 py-1 rounded bg-amber-100 text-amber-900">
                           ⏱ Fermato dal time budget (90s). Rilancia per continuare.
@@ -1038,8 +1046,13 @@ export default function FattureImpostazioni() {
                       )}
                       {bulkXmlResult.rimanenti_stima > 0 && (
                         <div className="text-neutral-700">
-                          Ancora da processare: <strong>{bulkXmlResult.rimanenti_stima}</strong> fatture.
+                          Ancora da processare: <strong>{bulkXmlResult.rimanenti_stima}</strong> fatture elettroniche.
                           {" "}Rilancia il bulk per continuare.
+                        </div>
+                      )}
+                      {bulkXmlResult.rimanenti_stima === 0 && bulkXmlResult.ok_count === 0 && bulkXmlResult.skipped_non_fe > 0 && (
+                        <div className="text-green-700 font-medium">
+                          ✅ Nessuna fattura elettronica rimasta senza righe. Le {bulkXmlResult.skipped_non_fe} non-FE sono irrecuperabili automaticamente.
                         </div>
                       )}
                       {bulkXmlResult.dettaglio?.length > 0 && (
@@ -1050,13 +1063,15 @@ export default function FattureImpostazioni() {
                               <div
                                 key={i}
                                 className={`font-mono text-[11px] px-2 py-1 rounded ${
-                                  r.ok ? "bg-white/60" : "bg-red-100/60 text-red-800"
+                                  r.ok ? "bg-white/60" : r.skipped ? "bg-neutral-100/60 text-neutral-500" : "bg-red-100/60 text-red-800"
                                 }`}
                               >
                                 #{r.db_id} (fic={r.fic_id || "—"}) —
                                 {r.ok
                                   ? ` ${r.righe} righe${r.numero ? ` · n° ${r.numero}` : ""}${r.fornitore ? ` · ${r.fornitore}` : ""}`
-                                  : ` ⚠ ${r.error}`}
+                                  : r.skipped
+                                    ? ` ⏭ ${r.error}`
+                                    : ` ⚠ ${r.error}`}
                               </div>
                             ))}
                           </div>

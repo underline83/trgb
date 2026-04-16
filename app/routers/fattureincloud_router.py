@@ -1225,7 +1225,8 @@ def _refetch_righe_xml_single(conn, token: str, cid: int, db_id: int) -> dict:
 
         if not e_invoice:
             return {
-                "ok": False, "db_id": db_id, "fic_id": fic_id,
+                "ok": False, "skipped": True, "reason": "non_fe",
+                "db_id": db_id, "fic_id": fic_id,
                 "error": "non e' fattura elettronica (no XML disponibile)",
             }
         if not attachment_url:
@@ -1392,6 +1393,7 @@ def fic_bulk_refetch_righe_xml(
         risultati = []
         ok_count = 0
         fail_count = 0
+        skipped_count = 0  # non-FE: niente XML, non recuperabili
         righe_recuperate = 0
         stopped_by_timeout = False
 
@@ -1406,15 +1408,20 @@ def fic_bulk_refetch_righe_xml(
             if res.get("ok"):
                 ok_count += 1
                 righe_recuperate += res.get("righe", 0)
+            elif res.get("skipped"):
+                skipped_count += 1
             else:
                 fail_count += 1
             # Commit intermedio ogni 5 per non perdere progressi se poi c'e' timeout
-            if (ok_count + fail_count) % 5 == 0:
+            processed = ok_count + fail_count + skipped_count
+            if processed % 5 == 0:
                 conn.commit()
 
         conn.commit()
 
         # Quante restano da processare? (ricalcolo dopo il commit)
+        # Nota: le non-FE (skipped) restano senza righe per sempre,
+        # quindi le escludiamo dal conteggio "rimanenti" utili.
         rimanenti = 0
         try:
             rem_rows = conn.execute(
@@ -1423,7 +1430,9 @@ def fic_bulk_refetch_righe_xml(
                 + (" AND substr(data_fattura, 1, 4) = ?" if anno else ""),
                 ([str(anno)] if anno else []),
             ).fetchone()
-            rimanenti = rem_rows["n"] if rem_rows else 0
+            rimanenti_raw = rem_rows["n"] if rem_rows else 0
+            # Sottrai le non-FE che sappiamo irrecuperabili
+            rimanenti = max(0, rimanenti_raw - skipped_count)
         except Exception:
             pass
 
@@ -1434,6 +1443,7 @@ def fic_bulk_refetch_righe_xml(
             "processate": len(risultati),
             "ok_count": ok_count,
             "fail_count": fail_count,
+            "skipped_non_fe": skipped_count,
             "righe_recuperate": righe_recuperate,
             "stopped_by_timeout": stopped_by_timeout,
             "rimanenti_stima": rimanenti,

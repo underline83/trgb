@@ -33,10 +33,20 @@ Utility riusabile, pura Python (nessuna nuova dipendenza). Espone:
 - `app/routers/fattureincloud_router.py` — fallback XML in `_fetch_detail_and_righe`, debug-detail esteso, endpoint `refetch-righe-xml/{db_id}` e `bulk-refetch-righe-xml`, log esplicito eccezioni.
 - `frontend/src/pages/admin/FattureImpostazioni.jsx` — preview parsing XML nel debug, card recovery singolo + bulk.
 
+### v2 — Fix schema + skipped_non_fe + time budget (stesso giorno)
+
+- **Fix critico**: `fornitore_denominazione` → `fornitore_nome` (era nome parser, non colonna DB). Preflight su tutte le query SQL verificate vs `PRAGMA table_info`.
+- **Bulk batch ridotto**: `limit` default da 500→50, `max_seconds=90` time budget con `stopped_by_timeout` e `rimanenti_stima` per evitare timeout nginx.
+- **Fatture non elettroniche (skipped_non_fe)**: `_refetch_righe_xml_single` ora ritorna `"skipped": true, "reason": "non_fe"` quando FIC dice `e_invoice=false`. Il bulk le conta separatamente (`skipped_non_fe`) e le esclude da `rimanenti_stima`. La UI le mostra in grigio con icona ⏭ e banner esplicativo, evitando il messaggio fuorviante "rilancia per continuare" quando restano solo non-FE.
+
+### Verifica completezza import marzo 2026
+
+Confronto export FIC vs DB: **66/66 fatture tutte presenti** in `fe_fatture`. Nessuna mancante, nessuna orfana. Panoramica 2025-2026: 52 fatture senza righe su 821 → 32 affitti mensili (CATTANEO+BANA, non-FE), 18 Amazon/marketplace (non-FE), 2 FE vere (OROBICA+MILESI, risolte col bulk). Unica discrepanza: bettershop srl €0.77 (totale_fattura FIC vs imponibile+IVA export, sconto marketplace).
+
 ### Come recuperare le fatture attuali senza righe
 1. Fatture › Impostazioni › Fatture in Cloud.
 2. Debug: inserire `fic_id` (es. `405656723`) → vedere `is_detailed=false`, `e_invoice=true`, `attachment_url=(temporary url)` + anteprima XML con righe parsate.
-3. Scroll giù: "Recupero righe da XML SDI" → inserire anno `2026`, limite `500` → "Avvia recupero massivo".
+3. Scroll giù: "Recupero righe da XML SDI" → inserire anno `2026`, limite `50` → "Avvia recupero massivo". Le non-FE vengono skippate automaticamente, il contatore "rimanenti" le esclude.
 
 ---
 

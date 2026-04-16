@@ -24,7 +24,9 @@ Marco ha segnalato che da fine marzo le fatture FIC di alcuni fornitori arrivano
 - `app/routers/fattureincloud_router.py` (fallback XML, debug-detail esteso, 2 endpoint recovery).
 - `frontend/src/pages/admin/FattureImpostazioni.jsx` v2.3.
 
-**Action item per Marco dopo il push**: aprire Fatture › Impostazioni › FIC → card "Recupero righe da XML SDI" → anno 2026, limite 500 → Avvia. Ri-categorizzazione automatica applicata alle righe recuperate.
+**v2 fix (stesso giorno)**: schema SQL sbagliato (`fornitore_denominazione` → `fornitore_nome`). Preflight PRAGMA table_info su tutto il router. Bulk ridotto a batch=50, time budget 90s, `stopped_by_timeout` + `rimanenti_stima`. **v3 skipped_non_fe**: il bulk ora distingue fatture non-FE (`e_invoice=false`) come `skipped` anziche' `fail`. UI: contatore separato, banner esplicativo, righe non-FE in grigio con ⏭, messaggio "rilancia" appare solo se restano FE vere.
+
+**Verifica completezza import marzo 2026**: confronto export FIC vs DB → 66/66 fatture presenti. Panoramica 2025-2026: 52 fatture senza righe di cui 32 affitti mensili + 18 Amazon marketplace (tutte non-FE), 2 FE vere (OROBICA+MILESI, risolte col bulk).
 
 ---
 
