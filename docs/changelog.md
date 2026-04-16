@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-04-17 — Fix CG: vendite leggono da shift_closures (+ fallback daily)
+
+### Problema
+Marco: _"a marzo vedo pochissime entrate che in banca sono molto di più"_.
+La dashboard Controllo Gestione leggeva le vendite solo da `daily_closures` (tabella legacy alimentata dall'import Excel mensile). Dal 4 marzo in poi le chiusure sono passate a essere compilate in-app via `shift_closures` (turni pranzo/cena), ma il CG non lo sapeva: mostrava solo i primi 3 giorni del mese. Marzo KPI: € 20.265 sulla dashboard vs € 65.275,80 reali.
+
+Stessa patch già applicata nel 2025 a `corrispettivi_export.py` (funzione `_merge_shift_and_daily`) ma il CG non era stato aggiornato.
+
+### Fix
+- **Nuovo service `app/services/vendite_aggregator.py`** — aggregatore puro che merge `shift_closures` (primario) + `daily_closures` (fallback) per qualsiasi range di date. Tre funzioni: `giorni_merged(conn, from, to)`, `totali_periodo(conn, from, to)`, `totali_mensili_anno(conn, anno)`. Riusa la stessa logica `base = cena or pranzo` del service export corrispettivi.
+- **`controllo_gestione_router.py` aggiornato**: tutte e 3 le letture vendite (KPI mese, variazione mese precedente, andamento annuale, confronto periodi) passano dal nuovo aggregator. Nessun SELECT diretto su `daily_closures` rimane nel router.
+- **Versione**: `controlloGestione: 2.7 → 2.8`.
+
+### Impatto numerico (2026)
+| Mese | Prima (daily only) | Dopo (shift+daily) |
+|---|---|---|
+| Gen | 54.705 € | 54.705 € |
+| Feb | 39.511 € | 39.511 € |
+| **Mar** | **20.265 €** | **65.275,80 €** |
+| **Apr** | **0 €** | **25.168 €** |
+
+Gen/Feb invariati (solo daily). Mar/Apr riallineati.
+
+### Note — fuori scope di questa patch
+- `dashboard_router.py` e `admin_finance_stats.py` leggono ancora solo da `daily_closures`. Stessa vulnerabilità. Da rifattorizzare in una patch dedicata usando il nuovo aggregator.
+- Il fix copre il **principio di competenza** (analitico — vendite attribuite al giorno in cui sono state fatte). Il **principio di cassa** (finanziario — entrate quando arrivano in banca) resta da sviluppare: idea "sezione Liquidità" separata sulla dashboard CG con entrate/uscite banca, POS in arrivo, trend saldo. Tracked per v2.9.
+
+### File modificati
+- `app/services/vendite_aggregator.py` — nuovo
+- `app/routers/controllo_gestione_router.py` — 3 sostituzioni
+- `frontend/src/config/versions.jsx` — bump 2.7 → 2.8
+
+---
+
 ## 2026-04-16 — Pulizia Duplicati Banca (pre-autorizzazioni bancomat)
 
 ### Problema

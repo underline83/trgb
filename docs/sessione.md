@@ -1,8 +1,22 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1+2+3 + S40-15 chiusi)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 41 — fix CG vendite shift+daily)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 41 — Fix CG vendite: shift_closures primario + daily fallback ✅
+
+Marco: _"a marzo vedo pochissime entrate che in banca sono molto di più"_.
+
+**Diagnosi.** Dashboard Controllo Gestione leggeva le vendite solo da `daily_closures` (tabella legacy, alimentata dall'import Excel mensile). Dal 4 marzo Marco ha iniziato a chiudere in-app via `shift_closures` (turni pranzo/cena) → il CG mostrava KPI troncati. Marzo: 20.265 € sulla dashboard vs 65.275,80 € reali. Stessa patch era già stata applicata al servizio export corrispettivi (2025, `_merge_shift_and_daily`) ma il CG non era stato aggiornato.
+
+**Fix.** Nuovo service `app/services/vendite_aggregator.py` con `giorni_merged`, `totali_periodo`, `totali_mensili_anno` — merge shift (primario) + daily (fallback). Il router CG ora passa da qui per tutte e 3 le letture vendite (KPI mese, andamento annuale, confronto). Versione bump `2.7 → 2.8`.
+
+**Discussione architetturale.** Marco ha proposto di leggere direttamente da banca. Abbiamo concordato: la dashboard attuale mostra **principio di competenza** (analitico, vendite attribuite al giorno in cui sono fatte → POS di marzo su marzo anche se accreditati ad aprile). Il **principio di cassa** (finanziario, entrate quando arrivano sul conto) meriterà una sezione "Liquidità" separata nella dashboard CG, da progettare in sessione dedicata.
+
+**Fuori scope (tracked).** `dashboard_router.py` e `admin_finance_stats.py` leggono ancora solo da `daily_closures` → stessa vulnerabilità. Da rifattorizzare con il nuovo aggregator in una patch dedicata.
 
 ---
 

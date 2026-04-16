@@ -14,6 +14,10 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Body
 from app.services.auth_service import get_current_user, is_admin
+from app.services.vendite_aggregator import (
+    totali_periodo as vendite_totali_periodo,
+    totali_mensili_anno as vendite_totali_mensili_anno,
+)
 
 router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"])
 
@@ -88,31 +92,15 @@ def dashboard(
         "periodo": f"{_fmt_month(mese)} {anno}",
     }
 
-    # ─── 1. VENDITE (da admin_finance.sqlite3 — corrispettivi) ───
+    # ─── 1. VENDITE (da admin_finance.sqlite3 via vendite_aggregator) ───
+    # Usa shift_closures come sorgente primaria (chiusure turno in app),
+    # daily_closures come fallback per lo storico. MAI leggere direttamente
+    # una sola delle due: i dati sarebbero parziali.
 
     try:
-        vendite_mese = vdb.execute("""
-            SELECT
-                COUNT(*) AS giorni_apertura,
-                COALESCE(SUM(corrispettivi), 0) AS totale_corrispettivi,
-                COALESCE(SUM(contanti_finali), 0) AS totale_contanti,
-                COALESCE(SUM(pos_bpm + pos_sella), 0) AS totale_pos,
-                COALESCE(SUM(fatture), 0) AS totale_fatture_emesse,
-                COALESCE(AVG(corrispettivi), 0) AS media_giornaliera
-            FROM daily_closures
-            WHERE date >= ? AND date < ?
-            AND corrispettivi > 0
-        """, (primo_giorno, ultimo_giorno)).fetchone()
-
-        vendite_prev = vdb.execute("""
-            SELECT COALESCE(SUM(corrispettivi), 0) AS totale
-            FROM daily_closures
-            WHERE date >= ? AND date < ?
-            AND corrispettivi > 0
-        """, (prev_primo, prev_ultimo)).fetchone()
-
-        v = dict(vendite_mese)
-        v_prev = vendite_prev["totale"] or 0
+        v = vendite_totali_periodo(vdb, primo_giorno, ultimo_giorno)
+        v_prev_tot = vendite_totali_periodo(vdb, prev_primo, prev_ultimo)
+        v_prev = v_prev_tot["totale_corrispettivi"] or 0
         v["variazione_mese_prec"] = (
             round((v["totale_corrispettivi"] - v_prev) / v_prev * 100, 1)
             if v_prev > 0 else None
@@ -226,23 +214,15 @@ def dashboard(
             "banca_uscite": round(banca_u, 2),
         })
 
-    # Vendite annuali (da DB separato)
+    # Vendite annuali (da DB separato, via vendite_aggregator)
     try:
         vdb2 = get_vendite_db()
-        for m in range(1, 13):
-            m_primo = f"{anno}-{m:02d}-01"
-            if m == 12:
-                m_ultimo = f"{anno + 1}-01-01"
-            else:
-                m_ultimo = f"{anno}-{m + 1:02d}-01"
-
-            ven = vdb2.execute("""
-                SELECT COALESCE(SUM(corrispettivi), 0) AS tot
-                FROM daily_closures
-                WHERE date >= ? AND date < ? AND corrispettivi > 0
-            """, (m_primo, m_ultimo)).fetchone()["tot"]
-            andamento[m - 1]["vendite"] = round(ven, 2)
-            andamento[m - 1]["margine"] = round(ven - andamento[m - 1]["acquisti"], 2)
+        mensili = vendite_totali_mensili_anno(vdb2, anno)
+        for m_data in mensili:
+            idx = m_data["mese"] - 1
+            ven = m_data["totale_corrispettivi"]
+            andamento[idx]["vendite"] = ven
+            andamento[idx]["margine"] = round(ven - andamento[idx]["acquisti"], 2)
         vdb2.close()
     except Exception:
         for item in andamento:
@@ -333,10 +313,7 @@ def confronto(
         """, (primo, ultimo)).fetchone()
 
         try:
-            ven = vdb.execute("""
-                SELECT COALESCE(SUM(corrispettivi), 0) AS tot
-                FROM daily_closures WHERE date >= ? AND date < ? AND corrispettivi > 0
-            """, (primo, ultimo)).fetchone()["tot"]
+            ven = vendite_totali_periodo(vdb, primo, ultimo)["totale_corrispettivi"]
         except Exception:
             ven = 0
 
