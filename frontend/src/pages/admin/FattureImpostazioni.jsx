@@ -922,9 +922,18 @@ export default function FattureImpostazioni() {
             <h3 className="text-sm font-bold text-blue-900 mb-1 flex items-center gap-2">
               📥 Recupero righe da XML SDI
             </h3>
-            <p className="text-xs text-neutral-500 mb-3">
-              Per le fatture elettroniche senza righe (FIC restituisce <code className="bg-neutral-100 px-1 rounded">items_list</code> vuoto quando la fattura e' registrata come "Spesa" semplice), scarica il tracciato XML SDI dall'<code className="bg-neutral-100 px-1 rounded">attachment_url</code> di FIC, parsa il <code className="bg-neutral-100 px-1 rounded">DettaglioLinee</code> e popola <code className="bg-neutral-100 px-1 rounded">fe_righe</code>.
-            </p>
+            <div className="text-xs text-neutral-600 mb-3 space-y-1.5 bg-blue-50/50 rounded-lg px-3 py-2 border border-blue-100">
+              <p className="font-medium text-blue-800">Quando serve?</p>
+              <p>
+                Durante la sincronizzazione FIC, le righe vengono recuperate automaticamente.
+                Questo strumento serve <strong>solo per recuperare l'arretrato</strong>: fatture importate prima
+                del fix di aprile 2026 che sono rimaste senza righe di dettaglio.
+              </p>
+              <p>
+                Alcune fatture (affitti, acquisti marketplace) non sono elettroniche e non hanno XML SDI —
+                verranno segnalate come "non-FE" e non è possibile recuperarle automaticamente.
+              </p>
+            </div>
 
             {/* Singolo */}
             <div className="mb-4 pb-4 border-b border-neutral-100">
