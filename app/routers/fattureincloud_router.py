@@ -1199,7 +1199,7 @@ def _refetch_righe_xml_single(conn, token: str, cid: int, db_id: int) -> dict:
        "numero": "...", "fornitore": "...", "error": "..."}
     """
     row = conn.execute(
-        """SELECT id, fic_id, numero_fattura, fornitore_piva, fornitore_denominazione
+        """SELECT id, fic_id, numero_fattura, fornitore_piva, fornitore_nome
            FROM fe_fatture WHERE id = ?""",
         (db_id,),
     ).fetchone()
@@ -1286,7 +1286,7 @@ def _refetch_righe_xml_single(conn, token: str, cid: int, db_id: int) -> dict:
             "fic_id": fic_id,
             "righe": len(xml_righe),
             "numero": parsed.get("numero", row["numero_fattura"] or ""),
-            "fornitore": row["fornitore_denominazione"] or parsed.get("fornitore_denominazione", ""),
+            "fornitore": row["fornitore_nome"] or parsed.get("fornitore_denominazione", ""),
         }
     except HTTPException as he:
         return {
@@ -1333,7 +1333,8 @@ def fic_refetch_righe_xml(
 def fic_bulk_refetch_righe_xml(
     anno: int = Query(None, description="Filtra per anno (default: tutti)"),
     solo_senza_righe: bool = Query(True, description="Solo fatture con n_righe=0"),
-    limit: int = Query(500, ge=1, le=2000, description="Limite massimo di fatture"),
+    limit: int = Query(50, ge=1, le=500, description="Max fatture per batch (default 50 per evitare timeout nginx)"),
+    max_seconds: int = Query(90, ge=10, le=600, description="Tempo massimo wallclock prima di tornare stato parziale"),
     current_user: Any = Depends(get_current_user),
 ):
     """
@@ -1343,8 +1344,15 @@ def fic_bulk_refetch_righe_xml(
     Per ogni fattura chiama l'API FIC per ottenere attachment_url,
     scarica l'XML, parsa DettaglioLinee, popola fe_righe.
 
-    Body: nessuno. Query params: anno, solo_senza_righe, limit.
+    NOTA: per evitare timeout nginx/proxy, il batch e' piccolo (default 50)
+    e si ferma automaticamente dopo `max_seconds` secondi tornando lo
+    stato parziale. Lanciare piu' volte dalla UI finche' `candidate` = 0.
+
+    Body: nessuno. Query params: anno, solo_senza_righe, limit, max_seconds.
     """
+    import time as _time
+    t0 = _time.time()
+
     conn = get_db()
     try:
         cfg = get_config(conn)
@@ -1385,8 +1393,14 @@ def fic_bulk_refetch_righe_xml(
         ok_count = 0
         fail_count = 0
         righe_recuperate = 0
+        stopped_by_timeout = False
 
         for db_id in candidate_ids:
+            # Stop se stiamo per sforare il budget tempo (nginx proxy timeout)
+            if _time.time() - t0 > max_seconds:
+                stopped_by_timeout = True
+                break
+
             res = _refetch_righe_xml_single(conn, token, cid, db_id)
             risultati.append(res)
             if res.get("ok"):
@@ -1394,19 +1408,36 @@ def fic_bulk_refetch_righe_xml(
                 righe_recuperate += res.get("righe", 0)
             else:
                 fail_count += 1
-            # Commit intermedio ogni 10 per non perdere tutto in caso di errore
-            if (ok_count + fail_count) % 10 == 0:
+            # Commit intermedio ogni 5 per non perdere progressi se poi c'e' timeout
+            if (ok_count + fail_count) % 5 == 0:
                 conn.commit()
 
         conn.commit()
+
+        # Quante restano da processare? (ricalcolo dopo il commit)
+        rimanenti = 0
+        try:
+            rem_rows = conn.execute(
+                f"""SELECT COUNT(*) AS n FROM fe_fatture
+                    WHERE {' AND '.join(where_clauses[:-1] if anno else where_clauses)}"""
+                + (" AND substr(data_fattura, 1, 4) = ?" if anno else ""),
+                ([str(anno)] if anno else []),
+            ).fetchone()
+            rimanenti = rem_rows["n"] if rem_rows else 0
+        except Exception:
+            pass
 
         return {
             "ok": True,
             "anno": anno,
             "candidate": len(candidate_ids),
+            "processate": len(risultati),
             "ok_count": ok_count,
             "fail_count": fail_count,
             "righe_recuperate": righe_recuperate,
+            "stopped_by_timeout": stopped_by_timeout,
+            "rimanenti_stima": rimanenti,
+            "elapsed_seconds": round(_time.time() - t0, 2),
             "dettaglio": risultati,
         }
     finally:

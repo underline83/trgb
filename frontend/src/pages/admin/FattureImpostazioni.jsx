@@ -84,7 +84,7 @@ export default function FattureImpostazioni() {
   const [refetchSingleRes, setRefetchSingleRes] = useState(null);
   const [refetchSingleLoading, setRefetchSingleLoading] = useState(false);
   const [bulkXmlAnno, setBulkXmlAnno] = useState(new Date().getFullYear());
-  const [bulkXmlLimit, setBulkXmlLimit] = useState(200);
+  const [bulkXmlLimit, setBulkXmlLimit] = useState(50);
   const [bulkXmlRunning, setBulkXmlRunning] = useState(false);
   const [bulkXmlResult, setBulkXmlResult] = useState(null);
 
@@ -286,13 +286,15 @@ export default function FattureImpostazioni() {
   };
 
   // ─── S40-15 Bulk refetch XML per tutte le fatture senza righe ─
+  // Batch piccolo (default 50) + timeout wallclock 90s lato backend per
+  // evitare timeout nginx. Se restano fatture, l'utente rilancia.
   const handleBulkRefetchXml = async () => {
     const anno = String(bulkXmlAnno || "").trim();
-    const limit = Math.max(1, Math.min(2000, Number(bulkXmlLimit) || 200));
+    const limit = Math.max(1, Math.min(500, Number(bulkXmlLimit) || 50));
     const ok = window.confirm(
       `Avvio recupero righe da XML SDI per ${anno ? `anno ${anno}` : "tutte le annate"} ` +
-      `(max ${limit} fatture con 0 righe).\n\n` +
-      `L'operazione scarica gli XML allegati da FIC, puo' richiedere diversi minuti. Procedere?`
+      `(max ${limit} fatture con 0 righe in questo batch).\n\n` +
+      `Se restano fatture, dopo il batch potrai rilanciare. Procedere?`
     );
     if (!ok) return;
     setBulkXmlRunning(true);
@@ -301,15 +303,28 @@ export default function FattureImpostazioni() {
       const qs = new URLSearchParams({
         solo_senza_righe: "true",
         limit: String(limit),
+        max_seconds: "90",
       });
       if (anno) qs.append("anno", anno);
       const r = await apiFetch(`${FC}/bulk-refetch-righe-xml?${qs.toString()}`, {
         method: "POST",
       });
-      const d = await r.json();
-      setBulkXmlResult(d);
+      if (!r.ok) {
+        let msg = `HTTP ${r.status}`;
+        try {
+          const err = await r.json();
+          msg = err.detail || err.error || msg;
+        } catch (_) {}
+        setBulkXmlResult({ ok: false, error: msg });
+      } else {
+        const d = await r.json();
+        setBulkXmlResult(d);
+      }
     } catch (e) {
-      setBulkXmlResult({ ok: false, error: "Errore di rete" });
+      setBulkXmlResult({
+        ok: false,
+        error: "Errore di rete (timeout nginx/proxy). Riduci il limite a 20-30 fatture per batch.",
+      });
     }
     setBulkXmlRunning(false);
   };
@@ -1009,9 +1024,24 @@ export default function FattureImpostazioni() {
                   {bulkXmlResult.ok ? (
                     <div className="space-y-1">
                       <div className="font-semibold">
-                        ✅ Candidate: {bulkXmlResult.candidate} · Ok: {bulkXmlResult.ok_count} · Fail: {bulkXmlResult.fail_count}
+                        ✅ Candidate batch: {bulkXmlResult.candidate} · Processate: {bulkXmlResult.processate} ·
+                        Ok: {bulkXmlResult.ok_count} · Fail: {bulkXmlResult.fail_count}
+                        {bulkXmlResult.elapsed_seconds != null && (
+                          <span className="text-neutral-600 font-normal"> · {bulkXmlResult.elapsed_seconds}s</span>
+                        )}
                       </div>
                       <div>Totale righe recuperate: <strong>{bulkXmlResult.righe_recuperate}</strong></div>
+                      {bulkXmlResult.stopped_by_timeout && (
+                        <div className="mt-1 px-2 py-1 rounded bg-amber-100 text-amber-900">
+                          ⏱ Fermato dal time budget (90s). Rilancia per continuare.
+                        </div>
+                      )}
+                      {bulkXmlResult.rimanenti_stima > 0 && (
+                        <div className="text-neutral-700">
+                          Ancora da processare: <strong>{bulkXmlResult.rimanenti_stima}</strong> fatture.
+                          {" "}Rilancia il bulk per continuare.
+                        </div>
+                      )}
                       {bulkXmlResult.dettaglio?.length > 0 && (
                         <details className="mt-2">
                           <summary className="cursor-pointer select-none">Dettaglio per fattura</summary>
