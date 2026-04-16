@@ -6,6 +6,19 @@
 
 ---
 
+## SESSIONE 40 — Assenze (Ferie / Malattia / Permesso) ✅
+
+Marco: _"bisogna prevedere il concetto di 'ferie' — gente che mi avvisa che non c'è"_.
+
+- ✅ **Migrazione 083**: tabella `assenze` in `dipendenti.sqlite3` con UNIQUE `(dipendente_id, data)`. Tre tipi: FERIE, MALATTIA, PERMESSO.
+- ✅ **Backend CRUD**: `GET/POST /turni/assenze/`, `DELETE /turni/assenze/{id}`, `GET /turni/assenze/tipi`. POST fa upsert. I 3 builder (foglio, mese, dipendente) arricchiti con assenze.
+- ✅ **FoglioSettimana**: OrePanel con mini-settimana 7 cerchietti clickabili per creare/eliminare assenze. Mini-popover scelta tipo.
+- ✅ **VistaMensile**: pillole colorate in cella giorno + sezione "Assenze" nel PannelloGiorno.
+- ✅ **PerDipendente**: banner pieno con emoji+label nel blocco giorno + metrica "Assenze" nei totali periodo.
+- `versions.jsx`: dipendenti `2.25 → 2.26`.
+
+---
+
 ## SESSIONE 40 — M.F Alert Engine + Pagina Impostazioni Notifiche ✅
 
 Mattone M.F costruito mentre Marco è via dal PC, poi esteso con pagina configurazione su richiesta.

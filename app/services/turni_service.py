@@ -450,6 +450,27 @@ def build_foglio_settimana(
             t["conflict_with_ids"] = [w["other_id"] for w in warns]
             t["conflicts"] = warns  # dettaglio per tooltip FE
 
+        # Assenze della settimana per i dipendenti del reparto (sess. 39)
+        dip_ids = [d["id"] for d in dipendenti]
+        assenze = []
+        if dip_ids:
+            placeholders = ",".join("?" * len(dip_ids))
+            cur.execute(
+                f"""SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                           d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                           d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+                    FROM assenze a
+                    JOIN dipendenti d ON d.id = a.dipendente_id
+                    WHERE a.dipendente_id IN ({placeholders})
+                      AND a.data BETWEEN ? AND ?
+                    ORDER BY a.data""",
+                (*dip_ids, from_date, to_date),
+            )
+            assenze = [dict(r) for r in cur.fetchall()]
+            for a in assenze:
+                meta = ASSENZA_META.get(a["tipo"], {})
+                a.update({k: v for k, v in meta.items()})
+
         return {
             "reparto": rep,
             "settimana": iso_settimana,
@@ -458,6 +479,7 @@ def build_foglio_settimana(
             "turni": turni,
             "max_slot_pranzo": max_slot_pranzo,
             "max_slot_cena": max_slot_cena,
+            "assenze": assenze,
         }
     finally:
         conn.close()
@@ -565,6 +587,27 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
 
         chiusure = giorni_chiusi_nel_range(giorni)
 
+        # Assenze nel range mensile per i dipendenti del reparto (sess. 39)
+        dip_ids = [d["id"] for d in dipendenti]
+        assenze = []
+        if dip_ids:
+            placeholders = ",".join("?" * len(dip_ids))
+            cur.execute(
+                f"""SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                           d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                           d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+                    FROM assenze a
+                    JOIN dipendenti d ON d.id = a.dipendente_id
+                    WHERE a.dipendente_id IN ({placeholders})
+                      AND a.data BETWEEN ? AND ?
+                    ORDER BY a.data""",
+                (*dip_ids, from_date, to_date),
+            )
+            assenze = [dict(r) for r in cur.fetchall()]
+            for a in assenze:
+                meta = ASSENZA_META.get(a["tipo"], {})
+                a.update({k: v for k, v in meta.items()})
+
         return {
             "reparto": rep,
             "anno": anno,
@@ -576,6 +619,7 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
             "dipendenti": dipendenti,
             "turni": turni,
             "chiusure": chiusure,
+            "assenze": assenze,
         }
     finally:
         conn.close()
@@ -810,8 +854,26 @@ def build_vista_dipendente(
             (dipendente_id, from_date, to_date),
         )
         turni_all = [dict(r) for r in cur.fetchall()]
+
+        # Assenze del dipendente nel range (sess. 39)
+        cur.execute(
+            """SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note
+               FROM assenze a
+               WHERE a.dipendente_id = ? AND a.data BETWEEN ? AND ?
+               ORDER BY a.data""",
+            (dipendente_id, from_date, to_date),
+        )
+        assenze_all = [dict(r) for r in cur.fetchall()]
+        for a in assenze_all:
+            meta = ASSENZA_META.get(a["tipo"], {})
+            a.update({k: v for k, v in meta.items()})
     finally:
         conn.close()
+
+    # Mappa assenze per data
+    assenze_by_day: Dict[str, Dict[str, Any]] = {}
+    for a in assenze_all:
+        assenze_by_day[a["data"]] = a
 
     # Chiusure su tutto il range (una sola chiamata)
     chiusure_all = set(giorni_chiusi_nel_range(giorni_all))
@@ -830,6 +892,7 @@ def build_vista_dipendente(
     tot_riposi = 0
     tot_chiusure = 0
     tot_opzionali = 0
+    tot_assenze = 0
 
     settimane_out: List[Dict[str, Any]] = []
     for wi in range(num_settimane):
@@ -868,6 +931,11 @@ def build_vista_dipendente(
             ore_l_w += lordo_g
             ore_n_w += netto_g
 
+            # Assenza del giorno (sess. 39)
+            assenza_g = assenze_by_day.get(g_iso)
+            if assenza_g:
+                tot_assenze += 1
+
             per_giorno[g_iso] = {
                 "turni": turni_giorno,
                 "ore_lorde": round(lordo_g, 2),
@@ -875,6 +943,7 @@ def build_vista_dipendente(
                 "is_chiusura": is_ch,
                 "is_riposo": is_riposo,
                 "opzionali": opzionali_g,
+                "assenza": assenza_g,
             }
 
         chiusure_w = [g for g in giorni_w_iso if g in chiusure_all]
@@ -917,6 +986,7 @@ def build_vista_dipendente(
             "riposi": tot_riposi,
             "chiusure": tot_chiusure,
             "opzionali": tot_opzionali,
+            "assenze": tot_assenze,
         },
     }
 
@@ -1554,3 +1624,144 @@ def riepilogo_settimana_per_dipendenti(
     # Ordina per cognome,nome
     out.sort(key=lambda x: ((x.get("cognome") or "").lower(), (x.get("nome") or "").lower()))
     return out
+
+
+# ============================================================
+# ASSENZE — CRUD + query per range (Sessione 39)
+# ============================================================
+TIPI_ASSENZA = ("FERIE", "MALATTIA", "PERMESSO")
+
+ASSENZA_META = {
+    "FERIE":    {"label": "Ferie",    "emoji": "🏖", "bg": "#FEF3C7", "text": "#92400E", "sigla": "F"},
+    "MALATTIA": {"label": "Malattia", "emoji": "🤒", "bg": "#FFE4E6", "text": "#9F1239", "sigla": "M"},
+    "PERMESSO": {"label": "Permesso", "emoji": "📋", "bg": "#E0F2FE", "text": "#0C4A6E", "sigla": "P"},
+}
+
+
+def assenze_nel_range(
+    da: str,
+    a: str,
+    reparto_id: int | None = None,
+    dipendente_id: int | None = None,
+) -> List[Dict[str, Any]]:
+    """Carica le assenze in un range di date, con filtro opzionale per reparto o dipendente."""
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        if dipendente_id:
+            cur.execute(
+                """SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                          d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                          d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+                   FROM assenze a
+                   JOIN dipendenti d ON d.id = a.dipendente_id
+                   WHERE a.dipendente_id = ? AND a.data BETWEEN ? AND ?
+                   ORDER BY a.data""",
+                (dipendente_id, da, a),
+            )
+        elif reparto_id:
+            cur.execute(
+                """SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                          d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                          d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+                   FROM assenze a
+                   JOIN dipendenti d ON d.id = a.dipendente_id
+                   WHERE d.reparto_id = ? AND a.data BETWEEN ? AND ?
+                   ORDER BY a.data""",
+                (reparto_id, da, a),
+            )
+        else:
+            cur.execute(
+                """SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                          d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                          d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+                   FROM assenze a
+                   JOIN dipendenti d ON d.id = a.dipendente_id
+                   WHERE a.data BETWEEN ? AND ?
+                   ORDER BY a.data""",
+                (da, a),
+            )
+        rows = [dict(r) for r in cur.fetchall()]
+        # Arricchisci con meta del tipo
+        for r in rows:
+            meta = ASSENZA_META.get(r["tipo"], {})
+            r.update({k: v for k, v in meta.items()})
+        return rows
+    finally:
+        conn.close()
+
+
+def crea_assenza(
+    dipendente_id: int,
+    data: str,
+    tipo: str,
+    note: str | None = None,
+) -> Dict[str, Any]:
+    """Crea o aggiorna (upsert) un'assenza. Ritorna il record completo."""
+    if tipo not in TIPI_ASSENZA:
+        raise ValueError(f"Tipo assenza non valido: {tipo}. Valori: {TIPI_ASSENZA}")
+
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        # Verifica dipendente esiste
+        cur.execute("SELECT id, nome, cognome FROM dipendenti WHERE id = ?", (dipendente_id,))
+        dip = cur.fetchone()
+        if not dip:
+            raise ValueError(f"Dipendente {dipendente_id} non trovato")
+
+        # Upsert: se esiste per (dip, data) aggiorna tipo+note
+        cur.execute(
+            "SELECT id FROM assenze WHERE dipendente_id = ? AND data = ?",
+            (dipendente_id, data),
+        )
+        existing = cur.fetchone()
+        if existing:
+            cur.execute(
+                "UPDATE assenze SET tipo = ?, note = ? WHERE id = ?",
+                (tipo, (note or "").strip() or None, existing["id"]),
+            )
+            aid = existing["id"]
+        else:
+            cur.execute(
+                """INSERT INTO assenze (dipendente_id, data, tipo, note)
+                   VALUES (?, ?, ?, ?)""",
+                (dipendente_id, data, tipo, (note or "").strip() or None),
+            )
+            aid = cur.lastrowid
+
+        conn.commit()
+
+        # Ricarica
+        cur.execute(
+            """SELECT a.id, a.dipendente_id, a.data, a.tipo, a.note,
+                      d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                      d.nickname AS dipendente_nickname, d.colore AS dipendente_colore
+               FROM assenze a
+               JOIN dipendenti d ON d.id = a.dipendente_id
+               WHERE a.id = ?""",
+            (aid,),
+        )
+        row = dict(cur.fetchone())
+        meta = ASSENZA_META.get(row["tipo"], {})
+        row.update({k: v for k, v in meta.items()})
+        return row
+    finally:
+        conn.close()
+
+
+def elimina_assenza(assenza_id: int) -> bool:
+    """Elimina un'assenza per id. Ritorna True se cancellata."""
+    conn = get_dipendenti_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM assenze WHERE id = ?", (assenza_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def get_tipi_assenza() -> List[Dict[str, Any]]:
+    """Ritorna i tipi assenza disponibili con i relativi meta (emoji, colori, sigla)."""
+    return [{"tipo": t, **ASSENZA_META[t]} for t in TIPI_ASSENZA]

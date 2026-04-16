@@ -100,6 +100,13 @@ function textOn(hex) {
   return yiq >= 160 ? "#111" : "#fff";
 }
 
+// Meta tipi assenza — sincronizzato con backend ASSENZA_META (sess. 39)
+const ASSENZA_BY_TIPO = {
+  FERIE:    { label: "Ferie",    emoji: "🏖", bg: "#FEF3C7", text: "#92400E", sigla: "F" },
+  MALATTIA: { label: "Malattia", emoji: "🤒", bg: "#FFE4E6", text: "#9F1239", sigla: "M" },
+  PERMESSO: { label: "Permesso", emoji: "📋", bg: "#E0F2FE", text: "#0C4A6E", sigla: "P" },
+};
+
 const SEMAFORO_STYLE = {
   verde:  { label: "≤ 40h",  bg: "#16a34a", fg: "#fff" },
   giallo: { label: "≤ 48h",  bg: "#ca8a04", fg: "#fff" },
@@ -442,12 +449,13 @@ function TotaliPeriodo({ vista }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3 mt-4">
         <Metric label="Ore lorde" value={`${t.ore_lorde.toFixed(1)}h`} />
         <Metric label="Ore nette" value={`${t.ore_nette.toFixed(1)}h`} accent />
         <Metric label="Giorni lavorati" value={t.giorni_lavorati} />
         <Metric label="Riposi" value={t.riposi} />
         <Metric label="Chiusure" value={t.chiusure} />
+        <Metric label="Assenze" value={t.assenze || 0} />
         <Metric label="Opzionali" value={t.opzionali} />
       </div>
     </div>
@@ -560,13 +568,29 @@ function CellaGiornoTimeline({ iso, dato, isToday, reparto, dipendente }) {
         </div>
       )}
 
-      {!chiuso && riposo && (
+      {/* Banner assenza (sess. 39) — se presente, prende il posto di riposo/turni */}
+      {!chiuso && dato.assenza && (() => {
+        const meta = ASSENZA_BY_TIPO[dato.assenza.tipo] || {};
+        return (
+          <div className="flex-1 flex items-center justify-center">
+            <div
+              className="w-full rounded-lg px-3 py-3 flex items-center justify-center gap-2 border"
+              style={{ backgroundColor: meta.bg || "#e5e7eb", color: meta.text || "#111", borderColor: meta.text || "#999" }}
+            >
+              <span className="text-lg">{meta.emoji || ""}</span>
+              <span className="text-sm font-bold">{meta.label || dato.assenza.tipo}</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {!chiuso && !dato.assenza && riposo && (
         <div className="flex-1 flex items-center justify-center text-xs text-neutral-400 italic">
           Riposo
         </div>
       )}
 
-      {!chiuso && !riposo && hasAnyTurno && (
+      {!chiuso && !dato.assenza && !riposo && hasAnyTurno && (
         <div className="flex-1 flex flex-col gap-1">
           {/* Slot PRANZO — sempre in alto. Placeholder se assente, così cena resta allineata. */}
           <div className="flex flex-col gap-1">

@@ -28,6 +28,13 @@ const MESI_LUN = [
 const GIORNI_SETT_LUN = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const GIORNI_SETT_FULL = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 
+// Meta tipi assenza — sincronizzato con backend ASSENZA_META (sess. 39)
+const ASSENZA_BY_TIPO = {
+  FERIE:    { label: "Ferie",    emoji: "🏖", bg: "#FEF3C7", text: "#92400E", sigla: "F" },
+  MALATTIA: { label: "Malattia", emoji: "🤒", bg: "#FFE4E6", text: "#9F1239", sigla: "M" },
+  PERMESSO: { label: "Permesso", emoji: "📋", bg: "#E0F2FE", text: "#0C4A6E", sigla: "P" },
+};
+
 function shiftMese({ anno, mese }, delta) {
   const idx = (anno * 12 + (mese - 1)) + delta;
   return { anno: Math.floor(idx / 12), mese: (idx % 12) + 1 };
@@ -168,6 +175,16 @@ export default function VistaMensile() {
 
   const chiusi = useMemo(() => new Set(vista?.chiusure || []), [vista]);
 
+  // Assenze indicizzate per data (sess. 39)
+  const assenzeByDate = useMemo(() => {
+    const out = {};
+    for (const a of (vista?.assenze || [])) {
+      if (!out[a.data]) out[a.data] = [];
+      out[a.data].push(a);
+    }
+    return out;
+  }, [vista]);
+
   // ---- NAVIGAZIONE ---------------------------------------------------------
   function vaiOggi() {
     const d = new Date();
@@ -278,6 +295,7 @@ export default function VistaMensile() {
               <GrigliaMensile
                 vista={vista}
                 turniByDate={turniByDate}
+                assenzeByDate={assenzeByDate}
                 chiusi={chiusi}
                 mese={mese}
                 selectedDate={selectedDate}
@@ -293,6 +311,7 @@ export default function VistaMensile() {
               <PannelloGiorno
                 selectedDate={selectedDate}
                 turni={selectedDate ? (turniByDate[selectedDate] || []) : []}
+                assenze={selectedDate ? (assenzeByDate[selectedDate] || []) : []}
                 chiuso={selectedDate ? chiusi.has(selectedDate) : false}
                 reparto={reparto}
                 onClose={() => setSelectedDate(null)}
@@ -310,7 +329,7 @@ export default function VistaMensile() {
 
 // ---- GRIGLIA MENSILE ------------------------------------------------------
 function GrigliaMensile({
-  vista, turniByDate, chiusi, mese, selectedDate, onDateClick,
+  vista, turniByDate, assenzeByDate = {}, chiusi, mese, selectedDate, onDateClick,
   reparti = [], repartoId = null, onRepartoChange = null,
 }) {
   const today = oggiIso();
@@ -373,6 +392,7 @@ function GrigliaMensile({
                   isSelected={isSelected}
                   chiuso={chiuso}
                   turni={turni}
+                  assenze={assenzeByDate[iso] || []}
                   onClick={() => onDateClick(iso)}
                 />
               );
@@ -386,7 +406,7 @@ function GrigliaMensile({
 
 
 // ---- CELLA GIORNO ---------------------------------------------------------
-function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, turni, onClick }) {
+function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, turni, assenze = [], onClick }) {
   const [, , d] = iso.split("-").map(Number);
 
   // Separa per servizio per raggruppare i badge nella cella
@@ -416,6 +436,26 @@ function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, turni, onCli
 
       {!chiuso && (
         <div className="flex flex-col gap-0.5">
+          {/* Assenze prima dei turni (sess. 39) */}
+          {assenze.length > 0 && (
+            <div className="flex items-center gap-0.5 flex-wrap">
+              {assenze.map(a => {
+                const meta = ASSENZA_BY_TIPO[a.tipo] || {};
+                const nick = (a.dipendente_nickname || "").trim();
+                const label = nick || iniziali(a.dipendente_nome, a.dipendente_cognome);
+                return (
+                  <span
+                    key={a.id}
+                    className="inline-flex items-center gap-0.5 rounded text-[9px] font-bold px-1"
+                    style={{ backgroundColor: meta.bg || "#e5e7eb", color: meta.text || "#111" }}
+                    title={`${meta.emoji || ""} ${meta.label || a.tipo}: ${a.dipendente_nome || ""} ${a.dipendente_cognome || ""}`}
+                  >
+                    {meta.sigla || "?"}{label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {pranzo.length > 0 && (
             <RigaBadge etichetta="☀" turni={pranzo} />
           )}
@@ -484,7 +524,7 @@ function BadgeTurno({ turno }) {
 
 
 // ---- PANNELLO DETTAGLIO GIORNO --------------------------------------------
-function PannelloGiorno({ selectedDate, turni, chiuso, reparto, onClose, onApriSettimana }) {
+function PannelloGiorno({ selectedDate, turni, assenze = [], chiuso, reparto, onClose, onApriSettimana }) {
   if (!selectedDate) {
     return (
       <div className="bg-white rounded-xl shadow p-4 h-fit sticky top-4 text-center">
@@ -528,6 +568,37 @@ function PannelloGiorno({ selectedDate, turni, chiuso, reparto, onClose, onApriS
           <SezioneServizio etichetta="☀️ Pranzo" reparto={reparto} servizio="PRANZO" turni={pranzo} />
           <SezioneServizio etichetta="🌙 Cena"  reparto={reparto} servizio="CENA"   turni={cena} />
         </>
+      )}
+
+      {/* Sezione Assenze (sess. 39) */}
+      {assenze.length > 0 && (
+        <div className="mt-3 pt-3 border-t">
+          <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1.5">
+            Assenze
+          </div>
+          <div className="space-y-1">
+            {assenze.map(a => {
+              const meta = ASSENZA_BY_TIPO[a.tipo] || {};
+              return (
+                <div key={a.id} className="flex items-center gap-2 py-1 border-b last:border-0">
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border shrink-0"
+                        style={{ backgroundColor: meta.bg || "#e5e7eb", color: meta.text || "#111", borderColor: meta.text || "#999" }}>
+                    {meta.sigla || "?"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate">
+                      {a.dipendente_nome} {a.dipendente_cognome}
+                    </div>
+                    <div className="text-[11px] text-neutral-500">
+                      {meta.emoji} {meta.label || a.tipo}
+                      {a.note && <span className="ml-1 italic text-neutral-400">— {a.note}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <button onClick={onApriSettimana}

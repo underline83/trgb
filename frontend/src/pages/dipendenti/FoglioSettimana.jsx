@@ -290,6 +290,15 @@ export default function FoglioSettimana() {
 
   const chiusi = useMemo(() => new Set(foglio?.chiusure || []), [foglio]);
 
+  // Assenze — mappa { `${dipId}_${data}` → assenza } per lookup rapido (sess. 39)
+  const assenzeMap = useMemo(() => {
+    const m = {};
+    for (const a of (foglio?.assenze || [])) {
+      m[`${a.dipendente_id}_${a.data}`] = a;
+    }
+    return m;
+  }, [foglio]);
+
   // Slot count
   const nSlotPranzo = foglio ? Math.max(4, (foglio.max_slot_pranzo || 3) + 1) : 4;
   const nSlotCena = foglio ? Math.max(4, (foglio.max_slot_cena || 3) + 1) : 4;
@@ -326,6 +335,23 @@ export default function FoglioSettimana() {
     const r = await apiFetch(`${API_BASE}/turni/foglio/${turno_id}`, { method: "DELETE" });
     if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
     return true;
+  }
+
+  // ---- ASSENZE CRUD (sess. 39) -----------------------------------------------
+  async function creaAssenza(dipendente_id, data, tipo) {
+    const r = await apiFetch(`${API_BASE}/turni/assenze/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dipendente_id, data, tipo }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+    caricaFoglio();
+  }
+
+  async function eliminaAssenza(assenzaId) {
+    const r = await apiFetch(`${API_BASE}/turni/assenze/${assenzaId}`, { method: "DELETE" });
+    if (!r.ok) throw new Error((await r.json()).detail || `Errore ${r.status}`);
+    caricaFoglio();
   }
 
   // ---- POPOVER HANDLERS ----------------------------------------------------
@@ -612,7 +638,11 @@ export default function FoglioSettimana() {
             )}
 
             {/* PANNELLO ORE — sempre visibile (su narrow va in fondo, full width) */}
-            <OrePanel ore={ore} reparto={reparto} />
+            <OrePanel
+              ore={ore} reparto={reparto}
+              giorni={foglio?.giorni || []} assenzeMap={assenzeMap}
+              onCreaAssenza={creaAssenza} onEliminaAssenza={eliminaAssenza}
+            />
           </div>
         )}
       </div>
@@ -856,14 +886,63 @@ function textOn(hex) {
 
 
 // ---- PANNELLO ORE ---------------------------------------------------------
-function OrePanel({ ore, reparto }) {
+// ---- META TIPI ASSENZA (sincrono con backend ASSENZA_META) ----------------
+const ASSENZA_TIPI = [
+  { tipo: "FERIE",    label: "Ferie",    emoji: "🏖", bg: "#FEF3C7", text: "#92400E", sigla: "F" },
+  { tipo: "MALATTIA", label: "Malattia", emoji: "🤒", bg: "#FFE4E6", text: "#9F1239", sigla: "M" },
+  { tipo: "PERMESSO", label: "Permesso", emoji: "📋", bg: "#E0F2FE", text: "#0C4A6E", sigla: "P" },
+];
+const ASSENZA_BY_TIPO = Object.fromEntries(ASSENZA_TIPI.map(t => [t.tipo, t]));
+
+const MINI_GIORNI = ["L", "M", "M", "G", "V", "S", "D"];
+
+
+function OrePanel({ ore, reparto, giorni = [], assenzeMap = {}, onCreaAssenza, onEliminaAssenza }) {
   if (!ore) return null;
   const pausaP = reparto?.pausa_pranzo_min ?? 30;
   const pausaC = reparto?.pausa_cena_min ?? 30;
 
+  // Mini-popover stato per assenze: { dipId, data, anchorRect }
+  const [assPop, setAssPop] = useState(null);
+  const assPopRef = useRef(null);
+  useEffect(() => {
+    if (!assPop) return;
+    function handleClick(e) {
+      if (assPopRef.current && !assPopRef.current.contains(e.target)) setAssPop(null);
+    }
+    function handleEsc(e) { if (e.key === "Escape") setAssPop(null); }
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [assPop]);
+
   const sorted = [...(ore.dipendenti || [])].sort((a, b) => (b.ore_nette - a.ore_nette));
   const totLordo = sorted.reduce((s, d) => s + d.ore_lorde, 0);
   const totNetto = sorted.reduce((s, d) => s + d.ore_nette, 0);
+
+  function handleDotClick(dipId, data, e) {
+    const key = `${dipId}_${data}`;
+    const existing = assenzeMap[key];
+    if (existing) {
+      // Elimina assenza
+      if (onEliminaAssenza) {
+        onEliminaAssenza(existing.id).catch(err => alert(err.message));
+      }
+    } else {
+      // Apri mini-popover per scegliere tipo
+      const rect = e.currentTarget.getBoundingClientRect();
+      setAssPop({ dipId, data, anchorRect: rect });
+    }
+  }
+
+  function handleTipoClick(tipo) {
+    if (!assPop || !onCreaAssenza) return;
+    onCreaAssenza(assPop.dipId, assPop.data, tipo).catch(err => alert(err.message));
+    setAssPop(null);
+  }
 
   return (
     <div className="bg-white rounded-xl shadow p-4 h-fit sticky top-4">
@@ -882,21 +961,53 @@ function OrePanel({ ore, reparto }) {
         {sorted.map(d => {
           const sem = d.semaforo === "verde" ? "bg-green-500" : d.semaforo === "giallo" ? "bg-amber-500" : "bg-red-500";
           return (
-            <div key={d.dipendente_id} className="flex items-center justify-between py-1 border-b last:border-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className={`w-2 h-2 rounded-full ${sem} shrink-0`}></span>
-                <span className="inline-block w-3 h-3 rounded-full shrink-0"
-                      style={{ backgroundColor: d.colore || "#d1d5db" }}></span>
-                <span className="text-sm truncate">{(d.nickname && d.nickname.trim()) || `${d.nome} ${d.cognome}`}</span>
-                {d.a_chiamata && (
-                  <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
-                        title="A chiamata — contratto a ore">📞</span>
-                )}
+            <div key={d.dipendente_id} className="py-1 border-b last:border-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full ${sem} shrink-0`}></span>
+                  <span className="inline-block w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: d.colore || "#d1d5db" }}></span>
+                  <span className="text-sm truncate">{(d.nickname && d.nickname.trim()) || `${d.nome} ${d.cognome}`}</span>
+                  {d.a_chiamata && (
+                    <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
+                          title="A chiamata — contratto a ore">📞</span>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-mono font-semibold">{d.ore_nette.toFixed(1)}h</div>
+                  <div className="text-[10px] text-neutral-400 font-mono">lordo {d.ore_lorde.toFixed(1)}</div>
+                </div>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-sm font-mono font-semibold">{d.ore_nette.toFixed(1)}h</div>
-                <div className="text-[10px] text-neutral-400 font-mono">lordo {d.ore_lorde.toFixed(1)}</div>
-              </div>
+
+              {/* Mini-settimana assenze: 7 dot clickabili (sess. 39) */}
+              {giorni.length === 7 && (
+                <div className="flex items-center gap-0.5 mt-1 ml-4">
+                  {giorni.map((g, i) => {
+                    const key = `${d.dipendente_id}_${g}`;
+                    const ass = assenzeMap[key];
+                    const meta = ass ? ASSENZA_BY_TIPO[ass.tipo] : null;
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={(e) => handleDotClick(d.dipendente_id, g, e)}
+                        className="flex flex-col items-center w-[30px] rounded hover:bg-neutral-100 transition-colors py-0.5"
+                        title={ass ? `${meta?.emoji || ""} ${meta?.label || ass.tipo} — click per rimuovere` : `${MINI_GIORNI[i]} — click per segnare assenza`}
+                      >
+                        <span className="text-[8px] text-neutral-400 leading-none">{MINI_GIORNI[i]}</span>
+                        {ass ? (
+                          <span
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5 border"
+                            style={{ backgroundColor: meta?.bg || "#e5e7eb", color: meta?.text || "#111", borderColor: meta?.text || "#999" }}
+                          >{meta?.sigla || "?"}</span>
+                        ) : (
+                          <span className="w-5 h-5 rounded-full border border-dashed border-neutral-300 mt-0.5"></span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -918,6 +1029,42 @@ function OrePanel({ ore, reparto }) {
       <div className="mt-1 text-[10px] text-neutral-400 leading-snug">
         Pausa pranzo dedotta solo per arrivi &lt; 11:30; pausa cena per arrivi &lt; 18:30 (chi entra 12/19 arriva già mangiato).
       </div>
+      <div className="mt-1 flex gap-2 text-[10px] text-neutral-400">
+        {ASSENZA_TIPI.map(t => (
+          <span key={t.tipo} className="flex items-center gap-0.5">
+            <span className="w-3 h-3 rounded-full inline-block border"
+                  style={{ backgroundColor: t.bg, borderColor: t.text }}></span>
+            {t.emoji} {t.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Mini-popover scelta tipo assenza */}
+      {assPop && (
+        <div
+          ref={assPopRef}
+          className="fixed z-[80] bg-white rounded-lg shadow-xl border border-neutral-200 p-2 animate-fadeIn"
+          style={{
+            top: Math.min(assPop.anchorRect.bottom + 4, window.innerHeight - 120),
+            left: Math.min(assPop.anchorRect.left, window.innerWidth - 180),
+          }}
+        >
+          <div className="text-[10px] text-neutral-500 mb-1.5 font-medium">Tipo assenza:</div>
+          <div className="flex flex-col gap-1">
+            {ASSENZA_TIPI.map(t => (
+              <button
+                key={t.tipo}
+                onClick={() => handleTipoClick(t.tipo)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-neutral-100 transition-colors text-left min-h-[36px]"
+              >
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border"
+                      style={{ backgroundColor: t.bg, color: t.text, borderColor: t.text }}>{t.sigla}</span>
+                <span className="text-sm">{t.emoji} {t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

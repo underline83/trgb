@@ -878,7 +878,7 @@ export default function BancaCrossRef() {
           {/* ── Tab ── */}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {TABS.map(t => {
-              const count = t.key === "collegati" ? linked.length : t.key === "suggerimenti" ? withSugg.length : noMatch.length;
+              const count = t.key === "collegati" ? linked.length : t.key === "suggerimenti" ? withSugg.length : t.key === "parcheggiati" ? parcheggiati.length : noMatch.length;
               const active = tab === t.key;
               return (
                 <button key={t.key} onClick={() => { setTab(t.key); setExpandedId(null); setSearchId(null); setRegistraId(null); setBulkSelected(new Set()); }}

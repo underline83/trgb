@@ -3,6 +3,39 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / Dipendenti — Assenze (Ferie / Malattia / Permesso)
+
+Marco: _"bisogna prevedere il concetto di 'ferie' — gente che mi avvisa che non c'è"_
+
+### Nuova tabella `assenze`
+
+Migrazione 083: crea tabella `assenze` in `dipendenti.sqlite3` con UNIQUE su `(dipendente_id, data)`. Tre tipi: **FERIE** (🏖 ambra), **MALATTIA** (🤒 rosato), **PERMESSO** (📋 azzurro).
+
+### Backend
+
+- **CRUD completo**: `GET/POST /turni/assenze/`, `DELETE /turni/assenze/{id}`, `GET /turni/assenze/tipi`.
+- POST fa **upsert** (se esiste assenza per dip+data, aggiorna tipo/note).
+- I 3 builder (`build_foglio_settimana`, `build_vista_mese`, `build_vista_dipendente`) ora includono `assenze` nei dati ritornati.
+- `build_vista_dipendente` aggiunge `assenza` nel `per_giorno` di ogni data + campo `totali.assenze`.
+
+### Frontend
+
+- **FoglioSettimana / OrePanel**: sotto ogni dipendente appare una mini-settimana di 7 cerchietti (L M M G V S D). Click su cerchio vuoto → mini-popover scelta tipo → crea. Click su cerchio pieno → elimina. Cerchi colorati con sigla (F/M/P) e bordo coordinato al tipo. Legenda tipi in fondo al pannello.
+- **VistaMensile / CellaGiorno**: pillole colorate con sigla+iniziali dipendente in cima alla cella. PannelloGiorno: sezione "Assenze" con lista dettagliata (sigla, nome, tipo, note).
+- **PerDipendente / CellaGiornoTimeline**: banner pieno a tutta larghezza con emoji+label del tipo (sovrasta turni e riposo). Totali periodo: aggiunta metrica "Assenze". Griglia metriche 6→7 colonne.
+
+### File modificati
+
+- `app/migrations/083_assenze.py` — nuova migrazione
+- `app/services/turni_service.py` — CRUD assenze + arricchimento builder
+- `app/routers/turni_router.py` — endpoint CRUD + model Pydantic
+- `frontend/src/pages/dipendenti/FoglioSettimana.jsx` — OrePanel con mini-settimana assenze
+- `frontend/src/pages/dipendenti/VistaMensile.jsx` — CellaGiorno pillole + PannelloGiorno sezione
+- `frontend/src/pages/dipendenti/PerDipendente.jsx` — banner + metrica totali
+- `frontend/src/config/versions.jsx` — dipendenti `2.25 → 2.26`
+
+---
+
 ## 2026-04-16 — Sessione 40 / M.F Alert Engine + Pagina Impostazioni Notifiche
 
 Nuovo mattone M.F: motore centralizzato che controlla soglie e scadenze, generando notifiche automatiche via M.A. Configurazione completa da UI.

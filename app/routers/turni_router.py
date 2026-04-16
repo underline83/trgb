@@ -72,6 +72,13 @@ class CopiaSettimanaIn(BaseModel):
     sovrascrivi: bool = False
 
 
+class CreaAssenzaIn(BaseModel):
+    dipendente_id: int
+    data: str                     # YYYY-MM-DD
+    tipo: str                     # FERIE / MALATTIA / PERMESSO
+    note: Optional[str] = None
+
+
 # Fase 10: Template settimana tipo
 class CreaTemplateIn(BaseModel):
     reparto_id: int
@@ -580,6 +587,65 @@ def get_conflitti(
     return JSONResponse(content=turni_service.carica_conflitti_dipendente_giorno(
         dipendente_id=dipendente_id, data_iso=data,
     ))
+
+
+# ============================================================
+# ASSENZE — CRUD (Sessione 39)
+# ============================================================
+@router.get("/assenze/tipi")
+def get_tipi_assenza(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Lista tipi di assenza disponibili con emoji, colori e sigla."""
+    return JSONResponse(content={"tipi": turni_service.get_tipi_assenza()})
+
+
+@router.get("/assenze/")
+def get_assenze(
+    reparto_id: Optional[int] = Query(None),
+    dipendente_id: Optional[int] = Query(None),
+    da: str = Query(..., description="YYYY-MM-DD inizio range"),
+    a: str = Query(..., description="YYYY-MM-DD fine range"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Lista assenze in un range di date, filtrate per reparto o dipendente."""
+    _valida_data(da)
+    _valida_data(a)
+    assenze = turni_service.assenze_nel_range(
+        da=da, a=a, reparto_id=reparto_id, dipendente_id=dipendente_id,
+    )
+    return JSONResponse(content={"assenze": assenze})
+
+
+@router.post("/assenze/")
+def crea_assenza_ep(
+    payload: CreaAssenzaIn,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Crea o aggiorna un'assenza (upsert su dipendente+data)."""
+    _valida_data(payload.data)
+    try:
+        assenza = turni_service.crea_assenza(
+            dipendente_id=payload.dipendente_id,
+            data=payload.data,
+            tipo=payload.tipo.upper().strip(),
+            note=payload.note,
+        )
+        return JSONResponse(content={"ok": True, "assenza": assenza})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/assenze/{assenza_id}")
+def elimina_assenza_ep(
+    assenza_id: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Elimina un'assenza per id."""
+    ok = turni_service.elimina_assenza(assenza_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Assenza non trovata")
+    return JSONResponse(content={"ok": True, "id": assenza_id})
 
 
 # ============================================================
