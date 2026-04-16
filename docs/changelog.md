@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / M.F Alert Engine + Pagina Impostazioni Notifiche
+
+Nuovo mattone M.F: motore centralizzato che controlla soglie e scadenze, generando notifiche automatiche via M.A. Configurazione completa da UI.
+
+**File creati:**
+- `app/services/alert_engine.py` — registry di checker con decoratore `@register_checker`, config da DB, anti-duplicato, supporto dry-run
+- `app/routers/alerts_router.py` — endpoint esecuzione (`GET /alerts/check/`, `POST /alerts/run/`) + CRUD config (`GET/PUT /alerts/config/`)
+- `frontend/src/pages/admin/NotificheImpostazioni.jsx` — pagina impostazioni con card per ogni checker: toggle on/off, soglia giorni, anti-duplicato ore, destinatario (ruolo), canali (in-app / WhatsApp / email)
+
+**3 checker implementati:**
+- `fatture_scadenza`: fatture non pagate scadute o in scadenza (soglia configurabile, default 7gg)
+- `dipendenti_scadenze`: documenti dipendenti in scadenza (usa alert_giorni del documento, fallback configurabile)
+- `vini_sottoscorta`: vini con qta < scorta_minima (resiliente se colonna non esiste)
+
+**DB:** tabella `alert_config` in `notifiche.sqlite3` (seed automatico al primo avvio).
+
+**Trigger:** automatico da `GET /dashboard/home`, fire-and-forget. Anche manuale da UI ("Testa ora").
+
+**UI:** nuovo tab "🔔 Notifiche" in Impostazioni Sistema. Canale email disabilitato (M.D non ancora implementato).
+
+**File modificati:** `main.py`, `dashboard_router.py`, `notifiche_db.py`, `ImpostazioniSistema.jsx`, `docs/architettura_mattoni.md`.
+
+---
+
 ## 2026-04-16 — Sessione 40 / S40-16+17 — Fix ereditarietà ruolo superadmin→admin nei Nav
 
 Bug sistematico: 6 file Nav (`StatisticheNav`, `RicetteNav`, `ViniNav`, `PrenotazioniNav`, `BancaNav`, `ClientiNav`) usavano `tab.roles.includes(role)` senza gestire l'ereditarietà superadmin→admin. `useModuleAccess.roleMatch` aveva già la logica corretta, ma i Nav locali la bypassavano. Effetto visibile: Marco (superadmin) non vedeva tab come "Import iPratico" in Statistiche, "Impostazioni" in Banca/Ricette, etc.

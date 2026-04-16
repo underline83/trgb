@@ -6,6 +6,25 @@
 
 ---
 
+## SESSIONE 40 — M.F Alert Engine + Pagina Impostazioni Notifiche ✅
+
+Mattone M.F costruito mentre Marco è via dal PC, poi esteso con pagina configurazione su richiesta.
+
+**Backend:**
+- `app/services/alert_engine.py` — registry checker, config da DB (`alert_config`), anti-duplicato, dry-run, notifiche multi-canale
+- `app/routers/alerts_router.py` — esecuzione checker + CRUD config (`GET/PUT /alerts/config/`)
+- `app/models/notifiche_db.py` — nuova tabella `alert_config` con seed automatico per 3 checker
+
+**3 checker:** `fatture_scadenza`, `dipendenti_scadenze`, `vini_sottoscorta`. Tutti configurabili da UI.
+
+**Frontend:** `NotificheImpostazioni.jsx` — nuovo tab "🔔 Notifiche" in Impostazioni Sistema. Per ogni checker: toggle on/off, soglia giorni, anti-duplicato ore, destinatario ruolo, canali (in-app ✅, WhatsApp ✅, email 🔜). Bottone "Testa ora" per esecuzione manuale.
+
+**Trigger:** fire-and-forget da `GET /dashboard/home`. Anche manuale da UI.
+
+**Nota:** il codice inline in `dashboard_router._alerts()` (righe 370-442) resta — produce gli `AlertItem` per la UI Home. L'engine M.F crea le notifiche persistenti dettagliate. Refactoring futuro: usare engine in dry-run per i conteggi dashboard.
+
+---
+
 ## SESSIONE 40 — S40-15 CHIUSO (FIC righe via XML SDI fallback) ✅
 
 Marco ha segnalato che da fine marzo le fatture FIC di alcuni fornitori arrivano senza righe in `fe_righe`. Casi verificati: OROBICA PESCA 201969/FTM (2026-03-31, €7425,24, `fic_id=405656723`, DB id=6892), FABRIZIO MILESI 2026/300.

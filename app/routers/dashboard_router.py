@@ -638,7 +638,7 @@ def get_dashboard_home():
     coperti = _coperti_mese(oggi)
     macellaio = _macellaio_widget(oggi_str)
 
-    return DashboardHome(
+    response = DashboardHome(
         prenotazioni=prenotazioni,
         incasso_ieri=incasso,
         coperti_mese=coperti,
@@ -647,3 +647,14 @@ def get_dashboard_home():
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )
+
+    # ── Trigger Alert Engine M.F (fire-and-forget) ──
+    # Esegue i checker e crea notifiche se necessario.
+    # L'anti-duplicato interno evita spam (max 1 notifica ogni 12-24h per tipo).
+    try:
+        from app.services.alert_engine import run_all_checks
+        run_all_checks(dry_run=False)
+    except Exception as e:
+        logger.warning(f"Dashboard: alert engine trigger fallito: {e}")
+
+    return response

@@ -1,13 +1,14 @@
 # TRGB — Architettura a Mattoni Condivisi
 **Creato:** 2026-04-13 (sessione 31)
-**Ultimo aggiornamento:** 2026-04-14 (sessione 34 — M.B PDF brand in produzione)
+**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — M.F Alert engine implementato)
 **Scopo:** Mappa delle dipendenze tra moduli e servizi condivisi. Guida l'ordine di sviluppo.
 
 **Stato mattoni:**
 - ✅ M.A Notifiche (sessione 31)
 - ✅ M.C WA composer (sessione 31)
 - ✅ **M.B PDF brand** (sessione 34) — `app/services/pdf_brand.py`, template in `app/templates/pdf/`. Sblocca 10.3 ✅, 4.2 ✅, inventario ✅. Da sblocco: 4.5 P&L, 3.8 cash flow, 6.2 cedolini, 7.3 carta vini NO (motore separato)
-- ⏳ M.D Email service, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine — DA FARE
+- ✅ **M.F Alert engine** (sessione 40) — `app/services/alert_engine.py` + `app/routers/alerts_router.py`. 3 checker: fatture scadenza, dipendenti documenti, vini sottoscorta. Trigger automatico da dashboard, anti-duplicato 12-24h. Genera notifiche via M.A.
+- ⏳ M.D Email service, M.E Calendar, M.G Permessi, M.H Import engine — DA FARE
 
 **Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
 
@@ -117,22 +118,30 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 ---
 
-### M.F — Alert engine (backend)
+### M.F — Alert engine (backend) ✅
 
+**Stato:** IMPLEMENTATO sessione 40 (2026-04-16)
 **Cosa:** motore che controlla soglie/scadenze e genera notifiche automatiche via M.A.
-**Backend:** `app/services/alert_engine.py` → `controlla_alert()` chiamato a login o da cron endpoint
-**Logica:** registry di checker (funzioni che tornano lista alert). Ogni modulo registra i suoi.
+**Backend:** `app/services/alert_engine.py` → `run_all_checks()` / `run_check(name)`
+**Router:** `app/routers/alerts_router.py` → `GET /alerts/check/` (dry-run), `POST /alerts/run/` (con notifiche)
+**Logica:** registry di checker con decoratore `@register_checker(name)`. Anti-duplicato integrato (max 1 notifica ogni 12-24h per tipo).
+**Trigger:** automatico da `GET /dashboard/home` (ogni apertura Home). Anche manuale da endpoint.
 **Dipende da:** M.A (notifiche)
-**Effort:** S (mezza sessione — e' un orchestratore, la logica e' nei moduli)
+**Effort:** S (mezza sessione)
 **Roadmap:** nuovo, trasversale
 
-**Chi lo usa:**
+**Checker implementati:**
+| Checker | Modulo | Cosa controlla | Anti-duplicato |
+|---------|--------|----------------|----------------|
+| `fatture_scadenza` | Acquisti | Fatture non pagate scadute o in scadenza 7gg | 12h |
+| `dipendenti_scadenze` | Dipendenti | Documenti in scadenza entro alert_giorni (default 30) | 24h |
+| `vini_sottoscorta` | Vini | Vini con qta < scorta_minima (resiliente se colonna manca) | 24h |
+
+**Checker futuri (da aggiungere):**
 | ID | Modulo | Check |
 |----|--------|-------|
 | 4.6 | FoodCost | Ricette sopra soglia % |
-| 6.5 | Dipendenti | Documenti in scadenza 30/15/7 gg |
-| 7.6 | Cantina | Vini sotto scorta minima |
-| 3.7 | Flussi | Fatture/rate in scadenza |
+| 3.7 | Flussi | Rate in scadenza |
 
 ---
 

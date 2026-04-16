@@ -67,7 +67,7 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 - **M.B PDF brand**: DA FARE. Quando serve generare PDF, attendere questo mattone.
 - **M.D Email service**: DA FARE. Quando serve inviare email, attendere questo mattone.
 - **M.E Calendar component**: DA FARE. Quando serve vista calendario, attendere questo mattone.
-- **M.F Alert engine**: DA FARE. Quando serve controllare soglie/scadenze, attendere questo mattone.
+- **M.F Alert engine** (sessione 40): `from app.services.alert_engine import run_all_checks, run_check`. Config da DB (`alert_config` in notifiche.sqlite3). Per aggiungere un checker: decorare con `@register_checker("nome")`, firma `(dry_run: bool, config: dict) -> CheckResult`. Router: `/alerts/config/` (CRUD), `/alerts/check/` (dry-run), `/alerts/run/` (con notifiche). UI config: tab "Notifiche" in Impostazioni Sistema.
 
 **Regola:** se un modulo ha bisogno di una funzionalita' coperta da un mattone non ancora implementato, CHIEDERE a Marco se costruirlo prima o fare inline temporaneo.
 

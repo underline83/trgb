@@ -119,6 +119,46 @@ def init_notifiche_db() -> None:
         )
     """)
 
+    # ── TABELLA CONFIG ALERT ENGINE (M.F) ──
+    # Configurazione per ogni checker dell'alert engine.
+    # Una riga per checker (es. 'fatture_scadenza', 'dipendenti_scadenze', 'vini_sottoscorta').
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS alert_config (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            checker         TEXT NOT NULL UNIQUE,
+
+            -- On/off
+            attivo          INTEGER NOT NULL DEFAULT 1,
+
+            -- Soglie (interpretazione specifica per checker)
+            soglia_giorni   INTEGER NOT NULL DEFAULT 7,
+            antidup_ore     INTEGER NOT NULL DEFAULT 24,
+
+            -- Destinatari
+            dest_ruolo      TEXT DEFAULT 'admin',
+            dest_username   TEXT,
+
+            -- Canali abilitati
+            canale_app      INTEGER NOT NULL DEFAULT 1,
+            canale_wa       INTEGER NOT NULL DEFAULT 0,
+            canale_email    INTEGER NOT NULL DEFAULT 0,
+
+            -- Meta
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+
+    # Seed defaults per i 3 checker iniziali
+    for checker, soglia, antidup, label in [
+        ("fatture_scadenza", 7, 12, "Fatture in scadenza"),
+        ("dipendenti_scadenze", 30, 24, "Documenti dipendenti"),
+        ("vini_sottoscorta", 0, 24, "Vini sotto scorta"),
+    ]:
+        cur.execute("""
+            INSERT OR IGNORE INTO alert_config (checker, soglia_giorni, antidup_ore)
+            VALUES (?, ?, ?)
+        """, (checker, soglia, antidup))
+
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_username ON notifiche(dest_username)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_ruolo ON notifiche(dest_ruolo)")

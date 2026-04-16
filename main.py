@@ -83,6 +83,9 @@ from app.routers.dashboard_router import router as dashboard_router
 from app.routers.notifiche_router import router as notifiche_router
 from app.routers.notifiche_router import com_router as comunicazioni_router
 
+# ALERT ENGINE — mattone M.F controllo soglie/scadenze
+from app.routers.alerts_router import router as alerts_router
+
 # SCELTA DEL MACELLAIO — tagli carne disponibili alla vendita
 from app.routers.scelta_macellaio_router import router as scelta_macellaio_router
 
@@ -264,6 +267,9 @@ app.include_router(dashboard_router)
 # (usa DB dedicato app/data/notifiche.sqlite3, inizializzato in notifiche_db.init_notifiche_db)
 app.include_router(notifiche_router)
 app.include_router(comunicazioni_router)
+
+# ALERT ENGINE (mattone M.F — controlla soglie/scadenze, genera notifiche via M.A)
+app.include_router(alerts_router)
 
 # SCELTA DEL MACELLAIO
 app.include_router(scelta_macellaio_router)

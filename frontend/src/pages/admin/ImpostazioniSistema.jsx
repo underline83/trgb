@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { invalidateModulesCache } from "../../hooks/useModuleAccess";
+import NotificheImpostazioni from "./NotificheImpostazioni";
 
 // ---------------------------------------------------------------------------
 // COSTANTI
@@ -16,7 +17,7 @@ const ROLE_LABELS = {
   viewer:    { label: "Viewer",    icon: "👁" },
 };
 const ALL_ROLES = ["admin", "contabile", "chef", "sommelier", "sala", "viewer"];
-const VALID_TABS = ["utenti", "moduli", "backup"];
+const VALID_TABS = ["utenti", "moduli", "notifiche", "backup"];
 
 // ---------------------------------------------------------------------------
 // COMPONENTE PRINCIPALE
@@ -61,6 +62,7 @@ export default function ImpostazioniSistema() {
           {[
             { key: "utenti",  label: "👤 Utenti" },
             { key: "moduli",  label: "🔐 Moduli & Permessi" },
+            { key: "notifiche", label: "🔔 Notifiche" },
             { key: "backup",  label: "💾 Backup" },
           ].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -74,6 +76,7 @@ export default function ImpostazioniSistema() {
         {/* CONTENUTO */}
         {tab === "utenti" && <TabUtenti currentUsername={currentUsername} />}
         {tab === "moduli" && <TabModuli />}
+        {tab === "notifiche" && <NotificheImpostazioni />}
         {tab === "backup" && <TabBackup />}
       </div>
     </div>
