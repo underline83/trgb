@@ -682,16 +682,30 @@ def _score_match(nome: str, totale_match: float, data_ref, target: float,
     elif imp_diff_pct < 0.10:
         score -= 5
 
-    # Bonus prossimità data
+    # Finestra temporale e bonus prossimità (sessione 40):
+    # — cutoff duro a 180 giorni: pagamento e movimento banca a piu' di 6
+    #   mesi di distanza non sono mai correlati nella pratica
+    # — penalita' progressiva oltre 30 giorni per ridurre rumore
+    # — bonus prossimita' fino a 15 giorni
     if data_ref and data_c:
         try:
             d1 = datetime.strptime(data_c[:10], "%Y-%m-%d")
             d2 = datetime.strptime(str(data_ref)[:10], "%Y-%m-%d")
             days = abs((d1 - d2).days)
+            if days > 180:
+                return None  # scarta del tutto
             if days <= 5:
                 score -= 10
             elif days <= 15:
                 score -= 5
+            elif days <= 30:
+                pass  # neutro
+            elif days <= 60:
+                score += 15  # penalita' moderata
+            elif days <= 120:
+                score += 40  # penalita' forte
+            else:
+                score += 80  # penalita' molto forte (120-180gg)
         except Exception:
             pass
 

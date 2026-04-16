@@ -268,6 +268,7 @@ def assegna_turno(
                       COALESCE(tt.servizio,'') AS servizio,
                       tt.nome AS turno_nome,
                       d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                      d.nickname AS dipendente_nickname,
                       d.colore AS dipendente_colore
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
@@ -369,6 +370,7 @@ def modifica_turno(
                       COALESCE(tt.servizio,'') AS servizio,
                       tt.nome AS turno_nome,
                       d.nome AS dipendente_nome, d.cognome AS dipendente_cognome,
+                      d.nickname AS dipendente_nickname,
                       d.colore AS dipendente_colore
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
@@ -664,11 +666,12 @@ def get_foglio_pdf(
             return '<td class="empty">&nbsp;</td>'
         bg = t.get("dipendente_colore") or "#d1d5db"
         fg = _text_on(bg)
+        nick = (t.get("dipendente_nickname") or "").strip()
         nome = (t.get("dipendente_nome") or "").strip()
         cog = (t.get("dipendente_cognome") or "").strip()
         primo = nome.split()[0] if nome else ""
         ini = cog[0] if cog else ""
-        label = f"{primo}{' ' + ini + '.' if ini else ''}"
+        label = nick or f"{primo}{' ' + ini + '.' if ini else ''}"
         oi = (t.get("ora_inizio") or "")[:5]
         of = (t.get("ora_fine") or "")[:5]
         stato = (t.get("stato") or "").upper()

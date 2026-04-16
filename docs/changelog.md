@@ -3,6 +3,56 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / Wave 2 — Dipendenti UX + CG filtri+somma + Flussi finestra
+
+Wave 2 chiude 6 bug catalogati: 3 Dipendenti, 2 CG, 1 Flussi.
+
+### Dipendenti — Disattivazione libera il colore (S40-11)
+
+`DELETE /dipendenti/{id}` faceva soft-delete (`attivo = 0`) lasciando `colore` invariato. Risultato: il colore restava "occupato" nel picker quando provavi ad assegnarlo a un nuovo dipendente, anche se quello vecchio era inattivo.
+
+**Fix**: `dipendenti.py` la query DELETE ora fa `UPDATE dipendenti SET attivo = 0, colore = NULL WHERE id = ?`. Il colore torna disponibile nel picker (default grigio nelle stampe foglio settimana, gestito FE da `dipendente_colore || "#d1d5db"`).
+
+### Dipendenti — Auto-ID alla creazione (S40-12)
+
+Marco doveva inventarsi a mano un codice tipo "DIP015" per ogni nuovo dipendente. Inutile: il codice serve solo come chiave interna, non c'e' valore aggiunto a sceglierlo manualmente.
+
+**Fix**: `DipendenteBase.codice` ora `Optional`. POST genera automaticamente `DIPNNN` progressivo via `_genera_codice_dipendente(cur)` che scansiona i codici esistenti, trova il massimo numerico e fa +1 con padding a 3 cifre. PUT mantiene il codice esistente se vuoto. FE: campo non piu' required, placeholder dinamico "Auto (DIPNNN)" su nuovo, valore mostrato in sola lettura su esistenti.
+
+### Dipendenti — Campo nickname per stampe turno (S40-13)
+
+In Osteria tutti si chiamano "Pace", "Tango", "Bea", non "Giovanni Pacetti". Sul foglio settimana e WhatsApp turni serve il nome corto che lo staff usa davvero. Nome+cognome restano per buste paga / contratti.
+
+**Migrazione 081**: `dipendenti.sqlite3` → `ALTER TABLE dipendenti ADD COLUMN nickname TEXT` (nullable, idempotente, lavora sul DB separato).
+
+**Backend**: `nickname` aggiunto a `DipendenteBase`, INSERT/UPDATE/SELECT in `dipendenti.py`. Tutte le SELECT che ritornano turni o info dipendente includono `d.nickname AS dipendente_nickname` (4 query in `dipendenti.py` turni endpoints, 2 in `turni_router.py` POST/PUT foglio, 4 in `turni_service.py` foglio/mese/dipendente/WA). Generatore PDF foglio settimana (`turni_router.py`:669) e composer WhatsApp (`turni_service.py`:1515) usano nickname con fallback al nome.
+
+**Frontend**: `DipendentiAnagrafica.jsx` form con campo nickname + helper text. `FoglioSettimana.jsx` `SlotCell` mostra nickname se presente (es. "Pace") altrimenti `Primo I.` (vecchio fallback). `OrePanel` lato destro idem. Dialog "Invia turni via WA" mostra `Nome Cognome (Nickname)` per riconoscimento.
+
+### CG Uscite — Filtri default su mese corrente + tutti gli stati attivi (S40-5)
+
+Aprendo Uscite si vedeva di default "tutto da inizio anno", troppo rumore. Marco vuole "questo mese, tutto quello che mi serve gestire".
+
+**Fix**: `ControlloGestioneUscite.jsx` defaults: `filtroStato = {DA_PAGARE, SCADUTA, PAGATA}` (esclude solo SOSPESA), `filtroDa = primo del mese corrente`, `filtroA = ultimo del mese corrente`. Calcolati con `useState(() => ...)` per evitare ricomputi.
+
+### CG Uscite — Somma Excel-style su selezione multipla (S40-6)
+
+Marco selezionava 5 righe per vedere "quanto pago oggi se chiudo questi" e doveva sommare a mente.
+
+**Fix**: nuovo `useMemo sommaSelezionati` calcola residuo (totale - pagato) sulle righe selezionate. Mostrato nella bulk action bar con separatore: `📊 Totale residuo: € 1.234,56`.
+
+### Flussi — Finestra temporale ristretta nei suggerimenti banca (S40-15)
+
+`_score_match` in `banca_router.py` premiava la prossimita' (≤5gg, ≤15gg) ma NON scartava mai per data, quindi suggeriva accoppiamenti pagamento↔movimento banca con 8-10 mesi di distanza, totalmente assurdi.
+
+**Fix**: aggiunto cutoff duro a 180 giorni (return None) + penalita' progressiva: ≤30gg neutro, 30-60gg +15, 60-120gg +40, 120-180gg +80. I match plausibili (settimana/mese stesso) restano in cima, quelli sospetti vengono sommersi o eliminati.
+
+### Versioni bump
+
+`dipendenti` 2.24 → 2.25 (auto-ID + nickname + soft-delete colore). `controlloGestione` 2.5 → 2.6 (filtri default + somma selezione). `flussiCassa` 1.9 → 1.10 (finestra _score_match). `sistema` 5.9 → 5.10 (migrazione 081 dipendenti.sqlite3).
+
+---
+
 ## 2026-04-16 — Sessione 40 / Wave 1 — Bugfix bloccanti Dipendenti + Tooltip iPad
 
 Marco ha aperto la sessione con 17 bug distribuiti su 6 moduli. Wave 1 copre i 3 fix bloccanti (più 2 rimasti in indagine).

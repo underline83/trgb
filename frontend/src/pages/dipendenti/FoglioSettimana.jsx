@@ -797,10 +797,12 @@ function SlotCell({ turno, onClick, disabled }) {
   const bg = turno.dipendente_colore || "#d1d5db";
   const tone = textOn(bg);
 
-  // Solo primo nome + iniziale cognome puntata (es. "Paolo S.", "Mirla D.")
+  // Etichetta cella: nickname se presente (es. "Pace", "Tango"),
+  // altrimenti primo nome + iniziale cognome (es. "Paolo S.", "Mirla D.")
+  const nickname = (turno.dipendente_nickname || "").trim();
   const primoNome = (turno.dipendente_nome || "").trim().split(/\s+/)[0] || "";
   const iniCog = (turno.dipendente_cognome || "").trim().charAt(0);
-  const label = `${primoNome}${iniCog ? ` ${iniCog}.` : ""}`;
+  const label = nickname || `${primoNome}${iniCog ? ` ${iniCog}.` : ""}`;
 
   // Tooltip dettaglio conflitto: elenca altri turni sovrapposti
   const conflictTitle = hasConflict && Array.isArray(turno.conflicts) && turno.conflicts.length > 0
@@ -885,7 +887,7 @@ function OrePanel({ ore, reparto }) {
                 <span className={`w-2 h-2 rounded-full ${sem} shrink-0`}></span>
                 <span className="inline-block w-3 h-3 rounded-full shrink-0"
                       style={{ backgroundColor: d.colore || "#d1d5db" }}></span>
-                <span className="text-sm truncate">{d.nome} {d.cognome}</span>
+                <span className="text-sm truncate">{(d.nickname && d.nickname.trim()) || `${d.nome} ${d.cognome}`}</span>
                 {d.a_chiamata && (
                   <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0"
                         title="A chiamata — contratto a ore">📞</span>
@@ -1676,7 +1678,8 @@ function DialogInviaWA({ reparto, settimana, onClose }) {
 
   function inviaUno(dip) {
     if (!dip.telefono) {
-      alert(`${dip.nome} ${dip.cognome || ""} non ha un numero di telefono registrato.`);
+      const etichetta = (dip.nickname && dip.nickname.trim()) || `${dip.nome} ${dip.cognome || ""}`.trim();
+      alert(`${etichetta} non ha un numero di telefono registrato.`);
       return;
     }
     openWhatsApp(dip.telefono, dip.testo_wa);
@@ -1716,7 +1719,12 @@ function DialogInviaWA({ reparto, settimana, onClose }) {
                 className={`flex items-center gap-3 px-4 py-3 border-b hover:bg-neutral-50 ${noTurni ? "opacity-60" : ""}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{dip.nome} {dip.cognome || ""}</span>
+                    <span className="font-medium">
+                      {dip.nome} {dip.cognome || ""}
+                      {dip.nickname && dip.nickname.trim() && (
+                        <span className="text-neutral-500 font-normal ml-1">({dip.nickname.trim()})</span>
+                      )}
+                    </span>
                     <span className="text-xs text-neutral-500">
                       {dip.n_turni} turn{dip.n_turni === 1 ? "o" : "i"}
                     </span>

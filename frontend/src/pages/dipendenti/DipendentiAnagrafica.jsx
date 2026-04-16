@@ -1,5 +1,7 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.6-trailing-slash (fix crash POST nuovo dipendente — sessione 40)
+// @version: v2.7-auto-id-nickname (sessione 40)
+//  - Codice opzionale (placeholder "Auto"): se vuoto, lo genera il backend (DIPNNN)
+//  - Nuovo campo Nickname: appare nelle stampe turno al posto del nome anagrafico
 // Layout: DipendentiNav + header bar + sidebar lista + dettaglio con tabs
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -21,7 +23,7 @@ const DOC_CATEGORIE = [
 ];
 
 const EMPTY_FORM = {
-  id: null, codice: "", nome: "", cognome: "", ruolo: "",
+  id: null, codice: "", nome: "", cognome: "", nickname: "", ruolo: "",
   telefono: "", email: "", iban: "",
   indirizzo_via: "", indirizzo_cap: "", indirizzo_citta: "", indirizzo_provincia: "",
   note: "", attivo: true,
@@ -135,6 +137,7 @@ export default function DipendentiAnagrafica() {
     const linkedUsername = linkedUser ? linkedUser.username : "";
     setForm({
       id: d.id, codice: d.codice || "", nome: d.nome || "", cognome: d.cognome || "",
+      nickname: d.nickname || "",
       ruolo: d.ruolo || "", telefono: d.telefono || "", email: d.email || "",
       iban: d.iban || "", indirizzo_via: d.indirizzo_via || "",
       indirizzo_cap: d.indirizzo_cap || "", indirizzo_citta: d.indirizzo_citta || "",
@@ -165,7 +168,10 @@ export default function DipendentiAnagrafica() {
     e.preventDefault();
     setSaving(true); setError(null);
     const payload = {
-      codice: form.codice, nome: form.nome, cognome: form.cognome,
+      // codice: se vuoto, lo passiamo null e il backend genera DIPNNN
+      codice: form.codice || null,
+      nome: form.nome, cognome: form.cognome,
+      nickname: form.nickname || null,
       ruolo: form.ruolo, telefono: form.telefono || null,
       email: form.email || null, iban: form.iban || null,
       indirizzo_via: form.indirizzo_via || null,
@@ -420,8 +426,10 @@ export default function DipendentiAnagrafica() {
               {tab === "dati" && (
                 <form onSubmit={handleSave} className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
+                    {/* Codice opzionale: se vuoto il backend genera DIPNNN automatico */}
                     <Field label="Codice" value={form.codice}
-                      onChange={v => handleChange("codice", v)} placeholder="DIP001" required />
+                      onChange={v => handleChange("codice", v)}
+                      placeholder={form.id ? "DIP001" : "Auto (DIPNNN)"} />
                     <div>
                       <label className="block text-[10px] text-neutral-500 font-medium mb-1">Ruolo</label>
                       <select value={form.ruolo} onChange={e => handleChange("ruolo", e.target.value)}
@@ -435,6 +443,18 @@ export default function DipendentiAnagrafica() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Nome" value={form.nome} onChange={v => handleChange("nome", v)} required />
                     <Field label="Cognome" value={form.cognome} onChange={v => handleChange("cognome", v)} required />
+                  </div>
+
+                  {/* Nickname: nome corto che lo staff usa davvero — appare nelle stampe turno
+                      al posto del nome anagrafico (es. "Pace" invece di "Giovanni Pacetti") */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Nickname (per stampe turno)" value={form.nickname}
+                      onChange={v => handleChange("nickname", v)} placeholder="Es. Pace, Tango, Bea" />
+                    <div className="flex items-end">
+                      <p className="text-[10px] text-neutral-400 leading-tight">
+                        Se vuoto, sulle stampe turno appare il nome anagrafico.
+                      </p>
+                    </div>
                   </div>
 
                   {/* ── Turni v2: Reparto + Colore ── */}

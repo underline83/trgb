@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 chiusa)
+**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 + Wave 2 chiuse)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
 
-## SESSIONE 40 — Wave 1 bugfix (IN CORSO 🟢)
+## SESSIONE 40 — Wave 1 + Wave 2 (CHIUSE ✅)
 
 Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5), UI generica (2), Acquisti (2), Controllo Gestione (2), Flussi di Cassa (4), Statistiche (2). Triage: 3 wave ordinate per impatto × sforzo, dettaglio completo in `problemi.md` (punti `S40-1 ... S40-17`).
 
@@ -16,6 +16,15 @@ Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5),
 - **S40-2 "+ Nuovo reparto" non fa nulla** (`GestioneReparti` v1.2) — flag `isCreating` mancante, allineato al pattern di `DipendentiAnagrafica`.
 - **S40-3 Campanello iPad click non apre** (`Tooltip` v1.2 + `Header`) — nuova prop `disableOnTouch` sul Tooltip, applicata a 🔔 e 🔑 per evitare il double-tap friction su icone universali.
 
+### Wave 2 completata — 6 fix UX su Dipendenti, CG, Flussi
+
+- **S40-4 Soft-delete dipendente libera colore** (`dipendenti.py` DELETE) — `UPDATE … SET attivo=0, colore=NULL` invece di lasciare il colore "occupato" nel picker.
+- **S40-5 Auto-ID dipendente progressivo** (`dipendenti.py` POST + `DipendentiAnagrafica` v2.7) — generatore `_genera_codice_dipendente` produce `DIPNNN` con padding a 3 cifre. Codice ora optional in pydantic e nel form.
+- **S40-6 Nickname per stampe turno** (migrazione 081 + tutto il path turni) — colonna `nickname TEXT` su `dipendenti.sqlite3`, esposta in tutte le SELECT (4 in `dipendenti.py`, 2 in `turni_router.py`, 4 in `turni_service.py`). Cell label foglio settimana, OrePanel, PDF e composer WA usano nickname con fallback al nome. Saluto WA: "Ciao Pace, ecco i tuoi turni…".
+- **S40-9 Default filtri Uscite CG** (`ControlloGestioneUscite` v3.1) — apre con `{DA_PAGARE, SCADUTA, PAGATA}` su mese corrente invece di "tutto da inizio anno".
+- **S40-10 Somma residuo Excel-style** (stesso file) — `useMemo sommaSelezionati` mostra il totale residuo nella bulk action bar.
+- **S40-11 Finestra _score_match** (`banca_router.py`) — cutoff duro a 180 giorni + penalita' progressiva oltre 30gg, evita di suggerire match SDD-08apr26 vs Amazon-11ago25.
+
 ### Rimangono in indagine
 
 - **S40-14 Duplicati Sogegros €597,08** — servono ID `banca_movimenti` da Marco per decidere regola dedup.
@@ -24,14 +33,15 @@ Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5),
 
 ### Prossime wave
 
-- **Wave 2** (prossima sessione): Dipendenti #1/#2/#5 (inattivo libera colore, auto-ID, nickname) + Flussi #1 matching date inverosimili + CG #1/#2 (default filtri + somma selezione Excel-style).
 - **Wave 3**: Acquisti #2 flag fornitori ignorati + Flussi #2 selezione multipla parcheggio + Flussi #3 iPad descrizione + UI #2 uniformare barra CG.
 - **Fuori wave** (indagine): Acquisti #1 FIC righe mancanti — serve fattura di riferimento.
 
 ### Versioni bump sessione 40
 
-- `dipendenti` 2.23 → 2.24
-- `sistema` 5.8 → 5.9 (il Tooltip è condiviso tra tutti i moduli)
+- `dipendenti` 2.23 → 2.25 (Wave 1 + Wave 2: trailing slash, soft-delete colore, auto-ID, nickname)
+- `controlloGestione` 2.5 → 2.6 (Wave 2: filtri default + somma selezione)
+- `flussiCassa` 1.9 → 1.10 (Wave 2: cutoff finestra _score_match)
+- `sistema` 5.8 → 5.10 (Wave 1: Tooltip disableOnTouch — Wave 2: migrazione 081 dipendenti.sqlite3)
 
 ---
 

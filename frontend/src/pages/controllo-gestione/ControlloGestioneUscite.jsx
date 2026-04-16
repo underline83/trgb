@@ -1,6 +1,9 @@
-// @version: v3.0-riconciliazione-banca
+// @version: v3.1-default-filtri-somma-selezione (sessione 40)
 // Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
 // + Riconciliazione Banca: match uscite ↔ movimenti bancari
+// v3.1 (sessione 40):
+//  - Default filtri all'apertura: stati Programmato+Scaduto+Pagato e periodo mese corrente
+//  - Barra bulk mostra la somma dei totali delle righe selezionate (Excel-style)
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -53,10 +56,27 @@ export default function ControlloGestioneUscite() {
   const [search, setSearch] = useState("");
   // filtroStato: Set di stati selezionati. Vuoto = "tutti".
   // Valori possibili: "DA_PAGARE", "SCADUTA", "PAGATA" (include anche PAGATA_MANUALE), "PARZIALE"
-  const [filtroStato, setFiltroStato] = useState(() => new Set());
+  //
+  // v3.1 (sessione 40): DEFAULT = Programmato + Scaduto + Pagato.
+  // Marco entra nella pagina e vede subito il quadro completo del mese in corso
+  // (niente Parziale di default perché è rumore raro, va cercato esplicitamente).
+  const [filtroStato, setFiltroStato] = useState(() => new Set(["DA_PAGARE", "SCADUTA", "PAGATA"]));
   const [filtroTipo, setFiltroTipo] = useState(""); // FATTURA | SPESA_FISSA | ""
-  const [filtroDa, setFiltroDa] = useState("");
-  const [filtroA, setFiltroA] = useState("");
+  // v3.1: DEFAULT periodo = mese corrente (primo giorno → ultimo giorno).
+  // Stesso vantaggio: chi apre la pagina ha già la vista "mese" come in Excel.
+  const [filtroDa, setFiltroDa] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  });
+  const [filtroA, setFiltroA] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const last = new Date(y, m + 1, 0).getDate();
+    return `${y}-${String(m + 1).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+  });
   const [sortCol, setSortCol] = useState("data_scadenza");
   const [sortDir, setSortDir] = useState("asc");
 
@@ -381,6 +401,17 @@ export default function ControlloGestioneUscite() {
       return next;
     });
   };
+
+  // v3.1 (sessione 40): somma Excel-style dei totali netti delle righe selezionate.
+  // Usiamo `totale - importo_pagato` cosi' su uscite parziali mostriamo solo il residuo,
+  // coerente con le KPI della pagina. Calcolato su `allUscite` per evitare discrepanze
+  // quando un filtro nasconde una riga gia' selezionata.
+  const sommaSelezionati = useMemo(() => {
+    if (selected.size === 0) return 0;
+    return allUscite
+      .filter(u => selected.has(u.id))
+      .reduce((s, u) => s + ((u.totale || 0) - (u.importo_pagato || 0)), 0);
+  }, [allUscite, selected]);
   const selezionabili = useMemo(() =>
     sorted.filter(u => ["DA_PAGARE", "SCADUTA", "PARZIALE"].includes(u.stato)).map(u => u.id),
     [sorted]
@@ -980,6 +1011,12 @@ export default function ControlloGestioneUscite() {
               <span className="text-xs font-semibold text-teal-800">
                 {selected.size} selezionat{selected.size === 1 ? "a" : "e"}
               </span>
+              {/* v3.1 (sessione 40): somma Excel-style del residuo sulle righe selezionate */}
+              <span className="text-xs text-teal-700 tabular-nums">
+                <span className="opacity-70">Somma:</span>{" "}
+                <span className="font-bold text-teal-900">€ {fmt(sommaSelezionati)}</span>
+              </span>
+              <div className="h-5 w-px bg-teal-300 mx-0.5" />
               {/* Stampa + batch */}
               <Tooltip label="Crea un batch di pagamento, apre una stampa e marca le uscite come messe in pagamento">
                 <button onClick={apriStampaBatch}

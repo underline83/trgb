@@ -43,7 +43,9 @@ init_dipendenti_db()
 # MODELLI Pydantic — Dipendenti
 # ============================================================
 class DipendenteBase(BaseModel):
-    codice: str = Field(..., description="Codice univoco interno, es. DIP001")
+    # Sessione 40: codice reso opzionale sui modelli Create/Update.
+    # Al create, se vuoto, il backend genera un progressivo DIPNNN automaticamente.
+    codice: Optional[str] = Field(None, description="Codice univoco interno, es. DIP001. Se vuoto al create lo genera il backend.")
     nome: str
     cognome: str
     ruolo: str
@@ -55,6 +57,7 @@ class DipendenteBase(BaseModel):
     indirizzo_provincia: Optional[str] = None
     indirizzo_paese: Optional[str] = None
     iban: Optional[str] = None
+    nickname: Optional[str] = None     # Sessione 40: nickname usato nelle stampe turno
     note: Optional[str] = None
     attivo: bool = True
     # Turni v2
@@ -70,6 +73,33 @@ class DipendenteCreate(DipendenteBase):
 
 class DipendenteUpdate(DipendenteBase):
     pass
+
+
+def _genera_codice_dipendente(cur) -> str:
+    """
+    Genera il prossimo codice progressivo nella forma DIPNNN (es. DIP001, DIP012, DIP142).
+
+    Sessione 40 — richiesta Marco: inserendo un nuovo dipendente non ha senso costringerlo
+    a inventare un codice; il sistema lo assegna da solo prendendo il massimo DIP esistente
+    (attivi + disattivi, per evitare collisioni quando si riattiva qualcuno) + 1.
+
+    Se non esiste ancora alcun codice DIP, si parte da DIP001.
+    Se qualcuno ha gia' usato formati custom (es. "MARIO") vengono semplicemente ignorati.
+    """
+    cur.execute("SELECT codice FROM dipendenti WHERE codice LIKE 'DIP%';")
+    max_n = 0
+    for row in cur.fetchall():
+        codice = (row["codice"] if hasattr(row, "keys") else row[0]) or ""
+        # estrae la parte numerica dopo "DIP"
+        match = re.match(r"^DIP(\d+)$", codice.strip(), re.IGNORECASE)
+        if match:
+            try:
+                n = int(match.group(1))
+                if n > max_n:
+                    max_n = n
+            except ValueError:
+                pass
+    return f"DIP{max_n + 1:03d}"
 
 
 # ============================================================
@@ -151,7 +181,7 @@ def list_dipendenti(
                    telefono, email,
                    indirizzo_via, indirizzo_cap, indirizzo_citta,
                    indirizzo_provincia, indirizzo_paese,
-                   iban,
+                   iban, nickname,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
@@ -167,7 +197,7 @@ def list_dipendenti(
                    telefono, email,
                    indirizzo_via, indirizzo_cap, indirizzo_citta,
                    indirizzo_provincia, indirizzo_paese,
-                   iban,
+                   iban, nickname,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
@@ -197,6 +227,12 @@ def create_dipendente(
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
+    # Sessione 40: auto-ID. Se il frontend non passa un codice (o passa stringa vuota),
+    # il backend lo genera come progressivo DIPNNN.
+    codice_da_usare = (payload.codice or "").strip()
+    if not codice_da_usare:
+        codice_da_usare = _genera_codice_dipendente(cur)
+
     try:
         cur.execute(
             """
@@ -205,14 +241,14 @@ def create_dipendente(
                telefono, email,
                indirizzo_via, indirizzo_cap, indirizzo_citta,
                indirizzo_provincia, indirizzo_paese,
-               iban,
+               iban, nickname,
                note, attivo,
                reparto_id, colore, a_chiamata,
                trasmissione_telematica)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                payload.codice.strip(),
+                codice_da_usare,
                 payload.nome.strip(),
                 payload.cognome.strip(),
                 payload.ruolo.strip(),
@@ -224,6 +260,7 @@ def create_dipendente(
                 payload.indirizzo_provincia.strip() if payload.indirizzo_provincia else None,
                 payload.indirizzo_paese.strip() if payload.indirizzo_paese else None,
                 payload.iban.strip() if payload.iban else None,
+                payload.nickname.strip() if payload.nickname else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
                 payload.reparto_id,
@@ -249,7 +286,7 @@ def create_dipendente(
                    telefono, email,
                    indirizzo_via, indirizzo_cap, indirizzo_citta,
                    indirizzo_provincia, indirizzo_paese,
-                   iban,
+                   iban, nickname,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
@@ -278,10 +315,16 @@ def update_dipendente(
     conn = get_dipendenti_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT id FROM dipendenti WHERE id = ?;", (dipendente_id,))
-    if not cur.fetchone():
+    cur.execute("SELECT id, codice FROM dipendenti WHERE id = ?;", (dipendente_id,))
+    existing = cur.fetchone()
+    if not existing:
         conn.close()
         raise HTTPException(status_code=404, detail="Dipendente non trovato.")
+
+    # Sessione 40: se il frontend manda codice vuoto (es. utente ha svuotato il campo),
+    # teniamo il codice esistente. Non rigeneriamo automaticamente su update: cambiarlo
+    # da solo sarebbe sorprendente, e il vincolo UNIQUE ci protegge dalle collisioni.
+    codice_da_usare = (payload.codice or "").strip() or existing["codice"]
 
     try:
         cur.execute(
@@ -299,6 +342,7 @@ def update_dipendente(
                 indirizzo_provincia = ?,
                 indirizzo_paese = ?,
                 iban = ?,
+                nickname = ?,
                 note = ?,
                 attivo = ?,
                 reparto_id = ?,
@@ -308,7 +352,7 @@ def update_dipendente(
             WHERE id = ?;
             """,
             (
-                payload.codice.strip(),
+                codice_da_usare,
                 payload.nome.strip(),
                 payload.cognome.strip(),
                 payload.ruolo.strip(),
@@ -320,6 +364,7 @@ def update_dipendente(
                 payload.indirizzo_provincia.strip() if payload.indirizzo_provincia else None,
                 payload.indirizzo_paese.strip() if payload.indirizzo_paese else None,
                 payload.iban.strip() if payload.iban else None,
+                payload.nickname.strip() if payload.nickname else None,
                 payload.note.strip() if payload.note else None,
                 1 if payload.attivo else 0,
                 payload.reparto_id,
@@ -345,7 +390,7 @@ def update_dipendente(
                    telefono, email,
                    indirizzo_via, indirizzo_cap, indirizzo_citta,
                    indirizzo_provincia, indirizzo_paese,
-                   iban,
+                   iban, nickname,
                    note, attivo,
                    reparto_id, colore, a_chiamata,
                    trasmissione_telematica,
@@ -372,6 +417,11 @@ def soft_delete_dipendente(
 ):
     """
     Soft delete: imposta attivo = 0, non cancella i turni storici.
+
+    Sessione 40 — libera anche il colore:
+    quando un dipendente e' disattivato, il suo colore torna a NULL (grigio di default
+    sul foglio settimana). Cosi' il colore liberato puo' essere riassegnato a un nuovo
+    dipendente senza lasciare un ex-collaboratore inattivo che occupa il posto.
     """
     conn = get_dipendenti_conn()
     cur = conn.cursor()
@@ -382,7 +432,7 @@ def soft_delete_dipendente(
         raise HTTPException(status_code=404, detail="Dipendente non trovato.")
 
     cur.execute(
-        "UPDATE dipendenti SET attivo = 0 WHERE id = ?;",
+        "UPDATE dipendenti SET attivo = 0, colore = NULL WHERE id = ?;",
         (dipendente_id,),
     )
     conn.commit()
@@ -661,6 +711,7 @@ def list_turni_calendario(
           d.id   AS dipendente_id,
           d.nome AS dipendente_nome,
           d.cognome AS dipendente_cognome,
+          d.nickname AS dipendente_nickname,
           d.ruolo AS dipendente_ruolo,
           tt.id  AS turno_tipo_id,
           tt.nome AS turno_nome,
@@ -766,6 +817,7 @@ def create_turno_calendario(
           d.id   AS dipendente_id,
           d.nome AS dipendente_nome,
           d.cognome AS dipendente_cognome,
+          d.nickname AS dipendente_nickname,
           d.ruolo AS dipendente_ruolo,
           tt.id  AS turno_tipo_id,
           tt.nome AS turno_nome,
@@ -859,6 +911,7 @@ def update_turno_calendario(
               d.id   AS dipendente_id,
               d.nome AS dipendente_nome,
               d.cognome AS dipendente_cognome,
+              d.nickname AS dipendente_nickname,
               d.ruolo AS dipendente_ruolo,
               tt.id  AS turno_tipo_id,
               tt.nome AS turno_nome,
@@ -902,6 +955,7 @@ def update_turno_calendario(
           d.id   AS dipendente_id,
           d.nome AS dipendente_nome,
           d.cognome AS dipendente_cognome,
+          d.nickname AS dipendente_nickname,
           d.ruolo AS dipendente_ruolo,
           tt.id  AS turno_tipo_id,
           tt.nome AS turno_nome,

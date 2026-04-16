@@ -27,13 +27,13 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   flussiCassa: {
-    version: "1.9",
+    version: "1.10",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
   },
   dipendenti: {
-    version: "2.24",
+    version: "2.25",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    version: "2.5",
+    version: "2.6",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -81,7 +81,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    version: "5.9",
+    version: "5.10",
     label: "Sistema",
     status: "stabile",
     color: "green",

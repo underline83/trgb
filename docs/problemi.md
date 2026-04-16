@@ -53,34 +53,7 @@ La sorella `DipendentiAnagrafica.jsx` ha già il flag esplicito `isCreating` (ri
 
 ---
 
-### S40-4. Dipendenti — Inattivo mantiene colore occupato
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Dipendenti / Anagrafica
-**Gravità:** bassa
-
-**Richiesta:** quando un dipendente viene settato inattivo, togliere il colore assegnato e metterne uno grigio di default, così il colore torna disponibile per altri dipendenti attivi.
-
----
-
-### S40-5. Dipendenti — Auto-ID alla creazione
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Dipendenti / Anagrafica
-**Gravità:** bassa
-
-**Richiesta:** assegnare automaticamente un ID/codice dipendente alla creazione, invece di richiederlo manualmente.
-
-**Da capire:** il campo `codice` oggi è inserito da Marco (SALA01, CUC02, ecc.). Marco vuole che venga generato? Pattern consigliato: prefisso reparto + progressivo (es. SALA03) calcolato lato backend al POST.
-
----
-
-### S40-6. Dipendenti — Campo nickname in anagrafica
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Dipendenti / Anagrafica + Stampe turni
-**Gravità:** bassa
-
-**Richiesta:** aggiungere campo `nickname` all'anagrafica. Nelle stampe turni, se presente, usare il nickname invece del nome + iniziale cognome.
-
-**Impatto tecnico:** migrazione (colonna `nickname TEXT` su `dipendenti`), form anagrafica, logica stampa in `FoglioSettimana.jsx` + altri componenti che stampano turni.
+_(S40-4, S40-5, S40-6 risolti — vedi sezione Risolti.)_
 
 ---
 
@@ -104,35 +77,7 @@ La sorella `DipendentiAnagrafica.jsx` ha già il flag esplicito `isCreating` (ri
 
 ---
 
-### S40-9. Controllo Gestione — Default filtri dashboard
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Controllo Gestione / Dashboard
-**Gravità:** bassa
-
-**Richiesta:** all'apertura della dashboard pre-selezionare i filtri: **stati programmati + pagati + scaduti**, **periodo mese corrente**. Ora il default è probabilmente "tutto" o "solo pagati".
-
----
-
-### S40-10. Controllo Gestione — Somma importi su selezione multipla (stile Excel)
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Controllo Gestione / Lista spese
-**Gravità:** bassa
-
-**Richiesta:** quando si selezionano più righe con checkbox, accanto a "N selezionate" mostrare la somma degli importi, come fa Excel selezionando più celle.
-
----
-
-### S40-11. Flussi di Cassa — Suggerimenti con distanza date inverosimile
-**Segnalato:** 2026-04-16 (sessione 40, con screenshot)
-**Modulo:** Flussi di Cassa / Riconciliazione (suggerimenti automatici)
-**Gravità:** media
-
-**Sintomo:** addebito diretto SDD 08 apr 26 (€94,81) propone match con fatture Amazon Business da 11 ago 25, 01 set 25, 15 nov 25, 26 feb 26 — finestra di anni invece che settimane.
-
-**Da capire:** la logica di scoring matching probabilmente pesa troppo l'importo e poco la vicinanza temporale. Serve capire:
-1. File sorgente: probabilmente `banca_router.py` o servizio riconciliazione
-2. Ridurre la finestra temporale (es. ±30 giorni max per addebiti SDD / ±90 giorni per bonifici)
-3. Penalizzare fortemente distanze > 60 giorni anche con importo uguale
+_(S40-9, S40-10, S40-11 risolti — vedi sezione Risolti.)_
 
 ---
 
@@ -237,6 +182,61 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S40-4. Dipendenti — Inattivo mantiene colore occupato ✅ 2026-04-16 (Wave 2)
+**Modulo:** Dipendenti / Anagrafica
+
+**Causa:** `DELETE /dipendenti/{id}` faceva soft-delete `attivo = 0` lasciando `colore` invariato → il colore restava "occupato" nel picker.
+
+**Fix:** la query DELETE ora fa `UPDATE dipendenti SET attivo = 0, colore = NULL WHERE id = ?`. Il colore torna disponibile per nuovi dipendenti; nel foglio settimana il fallback FE `dipendente_colore || "#d1d5db"` rende grigi i turni storici (effetto desiderato).
+
+**File toccati:** `app/routers/dipendenti.py` (DELETE handler).
+
+---
+
+### S40-5. Dipendenti — Auto-ID alla creazione ✅ 2026-04-16 (Wave 2)
+**Modulo:** Dipendenti / Anagrafica
+
+**Fix:** `DipendenteBase.codice` ora `Optional[str]`. Aggiunto `_genera_codice_dipendente(cur)` che scansiona i codici esistenti `DIP\d+`, prende il massimo numerico e ritorna `DIPNNN` con `+1` e padding a 3 cifre. POST genera quando `codice` è vuoto; PUT mantiene il codice esistente. Il FE non chiede piu' il codice (campo non required, placeholder dinamico "Auto (DIPNNN)" per nuovi).
+
+**File toccati:** `app/routers/dipendenti.py`, `frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx`.
+
+---
+
+### S40-6. Dipendenti — Campo nickname in anagrafica + uso nelle stampe ✅ 2026-04-16 (Wave 2)
+**Modulo:** Dipendenti / Anagrafica + Foglio settimana + WhatsApp turni
+
+**Fix:**
+- **Migrazione 081**: `ALTER TABLE dipendenti ADD COLUMN nickname TEXT` su `dipendenti.sqlite3` (idempotente, lavora su DB separato).
+- **Backend**: campo aggiunto al modello `DipendenteBase`, INSERT/UPDATE in `dipendenti.py`. Tutte le SELECT che ritornano turni o info dipendente includono ora `d.nickname AS dipendente_nickname` (4 in `dipendenti.py`, 2 in `turni_router.py`, 4 in `turni_service.py` foglio/mese/dipendente/WA).
+- **PDF foglio settimana** (`turni_router.py`:669): `cella_html` usa nickname se presente, altrimenti `Primo I.`.
+- **Composer WhatsApp turni** (`turni_service.py`:1515): saluto `Ciao Pace, ecco i tuoi turni…` invece di `Ciao Giovanni`.
+- **FE**: `DipendentiAnagrafica.jsx` form con campo nickname + helper text. `FoglioSettimana.jsx` `SlotCell` e `OrePanel` mostrano nickname se presente. Dialog "Invia turni via WA" mostra `Nome Cognome (Nickname)` per riconoscimento.
+
+---
+
+### S40-9. Controllo Gestione — Default filtri Uscite (mese corrente + stati attivi) ✅ 2026-04-16 (Wave 2)
+**Modulo:** Controllo Gestione / Uscite
+
+**Fix:** `ControlloGestioneUscite.jsx` cambia i default: `filtroStato = {DA_PAGARE, SCADUTA, PAGATA}` (esclude solo SOSPESA), `filtroDa = primo del mese corrente`, `filtroA = ultimo del mese corrente`. Calcolati con `useState(() => …)` per evitare ricomputi a ogni render.
+
+---
+
+### S40-10. Controllo Gestione — Somma importi su selezione multipla ✅ 2026-04-16 (Wave 2)
+**Modulo:** Controllo Gestione / Uscite
+
+**Fix:** nuovo `useMemo sommaSelezionati` calcola residuo (`totale - importo_pagato`) sulle righe selezionate. Mostrato nella bulk action bar con separatore: `📊 Totale residuo: € 1.234,56`.
+
+---
+
+### S40-11. Flussi di Cassa — Suggerimenti con distanza date inverosimile ✅ 2026-04-16 (Wave 2)
+**Modulo:** Flussi di Cassa / Riconciliazione
+
+**Causa:** `_score_match` in `banca_router.py` premiava la prossimita' (≤5gg, ≤15gg) ma non scartava mai per distanza temporale → suggeriva accoppiamenti pagamento↔movimento banca con 8-10 mesi di distanza (caso reale: SDD 08-apr-26 €94,81 vs Amazon Business 11-ago-25).
+
+**Fix:** aggiunto cutoff duro a 180 giorni (return None) + penalita' progressiva: ≤30gg neutro, 30-60gg `+15`, 60-120gg `+40`, 120-180gg `+80`. I match plausibili restano in cima, quelli sospetti vengono sommersi o eliminati.
+
+---
 
 ### P1. Prenotazioni — Import TheFork senza nome per ~22% delle righe ✅ 2026-04-13
 **Segnalato:** 2026-04-13

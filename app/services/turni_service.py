@@ -383,7 +383,7 @@ def build_foglio_settimana(
 
         # Dipendenti attivi del reparto
         cur.execute(
-            """SELECT id, nome, cognome, ruolo, colore, reparto_id,
+            """SELECT id, nome, cognome, nickname, ruolo, colore, reparto_id,
                       COALESCE(a_chiamata, 0) AS a_chiamata
                FROM dipendenti
                WHERE attivo = 1 AND reparto_id = ?
@@ -413,6 +413,7 @@ def build_foglio_settimana(
                   tt.colore_bg, tt.colore_testo, tt.nome AS turno_nome,
                   d.nome    AS dipendente_nome,
                   d.cognome AS dipendente_cognome,
+                  d.nickname AS dipendente_nickname,
                   d.colore  AS dipendente_colore,
                   d.ruolo   AS dipendente_ruolo,
                   COALESCE(d.a_chiamata, 0) AS dipendente_a_chiamata
@@ -521,7 +522,7 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
 
         # Dipendenti attivi del reparto
         cur.execute(
-            """SELECT id, nome, cognome, ruolo, colore, reparto_id,
+            """SELECT id, nome, cognome, nickname, ruolo, colore, reparto_id,
                       COALESCE(a_chiamata, 0) AS a_chiamata
                FROM dipendenti
                WHERE attivo = 1 AND reparto_id = ?
@@ -547,6 +548,7 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
                   COALESCE(tt.servizio, '') AS servizio,
                   d.nome    AS dipendente_nome,
                   d.cognome AS dipendente_cognome,
+                  d.nickname AS dipendente_nickname,
                   d.colore  AS dipendente_colore,
                   COALESCE(d.a_chiamata, 0) AS dipendente_a_chiamata
                 FROM turni_calendario tc
@@ -678,6 +680,7 @@ def ore_nette_settimana_per_reparto(
             "dipendente_id": dip_id,
             "nome": d["nome"],
             "cognome": d["cognome"],
+            "nickname": d.get("nickname"),
             "colore": d.get("colore"),
             "a_chiamata": bool(d.get("a_chiamata") or 0),
             "ore_lorde": round(ore_lorde_tot, 2),
@@ -762,7 +765,7 @@ def build_vista_dipendente(
 
         # Dipendente + reparto
         cur.execute(
-            """SELECT d.id, d.nome, d.cognome, d.ruolo, d.colore, d.reparto_id,
+            """SELECT d.id, d.nome, d.cognome, d.nickname, d.ruolo, d.colore, d.reparto_id,
                       COALESCE(d.a_chiamata, 0) AS a_chiamata,
                       r.nome AS reparto_nome, r.colore AS reparto_colore,
                       r.codice AS reparto_codice,
@@ -1471,7 +1474,7 @@ def riepilogo_settimana_per_dipendenti(
         cur.execute(
             """SELECT tc.id, tc.dipendente_id, tc.data, tc.servizio, tc.slot_index,
                       tc.ora_inizio, tc.ora_fine, tc.stato,
-                      d.nome, d.cognome, d.telefono, d.colore
+                      d.nome, d.cognome, d.nickname, d.telefono, d.colore
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
                WHERE d.reparto_id = ? AND d.attivo = 1
@@ -1493,6 +1496,7 @@ def riepilogo_settimana_per_dipendenti(
                 "dipendente_id": did,
                 "nome": r["nome"],
                 "cognome": r["cognome"],
+                "nickname": r.get("nickname"),
                 "telefono": r.get("telefono"),
                 "colore": r.get("colore"),
                 "turni": [],
@@ -1512,7 +1516,9 @@ def riepilogo_settimana_per_dipendenti(
     out: List[Dict[str, Any]] = []
     for did, info in per_dip.items():
         # Componi messaggio WA
-        lines = [f"Ciao {info['nome']}, ecco i tuoi turni {reparto_nome} della settimana {range_human}:"]
+        # Saluto: usa nickname se presente (più caldo, "Ciao Pace") altrimenti il nome
+        saluto = (info.get("nickname") or "").strip() or info["nome"]
+        lines = [f"Ciao {saluto}, ecco i tuoi turni {reparto_nome} della settimana {range_human}:"]
         # Raggruppa per data in ordine cronologico
         per_data: Dict[str, List[Dict[str, Any]]] = {}
         for t in info["turni"]:
