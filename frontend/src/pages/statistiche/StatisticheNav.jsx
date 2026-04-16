@@ -17,7 +17,7 @@ export default function StatisticheNav({ current }) {
   const role = localStorage.getItem("role");
 
   // superadmin eredita tutti i permessi di admin (allineato a useModuleAccess.roleMatch)
-  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));
+  const visibleTabs = TABS.filter((tab) => tab.soon || !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">
@@ -33,6 +33,18 @@ export default function StatisticheNav({ current }) {
             <div className="flex gap-0.5">
               {visibleTabs.map((tab) => {
                 const active = current === tab.key;
+                if (tab.soon) {
+                  return (
+                    <span
+                      key={tab.key}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap text-neutral-300 cursor-default select-none"
+                      title="Prossimamente"
+                    >
+                      <span className="mr-1 opacity-40">{tab.icon}</span>
+                      {tab.label}
+                    </span>
+                  );
+                }
                 return (
                   <button
                     key={tab.key}
