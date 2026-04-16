@@ -87,17 +87,23 @@ Serve caso concreto da Marco (ID banca_movimenti dei due record).
 
 ---
 
-### S40-15. Acquisti — Import FIC salta dettaglio righe
+### S40-15. Acquisti — Import FIC salta dettaglio righe ✅ CHIUSO 2026-04-16
 **Segnalato:** 2026-04-16 (sessione 40)
 **Modulo:** Acquisti / Import Fatture in Cloud
 **Gravità:** media
 
-**Sintomo:** alcune fatture importate da FIC non hanno il dettaglio righe, nonostante su FIC il dettaglio ci sia. Marco sospetta anche che dopo gli ultimi aggiornamenti l'import abbia smesso di funzionare.
+**Sintomo:** alcune fatture importate da FIC non hanno il dettaglio righe, nonostante su FIC il dettaglio ci sia (es. OROBICA 201969/FTM 2026-03-31 €7425.24, MILESI 2026/300).
 
-**Da capire:**
-1. Caso concreto: ID fattura FIC + fattura nel DB TRGB senza righe
-2. Verificare se la cosa è peggiorata dopo commit recente (regressione) o è pre-esistente
-3. Log `fattureincloud_router.py` e verificare come arriva il payload da FIC
+**Causa radice:** l'API FIC `/received_documents/{id}?fieldset=detailed` restituisce `is_detailed=false, items_list=[], e_invoice=true` per le fatture registrate come "Spesa" senza dettaglio strutturato. Le righe esistono solo dentro il tracciato XML SDI allegato, accessibile via `attachment_url` (pre-signed temporaneo read-only). Non e' regressione lato nostro — e' comportamento FIC nativo che dipende dalla modalita' di registrazione.
+
+**Fix (commit 2026-04-16):**
+1. NEW `app/utils/fatturapa_parser.py` — parser FatturaPA riusabile (zip/p7m/xml/utf-16, `DettaglioLinee`).
+2. Fallback automatico in `_fetch_detail_and_righe`: se `items_list=[] && e_invoice && attachment_url` → scarica XML, parsa, popola `fe_righe`.
+3. Endpoint recovery retroattivo: `POST /fic/refetch-righe-xml/{db_id}` + `POST /fic/bulk-refetch-righe-xml`.
+4. UI Fatture › Impostazioni › FIC: card "📥 Recupero righe da XML SDI" con singolo + bulk.
+5. Exception swallow in `_fetch_detail_and_righe` rimosso (ora `traceback.print_exc()`).
+
+**Action item per Marco:** dopo il push, Fatture › Impostazioni › FIC → "Recupero righe da XML SDI" → anno 2026, limite 500 → Avvia.
 
 ---
 

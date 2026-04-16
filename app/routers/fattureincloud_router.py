@@ -238,10 +238,10 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
     - numero_fattura (invoice_number)
     - pagato (da payments_list)
     - dedup con XML (ora che abbiamo invoice_number)
-    - righe in fe_righe (da items_list)
-    Ritorna dict con contatori: {"righe": N, "merged": 0|1}
+    - righe in fe_righe (da items_list, o fallback XML SDI)
+    Ritorna dict con contatori: {"righe": N, "merged": 0|1, "fonte_righe": "fic"|"xml"|""}
     """
-    result = {"righe": 0, "merged": 0, "no_detail": False}
+    result = {"righe": 0, "merged": 0, "no_detail": False, "fonte_righe": ""}
     try:
         detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
             "fieldset": "detailed",
@@ -253,6 +253,8 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
         entity = doc_data.get("entity", {}) or {}
         fornitore_piva = entity.get("vat_number", "") or ""
         doc_date = doc_data.get("date", "") or ""
+        e_invoice = bool(doc_data.get("e_invoice"))
+        attachment_url = doc_data.get("attachment_url") or ""
 
         # ── STATO PAGAMENTO + DATI SCADENZA ──────────────
         payments = doc_data.get("payments_list") or []
@@ -316,8 +318,62 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
 
         # ── RIGHE / ITEMS ────────────────────────────────
         items_list = doc_data.get("items_list") or []
+
+        # ★ FALLBACK XML: se FIC non ha righe strutturate ma la fattura e'
+        # elettronica con XML allegato, proviamo a estrarre le righe dal
+        # tracciato SDI (DettaglioLinee). Vedi app/utils/fatturapa_parser.py.
+        if not items_list and e_invoice and attachment_url:
+            try:
+                from app.utils.fatturapa_parser import download_and_parse
+                parsed = download_and_parse(attachment_url, timeout=25)
+                xml_righe = parsed.get("righe", []) or []
+                if xml_righe:
+                    # Rimuovi righe precedenti (re-sync pulito)
+                    conn.execute(
+                        "DELETE FROM fe_righe WHERE fattura_id = ?",
+                        (fattura_db_id,),
+                    )
+                    for xr in xml_righe:
+                        conn.execute(
+                            """
+                            INSERT INTO fe_righe (
+                                fattura_id, numero_linea, descrizione,
+                                quantita, unita_misura, prezzo_unitario,
+                                prezzo_totale, aliquota_iva, categoria_grezza,
+                                codice_articolo, fic_item_id, fic_product_id,
+                                detraibilita_iva, stock
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                fattura_db_id,
+                                xr.get("numero_linea") or 0,
+                                xr.get("descrizione", ""),
+                                xr.get("quantita"),
+                                xr.get("unita_misura", ""),
+                                xr.get("prezzo_unitario"),
+                                xr.get("prezzo_totale"),
+                                xr.get("aliquota_iva"),
+                                "",   # categoria_grezza non presente in SDI
+                                xr.get("codice_articolo", ""),
+                                None, None,  # fic_item_id / fic_product_id
+                                None, 0,     # detraibilita / stock
+                            ),
+                        )
+                        result["righe"] += 1
+                    result["fonte_righe"] = "xml"
+                    # Auto-categorizza anche le righe da XML
+                    try:
+                        from app.routers.fe_categorie_router import auto_categorize_righe
+                        auto_categorize_righe(conn, fattura_db_id, fornitore_piva)
+                    except Exception as ce:
+                        print(f"⚠️ auto_categorize XML fail fic_id={fic_id}: {ce}")
+                    return result
+            except Exception as xe:
+                # Non bloccare: passa al ramo no_detail
+                print(f"⚠️ XML fallback fallito fic_id={fic_id}: {xe}")
+
         if not items_list:
-            # Controlla se ci sono già righe (es. da XML)
+            # Controlla se ci sono già righe (es. da XML import separato)
             existing_righe = conn.execute(
                 "SELECT COUNT(*) FROM fe_righe WHERE fattura_id = ?", (fattura_db_id,)
             ).fetchone()[0]
@@ -373,12 +429,17 @@ def _fetch_detail_and_righe(conn, token: str, cid: int, fic_id: int, fattura_db_
             )
             result["righe"] += 1
 
+        result["fonte_righe"] = "fic"
+
         # Auto-categorizza righe in base a mapping prodotto + default fornitore
         from app.routers.fe_categorie_router import auto_categorize_righe
         auto_categorize_righe(conn, fattura_db_id, fornitore_piva)
 
     except Exception as e:
+        # Log completo su stdout per diagnosi, NON swallowiare silenziosamente
+        import traceback
         print(f"⚠️ FIC detail error fic_id={fic_id}: {e}")
+        traceback.print_exc()
 
     return result
 
@@ -1050,9 +1111,16 @@ def fic_fornitori(
 @router.get("/debug-detail/{fic_id}", summary="Debug: dettaglio raw da FIC API")
 def debug_fic_detail(
     fic_id: int,
+    try_xml: bool = Query(True, description="Se True e is_detailed=false, tenta parsing XML da attachment_url"),
     current_user: Any = Depends(get_current_user),
 ):
-    """Restituisce il payload grezzo dell'API FIC per un documento specifico."""
+    """
+    Restituisce il payload grezzo dell'API FIC per un documento specifico.
+
+    Se `try_xml=True` e la fattura e' senza items_list ma ha attachment_url
+    + e_invoice=true, tenta anche il parsing del XML SDI allegato per
+    mostrare una preview delle righe effettive.
+    """
     conn = get_db()
     try:
         cfg = get_config(conn)
@@ -1071,12 +1139,37 @@ def debug_fic_detail(
         payments = doc_data.get("payments_list") or []
 
         e_inv = doc_data.get("e_invoice")
+        is_detailed = doc_data.get("is_detailed")
+        attachment_url = doc_data.get("attachment_url") or ""
+        attachment_preview_url = doc_data.get("attachment_preview_url") or ""
+
+        # Preview parsing XML se applicabile (fattura elettronica senza righe)
+        xml_parse = None
+        if try_xml and e_inv and not items and attachment_url:
+            try:
+                from app.utils.fatturapa_parser import download_and_parse
+                parsed = download_and_parse(attachment_url, timeout=20)
+                righe_preview = parsed.get("righe", []) or []
+                xml_parse = {
+                    "ok": True,
+                    "n_righe": len(righe_preview),
+                    "numero_xml": parsed.get("numero", ""),
+                    "data_xml": parsed.get("data", ""),
+                    "fornitore_piva": parsed.get("fornitore_piva", ""),
+                    "totale_xml": parsed.get("totale_documento"),
+                    "righe_preview": righe_preview[:5],
+                }
+            except Exception as e:
+                xml_parse = {"ok": False, "error": str(e)[:300]}
+
         return {
             "fic_id": fic_id,
+            # Alias invoice_number → numero (frontend legge `numero`)
+            "numero": doc_data.get("invoice_number", ""),
             "invoice_number": doc_data.get("invoice_number", ""),
             "date": doc_data.get("date", ""),
             "entity_name": (doc_data.get("entity", {}) or {}).get("name", ""),
-            "is_detailed": doc_data.get("is_detailed"),
+            "is_detailed": is_detailed,
             "auto_calculate": doc_data.get("auto_calculate"),
             "type": doc_data.get("type"),
             "n_items": len(items),
@@ -1084,7 +1177,237 @@ def debug_fic_detail(
             "n_payments": len(payments),
             "payments_preview": payments[:3],
             "e_invoice": e_inv,
+            "attachment_url": attachment_url[:200] + ("..." if len(attachment_url) > 200 else ""),
+            "attachment_url_full": attachment_url,
+            "attachment_preview_url": attachment_preview_url[:200] + ("..." if len(attachment_preview_url) > 200 else ""),
             "raw_keys": list(doc_data.keys()),
+            "xml_parse": xml_parse,
+        }
+    finally:
+        conn.close()
+
+
+# ─── REFETCH RIGHE DA XML (retroattivo) ──────────────────────────
+
+def _refetch_righe_xml_single(conn, token: str, cid: int, db_id: int) -> dict:
+    """
+    Helper: per una singola fattura (fe_fatture.id), chiama FIC detail,
+    scarica XML da attachment_url, parsa e reinserisce fe_righe.
+
+    Ritorna:
+      {"ok": bool, "db_id": int, "fic_id": int, "righe": N,
+       "numero": "...", "fornitore": "...", "error": "..."}
+    """
+    row = conn.execute(
+        """SELECT id, fic_id, numero_fattura, fornitore_piva, fornitore_denominazione
+           FROM fe_fatture WHERE id = ?""",
+        (db_id,),
+    ).fetchone()
+    if not row:
+        return {"ok": False, "db_id": db_id, "error": "fattura non trovata"}
+
+    fic_id = row["fic_id"]
+    if not fic_id:
+        return {
+            "ok": False, "db_id": db_id,
+            "error": "fattura senza fic_id (non da FIC)",
+        }
+
+    try:
+        detail = fic_get(token, f"/c/{cid}/received_documents/{fic_id}", {
+            "fieldset": "detailed",
+        })
+        doc_data = detail.get("data", {}) or {}
+        attachment_url = doc_data.get("attachment_url") or ""
+        e_invoice = bool(doc_data.get("e_invoice"))
+        entity = doc_data.get("entity", {}) or {}
+        fornitore_piva = entity.get("vat_number", "") or row["fornitore_piva"] or ""
+
+        if not e_invoice:
+            return {
+                "ok": False, "db_id": db_id, "fic_id": fic_id,
+                "error": "non e' fattura elettronica (no XML disponibile)",
+            }
+        if not attachment_url:
+            return {
+                "ok": False, "db_id": db_id, "fic_id": fic_id,
+                "error": "attachment_url mancante da FIC",
+            }
+
+        from app.utils.fatturapa_parser import download_and_parse
+        parsed = download_and_parse(attachment_url, timeout=25)
+        xml_righe = parsed.get("righe", []) or []
+
+        if not xml_righe:
+            return {
+                "ok": False, "db_id": db_id, "fic_id": fic_id,
+                "error": "XML scaricato ma nessun DettaglioLinee trovato",
+            }
+
+        # Pulisci righe precedenti e reinserisci
+        conn.execute("DELETE FROM fe_righe WHERE fattura_id = ?", (db_id,))
+        for xr in xml_righe:
+            conn.execute(
+                """
+                INSERT INTO fe_righe (
+                    fattura_id, numero_linea, descrizione,
+                    quantita, unita_misura, prezzo_unitario,
+                    prezzo_totale, aliquota_iva, categoria_grezza,
+                    codice_articolo, fic_item_id, fic_product_id,
+                    detraibilita_iva, stock
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    db_id,
+                    xr.get("numero_linea") or 0,
+                    xr.get("descrizione", ""),
+                    xr.get("quantita"),
+                    xr.get("unita_misura", ""),
+                    xr.get("prezzo_unitario"),
+                    xr.get("prezzo_totale"),
+                    xr.get("aliquota_iva"),
+                    "",
+                    xr.get("codice_articolo", ""),
+                    None, None,
+                    None, 0,
+                ),
+            )
+
+        # Auto-categorizza
+        try:
+            from app.routers.fe_categorie_router import auto_categorize_righe
+            auto_categorize_righe(conn, db_id, fornitore_piva)
+        except Exception as ce:
+            print(f"⚠️ auto_categorize dopo refetch XML fail db_id={db_id}: {ce}")
+
+        return {
+            "ok": True,
+            "db_id": db_id,
+            "fic_id": fic_id,
+            "righe": len(xml_righe),
+            "numero": parsed.get("numero", row["numero_fattura"] or ""),
+            "fornitore": row["fornitore_denominazione"] or parsed.get("fornitore_denominazione", ""),
+        }
+    except HTTPException as he:
+        return {
+            "ok": False, "db_id": db_id, "fic_id": fic_id,
+            "error": f"FIC API {he.status_code}: {str(he.detail)[:200]}",
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "ok": False, "db_id": db_id, "fic_id": fic_id,
+            "error": str(e)[:300],
+        }
+
+
+@router.post("/refetch-righe-xml/{db_id}", summary="Recupera righe da XML SDI per una fattura")
+def fic_refetch_righe_xml(
+    db_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Per una singola fattura (fe_fatture.id), scarica l'XML dalla FIC via
+    attachment_url e rigenera le righe in fe_righe parsando il DettaglioLinee.
+
+    Usare dopo il sync normale per recuperare le righe di fatture dove
+    FIC restituisce items_list vuoto (is_detailed=false).
+    """
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+
+        res = _refetch_righe_xml_single(conn, token, cid, db_id)
+        conn.commit()
+        return res
+    finally:
+        conn.close()
+
+
+@router.post("/bulk-refetch-righe-xml", summary="Recupero massivo righe da XML per fatture FIC senza dettaglio")
+def fic_bulk_refetch_righe_xml(
+    anno: int = Query(None, description="Filtra per anno (default: tutti)"),
+    solo_senza_righe: bool = Query(True, description="Solo fatture con n_righe=0"),
+    limit: int = Query(500, ge=1, le=2000, description="Limite massimo di fatture"),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Esegue il recupero righe da XML su TUTTE le fatture FIC che hanno
+    n_righe=0 e sono fatture elettroniche (e_invoice).
+
+    Per ogni fattura chiama l'API FIC per ottenere attachment_url,
+    scarica l'XML, parsa DettaglioLinee, popola fe_righe.
+
+    Body: nessuno. Query params: anno, solo_senza_righe, limit.
+    """
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+
+        # Trova candidate: fatture FIC che:
+        #  - hanno fic_id
+        #  - hanno n_righe = 0 (solo_senza_righe=True) oppure tutte
+        #  - opzionale filtro anno su data_fattura
+        where_clauses = [
+            "fic_id IS NOT NULL",
+            "COALESCE(fonte, '') = 'fic'",
+        ]
+        params: list = []
+
+        if solo_senza_righe:
+            where_clauses.append(
+                "(SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = fe_fatture.id) = 0"
+            )
+        if anno:
+            where_clauses.append("substr(data_fattura, 1, 4) = ?")
+            params.append(str(anno))
+
+        sql = f"""
+            SELECT id FROM fe_fatture
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY data_fattura DESC, id DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        rows = conn.execute(sql, params).fetchall()
+        candidate_ids = [r["id"] for r in rows]
+
+        risultati = []
+        ok_count = 0
+        fail_count = 0
+        righe_recuperate = 0
+
+        for db_id in candidate_ids:
+            res = _refetch_righe_xml_single(conn, token, cid, db_id)
+            risultati.append(res)
+            if res.get("ok"):
+                ok_count += 1
+                righe_recuperate += res.get("righe", 0)
+            else:
+                fail_count += 1
+            # Commit intermedio ogni 10 per non perdere tutto in caso di errore
+            if (ok_count + fail_count) % 10 == 0:
+                conn.commit()
+
+        conn.commit()
+
+        return {
+            "ok": True,
+            "anno": anno,
+            "candidate": len(candidate_ids),
+            "ok_count": ok_count,
+            "fail_count": fail_count,
+            "righe_recuperate": righe_recuperate,
+            "dettaglio": risultati,
         }
     finally:
         conn.close()

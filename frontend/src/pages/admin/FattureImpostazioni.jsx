@@ -1,4 +1,4 @@
-// @version: v2.2-debug-detail-fic
+// @version: v2.3-xml-fallback-recovery
 // Pagina Impostazioni Acquisti — Layout sidebar uniformato a ClientiImpostazioni
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -78,6 +78,15 @@ export default function FattureImpostazioni() {
   const [debugResult, setDebugResult] = useState(null);
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugError, setDebugError] = useState("");
+
+  // ─── S40-15 RECUPERO RIGHE DA XML ────────────────────
+  const [refetchSingleId, setRefetchSingleId] = useState("");
+  const [refetchSingleRes, setRefetchSingleRes] = useState(null);
+  const [refetchSingleLoading, setRefetchSingleLoading] = useState(false);
+  const [bulkXmlAnno, setBulkXmlAnno] = useState(new Date().getFullYear());
+  const [bulkXmlLimit, setBulkXmlLimit] = useState(200);
+  const [bulkXmlRunning, setBulkXmlRunning] = useState(false);
+  const [bulkXmlResult, setBulkXmlResult] = useState(null);
 
   // ─── CATEGORIE STATE ────────────────────────────────
   const [categorie, setCategorie] = useState([]);
@@ -256,6 +265,53 @@ export default function FattureImpostazioni() {
       setDebugError("Errore di rete");
     }
     setDebugLoading(false);
+  };
+
+  // ─── S40-15 Recupero righe da XML (singolo DB id) ──────
+  const handleRefetchSingleXml = async () => {
+    const id = (refetchSingleId || "").trim();
+    if (!id) return;
+    setRefetchSingleLoading(true);
+    setRefetchSingleRes(null);
+    try {
+      const r = await apiFetch(`${FC}/refetch-righe-xml/${id}`, {
+        method: "POST",
+      });
+      const d = await r.json();
+      setRefetchSingleRes(d);
+    } catch (e) {
+      setRefetchSingleRes({ ok: false, error: "Errore di rete" });
+    }
+    setRefetchSingleLoading(false);
+  };
+
+  // ─── S40-15 Bulk refetch XML per tutte le fatture senza righe ─
+  const handleBulkRefetchXml = async () => {
+    const anno = String(bulkXmlAnno || "").trim();
+    const limit = Math.max(1, Math.min(2000, Number(bulkXmlLimit) || 200));
+    const ok = window.confirm(
+      `Avvio recupero righe da XML SDI per ${anno ? `anno ${anno}` : "tutte le annate"} ` +
+      `(max ${limit} fatture con 0 righe).\n\n` +
+      `L'operazione scarica gli XML allegati da FIC, puo' richiedere diversi minuti. Procedere?`
+    );
+    if (!ok) return;
+    setBulkXmlRunning(true);
+    setBulkXmlResult(null);
+    try {
+      const qs = new URLSearchParams({
+        solo_senza_righe: "true",
+        limit: String(limit),
+      });
+      if (anno) qs.append("anno", anno);
+      const r = await apiFetch(`${FC}/bulk-refetch-righe-xml?${qs.toString()}`, {
+        method: "POST",
+      });
+      const d = await r.json();
+      setBulkXmlResult(d);
+    } catch (e) {
+      setBulkXmlResult({ ok: false, error: "Errore di rete" });
+    }
+    setBulkXmlRunning(false);
   };
 
   // ═══════════════════════════════════════════════════════
@@ -778,15 +834,59 @@ export default function FattureImpostazioni() {
                 {/* Verdict */}
                 {debugResult.n_items === 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-                    <strong>Verdict:</strong> FIC restituisce {debugResult.is_detailed ? "fieldset=detailed" : "fieldset di default"} con <code>items_list</code> vuoto.
-                    {debugResult.is_detailed
-                      ? " La fattura è header-only anche su FIC — dobbiamo aspettare l'XML SdI per le righe."
-                      : " Proviamo a forzare fieldset=detailed (potrebbe essere un problema di parametro)."}
+                    <strong>Verdict:</strong> FIC restituisce {debugResult.is_detailed ? "is_detailed=true" : "is_detailed=false"} con <code>items_list</code> vuoto.
+                    {debugResult.e_invoice && debugResult.attachment_url
+                      ? " Fattura elettronica con XML disponibile: possiamo recuperare le righe dal tracciato SDI."
+                      : debugResult.e_invoice
+                        ? " Fattura elettronica ma attachment_url assente — impossibile recuperare XML."
+                        : " Non e' fattura elettronica — nessun XML disponibile."}
                   </div>
                 )}
                 {debugResult.n_items > 0 && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900">
-                    <strong>Verdict:</strong> FIC restituisce {debugResult.n_items} righe. Se in DB risultano 0 righe, il bug è nel parser o nella scrittura (exception swallowed in <code>_fetch_detail_and_righe</code>).
+                    <strong>Verdict:</strong> FIC restituisce {debugResult.n_items} righe. Se in DB risultano 0 righe, il bug è nel parser o nella scrittura.
+                  </div>
+                )}
+
+                {/* Preview parsing XML SDI se disponibile */}
+                {debugResult.xml_parse && (
+                  <div className={`rounded-lg p-3 text-xs border ${
+                    debugResult.xml_parse.ok
+                      ? "bg-blue-50 border-blue-200 text-blue-900"
+                      : "bg-red-50 border-red-200 text-red-800"
+                  }`}>
+                    <div className="font-semibold mb-1 flex items-center gap-2">
+                      📄 Parsing XML SDI
+                      {debugResult.xml_parse.ok && (
+                        <span className="font-mono text-[11px] bg-white/60 px-1.5 py-0.5 rounded">
+                          {debugResult.xml_parse.n_righe} righe
+                        </span>
+                      )}
+                    </div>
+                    {debugResult.xml_parse.ok ? (
+                      <div className="space-y-1">
+                        <div>
+                          Numero XML: <code>{debugResult.xml_parse.numero_xml || "—"}</code> ·
+                          Data: <code>{debugResult.xml_parse.data_xml || "—"}</code> ·
+                          PIVA: <code>{debugResult.xml_parse.fornitore_piva || "—"}</code>
+                        </div>
+                        {debugResult.xml_parse.righe_preview?.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer select-none">Prime righe (click)</summary>
+                            <div className="mt-1 space-y-1">
+                              {debugResult.xml_parse.righe_preview.map((r, i) => (
+                                <div key={i} className="font-mono text-[11px] bg-white/60 px-2 py-1 rounded">
+                                  #{r.numero_linea} {r.codice_articolo && `[${r.codice_articolo}] `}
+                                  {r.descrizione?.slice(0, 60)} — {r.quantita} {r.unita_misura} × {r.prezzo_unitario} = {r.prezzo_totale}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    ) : (
+                      <div>Errore parsing XML: <code>{debugResult.xml_parse.error}</code></div>
+                    )}
                   </div>
                 )}
                 {/* Payload raw */}
@@ -800,6 +900,145 @@ export default function FattureImpostazioni() {
                 </details>
               </div>
             )}
+          </div>
+
+          {/* S40-15 — Recupero righe da XML SDI */}
+          <div className="bg-white rounded-xl border border-blue-200 p-4">
+            <h3 className="text-sm font-bold text-blue-900 mb-1 flex items-center gap-2">
+              📥 Recupero righe da XML SDI
+            </h3>
+            <p className="text-xs text-neutral-500 mb-3">
+              Per le fatture elettroniche senza righe (FIC restituisce <code className="bg-neutral-100 px-1 rounded">items_list</code> vuoto quando la fattura e' registrata come "Spesa" semplice), scarica il tracciato XML SDI dall'<code className="bg-neutral-100 px-1 rounded">attachment_url</code> di FIC, parsa il <code className="bg-neutral-100 px-1 rounded">DettaglioLinee</code> e popola <code className="bg-neutral-100 px-1 rounded">fe_righe</code>.
+            </p>
+
+            {/* Singolo */}
+            <div className="mb-4 pb-4 border-b border-neutral-100">
+              <div className="text-xs font-semibold text-neutral-700 mb-2">
+                Singola fattura (per DB id)
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="text"
+                  value={refetchSingleId}
+                  onChange={(e) => setRefetchSingleId(e.target.value.replace(/\D/g, ""))}
+                  placeholder="fattura id DB (es. 6892)"
+                  className="px-3 py-2 border border-neutral-200 rounded-lg text-sm w-56 font-mono focus:ring-blue-400 focus:outline-none focus:ring-2"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRefetchSingleXml(); }}
+                />
+                <button
+                  onClick={handleRefetchSingleXml}
+                  disabled={refetchSingleLoading || !refetchSingleId.trim()}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition ${
+                    refetchSingleLoading || !refetchSingleId.trim()
+                      ? "bg-neutral-400 cursor-not-allowed"
+                      : "bg-blue-700 hover:bg-blue-800 shadow-sm"
+                  }`}
+                >
+                  {refetchSingleLoading ? "Recupero..." : "Recupera righe XML"}
+                </button>
+              </div>
+              {refetchSingleRes && (
+                <div className={`mt-3 rounded-lg border p-3 text-xs ${
+                  refetchSingleRes.ok
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-red-50 border-red-200 text-red-800"
+                }`}>
+                  {refetchSingleRes.ok ? (
+                    <div>
+                      ✅ <strong>{refetchSingleRes.righe} righe</strong> recuperate per
+                      fattura #{refetchSingleRes.db_id} {refetchSingleRes.numero && <>(n° <code>{refetchSingleRes.numero}</code>)</>}
+                      {refetchSingleRes.fornitore && <> — {refetchSingleRes.fornitore}</>}
+                    </div>
+                  ) : (
+                    <div>⚠ {refetchSingleRes.error || "Errore sconosciuto"}</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Bulk */}
+            <div>
+              <div className="text-xs font-semibold text-neutral-700 mb-2">
+                Massivo (tutte le fatture FIC senza righe)
+              </div>
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <label className="text-xs text-neutral-600">Anno:</label>
+                <input
+                  type="number"
+                  value={bulkXmlAnno}
+                  onChange={(e) => setBulkXmlAnno(e.target.value)}
+                  placeholder="es. 2026"
+                  className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-24 font-mono focus:ring-blue-400 focus:outline-none focus:ring-2"
+                />
+                <label className="text-xs text-neutral-600 ml-2">Max fatture:</label>
+                <input
+                  type="number"
+                  value={bulkXmlLimit}
+                  onChange={(e) => setBulkXmlLimit(e.target.value)}
+                  min={1}
+                  max={2000}
+                  className="px-2 py-1.5 border border-neutral-200 rounded-lg text-xs w-20 font-mono focus:ring-blue-400 focus:outline-none focus:ring-2"
+                />
+                <button
+                  onClick={handleBulkRefetchXml}
+                  disabled={bulkXmlRunning}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition ml-auto ${
+                    bulkXmlRunning
+                      ? "bg-neutral-400 cursor-not-allowed"
+                      : "bg-blue-700 hover:bg-blue-800 shadow-sm"
+                  }`}
+                >
+                  {bulkXmlRunning ? "In esecuzione..." : "Avvia recupero massivo"}
+                </button>
+              </div>
+              {bulkXmlRunning && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 flex items-center gap-2">
+                  <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Recupero in corso, attendere... (gli XML vengono scaricati e parsati uno a uno)
+                </div>
+              )}
+              {bulkXmlResult && !bulkXmlRunning && (
+                <div className={`rounded-lg border p-3 text-xs ${
+                  bulkXmlResult.ok
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-red-50 border-red-200 text-red-800"
+                }`}>
+                  {bulkXmlResult.ok ? (
+                    <div className="space-y-1">
+                      <div className="font-semibold">
+                        ✅ Candidate: {bulkXmlResult.candidate} · Ok: {bulkXmlResult.ok_count} · Fail: {bulkXmlResult.fail_count}
+                      </div>
+                      <div>Totale righe recuperate: <strong>{bulkXmlResult.righe_recuperate}</strong></div>
+                      {bulkXmlResult.dettaglio?.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer select-none">Dettaglio per fattura</summary>
+                          <div className="mt-1 max-h-60 overflow-y-auto space-y-1">
+                            {bulkXmlResult.dettaglio.map((r, i) => (
+                              <div
+                                key={i}
+                                className={`font-mono text-[11px] px-2 py-1 rounded ${
+                                  r.ok ? "bg-white/60" : "bg-red-100/60 text-red-800"
+                                }`}
+                              >
+                                #{r.db_id} (fic={r.fic_id || "—"}) —
+                                {r.ok
+                                  ? ` ${r.righe} righe${r.numero ? ` · n° ${r.numero}` : ""}${r.fornitore ? ` · ${r.fornitore}` : ""}`
+                                  : ` ⚠ ${r.error}`}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  ) : (
+                    <div>⚠ {bulkXmlResult.error || bulkXmlResult.detail || "Errore sconosciuto"}</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Sync Log */}

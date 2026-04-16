@@ -3,6 +3,43 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / S40-15 — Fallback XML SDI per righe fatture FIC senza items_list
+
+Da fine marzo le fatture FIC di alcuni fornitori (es. OROBICA PESCA 201969/FTM, FABRIZIO MILESI 2026/300) venivano sincronizzate in TRGB senza righe in `fe_righe`. Causa radice confermata via endpoint `/fic/debug-detail/`: FIC ritorna `is_detailed=false`, `items_list=[]`, `e_invoice=true` — cioè il documento è stato registrato su FIC come "Spesa" senza dettaglio strutturato, quindi le righe esistono **solo** dentro il tracciato XML SDI allegato. Verificato sullo schema ufficiale OpenAPI (`openapi-fattureincloud/models/schemas/ReceivedDocument.yaml`) che `items_list` è popolato solo se la fattura è registrata con dettaglio, e che l'unica via per accedere al contenuto del file firmato è il campo `attachment_url` (pre-signed temporaneo, read-only).
+
+### Nuovo mattone: parser FatturaPA (`app/utils/fatturapa_parser.py`)
+
+Utility riusabile, pura Python (nessuna nuova dipendenza). Espone:
+- `extract_xml_bytes(data: bytes) -> bytes`: normalizza un blob qualsiasi (XML plain, zip, p7m CMS-DER, UTF-16) in XML pulito. Strategia: zip via `zipfile`, p7m con estrazione euristica start/end marker (`<?xml` … `</FatturaElettronica>`) + fallback `openssl cms -verify -noverify`.
+- `parse_fatturapa(data: bytes) -> dict`: ritorna `{numero, data, totale_documento, fornitore_piva, fornitore_denominazione, righe[]}`. Ogni riga: `numero_linea, codice_articolo, descrizione, quantita, unita_misura, prezzo_unitario, prezzo_totale, aliquota_iva, sconto_percentuale`. Tollerante su campi mancanti, virgola decimale, namespace XML (stripped via `_strip_namespace`), prioritizza `CodiceArticolo` con `CodiceTipo=INTERNO`.
+- `download_and_parse(url, timeout=30) -> dict`: helper che scarica da `attachment_url` pre-signed e parsa.
+
+### Sync FIC: fallback automatico in `_fetch_detail_and_righe`
+
+`app/routers/fattureincloud_router.py` — quando FIC restituisce `items_list=[]` ma `e_invoice=true` + `attachment_url` presente, il sync scarica automaticamente l'XML e popola `fe_righe` dal `DettaglioLinee` SDI. Le righe da XML vengono comunque auto-categorizzate via `auto_categorize_righe(...)`. Lo swallow di eccezioni a fine funzione è stato sostituito con log + `traceback.print_exc()`. Il result dict ora ritorna anche `fonte_righe` (`"fic"` | `"xml"` | `""`).
+
+### Endpoint debug e recovery retroattivo
+
+- `GET /fic/debug-detail/{fic_id}?try_xml=true`: oltre ai campi già esposti, ora restituisce `attachment_url`, `attachment_preview_url`, `numero` (alias di `invoice_number` per compatibilità frontend) e `xml_parse` (preview parsing XML se applicabile).
+- `POST /fic/refetch-righe-xml/{db_id}`: per una singola fattura in DB, recupera l'`attachment_url` via FIC, scarica+parsa l'XML, reinserisce le righe.
+- `POST /fic/bulk-refetch-righe-xml?anno=YYYY&solo_senza_righe=true&limit=N`: bulk retroattivo su tutte le fatture FIC con `n_righe=0`. Ritorna contatori + dettaglio per-fattura.
+
+### UI — Fatture › Impostazioni › FIC
+
+`FattureImpostazioni.jsx` (v2.3-xml-fallback-recovery): la card debug ora mostra la preview parsing XML (numero, data, PIVA, prime 5 righe) quando FIC è senza righe ma XML disponibile. Nuova card "📥 Recupero righe da XML SDI" con due azioni: (1) singola fattura per DB id, (2) massivo con filtro anno + limite (conferma obbligatoria, progress spinner, risultato dettagliato per-fattura).
+
+### File modificati
+- **NEW** `app/utils/fatturapa_parser.py` — parser FatturaPA/SDI riusabile.
+- `app/routers/fattureincloud_router.py` — fallback XML in `_fetch_detail_and_righe`, debug-detail esteso, endpoint `refetch-righe-xml/{db_id}` e `bulk-refetch-righe-xml`, log esplicito eccezioni.
+- `frontend/src/pages/admin/FattureImpostazioni.jsx` — preview parsing XML nel debug, card recovery singolo + bulk.
+
+### Come recuperare le fatture attuali senza righe
+1. Fatture › Impostazioni › Fatture in Cloud.
+2. Debug: inserire `fic_id` (es. `405656723`) → vedere `is_detailed=false`, `e_invoice=true`, `attachment_url=(temporary url)` + anteprima XML con righe parsate.
+3. Scroll giù: "Recupero righe da XML SDI" → inserire anno `2026`, limite `500` → "Avvia recupero massivo".
+
+---
+
 ## 2026-04-16 — Sessione 40 / Wave 3 — CG nav uniformato + Acquisti esclusi + Flussi parcheggia + iPad descrizione
 
 Wave 3 chiude 4 bug: uniformità UI su CG, pulizia default Acquisti, azioni bulk workbench Flussi, leggibilità iPad.

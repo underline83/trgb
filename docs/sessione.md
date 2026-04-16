@@ -1,8 +1,30 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 + Wave 2 + Wave 3 chiuse)
+**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1+2+3 + S40-15 chiusi)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 40 — S40-15 CHIUSO (FIC righe via XML SDI fallback) ✅
+
+Marco ha segnalato che da fine marzo le fatture FIC di alcuni fornitori arrivano senza righe in `fe_righe`. Casi verificati: OROBICA PESCA 201969/FTM (2026-03-31, €7425,24, `fic_id=405656723`, DB id=6892), FABRIZIO MILESI 2026/300.
+
+**Diagnosi** — via nuovo `GET /fic/debug-detail/{fic_id}` (sessione precedente, poi esteso in questa): FIC ritorna `is_detailed=false, items_list=[], e_invoice=true, attachment_url=(pre-signed url temporaneo)`. Significa che la fattura su FIC e' stata registrata come "Spesa" senza dettaglio strutturato, quindi le righe esistono SOLO dentro il tracciato XML SDI. Verificato sullo schema OpenAPI ufficiale (`fattureincloud/openapi-fattureincloud/models/schemas/ReceivedDocument.yaml`): `items_list` e' popolato solo in modalita' detailed; l'unico accesso al file firmato e' `attachment_url`. Non esiste endpoint dedicato al download XML (gli endpoint `/received_documents/pending` di marzo 2026 sono solo per documenti NON ancora registrati — non applicabile qui).
+
+**Soluzione — fallback XML SDI**
+
+1. **Nuovo mattone** `app/utils/fatturapa_parser.py`: parser riusabile che normalizza bytes → XML (zip/p7m/plain/utf-16 + fallback `openssl cms -verify`), estrae `DettaglioLinee` da FatturaPA. Nessuna nuova dipendenza Python. Test su XML sintetico OK (namespace `p:`, virgola decimale, sconto SC, `CodiceTipo=INTERNO`).
+2. **Sync FIC** (`_fetch_detail_and_righe`): quando `items_list` e' vuoto ma `e_invoice + attachment_url` presenti → scarica XML via `download_and_parse()` → popola `fe_righe` da `DettaglioLinee` → auto-categorizza. Exception swallow rimosso, ora `traceback.print_exc()` esplicito.
+3. **Recovery retroattivo**: `POST /fic/refetch-righe-xml/{db_id}` per singolo, `POST /fic/bulk-refetch-righe-xml?anno=&solo_senza_righe=true&limit=N` per bulk. Entrambi ritornano contatori + dettaglio per-fattura.
+4. **UI** Fatture › Impostazioni › FIC (v2.3): card debug ora mostra `xml_parse` (preview righe dal tracciato SDI), nuova card "📥 Recupero righe da XML SDI" con singolo + bulk (conferma, spinner, report dettagliato).
+
+**File toccati**
+- NEW `app/utils/fatturapa_parser.py`.
+- `app/routers/fattureincloud_router.py` (fallback XML, debug-detail esteso, 2 endpoint recovery).
+- `frontend/src/pages/admin/FattureImpostazioni.jsx` v2.3.
+
+**Action item per Marco dopo il push**: aprire Fatture › Impostazioni › FIC → card "Recupero righe da XML SDI" → anno 2026, limite 500 → Avvia. Ri-categorizzazione automatica applicata alle righe recuperate.
 
 ---
 
