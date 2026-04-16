@@ -21,13 +21,13 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   fatture: {
-    version: "2.5",
+    version: "2.6",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",
   },
   flussiCassa: {
-    version: "1.10",
+    version: "1.11",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
@@ -51,7 +51,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   controlloGestione: {
-    version: "2.6",
+    version: "2.7",
     label: "Controllo Gestione",
     status: "beta",
     color: "blue",
@@ -81,7 +81,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
-    version: "5.10",
+    version: "5.11",
     label: "Sistema",
     status: "stabile",
     color: "green",

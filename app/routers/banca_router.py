@@ -1289,6 +1289,55 @@ def riapri_riconciliazione(movimento_id: int):
     return {"ok": True}
 
 
+# ─── S40-12: Bulk parcheggio movimenti ──────────────────────────────
+class ParcheggiaBulkBody(BaseModel):
+    movimento_ids: List[int]
+
+
+@router.post("/cross-ref/parcheggia-bulk")
+def parcheggia_movimenti(body: ParcheggiaBulkBody):
+    """
+    Parcheggia uno o piu' movimenti (stato 'in attesa').
+    I movimenti parcheggiati spariscono da Suggerimenti/Senza match e
+    finiscono nel tab dedicato 'Parcheggiati'. Lo stato e' persistente.
+    """
+    if not body.movimento_ids:
+        return {"ok": True, "parcheggiati": 0}
+    conn = get_db()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(body.movimento_ids))
+    cur.execute(
+        f"""UPDATE banca_movimenti
+            SET parcheggiato = 1,
+                parcheggiato_at = datetime('now')
+            WHERE id IN ({placeholders})""",
+        body.movimento_ids,
+    )
+    n = cur.rowcount
+    conn.commit()
+    conn.close()
+    return {"ok": True, "parcheggiati": n}
+
+
+@router.post("/cross-ref/disparcheggia/{movimento_id}")
+def disparcheggia_movimento(movimento_id: int):
+    """Rimuove lo stato 'parcheggiato' — il movimento torna ai suggerimenti/senza match."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """UPDATE banca_movimenti
+           SET parcheggiato = 0, parcheggiato_at = NULL
+           WHERE id = ?""",
+        (movimento_id,),
+    )
+    if cur.rowcount == 0:
+        conn.close()
+        raise HTTPException(404, "Movimento non trovato")
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
 @router.get("/cross-ref/search")
 def search_uscite_for_link(q: str = "", limit: int = 20):
     """

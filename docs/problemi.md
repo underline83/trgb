@@ -57,55 +57,15 @@ _(S40-4, S40-5, S40-6 risolti — vedi sezione Risolti.)_
 
 ---
 
-### S40-7. UI — Barra menu Controllo Gestione diversa dagli altri moduli
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Controllo Gestione / Nav
-**Gravità:** bassa
-
-**Richiesta:** uniformare la tab bar di Controllo Gestione allo stile degli altri moduli (dopo la revisione nav sessione 39). Serve vedere quale dettaglio è diverso.
+_(S40-7, S40-8 risolti Wave 3 — vedi sezione Risolti.)_
 
 ---
 
-### S40-8. Acquisti — Fornitori ignorati vanno nascosti di default in Fatture
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Acquisti / Fatture
-**Gravità:** media
-
-**Richiesta:** i fornitori ignorati (Banca, Cattaneo, Pontiggia, Nexi, Cassa Affitto, ecc.) oggi compaiono in lista fatture. Vanno flaggati come "ignorati" e nascosti di default. Un toggle "Mostra anche ignorati" permette di rivederli.
-
-**Stato attuale:** `fe_fornitore_categoria.escluso_acquisti` esiste già (vedi CLAUDE.md) → usare quello come filtro default nel router lista fatture + aggiungere toggle UI.
+_(S40-9, S40-10, S40-11 risolti Wave 2 — vedi sezione Risolti.)_
 
 ---
 
-_(S40-9, S40-10, S40-11 risolti — vedi sezione Risolti.)_
-
----
-
-### S40-12. Flussi di Cassa — Selezione multipla "parcheggia" in riconciliazione
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Flussi di Cassa / Riconciliazione
-**Gravità:** media
-
-**Richiesta:** aggiungere checkbox di selezione multipla sui movimenti. Opzioni bulk:
-- **Parcheggia** → sposta in uno stato "in attesa" per riconciliarli dopo, senza chiuderli come "senza match" definitivo
-- **Flagga "senza match"** → come già fatto oggi singolarmente, ma in bulk
-
-Deve sempre essere possibile tornare indietro e riconciliare manualmente.
-
----
-
-### S40-13. Flussi di Cassa — Descrizione troppo stretta su iPad
-**Segnalato:** 2026-04-16 (sessione 40, con screenshot)
-**Modulo:** Flussi di Cassa / Riconciliazione (tabella movimenti)
-**Gravità:** media
-
-**Sintomo:** su iPad la colonna Descrizione si tronca su "addebito diretto sdd - sdd core: 4xh2224z2gsse p..." e non è leggibile.
-
-**Opzioni:**
-- A: wrap a capo della descrizione se la tabella è larga < N px
-- B: tap sulla riga → espande la cella in overlay con descrizione completa
-
-Marco preferisce l'opzione più comoda da decidere in implementazione.
+_(S40-12, S40-13 risolti Wave 3 — vedi sezione Risolti.)_
 
 ---
 
@@ -182,6 +142,52 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S40-7. UI — Tab bar Controllo Gestione uniformata ✅ 2026-04-16 (Wave 3)
+**Modulo:** Controllo Gestione / Nav (Dashboard, Confronto, Uscite, Riconciliazione)
+
+**Causa:** layout header incoerente tra le 4 pagine CG. Dashboard/Confronto avevano padding esterno `p-6` che impediva al Nav di arrivare full-width. Riconciliazione usava `bg-neutral-50` invece di `bg-brand-cream` + titolo generico senza Playfair. Uscite aveva back button custom che duplicava il link "← Home" del Nav.
+
+**Fix:** tutte le 4 pagine ora seguono il pattern Dipendenti/Flussi/Clienti. Wrapper esterno senza padding (Nav full-width), contenuto wrappato in `<div className="px-4 sm:px-6 pb-6">`. Titoli in `font-playfair text-sky-900`. `ControlloGestioneUscite.jsx` ora importa `ControlloGestioneNav current="uscite"`, rimuove back button custom, altezza `calc(100dvh - 97px)`.
+
+**File toccati:** `ControlloGestioneDashboard.jsx`, `ControlloGestioneConfronto.jsx`, `ControlloGestioneUscite.jsx`, `ControlloGestioneRiconciliazione.jsx`.
+
+---
+
+### S40-8. Acquisti — Fornitori ignorati nascosti di default ✅ 2026-04-16 (Wave 3)
+**Modulo:** Acquisti / Fatture Elenco
+
+**Fix backend:** `GET /fatture` in `fe_import.py` fa LEFT JOIN `fe_fornitore_categoria fc_excl` (match per P.IVA o per nome se P.IVA assente) e ritorna `COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti` nella response.
+
+**Fix frontend:** `FattureElenco.jsx` state `mostraEsclusi = false` (default). Filtro in `fattureBase`: `if (!mostraEsclusi) list = list.filter(f => !f.escluso_acquisti)`. Toggle "Mostra anche ignorati" nella sidebar sotto Stato (visibile solo se esistono fatture escluse). Quando attivo, le fatture escluse mostrano un badge ambra "ESCLUSO" accanto al fornitore.
+
+**File toccati:** `app/routers/fe_import.py`, `frontend/src/pages/admin/FattureElenco.jsx`.
+
+---
+
+### S40-12. Flussi — Workbench: bulk Parcheggia + Flagga senza match ✅ 2026-04-16 (Wave 3)
+**Modulo:** Flussi di Cassa / Cross-Ref banca
+
+**Migrazione 082:** aggiunte colonne `parcheggiato INTEGER DEFAULT 0` e `parcheggiato_at TEXT` su `banca_movimenti`. Indice parziale `idx_banca_mov_parcheggiato WHERE parcheggiato = 1`.
+
+**Backend:** `POST /banca/cross-ref/parcheggia-bulk` (body: `movimento_ids: List[int]`) e `POST /banca/cross-ref/disparcheggia/{movimento_id}`.
+
+**Frontend:** `BancaCrossRef.jsx` nuovo tab "Parcheggiati 🅿️". Handler `handleBulkParcheggia` (POST persistente), `handleBulkDismiss` (client-side: estende il Set `dismissed` esistente), `handleDisparcheggia` (singolo). I parcheggiati sono esclusi da Suggerimenti e Senza match. Toolbar bulk estesa alle 3 tab (senza/suggerimenti/parcheggiati). Riga parcheggiata: colonna timestamp + bottone "↩ Disparcheggia" individuale. `colSpan` calcolato per la nuova tab.
+
+**File toccati:** `app/migrations/082_banca_parcheggiato.py`, `app/routers/banca_router.py`, `frontend/src/pages/banca/BancaCrossRef.jsx`.
+
+---
+
+### S40-13. Flussi iPad — Descrizione tap-to-expand ✅ 2026-04-16 (Wave 3)
+**Modulo:** Flussi di Cassa / Cross-Ref banca
+
+**Causa:** cella Descrizione era `max-w-xs truncate` → su iPad il testo veniva tagliato e il `title` HTML non era accessibile via tap.
+
+**Fix:** nuovo state `expandedDesc: Set<movId>` + handler `toggleDesc`. Cella descrizione `onClick={() => toggleDesc(m.id)}`, classe condizionale `truncate` ↔ `whitespace-normal break-words`. `cursor-pointer select-none` per chiarezza touch. Tooltip title contestuale.
+
+**File toccati:** `frontend/src/pages/banca/BancaCrossRef.jsx`.
+
+---
 
 ### S40-4. Dipendenti — Inattivo mantiene colore occupato ✅ 2026-04-16 (Wave 2)
 **Modulo:** Dipendenti / Anagrafica

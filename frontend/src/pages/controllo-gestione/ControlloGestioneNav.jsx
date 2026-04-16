@@ -1,48 +1,61 @@
-// @version: v1.0-controllo-gestione-nav
+// src/pages/controllo-gestione/ControlloGestioneNav.jsx
+// @version: v2.0-uniformato — allineato al pattern Dipendenti/Flussi/Clienti (sessione 40 Wave 3 S40-7)
+// Tab navigation persistente per la sezione Controllo Gestione.
+// Colore modulo: sky (pattern ereditato da v1). Layout e tipografia identici
+// agli altri moduli dopo la revisione nav della sessione 39.
 import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 const TABS = [
-  { key: "dashboard", label: "Dashboard", path: "/controllo-gestione/dashboard" },
-  { key: "uscite", label: "Uscite", path: "/controllo-gestione/uscite" },
-  { key: "riconciliazione", label: "Riconciliazione", path: "/controllo-gestione/riconciliazione" },
-  { key: "confronto", label: "Confronto", path: "/controllo-gestione/confronto" },
+  { key: "dashboard",       label: "Dashboard",       path: "/controllo-gestione/dashboard",       icon: "📊" },
+  { key: "uscite",          label: "Uscite",          path: "/controllo-gestione/uscite",          icon: "💸" },
+  { key: "riconciliazione", label: "Riconciliazione", path: "/controllo-gestione/riconciliazione", icon: "🔗" },
+  { key: "confronto",       label: "Confronto",       path: "/controllo-gestione/confronto",       icon: "📈" },
 ];
 
 export default function ControlloGestioneNav({ current }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const active = current || TABS.find((t) => location.pathname === t.path)?.key || "dashboard";
 
   return (
-    <div className="max-w-7xl mx-auto flex items-center gap-1 mt-2 mb-0">
-      <button
-        onClick={() => navigate("/controllo-gestione")}
-        className="text-sm font-semibold text-sky-700 hover:text-sky-900 mr-3"
-      >
-        Controllo Gestione
-      </button>
-      <span className="text-neutral-300 mr-3">|</span>
-      {TABS.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => navigate(t.path)}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-            active === t.key
-              ? "bg-sky-600 text-white shadow"
-              : "text-sky-700 hover:bg-sky-100"
-          }`}
-        >
-          {t.label}
-        </button>
-      ))}
-      <div className="flex-1" />
-      <button
-        onClick={() => navigate("/")}
-        className="text-xs text-neutral-400 hover:text-neutral-600"
-      >
-        Home
-      </button>
+    <div className="bg-white border-b border-neutral-200 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between h-12">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate("/controllo-gestione")}
+              className="text-sm font-bold text-sky-900 font-playfair mr-4 hover:text-sky-700 transition whitespace-nowrap"
+            >
+              🎯 Controllo Gestione
+            </button>
+            <div className="flex gap-0.5 overflow-x-auto">
+              {TABS.map((tab) => {
+                const active = current === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => navigate(tab.path)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+                      active
+                        ? "bg-sky-100 text-sky-900 shadow-sm"
+                        : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                    }`}
+                  >
+                    <span className="mr-1">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={() => navigate("/")}
+            className="text-[11px] text-neutral-400 hover:text-neutral-600 transition hidden sm:block"
+          >
+            ← Home
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

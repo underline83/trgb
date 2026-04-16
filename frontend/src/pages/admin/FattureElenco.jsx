@@ -1,4 +1,4 @@
-// @version: v3.1-dettaglio-unificato
+// @version: v3.2-nascondi-esclusi (S40-8) — default nasconde fatture di fornitori con escluso_acquisti=1
 // Pagina Fatture Elettroniche — Layout Cantina: Filtri SX + Lista DX + Dettaglio inline
 // Il dettaglio inline usa il componente riutilizzabile FattureDettaglio
 // (stesso che gira in /acquisti/dettaglio/:id e in ControlloGestioneUscite),
@@ -41,6 +41,7 @@ export default function FattureElenco() {
   const [importoVal1, setImportoVal1] = useState("");
   const [importoVal2, setImportoVal2] = useState("");
   const [tipoSel, setTipoSel] = useState(""); // "" | "autofattura"
+  const [mostraEsclusi, setMostraEsclusi] = useState(false); // S40-8: nascondi fornitori esclusi da acquisti
 
   // ── Ordinamento ──
   const [sortKey, setSortKey] = useState("data_fattura");
@@ -86,6 +87,11 @@ export default function FattureElenco() {
   const fattureBase = useMemo(() => {
     let list = [...fatture];
 
+    // S40-8: nascondi fatture dei fornitori esclusi da acquisti (default)
+    if (!mostraEsclusi) {
+      list = list.filter(f => !f.escluso_acquisti);
+    }
+
     if (searchText) {
       const q = searchText.toLowerCase();
       list = list.filter(f =>
@@ -118,7 +124,7 @@ export default function FattureElenco() {
       });
 
     return list;
-  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2]);
+  }, [fatture, searchText, searchNumero, annoSel, meseSel, fornitoreSel, pivaSel, pagatoSel, importoMode, importoVal1, importoVal2, mostraEsclusi]);
 
   // ── Filtro completo (aggiunge fonte + tipo) ──
   const fattureFiltrate = useMemo(() => {
@@ -337,6 +343,14 @@ export default function FattureElenco() {
                   <option value="autofattura">Autofatture</option>
                 </select>
               </div>
+              {/* S40-8: toggle fornitori esclusi — visibile solo se ce ne sono */}
+              {fatture.some(f => f.escluso_acquisti) && (
+                <label className="flex items-center gap-2 text-[10px] text-neutral-600 cursor-pointer mt-2 pt-1.5 border-t border-emerald-200">
+                  <input type="checkbox" checked={mostraEsclusi} onChange={e => setMostraEsclusi(e.target.checked)}
+                    className="accent-amber-600" />
+                  Mostra fornitori esclusi ({fatture.filter(f => f.escluso_acquisti).length})
+                </label>
+              )}
             </div>
 
             {/* ── Azioni filtri ── */}
@@ -465,6 +479,7 @@ export default function FattureElenco() {
                         <td className="px-3 py-2 font-medium text-neutral-900 max-w-[200px] truncate">
                           {f.fornitore_nome || "—"}
                           {f.is_autofattura ? <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle">AUTO</span> : null}
+                          {!!f.escluso_acquisti && <span className="ml-1.5 px-1 py-0 rounded text-[8px] font-bold bg-amber-100 text-amber-700 align-middle uppercase">escluso</span>}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-700">€ {fmt(f.imponibile_totale)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-neutral-400 text-[10px] hidden xl:table-cell">€ {fmt(f.iva_totale)}</td>

@@ -1,4 +1,4 @@
-// @version: v1.0-workbench-riconciliazione
+// @version: v1.1-nav-uniformato (S40-7) — sfondo brand-cream, title sky/playfair, nav current
 // Workbench Riconciliazione Banca — split-pane dedicato.
 // SX: worklist uscite "Da collegare" (PAGATA_MANUALE senza movimento bancario)
 // DX: pannello riutilizzabile RiconciliaBancaPanel con tab Auto + Ricerca libera
@@ -90,14 +90,14 @@ export default function ControlloGestioneRiconciliazione() {
   }, [selected, uscite, fetchWorklist]);
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <ControlloGestioneNav />
+    <div className="min-h-screen bg-brand-cream">
+      <ControlloGestioneNav current="riconciliazione" />
 
       {/* Header */}
       <div className="bg-white border-b border-neutral-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-neutral-800">Riconciliazione banca</h1>
+            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Riconciliazione banca</h1>
             <p className="text-sm text-neutral-500 mt-0.5">
               Collega le uscite dichiarate pagate ai movimenti bancari corrispondenti
             </p>

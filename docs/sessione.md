@@ -1,12 +1,12 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 + Wave 2 chiuse)
+**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — Wave 1 + Wave 2 + Wave 3 chiuse)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
 
-## SESSIONE 40 — Wave 1 + Wave 2 (CHIUSE ✅)
+## SESSIONE 40 — Wave 1 + Wave 2 + Wave 3 (CHIUSE ✅)
 
 Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5), UI generica (2), Acquisti (2), Controllo Gestione (2), Flussi di Cassa (4), Statistiche (2). Triage: 3 wave ordinate per impatto × sforzo, dettaglio completo in `problemi.md` (punti `S40-1 ... S40-17`).
 
@@ -25,23 +25,27 @@ Marco ha aperto con una lista di 17 bug distribuiti su 6 moduli: Dipendenti (5),
 - **S40-10 Somma residuo Excel-style** (stesso file) — `useMemo sommaSelezionati` mostra il totale residuo nella bulk action bar.
 - **S40-11 Finestra _score_match** (`banca_router.py`) — cutoff duro a 180 giorni + penalita' progressiva oltre 30gg, evita di suggerire match SDD-08apr26 vs Amazon-11ago25.
 
+### Wave 3 completata — 4 fix UX su CG, Acquisti, Flussi, iPad
+
+- **S40-7 CG tab bar uniformata** (Dashboard/Confronto/Uscite/Riconciliazione) — wrapper esterno senza padding → Nav full-width + contenuto wrappato `<div className="px-4 sm:px-6 pb-6">`. Riconciliazione passa da `bg-neutral-50` a `bg-brand-cream`, titoli `font-playfair text-sky-900`. Uscite importa ora `ControlloGestioneNav` (rimosso back button custom duplicato).
+- **S40-8 Acquisti nascondi fornitori ignorati** (`fe_import.py` + `FattureElenco` v3.2) — LEFT JOIN `fe_fornitore_categoria fc_excl` in `GET /fatture`, FE filtra `!f.escluso_acquisti` di default. Toggle "Mostra anche ignorati" nella sidebar (visibile solo se esistono escluse), badge ambra "ESCLUSO" sulla riga quando visibili.
+- **S40-12 Flussi workbench bulk Parcheggia/senza match** (migrazione 082 + `banca_router.py` + `BancaCrossRef` v5.2) — colonne `parcheggiato` + `parcheggiato_at` su `banca_movimenti`, nuovi endpoint `POST /cross-ref/parcheggia-bulk` e `POST /cross-ref/disparcheggia/{id}`. Nuovo tab "Parcheggiati 🅿️", toolbar bulk estesa a senza/suggerimenti/parcheggiati, "❓ Flagga senza match" bulk (client-side che estende il Set `dismissed`), riga parcheggiata con timestamp + bottone "↩ Disparcheggia" individuale.
+- **S40-13 Flussi iPad descrizione** (stesso file) — tap-to-expand: state `expandedDesc: Set<movId>` + handler `toggleDesc`, cella `truncate` ↔ `whitespace-normal break-words`, `cursor-pointer select-none` per chiarezza touch.
+
 ### Rimangono in indagine
 
 - **S40-14 Duplicati Sogegros €597,08** — servono ID `banca_movimenti` da Marco per decidere regola dedup.
+- **S40-15 Acquisti FIC righe mancanti** — serve fattura di riferimento.
 - **S40-16 "Import iPratico sparito" Statistiche** — serve chiarimento da Marco se intendeva l'iPratico Vini (spostato in Vini → Impostazioni sessione 39) o davvero quello delle Statistiche (tab esiste ancora).
 - **S40-17 "menu con più opzioni sparito"** — serve sapere quale menu esattamente.
-
-### Prossime wave
-
-- **Wave 3**: Acquisti #2 flag fornitori ignorati + Flussi #2 selezione multipla parcheggio + Flussi #3 iPad descrizione + UI #2 uniformare barra CG.
-- **Fuori wave** (indagine): Acquisti #1 FIC righe mancanti — serve fattura di riferimento.
 
 ### Versioni bump sessione 40
 
 - `dipendenti` 2.23 → 2.25 (Wave 1 + Wave 2: trailing slash, soft-delete colore, auto-ID, nickname)
-- `controlloGestione` 2.5 → 2.6 (Wave 2: filtri default + somma selezione)
-- `flussiCassa` 1.9 → 1.10 (Wave 2: cutoff finestra _score_match)
-- `sistema` 5.8 → 5.10 (Wave 1: Tooltip disableOnTouch — Wave 2: migrazione 081 dipendenti.sqlite3)
+- `fatture` 2.5 → 2.6 (Wave 3: escluso_acquisti default)
+- `controlloGestione` 2.5 → 2.7 (Wave 2: filtri default + somma selezione — Wave 3: nav uniformato)
+- `flussiCassa` 1.9 → 1.11 (Wave 2: cutoff finestra _score_match — Wave 3: parcheggia + tap-to-expand)
+- `sistema` 5.8 → 5.11 (Wave 1: Tooltip disableOnTouch — Wave 2: migrazione 081 — Wave 3: migrazione 082)
 
 ---
 

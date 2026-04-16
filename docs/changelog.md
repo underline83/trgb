@@ -3,6 +3,46 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / Wave 3 — CG nav uniformato + Acquisti esclusi + Flussi parcheggia + iPad descrizione
+
+Wave 3 chiude 4 bug: uniformità UI su CG, pulizia default Acquisti, azioni bulk workbench Flussi, leggibilità iPad.
+
+### CG — Tab bar uniformata su tutto il modulo (S40-7)
+
+Le 4 pagine CG (Dashboard, Confronto, Uscite, Riconciliazione) avevano layout header incoerente: Dashboard/Confronto usavano sfondo `bg-brand-cream` con padding esterno `p-6`, Uscite aveva Nav full-width ma senza il wrapper `ControlloGestioneNav`, Riconciliazione aveva `bg-neutral-50` e titolo generico. Il pattern Dipendenti/Flussi/Clienti ha invece un Nav full-width `bg-white border-b shadow-sm` + contenuto wrappato con padding interno.
+
+**Fix**: tutte e 4 le pagine ora rispettano lo stesso pattern. Wrapper esterno senza padding (così Nav arriva full-width), card contenuto avvolta in `<div className="px-4 sm:px-6 pb-6">`. Titoli in `font-playfair text-sky-900`. `ControlloGestioneUscite` ora importa `ControlloGestioneNav current="uscite"` e rimuove il back button custom (il Nav ha il "← Home" a destra). Altezza calcolata aggiornata: `calc(100dvh - 97px)` (Nav 48px + sub-header 49px).
+
+### Acquisti — Fornitori ignorati nascosti di default (S40-8)
+
+Nel workbench Acquisti (`FattureElenco`) l'utente vedeva comunque fatture di fornitori marcati `escluso_acquisti = 1` in Impostazioni. Rumore inutile per il flusso quotidiano.
+
+**Fix backend**: `GET /fatture` in `fe_import.py` fa LEFT JOIN su `fe_fornitore_categoria fc_excl` (match per P.IVA o per nome se P.IVA assente) e ritorna `COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti` per ogni fattura.
+
+**Fix frontend**: `FattureElenco.jsx` nuovo state `mostraEsclusi = false` (default). Filtro in `fattureBase`: `if (!mostraEsclusi) list = list.filter(f => !f.escluso_acquisti)`. Toggle "Mostra anche ignorati" nella sidebar sotto Stato (visibile solo se esistono fatture escluse). Quando il toggle è attivo, le fatture escluse mostrano un badge ambra "ESCLUSO" accanto al fornitore.
+
+### Flussi — Workbench: azioni bulk Parcheggia e Flagga senza match (S40-12)
+
+Nel cross-ref banca, Marco aveva bisogno di due azioni bulk che non esistevano: (1) **parcheggiare** movimenti incerti per analizzarli in seguito (stato persistente cross-sessione), (2) **flaggare senza match** più righe insieme per sbloccare la ricerca manuale (equivalente bulk dell'azione "Nessuno di questi → cerca manuale" che finora era solo per singolo movimento).
+
+**Migrazione 082**: `banca_movimenti` + `parcheggiato INTEGER DEFAULT 0` + `parcheggiato_at TEXT`. Indice parziale `idx_banca_mov_parcheggiato WHERE parcheggiato = 1` per il tab dedicato.
+
+**Backend**: `POST /banca/cross-ref/parcheggia-bulk` (body: `movimento_ids: List[int]`) setta parcheggiato=1 + timestamp. `POST /banca/cross-ref/disparcheggia/{movimento_id}` resetta.
+
+**Frontend**: `BancaCrossRef.jsx` nuovo tab "Parcheggiati 🅿️" (oltre a Collegati / Suggerimenti / Senza match). Handler `handleBulkParcheggia` (POST), `handleBulkDismiss` (client-side: estende il Set `dismissed` esistente che forza la vista "senza match"), `handleDisparcheggia` (POST per singolo). I movimenti parcheggiati vengono esclusi da Suggerimenti e Senza match. Toolbar bulk estesa: su "senza" e "suggerimenti" bottone "🅿️ Parcheggia", su "suggerimenti" bottone "❓ Flagga senza match", su "parcheggiati" bottone "↩ Disparcheggia". Checkbox testata estesa alle 3 tab. Sulla riga parcheggiata: colonna "Parcheggiato" (timestamp) + bottone "↩ Disparcheggia" individuale.
+
+### Flussi — iPad: descrizione tap-to-expand (S40-13)
+
+La cella "Descrizione" nel workbench era `max-w-xs truncate` → su iPad il testo veniva tagliato e il `title` HTML non era accessibile via tap (solo hover desktop). Beneficiario/causale rimanevano nascosti.
+
+**Fix**: nuovo state `expandedDesc: Set<movId>` + handler `toggleDesc`. Cella descrizione: `onClick={() => toggleDesc(m.id)}`, classe condizionale `truncate` → `whitespace-normal break-words` quando espansa. `cursor-pointer select-none` per chiarezza touch. Tooltip title contestuale ("Tocca per leggere tutto" / "Tocca per comprimere").
+
+### Versioni bump
+
+`fatture` 2.5 → 2.6 (escluso_acquisti default). `flussiCassa` 1.10 → 1.11 (parcheggia + tap-to-expand). `controlloGestione` 2.6 → 2.7 (nav uniformato). `sistema` 5.10 → 5.11 (migrazione 082 banca_movimenti).
+
+---
+
 ## 2026-04-16 — Sessione 40 / Wave 2 — Dipendenti UX + CG filtri+somma + Flussi finestra
 
 Wave 2 chiude 6 bug catalogati: 3 Dipendenti, 2 CG, 1 Flussi.

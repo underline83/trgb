@@ -1,4 +1,4 @@
-// @version: v5.1-chiusura-manuale
+// @version: v5.2-bulk-parcheggia-senza-match (S40-12) — tab Parcheggiati, azioni bulk
 // Riconciliazione — match movimenti bancari ↔ fatture, spese fisse, registrazione diretta
 // v5: multi-link (bonifici multi-fattura), ricerca entrate (storni), dedup, matching migliorato
 // v5.1: chiusura manuale riconciliazione n-a-1 (mig 059) per N/C, bonifici multipli, fattura+rata
@@ -87,6 +87,7 @@ const tipoBadge = (tipo) => (
 const TABS = [
   { key: "suggerimenti", label: "Suggerimenti",  icon: "💡", desc: "Match automatici" },
   { key: "senza",        label: "Senza match",   icon: "❓", desc: "Ricerca manuale" },
+  { key: "parcheggiati", label: "Parcheggiati",  icon: "🅿️", desc: "In attesa di analisi" },
   { key: "collegati",    label: "Collegati",      icon: "✅", desc: "Già riconciliati" },
 ];
 
@@ -318,6 +319,13 @@ export default function BancaCrossRef() {
   const [bulkSelected, setBulkSelected] = useState(new Set());
   const [bulkCat, setBulkCat] = useState("");
   const [bulkRegistering, setBulkRegistering] = useState(false);
+  // S40-13 — descrizioni espanse (tap-to-expand su iPad)
+  const [expandedDesc, setExpandedDesc] = useState(() => new Set());
+  const toggleDesc = (id) => setExpandedDesc(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
   const [catUscita, setCatUscita] = useState(CAT_USCITA_DEFAULT);
   const [catEntrata, setCatEntrata] = useState(CAT_ENTRATA_DEFAULT);
   // Duplicati
@@ -544,6 +552,44 @@ export default function BancaCrossRef() {
     finally { setBulkRegistering(false); }
   };
 
+  // ── S40-12: Parcheggia bulk (stato persistente "in attesa") ──
+  const handleBulkParcheggia = async () => {
+    if (bulkSelected.size === 0) return;
+    setBulkRegistering(true);
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/parcheggia-bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movimento_ids: [...bulkSelected] }),
+      });
+      if (!resp.ok) throw new Error("Errore parcheggio");
+      setBulkSelected(new Set());
+      await loadData();
+    } catch (err) { setError(err.message); }
+    finally { setBulkRegistering(false); }
+  };
+
+  // ── S40-12: Flagga bulk come "senza match" (client-side dismiss multiplo) ──
+  const handleBulkDismiss = () => {
+    if (bulkSelected.size === 0) return;
+    setDismissed(prev => {
+      const s = new Set(prev);
+      bulkSelected.forEach(id => s.add(id));
+      return s;
+    });
+    setBulkSelected(new Set());
+    setTab("senza");
+  };
+
+  // ── S40-12: Disparcheggia un singolo movimento ──
+  const handleDisparcheggia = async (movId) => {
+    try {
+      const resp = await apiFetch(`${FC}/cross-ref/disparcheggia/${movId}`, { method: "POST" });
+      if (!resp.ok) throw new Error("Errore");
+      await loadData();
+    } catch (err) { setError(err.message); }
+  };
+
   useEffect(() => {
     if (bulkSelected.size > 0 && !bulkCat) {
       const first = movimenti.find(m => bulkSelected.has(m.id));
@@ -595,12 +641,14 @@ export default function BancaCrossRef() {
   // ── Filtra per tab ──
   // linked = completamente collegato (residuo < 1)
   // partial = ha link ma residuo >= 1 → va nei suggerimenti o senza match
-  const linked   = useMemo(() => movimenti.filter(m => isFullyLinked(m)), [movimenti]);
-  const unlinked = useMemo(() => movimenti.filter(m => !isFullyLinked(m)), [movimenti]);
+  // parcheggiati = stato "in attesa" persistente (sparisce dagli altri tab)
+  const parcheggiati = useMemo(() => movimenti.filter(m => !!m.parcheggiato), [movimenti]);
+  const linked   = useMemo(() => movimenti.filter(m => !m.parcheggiato && isFullyLinked(m)), [movimenti]);
+  const unlinked = useMemo(() => movimenti.filter(m => !m.parcheggiato && !isFullyLinked(m)), [movimenti]);
   const withSugg = useMemo(() => unlinked.filter(m => m.possibili_match?.length > 0 && !dismissed.has(m.id)), [unlinked, dismissed]);
   const noMatch  = useMemo(() => unlinked.filter(m => !m.possibili_match?.length || dismissed.has(m.id)), [unlinked, dismissed]);
 
-  const listMap = { collegati: linked, suggerimenti: withSugg, senza: noMatch };
+  const listMap = { collegati: linked, suggerimenti: withSugg, senza: noMatch, parcheggiati: parcheggiati };
   let currentList = listMap[tab] || [];
 
   // ── Filtro client-side: tipo link ──
@@ -707,7 +755,10 @@ export default function BancaCrossRef() {
   };
 
   // Colonne tabella
-  const colSpan = tab === "collegati" ? 6 : tab === "senza" ? 5 : 4;
+  // senza: checkbox + data + importo + descr + azioni = 5
+  // suggerimenti: checkbox + data + importo + descr + match = 5
+  // parcheggiati: checkbox + data + importo + descr + parcheggiato + azioni = 6
+  const colSpan = tab === "collegati" ? 6 : tab === "senza" ? 5 : tab === "suggerimenti" ? 5 : tab === "parcheggiati" ? 6 : 4;
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
@@ -889,8 +940,8 @@ export default function BancaCrossRef() {
             <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
           )}
 
-          {/* ── Barra bulk (tab senza) ── */}
-          {tab === "senza" && bulkSelected.size > 0 && (
+          {/* ── Barra bulk — tab senza/suggerimenti/parcheggiati ── */}
+          {(tab === "senza" || tab === "suggerimenti" || tab === "parcheggiati") && bulkSelected.size > 0 && (
             <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm font-semibold text-indigo-800">
@@ -903,27 +954,64 @@ export default function BancaCrossRef() {
                     return ` — € ${fmt(tot)}`;
                   })()}
                 </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {(() => {
-                    const firstMov = movimenti.find(m => bulkSelected.has(m.id));
-                    const cats = firstMov && firstMov.importo >= 0 ? catEntrata : catUscita;
-                    return cats.map(c => (
-                      <button key={c.key} onClick={() => setBulkCat(c.key)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
-                          bulkCat === c.key
-                            ? "bg-indigo-600 text-white border-indigo-600"
-                            : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50"
-                        }`}>
-                        {c.label}
-                      </button>
-                    ));
-                  })()}
-                </div>
-                <button onClick={handleBulkRegistra} disabled={!bulkCat || bulkRegistering}
-                  className="px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition ml-auto">
-                  {bulkRegistering ? "..." : `Registra ${bulkSelected.size}`}
-                </button>
-                <button onClick={deselectAll} className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-200">
+
+                {/* Registra come categoria — solo su tab senza */}
+                {tab === "senza" && (
+                  <>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(() => {
+                        const firstMov = movimenti.find(m => bulkSelected.has(m.id));
+                        const cats = firstMov && firstMov.importo >= 0 ? catEntrata : catUscita;
+                        return cats.map(c => (
+                          <button key={c.key} onClick={() => setBulkCat(c.key)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                              bulkCat === c.key
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-white border-neutral-200 text-neutral-700 hover:bg-indigo-50"
+                            }`}>
+                            {c.label}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                    <button onClick={handleBulkRegistra} disabled={!bulkCat || bulkRegistering}
+                      className="px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition">
+                      {bulkRegistering ? "..." : `Registra ${bulkSelected.size}`}
+                    </button>
+                  </>
+                )}
+
+                {/* S40-12: Parcheggia bulk — su senza/suggerimenti */}
+                {(tab === "senza" || tab === "suggerimenti") && (
+                  <button onClick={handleBulkParcheggia} disabled={bulkRegistering}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 disabled:opacity-40 transition">
+                    🅿️ Parcheggia {bulkSelected.size}
+                  </button>
+                )}
+
+                {/* S40-12: Flagga senza match bulk — solo su suggerimenti */}
+                {tab === "suggerimenti" && (
+                  <button onClick={handleBulkDismiss}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-100 text-neutral-700 border border-neutral-300 hover:bg-neutral-200 transition">
+                    ❓ Flagga senza match
+                  </button>
+                )}
+
+                {/* S40-12: Disparcheggia bulk — solo su parcheggiati */}
+                {tab === "parcheggiati" && (
+                  <button
+                    onClick={async () => {
+                      for (const id of bulkSelected) {
+                        await handleDisparcheggia(id);
+                      }
+                      setBulkSelected(new Set());
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition">
+                    ↩ Disparcheggia {bulkSelected.size}
+                  </button>
+                )}
+
+                <button onClick={deselectAll} className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-200 ml-auto">
                   Deseleziona
                 </button>
               </div>
@@ -952,7 +1040,7 @@ export default function BancaCrossRef() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200">
-                    {tab === "senza" && (
+                    {(tab === "senza" || tab === "suggerimenti" || tab === "parcheggiati") && (
                       <th className="px-2 py-2 w-8">
                         <input type="checkbox"
                           checked={sorted.length > 0 && sorted.every(m => bulkSelected.has(m.id))}
@@ -975,6 +1063,12 @@ export default function BancaCrossRef() {
                     {tab === "senza" && (
                       <th className="px-3 py-2 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider w-24"></th>
                     )}
+                    {tab === "parcheggiati" && (
+                      <>
+                        <th className="px-3 py-2 text-left text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Parcheggiato</th>
+                        <th className="px-3 py-2 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider w-28"></th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -990,7 +1084,7 @@ export default function BancaCrossRef() {
                         <tr className={`border-b border-neutral-100 hover:bg-neutral-50 transition ${
                           isExpanded || isSearching ? "bg-neutral-50" : ""
                         } ${bulkSelected.has(m.id) ? "bg-indigo-50/50" : ""}`}>
-                          {tab === "senza" && (
+                          {(tab === "senza" || tab === "suggerimenti" || tab === "parcheggiati") && (
                             <td className="px-2 py-2.5 w-8">
                               <input type="checkbox" checked={bulkSelected.has(m.id)}
                                 onChange={() => toggleBulk(m.id)} className="accent-indigo-600" />
@@ -1002,8 +1096,16 @@ export default function BancaCrossRef() {
                           }`}>
                             € {fmt(m.importo)}
                           </td>
-                          <td className="px-3 py-2.5 max-w-xs">
-                            <div className="text-xs text-neutral-800 truncate" title={m.descrizione}>{m.descrizione}</div>
+                          <td className="px-3 py-2.5 max-w-xs cursor-pointer select-none"
+                              onClick={() => toggleDesc(m.id)}
+                              title={expandedDesc.has(m.id) ? "Tocca per comprimere" : "Tocca per leggere tutto"}>
+                            <div className={`text-xs text-neutral-800 ${
+                              expandedDesc.has(m.id)
+                                ? "whitespace-normal break-words"
+                                : "truncate"
+                            }`}>
+                              {m.descrizione}
+                            </div>
                             {m.categoria_banca && (
                               <div className="text-[10px] text-neutral-400">{m.categoria_banca}{m.sottocategoria_banca ? ` — ${m.sottocategoria_banca}` : ""}</div>
                             )}
@@ -1150,6 +1252,23 @@ export default function BancaCrossRef() {
                                 )}
                               </div>
                             </td>
+                          )}
+
+                          {/* ── Tab parcheggiati: timestamp + disparcheggia ── */}
+                          {tab === "parcheggiati" && (
+                            <>
+                              <td className="px-3 py-2.5 text-xs text-neutral-500 whitespace-nowrap">
+                                {m.parcheggiato_at ? fmtDate(m.parcheggiato_at) : "—"}
+                              </td>
+                              <td className="px-3 py-2.5 text-center">
+                                <Tooltip label="Rimetti il movimento tra quelli da analizzare">
+                                  <button onClick={() => handleDisparcheggia(m.id)}
+                                    className="px-3 py-1 rounded-lg text-xs font-medium border border-amber-300 text-amber-700 hover:bg-amber-50 transition">
+                                    ↩ Disparcheggia
+                                  </button>
+                                </Tooltip>
+                              </td>
+                            </>
                           )}
                         </tr>
 

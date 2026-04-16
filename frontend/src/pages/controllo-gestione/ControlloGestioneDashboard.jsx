@@ -1,4 +1,4 @@
-// @version: v1.0-controllo-gestione-dashboard
+// @version: v1.1-nav-uniformato (padding esterno rimosso, wrapper px interno — S40-7)
 // Dashboard unificata: vendite, acquisti, banca, margine, andamento annuale
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -93,7 +93,7 @@ export default function ControlloGestioneDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen bg-brand-cream p-6">
+      <div className="min-h-screen bg-brand-cream">
         <ControlloGestioneNav current="dashboard" />
         <TrgbLoader size={48} label="Caricamento…" className="max-w-7xl mx-auto mt-4 py-20" />
       </div>
@@ -102,7 +102,7 @@ export default function ControlloGestioneDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-brand-cream p-6">
+      <div className="min-h-screen bg-brand-cream">
         <ControlloGestioneNav current="dashboard" />
         <div className="max-w-7xl mx-auto mt-4 text-center py-20 text-red-500">{error}</div>
       </div>
@@ -124,9 +124,10 @@ export default function ControlloGestioneDashboard() {
   );
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6 font-sans">
+    <div className="min-h-screen bg-brand-cream font-sans">
       <ControlloGestioneNav current="dashboard" />
 
+      <div className="px-4 sm:px-6 pb-6">
       <div className="max-w-7xl mx-auto bg-white shadow-2xl rounded-3xl p-6 sm:p-8 border border-neutral-200 mt-4">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
@@ -313,6 +314,7 @@ export default function ControlloGestioneDashboard() {
           </div>
         </div>
 
+      </div>
       </div>
     </div>
   );

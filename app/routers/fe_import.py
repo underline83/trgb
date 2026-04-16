@@ -940,6 +940,12 @@ def list_fatture(
     """, params)
     summary = dict(cur.fetchone())
 
+    # Join esclusione fornitori per flag escluso_acquisti
+    excl_join = """
+        LEFT JOIN fe_fornitore_categoria fc_excl
+          ON (f.fornitore_piva IS NOT NULL AND f.fornitore_piva != '' AND f.fornitore_piva = fc_excl.fornitore_piva)
+          OR (COALESCE(f.fornitore_piva, '') = '' AND f.fornitore_nome = fc_excl.fornitore_nome AND fc_excl.fornitore_piva IS NULL)
+    """
     cur.execute(f"""
         SELECT
             f.id, f.fornitore_nome, f.fornitore_piva,
@@ -950,8 +956,9 @@ def list_fatture(
             COALESCE(f.pagato, 0) AS pagato,
             f.data_scadenza, f.modalita_pagamento, f.importo_pagamento,
             (SELECT COUNT(*) FROM fe_righe r WHERE r.fattura_id = f.id) AS n_righe,
-            COALESCE(f.is_autofattura, 0) AS is_autofattura
-        FROM fe_fatture f {cat_join}
+            COALESCE(f.is_autofattura, 0) AS is_autofattura,
+            COALESCE(fc_excl.escluso_acquisti, 0) AS escluso_acquisti
+        FROM fe_fatture f {cat_join} {excl_join}
         WHERE {where_sql}
         ORDER BY COALESCE(f.data_fattura, '') DESC, f.id DESC
         LIMIT ? OFFSET ?

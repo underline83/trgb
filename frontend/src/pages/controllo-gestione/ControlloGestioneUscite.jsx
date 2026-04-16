@@ -1,6 +1,8 @@
-// @version: v3.1-default-filtri-somma-selezione (sessione 40)
+// @version: v3.2-nav-uniformato (S40-7) — tab bar CG sempre visibile
 // Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
 // + Riconciliazione Banca: match uscite ↔ movimenti bancari
+// v3.2 (sessione 40 Wave 3):
+//  - Aggiunto ControlloGestioneNav per tab bar uniforme con altri moduli
 // v3.1 (sessione 40):
 //  - Default filtri all'apertura: stati Programmato+Scaduto+Pagato e periodo mese corrente
 //  - Barra bulk mostra la somma dei totali delle righe selezionate (Excel-style)
@@ -9,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureDettaglio from "../admin/FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
+import ControlloGestioneNav from "./ControlloGestioneNav";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -726,11 +729,11 @@ export default function ControlloGestioneUscite() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
-      {/* HEADER BAR */}
+      <ControlloGestioneNav current="uscite" />
+
+      {/* SUB-HEADER BAR */}
       <div className="bg-white border-b border-neutral-200 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/controllo-gestione")}
-            className="text-neutral-400 hover:text-neutral-600 text-sm">&larr;</button>
           <h1 className="text-lg font-bold text-sky-900 font-playfair">Scadenzario Uscite</h1>
           <span className="text-[10px] text-neutral-400">{loading ? "Caricamento..." : `${sorted.length} righe`}</span>
         </div>
@@ -740,8 +743,8 @@ export default function ControlloGestioneUscite() {
         </button>
       </div>
 
-      {/* LAYOUT: Filtri SX + Contenuto DX */}
-      <div className="flex" style={{ height: "calc(100dvh - 49px)" }}>
+      {/* LAYOUT: Filtri SX + Contenuto DX (Nav 48px + sub-header 49px = 97px) */}
+      <div className="flex" style={{ height: "calc(100dvh - 97px)" }}>
 
         {/* ══════ SIDEBAR FILTRI v2 (compatta, flat, sticky actions) ══════ */}
         <div className="w-sidebar-sm min-w-sidebar-sm border-r border-neutral-200 bg-white flex flex-col flex-shrink-0">
