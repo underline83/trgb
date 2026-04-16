@@ -17,7 +17,8 @@ export default function RicetteNav({ current }) {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
 
-  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
+  // superadmin eredita tutti i permessi di admin (allineato a useModuleAccess.roleMatch)
+  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));
 
   return (
     <div className="bg-white border-b border-neutral-200 shadow-sm">

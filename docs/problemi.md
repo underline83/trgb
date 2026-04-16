@@ -6,64 +6,15 @@
 
 ---
 
-## Aperti — Priorità alta
-
-### S40-1. Dipendenti — Crash al salvataggio nuovo dipendente
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Dipendenti / Anagrafica
-**Gravità:** alta (bloccante)
-
-**Sintomo:** al salvataggio di un nuovo dipendente l'app crasha e torna in Home.
-
-**Causa:** `DipendentiAnagrafica.jsx` riga 184 faceva POST su `${API_BASE}/dipendenti` (senza trailing slash). Il backend espone l'endpoint root come `@router.post("/")` (dipendenti.py:192) con prefix `/dipendenti` → FastAPI emette 307 Temporary Redirect verso `/dipendenti/`. Durante il redirect cross-origin il browser droppa l'header `Authorization` → la seconda richiesta è anonima → 401 → `apiFetch` (config/api.js:26-35) cancella token/role e fa `window.location.href = "/login"` → all'utente sembra "crash e torna in home".
-
-Stesso pattern già documentato in CLAUDE.md sotto "API calls — TRAILING SLASH OBBLIGATORIO".
-
-**Fix previsto:** riga 184, `${API_BASE}/dipendenti` → `${API_BASE}/dipendenti/`.
-
----
-
 ## Aperti — Priorità media
 
-### S40-2. Dipendenti — "+ Nuovo reparto" in Impostazioni non fa nulla
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Dipendenti / Impostazioni → Reparti (`GestioneReparti.jsx`)
-**Gravità:** media
-
-**Sintomo:** click su "+ Nuovo reparto" non apre il form.
-
-**Causa:** `GestioneReparti.jsx` riga 213: il form del dettaglio è nascosto da `{!form.id && !form.codice ? (placeholder) : (form)}`. `handleNew()` (riga 89) fa `setForm(EMPTY)` dove `EMPTY.codice = ""` → la condizione resta vera → il placeholder "Seleziona un reparto o creane uno nuovo" rimane visibile anche dopo il click.
-
-La sorella `DipendentiAnagrafica.jsx` ha già il flag esplicito `isCreating` (riga 62) che risolve proprio questo pattern — `GestioneReparti` è rimasto indietro.
-
-**Fix previsto:** aggiungere `const [isCreating, setIsCreating] = useState(false)`. `handleNew` → `setIsCreating(true)`. `handleSelect` → `setIsCreating(false)`. Post-save successo → `setIsCreating(false)` (il record ora ha id). Condizione render: `!form.id && !isCreating`.
-
----
-
-### S40-3. UI — Campanello notifiche su iPad: tooltip compare ma click non apre panel
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Header (tutto il gestionale)
-**Gravità:** media
-
-**Sintomo:** su iPad il tooltip "Notifiche" compare nella posizione corretta (sessione 39 fix placement="bottom"), ma cliccando il campanello il pannello notifiche non si apre più. Stesso comportamento probabile anche su 🔑 Cambia PIN.
-
-**Causa probabile:** `Tooltip.jsx` su touch usa il pattern "double-tap" — primo tap mostra il tooltip e blocca il click, secondo tap lascia passare. Per icone universali come 🔔 e 🔑 il tooltip è ridondante e il double-tap introduce friction: se Marco aspetta oltre 2,5s (auto-close) tra primo e secondo tap, `firstTouchShown` si resetta e il secondo tap è di nuovo "primo tap" → non apre mai.
-
-**Fix previsto:** aggiungere prop `disableOnTouch` al `Tooltip`. Quando true e `isTouch === true`, il componente si comporta come passthrough (return children, niente double-tap). Nel Header marcare 🔔 e 🔑 con questa prop.
-
----
+_(S40-1, S40-2, S40-3 risolti Wave 1 — vedi sezione Risolti.)_
 
 _(S40-4, S40-5, S40-6 risolti — vedi sezione Risolti.)_
 
----
-
 _(S40-7, S40-8 risolti Wave 3 — vedi sezione Risolti.)_
 
----
-
 _(S40-9, S40-10, S40-11 risolti Wave 2 — vedi sezione Risolti.)_
-
----
 
 _(S40-12, S40-13 risolti Wave 3 — vedi sezione Risolti.)_
 
@@ -107,27 +58,18 @@ Serve caso concreto da Marco (ID banca_movimenti dei due record).
 
 ---
 
-### S40-16. Statistiche — "Import iPratico" sembra sparito
+### S40-16 + S40-17. Statistiche — Import iPratico sparito + menu con meno opzioni ✅ CHIUSO 2026-04-16
 **Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Statistiche / Import
-**Gravità:** bassa
+**Modulo:** Statistiche / Nav + tutti i Nav moduli
+**Gravità:** media-alta (Import iPratico e' critico per popolare le statistiche)
 
-**Status verifica:** la tab "📥 Import iPratico" ESISTE ancora in `StatisticheNav.jsx` (riga 10), visibile solo ad admin. La rotta `/statistiche/import` è montata in `App.jsx` (riga 300). Il componente `StatisticheImport.jsx` esiste.
+**Causa radice:** bug sistematico in 6 file Nav (`StatisticheNav`, `RicetteNav`, `ViniNav`, `PrenotazioniNav`, `BancaNav`, `ClientiNav`). Il filtro `tab.roles.includes(role)` non gestiva l'ereditarieta' superadmin → admin. `useModuleAccess.roleMatch` aveva gia' la logica corretta (riga 38: `role === "superadmin" && roles.includes("admin")`) ma i Nav locali la bypassavano. Marco loggato come superadmin non vedeva le tab con `roles: ["admin"]`, tra cui Import iPratico.
 
-Due ipotesi:
-- A: Marco su iPad è loggato con ruolo diverso da admin → non vede la tab (filtro roles:["admin"])
-- B: Marco sta confondendo con l'iPratico **Vini** (import/export sincronizzazione anagrafica) che nella sessione 39 ho effettivamente spostato da voce autonoma a "embedded" dentro `ViniImpostazioni` → quella può sembrare "sparita"
+Per S40-17: il vecchio hub con card `StatisticheMenu.jsx` fu rimosso in sessione 39 (commit `1d8ada9`) e sostituito con tab bar + ModuleRedirect. Nessuna funzionalita' persa — la tab bar ha gli stessi link (Dashboard, Prodotti, Coperti, Import). I placeholder "Cantina" e "Personale" (mai funzionali) sono spariti.
 
-**Da chiarire con Marco**: quale iPratico intendeva. Se B: ripristinare voce separata o segnalargli che è dentro Vini → Impostazioni.
+**Fix:** allineato il filtro in tutti i 6 Nav: `!tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin"))`.
 
----
-
-### S40-17. Statistiche — Menu con più opzioni sparito nella revisione
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Statistiche (dashboard o sub-menu non identificato)
-**Gravità:** bassa
-
-**Da chiarire con Marco**: quale menu? Statistiche → Dashboard oppure Statistiche → Cucina (`CucinaMenu.jsx`)? Serve sapere quali opzioni mancano per capire se sono state tolte nella revisione nav (sessione 39) e vanno ripristinate o se sono state spostate in altro modulo.
+**File toccati:** `StatisticheNav.jsx`, `RicetteNav.jsx`, `ViniNav.jsx`, `PrenotazioniNav.jsx`, `BancaNav.jsx`, `ClientiNav.jsx`.
 
 ---
 
@@ -148,6 +90,21 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S40-1. Dipendenti — Crash al salvataggio nuovo dipendente ✅ 2026-04-16 (Wave 1)
+**Fix:** trailing slash mancante su POST `/dipendenti` → `/dipendenti/`. Pattern CLAUDE.md.
+
+### S40-2. Dipendenti — "+ Nuovo reparto" non fa nulla ✅ 2026-04-16 (Wave 1)
+**Fix:** aggiunto flag `isCreating` in `GestioneReparti.jsx`, allineato al pattern `DipendentiAnagrafica`.
+
+### S40-3. UI — Campanello iPad click non apre ✅ 2026-04-16 (Wave 1)
+**Fix:** prop `disableOnTouch` su `Tooltip.jsx`, applicata a 🔔 e 🔑 nel Header.
+
+### S40-16 + S40-17. Nav: superadmin non vedeva tab "admin-only" ✅ 2026-04-16
+**Causa:** 6 Nav file usavano `tab.roles.includes(role)` senza ereditarieta' superadmin→admin. Import iPratico Statistiche era la tab piu' visibilmente mancante.
+**Fix:** allineato filtro in `StatisticheNav`, `RicetteNav`, `ViniNav`, `PrenotazioniNav`, `BancaNav`, `ClientiNav` a stessa logica di `useModuleAccess.roleMatch`.
+
+---
 
 ### S40-7. UI — Tab bar Controllo Gestione uniformata ✅ 2026-04-16 (Wave 3)
 **Modulo:** Controllo Gestione / Nav (Dashboard, Confronto, Uscite, Riconciliazione)

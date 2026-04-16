@@ -30,7 +30,8 @@ export default function ClientiNav({ current, diffCount: externalDiffCount }) {
       .catch(() => {});
   }, [externalDiffCount]);
 
-  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
+  // superadmin eredita tutti i permessi di admin (allineato a useModuleAccess.roleMatch)
+  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));
 
   // Impostazioni attivo anche per sotto-path
   const isActive = (tab) => {

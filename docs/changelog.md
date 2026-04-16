@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-04-16 — Sessione 40 / S40-16+17 — Fix ereditarietà ruolo superadmin→admin nei Nav
+
+Bug sistematico: 6 file Nav (`StatisticheNav`, `RicetteNav`, `ViniNav`, `PrenotazioniNav`, `BancaNav`, `ClientiNav`) usavano `tab.roles.includes(role)` senza gestire l'ereditarietà superadmin→admin. `useModuleAccess.roleMatch` aveva già la logica corretta, ma i Nav locali la bypassavano. Effetto visibile: Marco (superadmin) non vedeva tab come "Import iPratico" in Statistiche, "Impostazioni" in Banca/Ricette, etc.
+
+**Fix:** allineato il filtro in tutti i 6 Nav a `|| (role === "superadmin" && tab.roles.includes("admin"))`.
+
+**File toccati:** `StatisticheNav.jsx`, `RicetteNav.jsx`, `ViniNav.jsx`, `PrenotazioniNav.jsx`, `BancaNav.jsx`, `ClientiNav.jsx`.
+
+---
+
 ## 2026-04-16 — Sessione 40 / S40-15 — Fallback XML SDI per righe fatture FIC senza items_list
 
 Da fine marzo le fatture FIC di alcuni fornitori (es. OROBICA PESCA 201969/FTM, FABRIZIO MILESI 2026/300) venivano sincronizzate in TRGB senza righe in `fe_righe`. Causa radice confermata via endpoint `/fic/debug-detail/`: FIC ritorna `is_detailed=false`, `items_list=[]`, `e_invoice=true` — cioè il documento è stato registrato su FIC come "Spesa" senza dettaglio strutturato, quindi le righe esistono **solo** dentro il tracciato XML SDI allegato. Verificato sullo schema ufficiale OpenAPI (`openapi-fattureincloud/models/schemas/ReceivedDocument.yaml`) che `items_list` è popolato solo se la fattura è registrata con dettaglio, e che l'unica via per accedere al contenuto del file firmato è il campo `attachment_url` (pre-signed temporaneo, read-only).

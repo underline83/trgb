@@ -16,7 +16,8 @@ export default function PrenotazioniNav({ current }) {
   const location = useLocation();
   const role = localStorage.getItem("role");
 
-  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role));
+  // superadmin eredita tutti i permessi di admin (allineato a useModuleAccess.roleMatch)
+  const visibleTabs = TABS.filter((tab) => !tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin")));
 
   const isActive = (tab) => {
     if (tab.key === "impostazioni") return location.pathname.startsWith("/prenotazioni/impostazioni");
