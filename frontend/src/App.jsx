@@ -106,9 +106,11 @@ import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
 // --- CUCINA (modulo MVP — checklist + task) ---
 import CucinaHome from "./pages/cucina/CucinaHome";
 import CucinaAgendaGiornaliera from "./pages/cucina/CucinaAgendaGiornaliera";
+import CucinaAgendaSettimana from "./pages/cucina/CucinaAgendaSettimana";
 import CucinaInstanceDetail from "./pages/cucina/CucinaInstanceDetail";
 import CucinaTemplateList from "./pages/cucina/CucinaTemplateList";
 import CucinaTemplateEditor from "./pages/cucina/CucinaTemplateEditor";
+import CucinaTaskList from "./pages/cucina/CucinaTaskList";
 import Comunicazioni from "./pages/Comunicazioni";
 
 // --- CAMBIO PIN ---
@@ -383,7 +385,8 @@ export default function App() {
         <Route path="/cucina/templates" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateList /></ProtectedRoute>} />
         <Route path="/cucina/templates/nuovo" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
         <Route path="/cucina/templates/:id" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
-        {/* Agenda settimana, task list — Step 8 */}
+        <Route path="/cucina/agenda/settimana" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaAgendaSettimana /></ProtectedRoute>} />
+        <Route path="/cucina/tasks" element={<ProtectedRoute module="cucina" sub="tasks"><CucinaTaskList /></ProtectedRoute>} />
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />
