@@ -142,15 +142,15 @@ export default function Header({ onLogout }) {
           </span>
         </div>
       )}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 grid grid-cols-3 items-center gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 grid grid-cols-[auto_1fr_auto] sm:grid-cols-3 items-center gap-2 sm:gap-4">
 
-        {/* LEFT — Wordmark TRGB (link alla Home) */}
+        {/* LEFT — Wordmark TRGB (link alla Home). Su mobile solo gobbette. */}
         <button
           onClick={() => goTo("/")}
-          className="flex items-center cursor-pointer group justify-self-start"
+          className="flex items-center cursor-pointer group justify-self-start min-w-0"
           aria-label="Vai alla home"
         >
-          <TrgbWordmark size="md" className="group-hover:opacity-80 transition-opacity" />
+          <TrgbWordmark size="md" hideTextBelow="sm" className="group-hover:opacity-80 transition-opacity" />
         </button>
 
         {/* CENTER — Pulsante menu moduli con modulo corrente */}
@@ -284,7 +284,7 @@ export default function Header({ onLogout }) {
         </div>
 
         {/* RIGHT — User info + logout */}
-        <div className="flex items-center gap-3 justify-self-end">
+        <div className="flex items-center gap-2 sm:gap-3 justify-self-end min-w-0">
           <div className="text-right hidden sm:block select-none"
             onDoubleClick={(e) => {
               // Triplo click = doubleClick + click ravvicinato
@@ -352,17 +352,20 @@ export default function Header({ onLogout }) {
             )}
           </div>
 
-          <Tooltip label="Cambia PIN" placement="bottom" disableOnTouch>
-            <button
-              onClick={() => navigate("/cambio-pin")}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
-            >
-              🔑
-            </button>
-          </Tooltip>
+          {/* Cambia PIN: nascosto su mobile per fare spazio (resta raggiungibile da /cambio-pin) */}
+          <div className="hidden sm:inline-flex">
+            <Tooltip label="Cambia PIN" placement="bottom" disableOnTouch>
+              <button
+                onClick={() => navigate("/cambio-pin")}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition"
+              >
+                🔑
+              </button>
+            </Tooltip>
+          </div>
           <button
             onClick={onLogout}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition"
+            className="px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium border border-neutral-300 text-neutral-600 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition whitespace-nowrap"
           >
             Logout
           </button>

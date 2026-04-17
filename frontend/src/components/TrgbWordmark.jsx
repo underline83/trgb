@@ -1,5 +1,5 @@
 // FILE: frontend/src/components/TrgbWordmark.jsx
-// @version: v1.0 — wordmark inline TRGB (gobbette colorate + scritta)
+// @version: v1.1 — wordmark inline TRGB (gobbette colorate + scritta)
 // Composto inline (non usa file SVG wordmark — quelli hanno problemi di viewBox con <text>)
 import React from "react";
 
@@ -12,14 +12,23 @@ import React from "react";
  *     md = h-7 + text-2xl  (header standard)
  *     lg = h-8 + text-3xl  (login / hero)
  *   className: classi extra sul wrapper
+ *   hideTextBelow: null | "sm" | "md" | "lg"   default null
+ *     Se impostato, nasconde la scritta "TRGB" sotto il breakpoint indicato
+ *     (utile negli header responsive: su mobile restano solo le gobbette).
  */
-export default function TrgbWordmark({ size = "md", className = "" }) {
+export default function TrgbWordmark({ size = "md", className = "", hideTextBelow = null }) {
   const sizes = {
     sm: { svg: "h-6", text: "text-xl",  gap: "gap-2" },
     md: { svg: "h-7", text: "text-2xl", gap: "gap-2" },
     lg: { svg: "h-8", text: "text-3xl", gap: "gap-2.5" },
   };
   const s = sizes[size] || sizes.md;
+
+  // Mappa esplicita per Tailwind JIT (non accetta interpolazione nel class string)
+  const textVisibilityCls = hideTextBelow === "sm" ? "hidden sm:inline"
+                         : hideTextBelow === "md" ? "hidden md:inline"
+                         : hideTextBelow === "lg" ? "hidden lg:inline"
+                         : "";
 
   return (
     <div className={`flex items-center ${s.gap} ${className}`}>
@@ -31,7 +40,7 @@ export default function TrgbWordmark({ size = "md", className = "" }) {
         </g>
       </svg>
       <span
-        className={`${s.text} font-extrabold text-brand-ink tracking-tight leading-none`}
+        className={`${s.text} font-extrabold text-brand-ink tracking-tight leading-none ${textVisibilityCls}`}
         style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif" }}
       >
         TRGB
