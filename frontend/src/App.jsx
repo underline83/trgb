@@ -105,6 +105,8 @@ import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
 
 // --- CUCINA (modulo MVP — checklist + task) ---
 import CucinaHome from "./pages/cucina/CucinaHome";
+import CucinaAgendaGiornaliera from "./pages/cucina/CucinaAgendaGiornaliera";
+import CucinaInstanceDetail from "./pages/cucina/CucinaInstanceDetail";
 import Comunicazioni from "./pages/Comunicazioni";
 
 // --- CAMBIO PIN ---
@@ -374,7 +376,9 @@ export default function App() {
 
         {/* --- CUCINA (MVP: checklist ricorrenti + task) --- */}
         <Route path="/cucina" element={<ProtectedRoute module="cucina"><CucinaHome /></ProtectedRoute>} />
-        {/* Agenda, instance detail, template editor, task list — arrivano nei prossimi step */}
+        <Route path="/cucina/agenda" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaAgendaGiornaliera /></ProtectedRoute>} />
+        <Route path="/cucina/instances/:id" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaInstanceDetail /></ProtectedRoute>} />
+        {/* Agenda settimana, template editor, task list — Step 7-8 */}
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />
