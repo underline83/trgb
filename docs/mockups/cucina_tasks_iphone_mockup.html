@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover" />
+<title>Cucina Task — iPhone (mockup TRGB-02)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream:      #F4F1EC;
+    --cream-2:    #EFEBE3;
+    --ink:        #111111;
+    --ink-soft:   #4b4b4f;
+    --muted:      #7a7a80;
+    --hair:       #e6e1d8;
+    --red:        #E8402B;
+    --red-ink:    #9c1f10;
+    --red-50:     #fbe6e2;
+    --green:      #2EB872;
+    --green-ink:  #1a7549;
+    --green-50:   #e1f2e8;
+    --blue:       #2E7BE8;
+    --blue-50:    #e1ecfc;
+    --amber:      #E8A828;
+    --amber-50:   #fdf3dc;
+    --amber-ink:  #8a5a00;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #111; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px; color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 30px 20px 60px;
+  }
+  .serif { font-family: "Playfair Display", Georgia, serif; }
+
+  /* fake iPhone frame */
+  .device-wrap {
+    display: flex; gap: 40px; flex-wrap: wrap; justify-content: center;
+    align-items: flex-start;
+  }
+  .device {
+    width: 393px; height: 852px;
+    background: var(--cream);
+    border-radius: 48px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.35), 0 0 0 8px #1a1a1a, 0 0 0 12px #2a2a2a;
+    overflow: hidden;
+    position: relative;
+  }
+  .device::before {
+    /* dynamic island */
+    content: "";
+    position: absolute;
+    top: 11px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 34px;
+    background: #000; border-radius: 24px;
+    z-index: 50;
+  }
+  .device-label {
+    color: #fff; opacity: .7; font-size: 13px; font-weight: 600;
+    text-align: center; margin-top: 10px;
+    letter-spacing: .02em;
+  }
+  .screen {
+    height: 100%; width: 100%;
+    overflow-y: auto;
+    position: relative;
+  }
+  .screen::-webkit-scrollbar { width: 0; display: none; }
+
+  /* status bar iOS */
+  .statusbar {
+    height: 54px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px 0 30px;
+    font-size: 15px; font-weight: 600; color: var(--ink);
+    position: sticky; top: 0; background: var(--cream); z-index: 10;
+  }
+  .statusbar .icons { display: flex; gap: 6px; align-items: center; }
+  .statusbar svg { display: block; }
+
+  /* header app */
+  .app-header {
+    padding: 6px 20px 10px;
+    background: var(--cream);
+    border-bottom: 1px solid var(--hair);
+    position: sticky; top: 54px; z-index: 9;
+  }
+  .app-header-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 0 8px;
+  }
+  .app-header h1 {
+    margin: 0; font-size: 28px;
+    font-family: "Playfair Display", serif; font-weight: 700;
+    color: var(--ink);
+  }
+  .app-header .sub {
+    font-size: 13px; color: var(--muted); margin-top: 2px;
+  }
+  .fab-plus {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--red); color: #fff;
+    border: 0; font-size: 22px; font-weight: 600;
+    box-shadow: 0 6px 14px rgba(232,64,43,.35);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .fab-plus:active { transform: scale(.95); }
+
+  /* filter pills */
+  .filters {
+    display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 4px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .filters::-webkit-scrollbar { display: none; }
+  .pill {
+    flex: 0 0 auto;
+    padding: 8px 14px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--hair);
+    font-size: 13px; font-weight: 600; color: var(--ink-soft);
+    cursor: pointer; white-space: nowrap;
+    transition: background .15s;
+    scroll-snap-align: start;
+  }
+  .pill.on { background: var(--red); color: #fff; border-color: var(--red); }
+  .pill .c { margin-left: 4px; opacity: .65; font-weight: 500; }
+  .pill.on .c { opacity: .85; }
+  .toggle-wrap {
+    display: flex; margin: 10px 0 6px;
+    background: var(--cream-2); padding: 3px; border-radius: 10px;
+    width: 100%;
+  }
+  .toggle-wrap button {
+    flex: 1; padding: 8px; border: 0; background: transparent;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    border-radius: 8px; cursor: pointer;
+  }
+  .toggle-wrap button.on {
+    background: #fff; color: var(--ink);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+
+  /* task list */
+  .task-list {
+    padding: 8px 20px 120px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .task {
+    background: #fff;
+    border: 1px solid var(--hair);
+    border-left: 4px solid var(--hair);
+    border-radius: 14px;
+    padding: 14px 14px 14px 16px;
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+    transition: transform .2s ease;
+    min-height: 72px;
+  }
+  .task.alta   { border-left-color: var(--red); }
+  .task.media  { border-left-color: var(--amber); }
+  .task.bassa  { border-left-color: #b9b4aa; }
+  .task.scaduto { background: linear-gradient(90deg, var(--red-50), #fff 60%); }
+  .task.completato { opacity: .65; }
+
+  .task-title {
+    font-family: "Playfair Display", serif;
+    font-size: 16px; font-weight: 700; color: var(--ink);
+    line-height: 1.25;
+    letter-spacing: -.1px;
+  }
+  .task.completato .task-title { text-decoration: line-through; text-decoration-color: #b9b4aa; }
+  .task-meta {
+    margin-top: 6px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 10px 14px; flex-wrap: wrap; align-items: center;
+  }
+  .task-meta .mini-avatar {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--red); color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: "Playfair Display", serif; margin-right: 4px;
+    vertical-align: -4px;
+  }
+  .task-meta .mini-avatar.b { background: var(--blue); }
+  .task-meta .mini-avatar.g { background: var(--green); }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .03em;
+  }
+  .chip.aperto     { background: var(--amber-50); color: var(--amber-ink); }
+  .chip.in_corso   { background: var(--blue-50); color: #1a4fa0; }
+  .chip.completato { background: var(--green-50); color: var(--green-ink); }
+  .chip.scaduto    { background: var(--red-50); color: var(--red-ink); }
+  .chip.alta       { background: var(--red-50); color: var(--red-ink); }
+  .chip.media      { background: var(--amber-50); color: var(--amber-ink); }
+  .chip.bassa      { background: #f0ede6; color: var(--ink-soft); }
+
+  .task-note-preview {
+    margin-top: 6px;
+    font-size: 12px; color: var(--ink-soft);
+    font-style: italic;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* swipe hint on first task */
+  .task.hint::after {
+    content: "← swipe";
+    position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px; font-weight: 600;
+    color: var(--muted); letter-spacing: .04em; text-transform: uppercase;
+    animation: hintPulse 1.8s infinite ease-in-out;
+  }
+  @keyframes hintPulse {
+    0%, 100% { opacity: .55; transform: translate(0, -50%); }
+    50%      { opacity: 1;   transform: translate(-4px, -50%); }
+  }
+
+  /* revealed action area */
+  .task-wrap { position: relative; }
+  .task-action {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 0; overflow: hidden;
+    background: var(--green); color: #fff;
+    font-weight: 700; font-size: 14px;
+    transition: width .2s ease;
+    border-radius: 14px;
+  }
+  .task-wrap.revealed .task { transform: translateX(-96px); }
+  .task-wrap.revealed .task-action { width: 96px; }
+
+  /* empty state */
+  .empty {
+    text-align: center; padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty .emoji { font-size: 48px; margin-bottom: 8px; }
+  .empty h3 { font-family: Playfair Display, serif; margin: 0 0 6px; color: var(--ink); }
+
+  /* bottom tab bar */
+  .tabbar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 84px;
+    padding-bottom: 16px; /* simulate safe area */
+    background: rgba(244,241,236,.96);
+    backdrop-filter: saturate(1.2) blur(12px);
+    -webkit-backdrop-filter: saturate(1.2) blur(12px);
+    border-top: 1px solid var(--hair);
+    display: flex; justify-content: space-around; align-items: center;
+    z-index: 20;
+  }
+  .tab {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 8px 0 4px;
+    color: var(--muted);
+    font-size: 10px; font-weight: 600;
+    cursor: pointer;
+  }
+  .tab .ico { font-size: 22px; line-height: 1; }
+  .tab.on { color: var(--red); }
+  .tab.on .ico { transform: translateY(-1px); }
+
+  /* FAB (only on Task screen — already covered by + in header) */
+
+  /* home indicator */
+  .home-indicator {
+    position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+    width: 134px; height: 5px; background: #000; border-radius: 3px; z-index: 30;
+    opacity: .9;
+  }
+
+  /* bottom sheet (task detail / new task) */
+  .sheet-back {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.42);
+    display: none;
+    z-index: 60;
+  }
+  .sheet-back.on { display: block; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--cream);
+    border-radius: 22px 22px 0 0;
+    max-height: 85%;
+    padding: 10px 22px calc(22px + 16px); /* safe area sim */
+    animation: sheetUp .28s ease;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.2);
+    overflow-y: auto;
+  }
+  @keyframes sheetUp { from { transform: translateY(30px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+  .sheet .grabber {
+    width: 44px; height: 5px; background: #c8c3b8;
+    border-radius: 3px; margin: 4px auto 16px;
+  }
+  .sheet h2 {
+    margin: 0 0 4px; font-family: Playfair Display, serif; font-size: 22px; font-weight: 700;
+    line-height: 1.2;
+  }
+  .sheet .sub { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .sheet label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; margin: 14px 0 6px; }
+  .sheet input[type=text], .sheet input[type=date], .sheet textarea {
+    width: 100%; font: inherit; font-size: 16px;
+    background: #fff;
+    border: 1px solid var(--hair); border-radius: 12px;
+    padding: 12px 14px;
+    min-height: 48px;
+    -webkit-appearance: none;
+  }
+  .sheet textarea { resize: vertical; min-height: 76px; }
+  .sheet input:focus, .sheet textarea:focus {
+    outline: 2px solid var(--red); outline-offset: 1px;
+  }
+  .prio-pills { display: flex; gap: 8px; }
+  .prio-pills button {
+    flex: 1; min-height: 48px; padding: 10px;
+    border-radius: 12px; border: 1px solid var(--hair);
+    background: #fff; font-weight: 700; font-size: 14px;
+    letter-spacing: .04em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .prio-pills button.alta.on  { background: var(--red);   color: #fff; border-color: var(--red); }
+  .prio-pills button.media.on { background: var(--amber); color: #fff; border-color: var(--amber); }
+  .prio-pills button.bassa.on { background: #8a857c; color: #fff; border-color: #8a857c; }
+  .sheet-footer {
+    margin-top: 22px;
+    display: flex; gap: 10px;
+  }
+  .btn-primary {
+    flex: 1;
+    min-height: 52px; border-radius: 14px;
+    background: var(--red); color: #fff; border: 0;
+    font-weight: 700; font-size: 16px; cursor: pointer;
+    box-shadow: 0 8px 18px rgba(232,64,43,.25);
+  }
+  .btn-primary:active { transform: scale(.98); }
+  .btn-primary:disabled { background: #c9a59e; box-shadow: none; }
+  .btn-secondary {
+    min-height: 52px; padding: 0 20px;
+    border-radius: 14px;
+    background: #fff; color: var(--ink);
+    border: 1px solid var(--hair);
+    font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  .btn-ghost {
+    flex: 1; min-height: 44px; background: transparent;
+    color: var(--ink-soft); border: 0; font-weight: 600; font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* toast */
+  .toast {
+    position: absolute; top: 70px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: var(--ink); color: #fff;
+    padding: 10px 16px; border-radius: 12px;
+    font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 100;
+    box-shadow: 0 10px 24px rgba(0,0,0,.3);
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* legend */
+  .legend {
+    color: #fff; opacity: .65; max-width: 360px;
+    font-size: 13px; text-align: center;
+    margin-top: 24px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="device-wrap">
+  <!-- ============ SCHERMATA 1: Task list ============ -->
+  <div>
+    <div class="device">
+      <div class="screen" id="screen1">
+        <!-- status bar -->
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">
+            <svg width="18" height="10" viewBox="0 0 18 10"><path fill="currentColor" d="M.2 7.4a.5.5 0 0 1 .1-.7L8.9.3a.5.5 0 0 1 .6 0l8.5 6.4a.5.5 0 0 1-.6.8L9.2 1.4 1 7.9a.5.5 0 0 1-.8-.5Z"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="2" width="2" height="9" fill="currentColor" rx="1"/><rect x="4" y="1" width="2" height="10" fill="currentColor" rx="1"/><rect x="8" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/><rect x="12" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/></svg>
+            <svg width="24" height="12" viewBox="0 0 24 12"><rect x="0" y="1" width="20" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1"/><rect x="2" y="3" width="14" height="6" rx="1" fill="currentColor"/><rect x="21" y="4" width="1.5" height="4" rx=".5" fill="currentColor"/></svg>
+          </span>
+        </div>
+
+        <!-- app header -->
+        <div class="app-header">
+          <div class="app-header-top">
+            <div>
+              <h1 class="serif">Task</h1>
+              <div class="sub" id="subCount">6 aperti · 1 scaduto</div>
+            </div>
+            <button class="fab-plus" onclick="openSheet('sheetNew')" title="Nuovo task">+</button>
+          </div>
+          <div class="toggle-wrap">
+            <button class="on">I miei</button>
+            <button>Tutti</button>
+          </div>
+          <div class="filters">
+            <button class="pill on">Aperti <span class="c">6</span></button>
+            <button class="pill">In corso <span class="c">2</span></button>
+            <button class="pill">Scaduti <span class="c">1</span></button>
+            <button class="pill">Completati <span class="c">12</span></button>
+            <button class="pill">Tutti</button>
+          </div>
+        </div>
+
+        <!-- task list -->
+        <div class="task-list" id="taskList">
+          <!-- 1 — ALTA scaduto -->
+          <div class="task-wrap" data-id="1">
+            <div class="task alta scaduto hint">
+              <div style="display:flex;justify-content:space-between;gap:8px;">
+                <div style="flex:1;min-width:0;" onclick="openTask(1)">
+                  <div class="task-title">Chiamare il pesce per consegna di domani</div>
+                  <div class="task-meta">
+                    <span class="chip scaduto">Scaduto</span>
+                    <span class="chip alta">Alta</span>
+                    <span>⏱ ieri 18:00</span>
+                    <span><span class="mini-avatar">G</span>Giulia</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="task-action">✓ Fatto</div>
+          </div>
+
+          <!-- 2 — ALTA aperto -->
+          <div class="task-wrap" data-id="2">
+            <div class="task alta" onclick="openTask(2)">
+              <div class="task-title">Sistemare lavastoviglie bar (pompa)</div>
+              <div class="task-meta">
+                <span class="chip aperto">Aperto</span>
+                <span class="chip alta">Alta</span>
+                <span>⏱ oggi 18:00</span>
+                <span><span class="mini-avatar g">M</span>Marco</span>
+              </div>
+            </div>
+            <div class="task-action">✓ Fatto</div>
+          </div>
+
+          <!-- 3 — MEDIA in corso -->
+          <div class="task-wrap" data-id="3">
+            <div class="task media" onclick="openTask(3)">
+              <div class="task-title">Preparare mise en place per cena degustazione</div>
+              <div class="task-meta">
+                <span class="chip in_corso">In corso</span>
+                <span class="chip media">Media</span>
+                <span>⏱ oggi 19:30</span>
+                <span><span class="mini-avatar">G</span>Giulia</span>
+              </div>
+              <div class="task-note-preview">Nota: 18 coperti, allergie segnalate glutine 2, noci 1…</div>
+            </div>
+            <div class="task-action">✓ Fatto</div>
+          </div>
+
+          <!-- 4 — MEDIA aperto -->
+          <div class="task-wrap" data-id="4">
+            <div class="task media" onclick="openTask(4)">
+              <div class="task-title">Ordinare olio extravergine Sabina (fine scorta)</div>
+              <div class="task-meta">
+                <span class="chip aperto">Aperto</span>
+                <span class="chip media">Media</span>
+                <span>⏱ domani</span>
+                <span><span class="mini-avatar b">I</span>Ivan</span>
+              </div>
+            </div>
+            <div class="task-action">✓ Fatto</div>
+          </div>
+
+          <!-- 5 — BASSA aperto -->
+          <div class="task-wrap" data-id="5">
+            <div class="task bassa" onclick="openTask(5)">
+              <div class="task-title">Sostituire tappetini zona lavaggio</div>
+              <div class="task-meta">
+                <span class="chip aperto">Aperto</span>
+                <span class="chip bassa">Bassa</span>
+                <span>questa settimana</span>
+              </div>
+            </div>
+            <div class="task-action">✓ Fatto</div>
+          </div>
+
+          <!-- 6 — completato -->
+          <div class="task-wrap" data-id="6">
+            <div class="task alta completato" onclick="openTask(6)">
+              <div class="task-title">Verifica scadenza formaggi freschi</div>
+              <div class="task-meta">
+                <span class="chip completato">Completato</span>
+                <span>✓ ieri 17:34</span>
+                <span><span class="mini-avatar">G</span>Giulia</span>
+              </div>
+              <div class="task-note-preview">"Tolti 2 pezzi di scamorza in scadenza, ordinato replacement"</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- tab bar -->
+        <div class="tabbar">
+          <div class="tab"><span class="ico">🍳</span><span>Oggi</span></div>
+          <div class="tab"><span class="ico">📅</span><span>Settimana</span></div>
+          <div class="tab on"><span class="ico">✅</span><span>Task</span></div>
+          <div class="tab"><span class="ico">⋯</span><span>Menu</span></div>
+        </div>
+
+        <div class="home-indicator"></div>
+
+        <div class="toast" id="toast1">OK</div>
+
+        <!-- ===== bottom sheet: dettaglio task ===== -->
+        <div class="sheet-back" id="sheetDetail" onclick="closeSheet('sheetDetail', event)">
+          <div class="sheet" onclick="event.stopPropagation()">
+            <div class="grabber"></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <h2 class="serif" id="detTitle">Sistemare lavastoviglie bar</h2>
+                <div class="sub" id="detSub"><span class="chip aperto">Aperto</span> <span class="chip alta">Alta</span> · ⏱ oggi 18:00</div>
+              </div>
+            </div>
+            <label>Assegnato a</label>
+            <div style="font-size:15px;display:flex;align-items:center;gap:8px;">
+              <span class="mini-avatar g" style="width:28px;height:28px;font-size:13px;">M</span>
+              <b>Marco</b>
+              <span style="color:var(--muted);font-size:13px;">(admin)</span>
+            </div>
+            <label>Origine</label>
+            <div style="font-size:14px;color:var(--ink-soft);">Manuale — creato da Giulia il 16/04 ore 14:22</div>
+            <label>Note</label>
+            <div style="font-size:14px;color:var(--ink-soft);">La pompa dell'acqua del lavatazze non scarica bene, verificare filtro e contattare eventualmente Giorgio se serve ricambio.</div>
+
+            <div class="sheet-footer">
+              <button class="btn-secondary" onclick="closeSheet('sheetDetail')">Chiudi</button>
+              <button class="btn-primary" onclick="quickComplete()">✓ Completa</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== bottom sheet: nuovo task ===== -->
+        <div class="sheet-back" id="sheetNew" onclick="closeSheet('sheetNew', event)">
+          <div class="sheet" onclick="event.stopPropagation()">
+            <div class="grabber"></div>
+            <h2 class="serif">Nuovo task</h2>
+            <div class="sub">Aggiungi un'attività operativa al volo.</div>
+
+            <label>Titolo</label>
+            <input type="text" placeholder="Es. chiamare il fornitore del pane…" id="nt-title" />
+
+            <label>Priorità</label>
+            <div class="prio-pills" id="prioPills">
+              <button class="alta" onclick="selPrio(this,'alta')">Alta</button>
+              <button class="media on" onclick="selPrio(this,'media')">Media</button>
+              <button class="bassa" onclick="selPrio(this,'bassa')">Bassa</button>
+            </div>
+
+            <label>Scadenza</label>
+            <input type="date" value="2026-04-18" />
+
+            <label>Assegna a</label>
+            <button class="btn-secondary" style="width:100%;text-align:left;min-height:48px;display:flex;align-items:center;gap:10px;">
+              <span class="mini-avatar" style="width:28px;height:28px;font-size:13px;">G</span>
+              Giulia (chef)
+              <span style="margin-left:auto;color:var(--muted);">▾</span>
+            </button>
+
+            <label>Note (opzionale)</label>
+            <textarea placeholder="Dettagli, riferimenti, numeri di telefono…"></textarea>
+
+            <div class="sheet-footer">
+              <button class="btn-secondary" onclick="closeSheet('sheetNew')">Annulla</button>
+              <button class="btn-primary" onclick="createTask()">Crea task</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== bottom sheet: conferma completa con note ===== -->
+        <div class="sheet-back" id="sheetDone" onclick="closeSheet('sheetDone', event)">
+          <div class="sheet" onclick="event.stopPropagation()">
+            <div class="grabber"></div>
+            <h2 class="serif">Completa task</h2>
+            <div class="sub">Aggiungi una nota (opzionale) per tracciare come è andata.</div>
+            <label>Note</label>
+            <textarea placeholder="Es. chiamato, consegnano domattina…"></textarea>
+            <div class="sheet-footer">
+              <button class="btn-ghost" onclick="confirmComplete(true)">Completa senza note</button>
+              <button class="btn-primary" onclick="confirmComplete(false)">Conferma</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="device-label">iPhone · Task list (cuochi)</div>
+  </div>
+
+  <!-- ============ SCHERMATA 2: Nuovo task full-screen ============ -->
+  <div>
+    <div class="device">
+      <div class="screen">
+        <div class="statusbar">
+          <span>9:43</span>
+          <span class="icons">
+            <svg width="18" height="10" viewBox="0 0 18 10"><path fill="currentColor" d="M.2 7.4a.5.5 0 0 1 .1-.7L8.9.3a.5.5 0 0 1 .6 0l8.5 6.4a.5.5 0 0 1-.6.8L9.2 1.4 1 7.9a.5.5 0 0 1-.8-.5Z"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="2" width="2" height="9" fill="currentColor" rx="1"/><rect x="4" y="1" width="2" height="10" fill="currentColor" rx="1"/><rect x="8" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/><rect x="12" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/></svg>
+            <svg width="24" height="12" viewBox="0 0 24 12"><rect x="0" y="1" width="20" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1"/><rect x="2" y="3" width="14" height="6" rx="1" fill="currentColor"/><rect x="21" y="4" width="1.5" height="4" rx=".5" fill="currentColor"/></svg>
+          </span>
+        </div>
+        <div style="padding:4px 20px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--hair);">
+          <button style="width:40px;height:40px;border-radius:50%;background:var(--cream-2);border:0;font-size:20px;cursor:pointer;">←</button>
+          <div>
+            <div class="serif" style="font-size:20px;font-weight:700;">Nuovo task</div>
+            <div style="font-size:12px;color:var(--muted);">Compilazione rapida</div>
+          </div>
+        </div>
+
+        <div style="padding:14px 20px 140px;">
+          <label style="display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:6px 0 6px;">Titolo *</label>
+          <input type="text" value="Ordinare pane per sabato (3 filoni)" style="width:100%;font-size:16px;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:12px 14px;min-height:48px;" />
+
+          <label style="display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:14px 0 6px;">Priorità</label>
+          <div class="prio-pills">
+            <button class="alta">Alta</button>
+            <button class="media on">Media</button>
+            <button class="bassa">Bassa</button>
+          </div>
+
+          <label style="display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:14px 0 6px;">Scadenza</label>
+          <input type="date" value="2026-04-19" style="width:100%;font-size:16px;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:12px 14px;min-height:48px;" />
+
+          <label style="display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:14px 0 6px;">Assegna a</label>
+          <button class="btn-secondary" style="width:100%;text-align:left;min-height:48px;display:flex;align-items:center;gap:10px;">
+            <span class="mini-avatar" style="width:28px;height:28px;font-size:13px;">G</span>
+            Giulia (chef)
+            <span style="margin-left:auto;color:var(--muted);">▾</span>
+          </button>
+
+          <label style="display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:14px 0 6px;">Note</label>
+          <textarea placeholder="Riferimenti, numeri, istruzioni…" style="width:100%;font-size:16px;background:#fff;border:1px solid var(--hair);border-radius:12px;padding:12px 14px;min-height:90px;resize:vertical;">Fornitore "Panificio Rota" — tel. 035 987..  richiesta entro venerdì sera.</textarea>
+        </div>
+
+        <!-- footer fisso sopra home indicator -->
+        <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 30px;background:rgba(244,241,236,.96);backdrop-filter:saturate(1.2) blur(12px);border-top:1px solid var(--hair);display:flex;gap:10px;">
+          <button class="btn-secondary">Annulla</button>
+          <button class="btn-primary">Crea task</button>
+        </div>
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="device-label">iPhone · Nuovo task (full-screen)</div>
+  </div>
+
+  <!-- ============ SCHERMATA 3: Swipe-to-complete in azione ============ -->
+  <div>
+    <div class="device">
+      <div class="screen">
+        <div class="statusbar">
+          <span>9:45</span>
+          <span class="icons">
+            <svg width="18" height="10" viewBox="0 0 18 10"><path fill="currentColor" d="M.2 7.4a.5.5 0 0 1 .1-.7L8.9.3a.5.5 0 0 1 .6 0l8.5 6.4a.5.5 0 0 1-.6.8L9.2 1.4 1 7.9a.5.5 0 0 1-.8-.5Z"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11"><rect x="0" y="2" width="2" height="9" fill="currentColor" rx="1"/><rect x="4" y="1" width="2" height="10" fill="currentColor" rx="1"/><rect x="8" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/><rect x="12" y="0" width="2" height="11" fill="currentColor" rx="1" opacity=".3"/></svg>
+            <svg width="24" height="12" viewBox="0 0 24 12"><rect x="0" y="1" width="20" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1"/><rect x="2" y="3" width="14" height="6" rx="1" fill="currentColor"/><rect x="21" y="4" width="1.5" height="4" rx=".5" fill="currentColor"/></svg>
+          </span>
+        </div>
+
+        <div class="app-header">
+          <div class="app-header-top">
+            <div>
+              <h1 class="serif">Task</h1>
+              <div class="sub">Swipe ← per completare rapidamente</div>
+            </div>
+            <button class="fab-plus">+</button>
+          </div>
+        </div>
+
+        <div class="task-list" style="padding-top:16px;">
+          <!-- task in stato revealed -->
+          <div class="task-wrap revealed">
+            <div class="task media" style="background:linear-gradient(90deg, var(--cream) 0%, #fff 40%);">
+              <div class="task-title">Preparare mise en place cena</div>
+              <div class="task-meta">
+                <span class="chip in_corso">In corso</span>
+                <span class="chip media">Media</span>
+                <span>⏱ oggi 19:30</span>
+              </div>
+            </div>
+            <div class="task-action" style="width:96px;">✓ Fatto</div>
+          </div>
+          <div class="task-wrap">
+            <div class="task alta">
+              <div class="task-title">Chiamare il pesce per consegna</div>
+              <div class="task-meta">
+                <span class="chip aperto">Aperto</span>
+                <span class="chip alta">Alta</span>
+                <span>⏱ oggi 16:00</span>
+              </div>
+            </div>
+          </div>
+          <div class="task-wrap">
+            <div class="task bassa">
+              <div class="task-title">Sostituire tappetini lavaggio</div>
+              <div class="task-meta">
+                <span class="chip aperto">Aperto</span>
+                <span class="chip bassa">Bassa</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><span class="ico">🍳</span><span>Oggi</span></div>
+          <div class="tab"><span class="ico">📅</span><span>Settimana</span></div>
+          <div class="tab on"><span class="ico">✅</span><span>Task</span></div>
+          <div class="tab"><span class="ico">⋯</span><span>Menu</span></div>
+        </div>
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+    <div class="device-label">iPhone · Swipe-to-complete</div>
+  </div>
+</div>
+
+<div class="legend">
+  Mockup interattivo — tappa un task per aprire il dettaglio in bottom-sheet. Il tasto <b>+</b> apre la creazione nuovo task.<br>
+  <span style="font-size:11px;opacity:.7;">Schermata 3 mostra lo stato "revealed" del swipe. Breakpoint Tailwind da usare: default (mobile), <code>sm:</code> 640px, <code>md:</code> 768px per iPad.</span>
+</div>
+
+<script>
+function openSheet(id) { document.getElementById(id).classList.add('on'); }
+function closeSheet(id, e) { if (!e || e.target.id === id) document.getElementById(id).classList.remove('on'); }
+
+function openTask(id) {
+  const map = {
+    1: ["Chiamare il pesce per consegna di domani", "scaduto", "alta", "ieri 18:00"],
+    2: ["Sistemare lavastoviglie bar (pompa)", "aperto", "alta", "oggi 18:00"],
+    3: ["Preparare mise en place cena degustazione", "in_corso", "media", "oggi 19:30"],
+    4: ["Ordinare olio extravergine Sabina", "aperto", "media", "domani"],
+    5: ["Sostituire tappetini zona lavaggio", "aperto", "bassa", "questa settimana"],
+    6: ["Verifica scadenza formaggi freschi", "completato", "alta", "ieri 17:34"],
+  };
+  const [title, stato, prio, due] = map[id] || [];
+  document.getElementById('detTitle').textContent = title;
+  document.getElementById('detSub').innerHTML =
+    `<span class="chip ${stato}">${stato.replace('_',' ')}</span> <span class="chip ${prio}">${prio}</span> · ⏱ ${due}`;
+  openSheet('sheetDetail');
+}
+function quickComplete() {
+  closeSheet('sheetDetail');
+  setTimeout(() => openSheet('sheetDone'), 120);
+}
+function confirmComplete() {
+  closeSheet('sheetDone');
+  toast1('✓ Task completato');
+}
+function createTask() {
+  closeSheet('sheetNew');
+  toast1('✓ Nuovo task creato');
+}
+function selPrio(btn, p) {
+  document.querySelectorAll('#prioPills button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function toast1(msg) {
+  const t = document.getElementById('toast1');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('on'), 1800);
+}
+</script>
+
+</body>
+</html>

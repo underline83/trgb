@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>Cucina — Dettaglio istanza (mockup TRGB-02)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream:      #F4F1EC;
+    --cream-2:    #EFEBE3;
+    --ink:        #111111;
+    --ink-soft:   #4b4b4f;
+    --muted:      #7a7a80;
+    --hair:       #e6e1d8;
+    --red:        #E8402B;
+    --red-ink:    #9c1f10;
+    --red-50:     #fbe6e2;
+    --green:      #2EB872;
+    --green-ink:  #1a7549;
+    --green-50:   #e1f2e8;
+    --blue:       #2E7BE8;
+    --blue-50:    #e1ecfc;
+    --amber-50:   #fdf3dc;
+    --amber-ink:  #8a5a00;
+    --night:      #0E0E10;
+    --shadow:     0 1px 2px rgba(0,0,0,.04), 0 6px 18px rgba(17,17,17,.06);
+    --shadow-lg:  0 4px 12px rgba(0,0,0,.08), 0 18px 42px rgba(17,17,17,.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--cream); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .serif { font-family: "Playfair Display", Georgia, serif; }
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 120px;
+  }
+
+  /* ===== HEADER ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0 18px;
+    border-bottom: 1px solid var(--hair);
+    margin-bottom: 16px;
+  }
+  .crumbs {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--muted);
+  }
+  .crumbs a { color: var(--muted); text-decoration: none; }
+  .crumbs a:hover { color: var(--ink); }
+  .crumbs .sep { opacity: .4; }
+
+  .head-card {
+    background: #fff;
+    border: 1px solid var(--hair);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 22px 22px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .head-card .gobbette {
+    position: absolute; top: 0; right: 0;
+    width: 180px; height: 46px;
+    opacity: .9;
+  }
+  .head-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .head-title h1 {
+    font-size: 28px; margin: 0; line-height: 1.15;
+    color: var(--ink); font-weight: 700;
+  }
+  .head-title .sub {
+    margin-top: 6px; color: var(--ink-soft); font-size: 14px;
+    display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    background: var(--cream-2);
+    color: var(--ink-soft);
+    border: 1px solid var(--hair);
+  }
+  .chip.turno   { background: #eef1f5; color: #334; border-color: #dde3ec; }
+  .chip.reparto { background: #fff1ec; color: var(--red-ink); border-color: #f6d6cc; }
+  .chip.scad    { background: var(--amber-50); color: var(--amber-ink); border-color: #f3e2b8; }
+  .chip.scad.late { background: var(--red-50); color: var(--red-ink); border-color: #f2c9c1; }
+
+  /* progress ring */
+  .ring-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ring {
+    width: 84px; height: 84px;
+    position: relative;
+  }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Playfair Display", serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -.5px;
+  }
+  .ring .num small {
+    font-size: 12px; font-weight: 600; opacity: .55; margin-left: 2px;
+    font-family: inherit;
+  }
+  .ring-label { font-size: 11px; color: var(--muted); letter-spacing: .02em; text-transform: uppercase; }
+
+  /* stato bar */
+  .state-bar {
+    margin-top: 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .state-bar .bar {
+    flex: 1;
+    height: 10px; border-radius: 999px;
+    background: var(--cream-2);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--hair);
+  }
+  .state-bar .bar .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--green) 0%, #5ec99a 100%);
+    border-radius: 999px;
+    transition: width .35s ease;
+  }
+  .state-bar .bar .fail {
+    position: absolute; top: 0; bottom: 0;
+    background: var(--red);
+    opacity: .9;
+  }
+  .state-bar .lab {
+    font-size: 12px; color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* ===== LISTA ITEMS ===== */
+  .section-title {
+    margin: 22px 0 10px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .section-title h2 {
+    font-size: 18px; margin: 0;
+    font-family: "Playfair Display", serif; font-weight: 700;
+    color: var(--ink);
+  }
+  .section-title .count {
+    font-size: 12px; color: var(--muted);
+  }
+  .items {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .item {
+    background: #fff;
+    border: 1px solid var(--hair);
+    border-left: 4px solid var(--hair);
+    border-radius: 14px;
+    padding: 14px 14px 14px 16px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    box-shadow: var(--shadow);
+    transition: border-color .2s, background .2s;
+  }
+  .item.ok      { border-left-color: var(--green); background: linear-gradient(90deg, var(--green-50), #fff 40%); }
+  .item.fail    { border-left-color: var(--red); background: linear-gradient(90deg, var(--red-50), #fff 40%); }
+  .item.skipped { border-left-color: #b9b4aa; background: #faf8f4; color: var(--muted); }
+  .item.pending { border-left-color: var(--hair); }
+
+  .it-main { min-width: 0; }
+  .it-head {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .it-ord {
+    font-family: "Playfair Display", serif;
+    font-size: 14px; color: var(--muted); width: 26px; text-align: right;
+  }
+  .it-name {
+    font-size: 16px; font-weight: 600; color: var(--ink);
+    font-family: "Playfair Display", serif;
+    letter-spacing: -.1px;
+  }
+  .it-name.strike { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: #b9b4aa; }
+  .it-kind {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--cream-2); color: var(--ink-soft); font-weight: 600;
+    border: 1px solid var(--hair);
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .it-kind.temp { background: #eaf4ff; color: #1a4fa0; border-color: #cfe0f8; }
+  .it-kind.num  { background: #f1eefa; color: #4b32a0; border-color: #dccfe8; }
+  .it-kind.txt  { background: #eef4ef; color: #2a6a3a; border-color: #cfe1d3; }
+  .it-kind.obb {
+    background: var(--red-50); color: var(--red-ink); border-color: #f2c9c1;
+  }
+  .it-meta {
+    margin-top: 6px; font-size: 13px; color: var(--muted);
+    display: flex; flex-wrap: wrap; gap: 6px 14px;
+  }
+  .it-range {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--cream-2); padding: 1px 8px; border-radius: 6px;
+    color: var(--ink-soft); font-size: 12px; border: 1px solid var(--hair);
+  }
+  .it-value {
+    font-family: "Playfair Display", serif;
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    letter-spacing: -.5px;
+  }
+  .it-value.fail { color: var(--red); }
+  .it-value .u { font-size: 13px; color: var(--muted); font-weight: 400; font-family: inherit; margin-left: 2px; }
+  .it-note {
+    margin-top: 6px; font-size: 13px; color: var(--ink-soft);
+    background: var(--cream-2);
+    border-left: 3px solid var(--hair);
+    padding: 6px 10px; border-radius: 6px;
+    font-style: italic;
+  }
+  .it-who {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .it-who .avatar {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--red); color: #fff;
+    font-size: 10px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: "Playfair Display", serif;
+  }
+
+  /* azioni item */
+  .actions {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .btn-ok, .btn-fail, .btn-skip, .btn-edit {
+    min-width: 56px; min-height: 56px;
+    border-radius: 14px;
+    border: 1px solid var(--hair);
+    background: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-weight: 700; font-size: 14px;
+    color: var(--ink-soft);
+    transition: transform .08s ease, background .15s, border-color .15s, color .15s;
+    user-select: none;
+  }
+  .btn-ok:hover   { border-color: var(--green); color: var(--green-ink); background: #effaf3; }
+  .btn-fail:hover { border-color: var(--red);   color: var(--red-ink);   background: #fdeae5; }
+  .btn-skip:hover { border-color: #b9b4aa; color: var(--ink); background: #f5f2ec; }
+  .btn-edit:hover { border-color: var(--blue); color: var(--blue); background: #ecf3fd; }
+  .btn-ok:active, .btn-fail:active, .btn-skip:active, .btn-edit:active { transform: scale(.96); }
+  .btn-ok.sel   { background: var(--green); color: #fff; border-color: var(--green); }
+  .btn-fail.sel { background: var(--red);   color: #fff; border-color: var(--red); }
+  .btn-skip.sel { background: #b9b4aa; color: #fff; border-color: #b9b4aa; }
+
+  /* pill input (for TEMP/NUM/TXT) */
+  .btn-input {
+    min-height: 56px; padding: 0 16px;
+    border-radius: 14px; border: 1px dashed var(--red);
+    background: #fff; color: var(--red-ink);
+    font-family: "Playfair Display", serif; font-weight: 700;
+    font-size: 16px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-input:hover { background: var(--red-50); }
+
+  /* ===== FOOTER AZIONI ===== */
+  .footbar {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: rgba(244,241,236,.94);
+    backdrop-filter: saturate(1.2) blur(8px);
+    -webkit-backdrop-filter: saturate(1.2) blur(8px);
+    border-top: 1px solid var(--hair);
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .footbar-inner {
+    max-width: 860px; margin: 0 auto;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .btn-primary {
+    flex: 1; min-height: 56px; border-radius: 14px;
+    background: var(--red); color: #fff; border: 0;
+    font-weight: 700; font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 10px 22px rgba(232,64,43,.25);
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary:hover { background: #d2361f; }
+  .btn-primary:disabled { background: #c9a59e; box-shadow: none; cursor: not-allowed; }
+  .btn-secondary {
+    min-height: 56px; padding: 0 18px; border-radius: 14px;
+    background: #fff; color: var(--ink); border: 1px solid var(--hair);
+    font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  .btn-secondary:hover { background: var(--cream-2); }
+  .btn-ghost {
+    min-height: 44px; padding: 0 14px; border-radius: 12px;
+    background: transparent; color: var(--muted); border: 0;
+    font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .btn-ghost:hover { color: var(--ink); }
+
+  /* ===== MODAL ===== */
+  .modal-back {
+    position: fixed; inset: 0;
+    background: rgba(17,17,17,.42);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-back.on { display: flex; }
+  @media (min-width: 640px) { .modal-back { align-items: center; } }
+  .modal {
+    background: var(--cream);
+    width: 100%; max-width: 520px;
+    border-radius: 22px 22px 0 0;
+    box-shadow: var(--shadow-lg);
+    padding: 22px 20px 24px;
+    position: relative;
+    border: 1px solid var(--hair);
+    animation: slideUp .25s ease;
+  }
+  @media (min-width: 640px) { .modal { border-radius: 22px; } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal h3 {
+    margin: 0 0 6px; font-family: "Playfair Display", serif;
+    font-size: 22px; font-weight: 700;
+  }
+  .modal .lead { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; }
+  .modal .range-lab {
+    display: inline-block;
+    background: var(--amber-50); color: var(--amber-ink);
+    border: 1px solid #f3e2b8;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .modal .display {
+    background: #fff; border: 1px solid var(--hair); border-radius: 14px;
+    padding: 14px;
+    text-align: right;
+    font-family: "Playfair Display", serif;
+    font-size: 36px; font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+    min-height: 64px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  }
+  .modal .display .u { font-size: 16px; color: var(--muted); font-weight: 500; }
+  .modal .display.fail { color: var(--red); }
+  .modal .warn {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    background: var(--red-50); color: var(--red-ink);
+    border-radius: 10px; font-size: 13px; border: 1px solid #f2c9c1;
+  }
+  .modal .warn.hide { display: none; }
+
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .numpad button {
+    min-height: 60px;
+    border-radius: 14px;
+    border: 1px solid var(--hair);
+    background: #fff;
+    font-family: "Playfair Display", serif;
+    font-size: 24px; font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    transition: transform .06s ease, background .1s;
+  }
+  .numpad button:active { transform: scale(.96); background: var(--cream-2); }
+  .numpad .k-clear { color: var(--red); font-family: inherit; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .numpad .k-back  { color: var(--ink-soft); font-size: 20px; }
+  .modal-actions {
+    margin-top: 16px;
+    display: flex; gap: 10px;
+  }
+  .modal-actions .btn-primary { flex: 1; }
+  .textarea {
+    width: 100%; min-height: 100px;
+    border: 1px solid var(--hair); border-radius: 12px;
+    padding: 10px 12px; font: inherit; background: #fff;
+    resize: vertical;
+  }
+  .textarea:focus { outline: 2px solid var(--red); outline-offset: 1px; }
+
+  /* toast */
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translate(-50%, -10px);
+    background: var(--ink); color: #fff;
+    padding: 10px 16px; border-radius: 12px;
+    font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 200;
+    box-shadow: 0 10px 24px rgba(0,0,0,.2);
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* helper: role switch */
+  .role-switch {
+    display: flex; gap: 6px; align-items: center;
+    background: #fff; border: 1px solid var(--hair);
+    border-radius: 999px; padding: 4px 4px 4px 14px;
+    font-size: 12px; color: var(--muted);
+  }
+  .role-switch select {
+    border: 0; background: transparent; font-weight: 600; color: var(--ink);
+    padding: 4px 8px; font-size: 13px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast">OK</div>
+
+<div class="page">
+  <!-- breadcrumb + switch ruolo -->
+  <div class="topbar">
+    <div class="crumbs">
+      <a href="#">Cucina</a>
+      <span class="sep">›</span>
+      <a href="#">Agenda oggi</a>
+      <span class="sep">›</span>
+      <span style="color:var(--ink);font-weight:600;">Apertura cucina</span>
+    </div>
+    <div class="role-switch">
+      Ruolo
+      <select id="roleSel">
+        <option value="chef">Chef</option>
+        <option value="sala">Sala</option>
+        <option value="admin">Admin</option>
+        <option value="viewer">Viewer</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- header card -->
+  <div class="head-card">
+    <!-- gobbette decorative -->
+    <svg class="gobbette" viewBox="15 28 155 28" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+        <path d="M 20 50 Q 37 18 55 42" stroke="#E8402B" />
+        <path d="M 75 50 Q 92 18 110 42" stroke="#2EB872" />
+        <path d="M 130 50 Q 147 18 165 42" stroke="#2E7BE8" />
+      </g>
+    </svg>
+
+    <div class="head-top">
+      <div class="head-title">
+        <h1 class="serif">Apertura cucina</h1>
+        <div class="sub">
+          <span class="chip reparto">🍳 Cucina</span>
+          <span class="chip turno">Apertura</span>
+          <span class="chip scad" id="scadChip">⏱ entro 10:30 · oggi</span>
+          <span class="chip" style="background:#eef1f5;color:#334;">IN CORSO</span>
+        </div>
+      </div>
+      <div class="ring-wrap">
+        <div class="ring">
+          <svg width="84" height="84" viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="36" fill="none" stroke="#EFEBE3" stroke-width="8" />
+            <circle id="ringFill" cx="42" cy="42" r="36" fill="none"
+                    stroke="#2EB872" stroke-width="8" stroke-linecap="round"
+                    stroke-dasharray="226.19" stroke-dashoffset="113.1" />
+          </svg>
+          <div class="num serif"><span id="ringNum">3</span><small>/7</small></div>
+        </div>
+        <div class="ring-label">completati</div>
+      </div>
+    </div>
+
+    <div class="state-bar">
+      <div class="bar">
+        <div class="fill" id="barFill" style="width: 43%;"></div>
+        <div class="fail" id="barFail" style="width: 14%; left: 43%;"></div>
+      </div>
+      <div class="lab"><span id="stateNums">3 OK · 1 FAIL · 3 da fare</span></div>
+    </div>
+  </div>
+
+  <!-- lista items -->
+  <div class="section-title">
+    <h2 class="serif">Checklist</h2>
+    <span class="count">7 voci · 3 completate · 1 fail</span>
+  </div>
+
+  <div class="items" id="itemsList"></div>
+
+  <!-- footer -->
+  <div class="footbar">
+    <div class="footbar-inner">
+      <button class="btn-ghost" onclick="openAssegna()">👤 Assegna</button>
+      <button class="btn-secondary" id="btnSalta" onclick="openSalta()">Salta…</button>
+      <button class="btn-primary" id="btnCompleta" onclick="onCompleta()">
+        ✓ Completa checklist
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL NUMPAD (TEMP/NUM) ======= -->
+<div class="modal-back" id="mNum" onclick="closeIfBack(event, 'mNum')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="serif" id="mNumTitle">Temperatura frigo cucina</h3>
+    <p class="lead" id="mNumLead">Inserisci la temperatura misurata. Fuori range &rarr; FAIL automatico.</p>
+    <div class="range-lab" id="mNumRange">Range atteso: 0°C — 4°C</div>
+    <div class="display" id="mNumDisplay">— <span class="u" id="mNumUnit">°C</span></div>
+    <div class="warn hide" id="mNumWarn">⚠ Fuori range — sarà registrato come FAIL con nota automatica.</div>
+    <div class="numpad">
+      <button onclick="numPad('7')">7</button>
+      <button onclick="numPad('8')">8</button>
+      <button onclick="numPad('9')">9</button>
+      <button onclick="numPad('4')">4</button>
+      <button onclick="numPad('5')">5</button>
+      <button onclick="numPad('6')">6</button>
+      <button onclick="numPad('1')">1</button>
+      <button onclick="numPad('2')">2</button>
+      <button onclick="numPad('3')">3</button>
+      <button onclick="numPad('-')">±</button>
+      <button onclick="numPad('0')">0</button>
+      <button onclick="numPad('.')">,</button>
+      <button class="k-clear" onclick="numClear()">C</button>
+      <button onclick="numPad('back')" class="k-back">⌫</button>
+      <button onclick="numSubmit()" style="background:var(--green);color:#fff;border-color:var(--green);">✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL TESTO ======= -->
+<div class="modal-back" id="mTxt" onclick="closeIfBack(event, 'mTxt')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="serif" id="mTxtTitle">Nota</h3>
+    <p class="lead">Descrivi brevemente ciò che hai osservato o eseguito.</p>
+    <textarea class="textarea" id="mTxtInput" placeholder="Scrivi qui…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('mTxt')">Annulla</button>
+      <button class="btn-primary" onclick="txtSubmit()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL SALTA ======= -->
+<div class="modal-back" id="mSkip" onclick="closeIfBack(event, 'mSkip')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="serif">Salta la checklist</h3>
+    <p class="lead">L'operazione è tracciata. Inserisci il motivo (obbligatorio).</p>
+    <textarea class="textarea" id="mSkipInput" placeholder="Es. locale chiuso per manutenzione…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('mSkip')">Annulla</button>
+      <button class="btn-primary" onclick="skipSubmit()">Conferma salto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL CONFERMA COMPLETA (mancanti) ======= -->
+<div class="modal-back" id="mConf" onclick="closeIfBack(event, 'mConf')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="serif">Completare con voci mancanti?</h3>
+    <p class="lead" id="mConfLead">Ci sono <b>3</b> voci non compilate. Saranno marcate come <b>SKIPPED</b> e lo score di compliance ne terrà conto.</p>
+    <ul id="mConfList" style="padding-left:20px;font-size:14px;color:var(--ink-soft);"></ul>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('mConf')">Torna alla lista</button>
+      <button class="btn-primary" onclick="confSubmit()">Completa comunque</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======= MODAL ASSEGNA ======= -->
+<div class="modal-back" id="mAssign" onclick="closeIfBack(event, 'mAssign')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="serif">Assegna la checklist</h3>
+    <p class="lead">Chi è responsabile oggi di questa apertura?</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+      <button class="btn-secondary" style="justify-content:flex-start;display:flex;gap:10px;" onclick="assignTo('Giulia')">
+        <span style="width:28px;height:28px;border-radius:50%;background:var(--red);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-family:Playfair Display,serif;">G</span>
+        Giulia (chef)
+      </button>
+      <button class="btn-secondary" style="justify-content:flex-start;display:flex;gap:10px;" onclick="assignTo('Marco')">
+        <span style="width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-family:Playfair Display,serif;">M</span>
+        Marco (admin)
+      </button>
+      <button class="btn-secondary" style="justify-content:flex-start;display:flex;gap:10px;" onclick="assignTo('Ivan')">
+        <span style="width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-family:Playfair Display,serif;">I</span>
+        Ivan (sala)
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('mAssign')" style="flex:1;">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================
+   Mock state — 7 voci con tipi diversi
+   ===================================================== */
+const items = [
+  { id:1, ord:1, name:"Accendere forno principale a 180°C",          kind:"CHECKBOX",    obb:true,  stato:"OK",      who:"G", ts:"08:12" },
+  { id:2, ord:2, name:"Temperatura frigo cucina",                    kind:"TEMPERATURA", obb:true,  range:"0°C — 4°C", min:0, max:4, unit:"°C",  stato:"OK",      valore:2.4, who:"G", ts:"08:15" },
+  { id:3, ord:3, name:"Temperatura frigo pesce",                     kind:"TEMPERATURA", obb:true,  range:"0°C — 2°C", min:0, max:2, unit:"°C",  stato:"FAIL",    valore:5.1, who:"G", ts:"08:18", note:"Fuori range (0..2 °C)" },
+  { id:4, ord:4, name:"Controllo scadenze frigo — pesce & verdure",  kind:"CHECKBOX",    obb:true,  stato:"OK",      who:"G", ts:"08:22" },
+  { id:5, ord:5, name:"Numero clienti prenotati sera",               kind:"NUMERICO",    obb:false, range:"0 — 80",    min:0, max:80,unit:"cop.", stato:"PENDING" },
+  { id:6, ord:6, name:"Pulizia piani di lavoro con sanificante",     kind:"CHECKBOX",    obb:true,  stato:"PENDING" },
+  { id:7, ord:7, name:"Note di servizio (fornitore speciale, etc.)", kind:"TESTO",       obb:false, stato:"PENDING" },
+];
+
+let currentRole = 'chef';
+let currentNumItem = null;
+let currentTxtItem = null;
+let numBuf = "";
+let numNeg = false;
+
+/* =====================================================
+   Rendering
+   ===================================================== */
+function render() {
+  const list = document.getElementById('itemsList');
+  list.innerHTML = '';
+  items.forEach(it => list.appendChild(renderItem(it)));
+  updateHead();
+  updateFooter();
+}
+
+function renderItem(it) {
+  const cls = (it.stato || 'pending').toLowerCase();
+  const el = document.createElement('div');
+  el.className = 'item ' + cls;
+
+  const kindCls = ({ TEMPERATURA:'temp', NUMERICO:'num', TESTO:'txt', CHECKBOX:'' })[it.kind] || '';
+  const obbChip = it.obb ? `<span class="it-kind obb">obbligatoria</span>` : '';
+  const rangeChip = it.range ? `<span class="it-range">${it.range}</span>` : '';
+  const valueRow = (it.kind !== 'CHECKBOX' && it.kind !== 'TESTO' && it.valore != null)
+    ? `<div class="it-value ${it.stato==='FAIL'?'fail':''}" style="margin-top:4px;">${fmtNum(it.valore)}<span class="u">${it.unit||''}</span></div>`
+    : '';
+  const txtRow = (it.kind === 'TESTO' && it.valore_testo)
+    ? `<div class="it-note">"${escape(it.valore_testo)}"</div>`
+    : '';
+  const noteRow = it.note ? `<div class="it-note">${escape(it.note)}</div>` : '';
+  const whoRow = it.who
+    ? `<div class="it-who"><span class="avatar">${it.who}</span> ${nameOf(it.who)} · ${it.ts || ''}</div>`
+    : '';
+
+  const nameCls = (it.stato === 'SKIPPED') ? 'it-name strike' : 'it-name';
+
+  el.innerHTML = `
+    <div class="it-main">
+      <div class="it-head">
+        <span class="it-ord serif">${it.ord}.</span>
+        <span class="${nameCls}">${escape(it.name)}</span>
+        <span class="it-kind ${kindCls}">${it.kind}</span>
+        ${obbChip}
+      </div>
+      <div class="it-meta">
+        ${rangeChip}
+        ${whoRow}
+      </div>
+      ${valueRow}
+      ${txtRow}
+      ${noteRow}
+    </div>
+    <div class="actions">${renderActions(it)}</div>
+  `;
+  return el;
+}
+
+function renderActions(it) {
+  const done = ['OK','FAIL','SKIPPED'].includes(it.stato);
+
+  if (it.kind === 'CHECKBOX') {
+    return `
+      <button class="btn-ok   ${it.stato==='OK'?'sel':''}"      onclick="setStato(${it.id},'OK')"     title="OK">✓</button>
+      <button class="btn-fail ${it.stato==='FAIL'?'sel':''}"    onclick="setStato(${it.id},'FAIL')"   title="FAIL">✗</button>
+      <button class="btn-skip ${it.stato==='SKIPPED'?'sel':''}" onclick="setStato(${it.id},'SKIPPED')" title="N.A.">N.A.</button>
+    `;
+  }
+  if (it.kind === 'TESTO') {
+    const label = it.valore_testo ? 'Modifica' : 'Scrivi…';
+    return `
+      <button class="btn-input" onclick="openTxt(${it.id})">✎ ${label}</button>
+      <button class="btn-skip ${it.stato==='SKIPPED'?'sel':''}" onclick="setStato(${it.id},'SKIPPED')" title="N.A.">N.A.</button>
+    `;
+  }
+  // TEMP / NUM
+  const val = it.valore != null ? `${fmtNum(it.valore)} ${it.unit||''}` : 'Inserisci…';
+  return `
+    <button class="btn-input" onclick="openNum(${it.id})">🔢 ${val}</button>
+    <button class="btn-skip ${it.stato==='SKIPPED'?'sel':''}" onclick="setStato(${it.id},'SKIPPED')" title="N.A.">N.A.</button>
+  `;
+}
+
+function updateHead() {
+  const ok   = items.filter(i => i.stato==='OK').length;
+  const fail = items.filter(i => i.stato==='FAIL').length;
+  const skip = items.filter(i => i.stato==='SKIPPED').length;
+  const tot  = items.length;
+  const done = ok + fail + skip;
+  document.getElementById('ringNum').textContent = done;
+  document.querySelector('.ring .num small').textContent = '/' + tot;
+  const dash = 2 * Math.PI * 36; // 226.19
+  const pct = done / tot;
+  document.getElementById('ringFill').setAttribute('stroke-dashoffset', (dash * (1 - pct)).toFixed(2));
+  const okPct   = (ok / tot) * 100;
+  const failPct = (fail / tot) * 100;
+  document.getElementById('barFill').style.width = okPct + '%';
+  document.getElementById('barFail').style.width = failPct + '%';
+  document.getElementById('barFail').style.left  = okPct + '%';
+  document.getElementById('stateNums').textContent =
+    `${ok} OK · ${fail} FAIL${skip? ' · '+skip+' N.A.':''} · ${tot-done} da fare`;
+  // counter
+  document.querySelector('.section-title .count').textContent =
+    `${tot} voci · ${ok} completate${fail? ' · '+fail+' fail':''}${skip? ' · '+skip+' N.A.':''}`;
+}
+
+function updateFooter() {
+  const missingObb = items.filter(i => i.obb && i.stato==='PENDING').length;
+  const btn = document.getElementById('btnCompleta');
+  btn.textContent = missingObb
+    ? `✓ Completa — ${missingObb} obbligatorie da confermare`
+    : `✓ Completa checklist`;
+  document.getElementById('btnSalta').style.display =
+    (currentRole==='admin'||currentRole==='chef') ? '' : 'none';
+  document.querySelector('.btn-ghost').style.display =
+    (currentRole==='viewer') ? 'none' : '';
+}
+
+/* =====================================================
+   Azioni CHECKBOX
+   ===================================================== */
+function setStato(id, stato) {
+  const it = items.find(i => i.id===id);
+  if (!it) return;
+  if (currentRole === 'viewer') { toast('Sola lettura'); return; }
+  it.stato = it.stato === stato ? 'PENDING' : stato;
+  it.who = whoInitial();
+  it.ts  = nowHHMM();
+  if (it.stato === 'PENDING') { it.who = undefined; it.ts = undefined; }
+  render();
+  if (stato === 'OK') toast('✓ Segnato OK');
+  if (stato === 'FAIL') toast('✗ Segnato FAIL');
+  if (stato === 'SKIPPED') toast('N.A. registrato');
+}
+
+/* =====================================================
+   Numpad (TEMP/NUM)
+   ===================================================== */
+function openNum(id) {
+  if (currentRole === 'viewer') { toast('Sola lettura'); return; }
+  const it = items.find(i => i.id===id);
+  currentNumItem = it;
+  document.getElementById('mNumTitle').textContent = it.name;
+  document.getElementById('mNumLead').textContent =
+    it.kind === 'TEMPERATURA'
+      ? 'Inserisci la temperatura misurata. Fuori range → FAIL automatico.'
+      : 'Inserisci il valore numerico.';
+  document.getElementById('mNumRange').textContent = 'Range atteso: ' + (it.range || '—');
+  document.getElementById('mNumRange').style.display = it.range ? '' : 'none';
+  document.getElementById('mNumUnit').textContent = it.unit || '';
+  numBuf = ''; numNeg = false;
+  updateNumDisplay();
+  openModal('mNum');
+}
+
+function numPad(k) {
+  if (k === '-') { numNeg = !numNeg; updateNumDisplay(); return; }
+  if (k === 'back') { numBuf = numBuf.slice(0, -1); updateNumDisplay(); return; }
+  if (k === '.') { if (!numBuf.includes('.')) numBuf += '.'; updateNumDisplay(); return; }
+  if (numBuf.length < 6) numBuf += k;
+  updateNumDisplay();
+}
+function numClear() { numBuf = ''; numNeg = false; updateNumDisplay(); }
+
+function updateNumDisplay() {
+  const it = currentNumItem; if (!it) return;
+  const disp = document.getElementById('mNumDisplay');
+  const warn = document.getElementById('mNumWarn');
+  const shown = numBuf === '' ? '—' : (numNeg ? '-' : '') + numBuf;
+  disp.firstChild.textContent = shown;
+  const v = parseFloat((numNeg?'-':'')+numBuf);
+  const inRange = !isNaN(v) && (it.min==null || v>=it.min) && (it.max==null || v<=it.max);
+  if (!isNaN(v) && !inRange && it.range) {
+    warn.classList.remove('hide');
+    disp.classList.add('fail');
+  } else {
+    warn.classList.add('hide');
+    disp.classList.remove('fail');
+  }
+}
+
+function numSubmit() {
+  const it = currentNumItem; if (!it) return;
+  if (numBuf === '') { toast('Inserisci un valore'); return; }
+  const v = parseFloat((numNeg?'-':'')+numBuf);
+  const inRange = (it.min==null || v>=it.min) && (it.max==null || v<=it.max);
+  it.valore = v;
+  it.stato = inRange || !it.range ? 'OK' : 'FAIL';
+  it.note  = (it.stato === 'FAIL' && it.range) ? `Fuori range (${it.range})` : undefined;
+  it.who   = whoInitial();
+  it.ts    = nowHHMM();
+  closeModal('mNum');
+  render();
+  toast(it.stato === 'OK' ? '✓ Registrato' : '⚠ FAIL — fuori range');
+}
+
+/* =====================================================
+   Testo
+   ===================================================== */
+function openTxt(id) {
+  if (currentRole === 'viewer') { toast('Sola lettura'); return; }
+  const it = items.find(i => i.id===id);
+  currentTxtItem = it;
+  document.getElementById('mTxtTitle').textContent = it.name;
+  document.getElementById('mTxtInput').value = it.valore_testo || '';
+  openModal('mTxt');
+  setTimeout(() => document.getElementById('mTxtInput').focus(), 100);
+}
+function txtSubmit() {
+  const it = currentTxtItem; if (!it) return;
+  const v = document.getElementById('mTxtInput').value.trim();
+  if (v === '') { setStato(it.id, 'SKIPPED'); closeModal('mTxt'); return; }
+  it.valore_testo = v;
+  it.stato = 'OK';
+  it.who = whoInitial();
+  it.ts  = nowHHMM();
+  closeModal('mTxt');
+  render();
+  toast('✓ Nota salvata');
+}
+
+/* =====================================================
+   Salta / Completa / Assegna
+   ===================================================== */
+function openSalta() { openModal('mSkip'); setTimeout(() => document.getElementById('mSkipInput').focus(), 100); }
+function skipSubmit() {
+  const v = document.getElementById('mSkipInput').value.trim();
+  if (!v) { toast('Il motivo è obbligatorio'); return; }
+  closeModal('mSkip');
+  toast('Checklist saltata: ' + v.slice(0, 30));
+}
+
+function onCompleta() {
+  const missing = items.filter(i => i.stato === 'PENDING');
+  if (missing.length === 0) {
+    toast('✓ Checklist completata — score 100%');
+    return;
+  }
+  const ul = document.getElementById('mConfList');
+  ul.innerHTML = missing.map(i =>
+    `<li>${escape(i.name)}${i.obb ? ' <span style="color:var(--red-ink);font-weight:600;">(obbligatoria)</span>' : ''}</li>`
+  ).join('');
+  document.getElementById('mConfLead').innerHTML =
+    `Ci sono <b>${missing.length}</b> voci non compilate. Saranno marcate come <b>SKIPPED</b> e lo score di compliance ne terrà conto.`;
+  openModal('mConf');
+}
+function confSubmit() {
+  items.filter(i => i.stato === 'PENDING').forEach(i => { i.stato = 'SKIPPED'; i.who = whoInitial(); i.ts = nowHHMM(); });
+  closeModal('mConf');
+  render();
+  toast('✓ Checklist completata');
+}
+
+function openAssegna() { openModal('mAssign'); }
+function assignTo(name) { closeModal('mAssign'); toast('Assegnata a ' + name); }
+
+/* =====================================================
+   Utility
+   ===================================================== */
+function openModal(id) { document.getElementById(id).classList.add('on'); }
+function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+function closeIfBack(e, id) { if (e.target.id === id) closeModal(id); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(() => t.classList.remove('on'), 1800);
+}
+
+function escape(s='') { return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtNum(n) { return String(n).replace('.', ','); }
+function nowHHMM() { const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+function whoInitial() { return ({ chef:'G', admin:'M', sala:'I', viewer:'?' })[currentRole] || '?'; }
+function nameOf(i) { return ({ G:'Giulia', M:'Marco', I:'Ivan' })[i] || i; }
+
+document.getElementById('roleSel').addEventListener('change', e => {
+  currentRole = e.target.value;
+  render();
+  toast('Ruolo: ' + currentRole);
+});
+
+render();
+</script>
+</body>
+</html>
