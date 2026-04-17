@@ -10,6 +10,7 @@ import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { ToastProvider } from "./components/Toast";
 import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
 // import useAppHeight from "./hooks/useAppHeight"; // disabilitato sessione 26+, da reinvestigare
 import useUpdateChecker from "./hooks/useUpdateChecker";
@@ -163,6 +164,7 @@ export default function App() {
   }
 
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Header onLogout={handleLogout} />
       <ErrorBoundary>
@@ -416,5 +418,6 @@ export default function App() {
         </div>
       )}
     </BrowserRouter>
+    </ToastProvider>
   );
 }
