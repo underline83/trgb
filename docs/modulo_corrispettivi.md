@@ -187,7 +187,7 @@ DB: `app/data/admin_finance.sqlite3`
 | File | Contenuto |
 |------|-----------|
 | `services/admin_finance_db.py` | Query dirette su `daily_closures` |
-| `services/admin_finance_stats.py` | Calcolo statistiche mensili, annuali, top-days |
+| `services/vendite_aggregator.py` | Merge shift_closures + daily_closures per consumer esterni (CG, future dashboard) |
 | `services/admin_finance_import.py` | Parsing e import da Excel |
 | `services/corrispettivi_import.py` | Helper parsing Excel |
 | `routers/closures_config_router.py` | GET/PUT configurazione chiusure |

@@ -16,7 +16,9 @@ Marco: _"a marzo vedo pochissime entrate che in banca sono molto di più"_.
 
 **Discussione architetturale.** Marco ha proposto di leggere direttamente da banca. Abbiamo concordato: la dashboard attuale mostra **principio di competenza** (analitico, vendite attribuite al giorno in cui sono fatte → POS di marzo su marzo anche se accreditati ad aprile). Il **principio di cassa** (finanziario, entrate quando arrivano sul conto) meriterà una sezione "Liquidità" separata nella dashboard CG, da progettare in sessione dedicata.
 
-**Fuori scope (tracked).** `dashboard_router.py` e `admin_finance_stats.py` leggono ancora solo da `daily_closures` → stessa vulnerabilità. Da rifattorizzare con il nuovo aggregator in una patch dedicata.
+**Cleanup collaterale.** Cancellato `app/services/admin_finance_stats.py`: era codice morto (nessun import lo usava) con 6 funzioni che leggevano solo `daily_closures`. Puliti i riferimenti in `docs/architettura.md`, `docs/design_gestione_vendite.md`, `docs/modulo_corrispettivi.md`. Verificato che `dashboard_router.py` legge già da `shift_closures` → nessun bug lì.
+
+**Fuori scope (tracked per v2.9).** Progettare "sezione Liquidità" sulla dashboard CG per il principio di cassa (entrate banca, POS in arrivo, trend saldo).
 
 ---
 

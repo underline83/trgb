@@ -124,8 +124,8 @@ frontend/src/pages/vendite/VenditeMenu.jsx         — Hub con KPI rapidi
 ```
 app/routers/admin_finance.py       — Router /admin/finance (nessuna modifica)
 app/services/admin_finance_db.py   — Query DB
-app/services/admin_finance_stats.py — Statistiche
 app/services/corrispettivi_import.py — Import Excel
+app/services/vendite_aggregator.py — Merge shift+daily per consumer esterni (CG, future dashboard)
 ```
 
 ---

@@ -26,14 +26,19 @@ Stessa patch già applicata nel 2025 a `corrispettivi_export.py` (funzione `_mer
 
 Gen/Feb invariati (solo daily). Mar/Apr riallineati.
 
+### Cleanup collaterale
+- **Cancellato `app/services/admin_finance_stats.py`** — era codice morto (nessun import lo usava). Aveva 6 funzioni (`get_year_summary`, `get_month_summary`, `get_top_days`, `get_bottom_days`, `get_year_vs_year`, `daily_time_series`) che leggevano tutte solo da `daily_closures`: stessa vulnerabilità del bug principale, ma irrilevante perché il file non era mai stato integrato. Rimossi i riferimenti in `docs/architettura.md`, `docs/design_gestione_vendite.md`, `docs/modulo_corrispettivi.md`.
+- **`dashboard_router.py`** già legge da `shift_closures` (widget home pranzo/cena/giorno), non ha il bug: niente da toccare.
+
 ### Note — fuori scope di questa patch
-- `dashboard_router.py` e `admin_finance_stats.py` leggono ancora solo da `daily_closures`. Stessa vulnerabilità. Da rifattorizzare in una patch dedicata usando il nuovo aggregator.
 - Il fix copre il **principio di competenza** (analitico — vendite attribuite al giorno in cui sono state fatte). Il **principio di cassa** (finanziario — entrate quando arrivano in banca) resta da sviluppare: idea "sezione Liquidità" separata sulla dashboard CG con entrate/uscite banca, POS in arrivo, trend saldo. Tracked per v2.9.
 
 ### File modificati
 - `app/services/vendite_aggregator.py` — nuovo
 - `app/routers/controllo_gestione_router.py` — 3 sostituzioni
+- `app/services/admin_finance_stats.py` — cancellato (codice morto)
 - `frontend/src/config/versions.jsx` — bump 2.7 → 2.8
+- `docs/architettura.md`, `docs/design_gestione_vendite.md`, `docs/modulo_corrispettivi.md` — rimossi riferimenti al file cancellato
 
 ---
 

@@ -48,9 +48,9 @@ app/
 │   ├── carta_vini_service.py       — Builder HTML/PDF/DOCX Carta Vini
 │   ├── ipratico_parser.py          — Parser export iPratico (.xls HTML)
 │   ├── admin_finance_db.py         — Query DB corrispettivi
-│   ├── admin_finance_stats.py      — Statistiche corrispettivi
 │   ├── admin_finance_import.py     — Import Excel corrispettivi
-│   └── corrispettivi_import.py     — Parsing Excel corrispettivi
+│   ├── corrispettivi_import.py     — Parsing Excel corrispettivi
+│   └── vendite_aggregator.py       — Merge shift_closures + daily_closures (fonte unica)
 │
 ├── models/             ← Schema DB e dataclass
 │   ├── vini_db.py / vini_model.py  — DEPRECATED (vecchio DB eliminato v3.0)
