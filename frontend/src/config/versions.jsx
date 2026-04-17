@@ -74,6 +74,12 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  cucina: {
+    version: "1.0",
+    label: "Cucina",
+    status: "beta",
+    color: "blue",
+  },
   home: {
     version: "3.4",
     label: "Home",

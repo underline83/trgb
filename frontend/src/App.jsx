@@ -102,6 +102,9 @@ import TavoliMappa from "./pages/prenotazioni/TavoliMappa";
 
 // --- COMUNICAZIONI (Bacheca Staff — 9.2) ---
 import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
+
+// --- CUCINA (modulo MVP — checklist + task) ---
+import CucinaHome from "./pages/cucina/CucinaHome";
 import Comunicazioni from "./pages/Comunicazioni";
 
 // --- CAMBIO PIN ---
@@ -368,6 +371,10 @@ export default function App() {
 
         {/* --- SCELTA DEL MACELLAIO (Cucina) --- */}
         <Route path="/macellaio" element={<ProtectedRoute module="ricette" sub="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
+
+        {/* --- CUCINA (MVP: checklist ricorrenti + task) --- */}
+        <Route path="/cucina" element={<ProtectedRoute module="cucina"><CucinaHome /></ProtectedRoute>} />
+        {/* Agenda, instance detail, template editor, task list — arrivano nei prossimi step */}
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />

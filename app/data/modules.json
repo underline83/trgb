@@ -98,6 +98,18 @@
     ]
   },
   {
+    "key": "cucina",
+    "label": "Cucina",
+    "description": "Checklist ricorrenti (apertura/chiusura/HACCP) e task operativi",
+    "icon": "🍳",
+    "roles": ["superadmin", "admin", "chef", "sala", "viewer"],
+    "sub": [
+      { "key": "agenda",    "label": "Agenda",    "roles": ["superadmin", "admin", "chef", "sala", "viewer"] },
+      { "key": "tasks",     "label": "Task",      "roles": ["superadmin", "admin", "chef", "sala"] },
+      { "key": "templates", "label": "Template",  "roles": ["superadmin", "admin", "chef"] }
+    ]
+  },
+  {
     "key": "dipendenti",
     "label": "Dipendenti",
     "description": "Personale, buste paga, turni, scadenze documenti, costi",
