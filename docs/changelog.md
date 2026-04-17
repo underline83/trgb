@@ -3,6 +3,69 @@
 
 ---
 
+## 2026-04-17 — Modulo Cucina MVP v1.0
+
+### Problema / contesto
+Cucina/bar hanno registri cartacei HACCP (temperature frigo, checklist apertura/chiusura) e task operativi estemporanei ("chiama il pesce", "sistemare lavastoviglie"). Tutto "a memoria" o su fogli che si perdono. Servono: tracciabilità con utente/timestamp/valori, score di compliance, vista tap-friendly da iPad in cucina.
+
+### Novita'
+- **Nuovo modulo "Cucina"** (🍳 rosso) accessibile da menu. Voce separata da "Gestione Cucina" (→ ricette/FoodCost) — label ambiguity risolta scegliendo "Cucina" semplice per il nuovo modulo.
+- **DB dedicato** `cucina.sqlite3` con 6 tabelle: `checklist_template`, `checklist_item`, `checklist_instance`, `checklist_execution`, `task_singolo`, `cucina_alert_log` (scaffold V1).
+- **Checklist ricorrenti**: admin crea template (nome/reparto/turno/ora_scadenza), scheduler genera istanze giornaliere automaticamente (INSERT OR IGNORE idempotente), operatore fa tap-to-complete item per item. Fine checklist → score compliance % item OK.
+- **Tipi item**: CHECKBOX (tap singolo), NUMERICO (numpad + range opzionale), TEMPERATURA (numpad + range obbligatorio, fuori range forza FAIL con nota), TESTO (prompt inline).
+- **Numpad touch-friendly** per TEMPERATURA/NUMERICO: tasti 60pt, ±/./CE/Canc, conferma mostra valore+unità.
+- **Task singoli** non ricorrenti: titolo, descrizione, scadenza data+ora, assegnato (username), priorità ALTA/MEDIA/BASSA. Auto-scadenza su read. Stati APERTO/IN_CORSO/COMPLETATO/SCADUTO/ANNULLATO.
+- **Agenda giornaliera**: navigazione ←/→/oggi, filtro turno, KPI 4 mini-card, istanze raggruppate per turno (APERTURA/PRANZO/POMERIGGIO/CENA/CHIUSURA), task del giorno.
+- **Agenda settimanale**: grid 7 colonne con pallini colorati stato, oggi evidenziato in rosso, click giorno → agenda dettagliata.
+- **Editor template admin**: items riordinabili con ▲▼, auto-preset 0..4°C per primo TEMPERATURA, validazione client su range/formato orari, attivazione/disattivazione one-click.
+- **Scheduler lazy**: nessun cron. Fire-and-forget trigger su `GET /dashboard/home` (pattern M.F) → `genera_istanze_per_data(oggi, +1)` + `check_scadenze`. Endpoint admin dedicati `/cucina/scheduler/genera-giornaliere` e `/check-scadute`.
+- **18 endpoint** su prefix `/cucina/`: template CRUD (6), agenda (3), instance/execution (5), task (5), scheduler (2). Tutti JWT + check ruolo.
+- **Seed 3 template** disattivi (Apertura cucina, Chiusura cucina, Pulizia bar) — admin sceglie cosa attivare.
+
+### Ruoli
+- `admin`/`superadmin`: tutto
+- `chef`: tutto tranne CRUD template (può solo leggere/eseguire)
+- `sala`: agenda + task, no template
+- `viewer`: sola lettura (middleware backend)
+
+### File toccati
+Backend (5 nuovi + 3 modificati):
+- `app/migrations/084_cucina_mvp.py`, `app/models/cucina_db.py`, `app/schemas/cucina_schema.py`, `app/routers/cucina_router.py`, `app/services/cucina_scheduler.py`
+- `main.py`, `app/routers/dashboard_router.py`, `.gitignore`
+
+Frontend (8 nuovi + 4 modificati):
+- `frontend/src/pages/cucina/{CucinaHome, CucinaNav, CucinaAgendaGiornaliera, CucinaAgendaSettimana, CucinaInstanceDetail, CucinaTemplateList, CucinaTemplateEditor, CucinaTaskList, CucinaTaskNuovo}.jsx`
+- `frontend/src/App.jsx`, `frontend/src/config/modulesMenu.js`, `frontend/src/config/versions.jsx`, `app/data/modules.json`
+
+Docs:
+- `docs/modulo_cucina.md` (nuovo), `docs/sessione.md`, `docs/roadmap.md`
+
+### Test
+- **Backend**: CRUD + validazione (reparto/turno/tipo item, TEMPERATURA range obbligatorio, HH:MM), permessi (chef bloccato su POST template, sala 403, viewer middleware), idempotenza scheduler (2a run = 0 nuovi), `check_scadenze` con ora futura → stati aggiornati, tap-to-complete APERTA→IN_CORSO→COMPLETATA, score 100/50 su test-case, doppia completa 400, check su completata 400, salta con motivo, auto-scadenza task.
+- **Frontend**: `vite build` clean su ogni step (858 moduli, 0 errori JSX/import).
+
+### Rimandato a V1/V2
+- Foto/firma su item FAIL (obbligatoria per HACCP a norma)
+- Integrazione M.F Alert Engine con checker `cucina_checklist_pending`
+- Frequenze settimanale/mensile (solo GIORNALIERA in MVP)
+- Corrective action auto su FAIL
+- PDF export registro HACCP mensile (usa M.B)
+- Notifiche WA/email su scadenze (usa M.C/M.D)
+- Dashboard KPI storica cross-module
+- iPad kiosk mode fullscreen
+
+### Follow-up aperti
+- Il campo `assegnato_user` è string libero — integrazione con dropdown username da tabella dipendenti è evolutivo V1.
+- Il label "Gestione Cucina" è ora duplicato: **modulo ricette** ha ancora quel label nel menu, **nuovo modulo cucina** ha label "Cucina". Marco ha deciso di rimandare l'unificazione.
+
+### Gotcha workflow
+Prime 3 sessioni push da Marco sono arrivate vuote perché lavoravo in un git worktree mentre `push.sh` gira dalla dir principale su `main`. Soluzione: copiati i file dal worktree al main con `cp` per Step 1-4, poi lavorato direttamente su main dallo Step 5 in poi.
+
+### Version bump
+Nuovo modulo `cucina v1.0 beta` in `versions.jsx`.
+
+---
+
 ## 2026-04-17 — CG Liquidita' v2.10: tassonomia uscite classificate
 
 ### Problema / contesto

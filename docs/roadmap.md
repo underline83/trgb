@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-17 (sessione 42)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 43 — modulo Cucina MVP)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -172,6 +172,37 @@
 | 10.2 | Fase B: Template riutilizzabili + righe editabili + totale live | S | FATTO ✅ | Sessione 32. Template in Impostazioni CRM, applicazione template a preventivi, totale live |
 | 10.3 | Fase C: Generazione PDF brandizzato + invio WA/email | M | DA FARE | Usa **M.B** PDF + **M.C** WA + **M.D** email. PDF server-side con logo TRGB |
 | 10.4 | Fase D: Versioning + collegamento prenotazione + badge menu | S | DA FARE | Usa **M.A** notifiche. Storico versioni PDF, conferma → crea prenotazione, badge "N in attesa" |
+
+---
+
+## 11 — Cucina (nuovo)
+
+> Specifica completa: `docs/modulo_cucina.md`
+> Obiettivo: sostituire registro cartaceo HACCP e task "a memoria" con sistema tap-to-complete iPad-ready.
+> MVP completato sessione 43. V1/V2 evolutivi sotto.
+
+| ID | Cosa | Effort | Stato | Note |
+|----|------|--------|-------|------|
+| 11.1 | MVP: DB + 18 API + 8 pagine FE + scheduler lazy | L | ✅ FATTO | Sessione 43. Template CRUD, tap-to-complete, numpad TEMPERATURA, agenda giorno/settimana, task singoli |
+| 11.2 | Foto + firma su item FAIL | M | DA FARE | Obbligatoria per HACCP a norma. Upload su `app/data/cucina/`, thumbnail in registro |
+| 11.3 | Integrazione M.F Alert Engine | S | DA FARE | Checker `cucina_checklist_pending`: notifica admin se apertura non completata entro `ora_scadenza_entro - 30min` (usa **M.A** + **M.F**) |
+| 11.4 | Frequenze settimanale/mensile | S | DA FARE | Oggi solo GIORNALIERA. Estendere scheduler con giorno settimana / giorno mese |
+| 11.5 | Corrective action automatico | S | DA FARE | Se item TEMPERATURA → FAIL auto-range, genera task singolo al chef con titolo precompilato |
+| 11.6 | Dropdown `assegnato_user` da dipendenti | S | DA FARE | Oggi è string libero. Popolare da tabella dipendenti attivi |
+| 11.7 | Dashboard KPI cucina cross-module | M | FUTURO | Score medio mensile, trend compliance, FAIL per item, utenti più attivi. Nuovo endpoint `GET /cucina/stats` |
+| 11.8 | PDF export registro HACCP mensile | M | DA FARE | Usa **M.B** PDF brand. Scaricabile da `/cucina/tasks` → "Esporta registro mese" |
+| 11.9 | Notifiche WA scadenze checklist | S | DA FARE | Usa **M.C** WA composer. Opzionale per admin/chef |
+| 11.10 | iPad kiosk mode fullscreen | S | FUTURO | Modalità senza header/nav, solo l'istanza del turno attivo. PWA display-mode standalone |
+| 11.11 | Drag & drop ordinamento items editor | S | FUTURO | Sostituire bottoni ▲▼ con drag nativo. Nice-to-have |
+| 11.12 | Unificazione label "Gestione Cucina" | S | DA FARE | Oggi "Gestione Cucina" è del modulo ricette e "Cucina" del nuovo. Decidere: rename ricette → "Ricette & FoodCost", o merge dei due moduli sotto un unico "Gestione Cucina" con sub |
+
+---
+
+## Completati — Sessione 43 (2026-04-17)
+
+| Cosa | Note |
+|------|------|
+| Modulo Cucina MVP v1.0 | Nuovo modulo con DB dedicato (6 tabelle), 18 endpoint, 8 pagine FE, scheduler lazy fire-and-forget su dashboard. Checklist ricorrenti giornaliere + task singoli. Tap-to-complete tap-friendly iPad con numpad touch per TEMPERATURA (range 0..4°C, fuori→FAIL). Agenda giorno/settimana, editor template admin, 3 template seed (Apertura/Chiusura/Bar). Integrato in modules.json con ruoli admin/chef/sala/viewer. Versione cucina v1.0 beta |
 
 ---
 

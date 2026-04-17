@@ -1,8 +1,62 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-17 (sessione 42 — CG Liquidita' v2.10, tassonomia uscite)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 43 — Modulo Cucina MVP)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/modulo_cucina.md`](./modulo_cucina.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 43 — Modulo Cucina MVP ✅
+
+Primo rilascio del modulo **Cucina**: checklist ricorrenti HACCP-friendly + task singoli per chef/sala. Ispirato a prompt Cowork (`docs/modulo_cucina_mvp_prompt.md`). Scopo: sostituire il registro cartaceo con un sistema tap-to-complete iPad-ready.
+
+**Naming ambiguity risolta**: il modulo "Ricette/FoodCost" aveva già label "Gestione Cucina" in `modulesMenu.js`. Marco ha scelto label semplice **"Cucina"** (🍳) per il nuovo modulo, label "Gestione Cucina" rimane al modulo ricette per ora — pianificata unificazione futura.
+
+**Backend** (5 file nuovi + 3 modificati):
+- Migrazione `084_cucina_mvp.py` → nuovo DB dedicato `cucina.sqlite3` con 6 tabelle (checklist_template, checklist_item, checklist_instance, checklist_execution, task_singolo, cucina_alert_log scaffold V1) + 3 template seed disattivi (Apertura, Chiusura, Pulizia bar).
+- `app/models/cucina_db.py` → `get_cucina_conn()` + `init_cucina_db()` difensivo al boot del router.
+- `app/schemas/cucina_schema.py` → Pydantic models + costanti enum (FREQUENZE/REPARTI/TURNI/ITEM_TIPI/STATI).
+- `app/routers/cucina_router.py` → **18 endpoint** su prefix `/cucina/`: CRUD template (6), agenda (3), instance/execution (5), task (5), scheduler (2). Trailing slash rispettato su tutti i root dei gruppi.
+- `app/services/cucina_scheduler.py` → `genera_istanze_per_data` (INSERT OR IGNORE idempotente), `check_scadenze` (UPDATE WHERE scadenza_at < now), `calcola_score_compliance` (% item OK), `trigger_scheduler` fire-and-forget.
+- **Aggancio dashboard_router**: lo scheduler gira lazy su ogni `GET /dashboard/home` (pattern M.F). Zero cron esterno.
+- **Main.py**: import + include_router cucina.
+
+**Frontend** (8 file nuovi + 4 modificati):
+- `CucinaHome.jsx` — dashboard entry con 4 KPI card + lista istanze oggi per turno + task oggi.
+- `CucinaNav.jsx` — nav top condivisa con VersionBadge e 5 voci.
+- `CucinaAgendaGiornaliera.jsx` — navigazione data ←/→/oggi, filtro turno, KPI 4 mini-card, istanze raggruppate per turno, click → instance detail.
+- `CucinaInstanceDetail.jsx` — **tap-to-complete** con 3 bottoni OK/FAIL/N.A. per item. **Numpad touch-friendly** per TEMPERATURA/NUMERICO (tasti 60pt). Range atteso mostrato ("0°..4° °C"), fuori range forza FAIL automatico con nota. Prompt testo per tipo TESTO. Progress bar, bottoni Completa/Salta sticky in fondo, assegna utente popover.
+- `CucinaTemplateList.jsx` — lista admin raggruppata per reparto+turno, filtri, azioni toggle-attiva / modifica / duplica / elimina (con conferma cascade).
+- `CucinaTemplateEditor.jsx` — form create/edit con items riordinabili ▲▼, auto-preset 0..4°C per primo TEMPERATURA, validazione client (nome, titolo, range min≤max, HH:MM).
+- `CucinaTaskList.jsx` — tabella task con filtri user/data/stato, azioni inline Completa/Riapri/Annulla/Elimina.
+- `CucinaTaskNuovo.jsx` — modal create/edit (riusato).
+- `CucinaAgendaSettimana.jsx` — grid 7 colonne lun-dom, oggi evidenziato, pallini colorati per stato + abbreviazione turno, click giorno → agenda dettagliata. Scroll-x mobile.
+
+**Config**:
+- `modules.json` → entry `cucina` con ruoli (admin/chef pieno, sala limitato, viewer read-only).
+- `modulesMenu.js` → voce `cucina` 🍳 con colori rossi (bg-red-50) — non collide con altri moduli.
+- `versions.jsx` → `cucina v1.0 beta`.
+- `.gitignore` → `app/data/cucina/` per futura cartella runtime (uploads V1).
+
+**Workflow gotcha**: iniziato in worktree `claude/sharp-almeida-9d4785`, rilevato dopo 2 push inutili che `push.sh` dalla main dir non vede i commit (branch diverso). Switch a lavorare direttamente su `/Users/underline83/trgb/` main dallo step 5 in poi. Backend Step 1-4 copiato dal worktree al main via `cp` in blocco, frontend Step 5-8 scritto direttamente.
+
+**Commit points** (uno per step come da feedback "no blocchi accoppiati"):
+1. `cucina: migrazione MVP + 6 tabelle + 3 template seed`
+2. `cucina: API CRUD template e items`
+3. `cucina: scheduler + agenda + esecuzione checklist`
+4. `cucina: backend MVP completo (DB + template CRUD + scheduler + agenda + task)`
+5. `cucina: voce menu + home modulo`
+6. `cucina: agenda giornaliera + esecuzione tap-to-complete`
+7. `cucina: editor template admin`
+8. `cucina: task singoli + agenda settimana`
+
+**Test effettuati (backend)**: CRUD completo via chiamate dirette a funzioni router, validazione reparto/turno/tipo item, TEMPERATURA richiede min+max, permessi (chef bloccato su POST, sala 403, viewer read-only via middleware), idempotenza scheduler (2a chiamata = 0 creati), check_scadenze con ora futura, tap-to-complete APERTA→IN_CORSO→COMPLETATA, score compliance 100 e 50 su test-case, doppia completa 400, check su completata 400, salta con motivo, auto-scadenza task.
+
+**Test effettuati (frontend)**: `vite build` clean su ogni step (858 moduli, 0 errori JSX/import).
+
+**Non fatto (V1)**: foto/firma, integrazione M.F Alert Engine (scaffold `cucina_alert_log` pronto), dashboard KPI, PDF export, checker `@register_checker`, corrective action automatico, frequenze settimanale/mensile.
+
+**Version bump**: nuovo modulo `cucina v1.0 beta` in `versions.jsx`.
 
 ---
 
