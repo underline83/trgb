@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-04-17 — CG Liquidita' v2.10: tassonomia uscite classificate
+
+### Problema / contesto
+La v2.9 aveva classificazione custom solo sulle entrate. Le uscite venivano raggruppate per `categoria_banca` grezza dal feed BPM, ma il ~38% arrivava senza categoria (135 movimenti su 351 negli ultimi 12 mesi) e finiva nel bucket "Non categorizzato", inutile a livello direzionale.
+
+### Novita'
+- **`classify_uscita(row)`** nel service — 11 tag ordinati per specificita': Fornitori / Stipendi / Affitti e Mutui / Utenze / Tasse / Carta / Banca / Assicurazioni / Bonifici / Servizi / Altro. Pattern matching su descrizione, categoria_banca e sottocategoria_banca.
+- **Nuove funzioni service** `uscite_mensili_anno()` e `ultime_uscite()` simmetriche alle entrate. Payload endpoint ora include `uscite_per_tipo`, `uscite_mensili`, `uscite_tags`, `ultime_uscite`.
+- **Frontend v1.1**:
+  - Palette `USCITA_COLORS` (ambra scura per Fornitori, viola per Stipendi, teal per Affitti, blu per Utenze, rosso brand per Tasse, ecc).
+  - Nuova RIGA 3 simmetrica alla 2: PieChart uscite per tipo + BarChart stacked "Uscite mensili {anno}".
+  - RIGA 5 con tabelle gemelle "Ultime entrate" + "Ultime uscite" (badge colorato per tipo, importo assoluto per le uscite).
+  - Rimossa la sezione barre CSS rosse (sostituita dal Pie).
+
+### Smoke test (dati produzione 17 apr 2026)
+- 135 uscite prima non classificate redistribuite: Bonifici 32, Servizi 28, Carta 20, Fornitori 12, Banca 5, Tasse 3, Affitti 2 → 33 residue in "Altro" (~12% vs ~38% prima).
+- Gennaio 2026 completo: Fornitori €16.2k, Stipendi €6k, Affitti €6k, Utenze €2.8k, Bonifici €10.3k, Carta €3.3k, Banca €658.
+
+### File toccati
+- `app/services/liquidita_service.py` (v1.0 → v1.1) — +`classify_uscita`, +`uscite_mensili_anno`, +`ultime_uscite`, +`USCITE_TAGS`.
+- `frontend/src/pages/controllo-gestione/ControlloGestioneLiquidita.jsx` (v1.0 → v1.1) — +USCITA_COLORS, +Pie uscite, +BarChart stacked uscite, +tabella ultime uscite.
+- `frontend/src/config/versions.jsx` — `controlloGestione: 2.9 → 2.10`.
+
+### Follow-up aperti
+- I 33 "Altro" residui: rifinire classificazione se emergono nuovi pattern.
+- "Bonifici" generici (vostra disposizione) sono spesso fornitori non categorizzati dal feed BPM. In futuro: matching su `ragione_sociale` contro tabella `fe_fornitori` per promuoverli a Fornitori.
+
+---
+
 ## 2026-04-17 — CG: sezione "Liquidita'" (principio di cassa)
 
 ### Problema / contesto

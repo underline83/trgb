@@ -1,6 +1,8 @@
-// @version: v1.0 — Liquidita' (principio di cassa) — sessione 42
+// @version: v1.1 — Liquidita' (principio di cassa) — sessione 42
 // Complementare a ControlloGestioneDashboard (principio di competenza).
 // Legge da banca_movimenti via /controllo-gestione/liquidita.
+// v1.1: breakdown uscite classificate (Fornitori/Stipendi/Affitti/Utenze/Tasse/
+//       Carta/Banca/Assicurazioni/Bonifici/Servizi/Altro) + pie + mensili + ultime
 import React, { useEffect, useState, useMemo } from "react";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -27,6 +29,21 @@ const TIPO_COLORS = {
   Contanti: BRAND_GREEN,
   Bonifici: "#8B5CF6", // viola
   Altro:    "#9CA3AF", // grigio medio
+};
+
+// Colori tipi uscita — palette calda/neutra per contrapporli alle entrate
+const USCITA_COLORS = {
+  Fornitori:        "#B45309",   // ambra scura (materie prime)
+  Stipendi:         "#7C3AED",   // viola (HR)
+  "Affitti e Mutui": "#0E7490",  // teal (strutturali ricorrenti)
+  Utenze:           "#0284C7",   // blu (servizi base)
+  Tasse:            BRAND_RED,   // rosso brand
+  Carta:            "#9333EA",   // viola chiaro (carta)
+  Banca:            "#6B7280",   // grigio (banca)
+  Assicurazioni:    "#059669",   // verde (coperture)
+  Bonifici:         "#DC2626",   // rosso forte (pagamenti grossi non class.)
+  Servizi:          "#EA580C",   // arancio (SDD)
+  Altro:            "#9CA3AF",   // grigio medio
 };
 
 const fmt = (n) =>
@@ -148,22 +165,40 @@ export default function ControlloGestioneLiquidita() {
   const mc = d?.mese_corrente || {};
   const p90 = d?.periodo_90gg || {};
   const trend = d?.trend_saldo || [];
-  const mensili = d?.entrate_mensili || [];
+  const mensiliE = d?.entrate_mensili || [];
+  const mensiliU = d?.uscite_mensili || [];
+  const uscitaTags = d?.uscite_tags || Object.keys(USCITA_COLORS);
   const yoy = d?.confronto_yoy || [];
-  const ultime = d?.ultime_entrate || [];
+  const ultimeE = d?.ultime_entrate || [];
+  const ultimeU = d?.ultime_uscite || [];
 
-  // Dati grafici
+  // Dati grafici — entrate
   const pieEntrate = (mc.entrate_per_tipo || [])
     .filter((t) => t.totale > 0)
     .map((t) => ({ name: t.tipo, value: t.totale, num: t.num }));
 
-  const mensiliChart = mensili.map((m) => ({
+  const mensiliChart = mensiliE.map((m) => ({
     name: m.mese_label,
     POS: m.POS,
     Contanti: m.Contanti,
     Bonifici: m.Bonifici,
     Altro: m.Altro,
   }));
+
+  // Dati grafici — uscite
+  const pieUscite = (mc.uscite_per_tipo || [])
+    .filter((t) => t.totale > 0)
+    .map((t) => ({ name: t.tipo, value: t.totale, num: t.num }));
+
+  // Solo i tag che hanno almeno un valore > 0 nell'anno (evita legenda sporca)
+  const uscitaTagsAttivi = uscitaTags.filter((tag) =>
+    mensiliU.some((m) => (m[tag] || 0) > 0)
+  );
+  const mensiliUscitaChart = mensiliU.map((m) => {
+    const r = { name: m.mese_label };
+    uscitaTagsAttivi.forEach((tag) => { r[tag] = m[tag] || 0; });
+    return r;
+  });
 
   // YoY: filtra solo mesi con almeno un dato (per non far vedere linea piatta fino a dic)
   const yoyChart = yoy.map((m) => ({
@@ -321,7 +356,86 @@ export default function ControlloGestioneLiquidita() {
             </div>
           </div>
 
-          {/* ─── RIGA 3: Entrate mensili anno (stacked) + Confronto YoY ─── */}
+          {/* ─── RIGA 3 (NUOVA v1.1): Uscite per tipo [Pie] + Uscite mensili [Stacked] ─ simmetrica a RIGA 2 ─ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            {/* Breakdown uscite mese per tipo */}
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
+              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
+                💸 Uscite {mc.mese_label} per tipo
+              </h3>
+              {pieUscite.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={pieUscite}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={75}
+                        label={(entry) => entry.name}
+                        labelLine={false}
+                      >
+                        {pieUscite.map((entry, i) => (
+                          <Cell key={i} fill={USCITA_COLORS[entry.name] || "#9CA3AF"} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<EuroTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="mt-3 space-y-1 text-xs max-h-[180px] overflow-y-auto">
+                    {pieUscite.map((t) => (
+                      <div key={t.name} className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: USCITA_COLORS[t.name] || "#9CA3AF" }}
+                          />
+                          {t.name}
+                          <span className="text-neutral-400">({t.num})</span>
+                        </span>
+                        <span className="font-semibold text-neutral-700">€ {fmt(t.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-neutral-400 text-center py-12">Nessuna uscita nel mese</div>
+              )}
+            </div>
+
+            {/* Uscite mensili anno — stacked */}
+            <div className="lg:col-span-2 bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-neutral-700">
+                  📤 Uscite mensili {anno} per tipo
+                </h3>
+                <span className="text-[11px] text-neutral-400">
+                  {uscitaTagsAttivi.length} categorie attive
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={mensiliUscitaChart}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtK(v)} />
+                  <Tooltip content={<EuroTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {uscitaTagsAttivi.map((tag) => (
+                    <Bar
+                      key={tag}
+                      dataKey={tag}
+                      stackId="u"
+                      fill={USCITA_COLORS[tag] || "#9CA3AF"}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* ─── RIGA 4: Entrate mensili (stacked) + Confronto YoY ─── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
               <h3 className="text-sm font-semibold text-neutral-700 mb-3">
@@ -360,40 +474,8 @@ export default function ControlloGestioneLiquidita() {
             </div>
           </div>
 
-          {/* ─── RIGA 4: Uscite per categoria + Ultime entrate ─── */}
+          {/* ─── RIGA 5: Ultime entrate + Ultime uscite ─── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
-              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
-                💸 Uscite {mc.mese_label} per categoria
-              </h3>
-              {(mc.uscite_per_categoria || []).length > 0 ? (
-                <div className="space-y-1.5 text-xs">
-                  {mc.uscite_per_categoria.map((c) => {
-                    const max = mc.uscite_totali || 1;
-                    const pct = (c.totale / max) * 100;
-                    return (
-                      <div key={c.categoria}>
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-neutral-700">
-                            {c.categoria} <span className="text-neutral-400">({c.num})</span>
-                          </span>
-                          <span className="font-semibold text-neutral-800">€ {fmt(c.totale)}</span>
-                        </div>
-                        <div className="h-1.5 bg-neutral-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{ width: `${pct}%`, backgroundColor: BRAND_RED }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-sm text-neutral-400 text-center py-8">Nessuna uscita nel mese</div>
-              )}
-            </div>
-
             <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
               <h3 className="text-sm font-semibold text-neutral-700 mb-3">
                 🧾 Ultime entrate
@@ -409,7 +491,7 @@ export default function ControlloGestioneLiquidita() {
                     </tr>
                   </thead>
                   <tbody>
-                    {ultime.map((e) => (
+                    {ultimeE.map((e) => (
                       <tr key={e.id} className="border-b border-neutral-100">
                         <td className="py-1.5 pr-2 whitespace-nowrap text-neutral-600">{fmtDate(e.data)}</td>
                         <td className="py-1.5 pr-2">
@@ -428,8 +510,50 @@ export default function ControlloGestioneLiquidita() {
                         </td>
                       </tr>
                     ))}
-                    {ultime.length === 0 && (
+                    {ultimeE.length === 0 && (
                       <tr><td colSpan={4} className="py-6 text-center text-neutral-400">Nessuna entrata</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4">
+              <h3 className="text-sm font-semibold text-neutral-700 mb-3">
+                🧾 Ultime uscite
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-neutral-500 border-b border-neutral-200">
+                      <th className="py-1.5 pr-2">Data</th>
+                      <th className="py-1.5 pr-2">Tipo</th>
+                      <th className="py-1.5 pr-2">Descrizione</th>
+                      <th className="py-1.5 text-right">Importo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ultimeU.map((e) => (
+                      <tr key={e.id} className="border-b border-neutral-100">
+                        <td className="py-1.5 pr-2 whitespace-nowrap text-neutral-600">{fmtDate(e.data)}</td>
+                        <td className="py-1.5 pr-2">
+                          <span
+                            className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white whitespace-nowrap"
+                            style={{ backgroundColor: USCITA_COLORS[e.tipo] || "#9CA3AF" }}
+                          >
+                            {e.tipo}
+                          </span>
+                        </td>
+                        <td className="py-1.5 pr-2 text-neutral-700 max-w-[240px] truncate" title={e.descrizione}>
+                          {e.descrizione}
+                        </td>
+                        <td className="py-1.5 text-right font-semibold text-rose-700 whitespace-nowrap">
+                          € {fmt(Math.abs(e.importo))}
+                        </td>
+                      </tr>
+                    ))}
+                    {ultimeU.length === 0 && (
+                      <tr><td colSpan={4} className="py-6 text-center text-neutral-400">Nessuna uscita</td></tr>
                     )}
                   </tbody>
                 </table>

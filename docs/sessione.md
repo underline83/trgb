@@ -1,8 +1,38 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-17 (sessione 42 — CG Liquidita', principio di cassa)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 42 — CG Liquidita' v2.10, tassonomia uscite)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 42b — CG Liquidita' v2.10: tassonomia uscite ✅
+
+Follow-up immediato di v2.9: la tassonomia custom esisteva solo per le entrate, mentre il ~38% delle uscite (135 movimenti su 351 negli ultimi 12 mesi) arrivava dal feed BPM con `categoria_banca=''` e finiva in un generico "Non categorizzato". Classificate ora con pattern matching su descrizione + categoria + sottocategoria.
+
+**Backend** — `liquidita_service.py v1.1`:
+- Nuova `classify_uscita(row)` con 11 tag ordinati per specificita': Fornitori, Stipendi, Affitti e Mutui, Utenze, Tasse, Carta, Banca, Assicurazioni, Bonifici, Servizi, Altro.
+- Regole: `cat='Risorse Umane'` → Stipendi, `'effetti ritirati'/'add.effetto'` → Fornitori (RiBa), `'mutuo'/'rimborso finanz'` → Affitti e Mutui, `'imposta'/'f24'/'agenzia entrate'/'pag telemat'` → Tasse, `'cartimpronta'/'debit pagamento'` → Carta, `'comm su'/'commissioni'` → Banca, `'vostra disposizione'/'vs.disp'` → Bonifici (spesso fornitori non classificati), `'addebito diretto sdd'/'sdd core'` → Servizi.
+- Nuove funzioni `uscite_mensili_anno(conn, anno)` e `ultime_uscite(conn, limit=15)` simmetriche alle entrate.
+- `dashboard_liquidita()` ora restituisce `uscite_per_tipo`, `uscite_mensili`, `uscite_tags`, `ultime_uscite`.
+
+**Frontend** — `ControlloGestioneLiquidita.jsx v1.1`:
+- Palette `USCITA_COLORS` con 11 colori coerenti (ambra/viola/teal/blu/rosso/arancio).
+- Nuova RIGA 3 simmetrica alla RIGA 2: PieChart uscite per tipo (1 col) + BarChart stacked "Uscite mensili {anno}" (2 col).
+- Rimossa sezione barre CSS rosse per categoria (superata dal Pie).
+- RIGA 5 ora ha tabelle gemelle "Ultime entrate" + "Ultime uscite" con badge colorato per tipo.
+- Layout totale: 5 righe (KPI, Trend+PieE, PieU+MensiliU, MensiliE+YoY, TabE+TabU).
+
+**Smoke test** (produzione 17 apr 2026):
+- 135 uscite prima non classificate ora distribuite in: Bonifici 32, Servizi 28, Carta 20, Fornitori 12, Banca 5, Tasse 3, Affitti 2 + 33 Altro residuo (da ~38% a ~12% non classificato).
+- Aprile parziale: Bonifici €19k + Servizi €2.8k + Carta €1.4k + Fornitori €1.2k.
+- Gennaio completo: Fornitori €16.2k + Stipendi €6k + Affitti €6k + Utenze €2.8k + Bonifici €10.3k + Carta €3.3k + Banca €658.
+
+**Follow-up tracciati** (rimangono aperti):
+- I 33 "Altro" residui sono pattern non ancora catturati; si potrebbe estendere con matching su `ragione_sociale` via tabella fornitori (future).
+- I "Bonifici" generici (32 casi/mese in media) sono quasi tutti fornitori non categorizzati; con lookup su `fe_fornitori` si potrebbero promuovere a Fornitori.
+
+**Version bump:** Controllo Gestione 2.9 → 2.10.
 
 ---
 

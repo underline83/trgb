@@ -179,6 +179,7 @@
 
 | Cosa | Note |
 |------|------|
+| CG Liquidita' v2.10 — tassonomia uscite classificate | `classify_uscita()` nel service con 11 tag (Fornitori/Stipendi/Affitti/Utenze/Tasse/Carta/Banca/Assicurazioni/Bonifici/Servizi/Altro). Funzioni simmetriche `uscite_mensili_anno` + `ultime_uscite`. Frontend: Pie uscite, BarChart stacked mensili uscite, tabella ultime uscite. 135 uscite prima non categorizzate ridotte a 33 "Altro" (~12% vs ~38%). Versione CG 2.9 → 2.10 |
 | CG — sezione "Liquidita'" (principio di cassa) | Nuovo service `liquidita_service.py` + endpoint `/controllo-gestione/liquidita` + pagina `ControlloGestioneLiquidita.jsx`. Tassonomia entrate custom (POS/Contanti/Bonifici/Altro) che bypassa i buchi del feed BPM. KPI + trend saldo 90gg + YoY + uscite per categoria + ultime entrate. Versione CG 2.8 → 2.9 |
 
 ---
