@@ -1,4 +1,4 @@
-// @version: v9.0 — Home v3.4 Command Center: pagina widget 3 colonne (prenotazioni+stats, alert+bacheca, azioni) + pagina moduli Originale Potenziato
+// @version: v9.1 — Home v3.4 Command Center responsive mobile: <lg natural flow scroll verticale, ≥lg layout 3-col intatto
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -157,7 +157,7 @@ export default function Home() {
   const paxCena = widgets?.prenotazioni?.cena_pax || 0;
 
   return (
-    <div className="bg-brand-cream flex flex-col overflow-hidden" style={{ height: "calc(100dvh - 56px)" }}>
+    <div className="bg-brand-cream flex flex-col lg:overflow-hidden min-h-[calc(100dvh-56px)] lg:h-[calc(100dvh-56px)]">
 
       {/* ── Header bar + Dot indicator ── */}
       <div className="flex-shrink-0 px-5 lg:px-8 pt-3 pb-1">
@@ -202,23 +202,23 @@ export default function Home() {
       ) : (
         <div
           ref={containerRef}
-          className="flex-1 overflow-hidden min-h-0"
+          className="flex-1 overflow-x-hidden lg:overflow-hidden min-h-0"
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
           <div
-            className="flex h-full transition-transform duration-400 ease-[cubic-bezier(.25,.1,.25,1)]"
+            className="flex lg:h-full transition-transform duration-400 ease-[cubic-bezier(.25,.1,.25,1)]"
             style={{ transform: `translateX(-${page * 100}%)` }}
           >
 
             {/* ════════ PAGINA 1: COMMAND CENTER 3 COLONNE ════════ */}
-            <div className="w-full flex-shrink-0 min-h-0 px-5 lg:px-8 pb-4">
-              <div className="h-full grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_.7fr] gap-3.5">
+            <div className="w-full flex-shrink-0 lg:min-h-0 px-5 lg:px-8 pb-4">
+              <div className="lg:h-full grid grid-cols-1 lg:grid-cols-[1.3fr_1fr_.7fr] gap-3.5">
 
                 {/* ═══ COL 1: Prenotazioni + Mini stats ═══ */}
-                <div className="flex flex-col gap-3.5 min-h-0">
+                <div className="flex flex-col gap-3.5 lg:min-h-0">
                   {/* Prenotazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[200px] lg:min-h-0">
+                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[360px] lg:max-h-none lg:flex-1 lg:min-h-0">
                     <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
                       <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
                         📅 Prenotazioni oggi
@@ -301,7 +301,7 @@ export default function Home() {
                 </div>
 
                 {/* ═══ COL 2: Alert + Bacheca ═══ */}
-                <div className="flex flex-col gap-3.5 min-h-0">
+                <div className="flex flex-col gap-3.5 lg:min-h-0">
                   {/* Alert */}
                   {widgets?.alerts?.length > 0 && (
                     <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-red-200 flex-shrink-0">
@@ -331,7 +331,7 @@ export default function Home() {
                   <MacellaioCard data={widgets?.macellaio} />
 
                   {/* Bacheca comunicazioni */}
-                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[160px] lg:min-h-0">
+                  <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[420px] lg:max-h-none lg:flex-1 lg:min-h-0">
                     <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
                       <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">📋 Bacheca</span>
                       {nonLette > 0 && (
@@ -372,25 +372,25 @@ export default function Home() {
                 </div>
 
                 {/* ═══ COL 3: Azioni rapide ═══ */}
-                <div className="flex flex-row lg:flex-col gap-2.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
+                <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2.5 lg:overflow-visible pb-2 lg:pb-0">
                   {ADMIN_ACTIONS.map((a) => (
                     <div
                       key={a.go}
                       onClick={() => navigate(a.go)}
-                      className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 flex-shrink-0 lg:flex-shrink ${a.color}`}
-                      style={{ minWidth: 150, boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}
+                      className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 ${a.color}`}
+                      style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}
                     >
                       <span className="text-2xl leading-none">{a.icon}</span>
-                      <div>
-                        <div className="text-[14px] font-bold leading-tight">{a.label}</div>
+                      <div className="min-w-0">
+                        <div className="text-[14px] font-bold leading-tight truncate">{a.label}</div>
                         <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>
                       </div>
                     </div>
                   ))}
-                  <div className="flex-1" />
+                  <div className="hidden lg:block lg:flex-1" />
                   <button
                     onClick={() => setPage(1)}
-                    className="text-[12px] text-[#a8a49e] text-center lg:mt-2 flex-shrink-0 hover:text-brand-ink transition"
+                    className="col-span-2 lg:col-span-1 text-[12px] text-[#a8a49e] text-center lg:mt-2 hover:text-brand-ink transition py-2"
                   >
                     Tutti i moduli →
                   </button>
