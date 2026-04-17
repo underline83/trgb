@@ -92,6 +92,9 @@ from app.routers.scelta_macellaio_router import router as scelta_macellaio_route
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
+# CUCINA — checklist ricorrenti + task singoli (MVP sessione 41)
+from app.routers.cucina_router import router as cucina_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -276,6 +279,10 @@ app.include_router(scelta_macellaio_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)
+
+# CUCINA — checklist ricorrenti + task singoli (MVP)
+# (usa DB dedicato app/data/cucina.sqlite3, inizializzato in cucina_router al primo import)
+app.include_router(cucina_router)
 
 
 # ----------------------------------------

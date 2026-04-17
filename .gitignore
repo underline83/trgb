@@ -57,6 +57,7 @@ app/data/cedolini/
 app/data/documenti_dipendenti/
 app/data/uploads/
 app/data/ipratico_uploads/
+app/data/cucina/
 
 # =====================
 #  NODE / VITE / REACT

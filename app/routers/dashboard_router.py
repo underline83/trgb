@@ -657,4 +657,12 @@ def get_dashboard_home():
     except Exception as e:
         logger.warning(f"Dashboard: alert engine trigger fallito: {e}")
 
+    # ── Trigger Cucina scheduler (fire-and-forget) ──
+    # Genera istanze checklist per oggi+1 (idempotente) e marca scadute.
+    try:
+        from app.services.cucina_scheduler import trigger_scheduler
+        trigger_scheduler(days_ahead=1)
+    except Exception as e:
+        logger.warning(f"Dashboard: cucina scheduler trigger fallito: {e}")
+
     return response
