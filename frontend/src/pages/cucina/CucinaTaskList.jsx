@@ -1,327 +1,571 @@
-// Lista task singoli (MVP, sessione 41)
-// Filtri: user, data, stato. Modal inline per creare/modificare.
-// Click riga: apri modal edit. Completa: bottone inline.
+// CucinaTaskList — mobile-first iPhone (P2-BIS, sessione 44)
+// Mockup: docs/mockups/cucina_tasks_iphone_mockup.html
+//
+// Layout:
+//  - Mobile (<sm): header Playfair + FAB 56pt galleggiante, toggle "I miei/Tutti",
+//    pills stato scroll orizzontale, card full-width con bordo sinistro priorita',
+//    swipe-left rivela "✓ Fatto", tap apre TaskSheet.
+//  - sm+: pulsante inline nell'header, pills/toggle inline, lista a card sempre.
+//
+// Nessun window.prompt/confirm/alert — tutte le conferme via TaskSheet o toast.
+// Endpoint backend invariati (/cucina/tasks/... con trailing slash su root).
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import useToast from "../../hooks/useToast";
 import CucinaNav from "./CucinaNav";
 import CucinaTaskNuovo from "./CucinaTaskNuovo";
+import TaskSheet from "../../components/cucina/TaskSheet";
 
-const STATI = ["APERTO", "IN_CORSO", "COMPLETATO", "SCADUTO", "ANNULLATO"];
-const PRIORITA = ["ALTA", "MEDIA", "BASSA"];
+// ── Costanti ───────────────────────────────────────────────────
 
-const STATO_CLS = {
-  APERTO:     "bg-brand-cream text-neutral-800 border-neutral-300",
-  IN_CORSO:   "bg-blue-50 text-blue-800 border-blue-300",
-  COMPLETATO: "bg-green-50 text-green-800 border-green-300",
-  SCADUTO:    "bg-red-100 text-red-900 border-red-400",
-  ANNULLATO:  "bg-neutral-100 text-neutral-500 border-neutral-300 line-through",
+// Pills stato: ordine visivo mobile
+const PILL_STATI = [
+  { key: "APERTO",     label: "Aperti" },
+  { key: "IN_CORSO",   label: "In corso" },
+  { key: "SCADUTO",    label: "Scaduti" },
+  { key: "COMPLETATO", label: "Completati" },
+];
+
+const STATO_CHIP = {
+  APERTO:     "bg-[#fdf3dc] text-[#8a5a00]",
+  IN_CORSO:   "bg-[#e1ecfc] text-[#1a4fa0]",
+  COMPLETATO: "bg-[#e1f2e8] text-[#1a7549]",
+  SCADUTO:    "bg-[#fbe6e2] text-[#9c1f10]",
+  ANNULLATO:  "bg-[#EFEBE3] text-neutral-500",
+};
+const STATO_LABEL = {
+  APERTO: "Aperto", IN_CORSO: "In corso", COMPLETATO: "Completato",
+  SCADUTO: "Scaduto", ANNULLATO: "Annullato",
+};
+const PRIO_CHIP = {
+  ALTA:  "bg-[#fbe6e2] text-[#9c1f10]",
+  MEDIA: "bg-[#fdf3dc] text-[#8a5a00]",
+  BASSA: "bg-[#f0ede6] text-neutral-600",
+};
+const PRIO_LEFT = {
+  ALTA:  "border-l-brand-red",
+  MEDIA: "border-l-amber-500",
+  BASSA: "border-l-[#b9b4aa]",
 };
 
-const PRIO_CLS = {
-  ALTA:  "bg-red-100 text-red-800",
-  MEDIA: "bg-amber-100 text-amber-800",
-  BASSA: "bg-neutral-100 text-neutral-700",
-};
+// ── Component ──────────────────────────────────────────────────
 
 export default function CucinaTaskList() {
+  const { toast } = useToast();
+
+  const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "";
+  const username = (typeof localStorage !== "undefined" && localStorage.getItem("username")) || "";
+  const canDelete = ["admin", "superadmin", "chef"].includes(role);
+
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [modal, setModal] = useState(null); // null | "new" | task-object
+  const [errorBanner, setErrorBanner] = useState("");
 
-  const [fUser, setFUser] = useState("");
-  const [fData, setFData] = useState("");
-  const [fStato, setFStato] = useState("");
+  // UI state
+  const [scope, setScope] = useState("miei");           // miei | tutti
+  const [statoFilter, setStatoFilter] = useState("APERTO"); // "" = tutti | key stato
+  const [sheetFor, setSheetFor] = useState(null);       // task object
+  const [editor, setEditor] = useState(null);           // null | "new" | task
+  const [swipedId, setSwipedId] = useState(null);       // id della card attualmente rivelata
 
-  const role = localStorage.getItem("role") || "";
-  const canDelete = ["admin", "superadmin", "chef"].includes(role);
+  // ── load ────────────────────────────────────────────────────
 
   const load = useCallback(() => {
     setLoading(true);
-    const qs = new URLSearchParams();
-    if (fUser) qs.set("user", fUser);
-    if (fData) qs.set("data", fData);
-    if (fStato) qs.set("stato", fStato);
-    const url = qs.toString()
-      ? `${API_BASE}/cucina/tasks/?${qs.toString()}`
-      : `${API_BASE}/cucina/tasks/`;
-    apiFetch(url)
+    setErrorBanner("");
+    // Non passo lo stato al BE: filtro client-side per aggiornare i counts istantaneamente
+    apiFetch(`${API_BASE}/cucina/tasks/`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
       .then(setList)
-      .catch(e => setError(e.message))
+      .catch(e => setErrorBanner(e.message))
       .finally(() => setLoading(false));
-  }, [fUser, fData, fStato]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const completa = async (t) => {
-    const note = window.prompt("Note di completamento (opzionali):") || null;
+  // ── filtered + counts ───────────────────────────────────────
+
+  const scopedList = useMemo(() => {
+    if (scope === "miei" && username) {
+      return list.filter(t => t.assegnato_user === username);
+    }
+    return list;
+  }, [list, scope, username]);
+
+  const counts = useMemo(() => {
+    const c = { APERTO: 0, IN_CORSO: 0, SCADUTO: 0, COMPLETATO: 0, ANNULLATO: 0 };
+    scopedList.forEach(t => { c[t.stato] = (c[t.stato] || 0) + 1; });
+    return c;
+  }, [scopedList]);
+
+  const visibleList = useMemo(() => {
+    if (!statoFilter) return scopedList;
+    return scopedList.filter(t => t.stato === statoFilter);
+  }, [scopedList, statoFilter]);
+
+  // Subcount per subline del header
+  const subText = useMemo(() => {
+    const parts = [];
+    if (counts.APERTO)   parts.push(`${counts.APERTO} ${counts.APERTO === 1 ? "aperto" : "aperti"}`);
+    if (counts.SCADUTO)  parts.push(`${counts.SCADUTO} ${counts.SCADUTO === 1 ? "scaduto" : "scaduti"}`);
+    if (counts.IN_CORSO) parts.push(`${counts.IN_CORSO} in corso`);
+    if (!parts.length && counts.COMPLETATO) parts.push(`${counts.COMPLETATO} completati`);
+    return parts.join(" · ") || "nessun task";
+  }, [counts]);
+
+  // ── quick-complete (da swipe) ───────────────────────────────
+
+  async function quickComplete(task) {
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${t.id}/completa`, {
+      const res = await apiFetch(`${API_BASE}/cucina/tasks/${task.id}/completa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note_completamento: note }),
+        body: JSON.stringify({ note_completamento: null }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      await load();
+      toast("✓ Fatto", { kind: "success" });
+      setSwipedId(null);
+      load();
     } catch (e) {
-      setError(e.message);
+      toast(e.message, { kind: "error", duration: 2800 });
     }
-  };
+  }
 
-  const riapri = async (t) => {
-    try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${t.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stato: "APERTO" }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
-      }
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const elimina = async (t) => {
-    if (!window.confirm(`Eliminare task "${t.titolo}"?`)) return;
-    try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${t.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
-      }
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const annulla = async (t) => {
-    try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${t.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stato: "ANNULLATO" }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `HTTP ${res.status}`);
-      }
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
-  };
-
-  const onSaved = async () => {
-    setModal(null);
-    await load();
-  };
+  // ── render ──────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
       <CucinaNav current="tasks" />
 
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-playfair font-bold text-red-900">Task operativi</h1>
-            <p className="text-sm text-neutral-600 mt-1">
-              Task singoli non ricorrenti — personali o assegnati.
-            </p>
-          </div>
-          <button
-            onClick={() => setModal("new")}
-            className="bg-red-600 text-white px-4 py-2.5 rounded-lg font-medium hover:bg-red-700 min-h-[48px]"
-          >
-            + Nuovo task
-          </button>
-        </div>
+      {/* Mobile: sticky header stacked; sm+: non sticky (c'e' gia' la top-nav) */}
+      <div className="sm:static sticky top-0 z-20 bg-brand-cream border-b border-[#e6e1d8]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3">
+          {/* Row 1: titolo + counter + bottone new (sm+) */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-playfair font-bold text-brand-ink leading-tight">
+                Task
+              </h1>
+              <div className="text-[13px] text-neutral-500 mt-0.5 truncate">
+                {subText}
+              </div>
+            </div>
 
-        {/* Filtri */}
-        <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm text-neutral-600">Utente:</label>
-            <input
-              type="text"
-              placeholder="username"
-              value={fUser}
-              onChange={e => setFUser(e.target.value)}
-              className="border rounded-lg px-3 py-2 min-h-[40px] w-32"
-            />
-            <label className="text-sm text-neutral-600">Data:</label>
-            <input
-              type="date"
-              value={fData}
-              onChange={e => setFData(e.target.value)}
-              className="border rounded-lg px-3 py-2 min-h-[40px]"
-            />
-            <label className="text-sm text-neutral-600">Stato:</label>
-            <select
-              value={fStato}
-              onChange={e => setFStato(e.target.value)}
-              className="border rounded-lg px-3 py-2 min-h-[40px]"
+            {/* Bottone + su sm+ (sul mobile c'e' il FAB) */}
+            <button
+              onClick={() => setEditor("new")}
+              className="hidden sm:inline-flex items-center gap-2 bg-brand-red text-white px-4 py-2.5 rounded-xl font-semibold hover:brightness-95 min-h-[48px]"
+              type="button"
             >
-              <option value="">Tutti</option>
-              {STATI.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {(fUser || fData || fStato) && (
+              + Nuovo task
+            </button>
+          </div>
+
+          {/* Row 2: toggle I miei/Tutti (mostro solo se username presente) */}
+          {username && (
+            <div
+              className="mt-2.5 grid grid-cols-2 w-full rounded-xl p-0.5 bg-[#EFEBE3]"
+              role="tablist"
+            >
               <button
-                onClick={() => { setFUser(""); setFData(""); setFStato(""); }}
-                className="text-sm text-red-700 hover:underline"
+                type="button"
+                role="tab"
+                aria-selected={scope === "miei"}
+                onClick={() => setScope("miei")}
+                className={
+                  "min-h-[40px] rounded-lg text-sm font-semibold transition-colors " +
+                  (scope === "miei" ? "bg-white text-brand-ink shadow-sm" : "text-neutral-500")
+                }
               >
-                Reset
+                I miei
               </button>
-            )}
-            <div className="flex-1" />
-            <div className="text-sm text-neutral-500">
-              {list.length} {list.length === 1 ? "task" : "task"}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={scope === "tutti"}
+                onClick={() => setScope("tutti")}
+                className={
+                  "min-h-[40px] rounded-lg text-sm font-semibold transition-colors " +
+                  (scope === "tutti" ? "bg-white text-brand-ink shadow-sm" : "text-neutral-500")
+                }
+              >
+                Tutti
+              </button>
             </div>
+          )}
+
+          {/* Row 3: pills stato scrollabili orizzontalmente */}
+          <div
+            className="mt-2.5 flex gap-2 overflow-x-auto pb-1"
+            style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+            role="tablist"
+            aria-label="Filtri stato"
+          >
+            {PILL_STATI.map(p => (
+              <Pill
+                key={p.key}
+                active={statoFilter === p.key}
+                onClick={() => setStatoFilter(p.key)}
+                count={counts[p.key]}
+              >
+                {p.label}
+              </Pill>
+            ))}
+            <Pill active={statoFilter === ""} onClick={() => setStatoFilter("")}>
+              Tutti
+            </Pill>
           </div>
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        {loading && <div className="text-center py-8 text-neutral-500">Caricamento...</div>}
-
-        {!loading && list.length === 0 && (
-          <div className="bg-white border border-dashed border-red-200 rounded-2xl p-8 text-center">
-            <div className="text-5xl mb-2">✅</div>
-            <div className="text-neutral-700 font-semibold">Nessun task</div>
-            <div className="text-sm text-neutral-500 mt-1">
-              Crea un task per tracciare un'attività operativa.
-            </div>
-          </div>
-        )}
-
-        {!loading && list.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden">
-            <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-2 bg-red-50 text-xs font-semibold text-red-800 uppercase tracking-wide">
-              <div className="col-span-4">Titolo</div>
-              <div className="col-span-2">Scadenza</div>
-              <div className="col-span-2">Assegnato</div>
-              <div className="col-span-1">Prio</div>
-              <div className="col-span-1">Stato</div>
-              <div className="col-span-2 text-right">Azioni</div>
-            </div>
-            <div className="divide-y divide-neutral-100">
-              {list.map(t => (
-                <TaskRow
-                  key={t.id}
-                  t={t}
-                  canDelete={canDelete}
-                  onEdit={() => setModal(t)}
-                  onCompleta={() => completa(t)}
-                  onRiapri={() => riapri(t)}
-                  onAnnulla={() => annulla(t)}
-                  onElimina={() => elimina(t)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {modal && (
+      {/* Error banner globale */}
+      {errorBanner && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-3">
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm">
+            {errorBanner}
+          </div>
+        </div>
+      )}
+
+      {/* Lista task */}
+      <div
+        className="max-w-7xl mx-auto px-4 sm:px-6 pt-3 pb-[calc(160px+env(safe-area-inset-bottom))] sm:pb-12 flex flex-col gap-2.5"
+      >
+        {loading && (
+          <div className="text-center py-8 text-neutral-500">Caricamento...</div>
+        )}
+
+        {!loading && visibleList.length === 0 && (
+          <EmptyState
+            scope={scope}
+            hasScope={!!username}
+            onSwitchToAll={() => { setScope("tutti"); }}
+            onCreate={() => setEditor("new")}
+          />
+        )}
+
+        {!loading && visibleList.map(task => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            revealed={swipedId === task.id}
+            onReveal={() => setSwipedId(task.id)}
+            onHide={() => setSwipedId(null)}
+            onOpen={() => { setSwipedId(null); setSheetFor(task); }}
+            onQuickComplete={() => quickComplete(task)}
+          />
+        ))}
+      </div>
+
+      {/* FAB 56pt mobile-only: sopra la tab-bar con safe-area */}
+      <button
+        onClick={() => setEditor("new")}
+        className="sm:hidden fixed right-4 z-[25] w-14 h-14 rounded-full bg-brand-red text-white text-2xl font-bold flex items-center justify-center active:scale-95"
+        style={{
+          bottom: "calc(84px + env(safe-area-inset-bottom))",
+          boxShadow: "0 8px 20px rgba(232,64,43,.35)",
+        }}
+        aria-label="Nuovo task"
+        type="button"
+      >
+        +
+      </button>
+
+      {/* TaskSheet dettaglio */}
+      {sheetFor && (
+        <TaskSheet
+          task={sheetFor}
+          onClose={() => setSheetFor(null)}
+          onRefresh={load}
+          canDelete={canDelete}
+          onEdit={(t) => { setSheetFor(null); setEditor(t); }}
+        />
+      )}
+
+      {/* Nuovo / modifica task */}
+      {editor && (
         <CucinaTaskNuovo
-          task={modal === "new" ? null : modal}
-          onClose={() => setModal(null)}
-          onSaved={onSaved}
+          task={editor === "new" ? null : editor}
+          onClose={() => setEditor(null)}
+          onSaved={() => { setEditor(null); load(); }}
         />
       )}
     </div>
   );
 }
 
-function TaskRow({ t, canDelete, onEdit, onCompleta, onRiapri, onAnnulla, onElimina }) {
-  const chiuso = t.stato === "COMPLETATO" || t.stato === "ANNULLATO";
+// ── Pill filtro ────────────────────────────────────────────────
+
+function Pill({ active, onClick, count, children }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        "flex-shrink-0 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors min-h-[40px] " +
+        (active
+          ? "bg-brand-red text-white border-brand-red"
+          : "bg-white text-neutral-600 border-[#e6e1d8] hover:bg-[#EFEBE3]")
+      }
+      style={{ scrollSnapAlign: "start" }}
+    >
+      {children}
+      {count != null && count > 0 && (
+        <span className={"ml-1.5 font-medium " + (active ? "opacity-90" : "opacity-55")}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ── TaskRow con swipe-to-complete ──────────────────────────────
+
+const SWIPE_THRESHOLD = 50;   // px — soglia attivazione swipe
+const SWIPE_REVEAL   = 96;   // px — larghezza azione "✓ Fatto"
+const AXIS_LOCK      = 8;    // px — distinzione scroll vert vs swipe horiz
+
+function TaskRow({ task, revealed, onReveal, onHide, onOpen, onQuickComplete }) {
+  const chiuso = task.stato === "COMPLETATO" || task.stato === "ANNULLATO";
+  const canSwipe = !chiuso;
+
+  // Touch state
+  const startRef = useRef(null);
+  const axisRef = useRef(null);   // "x" | "y" | null
+  const [liveX, setLiveX] = useState(0);
+
+  const handleTouchStart = (e) => {
+    if (!canSwipe) return;
+    const t = e.touches[0];
+    startRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    axisRef.current = null;
+    setLiveX(revealed ? -SWIPE_REVEAL : 0);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!canSwipe || !startRef.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startRef.current.x;
+    const dy = t.clientY - startRef.current.y;
+
+    // Asse lock: una volta deciso, lo rispetto
+    if (axisRef.current === null) {
+      if (Math.abs(dx) < AXIS_LOCK && Math.abs(dy) < AXIS_LOCK) return;
+      axisRef.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    }
+    if (axisRef.current !== "x") return;
+
+    // Gesture orizzontale attiva: blocchi scroll verticale
+    // (evita che la pagina scrolli mentre sto facendo swipe)
+    if (e.cancelable) e.preventDefault();
+
+    let offset = dx + (revealed ? -SWIPE_REVEAL : 0);
+    // Clamp: non oltre 0 a destra, non oltre -SWIPE_REVEAL*1.5 a sinistra
+    if (offset > 0) offset = 0;
+    if (offset < -SWIPE_REVEAL * 1.5) offset = -SWIPE_REVEAL * 1.5;
+    setLiveX(offset);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!canSwipe || !startRef.current) { startRef.current = null; axisRef.current = null; return; }
+    const t = (e.changedTouches && e.changedTouches[0]) || null;
+    const dx = t ? t.clientX - startRef.current.x : 0;
+
+    // Se era tap (asse non deciso o movimento trascurabile): onOpen
+    if (axisRef.current === null || Math.abs(dx) < AXIS_LOCK) {
+      setLiveX(revealed ? -SWIPE_REVEAL : 0);
+      startRef.current = null;
+      // Tap su revealed → chiudi reveal; tap altrove → apri sheet
+      if (revealed) onHide(); else onOpen();
+      return;
+    }
+
+    if (axisRef.current === "x") {
+      // Snap
+      if (!revealed && dx < -SWIPE_THRESHOLD) {
+        setLiveX(-SWIPE_REVEAL);
+        onReveal();
+      } else if (revealed && dx > SWIPE_THRESHOLD) {
+        setLiveX(0);
+        onHide();
+      } else {
+        // torna allo stato precedente
+        setLiveX(revealed ? -SWIPE_REVEAL : 0);
+      }
+    }
+    startRef.current = null;
+    axisRef.current = null;
+  };
+
+  // Se "revealed" cambia esternamente (chiusura altri), sync live
+  useEffect(() => {
+    setLiveX(revealed ? -SWIPE_REVEAL : 0);
+  }, [revealed]);
+
+  const prioLabel = task.priorita ? task.priorita.charAt(0) + task.priorita.slice(1).toLowerCase() : "—";
+  const stLabel = STATO_LABEL[task.stato] || task.stato;
+
+  // Classe bg per scaduto / completato
+  const extraCardCls =
+    task.stato === "SCADUTO"     ? "bg-gradient-to-r from-[#fbe6e2] to-white"
+    : task.stato === "COMPLETATO" ? "opacity-65"
+    : "bg-white";
 
   return (
-    <div className="sm:grid sm:grid-cols-12 sm:gap-2 p-3 sm:px-4 sm:py-3 hover:bg-red-50/30 transition">
-      <div className="col-span-4">
+    <div className="relative overflow-hidden rounded-2xl" style={{ touchAction: "pan-y" }}>
+      {/* Action sottostante (verde) */}
+      {canSwipe && (
         <button
-          onClick={onEdit}
-          className="text-left w-full"
-          title="Modifica"
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onQuickComplete(); }}
+          className="absolute top-0 right-0 bottom-0 w-[96px] bg-brand-green text-white font-bold text-sm flex items-center justify-center"
+          aria-label="Completa rapidamente"
+          style={{ zIndex: 0 }}
         >
-          <div className="font-medium text-neutral-900">{t.titolo}</div>
-          {t.descrizione && (
-            <div className="text-xs text-neutral-500 mt-0.5 line-clamp-1">{t.descrizione}</div>
-          )}
+          ✓ Fatto
         </button>
-      </div>
-      <div className="col-span-2 text-sm text-neutral-700 mt-1 sm:mt-0">
-        {t.data_scadenza || "—"}
-        {t.ora_scadenza && <span className="text-neutral-400"> · {t.ora_scadenza}</span>}
-      </div>
-      <div className="col-span-2 text-sm text-neutral-700 mt-1 sm:mt-0">
-        {t.assegnato_user ? `@${t.assegnato_user}` : <span className="text-neutral-400">—</span>}
-      </div>
-      <div className="col-span-1 mt-1 sm:mt-0">
-        <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${PRIO_CLS[t.priorita] || ""}`}>
-          {t.priorita}
-        </span>
-      </div>
-      <div className="col-span-1 mt-1 sm:mt-0">
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${STATO_CLS[t.stato] || ""}`}>
-          {t.stato}
-        </span>
-      </div>
-      <div className="col-span-2 flex flex-wrap gap-1 justify-start sm:justify-end mt-2 sm:mt-0">
-        {!chiuso && (
-          <button
-            onClick={onCompleta}
-            className="text-xs px-2 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 min-h-[36px]"
-            title="Completa"
-          >
-            ✓
-          </button>
-        )}
-        {chiuso && t.stato === "COMPLETATO" && (
-          <button
-            onClick={onRiapri}
-            className="text-xs px-2 py-1.5 border rounded hover:bg-neutral-50 min-h-[36px]"
-            title="Riapri"
-          >
-            ↻
-          </button>
-        )}
-        {!chiuso && (
-          <button
-            onClick={onAnnulla}
-            className="text-xs px-2 py-1.5 border rounded hover:bg-neutral-50 min-h-[36px]"
-            title="Annulla"
-          >
-            ✕
-          </button>
-        )}
-        {canDelete && (
-          <button
-            onClick={onElimina}
-            className="text-xs px-2 py-1.5 border border-red-300 text-red-700 rounded hover:bg-red-50 min-h-[36px]"
-            title="Elimina"
-          >
-            🗑
-          </button>
+      )}
+
+      {/* Card principale (traslata sopra l'action) */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={() => {
+          // Fallback click desktop: se non c'e' stato touch, apre sheet
+          if (startRef.current === null && axisRef.current === null && liveX === 0) {
+            if (revealed) onHide(); else onOpen();
+          }
+        }}
+        className={
+          "relative z-[1] border border-[#e6e1d8] border-l-4 rounded-2xl px-4 py-3.5 min-h-[72px] " +
+          "cursor-pointer select-none " +
+          (PRIO_LEFT[task.priorita] || "border-l-[#b9b4aa]") + " " +
+          extraCardCls
+        }
+        style={{
+          transform: `translateX(${liveX}px)`,
+          transition: startRef.current ? "none" : "transform .2s ease",
+        }}
+      >
+        <div className={
+          "font-playfair font-bold text-[16px] leading-tight tracking-tight text-brand-ink " +
+          (task.stato === "COMPLETATO" ? "line-through decoration-[#b9b4aa]" : "")
+        }>
+          {task.titolo}
+        </div>
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-neutral-500">
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${STATO_CHIP[task.stato] || ""}`}>
+            {stLabel}
+          </span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${PRIO_CHIP[task.priorita] || ""}`}>
+            {prioLabel}
+          </span>
+          {task.data_scadenza && (
+            <span>⏱ {formatDueRelative(task.data_scadenza, task.ora_scadenza)}</span>
+          )}
+          {task.assegnato_user && (
+            <span className="inline-flex items-center gap-1.5">
+              <AvatarInitial name={task.assegnato_user} />
+              {task.assegnato_user}
+            </span>
+          )}
+        </div>
+
+        {(task.descrizione || task.note_completamento) && (
+          <div className="mt-1 text-[12px] text-neutral-600 italic truncate">
+            {task.note_completamento
+              ? `"${task.note_completamento}"`
+              : task.descrizione}
+          </div>
         )}
       </div>
     </div>
   );
+}
+
+// ── Empty state ────────────────────────────────────────────────
+
+function EmptyState({ scope, hasScope, onSwitchToAll, onCreate }) {
+  const isMiei = hasScope && scope === "miei";
+  return (
+    <div className="bg-white border border-dashed border-[#e6e1d8] rounded-2xl p-8 text-center mt-3">
+      <div className="text-5xl mb-2">🧑‍🍳</div>
+      <div className="font-playfair font-bold text-brand-ink text-lg">
+        Nessun task in questa categoria
+      </div>
+      <div className="text-sm text-neutral-500 mt-1 mb-4">
+        {isMiei
+          ? "Nessun task assegnato a te qui. Prova a vedere 'Tutti'."
+          : "Crea un task per tracciare un'attivita' operativa."}
+      </div>
+      <div className="flex gap-2 justify-center flex-wrap">
+        {isMiei && (
+          <button
+            onClick={onSwitchToAll}
+            type="button"
+            className="min-h-[44px] px-4 rounded-xl bg-white border border-[#e6e1d8] font-semibold text-brand-ink hover:bg-[#EFEBE3]"
+          >
+            Vedi tutti
+          </button>
+        )}
+        <button
+          onClick={onCreate}
+          type="button"
+          className="min-h-[44px] px-4 rounded-xl bg-brand-red text-white font-semibold"
+          style={{ boxShadow: "0 6px 14px rgba(232,64,43,.25)" }}
+        >
+          + Crea il primo task
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Mini avatar 18pt ──────────────────────────────────────────
+
+function AvatarInitial({ name }) {
+  const n = (name || "").toLowerCase();
+  const hash = [...n].reduce((a, c) => a + c.charCodeAt(0), 0);
+  const palette = ["bg-brand-red", "bg-brand-green", "bg-brand-blue"];
+  const color = palette[hash % palette.length];
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-[18px] h-[18px] rounded-full text-white text-[10px] font-playfair font-bold ${color}`}
+      aria-hidden="true"
+    >
+      {initial}
+    </span>
+  );
+}
+
+// ── Format scadenza relativa ───────────────────────────────────
+
+function formatDueRelative(data, ora) {
+  if (!data) return "";
+  try {
+    const d = new Date(data + "T00:00:00");
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff = Math.round((d - today) / 86400000);
+    const base = diff === 0 ? "oggi"
+              : diff === -1 ? "ieri"
+              : diff === 1 ? "domani"
+              : diff < 0 ? `${-diff} giorni fa`
+              : diff <= 6 ? `tra ${diff} giorni`
+              : `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
+    return ora ? `${base} ${ora}` : base;
+  } catch {
+    return ora ? `${data} ${ora}` : data;
+  }
 }
