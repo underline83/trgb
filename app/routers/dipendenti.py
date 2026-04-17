@@ -1201,9 +1201,17 @@ MESI_IT = [
 def lista_buste_paga(
     dipendente_id: Optional[int] = None,
     anno: Optional[int] = None,
+    mese: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
-    """Lista cedolini importati."""
+    """
+    Lista cedolini importati.
+
+    Filtri:
+    - `dipendente_id`: un singolo dipendente
+    - `anno`: anno numerico (es. 2026)
+    - `mese`: "YYYY-MM" (es. "2026-04") OPPURE numero 1-12 (richiede anche `anno`)
+    """
     conn = get_dipendenti_conn()
     query = """
         SELECT bp.*, d.nome, d.cognome, d.ruolo, d.giorno_paga, d.telefono
@@ -1215,9 +1223,33 @@ def lista_buste_paga(
     if dipendente_id:
         query += " AND bp.dipendente_id = ?"
         params.append(dipendente_id)
+
+    # Filtro mese: accetta "YYYY-MM" (formato ISO del FE dashboard) o numero
+    mese_num = None
+    if mese:
+        s = str(mese).strip()
+        if "-" in s and len(s) >= 7:
+            try:
+                y, m = s.split("-")[:2]
+                # Se arriva mese YYYY-MM, anno e mese li prendo da qui (ignoro eventuale anno separato)
+                anno = int(y)
+                mese_num = int(m)
+            except Exception:
+                raise HTTPException(400, f"Formato mese non valido: {mese} (atteso YYYY-MM o 1-12)")
+        else:
+            try:
+                mese_num = int(s)
+            except Exception:
+                raise HTTPException(400, f"Formato mese non valido: {mese} (atteso YYYY-MM o 1-12)")
+            if mese_num < 1 or mese_num > 12:
+                raise HTTPException(400, "mese numerico deve essere tra 1 e 12")
+
     if anno:
         query += " AND bp.anno = ?"
         params.append(anno)
+    if mese_num is not None:
+        query += " AND bp.mese = ?"
+        params.append(mese_num)
     query += " ORDER BY bp.anno DESC, bp.mese DESC, d.cognome ASC"
 
     rows = conn.execute(query, params).fetchall()

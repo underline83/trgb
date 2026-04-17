@@ -58,12 +58,15 @@ export default function DashboardDipendenti() {
         if (rScad.status === "fulfilled" && rScad.value?.riepilogo) {
           setScadenze(rScad.value.riepilogo);
         }
-        // Buste paga mese
+        // Buste paga mese — il BE filtra gia' per mese (YYYY-MM). Usa riepilogo se presente.
         if (rBp.status === "fulfilled") {
           const data = rBp.value;
           const list = Array.isArray(data) ? data : data.buste || data.buste_paga || [];
-          const netto = list.reduce((acc, b) => acc + Number(b.netto || 0), 0);
-          setBpMese({ count: list.length, netto });
+          const netto =
+            data?.riepilogo?.totale_netto ??
+            list.reduce((acc, b) => acc + Number(b.netto || 0), 0);
+          const count = data?.riepilogo?.totale ?? list.length;
+          setBpMese({ count, netto });
         }
       })
       .catch((e) => {
