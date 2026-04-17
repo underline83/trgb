@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-14 (sessione 39)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 42)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -172,6 +172,23 @@
 | 10.2 | Fase B: Template riutilizzabili + righe editabili + totale live | S | FATTO ✅ | Sessione 32. Template in Impostazioni CRM, applicazione template a preventivi, totale live |
 | 10.3 | Fase C: Generazione PDF brandizzato + invio WA/email | M | DA FARE | Usa **M.B** PDF + **M.C** WA + **M.D** email. PDF server-side con logo TRGB |
 | 10.4 | Fase D: Versioning + collegamento prenotazione + badge menu | S | DA FARE | Usa **M.A** notifiche. Storico versioni PDF, conferma → crea prenotazione, badge "N in attesa" |
+
+---
+
+## Completati — Sessione 42 (2026-04-17)
+
+| Cosa | Note |
+|------|------|
+| CG — sezione "Liquidita'" (principio di cassa) | Nuovo service `liquidita_service.py` + endpoint `/controllo-gestione/liquidita` + pagina `ControlloGestioneLiquidita.jsx`. Tassonomia entrate custom (POS/Contanti/Bonifici/Altro) che bypassa i buchi del feed BPM. KPI + trend saldo 90gg + YoY + uscite per categoria + ultime entrate. Versione CG 2.8 → 2.9 |
+
+---
+
+## Completati — Sessione 41 (2026-04-17)
+
+| Cosa | Note |
+|------|------|
+| CG vendite shift+daily merge | Nuovo `vendite_aggregator.py`, dashboard CG legge da qui. Fix bug "marzo poche entrate". Versione CG 2.7 → 2.8 |
+| Cleanup `admin_finance_stats.py` | Codice morto rimosso, refs docs puliti |
 
 ---
 

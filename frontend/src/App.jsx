@@ -124,6 +124,7 @@ import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGest
 import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
 import ControlloGestioneSpeseFisse from "./pages/controllo-gestione/ControlloGestioneSpeseFisse";
 import ControlloGestioneRiconciliazione from "./pages/controllo-gestione/ControlloGestioneRiconciliazione";
+import ControlloGestioneLiquidita from "./pages/controllo-gestione/ControlloGestioneLiquidita";
 
 // --- STATISTICHE ---
 import StatisticheDashboard from "./pages/statistiche/StatisticheDashboard";
@@ -281,6 +282,7 @@ export default function App() {
           ]} />
         } />
         <Route path="/controllo-gestione/dashboard" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneDashboard /></ProtectedRoute>} />
+        <Route path="/controllo-gestione/liquidita" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneLiquidita /></ProtectedRoute>} />
         <Route path="/controllo-gestione/confronto" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneConfronto /></ProtectedRoute>} />
         <Route path="/controllo-gestione/uscite" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneUscite /></ProtectedRoute>} />
         <Route path="/controllo-gestione/spese-fisse" element={<ProtectedRoute module="controllo-gestione"><ControlloGestioneSpeseFisse /></ProtectedRoute>} />

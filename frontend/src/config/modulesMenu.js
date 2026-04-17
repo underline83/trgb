@@ -67,6 +67,7 @@ const MODULES_MENU = {
     color: "bg-sky-50 border-sky-200 text-sky-900", hoverBg: "hover:bg-sky-50",
     sub: [
       { label: "Dashboard",     go: "/controllo-gestione/dashboard" },
+      { label: "Liquidita'",    go: "/controllo-gestione/liquidita" },
       { label: "Scadenzario",   go: "/controllo-gestione/uscite" },
       { label: "Confronto",     go: "/controllo-gestione/confronto" },
       { label: "Spese Fisse",   go: "/controllo-gestione/spese-fisse" },

@@ -1,8 +1,50 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-17 (sessione 41 — fix CG vendite shift+daily)
+**Ultimo aggiornamento:** 2026-04-17 (sessione 42 — CG Liquidita', principio di cassa)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 42 — CG Liquidita' (principio di cassa) ✅
+
+Follow-up diretto della sessione 41: quando Marco aveva chiesto di leggere le entrate dalla banca avevamo deciso di tenere la dashboard CG sul **principio di competenza** (vendite attribuite al giorno in cui sono fatte) e promettere una sezione dedicata al **principio di cassa** (entrate/uscite quando toccano il conto). Questa e' quella sezione.
+
+**Backend** — nuovo service `app/services/liquidita_service.py`:
+- `saldo_attuale(conn)` — saldo cumulativo + data ultimo movimento.
+- `kpi_mese(conn, anno, mese)` — entrate/uscite/delta + breakdown entrate per tipo (POS/Contanti/Bonifici/Altro) + uscite per `categoria_banca`.
+- `kpi_periodo_90gg(conn, data_riferimento)` — finestra rolling 90 giorni.
+- `trend_saldo(conn, giorni=90)` — serie giornaliera saldo cumulativo.
+- `entrate_mensili_anno(conn, anno)` — 12 mesi, breakdown per tipo (stacked bar).
+- `confronto_yoy(conn, anno)` — anno corrente vs precedente.
+- `ultime_entrate(conn, limit=15)` — tabella.
+- `dashboard_liquidita(conn, anno, mese)` — entry point unico.
+
+**Classificazione entrate custom** (`classify_entrata`): il feed banca BPM lascia molti POS senza `categoria_banca` quindi classifichiamo anche per pattern su descrizione (`inc.pos`, `incas. tramite p.o.s`, `vers. contanti`) + `sottocategoria_banca`. 4 bucket: POS / Contanti / Bonifici / Altro.
+
+**Endpoint** — `GET /controllo-gestione/liquidita?anno=&mese=` in `controllo_gestione_router.py`.
+
+**Frontend** — nuova pagina `ControlloGestioneLiquidita.jsx`:
+- 6 KPI cards (saldo attuale, entrate mese, uscite mese, delta mese, entrate 90gg, media/giorno).
+- LineChart trend saldo 90gg (colore `#2E7BE8`).
+- PieChart entrate mese per tipo.
+- Stacked BarChart entrate mensili anno.
+- BarChart YoY (anno corrente vs precedente).
+- Sezione uscite per categoria (barre CSS rosse).
+- Tabella ultime 15 entrate con badge tipo colorato.
+- Tab "🏦 Liquidita'" aggiunta in `ControlloGestioneNav` tra Dashboard e Uscite.
+- Voce aggiunta in `modulesMenu.js` per il dropdown header.
+- Rotta registrata in `App.jsx`.
+
+**Smoke test** con dati reali (15 apr 2026): saldo €4.078,81 · Apr entrate €27.633 (POS 23.2k + Cash 4k) · 90gg entrate €159k uscite €151k delta +€7.855.
+
+**Versione** `controlloGestione` 2.8 → 2.9.
+
+**Nota architetturale** — `liquidita_service.py` e' un nuovo "mattone" disciplinato come `vendite_aggregator.py`: unica sorgente di verita' sulla liquidita', qualsiasi altra vista futura (es. cash flow previsionale 3.8) dovra' passare da qui.
+
+**Follow-up possibili** (tracked, non urgenti):
+- Tassonomia custom uscite (come abbiamo fatto per entrate) — molte uscite di Aprile sono `categoria_banca=''` nel feed.
+- Integrazione scadenzario previsto (3.7) per proiezione cash flow 30/60/90gg.
 
 ---
 

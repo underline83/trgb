@@ -20,21 +20,7 @@ _(S40-12, S40-13 risolti Wave 3 — vedi sezione Risolti.)_
 
 ---
 
-### S40-14. Flussi di Cassa — Duplicati Sogegros ancora presenti
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Flussi di Cassa / Banca movimenti
-**Gravità:** media
-
-**Sintomo:** due voci identiche Sogegros (cash and carry) per €597,08 visibili in lista.
-
-**Contesto:** già chiusi 5 interventi dedup (migrazioni 041, 042, 046, 051, 058). Evidentemente la logica non copre tutti i casi.
-
-**Da capire:**
-1. Data dei due duplicati? (serve per distinguere: stesso giorno = import doppio; giorni diversi = incasso e restituzione legittimi male identificati)
-2. Causale/riferimento identico?
-3. Decidere regola dedup aggiuntiva (es. se stesso importo + stessa data + stessa descrizione → dedup aggressivo)
-
-Serve caso concreto da Marco (ID banca_movimenti dei due record).
+_(S40-14 risolto — vedi sezione Risolti.)_
 
 ---
 
@@ -90,6 +76,14 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S40-14. Flussi di Cassa — Duplicati Sogegros €597,08 ✅ 2026-04-17
+**Verifica su `banca_movimenti` (foodcost.db aggiornato all'ultimo push):**
+- `importo = -597.08` → 1 solo record (id 992, 2026-04-02, "CASH & CARRY DALMINE ITA").
+- 14 movimenti totali "Cash & Carry Dalmine", tutti con importi diversi.
+- Scan globale duplicati (stessa `data_contabile` + `importo` + `descrizione`) → 0 gruppi.
+
+**Conclusione:** condizione non più riproducibile. Probabile chiusura per dedup_hash al re-import CSV o pulizia manuale di Marco. Nessun fix codice aggiuntivo necessario.
 
 ### S40-1. Dipendenti — Crash al salvataggio nuovo dipendente ✅ 2026-04-16 (Wave 1)
 **Fix:** trailing slash mancante su POST `/dipendenti` → `/dipendenti/`. Pattern CLAUDE.md.

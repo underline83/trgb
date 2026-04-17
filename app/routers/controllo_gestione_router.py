@@ -18,6 +18,7 @@ from app.services.vendite_aggregator import (
     totali_periodo as vendite_totali_periodo,
     totali_mensili_anno as vendite_totali_mensili_anno,
 )
+from app.services.liquidita_service import dashboard_liquidita
 
 router = APIRouter(prefix="/controllo-gestione", tags=["controllo-gestione"])
 
@@ -376,6 +377,38 @@ MP_LABELS = {
     "MP22": "Trattenuta su somme già riscosse",
     "MP23": "PagoPA",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# LIQUIDITA' — Principio di cassa (banca_movimenti)
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/liquidita")
+def liquidita(
+    anno: int = Query(default=None),
+    mese: int = Query(default=None),
+    current_user=Depends(get_current_user),
+):
+    """
+    Dashboard Liquidita' — complementare a /dashboard (competenza).
+
+    Legge da banca_movimenti per rispondere alla domanda "quanto ho in banca,
+    da dove arrivano i soldi e quando?". Classifica le entrate in POS /
+    Contanti / Bonifici / Altro anche quando il feed BPM non ha categoria.
+
+    Parametri:
+    - anno: default anno corrente
+    - mese: default mese corrente
+    """
+    oggi = date.today()
+    anno = anno or oggi.year
+    mese = mese or oggi.month
+
+    fc = get_fc_db()
+    try:
+        return dashboard_liquidita(fc, anno, mese)
+    finally:
+        fc.close()
 
 
 # ═══════════════════════════════════════════════════════════════════

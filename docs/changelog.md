@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-04-17 — CG: sezione "Liquidita'" (principio di cassa)
+
+### Problema / contesto
+Follow-up della sessione 41: quando Marco aveva chiesto di leggere le entrate dalla banca avevamo tenuto la dashboard CG sul **principio di competenza** (vendite al giorno in cui sono fatte) e promesso una sezione dedicata al **principio di cassa** (entrate/uscite quando toccano il conto). Questa e' quella sezione.
+
+### Novita'
+- **Nuovo service `app/services/liquidita_service.py`** — aggregatore unico sulla liquidita' (disciplinato come `vendite_aggregator.py`). Funzioni: `saldo_attuale`, `kpi_mese`, `kpi_periodo_90gg`, `trend_saldo`, `entrate_mensili_anno`, `confronto_yoy`, `ultime_entrate`, `dashboard_liquidita` (entry point unico).
+- **Classificazione entrate custom** (`classify_entrata`): il feed BPM lascia molti POS senza `categoria_banca`. Classifichiamo anche per pattern su descrizione (`inc.pos`, `incas. tramite p.o.s`, `vers. contanti`) + `sottocategoria_banca`. 4 bucket: POS / Contanti / Bonifici / Altro.
+- **Nuovo endpoint** `GET /controllo-gestione/liquidita?anno=&mese=`.
+- **Nuova pagina** `ControlloGestioneLiquidita.jsx`:
+  - 6 KPI (saldo attuale, entrate mese, uscite mese, delta, entrate 90gg, media/giorno).
+  - LineChart trend saldo 90gg (brand-blue).
+  - PieChart entrate mese per tipo.
+  - Stacked BarChart entrate mensili anno per tipo.
+  - BarChart YoY (corrente vs precedente).
+  - Barre uscite per categoria (rosse).
+  - Tabella ultime 15 entrate con badge tipo colorato.
+- **Nav** — tab "🏦 Liquidita'" aggiunta in `ControlloGestioneNav` tra Dashboard e Uscite.
+- **Dropdown header** — voce aggiunta in `modulesMenu.js`.
+- **Rotta** `/controllo-gestione/liquidita` registrata in `App.jsx`.
+
+### Smoke test (15 apr 2026)
+- Saldo attuale: € 4.078,81
+- Aprile: entrate € 27.633,03 · uscite € 25.041,27 · delta +€ 2.591,76
+- 90gg: entrate € 159.028,50 · uscite € 151.172,82 · delta +€ 7.855,68
+- Classificazione entrate Apr: POS 23.241 · Contanti 4.000 · Altro 392
+
+### File toccati
+- NEW `app/services/liquidita_service.py`
+- `app/routers/controllo_gestione_router.py` (import + endpoint `/liquidita`)
+- NEW `frontend/src/pages/controllo-gestione/ControlloGestioneLiquidita.jsx`
+- `frontend/src/pages/controllo-gestione/ControlloGestioneNav.jsx` (+tab)
+- `frontend/src/config/modulesMenu.js` (+voce)
+- `frontend/src/App.jsx` (+import +rotta)
+- `frontend/src/config/versions.jsx` (controlloGestione 2.8 → 2.9)
+
+### Follow-up tracked (non urgenti)
+- Tassonomia custom sulle uscite (analoga alle entrate) — molte uscite Aprile sono `categoria_banca=''` nel feed.
+- Integrare scadenzario previsto (roadmap 3.7) per cash flow 30/60/90gg.
+
+---
+
 ## 2026-04-17 — Fix CG: vendite leggono da shift_closures (+ fallback daily)
 
 ### Problema
