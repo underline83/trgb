@@ -20,42 +20,7 @@ _(S40-12, S40-13 risolti Wave 3 — vedi sezione Risolti.)_
 
 ---
 
-_(S40-14 risolto — vedi sezione Risolti.)_
-
----
-
-### S40-15. Acquisti — Import FIC salta dettaglio righe ✅ CHIUSO 2026-04-16
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Acquisti / Import Fatture in Cloud
-**Gravità:** media
-
-**Sintomo:** alcune fatture importate da FIC non hanno il dettaglio righe, nonostante su FIC il dettaglio ci sia (es. OROBICA 201969/FTM 2026-03-31 €7425.24, MILESI 2026/300).
-
-**Causa radice:** l'API FIC `/received_documents/{id}?fieldset=detailed` restituisce `is_detailed=false, items_list=[], e_invoice=true` per le fatture registrate come "Spesa" senza dettaglio strutturato. Le righe esistono solo dentro il tracciato XML SDI allegato, accessibile via `attachment_url` (pre-signed temporaneo read-only). Non e' regressione lato nostro — e' comportamento FIC nativo che dipende dalla modalita' di registrazione.
-
-**Fix (commit 2026-04-16):**
-1. NEW `app/utils/fatturapa_parser.py` — parser FatturaPA riusabile (zip/p7m/xml/utf-16, `DettaglioLinee`).
-2. Fallback automatico in `_fetch_detail_and_righe`: se `items_list=[] && e_invoice && attachment_url` → scarica XML, parsa, popola `fe_righe`.
-3. Endpoint recovery retroattivo: `POST /fic/refetch-righe-xml/{db_id}` + `POST /fic/bulk-refetch-righe-xml`.
-4. UI Fatture › Impostazioni › FIC: card "📥 Recupero righe da XML SDI" con singolo + bulk.
-5. Exception swallow in `_fetch_detail_and_righe` rimosso (ora `traceback.print_exc()`).
-
-**Action item per Marco:** dopo il push, Fatture › Impostazioni › FIC → "Recupero righe da XML SDI" → anno 2026, limite 500 → Avvia.
-
----
-
-### S40-16 + S40-17. Statistiche — Import iPratico sparito + menu con meno opzioni ✅ CHIUSO 2026-04-16
-**Segnalato:** 2026-04-16 (sessione 40)
-**Modulo:** Statistiche / Nav + tutti i Nav moduli
-**Gravità:** media-alta (Import iPratico e' critico per popolare le statistiche)
-
-**Causa radice:** bug sistematico in 6 file Nav (`StatisticheNav`, `RicetteNav`, `ViniNav`, `PrenotazioniNav`, `BancaNav`, `ClientiNav`). Il filtro `tab.roles.includes(role)` non gestiva l'ereditarieta' superadmin → admin. `useModuleAccess.roleMatch` aveva gia' la logica corretta (riga 38: `role === "superadmin" && roles.includes("admin")`) ma i Nav locali la bypassavano. Marco loggato come superadmin non vedeva le tab con `roles: ["admin"]`, tra cui Import iPratico.
-
-Per S40-17: il vecchio hub con card `StatisticheMenu.jsx` fu rimosso in sessione 39 (commit `1d8ada9`) e sostituito con tab bar + ModuleRedirect. Nessuna funzionalita' persa — la tab bar ha gli stessi link (Dashboard, Prodotti, Coperti, Import). I placeholder "Cantina" e "Personale" (mai funzionali) sono spariti.
-
-**Fix:** allineato il filtro in tutti i 6 Nav: `!tab.roles || tab.roles.includes(role) || (role === "superadmin" && tab.roles.includes("admin"))`.
-
-**File toccati:** `StatisticheNav.jsx`, `RicetteNav.jsx`, `ViniNav.jsx`, `PrenotazioniNav.jsx`, `BancaNav.jsx`, `ClientiNav.jsx`.
+_(S40-14, S40-15, S40-16, S40-17 risolti — vedi sezione Risolti.)_
 
 ---
 
@@ -76,6 +41,26 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S40-15. Acquisti — Import FIC salta dettaglio righe ✅ 2026-04-16
+**Segnalato:** 2026-04-16 (sessione 40)
+**Modulo:** Acquisti / Import Fatture in Cloud
+**Gravità:** media
+
+**Sintomo:** alcune fatture importate da FIC non hanno il dettaglio righe, nonostante su FIC il dettaglio ci sia (es. OROBICA 201969/FTM 2026-03-31 €7425.24, MILESI 2026/300).
+
+**Causa radice:** l'API FIC `/received_documents/{id}?fieldset=detailed` restituisce `is_detailed=false, items_list=[], e_invoice=true` per le fatture registrate come "Spesa" senza dettaglio strutturato. Le righe esistono solo dentro il tracciato XML SDI allegato, accessibile via `attachment_url` (pre-signed temporaneo read-only). Non e' regressione lato nostro — e' comportamento FIC nativo che dipende dalla modalita' di registrazione.
+
+**Fix (commit 2026-04-16):**
+1. NEW `app/utils/fatturapa_parser.py` — parser FatturaPA riusabile (zip/p7m/xml/utf-16, `DettaglioLinee`).
+2. Fallback automatico in `_fetch_detail_and_righe`: se `items_list=[] && e_invoice && attachment_url` → scarica XML, parsa, popola `fe_righe`.
+3. Endpoint recovery retroattivo: `POST /fic/refetch-righe-xml/{db_id}` + `POST /fic/bulk-refetch-righe-xml`.
+4. UI Fatture › Impostazioni › FIC: card "📥 Recupero righe da XML SDI" con singolo + bulk.
+5. Exception swallow in `_fetch_detail_and_righe` rimosso (ora `traceback.print_exc()`).
+
+**Action item per Marco:** dopo il push, Fatture › Impostazioni › FIC → "Recupero righe da XML SDI" → anno 2026, limite 500 → Avvia.
+
+---
 
 ### S40-14. Flussi di Cassa — Duplicati Sogegros €597,08 ✅ 2026-04-17
 **Verifica su `banca_movimenti` (foodcost.db aggiornato all'ultimo push):**

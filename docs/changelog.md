@@ -18,7 +18,8 @@ La v2.9 aveva classificazione custom solo sulle entrate. Le uscite venivano ragg
   - Rimossa la sezione barre CSS rosse (sostituita dal Pie).
 
 ### Smoke test (dati produzione 17 apr 2026)
-- 135 uscite prima non classificate redistribuite: Bonifici 32, Servizi 28, Carta 20, Fornitori 12, Banca 5, Tasse 3, Affitti 2 → 33 residue in "Altro" (~12% vs ~38% prima).
+- **v1.2 (finale): 0 residui in "Altro" su 351 uscite 12m.** Distribuzione: Banca 101, Fornitori 74, Servizi 61, Bonifici 41, Carta 28, Utenze 13, Stipendi 12, Affitti 10, Tasse 9, Assicurazioni 2.
+- v1.1 aveva 35 residui: 32 erano `comm.su bonifici` (pattern mio `"comm su"` non matchava il punto), 2 `addebito M.AV./R.AV.`, 1 `int. e comp. - competenze`. Patch v1.2 aggiunge `"comm.su"`, `"competenze"`, `"int. e comp"`, `"m.av."`, `"r.av."`.
 - Gennaio 2026 completo: Fornitori €16.2k, Stipendi €6k, Affitti €6k, Utenze €2.8k, Bonifici €10.3k, Carta €3.3k, Banca €658.
 
 ### File toccati

@@ -24,12 +24,10 @@ Follow-up immediato di v2.9: la tassonomia custom esisteva solo per le entrate, 
 - Layout totale: 5 righe (KPI, Trend+PieE, PieU+MensiliU, MensiliE+YoY, TabE+TabU).
 
 **Smoke test** (produzione 17 apr 2026):
-- 135 uscite prima non classificate ora distribuite in: Bonifici 32, Servizi 28, Carta 20, Fornitori 12, Banca 5, Tasse 3, Affitti 2 + 33 Altro residuo (da ~38% a ~12% non classificato).
-- Aprile parziale: Bonifici €19k + Servizi €2.8k + Carta €1.4k + Fornitori €1.2k.
-- Gennaio completo: Fornitori €16.2k + Stipendi €6k + Affitti €6k + Utenze €2.8k + Bonifici €10.3k + Carta €3.3k + Banca €658.
+- **Distribuzione finale v1.2 su 351 uscite 12m: Banca 101 / Fornitori 74 / Servizi 61 / Bonifici 41 / Carta 28 / Utenze 13 / Stipendi 12 / Affitti 10 / Tasse 9 / Assicurazioni 2 / Altro 0.** Zero residui non classificati.
+- v1.1 iniziale aveva 35 residui in "Altro": 32 erano commissioni `comm.su bonifici` (pattern `"comm su"` non matchava il punto), 2 addebiti M.AV./R.AV., 1 `int. e comp. - competenze`. v1.2 aggiunge i pattern mancanti → 0 residui.
 
 **Follow-up tracciati** (rimangono aperti):
-- I 33 "Altro" residui sono pattern non ancora catturati; si potrebbe estendere con matching su `ragione_sociale` via tabella fornitori (future).
 - I "Bonifici" generici (32 casi/mese in media) sono quasi tutti fornitori non categorizzati; con lookup su `fe_fornitori` si potrebbero promuovere a Fornitori.
 
 **Version bump:** Controllo Gestione 2.9 → 2.10.

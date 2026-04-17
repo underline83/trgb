@@ -1,5 +1,5 @@
 # app/services/liquidita_service.py
-# @version: v1.1
+# @version: v1.2
 #
 # Aggregatore Liquidita' per Controllo di Gestione.
 #
@@ -138,7 +138,9 @@ def classify_uscita(row: sqlite3.Row) -> str:
 
     # 7. Banca (commissioni e interessi)
     if cat == "Operazioni Finanziarie" or sub in ("Commissioni", "Interessi negativi") \
-       or "comm su" in descr or "commissioni" in descr or "spese commissioni" in descr:
+       or "comm.su" in descr or "comm su" in descr or "commissioni" in descr \
+       or "spese commissioni" in descr \
+       or "int. e comp" in descr or "competenze" in descr:
         return "Banca"
 
     # 8. Assicurazioni
@@ -150,8 +152,9 @@ def classify_uscita(row: sqlite3.Row) -> str:
     if "vostra disposizione" in descr or "vs.disp" in descr:
         return "Bonifici"
 
-    # 10. Servizi (SDD ricorrenti, categoria_banca='Servizi')
-    if cat == "Servizi" or "addebito diretto sdd" in descr or "sdd core" in descr:
+    # 10. Servizi (SDD ricorrenti, categoria_banca='Servizi', addebiti avviso M.AV/R.AV)
+    if cat == "Servizi" or "addebito diretto sdd" in descr or "sdd core" in descr \
+       or "m.av." in descr or "r.av." in descr:
         return "Servizi"
 
     return "Altro"
