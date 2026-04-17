@@ -107,6 +107,8 @@ import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
 import CucinaHome from "./pages/cucina/CucinaHome";
 import CucinaAgendaGiornaliera from "./pages/cucina/CucinaAgendaGiornaliera";
 import CucinaInstanceDetail from "./pages/cucina/CucinaInstanceDetail";
+import CucinaTemplateList from "./pages/cucina/CucinaTemplateList";
+import CucinaTemplateEditor from "./pages/cucina/CucinaTemplateEditor";
 import Comunicazioni from "./pages/Comunicazioni";
 
 // --- CAMBIO PIN ---
@@ -378,7 +380,10 @@ export default function App() {
         <Route path="/cucina" element={<ProtectedRoute module="cucina"><CucinaHome /></ProtectedRoute>} />
         <Route path="/cucina/agenda" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaAgendaGiornaliera /></ProtectedRoute>} />
         <Route path="/cucina/instances/:id" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaInstanceDetail /></ProtectedRoute>} />
-        {/* Agenda settimana, template editor, task list — Step 7-8 */}
+        <Route path="/cucina/templates" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateList /></ProtectedRoute>} />
+        <Route path="/cucina/templates/nuovo" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
+        <Route path="/cucina/templates/:id" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
+        {/* Agenda settimana, task list — Step 8 */}
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />
