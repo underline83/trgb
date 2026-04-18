@@ -1,8 +1,9 @@
-// @version: v1.0-cucina-menu
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA "← Statistiche"
 // Sottomenu Statistiche > Cucina — Dashboard, Prodotti, Import iPratico
 import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import StatisticheNav from "./StatisticheNav";
+import { Btn } from "../../components/ui";
 
 export default function CucinaMenu() {
   const navigate = useNavigate();
@@ -21,12 +22,11 @@ export default function CucinaMenu() {
                 Analisi vendite da export iPratico: categorie, prodotti, andamento mensile.
               </p>
             </div>
-            <button
-              onClick={() => navigate("/statistiche")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition self-start"
-            >
-              ← Statistiche
-            </button>
+            <div className="self-start">
+              <Btn variant="secondary" size="md" onClick={() => navigate("/statistiche")}>
+                ← Statistiche
+              </Btn>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

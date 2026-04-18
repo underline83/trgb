@@ -1,8 +1,9 @@
-// @version: v1.0-banca-menu
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA "Torna alla Home"
 // Menu principale sezione Banca
 import React from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { VersionBadge } from "../../config/versions";
+import { Btn } from "../../components/ui";
 
 export default function BancaMenu() {
   const navigate = useNavigate();
@@ -23,12 +24,9 @@ export default function BancaMenu() {
             </p>
           </div>
           <div className="flex justify-center sm:justify-end">
-            <button
-              onClick={() => navigate("/")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
+            <Btn variant="secondary" size="md" onClick={() => navigate("/")}>
               ← Torna alla Home
-            </button>
+            </Btn>
           </div>
         </div>
 

@@ -107,7 +107,7 @@ export default function ClientiDashboard() {
                         </div>
                         <div className="flex items-center gap-1.5">
                           {waLink && (
-                            <Tooltip label={`WhatsApp a ${tel}`}>
+                            <Tooltip label={`WhatsApp a ${c.telefono}`}>
                               <a href={waLink} target="_blank" rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 className="inline-flex items-center gap-0.5 px-2 py-1 text-[11px] font-medium bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition border border-emerald-200">
