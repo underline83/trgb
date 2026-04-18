@@ -1,10 +1,11 @@
-// @version: v2.4-premium-stable
+// @version: v2.5-mattoni — M.I primitives (Btn) su back e import
 // Pagina Database Vini — Import Excel + Risultato
 // Stile Vintage Premium allineato a Carta e Menu
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../../components/ui";
 
 export default function ViniDatabase() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -53,12 +54,9 @@ export default function ViniDatabase() {
       <div className="max-w-5xl mx-auto bg-white shadow-2xl rounded-3xl p-12 border border-neutral-200">
 
         {/* 🔙 BACK BUTTON */}
-        <button
-          onClick={() => navigate("/vini")}
-          className="mb-6 px-5 py-2 rounded-xl border border-neutral-300 bg-neutral-50 text-neutral-800 hover:bg-neutral-200 transition shadow-sm"
-        >
+        <Btn variant="secondary" size="md" onClick={() => navigate("/vini")} className="mb-6">
           ← Torna al Menu Vini
-        </button>
+        </Btn>
 
         {/* HEADER */}
         <h1 className="text-4xl tracking-wide font-bold text-center mb-4 text-blue-900 font-playfair">
@@ -78,17 +76,9 @@ export default function ViniDatabase() {
             className="border border-gray-300 p-3 w-full rounded-lg bg-white shadow-sm"
           />
 
-          <button
-            onClick={handleUpload}
-            disabled={loading}
-            className={`px-6 py-3 rounded-lg text-white font-semibold shadow transition ${
-              loading
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-700 hover:bg-blue-800"
-            }`}
-          >
+          <Btn variant="primary" size="md" onClick={handleUpload} disabled={loading} loading={loading}>
             {loading ? "Caricamento…" : "📤 Importa file Excel"}
-          </button>
+          </Btn>
         </div>
 
         {/* RISULTATO */}

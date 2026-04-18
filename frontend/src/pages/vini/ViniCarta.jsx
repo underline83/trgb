@@ -1,10 +1,11 @@
-// @version: v3.3-carta-vini-anteprima
+// @version: v3.4-mattoni — M.I primitives (Btn) su header e azioni export
 // Pagina Carta Vini — Anteprima embedded + Export (HTML/PDF/DOCX)
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 export default function ViniCarta() {
   const navigate = useNavigate();
@@ -55,49 +56,25 @@ export default function ViniCarta() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => navigate("/vini")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-          >
+          <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini")}>
             ← Menu Vini
-          </button>
+          </Btn>
         </div>
 
         {/* BOTTONI */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <button
-            type="button"
-            onClick={refreshPreview}
-            className="px-4 py-3 rounded-2xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition"
-          >
+          <Btn variant="primary" size="md" type="button" onClick={refreshPreview}>
             Aggiorna Anteprima
-          </button>
-
-          <button
-            type="button"
-            onClick={openHtml}
-            className="px-4 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-          >
+          </Btn>
+          <Btn variant="secondary" size="md" type="button" onClick={openHtml}>
             Apri HTML
-          </button>
-
-          <button
-            type="button"
-            onClick={downloadPdf}
-            className="px-4 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-          >
+          </Btn>
+          <Btn variant="secondary" size="md" type="button" onClick={downloadPdf}>
             Scarica PDF
-          </button>
-
-          <button
-            type="button"
-            onClick={downloadWord}
-            className="px-4 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-          >
+          </Btn>
+          <Btn variant="secondary" size="md" type="button" onClick={downloadWord}>
             Scarica Word
-          </button>
-
+          </Btn>
         </div>
 
         {/* ANTEPRIMA EMBEDDED */}

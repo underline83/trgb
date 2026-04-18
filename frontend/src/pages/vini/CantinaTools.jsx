@@ -1,4 +1,4 @@
-// @version: v2.0-cantina-tools
+// @version: v2.1-mattoni — M.I primitives (Btn) su CTA header, import/export, salva ordinamenti
 // Strumenti Cantina — Sync, Import/Export, Genera Carta, Impostazioni ordinamento
 // Solo admin
 
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE (frecce ▲ ▼)
@@ -201,12 +202,9 @@ export default function CantinaTools() {
           <p className="text-neutral-600 text-sm mb-4">
             Questa sezione è disponibile solo per gli amministratori.
           </p>
-          <button
-            onClick={() => navigate("/vini")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-          >
+          <Btn variant="secondary" size="md" onClick={() => navigate("/vini")}>
             ← Menu Vini
-          </button>
+          </Btn>
         </div>
       </div>
     );
@@ -295,27 +293,23 @@ export default function CantinaTools() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            <Btn variant="secondary" size="md" onClick={() => navigate("/vini/magazzino")}>
               ← Cantina
-            </button>
-            <button onClick={() => navigate("/vini")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => navigate("/vini")}>
               Menu Vini
-            </button>
+            </Btn>
           </div>
         </div>
 
         {/* ACCESSO RAPIDO */}
         <div className="mb-8 flex flex-wrap gap-3">
-          <button onClick={() => navigate("/vini/magazzino/registro")}
-            className="px-6 py-3 rounded-2xl text-sm font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow transition flex items-center gap-2">
+          <Btn variant="chip" tone="violet" size="md" onClick={() => navigate("/vini/magazzino/registro")}>
             📜 Registro Movimenti
-          </button>
-          <button onClick={() => navigate("/vini/magazzino/admin")}
-            className="px-6 py-3 rounded-2xl text-sm font-semibold bg-purple-700 text-white hover:bg-purple-800 shadow transition flex items-center gap-2">
+          </Btn>
+          <Btn variant="chip" tone="violet" size="md" onClick={() => navigate("/vini/magazzino/admin")}>
             📋 Modifica Massiva
-          </button>
+          </Btn>
         </div>
 
         <hr className="border-neutral-200 mb-8" />
@@ -347,10 +341,9 @@ export default function CantinaTools() {
                 onChange={(e) => handleImportExcel(e.target.files?.[0])} disabled={importLoading} />
             </label>
 
-            <button onClick={handleExport}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 shadow transition">
+            <Btn variant="success" size="md" onClick={handleExport}>
               📥 Esporta Cantina → Excel
-            </button>
+            </Btn>
 
             <label className={`px-6 py-3 rounded-2xl text-sm font-semibold shadow transition cursor-pointer text-center ${
               resetLoading || importLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed" : "bg-red-600 text-white hover:bg-red-700"
@@ -411,24 +404,19 @@ export default function CantinaTools() {
           </p>
 
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => handleCleanupDuplicates(true)} disabled={cleanupLoading}
-              className={`px-6 py-3 rounded-2xl text-sm font-semibold shadow transition ${
-                cleanupLoading ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                  : "bg-amber-700 text-white hover:bg-amber-800"
-              }`}>
+            <Btn variant="primary" size="md" onClick={() => handleCleanupDuplicates(true)} disabled={cleanupLoading} loading={cleanupLoading}>
               {cleanupLoading ? "Analisi in corso…" : "🔍 Analizza duplicati"}
-            </button>
+            </Btn>
 
             {cleanupResult && cleanupResult.gruppi_duplicati > 0 && cleanupResult.dry_run && (
-              <button onClick={() => {
+              <Btn variant="danger" size="md" onClick={() => {
                   if (window.confirm(`Eliminare ${cleanupResult.vini_da_eliminare} vini duplicati?`)) {
                     handleCleanupDuplicates(false);
                   }
                 }}
-                disabled={cleanupLoading}
-                className="px-6 py-3 rounded-2xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 shadow transition">
+                disabled={cleanupLoading} loading={cleanupLoading}>
                 🗑️ Elimina {cleanupResult.vini_da_eliminare} duplicati
-              </button>
+              </Btn>
             )}
           </div>
 
@@ -487,18 +475,15 @@ export default function CantinaTools() {
           </p>
 
           <div className="flex flex-wrap gap-3 mb-4">
-            <button onClick={() => setShowCartaPreview((p) => !p)}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow transition">
+            <Btn variant="primary" size="md" onClick={() => setShowCartaPreview((p) => !p)}>
               {showCartaPreview ? "Chiudi anteprima" : "👁 Anteprima HTML"}
-            </button>
-            <button onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition">
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}>
               📄 Scarica PDF
-            </button>
-            <button onClick={() => window.open(`${API_BASE}/vini/carta/docx`, "_blank")}
-              className="px-6 py-3 rounded-2xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow transition">
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => window.open(`${API_BASE}/vini/carta/docx`, "_blank")}>
               📝 Scarica Word
-            </button>
+            </Btn>
           </div>
 
           {showCartaPreview && (
@@ -546,10 +531,9 @@ export default function CantinaTools() {
               <div className="border border-neutral-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-neutral-800">Ordine Tipologie</h3>
-                  <button onClick={saveTipologie} disabled={settingsLoading}
-                    className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">
+                  <Btn variant="primary" size="sm" onClick={saveTipologie} disabled={settingsLoading} loading={settingsLoading}>
                     Salva ordine
-                  </button>
+                  </Btn>
                 </div>
                 {tipologie.length > 0 ? (
                   <OrderList items={tipologie} onReorder={setTipologie} />
@@ -562,10 +546,9 @@ export default function CantinaTools() {
               <div className="border border-neutral-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-neutral-800">Ordine Nazioni</h3>
-                  <button onClick={saveNazioni} disabled={settingsLoading}
-                    className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">
+                  <Btn variant="primary" size="sm" onClick={saveNazioni} disabled={settingsLoading} loading={settingsLoading}>
                     Salva ordine
-                  </button>
+                  </Btn>
                 </div>
                 {nazioni.length > 0 ? (
                   <OrderList items={nazioni} onReorder={setNazioni} />
@@ -578,10 +561,9 @@ export default function CantinaTools() {
               <div className="border border-neutral-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-neutral-800">Ordine Regioni</h3>
-                  <button onClick={saveRegioni} disabled={settingsLoading || !selectedNazione}
-                    className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">
+                  <Btn variant="primary" size="sm" onClick={saveRegioni} disabled={settingsLoading || !selectedNazione} loading={settingsLoading}>
                     Salva ordine
-                  </button>
+                  </Btn>
                 </div>
                 <div className="mb-3">
                   <select value={selectedNazione} onChange={(e) => setSelectedNazione(e.target.value)}
@@ -605,10 +587,9 @@ export default function CantinaTools() {
               <div className="border border-neutral-200 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-neutral-800">Filtri Carta</h3>
-                  <button onClick={saveFiltri} disabled={settingsLoading}
-                    className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">
+                  <Btn variant="primary" size="sm" onClick={saveFiltri} disabled={settingsLoading} loading={settingsLoading}>
                     Salva filtri
-                  </button>
+                  </Btn>
                 </div>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">

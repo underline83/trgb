@@ -1,5 +1,5 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v1.1-modifica-log
+// @version: v1.2-mattoni — M.I primitives (Btn) su save anagrafica/giacenze, movimento, note
 // Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
@@ -14,6 +14,7 @@ import {
 } from "../../config/viniConstants";
 import LocationPicker from "./LocationPicker";
 import MatricePicker from "./MatricePicker";
+import { Btn } from "../../components/ui";
 
 /** Formatta un numero con la virgola come separatore decimale */
 function fmtNum(val, decimals = 2) {
@@ -610,8 +611,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               <SectionHeader title="Anagrafica">
                 {saveMsg && <span className="text-xs font-medium">{saveMsg}</span>}
                 {editMode && <>
-                  <button type="button" onClick={cancelEdit} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
-                  <button type="button" onClick={saveEdit} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition disabled:opacity-50">{saving ? "Salvo…" : "Salva"}</button>
+                  <Btn variant="secondary" size="sm" type="button" onClick={cancelEdit}>Annulla</Btn>
+                  <Btn variant="primary" size="sm" type="button" onClick={saveEdit} disabled={saving} loading={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
                 </>}
               </SectionHeader>
               <div className="p-5">
@@ -722,8 +723,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
             <div className="border-b border-neutral-200">
               <SectionHeader title="Giacenze per locazione">
                 {giacenzeEdit && <>
-                  <button type="button" onClick={cancelGiacenze} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white hover:bg-neutral-100 transition">Annulla</button>
-                  <button type="button" onClick={saveGiacenze} disabled={giacenzeSaving} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 transition disabled:opacity-50">{giacenzeSaving ? "Salvo…" : "Salva"}</button>
+                  <Btn variant="secondary" size="sm" type="button" onClick={cancelGiacenze}>Annulla</Btn>
+                  <Btn variant="primary" size="sm" type="button" onClick={saveGiacenze} disabled={giacenzeSaving} loading={giacenzeSaving}>{giacenzeSaving ? "Salvo…" : "Salva"}</Btn>
                 </>}
               </SectionHeader>
               <div className="p-5">
@@ -813,10 +814,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                     </select>
                     <input type="number" placeholder="Qtà *" min={1} value={qtaMov} onChange={e => setQtaMov(e.target.value)}
                       className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
-                    <button type="button" onClick={submitMovimento} disabled={submitting}
-                      className="bg-amber-700 text-white rounded-xl px-4 py-2 text-sm font-semibold hover:bg-amber-800 transition disabled:opacity-50">
+                    <Btn variant="primary" size="md" type="button" onClick={submitMovimento} disabled={submitting} loading={submitting}>
                       {submitting ? "Registro…" : "Registra"}
-                    </button>
+                    </Btn>
                   </div>
                   <input type="text" placeholder="Note (opzionali)" value={noteMov} onChange={e => setNoteMov(e.target.value)}
                     className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
@@ -866,10 +866,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 <div className="flex gap-2">
                   <textarea value={notaText} onChange={e => setNotaText(e.target.value)} placeholder="Aggiungi una nota operativa…" rows={2}
                     className="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none" />
-                  <button type="button" onClick={addNota} disabled={!notaText.trim()}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 transition disabled:opacity-40 self-end">
+                  <Btn variant="primary" size="md" type="button" onClick={addNota} disabled={!notaText.trim()} className="self-end">
                     Aggiungi
-                  </button>
+                  </Btn>
                 </div>
                 {noteLoading && <p className="text-xs text-neutral-500">Caricamento…</p>}
                 {!noteLoading && note.length === 0 && <p className="text-sm text-neutral-500">Nessuna nota.</p>}

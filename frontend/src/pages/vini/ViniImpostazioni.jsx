@@ -1,4 +1,4 @@
-// @version: v3.2-ipratico-inline — iPratico Sync integrato come sezione (non più tab esterno)
+// @version: v3.3-mattoni — M.I primitives (Btn) su access denied (tocco minimo)
 // Impostazioni Modulo Vini — Layout sidebar + contenuto (stile uniformato a ClientiImpostazioni)
 // Visibile solo per admin e sommelier
 
@@ -12,6 +12,7 @@ import IPraticoSync from "./iPraticoSync";
 import {
   STATO_VENDITA, STATO_RIORDINO, STATO_CONSERVAZIONE,
 } from "../../config/viniConstants";
+import { Btn } from "../../components/ui";
 
 // ---------------------------------------------------------------
 // COMPONENTE LISTA RIORDINABILE
@@ -513,8 +514,7 @@ export default function ViniImpostazioni() {
           <div className="text-5xl mb-4">🔒</div>
           <h2 className="text-xl font-bold text-neutral-800 mb-2">Accesso riservato</h2>
           <p className="text-neutral-600 text-sm mb-4">Questa sezione è disponibile solo per amministratori e sommelier.</p>
-          <button onClick={() => navigate("/vini")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">← Menu Vini</button>
+          <Btn variant="secondary" size="md" onClick={() => navigate("/vini")}>← Menu Vini</Btn>
         </div>
       </div>
     );

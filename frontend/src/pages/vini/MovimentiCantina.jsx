@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/vini/MovimentiCantina.jsx
-// @version: v2.1-modifica
+// @version: v2.2-mattoni — M.I primitives (Btn) su form movimento e footer nav
 
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 const TIPO_LABELS = {
   CARICO: { label: "Carico", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -225,14 +226,9 @@ export default function MovimentiCantina() {
               className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
             />
 
-            <button
-              type="button"
-              onClick={submitMovimento}
-              disabled={submitting}
-              className="bg-amber-700 text-white rounded-xl px-4 py-2 font-semibold hover:bg-amber-800 transition disabled:opacity-50"
-            >
+            <Btn variant="primary" size="md" type="button" onClick={submitMovimento} disabled={submitting} loading={submitting}>
               {submitting ? "Registro…" : "Registra"}
-            </button>
+            </Btn>
           </div>
 
           <textarea
@@ -334,13 +330,9 @@ export default function MovimentiCantina() {
 
         {/* FOOTER NAV */}
         <div className="mt-6 flex gap-4">
-          <button
-            type="button"
-            onClick={() => navigate(`/vini/magazzino/${id}`)}
-            className="text-sm text-neutral-600 hover:underline"
-          >
+          <Btn variant="ghost" size="sm" type="button" onClick={() => navigate(`/vini/magazzino/${id}`)}>
             ← Torna al dettaglio vino
-          </button>
+          </Btn>
         </div>
 
       </div>

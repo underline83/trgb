@@ -1,5 +1,5 @@
 // src/pages/vini/ViniVendite.jsx
-// @version: v2.2-sortable-columns
+// @version: v2.3-mattoni — M.I primitives (Btn) su header, registra, filtri, paginazione
 // Hub Vendite — registrazione vendita bottiglia o calici, storico vendite, KPI
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -346,10 +347,9 @@ export default function ViniVendite() {
                 Registra vendite bottiglia o calici, consulta lo storico
               </p>
             </div>
-            <button type="button" onClick={() => navigate("/vini")}
-              className="self-start px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini")} className="self-start">
               ← Menu Vini
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -666,20 +666,12 @@ export default function ViniVendite() {
             />
 
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={applicaFiltri}
-                className="flex-1 bg-amber-700 text-white rounded-xl px-3 py-2 text-sm font-semibold hover:bg-amber-800 transition"
-              >
+              <Btn variant="primary" size="md" type="button" onClick={applicaFiltri} className="flex-1">
                 Filtra
-              </button>
-              <button
-                type="button"
-                onClick={resetFiltri}
-                className="px-3 py-2 text-sm text-neutral-500 border border-neutral-300 rounded-xl hover:bg-neutral-50 transition"
-              >
+              </Btn>
+              <Btn variant="secondary" size="md" type="button" onClick={resetFiltri}>
                 Reset
-              </button>
+              </Btn>
             </div>
           </div>
 
@@ -774,25 +766,27 @@ export default function ViniVendite() {
           {/* Paginazione */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
-              <button
+              <Btn
+                variant="secondary"
+                size="sm"
                 type="button"
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="px-4 py-1.5 text-sm border border-neutral-300 rounded-xl hover:bg-neutral-50 disabled:opacity-40 transition"
               >
                 ← Precedente
-              </button>
+              </Btn>
               <span className="text-sm text-neutral-500">
                 Pagina {page + 1} di {totalPages}
               </span>
-              <button
+              <Btn
+                variant="secondary"
+                size="sm"
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="px-4 py-1.5 text-sm border border-neutral-300 rounded-xl hover:bg-neutral-50 disabled:opacity-40 transition"
               >
                 Successiva →
-              </button>
+              </Btn>
             </div>
           )}
         </div>

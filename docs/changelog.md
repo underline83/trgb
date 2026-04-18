@@ -3,6 +3,348 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #10 Vini/Cantina (11 pagine toccate, tocco minimo sui file giganti)
+
+### Problema / contesto
+Decimo giro M.I, secondo dei 4 mega-batch di chiusura. Scope Vini/Cantina: convertire i CTA principali dei file modulari della cantina (registri movimenti, dashboard, scheda vino, vendite, admin, tools, carta, nuovo vino). Sui file giganti (≥1500 righe: `MagazzinoVini` 1731, `ViniImpostazioni` 1964) applicato "tocco minimo": solo header o access-denied CTA, lasciando intatti tutta la navigazione laterale, i tab bespoke, i toggle e i bottoni icona. Skippati integralmente `ViniNav`, `MagazzinoSubMenu`, `LocationPicker`, `MatricePicker`, `iPraticoSync` (collisione col componente `Btn` locale del file) e `RegistroMovimenti` (già al v1.2-mattoni). Pattern invariato: `Btn` con `variant` + `size` + `loading`, `StatusBadge` quando applicabile, import da `../../components/ui`.
+
+### Pagine toccate in questo batch
+
+**1. `vini/ViniDatabase.jsx` — refactor v2.5-mattoni (105 righe)**
+- Back "← Menu Vini" (bg-neutral-50) → `<Btn variant="secondary" size="md">`.
+- "Importa Excel" (bg-amber-700) → `<Btn variant="primary" size="md" loading={loading}>`.
+
+**2. `vini/ViniCarta.jsx` — refactor v3.4-mattoni (127 righe)**
+- "← Menu Vini" → `<Btn variant="secondary" size="md">`.
+- Griglia 4 export (Aggiorna anteprima / Apri HTML / Scarica PDF / Scarica Word): primo → `<Btn variant="primary" size="md">`, altri → `<Btn variant="secondary" size="md">`.
+
+**3. `vini/MovimentiCantina.jsx` — refactor v2.2-mattoni (350 righe)**
+- "Registra" movimento (bg-amber-700) → `<Btn variant="primary" size="md" loading={submitting}>`.
+- Footer nav "← Torna al dettaglio vino" → `<Btn variant="ghost" size="sm">`.
+- Tooltip 🗑 delete row → custom (icon-only hand-tuned).
+
+**4. `vini/MagazzinoAdmin.jsx` — refactor v2.1-mattoni (492 righe)**
+- Access denied "Torna al magazzino" → `<Btn variant="primary" size="md">` (centrato in flex).
+- Header discard/save "Annulla" / "💾 Salva tutto" → `<Btn variant="secondary" size="md">` / `<Btn variant="success" size="md" loading={saving}>`.
+- "🏷️ Ricalcola prezzi" (wrapped in Tooltip) → `<Btn variant="primary" size="md" loading={recalcing}>`.
+- Sticky footer save (mobile) → `<Btn variant="success" size="lg" loading={saving}>`.
+- Sortable th, CellEditor, 🗑 delete row icon lasciati custom.
+
+**5. `vini/CantinaTools.jsx` — refactor v2.1-mattoni (653 righe)**
+- Access denied "← Menu Vini" → `<Btn variant="secondary" size="md">`.
+- Header "← Cantina" + "Menu Vini" → `<Btn variant="secondary" size="md">` ×2.
+- Accesso rapido (Registro Movimenti, Modifica Massiva) → `<Btn variant="chip" tone="violet" size="md">` ×2.
+- Export Excel → `<Btn variant="success" size="md">`.
+- Cleanup duplicati "🔍 Analizza" → primary con loading, "🗑️ Elimina X duplicati" → `<Btn variant="danger" size="md" loading={cleanupLoading}>`.
+- Genera Carta (👁 Anteprima / 📄 PDF / 📝 Word): primary + secondary ×2.
+- 4 bottoni "Salva ordine/filtri" (Tipologie, Nazioni, Regioni, Filtri) → `<Btn variant="primary" size="sm" loading={settingsLoading}>`.
+- File upload labels (Importa / Azzera), OrderList ▲▼, settings toggle text-link lasciati custom.
+
+**6. `vini/MagazzinoViniNuovo.jsx` — refactor v2.1-mattoni (685 righe)**
+- Footer form "Annulla" / "💾 Salva nuovo vino" → `<Btn variant="secondary" size="md" type="button">` / `<Btn variant="primary" size="md" type="submit" loading={submitting}>`.
+- Modale duplicati "No, annulla" / "Sì, procedi comunque" → `<Btn variant="secondary" size="md">` / `<Btn variant="primary" size="md" loading={submitting}>`.
+
+**7. `vini/ViniVendite.jsx` — refactor v2.3-mattoni (827 righe)**
+- "← Menu Vini" header → `<Btn variant="secondary" size="md">`.
+- Filtri storico "Filtra" / "Reset" → `<Btn variant="primary" size="md">` / `<Btn variant="secondary" size="md">`.
+- Paginazione "← Precedente" / "Successiva →" → `<Btn variant="secondary" size="sm" disabled={...}>` ×2.
+- Toggle bottiglia/calici, CTA Registra vendita (bg dinamico su modalità), suggerimenti dropdown, row click al vino, griglia matrice lasciati custom: pattern bespoke con color dipendenti dalla modalità.
+
+**8. `vini/DashboardVini.jsx` — refactor v4.1-mattoni (858 righe)**
+- Header "⟳ Aggiorna" + "← Menu Vini" → `<Btn variant="primary" size="md" loading={loading}>` / `<Btn variant="secondary" size="md">`.
+- Accesso rapido 5 bottoni: 🍷 Cantina → primary, 🛒 Vendite → chip emerald, ➕ Nuovo vino → chip amber, 📋 Carta vini + ⚙️ Impostazioni → secondary.
+- Drilldown ✕, fermi expand/collapse, alert toggle, non-ricomprare toggle, ricerca globale chip lasciati custom: mini-action iconici e toggle stato.
+
+**9. `vini/SchedaVino.jsx` — refactor v1.2-mattoni (921 righe)**
+- Anagrafica edit pair "Annulla" / "Salva" → `<Btn variant="secondary" size="sm">` / `<Btn variant="primary" size="sm" loading={saving}>`.
+- Giacenze edit pair "Annulla" / "Salva" → `<Btn variant="secondary" size="sm">` / `<Btn variant="primary" size="sm" loading={giacenzeSaving}>`.
+- Movimento "Registra" (bg-amber-700) → `<Btn variant="primary" size="md" loading={submitting}>`.
+- Note operative "Aggiungi" → `<Btn variant="primary" size="md">`.
+- Sidebar colorata (Modifica anagrafica / giacenze / Duplica / Chiudi) lasciata custom: bottoni su sfondo tinta (sbc.accent) con inverse styling (bg-white/15).
+- FlagToggle custom switch, 🗑 delete mov/nota icon-only lasciati custom.
+
+**10. `vini/MagazzinoVini.jsx` — refactor v4.2-mattoni (1731 righe, tocco minimo)**
+- Header "+ Nuovo" (bg-amber-700) → `<Btn variant="primary" size="sm">`.
+- Header "Carta PDF" (bg-neutral-50) → `<Btn variant="secondary" size="sm">`.
+- Dropdown "Stampe ▾", tutti i menu item di stampa, colonna sinistra filtri, sort ▲▼ colonne tabella, scheda inline a lato, tab vista compatta/piena lasciati integralmente custom: la pagina è un hub di produzione con pattern iconici bespoke.
+
+**11. `vini/ViniImpostazioni.jsx` — refactor v3.3-mattoni (1964 righe, tocco minimo)**
+- Access denied "← Menu Vini" → `<Btn variant="secondary" size="md">`.
+- Sidebar sezioni, tab switcher nelle sezioni (import/export, carta, ordinamento, markup, locazioni, stati, manutenzione), OrderList drag-like, tutti i form di configurazione lasciati custom: è una console settings complessa con widget hand-tuned.
+
+### File non toccati
+- `vini/ViniNav.jsx` — tab nav con pill amber hand-tuned.
+- `vini/MagazzinoSubMenu.jsx` — sub-menu amber hand-tuned.
+- `vini/LocationPicker.jsx` / `vini/MatricePicker.jsx` — autocomplete + griglia cantina bespoke.
+- `vini/RegistroMovimenti.jsx` — già a v1.2-mattoni dalla sessione precedente.
+- `vini/iPraticoSync.jsx` — ha una `function Btn` locale: import di `Btn` M.I causerebbe collisione, skip.
+- `vini/MagazzinoViniDettaglio.jsx` — wrapper passante a `SchedaVino`, nulla da convertire.
+
+### Version bump moduli (`config/versions.jsx`)
+- `vini` 3.11 → **3.12** (intero modulo Vini/Cantina passato al set M.I)
+
+### Cosa NON cambia in queste pagine
+- Logica, endpoint API, calcoli, schema dati: tutto invariato.
+- Navigazione laterale, tab pill, toggle switch, icone di riga, dropdown menu: per scelta custom.
+- Sidebar "Scheda vino" a tinta dinamica, matrice cantina, editor inline: invariati.
+
+### File toccati
+- `frontend/src/pages/vini/ViniDatabase.jsx`
+- `frontend/src/pages/vini/ViniCarta.jsx`
+- `frontend/src/pages/vini/MovimentiCantina.jsx`
+- `frontend/src/pages/vini/MagazzinoAdmin.jsx`
+- `frontend/src/pages/vini/CantinaTools.jsx`
+- `frontend/src/pages/vini/MagazzinoViniNuovo.jsx`
+- `frontend/src/pages/vini/ViniVendite.jsx`
+- `frontend/src/pages/vini/DashboardVini.jsx`
+- `frontend/src/pages/vini/SchedaVino.jsx`
+- `frontend/src/pages/vini/MagazzinoVini.jsx`
+- `frontend/src/pages/vini/ViniImpostazioni.jsx`
+- `frontend/src/config/versions.jsx` (bump vini 3.12)
+
+---
+
+## 2026-04-18 — Batch refactor M.I #9 Fatture/Corrispettivi (13 pagine: Fatture×8 + Corrispettivi×2 + ChiusureTurno×2 + GestioneContanti)
+
+### Problema / contesto
+Nono giro M.I, primo dei 4 mega-batch di chiusura per i moduli Acquisti, Vendite/Corrispettivi, ChiusureTurno e GestioneContanti. Scope "tocco minimo": su pagine molto grandi (≥500 righe) convertiamo solo le CTA principali (header, bulk, pagination, save/cancel, modali) e lasciamo inline tutto ciò che è tab navigation, filter chip, toggle mini-state o bottone-icon hand-tuned. Pattern invariato dai batch precedenti: `Btn` con `variant` + `size` + `loading`, `StatusBadge` per stati di dominio, import da `../../components/ui`.
+
+### Pagine toccate in questo batch
+
+**1. `admin/FattureElenco.jsx` — refactor v3.3-mattoni (537 righe)**
+- Sidebar "Pulisci" / "Ricarica" → `<Btn variant="secondary" size="sm" className="flex-1">` / `<Btn variant="chip" tone="emerald" size="sm" className="flex-1">`.
+- Link "← Torna alla lista" su dettaglio embedded → `<Btn variant="ghost" size="sm">`.
+- Badge "Pagata" / "Da pagare" (pill bg-emerald-100 / bg-red-100) → `<StatusBadge tone="success|danger" size="sm">`.
+- Paginazione ← / → → `<Btn variant="secondary" size="sm" disabled={...}>`.
+
+**2. `admin/FattureDettaglio.jsx` — refactor v2.3-mattoni (798 righe)**
+- Schermata errore "Chiudi" / "Torna alla lista" → `<Btn variant="secondary" size="md">`.
+- 3 pair inline-edit (scadenza, metodo pagamento, IBAN) "Salva" / "Annulla" → `<Btn variant="chip" tone="emerald" size="sm" loading={saving} className="flex-1">` / `<Btn variant="secondary" size="sm">`.
+- Back link "← Torna alla lista" → `<Btn variant="ghost" size="sm">`.
+
+**3. `admin/FattureCategorie.jsx` — refactor v2.1-mattoni (483 righe)**
+- Bulk "Assegna a tutti" (bg-emerald-600) / "Deseleziona" → `<Btn variant="chip" tone="emerald" size="sm" loading={bulkSaving}>` / `<Btn variant="ghost" size="sm">`.
+- "+ Nuova Categoria" (bg-emerald-600) → `<Btn variant="chip" tone="emerald" size="md">`.
+
+**4. `admin/FattureImport.jsx` — refactor v1.6-mattoni (607 righe)**
+- "Importa fatture elettroniche" (bg-emerald-600) → `<Btn variant="chip" tone="emerald" size="md" loading={uploading}>`.
+- Riga dettaglio fattura → `<Btn variant="chip" tone="emerald" size="sm">`.
+- "Svuota DB" (bg-red-600) → `<Btn variant="danger" size="sm" loading={resetting}>`.
+- "Vai alla Dashboard Acquisti →" → `<Btn variant="chip" tone="blue" size="sm">`.
+
+**5. `admin/FattureElettroniche.jsx` — refactor v1.3-mattoni (793 righe)**
+- "← Amministrazione" top → `<Btn variant="secondary" size="md">`.
+- "← Home" footer → `<Btn variant="secondary" size="sm">`.
+- "Importa fatture elettroniche" → `<Btn variant="chip" tone="emerald" size="md" loading={uploading}>`.
+- Riga "Dettaglio" → `<Btn variant="chip" tone="emerald" size="sm">`.
+
+**6. `admin/FattureFornitoriElenco.jsx` — refactor v3.3-mattoni (1537 righe)**
+- Sidebar "Pulisci" / "Ricarica" → `<Btn variant="secondary" size="sm" className="flex-1">` / `<Btn variant="chip" tone="emerald" size="sm" className="flex-1">`.
+- Link "← Torna alla lista" topbar → `<Btn variant="ghost" size="sm">`.
+- Tutti i 34+ bottoni interni (tab, filter chip, hover row action, bulk manager, pagination interna, modali di categoria) lasciati custom: troppi contesti specifici, hand-tuned volutamente.
+
+**7. `admin/FattureProformeElenco.jsx` — refactor v1.1-mattoni (586 righe)**
+- Modale nuova proforma "Annulla" / "Salva" → `<Btn variant="ghost" size="md">` / `<Btn variant="primary" size="md" loading={saving}>`.
+- Modale riconciliazione "Chiudi" → `<Btn variant="ghost" size="md">`.
+- "+ Nuova proforma" top → `<Btn variant="primary" size="md">`.
+- EmptyState CTA "Crea la prima proforma" → `<Btn variant="ghost" size="sm">`.
+- Stato proforma (ATTIVA / RICONCILIATA / ANNULLATA) → `<StatusBadge tone="warning|success|neutral" size="sm">`.
+
+**8. `admin/FattureInCloud.jsx` — refactor v1.2-mattoni (730 righe)**
+- "Collega" (bg-indigo-700) → `<Btn variant="primary" size="md" loading={connecting}>`.
+- "Sincronizza {anno}" (bg-teal-700) → `<Btn variant="primary" size="md" loading={syncing}>`.
+- "Scollega" (text-red-600) → `<Btn variant="ghost" size="sm" className="text-red-600 hover:bg-red-50">`.
+- Paginazione fatture ← / → → `<Btn variant="secondary" size="sm" disabled={...}>`.
+- Warnings "📥 Export CSV" → `<Btn variant="secondary" size="sm">`.
+- Modale dettaglio raw "✕" close → `<Btn variant="ghost" size="sm">`.
+- Tabs Fatture/Warnings, filter chip Non visti/Visti/Tutti, row action icon-button (🔍/✓/↺) lasciati custom: tab nav e toggle filter tonal-specific.
+
+**9. `admin/CorrispettiviGestione.jsx` — refactor v2.1-mattoni (379 righe)**
+- "Salva chiusura" (bg-indigo-600) → `<Btn variant="primary" size="md" type="button" loading={saving}>`.
+
+**10. `admin/CorrispettiviDashboard.jsx` — refactor v4.1-mattoni (993 righe)**
+- Nav periodo "‹ / Oggi / ›" (border-neutral-300) → `<Btn variant="secondary" size="sm">` ×3.
+- Mode switcher Mensile/Trimestrale/Annuale lasciato custom: tab pill con icona.
+- Tutti i grafici Recharts (LineChart, BarChart, PieChart) e i filtri select mese/trimestre/anno lasciati invariati: sono controlli di dashboard custom.
+
+**11. `admin/ChiusureTurnoLista.jsx` — refactor v2.1-mattoni (575 righe)**
+- "+ Nuova chiusura" (bg-indigo-700) → `<Btn variant="primary" size="md">`.
+- Row "Modifica" (bg-indigo-100) → `<Btn variant="chip" tone="violet" size="sm">`.
+- Row "Elimina" (text-red-600) → `<Btn variant="chip" tone="red" size="sm">`.
+- Flusso conferma elimina "Elimina" (bg-red-600) / "No" → `<Btn variant="danger" size="sm">` / `<Btn variant="secondary" size="sm">`.
+- Filtro mese ‹ / › arrow button 9×9 e riga espandibile giornaliera lasciati custom: micro-nav iconica e row button full-width complesso.
+
+**12. `admin/ChiusuraTurno.jsx` — refactor v2.1-mattoni (976 righe)**
+- "💾 Salva chiusura {turno}" (bg-indigo-700 full-width) → `<Btn variant="primary" size="lg" type="button" loading={saving} className="w-full">`.
+- "+ Aggiungi tavolo" preconti (bg-indigo-50 border-indigo-200) → `<Btn variant="chip" tone="violet" size="sm" type="button">`.
+- "+ Aggiungi spesa" (bg-red-50 border-red-200) → `<Btn variant="chip" tone="red" size="sm" type="button">`.
+- Tab Pranzo/Cena toggle, "×" remove riga preconto/spesa, checklist toggle e banner cena cumulativa lasciati custom: pattern toggle/mini-action specifici del dominio.
+
+**13. `admin/GestioneContanti.jsx` — refactor v2.1-mattoni (1687 righe, minimo-impatto)**
+- Nav mese "← Mese prec." / "Mese succ. →" (×2 occorrenze su sezioni diverse) → `<Btn variant="secondary" size="sm">`.
+- "+ Registra pagamento contanti" / "+ Registra versamento" (bg-emerald-600) → `<Btn variant="success" size="md">`.
+- "💶 Paga in contanti" (bg-emerald-700) → `<Btn variant="success" size="md" loading={saving}>`.
+- Form deposito "Salva" / "Annulla" → `<Btn variant="success" size="md" loading={saving}>` / `<Btn variant="secondary" size="md">`.
+- Form saldo iniziale "Salva" / "Annulla" → `<Btn variant="primary" size="md" loading={savingBalance}>` / `<Btn variant="secondary" size="md">`.
+- "+ Registra spesa" (bg-red-600) → `<Btn variant="danger" size="md">`.
+- Form spesa "Salva" / "Annulla" → `<Btn variant="danger" size="md" loading={saving}>` / `<Btn variant="secondary" size="md">`.
+- Sidebar sezioni, sub-tab Pagamenti/Versamenti, lista movimenti bancari collegabili, gestione categorie (modifica/elimina inline) e tabella giornaliera lasciati custom: troppi pattern iconici e toggle specifici del modulo.
+
+### Version bump moduli (`config/versions.jsx`)
+- `corrispettivi` 4.4 → **4.5** (CorrispettiviDashboard/Gestione + ChiusuraTurno/Lista ricevono mattoni)
+- `fatture` 2.7 → **2.8** (tutti i 7 file Fatture* + FattureInCloud toccati)
+- `flussiCassa` 1.11 → **1.12** (GestioneContanti aggiornato con tocco minimo)
+
+### Cosa NON cambia in queste pagine
+- Logica, endpoint API, calcoli, schema dati: tutto invariato.
+- Tab navigation, filter chip a pillola, toggle mini-state, bottoni icona: per scelta restano custom — sono stati di dominio e non CTA standard.
+- Pagine dashboard con grafici Recharts / SVG hand-rolled: i controlli di periodo top-level sono stati mattonati, il cuore del componente è intoccato.
+
+### File toccati
+- `frontend/src/pages/admin/FattureElenco.jsx`
+- `frontend/src/pages/admin/FattureDettaglio.jsx`
+- `frontend/src/pages/admin/FattureCategorie.jsx`
+- `frontend/src/pages/admin/FattureImport.jsx`
+- `frontend/src/pages/admin/FattureElettroniche.jsx`
+- `frontend/src/pages/admin/FattureFornitoriElenco.jsx`
+- `frontend/src/pages/admin/FattureProformeElenco.jsx`
+- `frontend/src/pages/admin/FattureInCloud.jsx`
+- `frontend/src/pages/admin/CorrispettiviGestione.jsx`
+- `frontend/src/pages/admin/CorrispettiviDashboard.jsx`
+- `frontend/src/pages/admin/ChiusureTurnoLista.jsx`
+- `frontend/src/pages/admin/ChiusuraTurno.jsx`
+- `frontend/src/pages/admin/GestioneContanti.jsx`
+- `frontend/src/config/versions.jsx` (bump corrispettivi 4.5, fatture 2.8, flussiCassa 1.12)
+
+---
+
+## Hotfix Task Manager — 2026-04-18 (sera)
+
+### Problema
+Dopo il deploy di Phase B (rename Cucina → Task Manager, commit 27aadf8) il modulo crashava al primo tentativo di creare/leggere task: `sqlite3.OperationalError: no such column: reparto` in `tasks_router.py:951` (`list_tasks`).
+
+### Root cause
+Race fra `init_tasks_db` (chiamato su import del router al boot di uvicorn) e la migrazione 086. Al deploy, uvicorn ha ri-importato i moduli → `init_tasks_db` ha creato un `tasks.sqlite3` vuoto (schema-only, no colonna `reparto`) PRIMA che la 086 girasse. La 086 ha quindi trovato entrambi `cucina.sqlite3` e `tasks.sqlite3` esistenti, rispettato la guardia "mantengo canonical" e lasciato i dati orfani in `cucina.sqlite3`. Il backend leggeva dal DB vuoto nuovo, senza la colonna `reparto` aggiunta dalla 085.
+
+### Fix produzione (manuale su VPS)
+```
+sudo systemctl stop trgb-backend
+cd /home/marco/trgb/trgb/app/data
+mv tasks.sqlite3 tasks.sqlite3.empty-bak-$(date +%s)
+mv cucina.sqlite3 tasks.sqlite3
+sudo systemctl start trgb-backend
+```
+
+### Fix strutturale (migrazione 087)
+Nuova migrazione **`087_tasks_db_self_heal.py`** che:
+1. Se esistono entrambi `cucina.sqlite3` e `tasks.sqlite3`, confronta le righe in `checklist_template + task_singolo + checklist_instance`: se `tasks.sqlite3` è vuoto e `cucina.sqlite3` popolato → swap automatico con backup del DB vuoto in `tasks.sqlite3.empty-bak-<ts>`.
+2. Se `cucina.sqlite3` è orfano ma vuoto → archivia come `.orphan-bak-<ts>`.
+3. Garantisce colonna `reparto` + index su tutte le 4 tabelle del modulo Tasks (idempotente, PRAGMA check prima di ALTER).
+4. Garantisce la rinomina `cucina_alert_log` → `task_alert_log`.
+
+Testata in sandbox con setup prod-like (DB popolato + DB vuoto): swap + 3 ALTER al primo run, 0 modifiche al secondo (idempotenza ok).
+
+### Lezione
+Le migrazioni che toccano file devono assumere che **il backend può già aver creato lo stato atteso prima che girino**. Pattern sicuro: invece di `if not TARGET.exists(): move(SOURCE, TARGET)`, usare `if SOURCE.exists() and (not TARGET.exists() or TARGET_is_empty()): move(...)`.
+
+### File toccati
+- `app/migrations/087_tasks_db_self_heal.py` (nuovo)
+- `docs/changelog.md`
+
+---
+
+## v1.1 Task Manager — 2026-04-18
+
+### Novità
+- Modulo **Cucina** rinominato in **Task Manager** (key `tasks`, icona 📋, palette indigo).
+- Backend: `app/routers/cucina_router.py` → `tasks_router.py`; `cucina_db.py` → `tasks_db.py`; `cucina_schema.py` → `tasks_schema.py`; `cucina_scheduler.py` → `tasks_scheduler.py`. Prefix router `/tasks`, tag "Task Manager".
+- Frontend: `pages/cucina/` → `pages/tasks/`, `components/cucina/` → `components/tasks/`. 10 componenti ribattezzati (droppato prefisso `Cucina`; `CucinaHome` → `TasksHome`).
+- DB: `app/data/cucina.sqlite3` → `app/data/tasks.sqlite3`. Tabella `cucina_alert_log` → `task_alert_log` (scaffold V1).
+- Migrazione **086_rename_cucina_to_tasks.py**: `shutil.move` del file DB (con sidecar wal/shm/prev) + `ALTER TABLE ... RENAME TO`. Idempotente.
+- **Redirect legacy** `/cucina/*` → `/tasks/*` (8 rotte) su App.jsx per non rompere bookmark esistenti.
+- `app/data/modules.json`: entry `cucina` → `tasks`, label "Task Manager".
+- `modulesMenu.js` + `versions.jsx`: entry `tasks` v1.1 beta, icona 📋, colore indigo.
+- Phase A cleanup: `TemplateList.jsx` ora usa `REPARTI` da `config/reparti.js` (rimossa costante locale hardcoded uppercase).
+
+### Follow-up per Marco (test manuale post-push)
+- Verificare che le istanze/task esistenti sopravvivano al rename DB (la 086 muove il file, niente data loss se idempotente).
+- Controllare che `app/data/modules.runtime.json` non contenga ancora la vecchia entry `cucina` (è il file runtime delle override permessi; se serve, Marco lo cancella così viene ri-seed da modules.json).
+- Testare i redirect `/cucina/*` da browser (click su bookmark vecchio deve aprire `/tasks/*`).
+- `SceltaMacellaio.jsx` è rimasto in `pages/tasks/` ma appartiene semanticamente al modulo ricette — spostarlo in `pages/ricette/` è un follow-up cosmetico di Phase C.
+
+---
+
+## 2026-04-18 — Hotfix ClientiDashboard: ReferenceError `tel is not defined`
+
+### Problema
+Refuso introdotto nel batch refactor M.I #7 su `clienti/ClientiDashboard.jsx` (linea 110): nel Tooltip della lista compleanni il template literal usava `${tel}` invece di `${c.telefono}`. `tel` non era mai stato dichiarato → React sollevava `ReferenceError: tel is not defined` al primo render se c'era almeno un compleanno → la pagina **Clienti → Dashboard CRM** crashava completamente.
+
+### Fix
+- `clienti/ClientiDashboard.jsx` linea 110: `<Tooltip label={\`WhatsApp a ${tel}\`}>` → `<Tooltip label={\`WhatsApp a ${c.telefono}\`}>`.
+- Nessun altro riferimento a `tel` orfano nel file (verificato con grep).
+
+### Lezione
+Refactor anche minimi su Tooltip/aria-label vanno controllati con grep `\btel\b` o equivalente per beccare reference non risolti — i lint warning erano stati ignorati nel push.
+
+### File toccati
+- `frontend/src/pages/clienti/ClientiDashboard.jsx`
+
+---
+
+## 2026-04-18 — Batch refactor M.I #8 (4 pagine + 1 version bump: BancaMenu, CucinaMenu, BancaMovimenti, PrenotazioniForm, StatisticheCoperti)
+
+### Problema / contesto
+Ottavo giro M.I su menu sezione, registro movimenti banca, modale form prenotazioni e dashboard coperti/incassi. Scope ristretto perché molte pagine residue sono già state toccate, oppure sono dashboard hand-tuned con grafici SVG inline che non beneficiano dei mattoni. Pattern uguale ai batch precedenti.
+
+### Pagine toccate in questo batch
+
+**1. `banca/BancaMenu.jsx` — refactor v1.1-mattoni (83 righe)**
+- "← Torna alla Home" (border-emerald-300) → `<Btn variant="secondary" size="md">`.
+- Card menu (Dashboard / Movimenti / Cross-Ref / Impostazioni) lasciate custom: template tintati emerald/blue/neutral con emoji, identità visiva del modulo.
+
+**2. `statistiche/CucinaMenu.jsx` — refactor v1.1-mattoni (70 righe)**
+- "← Statistiche" (border-rose-300) → `<Btn variant="secondary" size="md">`.
+- Card sub-menu (Dashboard / Prodotti / Import) lasciate custom: stesso pattern di BancaMenu.
+
+**3. `banca/BancaMovimenti.jsx` — refactor v1.2-mattoni (340 righe)**
+- Empty state "Nessun movimento trovato" → `<EmptyState icon="🏦" compact>`.
+- Bottoni inline editing categoria "Salva" (bg-emerald-600) / "Annulla" → `<Btn variant="success" size="sm" loading={saving}>` / `<Btn variant="secondary" size="sm">`.
+- Paginazione ← / → (border + disabled:opacity-40) → `<Btn variant="secondary" size="sm" disabled={...}>`.
+- Filtri date/select/search lasciati custom: layout flex-wrap inline tipo registro contabile.
+
+**4. `prenotazioni/PrenotazioniForm.jsx` — refactor v1.1-mattoni (414 righe)**
+- Footer modale "Annulla" / "Salva Prenotazione" (bg-indigo-600) → `<Btn variant="secondary" size="md">` / `<Btn variant="primary" size="md" loading={submitting}>`.
+- Slot ora-rapidi (chip toggle indigo selezionata) lasciati custom: pattern toggle radio-like, non standard CTA.
+- Stepper persone +/- lasciato custom: 8×8 px round button, micro-interazione.
+- Autocomplete clienti + form nuovo cliente lasciati custom: dropdown e mini-form embedded specifici.
+
+**5. `statistiche/StatisticheCoperti.jsx` — refactor v2.1-mattoni (410 righe)**
+- Nav mese ← / → (border neutral-300) → `<Btn variant="secondary" size="sm">`.
+- Empty state "Nessuna chiusura per {mese} {anno}" → `<EmptyState icon="📅" compact>`.
+- BarChart SVG inline (incassi pranzo vs cena, stacked) e MediaLine sparkline (media coperto) lasciati custom: SVG hand-rolled con palette specifica e legenda.
+- Tabella compatta dettaglio giornaliero lasciata custom: 11 colonne con bordi week/weekend/best-day, colorazione tonal specifica.
+
+### Version bump senza modifiche di codice
+- **`tasks/TemplateList.jsx`** (247 righe): file già usa `Btn`/`StatusBadge`/`EmptyState` (refactor effettuato in passato senza aggiornare l'header). Solo bump da `v1.2-tasks-rename` a `v1.3-mattoni` con commento di certificazione mattoni-compliance. Zero modifiche di logica o markup.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch movimenti/prenotazioni/coperti invariati).
+- Card menu modulo (BancaMenu, CucinaMenu) tintate per identità visiva.
+- Slot ora chip e stepper persone in PrenotazioniForm: micro-interazioni custom.
+- BarChart/MediaLine SVG inline in StatisticheCoperti: rendering custom hand-rolled.
+- Tabella dettaglio giornaliero (11 colonne) con tonal weekend/best-day: pattern data-rich specifico.
+- Nessuna migrazione DB, nessun cambio di API, nessuna logica nuova.
+
+### File toccati
+- `frontend/src/pages/banca/BancaMenu.jsx`
+- `frontend/src/pages/statistiche/CucinaMenu.jsx`
+- `frontend/src/pages/banca/BancaMovimenti.jsx`
+- `frontend/src/pages/prenotazioni/PrenotazioniForm.jsx`
+- `frontend/src/pages/statistiche/StatisticheCoperti.jsx`
+- `frontend/src/pages/tasks/TemplateList.jsx` (solo header)
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #7 (5 pagine: RegistroMovimenti, ClientiPrenotazioni, ClientiDashboard, DashboardSala, ControlloGestioneDashboard)
 
 ### Problema / contesto

@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoAdmin.jsx
-// @version: v2.0-sortable-loc-select
+// @version: v2.1-mattoni — M.I primitives (Btn) su CTA header e footer salva
 // Pagina admin — tabellona editabile per modifiche massive, solo ruolo admin
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -10,6 +10,7 @@ import ViniNav from "./ViniNav";
 import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
+import { Btn } from "../../components/ui";
 
 // ── Colonne base della tabellona (locazioni dinamiche aggiunte nel componente) ──
 const BASE_COLUMNS = [
@@ -104,10 +105,11 @@ export default function MagazzinoAdmin() {
         <div className="max-w-3xl mx-auto bg-white rounded-3xl shadow-2xl p-12 text-center">
           <h1 className="text-2xl font-bold text-red-700 mb-4">Accesso negato</h1>
           <p className="text-neutral-600">Questa pagina è riservata agli amministratori.</p>
-          <button onClick={() => navigate("/vini/magazzino")}
-            className="mt-6 px-6 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition">
-            Torna al magazzino
-          </button>
+          <div className="mt-6 flex justify-center">
+            <Btn variant="primary" size="md" onClick={() => navigate("/vini/magazzino")}>
+              Torna al magazzino
+            </Btn>
+          </div>
         </div>
       </div>
     );
@@ -309,23 +311,19 @@ export default function MagazzinoAdmin() {
                   <span className="text-sm text-amber-700 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-3 py-1">
                     {pendingCount} modific{pendingCount === 1 ? "a" : "he"} non salvat{pendingCount === 1 ? "a" : "e"}
                   </span>
-                  <button onClick={discardEdits}
-                    className="px-4 py-2 text-sm border border-neutral-300 rounded-xl hover:bg-neutral-50 transition">
+                  <Btn variant="secondary" size="md" onClick={discardEdits}>
                     Annulla
-                  </button>
+                  </Btn>
                 </>
               )}
-              <button onClick={saveBulk}
-                disabled={saving || pendingCount === 0}
-                className="px-6 py-2 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
+              <Btn variant="success" size="md" onClick={saveBulk}
+                disabled={saving || pendingCount === 0} loading={saving}>
                 {saving ? "Salvataggio..." : "💾 Salva tutto"}
-              </button>
+              </Btn>
               <Tooltip label="Ricalcola PREZZO_CARTA automaticamente per tutti i vini con EURO_LISTINO">
-                <button onClick={ricalcolaPrezzi}
-                  disabled={recalcing}
-                  className="px-4 py-2 bg-amber-700 text-white rounded-xl font-semibold hover:bg-amber-800 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm text-sm">
+                <Btn variant="primary" size="md" onClick={ricalcolaPrezzi} disabled={recalcing} loading={recalcing}>
                   {recalcing ? "Ricalcolo..." : "🏷️ Ricalcola prezzi"}
-                </button>
+                </Btn>
               </Tooltip>
             </div>
           </div>
@@ -430,11 +428,9 @@ export default function MagazzinoAdmin() {
         {/* Footer con bottone salva duplicato */}
         {pendingCount > 0 && (
           <div className="sticky bottom-4 flex justify-center">
-            <button onClick={saveBulk}
-              disabled={saving}
-              className="px-8 py-3 bg-emerald-700 text-white rounded-2xl font-bold text-sm hover:bg-emerald-800 transition shadow-lg disabled:opacity-40">
+            <Btn variant="success" size="lg" onClick={saveBulk} disabled={saving} loading={saving}>
               {saving ? "Salvataggio..." : `💾 Salva ${pendingCount} modific${pendingCount === 1 ? "a" : "he"}`}
-            </button>
+            </Btn>
           </div>
         )}
 

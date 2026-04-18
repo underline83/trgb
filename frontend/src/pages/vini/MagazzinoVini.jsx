@@ -1,5 +1,5 @@
 // src/pages/vini/MagazzinoVini.jsx
-// @version: v4.1-flags-sortable
+// @version: v4.2-mattoni — M.I primitives (Btn) su CTA header (tocco minimo)
 // Pagina Cantina — Lista Vini + Dettaglio + Scheda completa inline modificabile
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -12,6 +12,7 @@ import Tooltip from "../../components/Tooltip";
 import {
   STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS,
 } from "../../config/viniConstants";
+import { Btn } from "../../components/ui";
 
 const uniq = (arr) =>
   Array.from(new Set(arr.filter((x) => x && String(x).trim() !== ""))).sort(
@@ -1031,14 +1032,12 @@ export default function MagazzinoVini() {
             <span className="text-xs text-neutral-500 hidden sm:inline">Gestione vini, giacenze e movimenti</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/vini/magazzino/nuovo")}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition">
+            <Btn variant="primary" size="sm" onClick={() => navigate("/vini/magazzino/nuovo")}>
               + Nuovo
-            </button>
-            <button onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition">
+            </Btn>
+            <Btn variant="secondary" size="sm" onClick={() => window.open(`${API_BASE}/vini/carta/pdf`, "_blank")}>
               Carta PDF
-            </button>
+            </Btn>
             <div className="relative" ref={stampeMenuRef}>
               <button
                 onClick={() => setShowStampeMenu((v) => !v)}

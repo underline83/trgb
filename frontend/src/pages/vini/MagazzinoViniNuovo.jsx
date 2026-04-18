@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/vini/MagazzinoViniNuovo.jsx
-// @version: v2.0-scheda-style-unified
+// @version: v2.1-mattoni — M.I primitives (Btn) su footer salva e modale duplicati
 // Pagina Magazzino Vini — Inserimento nuovo vino (NO ID EXCEL) + Formato a lista + check duplicati (C)
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
 import LocationPicker from "./LocationPicker";
 import { STATO_VENDITA_OPTIONS, STATO_RIORDINO_OPTIONS, STATO_CONSERVAZIONE_OPTIONS } from "../../config/viniConstants";
+import { Btn } from "../../components/ui";
 
 const uniq = (arr) =>
   Array.from(
@@ -459,31 +460,30 @@ export default function MagazzinoViniNuovo() {
               </div>
 
               <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-end">
-                <button
+                <Btn
+                  variant="secondary"
+                  size="md"
                   type="button"
                   onClick={() => {
                     setShowDupConfirm(false);
                     setDupCandidates([]);
                   }}
-                  className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
                 >
                   No, annulla
-                </button>
-                <button
+                </Btn>
+                <Btn
+                  variant="primary"
+                  size="md"
                   type="button"
                   disabled={submitting}
+                  loading={submitting}
                   onClick={async () => {
                     setShowDupConfirm(false);
                     await doCreate();
                   }}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                    submitting
-                      ? "bg-gray-400 text-white cursor-not-allowed"
-                      : "bg-amber-700 text-white hover:bg-amber-800"
-                  }`}
                 >
                   Sì, procedi comunque
-                </button>
+                </Btn>
               </div>
             </div>
           </div>
@@ -602,14 +602,12 @@ export default function MagazzinoViniNuovo() {
               {dupChecking ? " • Check duplicati…" : ""}
             </div>
             <div className="flex gap-3">
-              <button type="button" onClick={() => navigate("/vini/magazzino")}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+              <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/magazzino")}>
                 Annulla
-              </button>
-              <button type="submit" disabled={submitting}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${submitting ? "bg-gray-400 text-white cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800"}`}>
+              </Btn>
+              <Btn variant="primary" size="md" type="submit" disabled={submitting} loading={submitting}>
                 {submitting ? "Salvataggio…" : "💾 Salva nuovo vino"}
-              </button>
+              </Btn>
             </div>
           </div>
         </form>

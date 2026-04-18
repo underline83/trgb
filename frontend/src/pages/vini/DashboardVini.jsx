@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.0-restructured-dashboard
+// @version: v4.1-mattoni — M.I primitives (Btn) su header e accesso rapido
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { STATO_RIORDINO, STATO_VENDITA, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -222,17 +223,12 @@ export default function DashboardVini() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={fetchStats} disabled={loading}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition ${
-                  loading ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-amber-700 text-white hover:bg-amber-800 hover:-translate-y-0.5"
-                }`}
-              >
+              <Btn variant="primary" size="md" type="button" onClick={fetchStats} disabled={loading} loading={loading}>
                 {loading ? "Carico…" : "⟳ Aggiorna"}
-              </button>
-              <button type="button" onClick={() => navigate("/vini")}
-                className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition">
+              </Btn>
+              <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini")}>
                 ← Menu Vini
-              </button>
+              </Btn>
             </div>
           </div>
           {error && (
@@ -829,26 +825,21 @@ export default function DashboardVini() {
         <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm px-6 py-5">
           <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-4">Accesso rapido</h2>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition">
+            <Btn variant="primary" size="md" type="button" onClick={() => navigate("/vini/magazzino")}>
               🍷 Cantina
-            </button>
-            <button type="button" onClick={() => navigate("/vini/vendite")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold border border-emerald-600 text-emerald-700 hover:bg-emerald-50 shadow-sm transition">
+            </Btn>
+            <Btn variant="chip" tone="emerald" size="md" type="button" onClick={() => navigate("/vini/vendite")}>
               🛒 Vendite
-            </button>
-            <button type="button" onClick={() => navigate("/vini/magazzino/nuovo")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold border border-amber-700 text-amber-700 hover:bg-amber-50 shadow-sm transition">
+            </Btn>
+            <Btn variant="chip" tone="amber" size="md" type="button" onClick={() => navigate("/vini/magazzino/nuovo")}>
               ➕ Nuovo vino
-            </button>
-            <button type="button" onClick={() => navigate("/vini/carta")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            </Btn>
+            <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta")}>
               📋 Carta vini
-            </button>
-            <button type="button" onClick={() => navigate("/vini/settings")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            </Btn>
+            <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/settings")}>
               ⚙️ Impostazioni
-            </button>
+            </Btn>
           </div>
         </div>
 
