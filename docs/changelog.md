@@ -3,6 +3,47 @@
 
 ---
 
+## 2026-04-18 — CambioPIN pagina pilota M.I (refactor di prova)
+
+### Problema / contesto
+Dopo aver creato i mattoni `Btn`/`PageLayout`/`StatusBadge`/`EmptyState`, serve una pagina pilota che li usi davvero per:
+- validare che il design default funziona sul campo
+- offrire un esempio concreto di "come si scrive una pagina con i mattoni" per le pagine future
+- avere un confronto visivo con il vecchio stile
+
+### Scelta della pagina
+`CambioPIN.jsx` (222 righe). Pagina semplice, ben isolata, contiene quasi tutti i pattern interessanti: header pagina, form con CTA primario, messaggi feedback ok/errore, lista utenti con azione per riga, stato vuoto.
+
+### Cosa cambia visivamente
+- **Bottone "Cambia PIN"**: era `bg-neutral-700` grigio scuro → ora `<Btn variant="primary">` = `brand-blue` #2E7BE8 (allineamento alla palette TRGB-02). Spinner inline su `loading`.
+- **Bottone "Indietro"**: era link grigio inline → ora `<Btn variant="ghost" size="sm">` con focus ring brand.
+- **Bottone "Reset → 0000"**: era chip rosso custom → ora `<Btn variant="chip" tone="red" size="sm">` con spinner integrato.
+- **Badge ruolo utente**: era `<span class="text-xs uppercase">` → ora `<StatusBadge tone="neutral" size="sm">` (bordo + sfondo coerente).
+- **"Nessun altro utente trovato"**: testo italic grigio → `<EmptyState icon="👥" title="Nessun altro utente" compact />` con watermark gobbette.
+- **Header titolo**: usa `text-brand-ink` invece di `text-neutral-900` (palette brand).
+- **Focus ring input**: era `ring-neutral-200` → ora `ring-brand-blue/30 focus:border-brand-blue` (continuità visiva).
+
+### Cosa NON cambia
+- Logica business identica (stesse fetch, stessa validazione PIN, stessi messaggi).
+- Layout: card bianche con shadow, larghezza max-w-xl, spacing.
+- `MessageBox` interno mantenuto per i feedback inline (StatusBadge è troppo piccolo per un messaggio multilinea).
+
+### File toccati
+- `frontend/src/pages/CambioPIN.jsx` (v1.0 → v2.0-mattoni, 222 → ~230 righe, refactor cosmetico)
+- `docs/changelog.md` (questa entry)
+
+### Verifica post-push
+1. Apri `/cambio-pin` → header "Cambia PIN" con emoji 🔑, sfondo crema, card bianca centrata.
+2. Bottone "Cambia PIN" deve essere blu brand (non più grigio scuro).
+3. Su admin: lista utenti con badge ruolo grigio neutro + bottone rosso chip "Reset → 0000".
+4. Su admin senza altri utenti: empty state con gobbette R/G/B sfumate sullo sfondo.
+5. Tab attraverso campi: focus ring blu brand, non grigio.
+
+### Rollback
+`git revert` del commit. La pagina torna alla v1.0 senza mattoni. Nessun altro modulo è impattato.
+
+---
+
 ## 2026-04-18 — M.I UI primitives TRGB-02 (Btn, PageLayout, StatusBadge, EmptyState)
 
 ### Problema / contesto

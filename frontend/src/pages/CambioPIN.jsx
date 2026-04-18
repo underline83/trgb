@@ -1,11 +1,12 @@
 // src/pages/CambioPIN.jsx
-// @version: v1.0
+// @version: v2.0-mattoni — refactor con M.I UI primitives (Btn, PageLayout, StatusBadge, EmptyState)
 // Cambio PIN self-service per tutti gli utenti
 // Admin: può anche resettare il PIN di qualsiasi utente a 0000
 
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { isAdminRole } from "../utils/authHelpers";
+import { Btn, PageLayout, StatusBadge, EmptyState } from "../components/ui";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
@@ -101,19 +102,19 @@ export default function CambioPIN() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-brand-cream p-4 sm:p-6">
-      <div className="max-w-xl mx-auto space-y-5">
+  const altriUtenti = users.filter(u => u.username !== username);
 
+  return (
+    <PageLayout>
+      <div className="max-w-xl mx-auto space-y-5">
         {/* Back */}
-        <button onClick={() => navigate(-1)}
-          className="text-sm text-neutral-500 hover:text-neutral-700 transition">
+        <Btn variant="ghost" size="sm" onClick={() => navigate(-1)} className="!shadow-none">
           ← Indietro
-        </button>
+        </Btn>
 
         {/* CAMBIO PIN PROPRIO */}
         <div className="bg-white rounded-2xl shadow-lg p-6 border border-neutral-200">
-          <h1 className="text-xl font-bold text-neutral-900 font-playfair mb-1">
+          <h1 className="text-xl font-bold text-brand-ink font-playfair mb-1">
             🔑 Cambia PIN
           </h1>
           <p className="text-neutral-500 text-sm mb-5">
@@ -127,20 +128,21 @@ export default function CambioPIN() {
             <PinInput label="Nuovo PIN" value={newPin} onChange={setNewPin} />
             <PinInput label="Conferma nuovo PIN" value={confirmPin} onChange={setConfirmPin} />
 
-            <button onClick={handleChangePin} disabled={saving}
-              className={`w-full py-3 rounded-xl text-white font-bold text-sm shadow transition ${
-                saving ? "bg-neutral-400 cursor-not-allowed" : "bg-neutral-700 hover:bg-neutral-800"
-              }`}>
-              {saving ? "Salvataggio..." : "Cambia PIN"}
-            </button>
+            <Btn
+              variant="primary"
+              size="lg"
+              onClick={handleChangePin}
+              loading={saving}
+              disabled={saving}
+              className="w-full"
+            >
+              {saving ? "Salvataggio…" : "Cambia PIN"}
+            </Btn>
 
             {message && (
-              <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${
-                message.type === "ok" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                "bg-red-50 text-red-700 border border-red-200"
-              }`}>
+              <MessageBox type={message.type === "ok" ? "success" : "danger"}>
                 {message.text}
-              </div>
+              </MessageBox>
             )}
           </div>
         </div>
@@ -148,7 +150,7 @@ export default function CambioPIN() {
         {/* RESET PIN ADMIN */}
         {isAdmin && (
           <div className="bg-white rounded-2xl shadow p-6 border border-neutral-200">
-            <h2 className="text-lg font-bold text-neutral-800 mb-1">
+            <h2 className="text-lg font-bold text-brand-ink mb-1">
               🔧 Reset PIN utenti
             </h2>
             <p className="text-neutral-500 text-sm mb-4">
@@ -156,42 +158,65 @@ export default function CambioPIN() {
             </p>
 
             {resetMessage && (
-              <div className={`rounded-xl px-4 py-3 text-sm font-semibold mb-4 ${
-                resetMessage.type === "ok" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                "bg-red-50 text-red-700 border border-red-200"
-              }`}>
-                {resetMessage.text}
+              <div className="mb-4">
+                <MessageBox type={resetMessage.type === "ok" ? "success" : "danger"}>
+                  {resetMessage.text}
+                </MessageBox>
               </div>
             )}
 
-            <div className="space-y-2">
-              {users.filter(u => u.username !== username).map(u => (
-                <div key={u.username} className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 bg-neutral-50">
-                  <div>
-                    <span className="font-medium text-neutral-800">{u.username}</span>
-                    <span className="ml-2 text-xs text-neutral-400 uppercase">{u.role}</span>
+            {altriUtenti.length === 0 ? (
+              <EmptyState
+                icon="👥"
+                title="Nessun altro utente"
+                description="Non ci sono altri utenti registrati oltre a te."
+                compact
+              />
+            ) : (
+              <div className="space-y-2">
+                {altriUtenti.map(u => (
+                  <div
+                    key={u.username}
+                    className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 bg-neutral-50"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-brand-ink truncate">{u.username}</span>
+                      <StatusBadge tone="neutral" size="sm">{u.role}</StatusBadge>
+                    </div>
+                    <Btn
+                      variant="chip"
+                      tone="red"
+                      size="sm"
+                      loading={resetting === u.username}
+                      onClick={() => handleResetPin(u.username)}
+                    >
+                      {resetting === u.username ? "…" : "Reset → 0000"}
+                    </Btn>
                   </div>
-                  <button
-                    onClick={() => handleResetPin(u.username)}
-                    disabled={resetting === u.username}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                      resetting === u.username
-                        ? "bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed"
-                        : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-                    }`}>
-                    {resetting === u.username ? "..." : "Reset → 0000"}
-                  </button>
-                </div>
-              ))}
-              {users.filter(u => u.username !== username).length === 0 && (
-                <div className="text-sm text-neutral-400 italic text-center py-3">
-                  Nessun altro utente trovato.
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
+    </PageLayout>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// MessageBox — riquadro feedback in linea con StatusBadge tones
+// ─────────────────────────────────────────────────────────────
+function MessageBox({ type = "neutral", children }) {
+  const STYLE = {
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    danger:  "bg-red-50     text-red-700     border-red-200",
+    warning: "bg-amber-50   text-amber-800   border-amber-200",
+    info:    "bg-sky-50     text-sky-700     border-sky-200",
+  };
+  return (
+    <div className={`rounded-xl px-4 py-3 text-sm font-semibold border ${STYLE[type] || STYLE.info}`}>
+      {children}
     </div>
   );
 }
@@ -215,7 +240,7 @@ function PinInput({ label, value, onChange }) {
           onChange(v);
         }}
         placeholder="••••"
-        className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-lg tracking-widest text-center bg-white focus:outline-none focus:ring-2 focus:ring-neutral-200"
+        className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-lg tracking-widest text-center bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
       />
     </div>
   );
