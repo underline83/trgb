@@ -1,8 +1,9 @@
-// @version: v1.5-with-nav
+// @version: v1.6-mattoni — M.I primitives (Btn) su Importa, Dettaglio, Svuota DB, Vai a Dashboard
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import { Btn } from "../../components/ui";
 
 export default function FattureImport() {
   const navigate = useNavigate();
@@ -285,21 +286,13 @@ export default function FattureImport() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
-                type="button"
+              <Btn variant="chip" tone="emerald" size="md" type="button" onClick={handleUpload}
                 disabled={uploading || !files || files.length === 0}
-                onClick={handleUpload}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold shadow
-                  ${
-                    uploading || !files || files.length === 0
-                      ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-                      : "bg-teal-600 text-white hover:bg-teal-700 transition"
-                  }`}
-              >
+                loading={uploading}>
                 {uploading
                   ? "Import in corso..."
                   : "Importa fatture elettroniche"}
-              </button>
+              </Btn>
 
               {files && files.length > 0 && !uploading && (
                 <span className="text-xs text-neutral-500">
@@ -413,13 +406,9 @@ export default function FattureImport() {
                               : "-"}
                           </td>
                           <td className="px-3 py-2 text-center align-middle">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectFattura(f.id)}
-                              className="px-3 py-1 rounded-full text-xs font-medium border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition"
-                            >
+                            <Btn variant="chip" tone="emerald" size="sm" type="button" onClick={() => handleSelectFattura(f.id)}>
                               Dettaglio
-                            </button>
+                            </Btn>
                           </td>
                         </tr>
                       ))}
@@ -576,29 +565,17 @@ export default function FattureImport() {
         {/* FOOTER: DASHBOARD + RESET */}
         <div className="mt-8 border-t border-neutral-200 pt-4 flex flex-wrap justify-between items-center gap-3">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={resetting || fatture.length === 0}
-              onClick={handleReset}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition ${
-                resetting || fatture.length === 0
-                  ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                  : "bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
-              }`}
-            >
+            <Btn variant="chip" tone="red" size="sm" type="button" onClick={handleReset}
+              disabled={resetting || fatture.length === 0} loading={resetting}>
               {resetting ? "Eliminazione..." : `Svuota DB (${fatture.length} fatture)`}
-            </button>
+            </Btn>
             <p className="text-xs text-neutral-500">
               I dati importati alimentano la Dashboard Acquisti.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate("/acquisti/dashboard")}
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 transition"
-          >
+          <Btn variant="chip" tone="blue" size="sm" type="button" onClick={() => navigate("/acquisti/dashboard")}>
             Vai alla Dashboard Acquisti →
-          </button>
+          </Btn>
         </div>
       </div>
       </div>

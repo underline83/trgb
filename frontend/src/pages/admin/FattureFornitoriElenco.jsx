@@ -1,4 +1,4 @@
-// @version: v3.2-fornitore-sidebar-colorata
+// @version: v3.3-mattoni — M.I primitives (Btn) su azioni filtri + bulk assegna categoria (tocco minimo, file >1500 righe)
 // Elenco fornitori — Layout Cantina: Filtri SX + Lista/Dettaglio inline DX
 // v3.1: supporto deep-link ?piva=xxx per auto-aprire un fornitore specifico
 //       (usato dal bottone "Modifica anagrafica fornitore" in FattureDettaglio).
@@ -11,6 +11,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CAT_BASE = `${API_BASE}/contabilita/fe/categorie`;
@@ -380,14 +381,12 @@ export default function FattureFornitoriElenco() {
             </div>
 
             <div className="flex gap-1.5 pt-1">
-              <button onClick={clearFilters}
-                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
+              <Btn variant="secondary" size="sm" onClick={clearFilters} className="flex-1">
                 ✕ Pulisci {activeFilters > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[9px]">{activeFilters}</span>}
-              </button>
-              <button onClick={fetchAll}
-                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-800 transition">
+              </Btn>
+              <Btn variant="chip" tone="emerald" size="sm" onClick={fetchAll} className="flex-1">
                 ⟳ Ricarica
-              </button>
+              </Btn>
             </div>
 
           </div>
@@ -447,12 +446,10 @@ export default function FattureFornitoriElenco() {
                     <option value="">— Sotto-cat. —</option>
                     {bulkSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
-                  <button onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+                  <Btn variant="chip" tone="emerald" size="sm" onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving} loading={bulkSaving}>
                     {bulkSaving ? "Salvataggio..." : "Assegna categoria"}
-                  </button>
-                  <button onClick={() => setSelected(new Set())}
-                    className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 transition">Deseleziona</button>
+                  </Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Deseleziona</Btn>
                 </div>
               )}
 
@@ -1444,12 +1441,10 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
                 <option value="">— Sotto-cat. —</option>
                 {bulkSubcats.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
-              <button onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+              <Btn variant="chip" tone="emerald" size="sm" onClick={handleBulkAssign} disabled={!bulkCatId || bulkSaving} loading={bulkSaving}>
                 {bulkSaving ? "Salvataggio..." : "Assegna a tutti"}
-              </button>
-              <button onClick={() => setSelected(new Set())}
-                className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 transition">Deseleziona</button>
+              </Btn>
+              <Btn variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Deseleziona</Btn>
             </div>
           )}
 

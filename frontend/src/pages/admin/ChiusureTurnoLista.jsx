@@ -1,5 +1,5 @@
 // src/pages/admin/ChiusureTurnoLista.jsx
-// @version: v2.0-grouped-by-day
+// @version: v2.1-mattoni — M.I primitives (Btn) su Nuova chiusura, Elimina/Modifica turno, nav mese
 // Lista chiusure turno raggruppate per giorno — solo admin
 // Ogni giorno mostra riepilogo giornaliero + dettagli pranzo/cena espandibili
 
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { isAdminRole, isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
@@ -295,26 +296,22 @@ export default function ChiusureTurnoLista() {
               deletingId === c.id ? (
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] text-red-600 font-semibold">Confermi?</span>
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                    className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px] font-semibold hover:bg-red-700 transition">
+                  <Btn variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}>
                     Elimina
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); setDeletingId(null); }}
-                    className="px-2 py-1 bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-semibold hover:bg-neutral-300 transition">
+                  </Btn>
+                  <Btn variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); setDeletingId(null); }}>
                     No
-                  </button>
+                  </Btn>
                 </div>
               ) : (
-                <button onClick={(e) => { e.stopPropagation(); setDeletingId(c.id); }}
-                  className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-100 transition border border-red-200">
+                <Btn variant="chip" tone="red" size="sm" onClick={(e) => { e.stopPropagation(); setDeletingId(c.id); }}>
                   Elimina
-                </button>
+                </Btn>
               )
             )}
-            <button onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}
-              className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold hover:bg-indigo-200 transition">
+            <Btn variant="chip" tone="violet" size="sm" onClick={() => navigate(`/vendite/fine-turno?date=${c.date}&turno=${c.turno}`)}>
               Modifica
-            </button>
+            </Btn>
           </div>
         </div>
       </div>
@@ -337,10 +334,9 @@ export default function ChiusureTurnoLista() {
                 Riepilogo giornaliero con dettaglio pranzo e cena
               </p>
             </div>
-            <button onClick={() => navigate("/vendite/fine-turno")}
-              className="px-4 py-2 bg-indigo-700 text-white rounded-xl text-sm font-semibold hover:bg-indigo-800 transition">
+            <Btn variant="primary" size="md" onClick={() => navigate("/vendite/fine-turno")}>
               + Nuova chiusura
-            </button>
+            </Btn>
           </div>
         </div>
 

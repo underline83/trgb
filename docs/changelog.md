@@ -3,6 +3,104 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #13 Fatture admin + Corrispettivi + chiusure (12 pagine toccate, di cui 7 minimal, 3 skippate)
+
+### Problema / contesto
+Tredicesimo giro M.I, secondo "sottolotto" del cluster "Rimanenti". Chiude tutto il sottoinsieme contabile non ancora toccato: l'area Fatture (Acquisti) e Corrispettivi (Vendite) lato admin, più le pagine di chiusura turno e la dashboard contanti. Nei file giganti (>1500 righe come `FattureFornitoriElenco`, `FattureImpostazioni`, `GestioneContanti`) e nei dashboard pieni di widget bespoke (`FattureDashboard`, `FattureDettaglio`, `FattureInCloud`, `CorrispettiviDashboard`, `ChiusuraTurno`) ho applicato la regola "tocco minimo": solo i CTA top-level e le azioni bulk vengono convertiti, i bottoni interni a tabelle ad alta densità o a widget riconciliazione restano intatti per non rompere il layout o introdurre regressioni.
+
+### Pagine toccate in questo batch
+
+**1. `admin/CorrispettiviGestione.jsx` — refactor v2.1-mattoni (379 righe)**
+- "Salva chiusura" footer (bg-indigo-700) → `<Btn variant="primary" size="md" type="button" loading={saving} disabled={saving}>`.
+
+**2. `admin/FattureElenco.jsx` — refactor v3.3-mattoni (536 righe, tocco minimo)**
+- Filtri "Pulisci" → `<Btn variant="secondary" size="sm" className="flex-1">` con badge contatore activeFilters.
+- Filtri "Ricarica" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm" className="flex-1">`.
+- Toolbar tab elenco/scadenzario, sort header, row action vai/dettaglio lasciati custom (widget bespoke).
+
+**3. `admin/FattureProformeElenco.jsx` — refactor v1.1-mattoni (586 righe)**
+- Header "+ Nuova proforma" (bg-teal-600) → `<Btn variant="primary" size="md">`.
+- Modal Crea/Modifica "Annulla" (ghost) → `<Btn variant="ghost" size="md">`.
+- Modal Crea/Modifica "Crea proforma"/"Salva modifiche" → `<Btn variant="primary" size="md" loading={saving}>`.
+- Modal riconciliazione "Collega" → `<Btn variant="success" size="sm">`.
+- Modal riconciliazione "Chiudi" → `<Btn variant="ghost" size="md">`.
+
+**4. `admin/FattureImport.jsx` — refactor v1.6-mattoni (607 righe)**
+- "Importa fatture elettroniche" (chip emerald) → `<Btn variant="chip" tone="emerald" size="md" loading={uploading}>`.
+- Row "Dettaglio" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm">`.
+- Header "Svuota DB" (chip red) → `<Btn variant="chip" tone="red" size="sm" loading={resetting}>`.
+- Footer "Vai alla Dashboard Acquisti" (chip blue) → `<Btn variant="chip" tone="blue" size="sm">`.
+
+**5. `admin/ChiusureTurnoLista.jsx` — refactor v2.1-mattoni (575 righe)**
+- "+ Nuova chiusura" header (bg-indigo-600) → `<Btn variant="primary" size="md">`.
+- Row "Modifica" (chip violet) → `<Btn variant="chip" tone="violet" size="sm">`.
+- Row "Elimina" (chip red) → `<Btn variant="chip" tone="red" size="sm">`.
+- Confirm popover "Sì" → `<Btn variant="danger" size="sm">`, "No" → `<Btn variant="secondary" size="sm">`.
+- Nav mese left/right e pickers data lasciati custom.
+
+**6. `admin/FattureInCloud.jsx` — refactor v1.2-mattoni (730 righe, tocco minimo)**
+- "Collega Fatture in Cloud" (chip emerald, OAuth start) → `<Btn variant="chip" tone="emerald" size="md" loading={connecting}>`.
+- "Sincronizza" (chip emerald) → `<Btn variant="chip" tone="emerald" size="md" loading={syncing}>`.
+- "Scollega" (ghost red) → `<Btn variant="ghost" size="sm" className="text-red-600 hover:bg-red-50">`.
+- Tab navigazione, status badges, pulsanti settings interne lasciati custom (widget OAuth/sync).
+
+**7. `admin/FattureFornitoriElenco.jsx` — refactor v3.3-mattoni (1537 righe, tocco minimo)**
+- Filtri "Pulisci" / "Ricarica" → stesso pattern di `FattureElenco`.
+- Bulk toolbar lista fornitori "Assegna categoria" → `<Btn variant="chip" tone="emerald" size="sm" loading={bulkSaving}>`, "Deseleziona" → `<Btn variant="ghost" size="sm">`.
+- Bulk toolbar lista prodotti "Assegna a tutti" → `<Btn variant="chip" tone="emerald" size="sm" loading={bulkSaving}>`, "Deseleziona" → `<Btn variant="ghost" size="sm">`.
+- Tutto il resto (modale dettaglio fornitore con merge/split anagrafiche, row action escludi/anagrafica, dropdown categorie inline, badge stato) lasciato custom: widget bespoke ad alta densità.
+
+**8. `admin/FattureDashboard.jsx` — refactor v3.1-mattoni (867 righe, tocco minimo)**
+- Footer KPI "Import XML →" (chip emerald) → `<Btn variant="chip" tone="emerald" size="md">`.
+- Drill-down "×" close (icon-only 7×7 dentro Tooltip) lasciato custom.
+
+**9. `admin/FattureDettaglio.jsx` — refactor v2.3-mattoni (798 righe, tocco minimo)**
+- Sidebar CTA "✓ Segna pagata" (chip amber w-full) → `<Btn variant="chip" tone="amber" size="md" type="button" className="w-full">`.
+- Tutti gli altri bottoni inline (modifica anagrafica, vai a spesa fissa, sezioni pagamenti/IBAN/preset) lasciati custom: widget specifici per la scheda fattura.
+
+**10. `admin/FattureImpostazioni.jsx` — refactor v2.4-mattoni (1671 righe, tocco minimo)**
+- "Importa XML" (bg-teal-700) → `<Btn variant="chip" tone="emerald" size="md" loading={uploading} disabled={uploading || !files.length}>`.
+- "Unisci duplicati" (bg-amber-600) → `<Btn variant="warning" size="md" loading={merging}>`.
+- "Svuota DB fatture" (bg-red-600) → `<Btn variant="danger" size="md" loading={resetting}>`.
+- "+ Nuova Categoria" (bg-teal-600) → `<Btn variant="chip" tone="emerald" size="md">`.
+- Preset condizioni pagamento: "+ Nuovo preset" → `<Btn variant="chip" tone="emerald" size="sm">`, "Crea preset" → `<Btn variant="primary" size="sm" loading={saving}>`, "Annulla" → `<Btn variant="ghost" size="sm">`.
+- Tutto il resto del file (form anagrafica fornitori, escludi/categoria/sub-categoria pickers, FIC OAuth widget, inline edit categorie/sub-categorie, table actions) lasciato custom.
+
+**11. `admin/CorrispettiviDashboard.jsx` — refactor v4.1-mattoni (993 righe, tocco minimo)**
+- Period nav "← back" / "Oggi" / "forward →" (border neutral) → `<Btn variant="secondary" size="sm">` x 3.
+- Mode switcher mensile/trimestrale/annuale lasciato come segmented toggle group (widget cohesivo).
+- Tutti gli altri bottoni inline ai grafici Recharts (drill-down KPI cards) lasciati custom.
+
+**12. `admin/ChiusuraTurno.jsx` — refactor v2.1-mattoni (976 righe, tocco minimo)**
+- CTA finale "💾 Salva chiusura {turno}" (bg-indigo-700, w-full py-3.5) → `<Btn variant="primary" size="lg" type="button" loading={saving} disabled={saving || isTurnoChiuso} className="w-full">`.
+- Toggle pranzo/cena, preset incassi/coperti, expand righe pagamento, sub-totali calcolati, button "azzera campi" del wizard interno lasciati custom: form bespoke con state machine pranzo↔cena.
+
+**13. `admin/GestioneContanti.jsx` — refactor v2.1-mattoni (1687 righe, tocco minimo)**
+- CTA "+ Registra pagamento contanti" (bg-emerald-600) → `<Btn variant="success" size="md">`.
+- CTA "+ Registra versamento" (bg-emerald-600) → `<Btn variant="success" size="md">`.
+- CTA "+ Registra spesa" (bg-red-600) → `<Btn variant="danger" size="md">`.
+- Tutti i form interni (registra pagamento/versamento/spesa, edit/elimina row, sidebar tab pagamenti/versamenti/preconti/spese, riconciliazione preconto, toggle includi mance) lasciati custom: tre sotto-componenti densi.
+
+### Pagine skippate
+- `admin/CorrispettiviAnnual.jsx` — non importata da `App.jsx` (file morto).
+- `admin/FattureCategorie.jsx` — non importata da `App.jsx` (file morto, sostituita da tab dentro `FattureImpostazioni`).
+- `admin/FattureElettroniche.jsx` — non importata da `App.jsx` (file morto, sostituita da `FattureElenco`).
+
+### Versione
+- `fatture` bumped a v2.8 (da v2.7).
+- `corrispettivi` bumped a v4.5 (da v4.4).
+
+### Prossimi sottolotti (proposti)
+- **Batch #14 Clienti + Ricette + Prenotazioni + Tasks**: `clienti/*` + `ricette/*` + `prenotazioni/*` + `tasks/*`.
+- **Batch #15 CG + Home + Login**: `controllo-gestione/*` + `Home.jsx` + `Login.jsx` + eventuali pagine residue.
+
+### Commit suggerito
+```
+./push.sh "batch #13 M.I primitives — Fatture admin + Corrispettivi + chiusure (12 pagine, 7 minimal)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #12 Banca rimanente (2 pagine toccate, 1 tocco minimo, 1 skippata)
 
 ### Problema / contesto

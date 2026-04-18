@@ -1,5 +1,5 @@
 // src/pages/admin/ChiusuraTurno.jsx
-// @version: v2.0-cena-cumulativa
+// @version: v2.1-mattoni — M.I primitives (Btn) su CTA Salva chiusura (tocco minimo, file 976 righe)
 // Form fine turno pranzo/cena — per responsabili sala/sommelier
 // A cena i valori sono giornalieri (cumulativi pranzo+cena), i parziali vengono calcolati automaticamente
 
@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { isSuperAdminRole } from "../../utils/authHelpers";
 import VenditeNav from "./VenditeNav";
+import { Btn } from "../../components/ui";
 
 const API = import.meta.env.VITE_API_BASE_URL;
 
@@ -922,15 +923,9 @@ export default function ChiusuraTurno() {
             </div>
 
             {/* SALVA */}
-            <button type="button" onClick={handleSave} disabled={saving || isTurnoChiuso}
-              className={`w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-lg transition ${
-                saving || isTurnoChiuso ? "bg-neutral-400 cursor-not-allowed" :
-                turno === "pranzo"
-                  ? "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
-                  : "bg-indigo-700 hover:bg-indigo-800 hover:-translate-y-0.5"
-              }`}>
+            <Btn variant="primary" size="lg" type="button" onClick={handleSave} disabled={saving || isTurnoChiuso} loading={saving} className="w-full">
               {isTurnoChiuso ? "Turno chiuso" : saving ? "Salvataggio..." : `💾 Salva chiusura ${turno}`}
-            </button>
+            </Btn>
 
             {message && (
               <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${

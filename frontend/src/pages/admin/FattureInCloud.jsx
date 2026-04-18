@@ -1,4 +1,4 @@
-// @version: v1.1-fattureincloud-warnings
+// @version: v1.2-mattoni — M.I primitives (Btn) su Collega/Sincronizza/Scollega (tocco minimo)
 // Pagina integrazione Fatture in Cloud — connessione, sync fatture ricevute, lista
 // + Tab "Warning" (mig 062 / problemi.md A1): lista documenti FIC skippati dal sync
 // perché senza numero e senza P.IVA (prima nota mascherata da fattura).
@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/fic`;
 
@@ -282,17 +283,10 @@ export default function FattureInCloud() {
               placeholder="a/eyJ0eXA..."
               className="w-full px-4 py-3 border-2 border-neutral-200 rounded-xl text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400"
             />
-            <button
-              onClick={handleConnect}
-              disabled={connecting || !token.trim()}
-              className={`px-6 py-2.5 rounded-xl text-sm font-semibold text-white transition ${
-                connecting || !token.trim()
-                  ? "bg-neutral-400 cursor-not-allowed"
-                  : "bg-teal-700 hover:bg-teal-800 shadow-md"
-              }`}
-            >
+            <Btn variant="chip" tone="emerald" size="md" onClick={handleConnect}
+              disabled={connecting || !token.trim()} loading={connecting}>
               {connecting ? "Collegamento..." : "Collega"}
-            </button>
+            </Btn>
             {status?.error && (
               <p className="mt-3 text-xs text-red-600">Errore: {status.error}</p>
             )}
@@ -323,21 +317,12 @@ export default function FattureInCloud() {
                     <option key={a} value={a}>{a}</option>
                   ))}
                 </select>
-                <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold text-white transition ${
-                    syncing ? "bg-neutral-400 cursor-not-allowed" : "bg-teal-700 hover:bg-teal-800 shadow-md"
-                  }`}
-                >
+                <Btn variant="chip" tone="emerald" size="md" onClick={handleSync} disabled={syncing} loading={syncing}>
                   {syncing ? "Sincronizzazione..." : "Sincronizza " + anno}
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  className="px-3 py-2 rounded-lg text-xs text-red-600 hover:bg-red-50 transition"
-                >
+                </Btn>
+                <Btn variant="ghost" size="sm" onClick={handleDisconnect} className="text-red-600 hover:bg-red-50">
                   Scollega
-                </button>
+                </Btn>
               </div>
             </div>
 

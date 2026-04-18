@@ -1,5 +1,5 @@
 // src/pages/admin/CorrispettiviDashboard.jsx
-// @version: v4.0-unified — Dashboard Vendite con 3 modalità (Mensile / Trimestrale / Annuale)
+// @version: v4.1-mattoni — M.I primitives (Btn) su nav back/today/forward (tocco minimo, file 993 righe; mode switcher lasciato come toggle group)
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import TrgbLoader from "../../components/TrgbLoader";
+import { Btn } from "../../components/ui";
 
 // ── Costanti ──
 const MONTH_NAMES = [
@@ -565,18 +566,9 @@ export default function CorrispettiviDashboard() {
         {/* NAVIGATION */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
-            <button onClick={goBack}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
-              {navBackLabel}
-            </button>
-            <button onClick={goToday}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
-              Oggi
-            </button>
-            <button onClick={goForward}
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
-              {navForwardLabel}
-            </button>
+            <Btn variant="secondary" size="sm" onClick={goBack}>{navBackLabel}</Btn>
+            <Btn variant="secondary" size="sm" onClick={goToday}>Oggi</Btn>
+            <Btn variant="secondary" size="sm" onClick={goForward}>{navForwardLabel}</Btn>
           </div>
           <div className="flex items-center gap-2">
             {mode === "mensile" && (

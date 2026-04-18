@@ -1,10 +1,11 @@
 // src/pages/admin/GestioneContanti.jsx
-// @version: v2.0 — Gestione Contanti (contanti da versare + pre-conti + spese)
+// @version: v2.1-mattoni — M.I primitives (Btn) su CTA top-level Registra pagamento/versamento/spesa (tocco minimo, file 1687 righe)
 // Ora vive sotto Flussi di Cassa. Il contenuto è esportato come GestioneContantiContent.
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isSuperAdminRole } from "../../utils/authHelpers";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -260,10 +261,7 @@ function SubPagamentiContanti() {
 
       {/* Button */}
       <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition">
-          + Registra pagamento contanti
-        </button>
+        <Btn variant="success" size="md" onClick={() => setShowForm(!showForm)}>+ Registra pagamento contanti</Btn>
       </div>
 
       {/* Form registra pagamento */}
@@ -583,10 +581,7 @@ function SubVersamentiContanti() {
 
       {/* Add deposit button */}
       <div className="flex justify-end">
-        <button onClick={() => showForm ? setShowForm(false) : handleOpenForm()}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition">
-          + Registra versamento
-        </button>
+        <Btn variant="success" size="md" onClick={() => showForm ? setShowForm(false) : handleOpenForm()}>+ Registra versamento</Btn>
       </div>
 
       {/* Deposit form */}
@@ -1558,10 +1553,7 @@ function SezioneSpeseVarie() {
 
       {/* Add button */}
       <div className="flex justify-end">
-        <button onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition">
-          + Registra spesa
-        </button>
+        <Btn variant="danger" size="md" onClick={() => setShowForm(!showForm)}>+ Registra spesa</Btn>
       </div>
 
       {/* Form */}

@@ -1,4 +1,4 @@
-// @version: v3.2-nascondi-esclusi (S40-8) — default nasconde fatture di fornitori con escluso_acquisti=1
+// @version: v3.3-mattoni — M.I primitives (Btn) su azioni filtri (Pulisci/Ricarica), tocco minimo
 // Pagina Fatture Elettroniche — Layout Cantina: Filtri SX + Lista DX + Dettaglio inline
 // Il dettaglio inline usa il componente riutilizzabile FattureDettaglio
 // (stesso che gira in /acquisti/dettaglio/:id e in ControlloGestioneUscite),
@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import FattureDettaglio from "./FattureDettaglio";
+import { Btn } from "../../components/ui";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const fmt = (v) =>
@@ -355,14 +356,12 @@ export default function FattureElenco() {
 
             {/* ── Azioni filtri ── */}
             <div className="flex gap-1.5 pt-1">
-              <button onClick={clearFilters}
-                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-700 transition">
+              <Btn variant="secondary" size="sm" onClick={clearFilters} className="flex-1">
                 ✕ Pulisci {activeFilters > 0 && <span className="ml-1 px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[9px]">{activeFilters}</span>}
-              </button>
-              <button onClick={fetchAll}
-                className="flex-1 px-2.5 py-2.5 rounded-lg text-[11px] font-semibold border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-800 transition">
+              </Btn>
+              <Btn variant="chip" tone="emerald" size="sm" onClick={fetchAll} className="flex-1">
                 ⟳ Ricarica
-              </button>
+              </Btn>
             </div>
 
           </div>

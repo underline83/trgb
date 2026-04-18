@@ -1,7 +1,8 @@
-// @version: v2.0-vendite
+// @version: v2.1-mattoni — M.I primitives (Btn) su Salva chiusura
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import VenditeNav from "./VenditeNav";
+import { Btn } from "../../components/ui";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -332,19 +333,9 @@ export default function CorrispettiviGestione() {
 
         {/* SALVATAGGIO + MESSAGGI */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className={`px-6 py-2 rounded-xl text-sm font-semibold shadow
-              ${
-                saving
-                  ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-                  : "bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 transition"
-              }`}
-          >
+          <Btn variant="primary" size="md" type="button" onClick={handleSave} disabled={saving} loading={saving}>
             {saving ? "Salvataggio..." : "Salva chiusura"}
-          </button>
+          </Btn>
 
           {message && (
             <span className="text-sm text-green-700">{message}</span>

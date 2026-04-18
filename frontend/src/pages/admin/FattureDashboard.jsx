@@ -1,4 +1,4 @@
-// @version: v3.0-drill-fix
+// @version: v3.1-mattoni — M.I primitives (Btn) su CTA Import XML (tocco minimo, file 867 righe)
 // Dashboard acquisti fatture elettroniche — KPI, grafici, categorie, anomalie, drill-down
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import TrgbLoader from "../../components/TrgbLoader";
 import TrgbTooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -237,10 +238,9 @@ export default function FattureDashboard() {
               <p className="text-xs text-neutral-400">
                 Autofatture e fornitori esclusi non sono inclusi nei dati.
               </p>
-              <button onClick={() => navigate("/acquisti/import")}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200 hover:bg-teal-100 transition">
+              <Btn variant="chip" tone="emerald" size="md" onClick={() => navigate("/acquisti/import")}>
                 Import XML →
-              </button>
+              </Btn>
             </div>
           </>
         )}

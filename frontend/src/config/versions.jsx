@@ -15,13 +15,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
-    version: "4.4",
+    version: "4.5",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
   },
   fatture: {
-    version: "2.7",
+    version: "2.8",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",

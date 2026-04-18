@@ -1,4 +1,4 @@
-// @version: v2.2b-dettaglio-fattura-riutilizzabile
+// @version: v2.3-mattoni — M.I primitives (Btn) su CTA Segna pagata + Torna (tocco minimo, file 798 righe con bottoni inline molto specifici)
 // Componente riutilizzabile: dettaglio fattura singola con sidebar colorata
 // + main content, layout uniformato a SchedaVino (stesso pattern estetico di
 // MagazzinoVini → SchedaVino). Usato sia come pagina standalone (route
@@ -8,6 +8,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FE = `${API_BASE}/contabilita/fe`;
 const CG = `${API_BASE}/controllo-gestione`;
@@ -440,13 +441,9 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               {/* Segna pagata — visibile solo se il parent passa onSegnaPagata
                   e la fattura non risulta già pagata */}
               {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
-                <button
-                  type="button"
-                  onClick={handleSegnaPagata}
-                  className="w-full px-3 py-2 rounded-lg text-[11px] font-bold bg-amber-400/90 text-amber-950 hover:bg-amber-300 transition text-center shadow-sm"
-                >
+                <Btn variant="chip" tone="amber" size="md" type="button" onClick={handleSegnaPagata} className="w-full">
                   ✓ Segna pagata
-                </button>
+                </Btn>
               )}
 
               {/* Modifica anagrafica fornitore */}

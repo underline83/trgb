@@ -1,9 +1,10 @@
-// @version: v2.3-xml-fallback-recovery
+// @version: v2.4-mattoni — M.I primitives (Btn) su CTA principali (Importa XML / Unisci duplicati / Svuota DB / Nuova Categoria), tocco minimo su file 1671 righe
 // Pagina Impostazioni Acquisti — Layout sidebar uniformato a ClientiImpostazioni
 import React, { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/fic`;
 const FE = `${API_BASE}/contabilita/fe`;
@@ -377,17 +378,9 @@ export default function FattureImpostazioni() {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleUpload}
-          disabled={uploading || !files.length}
-          className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-            uploading || !files.length
-              ? "bg-neutral-200 text-neutral-500 cursor-not-allowed"
-              : "bg-teal-700 text-white hover:bg-teal-800"
-          }`}
-        >
+        <Btn variant="chip" tone="emerald" size="md" onClick={handleUpload} disabled={uploading || !files.length} loading={uploading}>
           {uploading ? "Import in corso..." : "Importa XML"}
-        </button>
+        </Btn>
         {files.length > 0 && !uploading && (
           <span className="text-xs text-neutral-500">
             Pronti: <strong>{files.length} file</strong>
@@ -1211,17 +1204,9 @@ export default function FattureImpostazioni() {
           unisce i dati nella fattura FIC e rimuove la copia XML. Corregge il conteggio fatture e
           arricchisce le fatture FIC con numero fattura, tipo documento e righe prodotto.
         </p>
-        <button
-          onClick={handleMergeDuplicati}
-          disabled={merging}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
-            merging
-              ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-              : "bg-amber-600 text-white hover:bg-amber-700 shadow-sm"
-          }`}
-        >
+        <Btn variant="warning" size="md" onClick={handleMergeDuplicati} disabled={merging} loading={merging}>
           {merging ? "Merge in corso..." : "Unisci duplicati"}
-        </button>
+        </Btn>
         {mergeError && (
           <p className="mt-3 text-xs text-red-700">{mergeError}</p>
         )}
@@ -1252,17 +1237,9 @@ export default function FattureImpostazioni() {
           Elimina tutte le fatture importate (sia da XML che da Fatture in Cloud), le righe associate
           e tutti i dati correlati. Questa azione non è reversibile.
         </p>
-        <button
-          onClick={handleReset}
-          disabled={resetting}
-          className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition ${
-            resetting
-              ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-              : "bg-red-600 text-white hover:bg-red-700 shadow-sm"
-          }`}
-        >
+        <Btn variant="danger" size="md" onClick={handleReset} disabled={resetting} loading={resetting}>
           {resetting ? "Eliminazione in corso..." : "Svuota DB fatture"}
-        </button>
+        </Btn>
         {uploadError && (
           <p className="mt-3 text-xs text-red-700">{uploadError}</p>
         )}
@@ -1475,8 +1452,7 @@ function CategorieManager({ categorie, loading, onRefresh }) {
         <input type="text" placeholder="Nuova categoria..." value={newCatName}
           onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCategoria()}
           className="px-3 py-2 border border-neutral-300 rounded-xl text-sm w-64" />
-        <button onClick={addCategoria}
-          className="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-xl hover:bg-teal-700 transition">+ Nuova Categoria</button>
+        <Btn variant="chip" tone="emerald" size="md" onClick={addCategoria}>+ Nuova Categoria</Btn>
       </div>
     </div>
   );
@@ -1561,10 +1537,7 @@ function PresetPagamentoManager() {
             Preset standard da assegnare ai fornitori. DF = data fattura, FM = fine mese.
           </p>
         </div>
-        <button onClick={() => setShowNew(!showNew)}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition">
-          + Nuovo preset
-        </button>
+        <Btn variant="chip" tone="emerald" size="sm" onClick={() => setShowNew(!showNew)}>+ Nuovo preset</Btn>
       </div>
 
       {/* Form nuovo preset */}
@@ -1608,12 +1581,10 @@ function PresetPagamentoManager() {
             </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button onClick={handleCreate} disabled={saving || !newForm.codice || !newForm.descrizione}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+            <Btn variant="primary" size="sm" onClick={handleCreate} disabled={saving || !newForm.codice || !newForm.descrizione} loading={saving}>
               {saving ? "Salvataggio..." : "Crea preset"}
-            </button>
-            <button onClick={() => setShowNew(false)}
-              className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:bg-neutral-100 transition">Annulla</button>
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setShowNew(false)}>Annulla</Btn>
           </div>
         </div>
       )}

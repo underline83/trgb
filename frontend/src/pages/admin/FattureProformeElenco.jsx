@@ -1,8 +1,9 @@
-// @version: v1.0-proforme
+// @version: v1.1-mattoni — M.I primitives (Btn) su header CTA + modali Crea/Riconcilia
 // Pagina Pro-forme Acquisti — Lista + Creazione + Riconciliazione
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FattureNav from "./FattureNav";
+import { Btn } from "../../components/ui";
 
 const FE = `${API_BASE}/contabilita/fe/proforme`;
 const fmt = (v) =>
@@ -253,14 +254,12 @@ function ProformaModal({ open, onClose, onSaved, editData }) {
 
           {/* ── Actions ── */}
           <div className="flex justify-end gap-2">
-            <button onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-neutral-600 hover:bg-neutral-100 transition">
+            <Btn variant="ghost" size="md" onClick={onClose}>
               Annulla
-            </button>
-            <button onClick={save} disabled={saving}
-              className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-brand-blue hover:opacity-90 transition disabled:opacity-50">
+            </Btn>
+            <Btn variant="primary" size="md" onClick={save} disabled={saving} loading={saving}>
               {saving ? "Salvataggio..." : isEdit ? "Salva modifiche" : "Crea proforma"}
-            </button>
+            </Btn>
           </div>
         </div>
       </div>
@@ -346,10 +345,11 @@ function RiconciliaModal({ open, onClose, proforma, onDone }) {
                       <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">{f.fonte || "xml"}</span>
                     </p>
                   </div>
-                  <button onClick={() => doRiconcilia(f.id)} disabled={saving}
-                    className="ml-3 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand-green hover:opacity-90 transition disabled:opacity-50 shrink-0">
-                    Collega
-                  </button>
+                  <div className="ml-3 shrink-0">
+                    <Btn variant="success" size="sm" onClick={() => doRiconcilia(f.id)} disabled={saving}>
+                      Collega
+                    </Btn>
+                  </div>
                 </div>
               ))}
             </div>
@@ -358,10 +358,9 @@ function RiconciliaModal({ open, onClose, proforma, onDone }) {
           {error && <p className="text-sm text-brand-red mt-3">{error}</p>}
 
           <div className="flex justify-end mt-4">
-            <button onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-neutral-600 hover:bg-neutral-100 transition">
+            <Btn variant="ghost" size="md" onClick={onClose}>
               Chiudi
-            </button>
+            </Btn>
           </div>
         </div>
       </div>
@@ -441,10 +440,9 @@ export default function FattureProformeElenco() {
               {data.attive} attiv{data.attive === 1 ? "a" : "e"} — € {fmt(data.importo_attive)} in scadenziario
             </p>
           </div>
-          <button onClick={() => { setEditItem(null); setShowCreate(true); }}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-brand-blue hover:opacity-90 shadow-sm transition">
+          <Btn variant="primary" size="md" onClick={() => { setEditItem(null); setShowCreate(true); }}>
             + Nuova proforma
-          </button>
+          </Btn>
         </div>
 
         {/* ── Filtro stato ── */}
