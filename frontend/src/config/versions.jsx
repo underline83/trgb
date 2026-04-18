@@ -8,6 +8,12 @@ const MODULE_VERSIONS = {
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
   },
+  cartaBevande: {
+    version: "1.0",
+    label: "Carta delle Bevande",
+    status: "beta",
+    color: "blue",
+  },
   ricette: {
     version: "3.5",
     label: "Ricette & Food Cost",

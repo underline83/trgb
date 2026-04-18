@@ -18,7 +18,10 @@ import useUpdateChecker from "./hooks/useUpdateChecker";
 // --- Lazy: pagine modulo (chunk on-demand, raggruppati per cartella in vite.config) ---
 
 // GESTIONE VINI
-const ViniCarta = lazy(() => import("./pages/vini/ViniCarta"));
+const CartaBevande = lazy(() => import("./pages/vini/CartaBevande"));
+const CartaVini = lazy(() => import("./pages/vini/CartaVini"));
+const CartaSezioneEditor = lazy(() => import("./pages/vini/CartaSezioneEditor"));
+const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 const MagazzinoVini = lazy(() => import("./pages/vini/MagazzinoVini"));
@@ -185,7 +188,10 @@ export default function App() {
             { sub: "settings",  path: "/vini/settings" },
           ]} />
         } />
-        <Route path="/vini/carta" element={<ProtectedRoute module="vini" sub="carta"><ViniCarta /></ProtectedRoute>} />
+        <Route path="/vini/carta" element={<ProtectedRoute module="vini" sub="carta"><CartaBevande /></ProtectedRoute>} />
+        <Route path="/vini/carta/vini" element={<ProtectedRoute module="vini" sub="carta"><CartaVini /></ProtectedRoute>} />
+        <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
+        <Route path="/vini/carta/sezione/:key" element={<ProtectedRoute module="vini" sub="carta"><CartaSezioneEditor /></ProtectedRoute>} />
         <Route path="/vini/vendite" element={<ProtectedRoute module="vini" sub="vendite"><ViniVendite /></ProtectedRoute>} />
         <Route path="/vini/settings" element={<ProtectedRoute module="vini" sub="settings"><ViniImpostazioni /></ProtectedRoute>} />
         <Route path="/vini/magazzino" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoVini /></ProtectedRoute>} />

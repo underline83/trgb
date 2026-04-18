@@ -58,56 +58,59 @@
 
 ---
 
-## FASE 2 — Frontend editor
+## FASE 2 — Frontend editor (COMPLETATA 2026-04-19)
 
 ### Struttura e routing
-- [ ] Creare cartella `frontend/src/pages/vini/components/` se non esiste
-- [ ] Spostare `ViniCarta.jsx` → `CartaVini.jsx` (solo preview/export vini, zero cambi logici)
-- [ ] Creare `CartaBevande.jsx` (hub 8 card, ex ViniCarta ora sostituita)
-- [ ] Creare `CartaSezioneEditor.jsx` (editor generico parametrizzato)
-- [ ] Creare `CartaAnteprima.jsx` (preview completa master)
-- [ ] Route `App.jsx`: `/vini/carta` → hub, `/vini/carta/vini` → CartaVini, `/vini/carta/sezione/:key` → editor, `/vini/carta/anteprima` → preview
-- [ ] Aggiornare `versions.jsx` con "Carta Bevande v1.0"
+- [x] Creata cartella `frontend/src/components/vini/carta/` per componenti condivisi
+- [x] Rinominato `ViniCarta.jsx` → `CartaVini.jsx` (solo preview/export vini, componente + header aggiornati)
+- [x] Creato `CartaBevande.jsx` (hub 8 card, gestisce `/vini/carta`)
+- [x] Creato `CartaSezioneEditor.jsx` (editor generico parametrizzato `:key`)
+- [x] Creato `CartaAnteprima.jsx` (preview completa master, placeholder in attesa di Fase 3)
+- [x] Route `App.jsx`: `/vini/carta` → hub, `/vini/carta/vini` → CartaVini, `/vini/carta/sezione/:key` → editor, `/vini/carta/anteprima` → preview
+- [x] Aggiornato `versions.jsx` con "Carta Bevande v1.0"
 
-### Componenti condivisi
-- [ ] `components/CartaCardModulo.jsx` — card hub (emoji + colore + contatori + ultimo agg.)
-- [ ] `components/FormDinamico.jsx` — render form da schema_form (text/number/textarea/select + required)
-- [ ] `components/ImportTestoModal.jsx` — textarea → preview → conferma (parser TAB/2+spazi)
-- [ ] `components/SortableList.jsx` riuso se già esiste, altrimenti minimale con pointer events
+### Componenti condivisi (`components/vini/carta/`)
+- [x] `FormDinamico.jsx` — render form da schema_form (text/number/textarea/select + required + errori inline)
+- [x] `ImportTestoModal.jsx` — textarea → preview → conferma (parser TAB/2+spazi, tabella editabile)
+- [ ] `CartaCardModulo.jsx` — NON estratto, logica card inline in `CartaBevande.jsx` (sufficiente per MVP)
+- [ ] `SortableList.jsx` — non necessario ora: riordino via bottoni ↑↓ (mobile-friendly, niente pointer drag da gestire)
 
 ### Hub `CartaBevande.jsx`
-- [ ] Header con titolo "📜 Carta delle Bevande" + sottotitolo versione
-- [ ] Bottone "← Menu Vini" + pulsanti globali (Anteprima, Esporta HTML/PDF/DOCX)
-- [ ] Griglia card: Vini come hero (span 2), altre 7 quadrate
-- [ ] Fetch `/bevande/sezioni/` + conteggi voci per ogni card
-- [ ] Loader con `TrgbLoader`, stato empty se nessuna voce
-- [ ] Click card vini → `/vini/carta/vini`
-- [ ] Click card altra sezione → `/vini/carta/sezione/:key`
+- [x] Header titolo "📜 Carta delle Bevande" + sottotitolo
+- [x] Bottone "← Menu Vini" + pulsanti globali (Anteprima, PDF, PDF Staff, Word)
+- [x] Griglia card: Vini come hero (col-span-2), altre 7 quadrate, responsive 2→3 colonne
+- [x] Fetch `/bevande/sezioni/` + conteggi voci per ogni card
+- [x] Loader con `TrgbLoader`, stato empty se nessuna sezione
+- [x] Click card vini → `/vini/carta/vini`
+- [x] Click card altra sezione → `/vini/carta/sezione/:key`
 
 ### Editor sezione `CartaSezioneEditor.jsx`
-- [ ] Header: nome sezione + descrizione + pulsanti "+ Nuova voce", "Import da testo", "Anteprima sezione"
-- [ ] Fetch schema_form + voci
-- [ ] Tabella voci: drag handle + nome + meta riassunto + prezzo + toggle attivo + edita/duplica/elimina
-- [ ] Drag&drop → `POST /bevande/voci/reorder`
-- [ ] Modal form nuovo/edita con `FormDinamico` (campi da schema_form)
-- [ ] Validazione required + errori inline
-- [ ] Duplica: POST voce clone con nome "(copia)"
-- [ ] Conferma elimina con modal
-- [ ] Import testo: modale con textarea + bottone "Parsa" → tabella editabile + Conferma → `POST /bevande/voci/bulk-import`
-- [ ] Anteprima sezione: apre `/bevande/sezioni/:key/preview` in tab nuovo
-- [ ] Toast feedback azioni
+- [x] Header: nome sezione + contatori + pulsanti "+ Nuova voce", "Import testo", "Anteprima sezione"
+- [x] Fetch schema_form + voci (Promise.all, parallel)
+- [x] Tabella voci: bottoni ↑↓ ordine + nome + meta riassunto + prezzo + toggle attivo + edita/duplica/elimina
+- [x] Riordino via `POST /bevande/voci/reorder` (ottimista con rollback on error)
+- [x] Modal form nuovo/edita con `FormDinamico` (campi da schema_form)
+- [x] Validazione required + errori inline + toast
+- [x] Duplica: POST voce clone con nome "(copia)"
+- [x] Conferma elimina con `window.confirm`
+- [x] Import testo: modale textarea + "Parsa" → tabella editabile + Conferma → `POST /bevande/voci/bulk-import`
+- [x] Anteprima sezione: apre `/bevande/sezioni/:key/preview` in tab nuovo (endpoint in Fase 3)
+- [x] Toast feedback azioni
+- [x] Sezione `vini` → banner informativo che rimanda a Cantina (editor disabilitato)
+- [x] Filtro ricerca nome/produttore/tipologia + toggle "solo attive"
 
 ### Preview completa `CartaAnteprima.jsx`
-- [ ] Embed iframe `/bevande/carta` (master)
-- [ ] Bottoni export (HTML, PDF, PDF-staff, DOCX)
-- [ ] Bottone "Aggiorna anteprima" con reload iframe
+- [x] Embed iframe `/bevande/carta` (master, placeholder Fase 3)
+- [x] Bottoni export (PDF cliente, PDF staff, DOCX)
+- [x] Bottone "Ricarica" con reload iframe
+- [x] Warning che endpoint sarà disponibile dopo Fase 3
 
 ### Stile
-- [ ] Sfondo `bg-brand-cream` su tutte le pagine nuove
-- [ ] Componenti M.I (`Btn`, `PageLayout`, `StatusBadge`, `EmptyState`) in uso
-- [ ] Card con colori coerenti (amber, giallo, verde, rosso, slate, rosa, viola, …) allineati a `modulesMenu.js`
-- [ ] Touch target 44pt verificato su iPad
-- [ ] Modali full-screen su mobile <=640px
+- [x] Sfondo `bg-brand-cream` su tutte le pagine nuove
+- [x] Componente M.I (`Btn`) in uso su tutti i CTA (touch 40-48pt)
+- [x] Card con colori coerenti (amber=vini, rose=aperitivi, yellow=birre, emerald=amari_casa, red=amari_liquori, orange=distillati, lime=tisane, teal=te)
+- [x] Modali full-screen su mobile (`p-0 sm:p-4`, `rounded-t-2xl sm:rounded-2xl`)
+- [x] Sintassi JSX validata con @babel/parser (8/8 file OK)
 
 ---
 

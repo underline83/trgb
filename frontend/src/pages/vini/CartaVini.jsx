@@ -1,5 +1,6 @@
-// @version: v3.4-mattoni — M.I primitives (Btn) su header e azioni export
+// @version: v3.5-carta-bevande — rinominato da ViniCarta.jsx, ora sub-pagina della Carta Bevande
 // Pagina Carta Vini — Anteprima embedded + Export (HTML/PDF/DOCX)
+// Accessibile da /vini/carta/vini (hub Carta Bevande → card "Vini")
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +8,7 @@ import { API_BASE } from "../../config/api";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 
-export default function ViniCarta() {
+export default function CartaVini() {
   const navigate = useNavigate();
 
   const [showPreview, setShowPreview] = useState(true);
@@ -56,8 +57,8 @@ export default function ViniCarta() {
             </p>
           </div>
 
-          <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini")}>
-            ← Menu Vini
+          <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta")}>
+            ← Carta delle Bevande
           </Btn>
         </div>
 
