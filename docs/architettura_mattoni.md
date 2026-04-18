@@ -175,6 +175,39 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 ---
 
+### M.I — UI primitives TRGB-02 (frontend) ✅
+
+**Cosa:** set di componenti React riutilizzabili che applicano la palette TRGB-02 e uniformano il look&feel di ogni pagina. Sostituiscono decine di duplicazioni di classi Tailwind (bottoni, badge, header pagina, empty state).
+**Dove:** `frontend/src/components/ui/`
+**Stato:** pronti, opt-in. Le pagine esistenti continuano a funzionare, le nuove usano i mattoni.
+
+**Componenti:**
+| Nome | Props principali | Uso |
+|------|------------------|-----|
+| `<Btn>` | `variant` (primary/secondary/success/danger/warning/ghost/chip), `size` (sm/md/lg), `tone` (per chip), `loading`, `as` | Bottone unificato con focus ring brand-blue, touch target 44pt su `md/lg`, spinner inline su `loading` |
+| `<PageLayout>` | `title`, `subtitle`, `actions`, `toolbar`, `nav`, `wide`, `background`, `padded` | Wrapper pagina: bg-brand-cream + container max-w-7xl + header standard (h1+subtitle+azioni) + slot opzionali sub-nav e toolbar |
+| `<StatusBadge>` | `tone` (success/warning/danger/info/neutral/brand/violet), `size` (sm/md/lg), `dot` | Badge compatto di stato, sostituisce la scrittura ripetitiva `bg-xxx-100 text-xxx-700 border` |
+| `<EmptyState>` | `icon` (emoji), `title`, `description`, `action`, `watermark`, `compact` | Stato vuoto con watermark gobbette R/G/B sfumate sullo sfondo (roadmap 8.1) |
+
+**Import:**
+```jsx
+import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui";
+```
+
+**Regola di migrazione:** quando si tocca una pagina per altro motivo, sostituire i pattern hardcoded con i mattoni se non aggiunge rischio. Niente refactor massivo one-shot (memoria "no blocchi accoppiati").
+
+**Effort iniziale:** S (già fatto, sessione 2026-04-18)
+**Effort migrazione pagine esistenti:** M, diluito sul tempo
+
+**Chi li usa / userà:**
+| Pagina | Priorità |
+|--------|----------|
+| Pagine nuove (roadmap) | SEMPRE |
+| Pagine refactorate | opportunistico |
+| Home, Login | già uniformi, no refactor |
+
+---
+
 ## Mappa dipendenze: chi dipende da chi
 
 ```

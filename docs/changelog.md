@@ -3,6 +3,42 @@
 
 ---
 
+## 2026-04-18 — M.I UI primitives TRGB-02 (Btn, PageLayout, StatusBadge, EmptyState)
+
+### Problema / contesto
+Ogni pagina reinventava bottoni, header, badge di stato e stati vuoti con classi Tailwind hardcoded. Risultato: palette non uniforme (teal-700 convive con brand-blue, ecc.), focus ring incoerenti, touch target < 44pt su diverse pagine, watermark brand totalmente assente. Il file `ANALISI_UI_TRGB.md` del 21 marzo aveva già mappato il problema ma i componenti condivisi non erano mai stati creati.
+
+### Novità — nuovo mattone M.I
+Quattro componenti React condivisi sotto `frontend/src/components/ui/`, esposti via `import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui"`:
+
+- **`<Btn>`** — variants `primary|secondary|success|danger|warning|dark|ghost|chip`, size `sm|md|lg`, prop `tone` per chip pastello (emerald/sky/amber/red/violet/neutral/blue), supporto `as="a"` per link, `loading` con spinner inline, touch target ≥ 44pt su `md/lg`, focus ring `brand-blue/40`.
+- **`<PageLayout>`** — wrapper pagina: `bg-brand-cream` + `min-h-screen` + container `max-w-7xl` (o `wide`), header con `title` + `subtitle` + slot `actions` a destra (impilato su mobile), slot opzionali `toolbar` (barra azioni secondarie) e `nav` (sub-nav sopra il wrapper, es. `<ClientiNav/>`). Prop `background={false}` per wizard/dialog.
+- **`<StatusBadge>`** — badge compatto con `tone` success/warning/danger/info/neutral/brand/violet, prop `dot` per pallino colorato davanti al testo. Sostituisce decine di `bg-xxx-100 text-xxx-700 border border-xxx-200` sparse.
+- **`<EmptyState>`** — icona emoji, titolo, descrizione, slot `action`, watermark gobbette R/G/B sfumate sullo sfondo (roadmap 8.1 ✅ parziale). `compact` per pannelli piccoli, `watermark={false}` per disattivarlo.
+
+### Opt-in, non refactor
+**Le pagine esistenti continuano a funzionare identiche.** I nuovi mattoni sono pronti per:
+1. Le pagine nuove (roadmap in avanti): DEVONO usarli.
+2. I refactor opportunistici: quando si tocca una pagina per altro motivo, sostituire i pattern hardcoded con i mattoni se non aggiunge rischio. Niente refactor massivo one-shot (memoria "no blocchi accoppiati" 2026-04-12).
+
+### File toccati
+Frontend (5 nuovi, 0 modificati):
+- `frontend/src/components/ui/Btn.jsx` (~110 righe)
+- `frontend/src/components/ui/PageLayout.jsx` (~80 righe)
+- `frontend/src/components/ui/StatusBadge.jsx` (~50 righe)
+- `frontend/src/components/ui/EmptyState.jsx` (~80 righe)
+- `frontend/src/components/ui/index.js` (barrel export)
+
+Docs:
+- `CLAUDE.md` — sezione "Mattoni condivisi" aggiornata con M.I
+- `docs/architettura_mattoni.md` — nuova sezione `### M.I — UI primitives TRGB-02` con tabella componenti/props
+- `docs/changelog.md` — questa entry
+
+### Rollback
+Cancellare la cartella `frontend/src/components/ui/` (nessuna pagina esistente li importa ancora).
+
+---
+
 ## 2026-04-18 — Code-splitting frontend (bundle on-demand)
 
 ### Problema / contesto
