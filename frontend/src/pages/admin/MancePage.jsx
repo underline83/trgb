@@ -1,8 +1,11 @@
 // src/pages/admin/MancePage.jsx
-// @version: v1.0 — Pagina Mance standalone (accessibile anche a ruolo SALA)
+// @version: v2.0-mattoni — refactor con M.I UI primitives (PageLayout, EmptyState)
+// Pagina Mance standalone (accessibile anche a ruolo SALA)
+
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import VenditeNav from "./VenditeNav";
 import { API_BASE, apiFetch } from "../../config/api";
+import { PageLayout, EmptyState } from "../../components/ui";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -52,25 +55,28 @@ export default function MancePage() {
   const giorniConMance = useMemo(() => new Set(rows.map(r => r.date)).size, [rows]);
 
   return (
-    <div className="min-h-screen bg-brand-cream">
-      <VenditeNav current="mance" />
-      <div className="max-w-5xl mx-auto p-4 sm:p-6">
+    <PageLayout
+      nav={<VenditeNav current="mance" />}
+      padded={false}
+      className="max-w-5xl"
+    >
+      <div className="p-4 sm:p-6">
         <div className="bg-white rounded-2xl shadow-lg border border-neutral-200 p-5 md:p-6 space-y-5">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-neutral-800">Mance del mese</h2>
+              <h2 className="text-lg font-bold text-brand-ink">Mance del mese</h2>
               <p className="text-xs text-neutral-500 mt-0.5">Mance registrate nelle chiusure turno — da distribuire ai ragazzi</p>
             </div>
             <div className="flex items-center gap-2">
               <select value={mese} onChange={e => setMese(Number(e.target.value))}
-                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue">
                 {MONTH_NAMES.map((n, i) => (
                   <option key={i} value={i + 1}>{n}</option>
                 ))}
               </select>
               <select value={anno} onChange={e => setAnno(Number(e.target.value))}
-                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white">
+                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue">
                 {[now.getFullYear(), now.getFullYear() - 1].map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
@@ -98,10 +104,12 @@ export default function MancePage() {
           {loading ? (
             <div className="text-center py-10 text-neutral-400">Caricamento...</div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-10 text-neutral-400">
-              <p className="text-3xl mb-2">🎁</p>
-              <p>Nessuna mancia registrata in {MONTH_NAMES[mese - 1]} {anno}</p>
-            </div>
+            <EmptyState
+              icon="🎁"
+              title={`Nessuna mancia registrata in ${MONTH_NAMES[mese - 1]} ${anno}`}
+              description="Le mance appaiono qui dopo la chiusura turno."
+              compact
+            />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-neutral-200">
               <table className="w-full text-sm">
@@ -120,7 +128,7 @@ export default function MancePage() {
                     const perCoperto = r.coperti > 0 ? (r.mance / r.coperti) : 0;
                     return (
                       <tr key={r.id} className="border-t border-neutral-100 hover:bg-amber-50/40 transition">
-                        <td className="px-4 py-2.5 font-medium text-neutral-800">{fmtDate(r.date)}</td>
+                        <td className="px-4 py-2.5 font-medium text-brand-ink">{fmtDate(r.date)}</td>
                         <td className="px-4 py-2.5">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             r.turno === "pranzo"
@@ -155,6 +163,6 @@ export default function MancePage() {
           )}
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

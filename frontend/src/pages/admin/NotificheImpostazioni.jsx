@@ -1,5 +1,10 @@
+// src/pages/admin/NotificheImpostazioni.jsx
+// @version: v2.0-mattoni — refactor con M.I UI primitives (Btn, StatusBadge, EmptyState)
+// Tab "Notifiche" dentro ImpostazioniSistema — NON usa PageLayout, vive nel container padre.
+
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 // ---------------------------------------------------------------------------
 // COSTANTI
@@ -125,12 +130,9 @@ export default function NotificheImpostazioni() {
 
   if (error) {
     return (
-      <div className="text-center py-12">
-        <p className="text-red-500 mb-3">{error}</p>
-        <button onClick={loadConfig}
-          className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100">
-          Riprova
-        </button>
+      <div className="text-center py-12 space-y-3">
+        <p className="text-brand-red font-semibold">{error}</p>
+        <Btn variant="secondary" onClick={loadConfig}>Riprova</Btn>
       </div>
     );
   }
@@ -162,9 +164,12 @@ export default function NotificheImpostazioni() {
       ))}
 
       {configs.length === 0 && (
-        <div className="text-center py-8 text-neutral-400 text-sm">
-          Nessun checker configurato. Verifica che l'Alert Engine sia attivo.
-        </div>
+        <EmptyState
+          icon="🔔"
+          title="Nessun checker configurato"
+          description="Verifica che l'Alert Engine sia attivo sul backend (M.F)."
+          compact
+        />
       )}
     </div>
   );
@@ -196,13 +201,11 @@ function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
         <span className="text-2xl">{cfg.icon}</span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className={`font-semibold ${cfg.attivo ? "text-neutral-800" : "text-neutral-400"}`}>
+            <h3 className={`font-semibold ${cfg.attivo ? "text-brand-ink" : "text-neutral-400"}`}>
               {cfg.label}
             </h3>
             {!cfg.attivo && (
-              <span className="text-xs bg-neutral-200 text-neutral-500 px-2 py-0.5 rounded-full">
-                disattivato
-              </span>
+              <StatusBadge tone="neutral" size="sm">disattivato</StatusBadge>
             )}
           </div>
           <p className="text-xs text-neutral-400 mt-0.5">{cfg.desc}</p>
@@ -211,7 +214,7 @@ function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
         {/* Toggle attivo */}
         <button
           onClick={() => onUpdate("attivo", !cfg.attivo)}
-          className={`relative w-11 h-6 rounded-full transition-colors ${
+          className={`relative w-11 h-6 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
             cfg.attivo ? "bg-brand-green" : "bg-neutral-300"
           }`}
           title={cfg.attivo ? "Disattiva" : "Attiva"}
@@ -361,20 +364,12 @@ function CheckerCard({ cfg, users, saving, onUpdate, onSave, onRun }) {
 
           {/* Azioni */}
           <div className="flex items-center gap-3 pt-2 border-t border-neutral-100">
-            <button
-              onClick={onSave}
-              disabled={saving}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-blue text-white hover:bg-blue-600 disabled:opacity-50 transition shadow-sm"
-            >
-              {saving ? "Salvataggio..." : "💾 Salva"}
-            </button>
-            <button
-              onClick={onRun}
-              disabled={saving}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-200 bg-white hover:bg-neutral-50 disabled:opacity-50 transition"
-            >
-              {saving ? "..." : "▶ Testa ora"}
-            </button>
+            <Btn variant="primary" size="sm" loading={saving} disabled={saving} onClick={onSave}>
+              {saving ? "Salvataggio…" : "💾 Salva"}
+            </Btn>
+            <Btn variant="secondary" size="sm" disabled={saving} onClick={onRun}>
+              ▶ Testa ora
+            </Btn>
             <span className="text-[11px] text-neutral-300 ml-auto">
               Aggiornato: {cfg.updated_at ? new Date(cfg.updated_at).toLocaleString("it-IT") : "—"}
             </span>

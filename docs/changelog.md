@@ -3,6 +3,70 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I (4 pagine: GestioneUtenti, NotificheImpostazioni, MancePage, DipendentiImpostazioni)
+
+### Problema / contesto
+Dopo il pilota `CambioPIN` e la seconda pagina `Comunicazioni`, si continua a portare le pagine admin/settings più semplici sui mattoni M.I per:
+- uniformare il blu brand sul CTA primario (prima ciascuna pagina usava un colore diverso)
+- garantire touch target 44pt e focus ring brand su bottoni
+- sostituire "empty state" inline con il componente `EmptyState` (watermark gobbette)
+- sostituire i badge hardcoded con `StatusBadge` (palette unica)
+
+### Pagine toccate in questo batch
+
+**1. `admin/GestioneUtenti.jsx` — refactor completo**
+- Wrapper manuale `min-h-screen bg-brand-cream` → `<PageLayout title subtitle actions>`.
+- Bottoni "+ Nuovo utente" / "← Torna" da grigio `bg-neutral-600` → `<Btn variant="primary">` / `<Btn variant="secondary">`.
+- Badge "Tu" accanto al proprio username → `<StatusBadge tone="neutral" size="sm">`.
+- Azioni riga "🔑 Password" / "🗑 Elimina" → `<Btn variant="chip" tone="blue/red" size="sm">`.
+- Modali: bottoni "Crea utente" / "Aggiorna" / "Elimina" / "Annulla" standardizzati su `<Btn variant="primary|danger|secondary" loading>`.
+- Focus ring select e input: ora `ring-brand-blue/30 focus:border-brand-blue`.
+- Empty state "Nessun utente" → `<EmptyState icon="👤" watermark>` (prima caso non gestito).
+
+**2. `admin/NotificheImpostazioni.jsx` — refactor leggero (no PageLayout, è un tab di ImpostazioniSistema)**
+- Bottoni "💾 Salva" / "▶ Testa ora" → `<Btn variant="primary|secondary" loading>`.
+- Bottone "Riprova" su errore caricamento → `<Btn variant="secondary">`.
+- Badge "disattivato" checker → `<StatusBadge tone="neutral" size="sm">`.
+- Empty state "Nessun checker configurato" → `<EmptyState icon="🔔" compact>`.
+- Toggle switch attivo/disattivo: invariato (pattern custom intenzionale), aggiunto focus ring brand.
+- Chip selezione ruolo/utenti/canali: invariati (comportamento toggle multiplo non mappa bene su `Btn variant="chip"`).
+
+**3. `admin/MancePage.jsx` — refactor leggero**
+- Wrapper `min-h-screen bg-brand-cream` + `VenditeNav` manuale → `<PageLayout nav={<VenditeNav current="mance" />} padded={false}>`.
+- Select mese/anno: focus ring ora `ring-brand-blue/30 focus:border-brand-blue`.
+- Empty state "Nessuna mancia" con emoji inline → `<EmptyState icon="🎁" compact>`.
+- KPI cards amber/violet/teal: invariate (pattern modulo Vendite, coerente con altre pagine del modulo).
+- Badge turno "Pranzo" / "Cena": invariati (colori semantici ambra=giorno, indaco=sera).
+
+**4. `dipendenti/DipendentiImpostazioni.jsx` — refactor micro**
+- Badge "Prossimamente" sulle sezioni non ancora pronte → `<StatusBadge tone="neutral" size="sm">`.
+- `PlaceholderSection` per sezioni non implementate → `<EmptyState icon title description watermark>`.
+- Layout sidebar full-height: invariato (pattern sidebar+contenuto non mappa su PageLayout).
+- Aggiunto focus ring brand ai bottoni della sidebar.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (tutti i fetch/PUT/DELETE sono uguali).
+- Struttura modali, layout sidebar, grid KPI, tabelle: invariati.
+- Nessuna migrazione DB, nessun cambio di API.
+
+### File toccati
+- `frontend/src/pages/admin/GestioneUtenti.jsx`
+- `frontend/src/pages/admin/NotificheImpostazioni.jsx`
+- `frontend/src/pages/admin/MancePage.jsx`
+- `frontend/src/pages/dipendenti/DipendentiImpostazioni.jsx`
+- `docs/changelog.md` (questa entry)
+
+### Verifica post-push
+1. `/admin/utenti`: header "👤 Gestione Utenti" in Playfair, CTA "+ Nuovo utente" blu brand, badge "Tu" su riga propria, azioni Password/Elimina come chip blu/rosso. Senza utenti: empty state con watermark gobbette.
+2. `/admin/impostazioni` tab Notifiche: bottoni "💾 Salva" blu e "▶ Testa ora" bianco bordato. Checker disattivati mostrano badge neutro "disattivato".
+3. `/admin/mance`: VenditeNav in alto + header Playfair, select mese/anno con focus blu. Senza mance: empty state con 🎁.
+4. `/dipendenti/impostazioni` → sezione "Soglie CCNL": placeholder con watermark gobbette invece del testo centrato.
+
+### Rollback
+`git revert` del commit. Nessuna delle 4 pagine dipende dalle altre — il ripristino non intacca moduli adiacenti.
+
+---
+
 ## 2026-04-18 — Comunicazioni refactor M.I (seconda pagina mattoni)
 
 ### Problema / contesto

@@ -10,7 +10,10 @@ from pydantic import BaseModel, Field
 
 # ── Costanti enum-like (validate nel router per chiarezza messaggio) ───
 FREQUENZE = {"GIORNALIERA"}  # MVP: solo giornaliera
-REPARTI = {"CUCINA", "BAR", "SALA", "ALTRO"}
+# Phase A multi-reparto (sessione 45): chiavi lowercase, allineate a
+# frontend/src/config/reparti.js. Il router normalizza input maiuscoli a
+# lowercase prima di validare per non rompere chiamate legacy.
+REPARTI = {"cucina", "bar", "sala", "pulizia", "manutenzione"}
 TURNI = {"APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"}
 ITEM_TIPI = {"CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO"}
 INSTANCE_STATI = {"APERTA", "IN_CORSO", "COMPLETATA", "SCADUTA", "SALTATA"}
@@ -41,7 +44,7 @@ class ChecklistItemOut(ChecklistItemIn):
 
 class ChecklistTemplateIn(BaseModel):
     nome: str
-    reparto: str = "CUCINA"
+    reparto: str = "cucina"
     frequenza: str = "GIORNALIERA"
     turno: Optional[str] = None
     ora_scadenza_entro: Optional[str] = None     # HH:MM
@@ -159,6 +162,7 @@ class TaskSingoloIn(BaseModel):
     ora_scadenza: Optional[str] = None      # HH:MM
     assegnato_user: Optional[str] = None
     priorita: str = "MEDIA"
+    reparto: str = "cucina"
     ref_modulo: Optional[str] = None
     ref_id: Optional[int] = None
 
@@ -171,6 +175,7 @@ class TaskSingoloUpdate(BaseModel):
     assegnato_user: Optional[str] = None
     priorita: Optional[str] = None
     stato: Optional[str] = None
+    reparto: Optional[str] = None
 
 
 class CompletaTaskIn(BaseModel):
@@ -186,6 +191,7 @@ class TaskSingoloOut(BaseModel):
     assegnato_user: Optional[str]
     priorita: str
     stato: str
+    reparto: str = "cucina"
     completato_at: Optional[str]
     completato_da: Optional[str]
     note_completamento: Optional[str]

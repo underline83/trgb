@@ -1,10 +1,13 @@
-// @version: v2.0-impostazioni-sidebar (pagina unica con sidebar a sinistra, no tile)
+// @version: v2.1-mattoni — refactor leggero con StatusBadge + EmptyState (M.I)
 // Layout impostazioni modulo Dipendenti: sidebar a sinistra con sezioni, contenuto a destra.
 // Modello: ClientiImpostazioni.jsx. Le sezioni "reparti" embeddano GestioneReparti.
+// Nota: il wrapper full-height custom (flex flex-col) NON usa PageLayout perché
+//   gestisce la sidebar che riempie tutta l'altezza. Solo i micro-componenti M.I.
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import DipendentiNav from "./DipendentiNav";
 import GestioneReparti from "./GestioneReparti";
+import { StatusBadge, EmptyState } from "../../components/ui";
 
 // ── Sidebar items ──
 const SECTIONS = [
@@ -51,7 +54,7 @@ export default function DipendentiImpostazioni() {
                       key={s.key}
                       onClick={() => !disabled && goTo(s.key)}
                       disabled={disabled}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                         active
                           ? "bg-purple-50 text-purple-900 shadow-sm border border-purple-200"
                           : disabled
@@ -64,9 +67,7 @@ export default function DipendentiImpostazioni() {
                         <div className={`text-sm font-medium flex items-center gap-1.5 ${active ? "text-purple-900" : ""}`}>
                           {s.label}
                           {disabled && (
-                            <span className="text-[9px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full font-normal">
-                              Prossimamente
-                            </span>
+                            <StatusBadge tone="neutral" size="sm">Prossimamente</StatusBadge>
                           )}
                         </div>
                         <div className="text-[11px] text-neutral-400 mt-0.5 leading-tight">{s.desc}</div>
@@ -92,13 +93,13 @@ export default function DipendentiImpostazioni() {
 
 function PlaceholderSection({ s }) {
   return (
-    <div className="flex-1 flex items-center justify-center p-12 text-center">
-      <div>
-        <div className="text-5xl mb-3">{s.icon}</div>
-        <h3 className="text-lg font-semibold text-neutral-800 mb-1">{s.label}</h3>
-        <p className="text-sm text-neutral-500 max-w-md">{s.desc}</p>
-        <p className="text-xs text-neutral-400 mt-4 italic">Sezione in preparazione.</p>
-      </div>
+    <div className="flex-1 flex items-center justify-center p-12">
+      <EmptyState
+        icon={s.icon}
+        title={s.label}
+        description={`${s.desc} — Sezione in preparazione.`}
+        watermark
+      />
     </div>
   );
 }

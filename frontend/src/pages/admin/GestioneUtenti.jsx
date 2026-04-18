@@ -1,6 +1,11 @@
+// src/pages/admin/GestioneUtenti.jsx
+// @version: v2.0-mattoni — refactor con M.I UI primitives (Btn, PageLayout, StatusBadge, EmptyState)
+// Gestione utenti admin: CRUD username/password/role + modali
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn, PageLayout, StatusBadge, EmptyState } from "../../components/ui";
 
 const ROLES = ["admin", "chef", "sommelier", "sala", "viewer"];
 
@@ -184,37 +189,44 @@ export default function GestioneUtenti() {
   // RENDER
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-brand-cream p-6 font-sans">
-      <div className="max-w-4xl mx-auto bg-white shadow-2xl rounded-3xl p-10 border border-neutral-200">
-
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-800 mb-1">👤 Gestione Utenti</h1>
-            <p className="text-neutral-500 text-sm">Aggiungi, modifica o rimuovi gli utenti del gestionale.</p>
-          </div>
-          <div className="flex gap-3 items-start">
-            <button
-              onClick={() => openModal("add")}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow transition"
-            >
-              + Nuovo utente
-            </button>
-            <button
-              onClick={() => navigate("/admin")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition"
-            >
-              ← Torna
-            </button>
-          </div>
-        </div>
-
+    <PageLayout
+      title="👤 Gestione Utenti"
+      subtitle="Aggiungi, modifica o rimuovi gli utenti del gestionale."
+      actions={
+        <>
+          <Btn variant="primary" onClick={() => openModal("add")}>
+            + Nuovo utente
+          </Btn>
+          <Btn variant="secondary" onClick={() => navigate("/admin")}>
+            ← Torna
+          </Btn>
+        </>
+      }
+      className="max-w-4xl"
+    >
+      <div className="bg-white shadow-2xl rounded-3xl p-8 sm:p-10 border border-neutral-200">
         {/* ERRORE CARICAMENTO */}
-        {error && <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4 mb-6">{error}</div>}
+        {error && (
+          <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-4 mb-6 text-sm font-semibold">
+            {error}
+          </div>
+        )}
 
         {/* TABELLA UTENTI */}
         {loading ? (
           <p className="text-center text-neutral-400 py-12">Caricamento...</p>
+        ) : users.length === 0 ? (
+          <EmptyState
+            icon="👤"
+            title="Nessun utente"
+            description="Crea il primo utente del gestionale."
+            action={
+              <Btn variant="primary" onClick={() => openModal("add")}>
+                + Nuovo utente
+              </Btn>
+            }
+            watermark
+          />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-neutral-200">
             <table className="w-full text-sm">
@@ -228,18 +240,20 @@ export default function GestioneUtenti() {
               <tbody>
                 {users.map((u) => (
                   <tr key={u.username} className="border-b border-neutral-100 hover:bg-neutral-50">
-                    <td className="px-5 py-4 font-medium text-neutral-800">
-                      {u.username}
-                      {u.username === currentUsername && (
-                        <span className="ml-2 text-xs bg-neutral-100 text-neutral-700 rounded-full px-2 py-0.5">Tu</span>
-                      )}
+                    <td className="px-5 py-4 font-medium text-brand-ink">
+                      <span className="inline-flex items-center gap-2">
+                        {u.username}
+                        {u.username === currentUsername && (
+                          <StatusBadge tone="neutral" size="sm">Tu</StatusBadge>
+                        )}
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <select
                         value={u.role}
                         onChange={(e) => handleChangeRole(u.username, e.target.value)}
                         disabled={u.username === currentUsername}
-                        className="text-sm border border-neutral-200 rounded-lg px-2 py-1 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-sm border border-neutral-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {ROLES.map((r) => (
                           <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -248,19 +262,13 @@ export default function GestioneUtenti() {
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openModal("password", u)}
-                          className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
-                        >
+                        <Btn variant="chip" tone="blue" size="sm" onClick={() => openModal("password", u)}>
                           🔑 Password
-                        </button>
+                        </Btn>
                         {u.username !== currentUsername && (
-                          <button
-                            onClick={() => openModal("delete", u)}
-                            className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition"
-                          >
+                          <Btn variant="chip" tone="red" size="sm" onClick={() => openModal("delete", u)}>
                             🗑 Elimina
-                          </button>
+                          </Btn>
                         )}
                       </div>
                     </td>
@@ -280,47 +288,42 @@ export default function GestioneUtenti() {
             {/* --- MODAL: NUOVO UTENTE --- */}
             {modal === "add" && (
               <>
-                <h2 className="text-xl font-bold mb-6 text-neutral-800">➕ Nuovo utente</h2>
+                <h2 className="text-xl font-bold mb-6 text-brand-ink">➕ Nuovo utente</h2>
                 <form onSubmit={handleAddUser} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-600 mb-1">Username</label>
+                  <FormField label="Username">
                     <input
                       type="text"
                       value={newUser.username}
                       onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                      className={inputCls}
                       placeholder="es. mario"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-600 mb-1">Password</label>
+                  </FormField>
+                  <FormField label="Password">
                     <input
                       type="password"
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                      className={inputCls}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-600 mb-1">Ruolo</label>
+                  </FormField>
+                  <FormField label="Ruolo">
                     <select
                       value={newUser.role}
                       onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400"
+                      className={inputCls}
                     >
                       {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                     </select>
-                  </div>
-                  {formError && <p className="text-red-600 text-sm">{formError}</p>}
+                  </FormField>
+                  {formError && <p className="text-brand-red text-sm font-semibold">{formError}</p>}
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" disabled={saving}
-                      className="flex-1 bg-neutral-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition">
-                      {saving ? "Salvataggio..." : "Crea utente"}
-                    </button>
-                    <button type="button" onClick={() => setModal(null)}
-                      className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                    <Btn type="submit" variant="primary" loading={saving} disabled={saving} className="flex-1">
+                      {saving ? "Salvataggio…" : "Crea utente"}
+                    </Btn>
+                    <Btn type="button" variant="secondary" onClick={() => setModal(null)} className="flex-1">
                       Annulla
-                    </button>
+                    </Btn>
                   </div>
                 </form>
               </>
@@ -329,49 +332,44 @@ export default function GestioneUtenti() {
             {/* --- MODAL: CAMBIA PASSWORD --- */}
             {modal === "password" && selectedUser && (
               <>
-                <h2 className="text-xl font-bold mb-2 text-neutral-800">🔑 Cambia password</h2>
+                <h2 className="text-xl font-bold mb-2 text-brand-ink">🔑 Cambia password</h2>
                 <p className="text-sm text-neutral-500 mb-6">Utente: <strong>{selectedUser.username}</strong></p>
                 <form onSubmit={handleChangePassword} className="space-y-4">
                   {selectedUser.username === currentUsername && (
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-600 mb-1">Password attuale</label>
+                    <FormField label="Password attuale">
                       <input
                         type="password"
                         value={pwForm.current_password}
                         onChange={(e) => setPwForm({ ...pwForm, current_password: e.target.value })}
-                        className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        className={inputCls}
                       />
-                    </div>
+                    </FormField>
                   )}
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-600 mb-1">Nuova password</label>
+                  <FormField label="Nuova password">
                     <input
                       type="password"
                       value={pwForm.new_password}
                       onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className={inputCls}
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-600 mb-1">Conferma password</label>
+                  </FormField>
+                  <FormField label="Conferma password">
                     <input
                       type="password"
                       value={pwForm.confirm}
                       onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
-                      className="w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className={inputCls}
                     />
-                  </div>
-                  {formError && <p className="text-red-600 text-sm">{formError}</p>}
-                  {formOk && <p className="text-green-600 text-sm font-medium">{formOk}</p>}
+                  </FormField>
+                  {formError && <p className="text-brand-red text-sm font-semibold">{formError}</p>}
+                  {formOk && <p className="text-brand-green text-sm font-semibold">{formOk}</p>}
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" disabled={saving}
-                      className="flex-1 bg-blue-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                      {saving ? "Salvataggio..." : "Aggiorna"}
-                    </button>
-                    <button type="button" onClick={() => setModal(null)}
-                      className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                    <Btn type="submit" variant="primary" loading={saving} disabled={saving} className="flex-1">
+                      {saving ? "Salvataggio…" : "Aggiorna"}
+                    </Btn>
+                    <Btn type="button" variant="secondary" onClick={() => setModal(null)} className="flex-1">
                       Annulla
-                    </button>
+                    </Btn>
                   </div>
                 </form>
               </>
@@ -380,21 +378,19 @@ export default function GestioneUtenti() {
             {/* --- MODAL: ELIMINA --- */}
             {modal === "delete" && selectedUser && (
               <>
-                <h2 className="text-xl font-bold mb-4 text-neutral-800">🗑 Elimina utente</h2>
+                <h2 className="text-xl font-bold mb-4 text-brand-ink">🗑 Elimina utente</h2>
                 <p className="text-sm text-neutral-600 mb-6">
                   Sei sicuro di voler eliminare l'utente <strong>{selectedUser.username}</strong>?
                   L'operazione non è reversibile.
                 </p>
-                {formError && <p className="text-red-600 text-sm mb-4">{formError}</p>}
+                {formError && <p className="text-brand-red text-sm mb-4 font-semibold">{formError}</p>}
                 <div className="flex gap-3">
-                  <button onClick={handleDelete} disabled={saving}
-                    className="flex-1 bg-red-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition">
-                    {saving ? "Eliminazione..." : "Elimina"}
-                  </button>
-                  <button onClick={() => setModal(null)}
-                    className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                  <Btn variant="danger" onClick={handleDelete} loading={saving} disabled={saving} className="flex-1">
+                    {saving ? "Eliminazione…" : "Elimina"}
+                  </Btn>
+                  <Btn variant="secondary" onClick={() => setModal(null)} className="flex-1">
                     Annulla
-                  </button>
+                  </Btn>
                 </div>
               </>
             )}
@@ -402,6 +398,22 @@ export default function GestioneUtenti() {
           </div>
         </div>
       )}
+    </PageLayout>
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// FormField + inputCls — micro-helper locali per uniformare i form
+// ─────────────────────────────────────────────────────────────
+const inputCls =
+  "w-full border border-neutral-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue";
+
+function FormField({ label, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-neutral-600 mb-1">{label}</label>
+      {children}
     </div>
   );
 }
