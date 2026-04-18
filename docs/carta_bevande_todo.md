@@ -114,41 +114,43 @@
 
 ---
 
-## FASE 3 — Export unificato
+## FASE 3 — Export unificato (COMPLETATA 2026-04-19)
 
 ### Service `carta_bevande_service.py`
-- [ ] Creare `app/services/carta_bevande_service.py`
-- [ ] `build_copertina_html()` — titolo + logo + version carta
-- [ ] `build_toc_html(sezioni_attive, vini_toc)` — indice master con rimando a TOC vini
-- [ ] `build_section_html(sezione, voci, for_pdf, staff)` — dispatcher su `layout`
-- [ ] `_render_tabella_4col(voci)` — Pattern A (distillati, amari_liquori)
-- [ ] `_render_scheda_estesa(voci)` — Pattern B (birre, aperitivi, amari_casa)
-- [ ] `_render_nome_badge_desc(voci)` — Pattern C (tisane, tè)
-- [ ] `build_carta_bevande_html(include_vini, for_pdf, staff)` — orchestratore, riusa `carta_vini_service`
-- [ ] `build_carta_bevande_docx()` — versione DOCX (riusa `build_carta_docx` pattern)
-- [ ] `get_version_string()` — "v{YYYY}.{MM}.{seq}" da MAX(updated_at)
+- [x] Creato `app/services/carta_bevande_service.py`
+- [x] `build_copertina_html(logo_path, staff)` — titolo + logo + version carta (front-version badge)
+- [x] `build_toc_html(sezioni_attive)` — indice master con rimando a "vedi indice dettagliato" per vini
+- [x] `build_section_html(sezione, voci, for_pdf, staff)` — dispatcher su `layout`
+- [x] `_render_tabella_4col(voci, staff)` — Pattern A (distillati, amari_liquori), raggruppato per tipologia
+- [x] `_render_scheda_estesa(voci, staff)` — Pattern B (birre, aperitivi, amari_casa) con meta line produttore·stile·formato·grad·IBU
+- [x] `_render_nome_badge_desc(voci, staff)` — Pattern C (tisane, tè) con badge colorati per tipo tè
+- [x] `build_carta_bevande_html(include_vini, for_pdf, staff)` — orchestratore, delega sezione vini a `carta_vini_service`
+- [x] `build_carta_bevande_docx(logo_path, staff)` — versione DOCX master (3 layout + rimando docx vini dedicato)
+- [x] `get_version_string()` — "v{YYYY}.{MM}.{DD}" da MAX(updated_at) bevande (fallback data odierna)
+- [x] `_note_staff_block(voce, staff)` — render note_interne solo in PDF/DOCX staff
 
 ### CSS
-- [ ] Estendere `app/static/css/carta_html.css` con `.bev-4col`, `.bev-scheda`, `.bev-badge`
-- [ ] Estendere `app/static/css/carta_pdf.css` con stessi selettori
-- [ ] Verificare watermark footer + numeri pagina + intestazione logo
+- [x] Esteso `static/css/carta_html.css` con `.bev-section`, `.bev-4col`, `.bev-scheda`, `.bev-badge-*`, `.bev-note-staff`, `.bev-version-footer`
+- [x] Esteso `static/css/carta_pdf.css` con stessi selettori + `.front-version`, `.bev-section-pdf` page-break, `.bev-section-vini` reset
+- [x] Watermark footer e numeri pagina restano dal blocco @page esistente
 
 ### Endpoint export (in `bevande_router.py`)
-- [ ] `GET /bevande/carta` — HTML preview master
-- [ ] `GET /bevande/carta/pdf` — PDF cliente (WeasyPrint/chromium come fa vini)
-- [ ] `GET /bevande/carta/pdf-staff` — include note_interne
-- [ ] `GET /bevande/carta/docx` — DOCX
-- [ ] `GET /bevande/sezioni/{key}/preview` — HTML singola sezione per editor
+- [x] `GET /bevande/carta` — HTML preview master (wrapper + carta_html.css + version footer)
+- [x] `GET /bevande/carta/pdf` — PDF cliente (WeasyPrint, frontespizio + TOC + body)
+- [x] `GET /bevande/carta/pdf-staff` — PDF staff con note_interne evidenziate
+- [x] `GET /bevande/carta/docx` — DOCX master python-docx
+- [x] `GET /bevande/sezioni/{key}/preview` — HTML singola sezione per editor (sezione 'vini' redirect a /vini/carta)
 
 ### Frontend punta al nuovo master
-- [ ] `CartaAnteprima.jsx` iframe `/bevande/carta`
-- [ ] Export buttons → `/bevande/carta/*`
-- [ ] `CartaVini.jsx` continua a puntare a `/vini/carta*` (immutata)
-- [ ] **NESSUN endpoint pubblico** (decisione Marco 2026-04-19): tutti export richiedono JWT
+- [x] `CartaAnteprima.jsx` iframe `/bevande/carta` (già fatto in Fase 2, warning rimosso)
+- [x] Export buttons → `/bevande/carta/*` (già in hub e anteprima)
+- [x] `CartaVini.jsx` continua a puntare a `/vini/carta*` (immutata)
+- [x] **NESSUN endpoint pubblico**: tutti gli export richiedono JWT (router-level `Depends(get_current_user)` + `_require_reader`)
 
 ### Retro-compatibilità
-- [ ] Test: `/vini/carta` risponde ancora con solo la carta vini (link vecchi)
-- [ ] Test: `/vini/carta/pdf` genera PDF solo vini identico a oggi
+- [x] `/vini/carta` del router vini invariato: risponde ancora con solo la carta vini
+- [x] `/vini/carta/pdf`, `/pdf-staff`, `/docx` invariati: generano PDF/DOCX solo vini identici a oggi
+- [ ] Smoke test sul VPS post-push: aprire `/bevande/carta`, scaricare PDF/Word, confrontare `/vini/carta` per regressioni
 
 ---
 

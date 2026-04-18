@@ -1,4 +1,4 @@
-# @version: v1.0-fase1-crud
+# @version: v1.1-fase3-export
 # -*- coding: utf-8 -*-
 """
 Router Carta Bevande — TRGB Gestionale (sub-modulo Vini)
@@ -8,12 +8,17 @@ Aperitivi, Birre, Amari fatti in casa, Amari & Liquori,
 Distillati, Tisane, Tè.
 
 La sezione logica 'vini' NON ha voci qui: i dati restano in fe_magazzino_vini
-e il renderer della carta completa (Fase 3) chiamerà carta_vini_service.
+e il renderer della carta completa delega a carta_vini_service.
 
 Permessi:
 - admin / superadmin / sommelier → scrittura + lettura
 - sala / chef / altri             → solo lettura (utile per anteprima staff)
 - viewer                          → 403 (nessun accesso)
+
+Changelog:
+- v1.1 (Fase 3): endpoint export /bevande/carta, /bevande/carta/pdf, /pdf-staff,
+                  /docx, /bevande/sezioni/{key}/preview.
+- v1.0 (Fase 1): CRUD sezioni + voci + reorder + bulk-import.
 
 Riferimento design: docs/carta_bevande_design.md
 """
@@ -21,10 +26,14 @@ Riferimento design: docs/carta_bevande_design.md
 from __future__ import annotations
 
 import json
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
+from weasyprint import HTML, CSS
 
 from app.models.bevande_db import (
     count_voci_by_sezione,
@@ -34,6 +43,15 @@ from app.models.bevande_db import (
     list_sezioni,
 )
 from app.services.auth_service import get_current_user
+from app.services.carta_bevande_service import (
+    build_carta_bevande_docx,
+    build_carta_bevande_html,
+    build_copertina_html,
+    build_section_html,
+    build_toc_html,
+    get_version_string,
+    _load_voci_attive,
+)
 
 
 router = APIRouter(
@@ -41,6 +59,15 @@ router = APIRouter(
     tags=["Carta Bevande"],
     dependencies=[Depends(get_current_user)],
 )
+
+# ─────────────────────────────────────────────
+# PATH COSTANTI (riuso degli stessi asset del router vini)
+# ─────────────────────────────────────────────
+BASE_DIR = Path(__file__).resolve().parents[2]
+STATIC_DIR = BASE_DIR / "static"
+CSS_HTML = STATIC_DIR / "css" / "carta_html.css"
+CSS_PDF = STATIC_DIR / "css" / "carta_pdf.css"
+LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 
 # ─────────────────────────────────────────────
 # PERMESSI
@@ -514,3 +541,153 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
     finally:
         conn.close()
     return {"status": "ok", "imported": imported, "sezione_key": payload.sezione_key}
+
+
+# ═════════════════════════════════════════════════════════════
+# EXPORT — Fase 3
+# ═════════════════════════════════════════════════════════════
+# HTML preview master (/bevande/carta)
+# PDF cliente (/bevande/carta/pdf)
+# PDF staff (/bevande/carta/pdf-staff, include note_interne)
+# DOCX (/bevande/carta/docx)
+# HTML singola sezione (/bevande/sezioni/{key}/preview)
+#
+# Nota permessi: tutti richiedono JWT (già applicato dal router-level Depends),
+# reader block su viewer, editor non richiesto (basta leggere).
+# ═════════════════════════════════════════════════════════════
+
+
+def _html_preview_wrapper(body_html: str, title: str = "Carta delle Bevande") -> str:
+    """Avvolge il body in un HTML completo per preview browser (carta_html.css)."""
+    version = get_version_string()
+    return f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <link rel="stylesheet" href="/static/css/carta_html.css">
+</head>
+<body>
+    <h1 class="title">OSTERIA TRE GOBBI — {title.upper()}</h1>
+    {body_html}
+    <div class="bev-version-footer">{version}</div>
+</body>
+</html>"""
+
+
+def _html_pdf_wrapper(body_html: str, frontespizio: str, toc: str) -> str:
+    """Avvolge il body per WeasyPrint (carta_pdf.css)."""
+    return f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="/static/css/carta_pdf.css">
+</head>
+<body>
+    {frontespizio}
+    {toc}
+    <div class="carta-bevande-body">{body_html}</div>
+</body>
+</html>"""
+
+
+@router.get("/carta", response_class=HTMLResponse)
+def carta_bevande_html(user: dict = Depends(get_current_user)):
+    """Preview HTML master della Carta delle Bevande (per iframe/browser)."""
+    _require_reader(user)
+    _ensure_db()
+    body = build_carta_bevande_html(include_vini=True, for_pdf=False, staff=False)
+    return HTMLResponse(_html_preview_wrapper(body))
+
+
+@router.get("/carta/pdf")
+def carta_bevande_pdf(user: dict = Depends(get_current_user)):
+    """PDF cliente (no note staff) — Carta delle Bevande completa."""
+    _require_reader(user)
+    _ensure_db()
+    frontespizio = build_copertina_html(
+        logo_path=str(LOGO_PATH) if LOGO_PATH.exists() else None,
+        staff=False,
+    )
+    sezioni_attive = [
+        _row_to_dict(s) for s in list_sezioni(only_active=True)
+    ]
+    toc = build_toc_html(sezioni_attive)
+    body = build_carta_bevande_html(include_vini=True, for_pdf=True, staff=False)
+    html = _html_pdf_wrapper(body, frontespizio, toc)
+
+    out = STATIC_DIR / "carta_bevande.pdf"
+    HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
+        str(out),
+        stylesheets=[CSS(filename=str(CSS_PDF))],
+    )
+    return FileResponse(out, filename="carta-bevande.pdf")
+
+
+@router.get("/carta/pdf-staff")
+def carta_bevande_pdf_staff(user: dict = Depends(get_current_user)):
+    """PDF staff — include note_interne su ogni voce che le ha."""
+    _require_reader(user)
+    _ensure_db()
+    frontespizio = build_copertina_html(
+        logo_path=str(LOGO_PATH) if LOGO_PATH.exists() else None,
+        staff=True,
+    )
+    sezioni_attive = [
+        _row_to_dict(s) for s in list_sezioni(only_active=True)
+    ]
+    toc = build_toc_html(sezioni_attive)
+    body = build_carta_bevande_html(include_vini=True, for_pdf=True, staff=True)
+    html = _html_pdf_wrapper(body, frontespizio, toc)
+
+    out = STATIC_DIR / "carta_bevande_staff.pdf"
+    HTML(string=html, base_url=str(BASE_DIR)).write_pdf(
+        str(out),
+        stylesheets=[CSS(filename=str(CSS_PDF))],
+    )
+    return FileResponse(out, filename="carta-bevande-staff.pdf")
+
+
+@router.get("/carta/docx")
+def carta_bevande_docx(user: dict = Depends(get_current_user)):
+    """DOCX master — Carta delle Bevande completa (staff=False)."""
+    _require_reader(user)
+    _ensure_db()
+    doc = build_carta_bevande_docx(
+        logo_path=LOGO_PATH if LOGO_PATH.exists() else None,
+        staff=False,
+    )
+    out = STATIC_DIR / "carta_bevande.docx"
+    doc.save(str(out))
+    return FileResponse(
+        out,
+        filename="carta-bevande.docx",
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+@router.get("/sezioni/{key}/preview", response_class=HTMLResponse)
+def carta_bevande_sezione_preview(key: str, user: dict = Depends(get_current_user)):
+    """
+    Preview HTML di una singola sezione — usata dall'editor per
+    "Anteprima sezione" (iframe in nuovo tab).
+    Per la sezione 'vini' rimanda alla preview vini storica.
+    """
+    _require_reader(user)
+    _ensure_db()
+    sezione_row = get_sezione_by_key(key)
+    if not sezione_row:
+        raise HTTPException(404, f"Sezione '{key}' non trovata")
+    sezione = _row_to_dict(sezione_row)
+
+    if key == "vini":
+        # La sezione vini ha la sua preview dedicata esistente
+        return HTMLResponse(
+            "<html><head><meta http-equiv='refresh' content='0; url=/vini/carta'>"
+            "</head><body>Redirezione alla Carta Vini…</body></html>"
+        )
+
+    voci = _load_voci_attive(key)
+    body = build_section_html(sezione, voci, for_pdf=False, staff=False)
+    return HTMLResponse(_html_preview_wrapper(body, title=sezione.get("nome") or key))

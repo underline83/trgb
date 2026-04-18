@@ -284,3 +284,184 @@ html, body {
     text-rendering: optimizeLegibility;
     font-kerning: normal;
 }
+
+/* ============================================================
+   CARTA BEVANDE — blocchi master (sezione, intro, 3 layout) — PDF
+   Aggiunti in Fase 3 del modulo Carta Bevande.
+   ============================================================ */
+
+.front-version {
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+    color: #8a7a65;
+    margin-top: 20pt;
+    letter-spacing: 1pt;
+}
+
+.bev-section {
+    margin-top: 16pt;
+}
+.bev-section-pdf {
+    page-break-before: always;
+}
+.bev-section-pdf:first-of-type {
+    page-break-before: auto;
+}
+.bev-section-title {
+    font-size: 18pt;
+    text-align: center;
+    letter-spacing: 4pt;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #5b2c1a;
+    border-bottom: 1px solid #c4a77d;
+    padding-bottom: 6pt;
+    margin: 6pt 0 14pt;
+    page-break-after: avoid;
+}
+.bev-intro {
+    font-size: 11pt;
+    color: #5a4634;
+    font-style: italic;
+    max-width: 150mm;
+    margin: 0 auto 10pt;
+    text-align: center;
+    page-break-after: avoid;
+}
+.bev-empty {
+    text-align: center;
+    color: #8a7a65;
+}
+.bev-note-staff {
+    font-size: 9pt;
+    color: #a04000;
+    font-style: italic;
+    background: #fff8ec;
+    border-left: 2pt solid #a04000;
+    padding: 3pt 6pt;
+    margin: 2pt 0 6pt;
+    page-break-inside: avoid;
+}
+
+/* Pattern A — tabella 4 colonne */
+.bev-4col {
+    margin-top: 6pt;
+}
+.bev-4col-group {
+    font-size: 13pt;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #3b2814;
+    letter-spacing: 2pt;
+    margin: 14pt 0 4pt;
+    text-align: center;
+    page-break-after: avoid;
+}
+.bev-4col-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8pt;
+}
+.bev-4col-table td {
+    padding: 2pt 4pt;
+    vertical-align: top;
+    font-size: 10.5pt;
+}
+.bev-4col-table td.b4-ctx    { width: 22%; color: #5a4634; font-style: italic; }
+.bev-4col-table td.b4-prod   { width: 25%; font-weight: 600; }
+.bev-4col-table td.b4-nome   { width: 43%; }
+.bev-4col-table td.b4-prezzo { width: 10%; text-align: right; font-weight: 700; }
+.bev-4col-table tr.b4-desc-row td {
+    font-size: 9.5pt;
+    color: #7a6b5a;
+    padding-top: 0;
+    padding-bottom: 4pt;
+    padding-left: 18pt;
+    font-style: italic;
+}
+
+/* Pattern B — scheda estesa */
+.bev-scheda-item {
+    padding: 6pt 0;
+    border-bottom: 0.5pt dotted #d8c8a8;
+    page-break-inside: avoid;
+}
+.bev-scheda-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8pt;
+}
+.bev-scheda-nome {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #2b2118;
+}
+.bev-scheda-prezzo {
+    font-weight: 700;
+    color: #2b2118;
+    white-space: nowrap;
+}
+.bev-scheda-meta {
+    font-size: 10pt;
+    color: #5a4634;
+    margin-top: 1pt;
+}
+.bev-scheda-desc {
+    font-size: 11pt;
+    color: #2b2118;
+    margin-top: 2pt;
+}
+
+/* Pattern C — nome + badge + desc */
+.bev-badge-item {
+    padding: 6pt 0;
+    border-bottom: 0.5pt dotted #d8c8a8;
+    page-break-inside: avoid;
+}
+.bev-badge-head {
+    display: flex;
+    align-items: center;
+    gap: 8pt;
+}
+.bev-badge-nome {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #2b2118;
+}
+.bev-badge-prezzo {
+    margin-left: auto;
+    font-weight: 700;
+    color: #2b2118;
+    white-space: nowrap;
+}
+.bev-badge {
+    display: inline-block;
+    padding: 1pt 8pt;
+    border-radius: 999pt;
+    font-size: 8.5pt;
+    font-weight: 600;
+    letter-spacing: 1pt;
+    text-transform: uppercase;
+}
+.bev-badge-neutral {
+    background: #efe6d6;
+    color: #5a4634;
+}
+.bev-badge-meta {
+    font-size: 9.5pt;
+    color: #7a6b5a;
+    margin-top: 2pt;
+    font-style: italic;
+}
+.bev-badge-desc {
+    font-size: 10.5pt;
+    color: #2b2118;
+    margin-top: 2pt;
+}
+
+/* Sezione vini dentro la carta bevande: resetta page-break per non duplicarlo
+   rispetto a quanto già fa .carta-body al suo interno */
+.bev-section-vini .carta-body {
+    page-break-before: auto;
+}

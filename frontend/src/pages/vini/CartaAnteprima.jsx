@@ -1,7 +1,6 @@
-// @version: v1.0 — Anteprima master Carta Bevande (sessione 2026-04-19)
+// @version: v1.1 — Anteprima master Carta Bevande (Fase 3: endpoint export attivo)
 // Route: /vini/carta/anteprima
-// Embedda /bevande/carta in iframe + bottoni export.
-// NOTA: in Fase 3 il backend esporrà /bevande/carta; finché non c'è, mostriamo un messaggio.
+// Embedda /bevande/carta in iframe + bottoni export (PDF cliente, PDF staff, DOCX).
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -81,8 +80,8 @@ export default function CartaAnteprima() {
         </div>
 
         <div className="mt-4 text-xs text-neutral-500 text-center">
-          ⚠️ L'endpoint <code className="bg-neutral-100 px-1 rounded">/bevande/carta</code> sarà
-          disponibile dopo la Fase 3 (export unificato). Fino ad allora la preview può essere vuota.
+          La preview è generata da <code className="bg-neutral-100 px-1 rounded">/bevande/carta</code> e
+          include tutte le sezioni attive in ordine configurato. Export via i bottoni qui sopra.
         </div>
 
       </div>
