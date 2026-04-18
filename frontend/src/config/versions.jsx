@@ -9,7 +9,7 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "3.4",
+    version: "3.5",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
@@ -57,13 +57,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
-    version: "2.9",
+    version: "3.0",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
-    version: "2.1",
+    version: "2.2",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -75,7 +75,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   tasks: {
-    version: "1.1",
+    version: "1.2",
     label: "Task Manager",
     status: "beta",
     color: "blue",

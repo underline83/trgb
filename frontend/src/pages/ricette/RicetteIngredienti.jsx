@@ -1,10 +1,11 @@
-/// @version: v1.3-ingredienti-ui-foodcost
+/// @version: v1.4-mattoni — M.I primitives (Btn) su salva ingrediente
 // Gestione Ingredienti — foodcost.db (anagrafica + primo prezzo)
 
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import { Btn } from "../../components/ui";
 
 // Unità di misura standardizzate
 const UNITS = ["kg", "g", "L", "ml", "pz", "confezione", "vaschetta", "bottiglia"];
@@ -370,12 +371,9 @@ export default function RicetteIngredienti() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="mt-4 px-6 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-semibold shadow hover:bg-orange-800 transition"
-            >
+            <Btn variant="chip" tone="amber" size="md" type="submit" className="mt-4">
               💾 Salva ingrediente
-            </button>
+            </Btn>
           </form>
 
           {/* LISTA INGREDIENTI */}

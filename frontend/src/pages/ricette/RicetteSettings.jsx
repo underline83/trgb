@@ -1,4 +1,4 @@
-// @version: v1.1-sidebar-clienti-style
+// @version: v1.2-mattoni — M.I primitives (Btn) su CTA principali (export/import/scelta macellaio/tipi servizio)
 // Impostazioni Cucina — Export JSON, Export PDF, Import JSON, Macellaio, Tipi Servizio
 // Visibile solo per admin
 import React, { useState, useEffect } from "react";
@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -359,10 +360,9 @@ export default function RicetteSettings() {
           <p className="text-neutral-600 text-sm mb-4">
             Questa sezione è disponibile solo per gli amministratori.
           </p>
-          <button onClick={() => navigate("/ricette")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+          <Btn variant="ghost" size="md" onClick={() => navigate("/ricette")}>
             ← Menu Ricette
-          </button>
+          </Btn>
         </div>
       </div>
     );
@@ -418,10 +418,9 @@ export default function RicetteSettings() {
                 {activeSection === "export-json" && (
                   <section>
                     <SectionHeader title="Export ricette (JSON)" desc="Esporta tutte le ricette attive con i loro ingredienti in formato JSON. Utile per backup o per trasferire le ricette ad un'altra installazione." />
-                    <button onClick={handleExportJson}
-                      className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition">
+                    <Btn variant="chip" tone="amber" size="md" onClick={handleExportJson}>
                       Scarica JSON completo
-                    </button>
+                    </Btn>
                   </section>
                 )}
 
@@ -544,12 +543,9 @@ export default function RicetteSettings() {
                   className="w-28 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
                 />
               </div>
-              <button
-                onClick={handleSaveConfig}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition"
-              >
+              <Btn variant="chip" tone="amber" size="md" onClick={handleSaveConfig}>
                 Salva impostazioni
-              </button>
+              </Btn>
               <p className="text-xs text-neutral-500 flex-1 min-w-[200px]">
                 Le categorie oltre questo limite saranno sommate come "+ N altre categorie".
               </p>
@@ -694,13 +690,9 @@ export default function RicetteSettings() {
                   className="w-24 px-2 py-2 border border-neutral-300 rounded-lg text-sm text-center"
                 />
               </div>
-              <button
-                onClick={handleCreateCat}
-                disabled={!newCat.nome.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white shadow transition"
-              >
+              <Btn variant="chip" tone="blue" size="md" onClick={handleCreateCat} disabled={!newCat.nome.trim()}>
                 Aggiungi
-              </button>
+              </Btn>
             </div>
           </div>
                   </section>
@@ -809,10 +801,9 @@ export default function RicetteSettings() {
                   onChange={(e) => setNewSvc({ ...newSvc, sort_order: e.target.value })}
                   className="w-24 px-2 py-2 border border-neutral-300 rounded-lg text-sm text-center" />
               </div>
-              <button onClick={handleCreateSvc} disabled={!newSvc.name.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white shadow transition">
+              <Btn variant="chip" tone="blue" size="md" onClick={handleCreateSvc} disabled={!newSvc.name.trim()}>
                 Aggiungi
-              </button>
+              </Btn>
             </div>
           </div>
                   </section>

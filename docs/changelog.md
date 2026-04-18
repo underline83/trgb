@@ -3,6 +3,118 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #14 Clienti + Ricette + Prenotazioni + Tasks (11 pagine toccate, di cui 6 minimal, 2 skippate)
+
+### Problema / contesto
+Quattordicesimo giro M.I, penultimo "sottolotto" del cluster "Rimanenti". Chiude il cluster transazionale utente-centrico: anagrafica Clienti + scheda cliente, Preventivi (scheda + composer menu), Ricette (settings/nuova ricetta/matching fatture) e il modulo Prenotazioni (editor tavoli) + Tasks list. Come sempre, pattern "minimal touch" sui file grandi e widget bespoke (PreventivoMenuComposer tab menu, TavoliEditor drag-n-drop, Ricette matching picker, TaskList mobile-first con FAB+swipe, InstanceDetail mobile-first con numpad e modali brand-red). InstanceDetail.jsx skippato completamente: è un flusso touch-first per cucina con shadow brand-red specifici, Playfair font, min-h-[52px]/[56px] safe-area-aware — convertirlo a Btn primitives avrebbe distrutto l'UX progettata per uso con una mano.
+
+### Pagine toccate in questo batch
+
+**1. `clienti/ClientiDuplicati.jsx` — refactor v1.3-mattoni (545 righe, conversione piena)**
+- Toolbar "Normalizza testi" (chip sky) → `<Btn variant="chip" tone="sky" size="sm">`.
+- Toolbar "Pulisci tel. finti" (chip amber) → `<Btn variant="chip" tone="amber" size="sm">`.
+- Toolbar "Ricarica" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm" loading={loading}>`.
+- Auto-merge "Analizza" (chip amber) → `<Btn variant="chip" tone="amber" size="md">`.
+- Auto-merge "Conferma Auto-Merge" (red) → `<Btn variant="danger" size="md">`.
+- Auto-merge "Annulla" → `<Btn variant="ghost" size="md">`.
+- Confirm modal "Conferma Merge" (amber) → `<Btn variant="chip" tone="amber" size="md" loading={isMerging}>`.
+- Filter tabs telefono/email/nome (toggle teal bespoke) e tooltip "Non sono duplicati" lasciati custom.
+
+**2. `clienti/ClientiMenuTemplates.jsx` — refactor v1.1-mattoni (568 righe, tocco minimo)**
+- "+ Nuovo template" header (chip violet) → `<Btn variant="chip" tone="violet" size="md">`.
+- Row "⎘ Duplica" → `<Btn variant="ghost" size="sm">`.
+- Row "🗑 Elimina" → `<Btn variant="chip" tone="red" size="sm">`.
+- Quick-add "Annulla" / "Aggiungi" (dark) → `<Btn variant="ghost" size="sm">` / `<Btn variant="dark" size="sm">`.
+- Picker/Quick toggles, riga ▲▼✕ arrows lasciati custom.
+
+**3. `clienti/ClientiLista.jsx` — refactor v3.4-mattoni (627 righe, tocco minimo)**
+- "+ Nuovo Cliente" (chip emerald) → `<Btn variant="chip" tone="emerald" size="md">`.
+- Azioni bulk "Copia email" / "Copia telefoni" / "Esporta CSV" → chip sky/emerald/amber size="sm".
+- "WhatsApp lista" (toggle: active filled success, inactive chip emerald) → render condizionale.
+- Nota: "Salva" (chip amber, loading) → `<Btn variant="chip" tone="amber" size="sm" loading={notaSaving}>`.
+- Paginazione "← Precedente" / "Successiva →" → `<Btn variant="secondary" size="sm">` x 2.
+- "Invia WA" row action lasciata come `<a target=_blank>`.
+
+**4. `clienti/ClientiScheda.jsx` — refactor v2.2-mattoni (853 righe, tocco minimo)**
+- Header edit mode "Annulla" (ghost) / "Salva" (chip emerald, loading) → `<Btn>`.
+- Header normal "Unisci con..." (ghost/chip amber condizionale) / "Modifica" (chip emerald) → `<Btn>`.
+- Merge panel "Conferma Merge" (danger, loading) / "Annulla" (ghost) → `<Btn>`.
+- Tab note "Aggiungi" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm">`.
+- Tab preventivi "+ Nuovo preventivo" (chip violet) → `<Btn variant="chip" tone="violet" size="sm">`.
+- ← Anagrafica back-link, tab/rank/tag bespoke e elimina-nota ✕ inline lasciati custom.
+
+**5. `clienti/ClientiPreventivoScheda.jsx` — refactor v1.4-mattoni (936 righe, tocco minimo)**
+- Extra section "+ Aggiungi riga" (chip violet) → `<Btn variant="chip" tone="violet" size="sm">`.
+- Sidebar "Crea preventivo"/"Salva modifiche" (chip violet, w-full, loading) → `<Btn className="w-full" loading={saving}>`.
+- Sidebar "📥 Scarica PDF" (chip blue) / "📄 Duplica" (ghost) / "🗑 Elimina" (chip red) → `<Btn className="w-full justify-start">` x 3.
+- Header back, cliente cerca/crea inline, extra riga ▲▼✕, tab note, cambia stato list, FAB mobile bottom-bar lasciati custom.
+
+**6. `clienti/PreventivoMenuComposer.jsx` — refactor v2.2-mattoni (951 righe, tocco minimo)**
+- Header "📂 Carica template" (chip amber) → `<Btn variant="chip" tone="amber" size="sm" type="button">`.
+- Dialog "Piatto veloce" "Annulla"/"+ Aggiungi al menu" → `<Btn variant="ghost|dark" size="sm" type="button">`.
+- Dialog "💾 Salva template" "Annulla"/"💾 Salva" → `<Btn variant="ghost|success" size="sm" disabled>`.
+- Tab menu alternativi (tab pill + ▲▼✎✕ inline, "+ Menu", "Salva template"/"Duplica menu" tab actions), picker piatti dal ricettario, dialog "Carica template" list rows lasciati custom: widget cohesivo tab bar.
+
+**7. `ricette/RicetteNuova.jsx` — refactor v2.1-mattoni (573 righe, conversione piena)**
+- "+ Ingrediente" (chip amber) / "+ Sub-ricetta" (chip blue) → `<Btn variant="chip" tone="amber|blue" size="sm" type="button">`.
+- "Annulla" (ghost) / "Salva ricetta" (chip amber, loading) → `<Btn>` con `type="submit"` per salva.
+
+**8. `ricette/RicetteSettings.jsx` — refactor v1.2-mattoni (837 righe, tocco minimo)**
+- Access-denied "← Menu Ricette" (ghost) → `<Btn variant="ghost" size="md">`.
+- Section export "Scarica JSON completo" (chip amber) → `<Btn variant="chip" tone="amber" size="md">`.
+- Section macellaio "Salva impostazioni" (chip amber) → `<Btn variant="chip" tone="amber" size="md">`.
+- Section macellaio "Aggiungi categoria" (chip blue) → `<Btn variant="chip" tone="blue" size="md" disabled>`.
+- Section servizi "Aggiungi tipo servizio" (chip blue) → `<Btn variant="chip" tone="blue" size="md" disabled>`.
+- Sidebar menu, inline edit modifica/elimina/salva/annulla row categorie e servizi, import JSON label, row PDF-export table lasciati custom: inline list controls.
+
+**9. `ricette/RicetteMatching.jsx` — refactor v5.2-mattoni (963 righe, tocco minimo)**
+- Header "Auto-match" (success) → `<Btn variant="success" size="md">`.
+- Row "Conferma" suggestion (success) → `<Btn variant="success" size="sm">`.
+- Smart "Analizza righe pending" (chip blue, loading) → `<Btn variant="chip" tone="blue" size="md">`.
+- Smart "Seleziona tutti" (chip blue) / "Deseleziona tutti" (ghost) → `<Btn>`.
+- Smart "Crea N ingredienti" (success, loading) → `<Btn variant="success" size="md">`.
+- Smart footer "Crea e Associa tutto" (success) → `<Btn variant="success" size="md">`.
+- Ignored desc "Ripristina" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm">`.
+- Mappings table "Elimina" (chip red) → `<Btn variant="chip" tone="red" size="sm">`.
+- Fornitori "Aggiorna lista" (chip violet, loading) → `<Btn variant="chip" tone="violet" size="md">`.
+- Fornitori "Escludi"/"Riattiva" (chip red/emerald condizionale) → `<Btn variant="chip" tone={escluso ? "emerald" : "red"} size="sm">`.
+- Tab selector (Pending/Smart/Mappings/Fornitori), "Ignora" inline 10px, chips badges lasciati custom.
+
+**10. `prenotazioni/TavoliEditor.jsx` — refactor v1.1-mattoni (582 righe, tocco minimo)**
+- Toolbar "+ Tavolo" (chip violet) → `<Btn variant="chip" tone="violet" size="sm">`.
+- Toolbar "Salva layout" (dark) → `<Btn variant="dark" size="sm">`.
+- Toolbar "Salva posizioni" (success, loading) → `<Btn variant="success" size="sm">`.
+- Nuovo form "Crea" (chip violet) / "Annulla" (ghost) → `<Btn>`.
+- Layout form "Salva" (dark) → `<Btn variant="dark" size="md">`.
+- Scheda tavolo "Disattiva tavolo" (chip red w-full) → `<Btn variant="chip" tone="red" size="sm" className="w-full">`.
+- Zoom +/- tiny icon buttons, layout list "Attiva"/"✕" 10px micro-actions lasciati custom.
+
+**11. `tasks/TaskList.jsx` — refactor v1.1-mattoni (650 righe, tocco minimo)**
+- Header desktop "+ Nuovo task" (danger) → `<Btn variant="danger" size="md" className="hidden sm:inline-flex">`.
+- Empty state "Vedi tutti" (secondary) → `<Btn variant="secondary" size="md">`.
+- Empty state "+ Crea il primo task" (danger) → `<Btn variant="danger" size="md">`.
+- Pill / RepartoPill / FAB 56pt fixed-bottom / swipe-action button / "I miei/Tutti" toggle lasciati custom: mobile-first cucina con scrollSnap e brand-red shadow specifico.
+
+### Pagine skippate
+- `tasks/InstanceDetail.jsx` — file mobile-first checklist (1246 righe) con modali brand-red shadow, numpad custom, progress ring SVG, footer safe-area aware, fonts Playfair: convertire a Btn primitives distruggerebbe UX touch progettata per uso a mano singola. Resta bespoke per design.
+- pagine `clienti/ClientiMailchimp.jsx`, `clienti/ClientiPrenotazioni.jsx`, `clienti/ClientiDashboard.jsx`, `clienti/ClientiImport.jsx`, `clienti/ClientiImpostazioni.jsx` — già toccate in batch precedenti (2–8).
+
+### Versione
+- `clienti` bumped a v3.0 (da v2.9).
+- `ricette` bumped a v3.5 (da v3.4).
+- `prenotazioni` bumped a v2.2 (da v2.1).
+- `tasks` bumped a v1.2 (da v1.1).
+
+### Prossimi sottolotti (proposti)
+- **Batch #15 CG + Home + Login** (ultimo): `controllo-gestione/*` + `Home.jsx` + `Login.jsx` + pagine residue.
+
+### Commit suggerito
+```
+./push.sh "batch #14 M.I primitives — Clienti + Ricette + Prenotazioni + Tasks (11 pagine, 6 minimal)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #13 Fatture admin + Corrispettivi + chiusure (12 pagine toccate, di cui 7 minimal, 3 skippate)
 
 ### Problema / contesto

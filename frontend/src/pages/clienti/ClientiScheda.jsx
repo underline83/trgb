@@ -1,10 +1,11 @@
-// @version: v2.1-clienti-scheda
+// @version: v2.2-mattoni — M.I primitives (Btn) su CTA scheda (Salva/Modifica/Merge/Aggiungi/Nuovo preventivo)
 // Scheda dettaglio cliente — embedded mode + merge manuale con ricerca
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 // ── Colori sidebar per rank ──────────────────────────────
 const RANK_SIDEBAR = {
@@ -334,27 +335,27 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                   <div className="flex gap-2">
                     {editMode ? (
                       <>
-                        <button onClick={() => { setEditMode(false); setForm(cliente); }}
-                          className="px-3 py-1.5 text-xs font-medium border border-neutral-300 rounded-lg hover:bg-neutral-100 transition">
+                        <Btn variant="ghost" size="sm" onClick={() => { setEditMode(false); setForm(cliente); }}>
                           Annulla
-                        </button>
-                        <button onClick={handleSave} disabled={saving}
-                          className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition disabled:opacity-50">
+                        </Btn>
+                        <Btn variant="chip" tone="emerald" size="sm" onClick={handleSave} disabled={saving} loading={saving}>
                           {saving ? "Salvo..." : "Salva"}
-                        </button>
+                        </Btn>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => setShowMerge(!showMerge)}
-                          className={`px-3 py-1.5 text-xs font-medium border rounded-lg transition ${
-                            showMerge ? "bg-amber-100 border-amber-300 text-amber-700" : "border-neutral-300 text-neutral-600 hover:bg-neutral-100"
-                          }`}>
-                          {showMerge ? "Chiudi merge" : "Unisci con..."}
-                        </button>
-                        <button onClick={() => setEditMode(true)}
-                          className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+                        {showMerge ? (
+                          <Btn variant="chip" tone="amber" size="sm" onClick={() => setShowMerge(!showMerge)}>
+                            Chiudi merge
+                          </Btn>
+                        ) : (
+                          <Btn variant="ghost" size="sm" onClick={() => setShowMerge(!showMerge)}>
+                            Unisci con...
+                          </Btn>
+                        )}
+                        <Btn variant="chip" tone="emerald" size="sm" onClick={() => setEditMode(true)}>
                           Modifica
-                        </button>
+                        </Btn>
                       </>
                     )}
                   </div>
@@ -467,14 +468,12 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                           </span>
                         </label>
                         <div className="flex gap-2">
-                          <button onClick={executeMerge} disabled={merging}
-                            className="px-4 py-1.5 text-xs font-bold bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:opacity-50">
+                          <Btn variant="danger" size="sm" onClick={executeMerge} disabled={merging} loading={merging}>
                             {merging ? "Merge in corso..." : "Conferma Merge"}
-                          </button>
-                          <button onClick={() => { setMergeTarget(null); setShowMerge(false); }}
-                            className="px-3 py-1.5 text-xs border border-neutral-300 rounded-lg hover:bg-neutral-50 transition">
+                          </Btn>
+                          <Btn variant="ghost" size="sm" onClick={() => { setMergeTarget(null); setShowMerge(false); }}>
                             Annulla
-                          </button>
+                          </Btn>
                         </div>
                       </div>
                     )}
@@ -666,10 +665,9 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
                         placeholder="Scrivi una nota..."
                         className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none"
                         onKeyDown={(e) => e.key === "Enter" && aggiungiNota()} />
-                      <button onClick={aggiungiNota}
-                        className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition">
+                      <Btn variant="chip" tone="emerald" size="sm" onClick={aggiungiNota}>
                         Aggiungi
-                      </button>
+                      </Btn>
                     </div>
                   </div>
 
@@ -806,10 +804,9 @@ function PreventiviTab({ clienteId, navigate }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm text-neutral-500">{preventivi.length} preventiv{preventivi.length === 1 ? "o" : "i"}</span>
-        <button onClick={() => navigate("/clienti/preventivi/nuovo")}
-          className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition font-medium">
+        <Btn variant="chip" tone="violet" size="sm" onClick={() => navigate("/clienti/preventivi/nuovo")}>
           + Nuovo preventivo
-        </button>
+        </Btn>
       </div>
       {!preventivi.length ? (
         <p className="text-sm text-neutral-400 text-center py-8">Nessun preventivo per questo cliente</p>

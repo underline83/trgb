@@ -1,8 +1,9 @@
-// @version: v1.0-tavoli-editor
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA + form + layout sidebar
 // Editor piantina tavoli — drag & drop SVG, Fase 2 Prenotazioni
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
+import { Btn } from "../../components/ui";
 
 const ZONE = ["sala", "bottiglieria", "esterno", "privata"];
 const FORME = ["rect", "circle"];
@@ -274,25 +275,11 @@ export default function TavoliEditor() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowNuovo(!showNuovo)}
-              className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              + Tavolo
-            </button>
-            <button
-              onClick={() => setShowLayoutForm(!showLayoutForm)}
-              className="px-3 py-1.5 text-xs font-semibold bg-neutral-600 text-white rounded-lg hover:bg-neutral-700"
-            >
-              Salva layout
-            </button>
-            <button
-              onClick={salvaPosizioni}
-              disabled={saving}
-              className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-            >
+            <Btn variant="chip" tone="violet" size="sm" onClick={() => setShowNuovo(!showNuovo)}>+ Tavolo</Btn>
+            <Btn variant="dark" size="sm" onClick={() => setShowLayoutForm(!showLayoutForm)}>Salva layout</Btn>
+            <Btn variant="success" size="sm" onClick={salvaPosizioni} disabled={saving} loading={saving}>
               {saving ? "..." : "Salva posizioni"}
-            </button>
+            </Btn>
             <div className="flex items-center gap-1 ml-2">
               <button onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
                 className="w-6 h-6 rounded border text-xs hover:bg-neutral-100">−</button>
@@ -337,12 +324,8 @@ export default function TavoliEditor() {
                 {FORME.map(f => <option key={f} value={f}>{f === "rect" ? "Rettangolo" : "Cerchio"}</option>)}
               </select>
             </div>
-            <button onClick={creaTavolo} className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-              Crea
-            </button>
-            <button onClick={() => setShowNuovo(false)} className="px-3 py-1.5 text-neutral-500 text-sm hover:text-neutral-700">
-              Annulla
-            </button>
+            <Btn variant="chip" tone="violet" size="md" onClick={creaTavolo}>Crea</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setShowNuovo(false)}>Annulla</Btn>
           </div>
         )}
 
@@ -359,8 +342,8 @@ export default function TavoliEditor() {
               <input type="text" value={layoutForm.descrizione} onChange={e => setLayoutForm({ ...layoutForm, descrizione: e.target.value })}
                 className="px-2 py-1.5 border rounded-lg text-sm w-56" placeholder="14 tavoli interni" />
             </div>
-            <button onClick={salvaLayout} className="px-4 py-1.5 bg-neutral-700 text-white rounded-lg text-sm font-medium">Salva</button>
-            <button onClick={() => setShowLayoutForm(false)} className="px-3 py-1.5 text-neutral-500 text-sm">Annulla</button>
+            <Btn variant="dark" size="md" onClick={salvaLayout}>Salva</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setShowLayoutForm(false)}>Annulla</Btn>
           </div>
         )}
 
@@ -515,12 +498,9 @@ export default function TavoliEditor() {
                     {FORME.map(f => <option key={f} value={f}>{f === "rect" ? "Rettangolo" : "Cerchio"}</option>)}
                   </select>
                 </div>
-                <button
-                  onClick={() => disattivaTavolo(selectedTavolo.id)}
-                  className="w-full px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50"
-                >
+                <Btn variant="chip" tone="red" size="sm" onClick={() => disattivaTavolo(selectedTavolo.id)} className="w-full">
                   Disattiva tavolo
-                </button>
+                </Btn>
               </div>
             ) : (
               <div className="bg-neutral-50 rounded-xl border border-neutral-200 p-4 text-center text-sm text-neutral-400">

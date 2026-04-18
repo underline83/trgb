@@ -1,10 +1,11 @@
-// @version: v1.0-tavoli-mappa
+// @version: v1.1-mattoni — M.I primitives (Btn) su nav data
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import StatoBadge from "./components/StatoBadge";
+import { Btn } from "../../components/ui";
 
 const CANVAS_W = 900;
 const CANVAS_H = 600;
@@ -145,14 +146,11 @@ export default function TavoliMappa() {
         {/* Header: data + turno */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <button onClick={prevDay} className="px-2 py-1 rounded border hover:bg-neutral-100 text-sm">◀</button>
+            <Btn variant="secondary" size="sm" onClick={prevDay}>◀</Btn>
             <input type="date" value={data} onChange={e => setData(e.target.value)}
               className="px-3 py-1.5 border rounded-lg text-sm" />
-            <button onClick={nextDay} className="px-2 py-1 rounded border hover:bg-neutral-100 text-sm">▶</button>
-            <button onClick={() => setData(today)}
-              className="px-2 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg">
-              Oggi
-            </button>
+            <Btn variant="secondary" size="sm" onClick={nextDay}>▶</Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setData(today)}>Oggi</Btn>
           </div>
           <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-0.5">
             <button

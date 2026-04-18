@@ -1,4 +1,4 @@
-// @version: v3.3-clienti-lista
+// @version: v3.4-mattoni — M.I primitives (Btn) su CTA + barra marketing + paginazione + nota rapida
 // Lista clienti — sidebar filtri, dettaglio inline, note rapide, barra marketing (copia email/tel, export CSV)
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import ClientiNav from "./ClientiNav";
 import ClientiScheda from "./ClientiScheda";
 import Tooltip from "../../components/Tooltip";
 import { buildWaLink, fillTemplate, WA_TEMPLATES } from "../../utils/whatsapp";
+import { Btn } from "../../components/ui";
 
 // ── Colori rank ──────────────────────────────────────────
 const RANK_COLORS = {
@@ -263,33 +264,24 @@ export default function ClientiLista() {
                 {segmentoFiltro && ` — ${SEGMENTO_CONFIG[segmentoFiltro]?.icon} ${SEGMENTO_CONFIG[segmentoFiltro]?.label}`}
               </p>
             </div>
-            <button onClick={() => navigate("/clienti/nuovo")}
-              className="bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-teal-800 shadow-sm transition">
-              + Nuovo Cliente
-            </button>
+            <Btn variant="chip" tone="emerald" size="md" onClick={() => navigate("/clienti/nuovo")}>+ Nuovo Cliente</Btn>
           </div>
 
           {/* ── BARRA AZIONI MARKETING ── */}
           <div className="flex items-center gap-2 mb-4 bg-white border border-neutral-200 rounded-xl px-4 py-2.5 shadow-sm">
             <span className="text-xs text-neutral-500 font-medium mr-1">Azioni:</span>
-            <button onClick={copiaEmail}
-              className="px-3 py-1.5 text-xs font-medium bg-sky-100 text-sky-700 border border-sky-200 rounded-lg hover:bg-sky-200 transition">
-              Copia email ({totale})
-            </button>
-            <button onClick={copiaTelefoni}
-              className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-200 transition">
-              Copia telefoni ({totale})
-            </button>
-            <button onClick={esportaCsv}
-              className="px-3 py-1.5 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-200 transition">
-              Esporta CSV
-            </button>
-            <button onClick={apriWaPanel} disabled={waLoading}
-              className={`px-3 py-1.5 text-xs font-medium border rounded-lg transition ${
-                showWaPanel ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200"
-              }`}>
-              {waLoading ? "..." : "WhatsApp lista"}
-            </button>
+            <Btn variant="chip" tone="sky" size="sm" onClick={copiaEmail}>Copia email ({totale})</Btn>
+            <Btn variant="chip" tone="emerald" size="sm" onClick={copiaTelefoni}>Copia telefoni ({totale})</Btn>
+            <Btn variant="chip" tone="amber" size="sm" onClick={esportaCsv}>Esporta CSV</Btn>
+            {showWaPanel ? (
+              <Btn variant="success" size="sm" onClick={apriWaPanel} disabled={waLoading} loading={waLoading}>
+                {waLoading ? "..." : "WhatsApp lista"}
+              </Btn>
+            ) : (
+              <Btn variant="chip" tone="emerald" size="sm" onClick={apriWaPanel} disabled={waLoading} loading={waLoading}>
+                {waLoading ? "..." : "WhatsApp lista"}
+              </Btn>
+            )}
             {filtriAttivi > 0 && (
               <span className="text-[10px] text-neutral-400 ml-2">
                 Filtri attivi: {filtriAttivi} — esporta solo i {totale.toLocaleString("it-IT")} risultati filtrati
@@ -572,11 +564,10 @@ export default function ClientiLista() {
                                       className="flex-1 border border-amber-300 rounded-lg px-2.5 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
                                       autoFocus
                                     />
-                                    <button onClick={(e) => { e.stopPropagation(); salvaNotaRapida(); }}
-                                      disabled={notaSaving || !notaTesto.trim()}
-                                      className="px-3 py-1 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition disabled:opacity-40">
+                                    <Btn variant="chip" tone="amber" size="sm" onClick={(e) => { e.stopPropagation(); salvaNotaRapida(); }}
+                                      disabled={notaSaving || !notaTesto.trim()} loading={notaSaving}>
                                       {notaSaving ? "..." : "Salva"}
-                                    </button>
+                                    </Btn>
                                     <button onClick={(e) => { e.stopPropagation(); setNotaClienteId(null); }}
                                       className="text-xs text-neutral-400 hover:text-neutral-600">✕</button>
                                   </div>
@@ -594,17 +585,13 @@ export default function ClientiLista() {
                 {/* ── PAGINAZIONE ── */}
                 {totalePagine > 1 && (
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-neutral-200 bg-neutral-50">
-                    <button disabled={offset === 0}
-                      onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition font-medium">
+                    <Btn variant="secondary" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
                       ← Precedente
-                    </button>
+                    </Btn>
                     <span className="text-xs text-neutral-500">Pagina {pagina} di {totalePagine}</span>
-                    <button disabled={offset + PAGE_SIZE >= totale}
-                      onClick={() => setOffset(offset + PAGE_SIZE)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition font-medium">
+                    <Btn variant="secondary" size="sm" disabled={offset + PAGE_SIZE >= totale} onClick={() => setOffset(offset + PAGE_SIZE)}>
                       Successiva →
-                    </button>
+                    </Btn>
                   </div>
                 )}
               </div>

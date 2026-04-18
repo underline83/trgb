@@ -1,4 +1,4 @@
-// @version: v5.1-matching-select-all
+// @version: v5.2-mattoni — M.I primitives (Btn) su CTA principali (Auto-match/Smart Create/Bulk/Mappings/Fornitori)
 // UI Matching Fatture → Ingredienti + Smart Auto-Create + Esclusione Fornitori + Ignora Descrizioni
 // Collega righe fatture XML importate agli ingredienti del food cost
 // Con analisi intelligente per suggerire e creare ingredienti in blocco
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -358,12 +359,9 @@ export default function RicetteMatching() {
             </p>
           </div>
           <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
-            <button
-              onClick={handleAutoMatch}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-green-700 text-white hover:bg-green-800 shadow transition"
-            >
+            <Btn variant="success" size="md" onClick={handleAutoMatch}>
               Auto-match
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -521,12 +519,9 @@ export default function RicetteMatching() {
                                     {s.reason}
                                   </span>
                                 </div>
-                                <button
-                                  onClick={() => handleConfirm(riga.riga_id, s.ingredient_id)}
-                                  className="px-3 py-1 text-xs font-semibold bg-green-700 text-white rounded-lg hover:bg-green-800 transition"
-                                >
+                                <Btn variant="success" size="sm" onClick={() => handleConfirm(riga.riga_id, s.ingredient_id)}>
                                   Conferma
-                                </button>
+                                </Btn>
                               </div>
                             ))
                           )}
@@ -542,61 +537,39 @@ export default function RicetteMatching() {
           /* ═══════════ TAB SMART CREATE ═══════════ */
           <div>
             <div className="mb-4 flex flex-wrap items-center gap-3">
-              <button
-                onClick={loadSmartSuggestions}
-                disabled={smartLoading}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-                  smartLoading
-                    ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }`}
-              >
+              <Btn variant="chip" tone="blue" size="md" onClick={loadSmartSuggestions} disabled={smartLoading} loading={smartLoading}>
                 {smartLoading ? "Analisi in corso..." : "Analizza righe pending"}
-              </button>
+              </Btn>
 
               {smartSuggestions.length > 0 && (
                 <>
-                  <button
-                    onClick={() => {
-                      const sel = {};
-                      for (const s of smartSuggestions) {
-                        if (!s.existing_match) {
-                          sel[s.suggested_name] = {
-                            name: s.suggested_name,
-                            unit: s.suggested_unit,
-                            category: s.suggested_category || "",
-                            riga_ids: s.riga_ids,
-                            selected: true,
-                          };
-                        }
+                  <Btn variant="chip" tone="blue" size="md" onClick={() => {
+                    const sel = {};
+                    for (const s of smartSuggestions) {
+                      if (!s.existing_match) {
+                        sel[s.suggested_name] = {
+                          name: s.suggested_name,
+                          unit: s.suggested_unit,
+                          category: s.suggested_category || "",
+                          riga_ids: s.riga_ids,
+                          selected: true,
+                        };
                       }
-                      setSmartSelected(sel);
-                    }}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition"
-                  >
+                    }
+                    setSmartSelected(sel);
+                  }}>
                     Seleziona tutti
-                  </button>
-                  <button
-                    onClick={() => setSmartSelected({})}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold border border-neutral-300 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 transition"
-                  >
+                  </Btn>
+                  <Btn variant="ghost" size="md" onClick={() => setSmartSelected({})}>
                     Deseleziona tutti
-                  </button>
+                  </Btn>
                 </>
               )}
 
               {selectedCount > 0 && (
-                <button
-                  onClick={handleBulkCreate}
-                  disabled={bulkLoading}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-                    bulkLoading
-                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                      : "bg-green-700 text-white hover:bg-green-800"
-                  }`}
-                >
+                <Btn variant="success" size="md" onClick={handleBulkCreate} disabled={bulkLoading} loading={bulkLoading}>
                   {bulkLoading ? "Creazione..." : `Crea ${selectedCount} ingredienti`}
-                </button>
+                </Btn>
               )}
             </div>
 
@@ -736,17 +709,9 @@ export default function RicetteMatching() {
                     <span className="text-sm text-blue-800">
                       <strong>{selectedCount}</strong> ingredienti selezionati per la creazione
                     </span>
-                    <button
-                      onClick={handleBulkCreate}
-                      disabled={bulkLoading}
-                      className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                        bulkLoading
-                          ? "bg-neutral-300 text-neutral-500"
-                          : "bg-green-700 text-white hover:bg-green-800"
-                      }`}
-                    >
+                    <Btn variant="success" size="md" onClick={handleBulkCreate} disabled={bulkLoading} loading={bulkLoading}>
                       {bulkLoading ? "Creazione..." : "Crea e Associa tutto"}
-                    </button>
+                    </Btn>
                   </div>
                 )}
 
@@ -779,12 +744,9 @@ export default function RicetteMatching() {
                                 </div>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleRestoreIgnored(d.id)}
-                              className="px-2 py-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition"
-                            >
+                            <Btn variant="chip" tone="emerald" size="sm" onClick={() => handleRestoreIgnored(d.id)}>
                               Ripristina
-                            </button>
+                            </Btn>
                           </div>
                         ))
                       )}
@@ -821,12 +783,9 @@ export default function RicetteMatching() {
                         <td className="p-3 font-medium text-neutral-900">{m.ingredient_name || "\u2014"}</td>
                         <td className="p-3 text-center text-neutral-600">{m.fattore_conversione || 1}</td>
                         <td className="p-3 text-right">
-                          <button
-                            onClick={() => handleDeleteMapping(m.id)}
-                            className="px-2 py-1 text-xs bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 transition"
-                          >
+                          <Btn variant="chip" tone="red" size="sm" onClick={() => handleDeleteMapping(m.id)}>
                             Elimina
-                          </button>
+                          </Btn>
                         </td>
                       </tr>
                     ))}
@@ -844,17 +803,9 @@ export default function RicetteMatching() {
                 Le loro righe fattura non appariranno nel matching.
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={loadSuppliers}
-                  disabled={suppliersLoading}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold shadow transition ${
-                    suppliersLoading
-                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                      : "bg-purple-600 text-white hover:bg-purple-700"
-                  }`}
-                >
+                <Btn variant="chip" tone="violet" size="md" onClick={loadSuppliers} disabled={suppliersLoading} loading={suppliersLoading}>
                   {suppliersLoading ? "Caricamento..." : "Aggiorna lista"}
-                </button>
+                </Btn>
                 <input
                   type="text"
                   value={suppliersFilter}
@@ -926,19 +877,9 @@ export default function RicetteMatching() {
                             )}
                           </td>
                           <td className="p-3 text-right">
-                            <button
-                              onClick={() => handleToggleExclusion(s)}
-                              disabled={isToggling}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                                isToggling
-                                  ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-                                  : s.escluso
-                                  ? "bg-green-100 text-green-800 border border-green-300 hover:bg-green-200"
-                                  : "bg-red-100 text-red-800 border border-red-300 hover:bg-red-200"
-                              }`}
-                            >
+                            <Btn variant="chip" tone={s.escluso ? "emerald" : "red"} size="sm" onClick={() => handleToggleExclusion(s)} disabled={isToggling} loading={isToggling}>
                               {isToggling ? "..." : s.escluso ? "Riattiva" : "Escludi"}
-                            </button>
+                            </Btn>
                           </td>
                         </tr>
                       );

@@ -1,4 +1,4 @@
-// @version: v1.3-preventivo-scheda
+// @version: v1.4-mattoni — M.I primitives (Btn) su CTA principali (Salva/PDF/Duplica/Elimina/cambio stato)
 // Scheda singolo preventivo: testata + componi menu (snapshot da Cucina) + menu testuale + extra + totale
 // v1.1 (sessione 32): sezione Menu Proposto, cliente cerca/crea inline, luoghi configurabili
 // v1.2 (sessione 36): wizard "Componi menu" che pesca piatti dal Ricettario con snapshot immutabile
@@ -9,6 +9,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import PreventivoMenuComposer from "./PreventivoMenuComposer";
+import { Btn } from "../../components/ui";
 
 const STATI_COLORI = {
   bozza:      "bg-neutral-100 text-neutral-600",
@@ -752,10 +753,9 @@ export default function ClientiPreventivoScheda() {
                     <h3 className="text-sm font-semibold text-neutral-700">➕ Extra</h3>
                     <p className="text-[11px] text-neutral-400">Voci aggiuntive libere: noleggio attrezzatura, tovagliato, supplementi, sconti…</p>
                   </div>
-                  <button onClick={aggiungiRiga}
-                    className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition font-medium">
+                  <Btn variant="chip" tone="violet" size="sm" onClick={aggiungiRiga}>
                     + Aggiungi riga
-                  </button>
+                  </Btn>
                 </div>
 
                 {righe.length === 0 ? (
@@ -868,10 +868,9 @@ export default function ClientiPreventivoScheda() {
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4 space-y-3 sticky top-6">
                 <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Azioni</h3>
 
-                <button onClick={handleSalva} disabled={saving}
-                  className="w-full px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50">
+                <Btn variant="chip" tone="violet" size="md" onClick={handleSalva} disabled={saving} loading={saving} className="w-full">
                   {saving ? "Salvataggio..." : isNew ? "Crea preventivo" : "Salva modifiche"}
-                </button>
+                </Btn>
 
                 {!isNew && (
                   <>
@@ -889,20 +888,17 @@ export default function ClientiPreventivoScheda() {
 
                     <hr className="border-neutral-200" />
 
-                    <button onClick={handlePDF}
-                      className="w-full text-left px-3 py-1.5 text-xs text-brand-blue hover:text-blue-800 rounded-lg border border-blue-200 hover:bg-blue-50 transition font-medium">
+                    <Btn variant="chip" tone="blue" size="sm" onClick={handlePDF} className="w-full justify-start">
                       📥 Scarica PDF
-                    </button>
+                    </Btn>
 
-                    <button onClick={handleDuplica}
-                      className="w-full text-left px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-900 rounded-lg border border-neutral-200 hover:bg-neutral-50 transition">
+                    <Btn variant="ghost" size="sm" onClick={handleDuplica} className="w-full justify-start">
                       📄 Duplica
-                    </button>
+                    </Btn>
 
-                    <button onClick={handleElimina}
-                      className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:text-red-700 rounded-lg border border-red-200 hover:bg-red-50 transition">
+                    <Btn variant="chip" tone="red" size="sm" onClick={handleElimina} className="w-full justify-start">
                       🗑 Elimina
-                    </button>
+                    </Btn>
                   </>
                 )}
               </div>

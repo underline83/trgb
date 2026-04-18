@@ -1,4 +1,4 @@
-// @version: v1.0-clienti-menu-templates (mig 080)
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA + duplica + picker + quick
 // Libreria Menu Template — pagina CRUD riutilizzabile dal composer preventivi.
 // Lista a sinistra, dettaglio (metadati + righe) a destra. Le righe si
 // modificano con add/remove/sort; il prezzo_persona e sconto sono metadati
@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../../components/ui";
 
 const RIGA_VUOTA = { name: "", description: "", price: 0, category_name: "" };
 
@@ -305,10 +306,9 @@ export default function ClientiMenuTemplates({ embedded = false }) {
             non cambiano i preventivi già compilati.
           </p>
         </div>
-        <button type="button" onClick={createNew}
-          className="text-sm px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 whitespace-nowrap">
+        <Btn variant="chip" tone="violet" size="md" type="button" onClick={createNew} className="whitespace-nowrap">
           + Nuovo template
-        </button>
+        </Btn>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
@@ -417,14 +417,8 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <button type="button" onClick={() => duplicate(detail.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200">
-                    ⎘ Duplica
-                  </button>
-                  <button type="button" onClick={() => remove(detail.id, detail.nome)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200">
-                    🗑 Elimina
-                  </button>
+                  <Btn variant="ghost" size="sm" type="button" onClick={() => duplicate(detail.id)}>⎘ Duplica</Btn>
+                  <Btn variant="chip" tone="red" size="sm" type="button" onClick={() => remove(detail.id, detail.nome)}>🗑 Elimina</Btn>
                 </div>
               </div>
 
@@ -508,14 +502,8 @@ export default function ClientiMenuTemplates({ embedded = false }) {
                     placeholder="Descrizione (opzionale)"
                     className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
                   <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => { setShowQuick(false); setQuick(RIGA_VUOTA); }}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200">
-                      Annulla
-                    </button>
-                    <button type="button" onClick={addQuick}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-neutral-800 text-white hover:bg-neutral-700">
-                      Aggiungi
-                    </button>
+                    <Btn variant="ghost" size="sm" type="button" onClick={() => { setShowQuick(false); setQuick(RIGA_VUOTA); }}>Annulla</Btn>
+                    <Btn variant="dark" size="sm" type="button" onClick={addQuick}>Aggiungi</Btn>
                   </div>
                 </div>
               )}

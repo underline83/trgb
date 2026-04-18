@@ -1,11 +1,12 @@
 // ============================================================
-// Scelta del Macellaio — v2.0 (categorie configurabili)
+// Scelta del Macellaio — v2.1-mattoni — M.I primitives (Btn) su CTA + azioni riga
 // Cucina gestisce tagli disponibili, sala li segna venduti
 // ============================================================
 
 import { useState, useEffect, useCallback } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { VersionBadge } from "../../config/versions";
+import { Btn } from "../../components/ui";
 
 // ── Form vuoto ──
 const EMPTY_FORM = {
@@ -208,16 +209,18 @@ export default function SceltaMacellaio() {
           </div>
 
           {/* Bottone nuovo */}
-          <button
+          <Btn
+            variant="chip"
+            tone="blue"
+            size="md"
             onClick={() => {
               setForm({ ...EMPTY_FORM, categoria: categorie[0]?.nome || "" });
               setEditId(null);
               setShowForm(!showForm);
             }}
-            className="flex items-center gap-1.5 bg-brand-blue text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors min-h-[44px]"
           >
             {showForm ? "✕ Chiudi" : "+ Nuovo taglio"}
-          </button>
+          </Btn>
         </div>
 
         {/* ── Form nuovo / modifica ── */}
@@ -304,21 +307,13 @@ export default function SceltaMacellaio() {
 
             {/* Bottoni */}
             <div className="flex gap-2 mt-4">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 bg-brand-green text-white py-2.5 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-50 min-h-[44px]"
-              >
+              <Btn variant="success" size="md" type="submit" disabled={saving} loading={saving} className="flex-1">
                 {saving ? "Salvataggio..." : editId ? "Salva modifiche" : "Aggiungi taglio"}
-              </button>
+              </Btn>
               {editId && (
-                <button
-                  type="button"
-                  onClick={() => { setForm(EMPTY_FORM); setEditId(null); setShowForm(false); }}
-                  className="px-4 py-2.5 rounded-lg text-sm font-medium border border-neutral-300 text-neutral-600 hover:bg-neutral-50 transition-colors min-h-[44px]"
-                >
+                <Btn variant="ghost" size="md" type="button" onClick={() => { setForm(EMPTY_FORM); setEditId(null); setShowForm(false); }}>
                   Annulla
-                </button>
+                </Btn>
               )}
             </div>
           </form>
@@ -387,17 +382,14 @@ export default function SceltaMacellaio() {
                   {/* Azioni */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Toggle venduto — bottone grande touch-friendly */}
-                    <button
+                    <Btn
+                      variant={t.venduto ? "secondary" : "danger"}
+                      size="md"
                       onClick={() => toggleVenduto(t)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
-                        t.venduto
-                          ? "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                          : "bg-brand-red text-white hover:bg-red-600"
-                      }`}
                       title={t.venduto ? "Ripristina disponibile" : "Segna venduto"}
                     >
                       {t.venduto ? "↩ Ripristina" : "Venduto"}
-                    </button>
+                    </Btn>
                     {/* Edit */}
                     <button
                       onClick={() => startEdit(t)}

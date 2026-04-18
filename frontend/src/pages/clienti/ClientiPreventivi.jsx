@@ -1,9 +1,10 @@
-// @version: v1.0-clienti-preventivi
+// @version: v1.1-mattoni — M.I primitives (Btn) su Nuovo preventivo, Resetta filtri, paginazione
 // Lista preventivi con filtri, stats, paginazione — Fase A (10.1)
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import { Btn } from "../../components/ui";
 
 const PAGE_SIZE = 50;
 
@@ -131,12 +132,9 @@ export default function ClientiPreventivi() {
                   </div>
                 </div>
               )}
-              <button
-                onClick={() => navigate("/clienti/preventivi/nuovo")}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition shadow-sm"
-              >
+              <Btn variant="primary" size="md" onClick={() => navigate("/clienti/preventivi/nuovo")}>
                 + Nuovo preventivo
-              </button>
+              </Btn>
             </div>
           </div>
 
@@ -196,10 +194,9 @@ export default function ClientiPreventivi() {
                   </select>
                 </div>
 
-                <button onClick={() => { setQ(""); setStato(""); setTipo(""); setAnno(new Date().getFullYear().toString()); setMese(""); }}
-                  className="w-full text-xs text-neutral-500 hover:text-neutral-700 transition py-1">
+                <Btn variant="ghost" size="sm" onClick={() => { setQ(""); setStato(""); setTipo(""); setAnno(new Date().getFullYear().toString()); setMese(""); }} className="w-full">
                   Resetta filtri
-                </button>
+                </Btn>
               </div>
             </div>
 
@@ -291,15 +288,13 @@ export default function ClientiPreventivi() {
                 {/* PAGINAZIONE */}
                 {totalePagine > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 bg-neutral-50">
-                    <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition">
+                    <Btn variant="secondary" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
                       ← Precedente
-                    </button>
+                    </Btn>
                     <span className="text-xs text-neutral-500">Pagina {pagina} di {totalePagine}</span>
-                    <button disabled={offset + PAGE_SIZE >= totale} onClick={() => setOffset(offset + PAGE_SIZE)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition">
+                    <Btn variant="secondary" size="sm" disabled={offset + PAGE_SIZE >= totale} onClick={() => setOffset(offset + PAGE_SIZE)}>
                       Successiva →
-                    </button>
+                    </Btn>
                   </div>
                 )}
               </div>

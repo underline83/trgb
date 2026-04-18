@@ -1,4 +1,4 @@
-// @version: v2.0-ricette-nuova
+// @version: v2.1-mattoni — M.I primitives (Btn) su CTA + footer
 // Nuova Ricetta — Food Cost v2
 // Supporta: categorie DB, is_base, sub-ricette, prezzo vendita, prep_time
 
@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 const UNITS = ["kg", "g", "L", "ml", "cl", "pz"];
@@ -408,20 +409,8 @@ export default function RicetteNuova() {
                 Composizione ricetta
               </h2>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => addItem("ingrediente")}
-                  className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-xs font-semibold shadow hover:bg-orange-800 transition"
-                >
-                  + Ingrediente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addItem("sub_ricetta")}
-                  className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-xs font-semibold shadow hover:bg-blue-800 transition"
-                >
-                  + Sub-ricetta
-                </button>
+                <Btn variant="chip" tone="amber" size="sm" type="button" onClick={() => addItem("ingrediente")}>+ Ingrediente</Btn>
+                <Btn variant="chip" tone="blue" size="sm" type="button" onClick={() => addItem("sub_ricetta")}>+ Sub-ricetta</Btn>
               </div>
             </div>
 
@@ -550,20 +539,10 @@ export default function RicetteNuova() {
 
           {/* SALVA */}
           <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate("/ricette/archivio")}
-              className="px-5 py-2.5 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-7 py-2.5 rounded-xl bg-orange-700 text-white text-sm font-semibold shadow hover:bg-orange-800 transition disabled:opacity-50"
-            >
+            <Btn variant="ghost" size="md" type="button" onClick={() => navigate("/ricette/archivio")}>Annulla</Btn>
+            <Btn variant="chip" tone="amber" size="md" type="submit" disabled={saving} loading={saving}>
               {saving ? "Salvataggio..." : "Salva ricetta"}
-            </button>
+            </Btn>
           </div>
 
         </form>

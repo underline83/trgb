@@ -1,3 +1,4 @@
+// @version: v1.1-mattoni — M.I primitives (Btn) su nav data (prec/today/next)
 // Agenda giornaliera Cucina (MVP, sessione 41)
 // Mostra istanze checklist raggruppate per turno + task del giorno.
 // Navigazione data avanti/indietro. Click su istanza → /cucina/instances/:id
@@ -8,6 +9,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import { REPARTI, getReparto } from "../../config/reparti";
 import Nav from "./Nav";
 import { RepartoBadge } from "./TaskList";
+import { Btn } from "../../components/ui";
 
 function oggiISO() {
   const d = new Date();
@@ -95,32 +97,21 @@ export default function AgendaGiornaliera() {
         {/* Controlli: data + filtro turno */}
         <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setData(shiftDate(data, -1))}
-              className="px-3 py-2 border rounded-lg hover:bg-red-50 min-h-[44px]"
-              title="Giorno precedente"
-            >
+            <Btn variant="secondary" size="md" onClick={() => setData(shiftDate(data, -1))} title="Giorno precedente">
               ←
-            </button>
+            </Btn>
             <input
               type="date"
               value={data}
               onChange={e => setData(e.target.value)}
               className="border rounded-lg px-3 py-2 min-h-[44px]"
             />
-            <button
-              onClick={() => setData(shiftDate(data, 1))}
-              className="px-3 py-2 border rounded-lg hover:bg-red-50 min-h-[44px]"
-              title="Giorno successivo"
-            >
+            <Btn variant="secondary" size="md" onClick={() => setData(shiftDate(data, 1))} title="Giorno successivo">
               →
-            </button>
-            <button
-              onClick={() => setData(oggiISO())}
-              className="px-3 py-2 border border-red-200 bg-red-50 text-red-900 rounded-lg hover:bg-red-100 min-h-[44px] text-sm font-medium"
-            >
+            </Btn>
+            <Btn variant="chip" tone="red" size="md" onClick={() => setData(oggiISO())}>
               Oggi
-            </button>
+            </Btn>
             <div className="flex-1" />
             <select
               value={turno}

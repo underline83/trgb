@@ -1,4 +1,4 @@
-// @version: v1.2-clienti-duplicati
+// @version: v1.3-mattoni — M.I primitives (Btn) su CTA + auto-merge + conferma
 // Gestione duplicati: suggerimenti automatici + merge manuale + auto-merge ovvi
 // Flow: 1) seleziona principale (radio) → 2) spunta secondari da assorbire → 3) conferma
 import React, { useState, useEffect, useCallback } from "react";
@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 export default function ClientiDuplicati({ embedded = false }) {
   const navigate = useNavigate();
@@ -181,18 +182,11 @@ export default function ClientiDuplicati({ embedded = false }) {
                   {merged} merge completati
                 </span>
               )}
-              <button onClick={handleNormalizzaTesti}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500 text-white hover:bg-sky-600 transition">
-                Normalizza testi
-              </button>
-              <button onClick={handlePuliziaTel}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-white hover:bg-amber-600 transition">
-                Pulisci tel. finti
-              </button>
-              <button onClick={fetchDuplicati} disabled={loading}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50">
+              <Btn variant="chip" tone="sky" size="sm" onClick={handleNormalizzaTesti}>Normalizza testi</Btn>
+              <Btn variant="chip" tone="amber" size="sm" onClick={handlePuliziaTel}>Pulisci tel. finti</Btn>
+              <Btn variant="chip" tone="emerald" size="sm" onClick={fetchDuplicati} disabled={loading} loading={loading}>
                 {loading ? "Caricamento..." : "Aggiorna"}
-              </button>
+              </Btn>
             </div>
           </div>
 
@@ -232,10 +226,9 @@ export default function ClientiDuplicati({ embedded = false }) {
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                 {!autoPreview ? (
-                  <button onClick={handleAutoPreview} disabled={autoLoading}
-                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50 shadow-sm">
+                  <Btn variant="chip" tone="amber" size="md" onClick={handleAutoPreview} disabled={autoLoading} loading={autoLoading}>
                     {autoLoading ? "Analisi..." : "Analizza"}
-                  </button>
+                  </Btn>
                 ) : autoPreview.totale_gruppi === 0 ? (
                   <span className="text-xs text-emerald-700 font-medium bg-emerald-100 px-3 py-1.5 rounded-lg">
                     Nessun duplicato ovvio trovato
@@ -245,14 +238,10 @@ export default function ClientiDuplicati({ embedded = false }) {
                     <span className="text-xs text-amber-800 font-medium">
                       {autoPreview.totale_gruppi} gruppi, {autoPreview.totale_secondari} da eliminare
                     </span>
-                    <button onClick={handleAutoMerge} disabled={autoMerging}
-                      className="px-4 py-2 rounded-lg text-xs font-bold bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50 shadow-sm">
+                    <Btn variant="danger" size="md" onClick={handleAutoMerge} disabled={autoMerging} loading={autoMerging}>
                       {autoMerging ? "Merge in corso..." : "Conferma Auto-Merge"}
-                    </button>
-                    <button onClick={() => setAutoPreview(null)}
-                      className="px-3 py-2 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-300 bg-white transition">
-                      Annulla
-                    </button>
+                    </Btn>
+                    <Btn variant="ghost" size="md" onClick={() => setAutoPreview(null)}>Annulla</Btn>
                   </>
                 )}
               </div>
@@ -530,13 +519,9 @@ function DuplicatoCard({ gruppo, idx, merging, onMergeBatch, onIgnore, onNavigat
                 <span className="text-neutral-600">Salva come coppia</span>
               </label>
             )}
-            <button
-              onClick={handleConfirm}
-              disabled={isMerging}
-              className="px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 text-white hover:bg-amber-600 transition disabled:opacity-50 shadow-sm"
-            >
+            <Btn variant="chip" tone="amber" size="md" onClick={handleConfirm} disabled={isMerging} loading={isMerging}>
               {isMerging ? "Unione in corso..." : "Conferma Merge"}
-            </button>
+            </Btn>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-// @version: v1.0-prenotazioni-planning
+// @version: v1.1-mattoni — M.I primitives (Btn) su nav data + nuova prenotazione
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
@@ -9,6 +9,7 @@ import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
 import CanaleBadge from "./components/CanaleBadge";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
@@ -388,46 +389,27 @@ export default function PrenotazioniPlanning() {
         {/* Header con navigazione data */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setData(shiftDate(data, -1))}
-              className="p-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg"
-            >
-              ◀
-            </button>
+            <Btn variant="secondary" size="sm" onClick={() => setData(shiftDate(data, -1))}>◀</Btn>
             <div className="text-center min-w-[260px]">
               <div className="text-lg font-bold text-neutral-800">{formatData(data)}</div>
               {data === oggi() && (
                 <span className="text-xs text-indigo-600 font-medium">Oggi</span>
               )}
             </div>
-            <button
-              onClick={() => setData(shiftDate(data, 1))}
-              className="p-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg"
-            >
-              ▶
-            </button>
+            <Btn variant="secondary" size="sm" onClick={() => setData(shiftDate(data, 1))}>▶</Btn>
             {data !== oggi() && (
-              <button
-                onClick={() => setData(oggi())}
-                className="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium"
-              >
+              <Btn variant="chip" tone="violet" size="sm" onClick={() => setData(oggi())}>
                 Oggi
-              </button>
+              </Btn>
             )}
-            <button
-              onClick={() => setShowCalendario(!showCalendario)}
-              className="px-3 py-1 text-xs bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50"
-            >
+            <Btn variant="secondary" size="sm" onClick={() => setShowCalendario(!showCalendario)}>
               📅
-            </button>
+            </Btn>
           </div>
 
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow"
-          >
+          <Btn variant="chip" tone="violet" size="md" onClick={() => setShowForm(true)}>
             + Nuova Prenotazione
-          </button>
+          </Btn>
         </div>
 
         {/* Mini-calendario */}

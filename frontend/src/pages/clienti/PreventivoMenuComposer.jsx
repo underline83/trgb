@@ -1,4 +1,4 @@
-// @version: v2.1-preventivo-menu-composer (libreria template — mig 080)
+// @version: v2.2-mattoni — M.I primitives (Btn) su CTA header + dialog template
 // Pannello "Componi menu" per preventivi con supporto N menu alternativi.
 // Un preventivo puo' avere 1..N menu che il cliente sceglie: i prezzi sono
 // sempre a persona; il backend decide il totale (0 menu → solo extra,
@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../../components/ui";
 
 const RIGA_QUICK_VUOTA = { name: "", description: "", price: 0, category_name: "" };
 
@@ -553,11 +554,9 @@ export default function PreventivoMenuComposer({
             className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${showQuick ? "bg-neutral-800 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}>
             {showQuick ? "✕ Annulla" : "⚡ Piatto veloce"}
           </button>
-          <button type="button" onClick={openLoadTplDialog}
-            title="Carica un menu salvato in libreria"
-            className="text-xs px-3 py-1.5 rounded-lg font-medium bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition">
+          <Btn variant="chip" tone="amber" size="sm" type="button" onClick={openLoadTplDialog} title="Carica un menu salvato in libreria">
             📂 Carica template
-          </button>
+          </Btn>
         </div>
       </div>
 
@@ -708,14 +707,12 @@ export default function PreventivoMenuComposer({
             rows={2}
             className="w-full border border-neutral-300 rounded-lg px-3 py-1.5 text-sm bg-white resize-y" />
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => { setShowQuick(false); setQuick(RIGA_QUICK_VUOTA); }}
-              className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 text-neutral-600 hover:bg-neutral-50">
+            <Btn variant="ghost" size="sm" type="button" onClick={() => { setShowQuick(false); setQuick(RIGA_QUICK_VUOTA); }}>
               Annulla
-            </button>
-            <button type="button" onClick={addQuick}
-              className="text-xs px-3 py-1.5 bg-neutral-800 text-white rounded-lg font-medium hover:bg-neutral-900">
+            </Btn>
+            <Btn variant="dark" size="sm" type="button" onClick={addQuick}>
               + Aggiungi al menu
-            </button>
+            </Btn>
           </div>
           <p className="text-[11px] text-neutral-400">
             Non salva il piatto nel ricettario — solo sul preventivo. Se vuoi riusarlo, crealo da Cucina.
@@ -854,15 +851,12 @@ export default function PreventivoMenuComposer({
               </select>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowSaveTpl(false)}
-                className="text-sm px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200">
+              <Btn variant="ghost" size="sm" type="button" onClick={() => setShowSaveTpl(false)}>
                 Annulla
-              </button>
-              <button type="button" onClick={confirmSaveTpl}
-                disabled={!saveTplNome.trim()}
-                className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
+              </Btn>
+              <Btn variant="success" size="sm" type="button" onClick={confirmSaveTpl} disabled={!saveTplNome.trim()}>
                 💾 Salva
-              </button>
+              </Btn>
             </div>
           </div>
         </div>

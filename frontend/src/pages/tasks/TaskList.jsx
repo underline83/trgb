@@ -1,3 +1,4 @@
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA desktop + empty state
 // CucinaTaskList — mobile-first iPhone (P2-BIS, sessione 44)
 // Mockup: docs/mockups/cucina_tasks_iphone_mockup.html
 //
@@ -17,6 +18,7 @@ import useToast from "../../hooks/useToast";
 import Nav from "./Nav";
 import TaskNuovo from "./TaskNuovo";
 import TaskSheet from "../../components/tasks/TaskSheet";
+import { Btn } from "../../components/ui";
 
 // ── Costanti ───────────────────────────────────────────────────
 
@@ -167,13 +169,9 @@ export default function TaskList() {
             </div>
 
             {/* Bottone + su sm+ (sul mobile c'e' il FAB) */}
-            <button
-              onClick={() => setEditor("new")}
-              className="hidden sm:inline-flex items-center gap-2 bg-brand-red text-white px-4 py-2.5 rounded-xl font-semibold hover:brightness-95 min-h-[48px]"
-              type="button"
-            >
+            <Btn variant="danger" size="md" type="button" onClick={() => setEditor("new")} className="hidden sm:inline-flex">
               + Nuovo task
-            </button>
+            </Btn>
           </div>
 
           {/* Row 2: toggle I miei/Tutti (mostro solo se username presente) */}
@@ -590,22 +588,9 @@ function EmptyState({ scope, hasScope, onSwitchToAll, onCreate }) {
       </div>
       <div className="flex gap-2 justify-center flex-wrap">
         {isMiei && (
-          <button
-            onClick={onSwitchToAll}
-            type="button"
-            className="min-h-[44px] px-4 rounded-xl bg-white border border-[#e6e1d8] font-semibold text-brand-ink hover:bg-[#EFEBE3]"
-          >
-            Vedi tutti
-          </button>
+          <Btn variant="secondary" size="md" type="button" onClick={onSwitchToAll}>Vedi tutti</Btn>
         )}
-        <button
-          onClick={onCreate}
-          type="button"
-          className="min-h-[44px] px-4 rounded-xl bg-brand-red text-white font-semibold"
-          style={{ boxShadow: "0 6px 14px rgba(232,64,43,.25)" }}
-        >
-          + Crea il primo task
-        </button>
+        <Btn variant="danger" size="md" type="button" onClick={onCreate}>+ Crea il primo task</Btn>
       </div>
     </div>
   );

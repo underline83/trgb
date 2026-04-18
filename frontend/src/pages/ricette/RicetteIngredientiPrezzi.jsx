@@ -1,10 +1,11 @@
-// @version: v2.0-prezzi-ingredienti-conversioni
+// @version: v2.1-mattoni — M.I primitives (Btn) su back/save/delete/conversioni
 // Storico prezzi ingrediente + conversioni unità personalizzate
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import { Btn } from "../../components/ui";
 
 const FOODCOST_BASE = `${API_BASE}/foodcost`;
 const FC = FOODCOST_BASE;
@@ -146,12 +147,9 @@ export default function RicetteIngredientiPrezzi() {
 
         {/* BACK */}
         <div className="flex justify-between mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 rounded-xl text-sm border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition shadow-sm"
-          >
+          <Btn variant="ghost" size="md" onClick={() => navigate(-1)}>
             ← Torna a Ingredienti
-          </button>
+          </Btn>
         </div>
 
         {/* HEADER */}
@@ -230,12 +228,9 @@ export default function RicetteIngredientiPrezzi() {
             />
           </div>
 
-          <button
-            onClick={addPrezzo}
-            className="px-6 py-3 rounded-xl bg-orange-700 hover:bg-orange-800 text-white font-semibold shadow transition"
-          >
+          <Btn variant="chip" tone="amber" size="md" onClick={addPrezzo}>
             Salva prezzo
-          </button>
+          </Btn>
         </div>
 
         {/* STORICO PREZZI */}
@@ -277,12 +272,9 @@ export default function RicetteIngredientiPrezzi() {
                     </td>
                     <td className="p-3">{p.note || "—"}</td>
                     <td className="p-3 text-right">
-                      <button
-                        className="px-3 py-1 text-xs bg-red-100 text-red-800 border border-red-300 rounded"
-                        onClick={() => deletePrezzo(p.id)}
-                      >
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => deletePrezzo(p.id)}>
                         Elimina
-                      </button>
+                      </Btn>
                     </td>
                   </tr>
                 ))}
@@ -374,12 +366,9 @@ export default function RicetteIngredientiPrezzi() {
                       className="border border-blue-200 rounded-lg px-3 py-2 text-sm w-36 bg-white"
                     />
                   </div>
-                  <button
-                    onClick={addConversion}
-                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow transition"
-                  >
+                  <Btn variant="chip" tone="blue" size="md" onClick={addConversion}>
                     Aggiungi
-                  </button>
+                  </Btn>
                 </div>
               </div>
 
@@ -403,12 +392,9 @@ export default function RicetteIngredientiPrezzi() {
                           <span className="text-xs text-neutral-400 ml-2">({c.note})</span>
                         )}
                       </div>
-                      <button
-                        onClick={() => deleteConversion(c.id)}
-                        className="px-2 py-1 text-xs bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100 transition"
-                      >
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => deleteConversion(c.id)}>
                         Elimina
-                      </button>
+                      </Btn>
                     </div>
                   ))}
                 </div>

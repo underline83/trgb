@@ -1,3 +1,4 @@
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA + item add/remove
 // Editor template checklist (MVP, sessione 41) — solo admin
 // Modalità: /cucina/templates/nuovo (create) o /cucina/templates/:id (edit).
 // Form template + items riordinabili con pulsanti su/giù (drag nice-to-have V1).
@@ -8,6 +9,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { REPARTI } from "../../config/reparti";
 import Nav from "./Nav";
+import { Btn } from "../../components/ui";
 
 const TURNI = ["", "APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"];
 const TIPI = ["CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO"];
@@ -276,12 +278,9 @@ export default function TemplateEditor() {
             <h2 className="text-lg font-semibold text-red-900">
               Items ({tpl.items.length})
             </h2>
-            <button
-              onClick={addItem}
-              className="bg-red-600 text-white px-3 py-2 rounded-lg font-medium hover:bg-red-700 min-h-[44px]"
-            >
+            <Btn variant="chip" tone="red" size="md" onClick={addItem}>
               + Aggiungi item
-            </button>
+            </Btn>
           </div>
 
           {tpl.items.length === 0 && (
@@ -307,19 +306,12 @@ export default function TemplateEditor() {
 
         {/* Azioni */}
         <div className="sticky bottom-0 bg-brand-cream pt-3 pb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 border-t border-red-200 flex gap-2 flex-wrap">
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex-1 min-w-[200px] bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 min-h-[52px]"
-          >
+          <Btn variant="success" size="lg" onClick={save} disabled={saving} loading={saving} className="flex-1 min-w-[200px]">
             {saving ? "Salvataggio..." : (isNew ? "✓ Crea template" : "✓ Salva modifiche")}
-          </button>
-          <button
-            onClick={() => navigate("/tasks/templates")}
-            className="px-4 py-3 border rounded-lg font-medium hover:bg-neutral-50 min-h-[52px]"
-          >
+          </Btn>
+          <Btn variant="ghost" size="lg" onClick={() => navigate("/tasks/templates")}>
             Annulla
-          </button>
+          </Btn>
         </div>
       </div>
     </div>
@@ -403,12 +395,9 @@ function ItemRow({ idx, total, item, onUpdate, onRemove, onMove }) {
               <span className="text-sm">Obbligatorio</span>
             </label>
 
-            <button
-              onClick={onRemove}
-              className="text-sm px-3 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 min-h-[44px]"
-            >
+            <Btn variant="chip" tone="red" size="md" onClick={onRemove}>
               × Rimuovi
-            </button>
+            </Btn>
           </div>
 
           {needsRange && (
