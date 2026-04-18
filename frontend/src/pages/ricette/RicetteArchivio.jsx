@@ -1,4 +1,4 @@
-// @version: v2.0-ricette-archivio
+// @version: v2.1-mattoni — M.I primitives (Btn, StatusBadge, EmptyState)
 // Archivio Ricette — lista con food cost, filtri, azioni
 // Allineato al backend v2 (foodcost_recipes_router)
 
@@ -6,6 +6,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -101,12 +102,9 @@ export default function RicetteArchivio() {
             </p>
           </div>
           <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
-            <button
-              onClick={() => navigate("/ricette/nuova")}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition"
-            >
+            <Btn variant="primary" size="md" onClick={() => navigate("/ricette/nuova")}>
               + Nuova ricetta
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -152,9 +150,12 @@ export default function RicetteArchivio() {
         {loading ? (
           <div className="text-center py-12 text-neutral-500">Caricamento...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-neutral-500">
-            {ricette.length === 0 ? "Nessuna ricetta presente. Crea la prima!" : "Nessun risultato per i filtri selezionati."}
-          </div>
+          <EmptyState
+            icon="📖"
+            title={ricette.length === 0 ? "Nessuna ricetta presente" : "Nessun risultato"}
+            description={ricette.length === 0 ? "Crea la prima ricetta per iniziare a calcolare il food cost." : "Prova a modificare i filtri selezionati."}
+            compact
+          />
         ) : (
           <div className="border border-neutral-200 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
@@ -193,13 +194,9 @@ export default function RicetteArchivio() {
                       </td>
                       <td className="p-3 text-center">
                         {r.is_base ? (
-                          <span className="text-xs bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded-full font-semibold">
-                            Base
-                          </span>
+                          <StatusBadge tone="brand" size="sm">Base</StatusBadge>
                         ) : (
-                          <span className="text-xs bg-orange-100 text-orange-800 border border-orange-300 px-2 py-0.5 rounded-full font-semibold">
-                            Piatto
-                          </span>
+                          <StatusBadge tone="warning" size="sm">Piatto</StatusBadge>
                         )}
                       </td>
                       <td className="p-3 text-right text-neutral-700">
@@ -219,18 +216,12 @@ export default function RicetteArchivio() {
                       </td>
                       <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-1 justify-end">
-                          <button
-                            onClick={() => navigate(`/ricette/modifica/${r.id}`)}
-                            className="px-2 py-1 text-xs bg-orange-100 text-orange-800 border border-orange-300 rounded hover:bg-orange-200 transition"
-                          >
+                          <Btn variant="chip" tone="amber" size="sm" onClick={() => navigate(`/ricette/modifica/${r.id}`)}>
                             Modifica
-                          </button>
-                          <button
-                            onClick={() => handleDisattiva(r.id, r.name)}
-                            className="px-2 py-1 text-xs bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 transition"
-                          >
+                          </Btn>
+                          <Btn variant="chip" tone="red" size="sm" onClick={() => handleDisattiva(r.id, r.name)}>
                             Disattiva
-                          </button>
+                          </Btn>
                         </div>
                       </td>
                     </tr>

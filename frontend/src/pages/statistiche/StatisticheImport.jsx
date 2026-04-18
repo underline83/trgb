@@ -1,9 +1,10 @@
-// @version: v1.0-statistiche-import
+// @version: v1.1-mattoni — M.I primitives (Btn, EmptyState), CTA brand, empty state watermark
 // Import export iPratico (.xls HTML) per mese
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn, EmptyState } from "../../components/ui";
 
 const EP = `${API_BASE}/statistiche`;
 
@@ -133,17 +134,9 @@ export default function StatisticheImport() {
               accept=".xls,.xlsx"
               className="text-sm"
             />
-            <button
-              onClick={handleUpload}
-              disabled={uploading}
-              className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-                uploading
-                  ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                  : "bg-rose-600 text-white hover:bg-rose-700"
-              }`}
-            >
-              {uploading ? "Importazione..." : "Importa"}
-            </button>
+            <Btn variant="primary" size="md" onClick={handleUpload} disabled={uploading} loading={uploading}>
+              Importa
+            </Btn>
           </div>
         </div>
 
@@ -170,7 +163,7 @@ export default function StatisticheImport() {
         {logLoading ? (
           <p className="text-neutral-400 text-sm">Caricamento...</p>
         ) : imports.length === 0 ? (
-          <p className="text-neutral-400 text-sm">Nessun mese importato.</p>
+          <EmptyState icon="📊" title="Nessun mese importato" description="Carica il primo export iPratico per iniziare a vedere le statistiche." compact />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -206,12 +199,9 @@ export default function StatisticheImport() {
                     </td>
                     <td className="py-2 px-2 text-right">
                       <Tooltip label="Elimina mese">
-                        <button
-                          onClick={() => handleDelete(imp.anno, imp.mese)}
-                          className="text-red-500 hover:text-red-700 text-xs"
-                        >
+                        <Btn variant="chip" tone="red" size="sm" onClick={() => handleDelete(imp.anno, imp.mese)}>
                           🗑️
-                        </button>
+                        </Btn>
                       </Tooltip>
                     </td>
                   </tr>

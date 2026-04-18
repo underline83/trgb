@@ -3,6 +3,73 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #4 (5 pagine: StatisticheImport, RicetteDashboard, RicetteArchivio, CucinaHome, DashboardDipendenti, CucinaTemplateList)
+
+### Problema / contesto
+Quarto giro di refactor mattoni M.I sulle pagine medie (200–350 righe) — focus su moduli operativi: Statistiche import, Ricette archivio/dashboard, Cucina home/template, Dipendenti dashboard. Stesse regole dei batch 1-3:
+- bottoni con `<Btn>` varianti (no più `bg-xxx-100 text-xxx-700` sparsi)
+- empty state con `<EmptyState>` (icona + descrizione + action opzionale)
+- badge stato con `<StatusBadge>` (palette unica, 7 toni)
+- focus ring brand-blue/40 su card cliccabili
+- nessun cambio di logica, nessuna migrazione
+
+### Pagine toccate in questo batch
+
+**1. `statistiche/StatisticheImport.jsx` — refactor v1.1-mattoni (226 righe)**
+- "Importa" (rose-600) → `<Btn variant="primary" size="md" loading={uploading}>`.
+- Empty state "Nessun mese importato" → `<EmptyState icon="📊" compact>`.
+- Bottone elimina riga 🗑️ → `<Btn variant="chip" tone="red" size="sm">` (dentro Tooltip).
+
+**2. `ricette/RicetteDashboard.jsx` — refactor v1.1-mattoni (206 righe)**
+- Refactor minimo: solo "← Menu Ricette" della pagina Accesso negato → `<Btn variant="secondary">`.
+- `FcBadge` (badge food cost con colore dinamico verde/giallo/rosso per soglia) lasciato custom: `StatusBadge` ha toni fissi.
+- Tabelle "Nessun dato" lasciate inline (colspan in `<tbody>`).
+
+**3. `ricette/RicetteArchivio.jsx` — refactor v2.1-mattoni (248 righe)**
+- "+ Nuova ricetta" (orange-700) → `<Btn variant="primary" size="md">`.
+- Empty state lista filtrata → `<EmptyState icon="📖" compact>` (titoli/descrizioni differenziate per "nessuna ricetta" vs "nessun risultato").
+- Badge tipo "Base"/"Piatto" → `<StatusBadge tone="brand">` / `<StatusBadge tone="warning">`.
+- Azioni riga "Modifica/Disattiva" → `<Btn variant="chip" tone="amber|red" size="sm">`.
+- `FcBadge` (food cost colorato per soglia) lasciato custom.
+
+**4. `cucina/CucinaHome.jsx` — refactor v1.1-mattoni (310 righe)**
+- Empty state "Nessuna checklist programmata" → `<EmptyState icon="🧑‍🍳">` con action condizionale `<Btn variant="danger">` solo per admin/chef.
+- Card KPI (Agenda/Settimana/Task/Template) lasciate custom: layout complesso con stati di loading.
+- `StatoBadge` e `PrioritaBadge` (con tanti stati ad-hoc: APERTA/IN_CORSO/COMPLETATA/SCADUTA/SALTATA/...) lasciati custom.
+
+**5. `dipendenti/DashboardDipendenti.jsx` — refactor leggero v1.1-mattoni (246 righe)**
+- KPI card e shortcut sezioni: aggiunto solo focus ring brand-blue/40 (layout custom intenzionale per le card).
+- Header version bump.
+
+**6. `cucina/CucinaTemplateList.jsx` — refactor v1.1-mattoni (265 righe)**
+- "+ Nuovo template" (red-600 lg) → `<Btn variant="danger" size="lg">`.
+- Filtro "Reset" (link rosso) → `<Btn variant="ghost" size="sm">`.
+- Empty state lista template → `<EmptyState icon="🧩">` con action `<Btn variant="danger">`.
+- Badge ATTIVO/DISATTIVO → `<StatusBadge tone="success|neutral">`.
+- Azioni riga "Disattiva/Attiva/Modifica/Duplica/Elimina" → `<Btn variant="secondary|success|chip|danger" loading={saving}>`.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch, PUT, DELETE invariati).
+- Card KPI complesse (CucinaHome, DashboardDipendenti) lasciate custom: troppo struttura per `<Btn>` semplice.
+- Badge multi-stato (StatoBadge cucina con 9 stati, FcBadge soglie food cost) lasciati custom.
+- Nessuna migrazione DB, nessun cambio di API.
+
+### File toccati
+- `frontend/src/pages/statistiche/StatisticheImport.jsx`
+- `frontend/src/pages/ricette/RicetteDashboard.jsx`
+- `frontend/src/pages/ricette/RicetteArchivio.jsx`
+- `frontend/src/pages/cucina/CucinaHome.jsx`
+- `frontend/src/pages/dipendenti/DashboardDipendenti.jsx`
+- `frontend/src/pages/cucina/CucinaTemplateList.jsx`
+- `docs/changelog.md`
+
+### Comando push
+```
+./push.sh "refactor M.I batch #4 — 6 pagine medie su mattoni (Btn/StatusBadge/EmptyState + focus brand)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #3 (9 pagine: BancaImpostazioni, RicetteImport, ClientiImport, CorrispettiviImport, FattureImpostazioni, CalendarioChiusure, PrenotazioniImpostazioni, ClientiImpostazioni, ImpostazioniSistema)
 
 ### Problema / contesto

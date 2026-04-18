@@ -1,10 +1,11 @@
-// @version: v1.0-ricette-dashboard
+// @version: v1.1-mattoni — refactor leggero CTA con M.I primitives (Btn)
 // Dashboard Food Cost — KPI, top FC, migliori margini
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isAdminRole } from "../../utils/authHelpers";
 import RicetteNav from "./RicetteNav";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -52,10 +53,9 @@ export default function RicetteDashboard() {
           <p className="text-neutral-600 text-sm mb-4">
             Questa sezione è disponibile solo per amministratori e sommelier.
           </p>
-          <button onClick={() => navigate("/ricette")}
-            className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+          <Btn variant="secondary" size="md" onClick={() => navigate("/ricette")}>
             ← Menu Ricette
-          </button>
+          </Btn>
         </div>
       </div>
     );

@@ -1,6 +1,5 @@
-// @version: v1.0-dashboard-iniziale — placeholder Dashboard Dipendenti (sessione 39)
-// KPI essenziali: headcount attivo, scadenze (scaduti + in_scadenza), buste paga mese corrente.
-// Shortcut verso sotto-sezioni Anagrafica, Turni, Scadenze.
+// @version: v1.1-mattoni — focus brand + bg-brand-cream (KPI card lasciate custom: layout complesso)
+// Dashboard Dipendenti: KPI essenziali (headcount, scadenze, buste paga mese) + shortcut sotto-sezioni.
 // Pattern: purple = dipendenti. Stile coerente con DashboardVini ma molto piu' snello.
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -138,7 +137,7 @@ export default function DashboardDipendenti() {
           {/* Headcount */}
           <button
             onClick={() => navigate("/dipendenti/anagrafica")}
-            className="bg-white border border-purple-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition"
+            className="bg-white border border-purple-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wide text-neutral-500">
@@ -155,7 +154,7 @@ export default function DashboardDipendenti() {
           {/* Scadenze */}
           <button
             onClick={() => navigate("/dipendenti/scadenze")}
-            className="bg-white border border-amber-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition"
+            className="bg-white border border-amber-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wide text-neutral-500">
@@ -188,7 +187,7 @@ export default function DashboardDipendenti() {
           {/* Buste paga mese */}
           <button
             onClick={() => navigate("/dipendenti/buste-paga")}
-            className="bg-white border border-sky-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition"
+            className="bg-white border border-sky-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wide text-neutral-500">
@@ -224,7 +223,7 @@ export default function DashboardDipendenti() {
               <button
                 key={s.key}
                 onClick={() => navigate(s.to)}
-                className="bg-white border border-neutral-200 rounded-xl p-4 text-left hover:border-purple-300 hover:shadow-sm transition"
+                className="bg-white border border-neutral-200 rounded-xl p-4 text-left hover:border-purple-300 hover:shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1"
               >
                 <div className="text-2xl mb-1">{s.icon}</div>
                 <div className="text-sm font-semibold text-purple-900">{s.label}</div>

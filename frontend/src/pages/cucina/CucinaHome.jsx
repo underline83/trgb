@@ -1,3 +1,4 @@
+// @version: v1.1-mattoni — M.I primitives (Btn, EmptyState) su CTA/empty
 // Dashboard entry del modulo Cucina (MVP, sessione 41)
 // 4 card: Agenda, Settimana, Task, Template (admin/chef only)
 // Pattern: red = cucina (fornelli/fuoco). KPI caricati da /cucina/agenda/ + /cucina/tasks/
@@ -6,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import CucinaNav from "./CucinaNav";
+import { Btn, EmptyState } from "../../components/ui";
 
 function oggiISO() {
   const d = new Date();
@@ -253,23 +255,18 @@ export default function CucinaHome() {
 
         {/* Vuoto */}
         {!loading && agenda && (agenda.turni || []).length === 0 && (!agenda.tasks || agenda.tasks.length === 0) && (
-          <div className="bg-white border border-dashed border-red-200 rounded-2xl p-8 text-center">
-            <div className="text-5xl mb-2">🧑‍🍳</div>
-            <div className="text-neutral-700 font-semibold">Nessuna checklist programmata per oggi</div>
-            <div className="text-sm text-neutral-500 mt-1">
-              {isAdminOrChef
-                ? "Attiva uno dei template seed da Configurazione → Template."
-                : "Chiedi a un responsabile di attivare i template."}
-            </div>
-            {isAdminOrChef && (
-              <button
-                onClick={() => navigate("/cucina/templates")}
-                className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 min-h-[48px]"
-              >
+          <EmptyState
+            icon="🧑‍🍳"
+            title="Nessuna checklist programmata per oggi"
+            description={isAdminOrChef
+              ? "Attiva uno dei template seed da Configurazione → Template."
+              : "Chiedi a un responsabile di attivare i template."}
+            action={isAdminOrChef ? (
+              <Btn variant="danger" size="md" onClick={() => navigate("/cucina/templates")}>
                 Vai ai Template
-              </button>
-            )}
-          </div>
+              </Btn>
+            ) : null}
+          />
         )}
       </div>
     </div>
