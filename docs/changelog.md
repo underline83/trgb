@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-04-18 — Phase A.2: Livelli Cucina (sessione 46)
+
+### Contesto
+Phase A (sessione 45) ha introdotto `reparto` multi-reparto sui task. Phase A.2 aggiunge `livello_cucina` per sotto-categorizzare i task della cucina per ruolo nella brigata (chef, sous_chef, commis). NULL = tutta la brigata. Backward-compatible: task esistenti restano invariati con livello NULL.
+
+### Modifiche
+
+**Backend:**
+- `app/migrations/088_livello_cucina.py` — nuova migrazione, aggiunge `livello_cucina TEXT NULL` + indice su 3 tabelle (task_singolo, checklist_template, checklist_instance). Pattern self-heal stile 087, idempotente.
+- `app/schemas/tasks_schema.py` — costante `LIVELLI_CUCINA`, campo `livello_cucina` su tutti gli schema In/Update/Out, validator Pydantic cross-field (livello ammesso solo se reparto=cucina).
+- `app/routers/tasks_router.py` — accetta/filtra/salva `livello_cucina` su template CRUD e task CRUD. Forza `livello_cucina=NULL` su cambio reparto a non-cucina. Query param `?livello_cucina=chef|sous_chef|commis` su GET templates e tasks.
+- `app/services/tasks_scheduler.py` — propaga `livello_cucina` dal template all'istanza nella generazione giornaliera.
+
+**Frontend:**
+- `frontend/src/config/reparti.js` — config `LIVELLI_CUCINA` con label/icon/color + helpers.
+- `frontend/src/pages/tasks/TaskNuovo.jsx` — dropdown livello con CSS transition, visibile solo se reparto=cucina. Touch target 48pt. Reset automatico su cambio reparto. Fix: passati reparto/setReparto anche alla modale desktop (mancavano).
+- `frontend/src/pages/tasks/TemplateEditor.jsx` — stesso dropdown livello nel form template.
+- `frontend/src/pages/tasks/TaskList.jsx` — pills filtro livello cucina (visibili se reparto="" o "cucina"), badge `LivelloCucinaBadge` nella card task, query param server-side.
+- `frontend/src/components/tasks/TaskSheet.jsx` — badge livello nel dettaglio task.
+
+### Bump versioni
+- `tasks`: già 1.2 (bumped in sessione precedente per Phase B rename)
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #15 FINALE Controllo Gestione + Home + Login (2 pagine minimal, 5 già-pronte, 2 skippate)
 
 ### Problema / contesto

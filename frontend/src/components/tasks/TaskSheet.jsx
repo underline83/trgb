@@ -12,6 +12,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { getLivelloCucina } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
 
 // ── costanti visive ────────────────────────────────────────────
@@ -270,6 +271,14 @@ function DetailBody({
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${PRIO_CHIP[task.priorita] || ""}`}>
               {prioLabel}
             </span>
+            {task.livello_cucina && (() => {
+              const l = getLivelloCucina(task.livello_cucina);
+              return l ? (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide border ${l.color}`}>
+                  <span aria-hidden="true">{l.icon}</span> {l.label}
+                </span>
+              ) : null;
+            })()}
             {task.data_scadenza && (
               <span>⏱ {formatDueDate(task.data_scadenza, task.ora_scadenza)}</span>
             )}

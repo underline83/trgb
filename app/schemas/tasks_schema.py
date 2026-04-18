@@ -6,11 +6,13 @@ Valori `reparto` lowercase in config/reparti.js (Phase A, sessione 45).
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Costanti enum-like (validate nel router per chiarezza messaggio) ───
 FREQUENZE = {"GIORNALIERA"}  # MVP: solo giornaliera
+# Phase A.2 — Livelli brigata cucina (sessione 46)
+LIVELLI_CUCINA = {"chef", "sous_chef", "commis"}
 # Phase A multi-reparto (sessione 45): chiavi lowercase, allineate a
 # frontend/src/config/reparti.js. Il router normalizza input maiuscoli a
 # lowercase prima di validare per non rompere chiamate legacy.
@@ -51,7 +53,17 @@ class ChecklistTemplateIn(BaseModel):
     ora_scadenza_entro: Optional[str] = None     # HH:MM
     attivo: bool = False
     note: Optional[str] = None
+    livello_cucina: Optional[str] = None
     items: List[ChecklistItemIn] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_livello_cucina(self):
+        if self.livello_cucina is not None:
+            if self.reparto != "cucina":
+                raise ValueError("livello_cucina ammesso solo se reparto='cucina'")
+            if self.livello_cucina not in LIVELLI_CUCINA:
+                raise ValueError(f"livello_cucina non valido: {self.livello_cucina}. Valori: {sorted(LIVELLI_CUCINA)}")
+        return self
 
 
 class ChecklistTemplateUpdate(BaseModel):
@@ -62,6 +74,7 @@ class ChecklistTemplateUpdate(BaseModel):
     ora_scadenza_entro: Optional[str] = None
     attivo: Optional[bool] = None
     note: Optional[str] = None
+    livello_cucina: Optional[str] = None
     # Se presente, sostituisce interamente gli items (pattern "replace all")
     items: Optional[List[ChecklistItemIn]] = None
 
@@ -75,6 +88,7 @@ class ChecklistTemplateOut(BaseModel):
     ora_scadenza_entro: Optional[str]
     attivo: bool
     note: Optional[str]
+    livello_cucina: Optional[str] = None
     created_by: Optional[str]
     created_at: str
     updated_at: str
@@ -124,6 +138,7 @@ class ChecklistInstanceOut(BaseModel):
     template_id: int
     template_nome: Optional[str] = None
     reparto: Optional[str] = None
+    livello_cucina: Optional[str] = None
     data_riferimento: str
     turno: Optional[str]
     scadenza_at: Optional[str]
@@ -164,8 +179,18 @@ class TaskSingoloIn(BaseModel):
     assegnato_user: Optional[str] = None
     priorita: str = "MEDIA"
     reparto: str = "cucina"
+    livello_cucina: Optional[str] = None
     ref_modulo: Optional[str] = None
     ref_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def _validate_livello_cucina(self):
+        if self.livello_cucina is not None:
+            if self.reparto != "cucina":
+                raise ValueError("livello_cucina ammesso solo se reparto='cucina'")
+            if self.livello_cucina not in LIVELLI_CUCINA:
+                raise ValueError(f"livello_cucina non valido: {self.livello_cucina}. Valori: {sorted(LIVELLI_CUCINA)}")
+        return self
 
 
 class TaskSingoloUpdate(BaseModel):
@@ -177,6 +202,7 @@ class TaskSingoloUpdate(BaseModel):
     priorita: Optional[str] = None
     stato: Optional[str] = None
     reparto: Optional[str] = None
+    livello_cucina: Optional[str] = None
 
 
 class CompletaTaskIn(BaseModel):
@@ -193,6 +219,7 @@ class TaskSingoloOut(BaseModel):
     priorita: str
     stato: str
     reparto: str = "cucina"
+    livello_cucina: Optional[str] = None
     completato_at: Optional[str]
     completato_da: Optional[str]
     note_completamento: Optional[str]

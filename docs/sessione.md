@@ -6,6 +6,28 @@
 
 ---
 
+## SESSIONE 46 — Phase A.2: Livelli Cucina ✅
+
+Aggiunto campo `livello_cucina` (chef/sous_chef/commis/NULL) su task_singolo, checklist_template, checklist_instance. Attivo solo se reparto='cucina'. NULL = tutta la brigata. Backward-compat garantita.
+
+**File toccati:**
+- `app/migrations/088_livello_cucina.py` (NUOVO)
+- `app/schemas/tasks_schema.py`
+- `app/routers/tasks_router.py`
+- `app/services/tasks_scheduler.py`
+- `frontend/src/config/reparti.js`
+- `frontend/src/pages/tasks/TaskNuovo.jsx`
+- `frontend/src/pages/tasks/TemplateEditor.jsx`
+- `frontend/src/pages/tasks/TaskList.jsx`
+- `frontend/src/components/tasks/TaskSheet.jsx`
+- `docs/changelog.md`
+- `docs/sessione.md`
+- `docs/spec_livelli_cucina.md` (spec di riferimento)
+
+**Spec:** `docs/spec_livelli_cucina.md` (single source of truth)
+
+---
+
 ## SESSIONE 43 — Modulo Cucina MVP ✅
 
 Primo rilascio del modulo **Cucina**: checklist ricorrenti HACCP-friendly + task singoli per chef/sala. Ispirato a prompt Cowork (`docs/modulo_cucina_mvp_prompt.md`). Scopo: sostituire il registro cartaceo con un sistema tap-to-complete iPad-ready.

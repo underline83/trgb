@@ -71,8 +71,9 @@ def genera_istanze_per_data(conn: sqlite3.Connection, data_rif: date) -> int:
 
     # Template attivi con frequenza GIORNALIERA (unica in MVP).
     # Phase A multi-reparto: copiamo reparto nell'istanza per filtri veloci.
+    # Phase A.2: copiamo anche livello_cucina.
     rows = cur.execute("""
-        SELECT id, turno, ora_scadenza_entro, reparto
+        SELECT id, turno, ora_scadenza_entro, reparto, livello_cucina
           FROM checklist_template
          WHERE attivo = 1
            AND frequenza = 'GIORNALIERA'
@@ -82,9 +83,12 @@ def genera_istanze_per_data(conn: sqlite3.Connection, data_rif: date) -> int:
     # (post migrazione 085). Se no, useremo l'insert legacy senza reparto.
     try:
         cur.execute("PRAGMA table_info(checklist_instance)")
-        has_reparto = any(row[1] == "reparto" for row in cur.fetchall())
+        cols = [row[1] for row in cur.fetchall()]
+        has_reparto = "reparto" in cols
+        has_livello = "livello_cucina" in cols
     except Exception:
         has_reparto = False
+        has_livello = False
 
     created = 0
     data_str = data_rif.isoformat()
@@ -94,8 +98,23 @@ def genera_istanze_per_data(conn: sqlite3.Connection, data_rif: date) -> int:
         turno = r["turno"]
         reparto = (r["reparto"] or "cucina").strip().lower() if r["reparto"] else "cucina"
         scadenza_at = _compute_scadenza_at(data_rif, r["ora_scadenza_entro"])
+        try:
+            livello = r["livello_cucina"]
+        except (IndexError, KeyError):
+            livello = None
 
         # INSERT OR IGNORE — se l'istanza esiste gia' (UNIQUE), non fa nulla
+        if has_reparto and has_livello:
+            cur.execute("""
+                INSERT OR IGNORE INTO checklist_instance
+                    (template_id, data_riferimento, turno, scadenza_at, stato,
+                     reparto, livello_cucina)
+                VALUES (?, ?, ?, ?, 'APERTA', ?, ?)
+            """, (tid, data_str, turno, scadenza_at, reparto, livello))
+            if cur.rowcount > 0:
+                created += 1
+            continue
+
         if has_reparto:
             cur.execute("""
                 INSERT OR IGNORE INTO checklist_instance

@@ -13,7 +13,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
-import { REPARTI, getReparto } from "../../config/reparti";
+import { REPARTI, getReparto, LIVELLI_CUCINA, getLivelloCucina } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
 import Nav from "./Nav";
 import TaskNuovo from "./TaskNuovo";
@@ -69,6 +69,7 @@ export default function TaskList() {
   const [scope, setScope] = useState("miei");           // miei | tutti
   const [statoFilter, setStatoFilter] = useState("APERTO"); // "" = tutti | key stato
   const [repartoFilter, setRepartoFilter] = useState(""); // "" = tutti reparti | key reparto
+  const [livelloFilter, setLivelloFilter] = useState(""); // "" = tutti livelli | key livello
   const [sheetFor, setSheetFor] = useState(null);       // task object
   const [editor, setEditor] = useState(null);           // null | "new" | task
   const [swipedId, setSwipedId] = useState(null);       // id della card attualmente rivelata
@@ -79,9 +80,10 @@ export default function TaskList() {
     setLoading(true);
     setErrorBanner("");
     // Lo stato e' filtrato client-side per counts istantanei.
-    // Il reparto va server-side per performance sulle liste grandi.
+    // Il reparto e livello_cucina vanno server-side per performance.
     const qs = new URLSearchParams();
     if (repartoFilter) qs.set("reparto", repartoFilter);
+    if (livelloFilter) qs.set("livello_cucina", livelloFilter);
     const url = qs.toString()
       ? `${API_BASE}/tasks/tasks/?${qs.toString()}`
       : `${API_BASE}/tasks/tasks/`;
@@ -93,7 +95,7 @@ export default function TaskList() {
       .then(setList)
       .catch(e => setErrorBanner(e.message))
       .finally(() => setLoading(false));
-  }, [repartoFilter]);
+  }, [repartoFilter, livelloFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -225,7 +227,10 @@ export default function TaskList() {
                 key={r.key}
                 reparto={r}
                 active={repartoFilter === r.key}
-                onClick={() => setRepartoFilter(r.key)}
+                onClick={() => {
+                  setRepartoFilter(r.key);
+                  if (r.key !== "cucina") setLivelloFilter("");
+                }}
               />
             ))}
           </div>
@@ -251,6 +256,32 @@ export default function TaskList() {
               Tutti
             </Pill>
           </div>
+
+          {/* Row 5: pills livello cucina — visibili solo se reparto cucina o tutti */}
+          {(repartoFilter === "" || repartoFilter === "cucina") && (
+            <div
+              className="mt-2 flex gap-2 overflow-x-auto pb-1"
+              style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+              role="tablist"
+              aria-label="Filtri livello cucina"
+            >
+              <Pill
+                active={livelloFilter === ""}
+                onClick={() => setLivelloFilter("")}
+              >
+                Tutti i livelli
+              </Pill>
+              {LIVELLI_CUCINA.map(l => (
+                <Pill
+                  key={l.key}
+                  active={livelloFilter === l.key}
+                  onClick={() => setLivelloFilter(l.key)}
+                >
+                  {l.icon} {l.label}
+                </Pill>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -404,6 +435,22 @@ export function RepartoBadge({ reparto }) {
   );
 }
 
+// ── Badge livello cucina ──────────────────────────────────────
+
+export function LivelloCucinaBadge({ livello }) {
+  const l = getLivelloCucina(livello);
+  if (!l) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide border ${l.color}`}
+      title={l.label}
+    >
+      <span aria-hidden="true">{l.icon}</span>
+      <span>{l.label}</span>
+    </span>
+  );
+}
+
 // ── TaskRow con swipe-to-complete ──────────────────────────────
 
 const SWIPE_THRESHOLD = 50;   // px — soglia attivazione swipe
@@ -542,6 +589,7 @@ function TaskRow({ task, revealed, onReveal, onHide, onOpen, onQuickComplete }) 
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-neutral-500">
           <RepartoBadge reparto={task.reparto} />
+          {task.livello_cucina && <LivelloCucinaBadge livello={task.livello_cucina} />}
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${STATO_CHIP[task.stato] || ""}`}>
             {stLabel}
           </span>

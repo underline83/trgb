@@ -14,3 +14,16 @@ export const REPARTI_KEYS = REPARTI.map(r => r.key);
 export function getReparto(key) {
   return REPARTI.find(r => r.key === key) || REPARTI[0];
 }
+
+// Phase A.2 — Livelli brigata cucina (sessione 46)
+export const LIVELLI_CUCINA = [
+  { key: "chef",      label: "Chef",      icon: "👨‍🍳", color: "bg-red-100 border-red-300 text-red-900" },
+  { key: "sous_chef", label: "Sous Chef", icon: "🥘",   color: "bg-orange-100 border-orange-300 text-orange-900" },
+  { key: "commis",    label: "Commis",    icon: "🔪",   color: "bg-yellow-100 border-yellow-300 text-yellow-900" },
+];
+
+export const LIVELLI_CUCINA_KEYS = LIVELLI_CUCINA.map(l => l.key);
+
+export function getLivelloCucina(key) {
+  return LIVELLI_CUCINA.find(l => l.key === key) || null;
+}

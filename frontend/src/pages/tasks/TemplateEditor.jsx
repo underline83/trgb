@@ -7,7 +7,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import { REPARTI } from "../../config/reparti";
+import { REPARTI, LIVELLI_CUCINA } from "../../config/reparti";
 import Nav from "./Nav";
 import { Btn } from "../../components/ui";
 
@@ -33,6 +33,7 @@ function emptyTemplate() {
     ora_scadenza_entro: "",
     attivo: false,
     note: "",
+    livello_cucina: "",
     items: [],
   };
 }
@@ -60,6 +61,7 @@ export default function TemplateEditor() {
         turno: data.turno || "",
         ora_scadenza_entro: data.ora_scadenza_entro || "",
         note: data.note || "",
+        livello_cucina: data.livello_cucina || "",
         items: (data.items || []).map(it => ({
           titolo: it.titolo,
           tipo: it.tipo,
@@ -124,6 +126,7 @@ export default function TemplateEditor() {
       ora_scadenza_entro: tpl.ora_scadenza_entro || null,
       attivo: !!tpl.attivo,
       note: tpl.note?.trim() || null,
+      livello_cucina: tpl.reparto === "cucina" ? (tpl.livello_cucina || null) : null,
       items: tpl.items.map(it => ({
         titolo: it.titolo.trim(),
         tipo: it.tipo,
@@ -194,7 +197,10 @@ export default function TemplateEditor() {
             <Field label="Reparto *">
               <select
                 value={tpl.reparto || "cucina"}
-                onChange={e => setField("reparto", e.target.value)}
+                onChange={e => {
+                  setField("reparto", e.target.value);
+                  if (e.target.value !== "cucina") setField("livello_cucina", "");
+                }}
                 className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
               >
                 {REPARTI.map(r => (
@@ -204,6 +210,29 @@ export default function TemplateEditor() {
                 ))}
               </select>
             </Field>
+            {/* Phase A.2: livello cucina con transition */}
+            <div
+              className="overflow-hidden transition-all duration-200 ease-in-out"
+              style={{
+                maxHeight: tpl.reparto === "cucina" ? 90 : 0,
+                opacity: tpl.reparto === "cucina" ? 1 : 0,
+              }}
+            >
+              <Field label="Livello (opzionale)">
+                <select
+                  value={tpl.livello_cucina || ""}
+                  onChange={e => setField("livello_cucina", e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
+                >
+                  <option value="">Tutta la brigata</option>
+                  {LIVELLI_CUCINA.map(l => (
+                    <option key={l.key} value={l.key}>
+                      {l.icon} {l.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
             <Field label="Nome *">
               <input
                 type="text"

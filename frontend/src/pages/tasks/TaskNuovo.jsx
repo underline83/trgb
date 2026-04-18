@@ -13,7 +13,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
-import { REPARTI } from "../../config/reparti";
+import { REPARTI, LIVELLI_CUCINA } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
 
 const PRIORITA = ["ALTA", "MEDIA", "BASSA"];
@@ -34,12 +34,18 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
   const [assegnato, setAssegnato] = useState(task?.assegnato_user || "");
   const [priorita, setPriorita] = useState(task?.priorita || "MEDIA");
   const [reparto, setReparto] = useState(task?.reparto || "cucina");
+  const [livelloCucina, setLivelloCucina] = useState(task?.livello_cucina || "");
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const titoloRef = useRef(null);
   useEffect(() => { if (!isEdit) titoloRef.current?.focus(); }, [isEdit]);
+
+  // Phase A.2: reset livello cucina se reparto cambia a non-cucina
+  useEffect(() => {
+    if (reparto !== "cucina") setLivelloCucina("");
+  }, [reparto]);
 
   // Trap body scroll mobile
   useEffect(() => {
@@ -69,6 +75,7 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
       assegnato_user: assegnato.trim() || null,
       priorita,
       reparto: (reparto || "cucina").toLowerCase(),
+      livello_cucina: reparto === "cucina" ? (livelloCucina || null) : null,
     };
 
     try {
@@ -141,6 +148,7 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
             assegnato={assegnato} setAssegnato={setAssegnato}
             priorita={priorita} setPriorita={setPriorita}
             reparto={reparto} setReparto={setReparto}
+            livelloCucina={livelloCucina} setLivelloCucina={setLivelloCucina}
             error={error}
           />
         </div>
@@ -214,6 +222,8 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
               oraScadenza={oraScadenza} setOraScadenza={setOraScadenza}
               assegnato={assegnato} setAssegnato={setAssegnato}
               priorita={priorita} setPriorita={setPriorita}
+              reparto={reparto} setReparto={setReparto}
+              livelloCucina={livelloCucina} setLivelloCucina={setLivelloCucina}
               error={error}
             />
           </div>
@@ -254,8 +264,11 @@ function FormFields({
   assegnato, setAssegnato,
   priorita, setPriorita,
   reparto, setReparto,
+  livelloCucina, setLivelloCucina,
   error,
 }) {
+  const showLivello = reparto === "cucina";
+
   return (
     <>
       {error && (
@@ -276,6 +289,29 @@ function FormFields({
           </option>
         ))}
       </select>
+
+      {/* Phase A.2: livello cucina con CSS transition */}
+      <div
+        className="overflow-hidden transition-all duration-200 ease-in-out"
+        style={{
+          maxHeight: showLivello ? 100 : 0,
+          opacity: showLivello ? 1 : 0,
+        }}
+      >
+        <Label>Livello (opzionale)</Label>
+        <select
+          value={livelloCucina || ""}
+          onChange={e => setLivelloCucina(e.target.value)}
+          className="w-full text-[16px] bg-white border border-[#e6e1d8] rounded-xl px-3.5 py-3 min-h-[48px] focus:outline-2 focus:outline focus:outline-brand-red"
+        >
+          <option value="">Tutta la brigata</option>
+          {LIVELLI_CUCINA.map(l => (
+            <option key={l.key} value={l.key}>
+              {l.icon} {l.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <Label>Titolo *</Label>
       <input

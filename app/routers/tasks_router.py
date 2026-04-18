@@ -28,7 +28,7 @@ from app.models.tasks_db import get_tasks_conn, init_tasks_db
 from app.services.auth_service import get_current_user
 from app.services import tasks_scheduler
 from app.schemas.tasks_schema import (
-    FREQUENZE, REPARTI, TURNI, ITEM_TIPI,
+    FREQUENZE, REPARTI, TURNI, ITEM_TIPI, LIVELLI_CUCINA,
     INSTANCE_STATI, EXEC_STATI, TASK_STATI, TASK_PRIORITA,
     ChecklistItemIn, ChecklistItemOut,
     ChecklistTemplateIn, ChecklistTemplateUpdate, ChecklistTemplateOut,
@@ -77,6 +77,13 @@ def _validate_template_payload(payload: dict) -> None:
     if turno and turno not in TURNI:
         raise HTTPException(400, f"turno non valido: {turno}. Valori: {sorted(TURNI)}")
 
+    livello = payload.get("livello_cucina")
+    if livello is not None:
+        if reparto != "cucina":
+            raise HTTPException(400, "livello_cucina ammesso solo se reparto='cucina'")
+        if livello not in LIVELLI_CUCINA:
+            raise HTTPException(400, f"livello_cucina non valido: {livello}. Valori: {sorted(LIVELLI_CUCINA)}")
+
     for idx, it in enumerate(payload.get("items") or []):
         if it["tipo"] not in ITEM_TIPI:
             raise HTTPException(400, f"item[{idx}] tipo non valido: {it['tipo']}. Valori: {sorted(ITEM_TIPI)}")
@@ -100,6 +107,10 @@ def _row_to_item(row) -> ChecklistItemOut:
 
 
 def _row_to_template(row, items: List[ChecklistItemOut]) -> ChecklistTemplateOut:
+    try:
+        livello_cucina = row["livello_cucina"]
+    except (IndexError, KeyError):
+        livello_cucina = None
     return ChecklistTemplateOut(
         id=row["id"],
         nome=row["nome"],
@@ -109,6 +120,7 @@ def _row_to_template(row, items: List[ChecklistItemOut]) -> ChecklistTemplateOut
         ora_scadenza_entro=row["ora_scadenza_entro"],
         attivo=bool(row["attivo"]),
         note=row["note"],
+        livello_cucina=livello_cucina,
         created_by=row["created_by"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -151,6 +163,7 @@ def list_templates(
     reparto: Optional[str] = Query(None),
     turno: Optional[str] = Query(None),
     attivo: Optional[bool] = Query(None),
+    livello_cucina: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     _require_admin_or_chef(user)
@@ -167,6 +180,11 @@ def list_templates(
     if attivo is not None:
         where.append("attivo = ?")
         params.append(1 if attivo else 0)
+    if livello_cucina:
+        if livello_cucina not in LIVELLI_CUCINA:
+            raise HTTPException(400, f"livello_cucina non valido: {livello_cucina}")
+        where.append("livello_cucina = ?")
+        params.append(livello_cucina)
 
     sql = "SELECT * FROM checklist_template"
     if where:
@@ -213,20 +231,25 @@ def create_template(
     _require_admin(user)
     _validate_template_payload(payload.model_dump())
 
+    rep = _normalize_reparto(payload.reparto) or "cucina"
+    livello = payload.livello_cucina if rep == "cucina" else None
+
     conn = get_tasks_conn()
     try:
         cur = conn.execute("""
             INSERT INTO checklist_template
-                (nome, reparto, frequenza, turno, ora_scadenza_entro, attivo, note, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (nome, reparto, frequenza, turno, ora_scadenza_entro, attivo, note,
+                 livello_cucina, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             payload.nome,
-            _normalize_reparto(payload.reparto) or "cucina",
+            rep,
             payload.frequenza,
             payload.turno,
             payload.ora_scadenza_entro,
             1 if payload.attivo else 0,
             payload.note,
+            livello,
             user["username"],
         ))
         tid = cur.lastrowid
@@ -262,6 +285,12 @@ def update_template(
         # Normalizza reparto a lowercase prima di validare/salvare
         if "reparto" in data:
             data["reparto"] = _normalize_reparto(data["reparto"]) or "cucina"
+        # Phase A.2: forza livello_cucina=NULL se reparto cambia a non-cucina
+        effective_reparto = data.get("reparto", row["reparto"])
+        if effective_reparto != "cucina" and "livello_cucina" not in data:
+            data["livello_cucina"] = None
+        elif effective_reparto != "cucina":
+            data["livello_cucina"] = None
         # Valida solo i campi presenti
         _validate_template_payload({**dict(row), **data, "items": [
             i.model_dump() for i in (payload.items or [])
@@ -329,10 +358,15 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
             raise HTTPException(404, "Template non trovato")
 
         nuovo_nome = f"{row['nome']} (copia)"
+        try:
+            src_livello = row["livello_cucina"]
+        except (IndexError, KeyError):
+            src_livello = None
         cur = conn.execute("""
             INSERT INTO checklist_template
-                (nome, reparto, frequenza, turno, ora_scadenza_entro, attivo, note, created_by)
-            VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+                (nome, reparto, frequenza, turno, ora_scadenza_entro, attivo, note,
+                 livello_cucina, created_by)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
         """, (
             nuovo_nome,
             row["reparto"],
@@ -340,6 +374,7 @@ def duplica_template(tid: int, user: dict = Depends(get_current_user)):
             row["turno"],
             row["ora_scadenza_entro"],
             row["note"],
+            src_livello,
             user["username"],
         ))
         new_tid = cur.lastrowid
@@ -407,7 +442,8 @@ def _row_to_execution(row, item_row=None) -> dict:
 def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
     """Carica istanza + template_nome + tutti gli item (+ execution se presente)."""
     inst = conn.execute("""
-        SELECT i.*, t.nome AS template_nome, t.reparto AS template_reparto
+        SELECT i.*, t.nome AS template_nome, t.reparto AS template_reparto,
+               t.livello_cucina AS template_livello
           FROM checklist_instance i
           JOIN checklist_template t ON t.id = i.template_id
          WHERE i.id = ?
@@ -450,11 +486,24 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
     except (IndexError, KeyError):
         inst_reparto = None
 
+    # Phase A.2: livello_cucina — prefer instance, fallback template
+    inst_livello = None
+    try:
+        inst_livello = inst["livello_cucina"]
+    except (IndexError, KeyError):
+        pass
+    if inst_livello is None:
+        try:
+            inst_livello = inst["template_livello"]
+        except (IndexError, KeyError):
+            pass
+
     return ChecklistInstanceOut(
         id=inst["id"],
         template_id=inst["template_id"],
         template_nome=inst["template_nome"],
         reparto=(inst_reparto or inst["template_reparto"] or "cucina"),
+        livello_cucina=inst_livello,
         data_riferimento=inst["data_riferimento"],
         turno=inst["turno"],
         scadenza_at=inst["scadenza_at"],
@@ -861,6 +910,10 @@ def _row_to_task(row) -> dict:
         reparto = row["reparto"] or "cucina"
     except (IndexError, KeyError):
         reparto = "cucina"
+    try:
+        livello_cucina = row["livello_cucina"]
+    except (IndexError, KeyError):
+        livello_cucina = None
     return TaskSingoloOut(
         id=row["id"],
         titolo=row["titolo"],
@@ -871,6 +924,7 @@ def _row_to_task(row) -> dict:
         priorita=row["priorita"],
         stato=row["stato"],
         reparto=reparto,
+        livello_cucina=livello_cucina,
         completato_at=row["completato_at"],
         completato_da=row["completato_da"],
         note_completamento=row["note_completamento"],
@@ -904,6 +958,7 @@ def list_tasks(
     data: Optional[str] = Query(None, description="YYYY-MM-DD"),
     stato: Optional[str] = Query(None),
     reparto: Optional[str] = Query(None, description="filtra per reparto (lowercase)"),
+    livello_cucina: Optional[str] = Query(None, description="chef|sous_chef|commis"),
     user: dict = Depends(get_current_user),
 ):
     conn = get_tasks_conn()
@@ -927,6 +982,11 @@ def list_tasks(
         if rep:
             where.append("reparto = ?")
             params.append(rep)
+        if livello_cucina:
+            if livello_cucina not in LIVELLI_CUCINA:
+                raise HTTPException(400, f"livello_cucina non valido: {livello_cucina}")
+            where.append("livello_cucina = ?")
+            params.append(livello_cucina)
 
         sql = "SELECT * FROM task_singolo"
         if where:
@@ -966,14 +1026,16 @@ def create_task(
     rep = _normalize_reparto(payload.reparto) or "cucina"
     if rep not in REPARTI:
         raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
+    livello = payload.livello_cucina if rep == "cucina" else None
 
     conn = get_tasks_conn()
     try:
         cur = conn.execute("""
             INSERT INTO task_singolo
                 (titolo, descrizione, data_scadenza, ora_scadenza,
-                 assegnato_user, priorita, reparto, origine, ref_modulo, ref_id, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUALE', ?, ?, ?)
+                 assegnato_user, priorita, reparto, livello_cucina,
+                 origine, ref_modulo, ref_id, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'MANUALE', ?, ?, ?)
         """, (
             payload.titolo,
             payload.descrizione,
@@ -982,6 +1044,7 @@ def create_task(
             payload.assegnato_user,
             payload.priorita,
             rep,
+            livello,
             payload.ref_modulo,
             payload.ref_id,
             user["username"],
@@ -1016,14 +1079,24 @@ def update_task(
         if rep and rep not in REPARTI:
             raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
         data["reparto"] = rep or "cucina"
+    # Phase A.2: validazione livello_cucina + forza NULL se reparto non-cucina
+    if "livello_cucina" in data:
+        lc = data["livello_cucina"]
+        if lc is not None and lc not in LIVELLI_CUCINA:
+            raise HTTPException(400, f"livello_cucina non valido: {lc}")
 
     conn = get_tasks_conn()
     try:
-        row = conn.execute("SELECT id, stato FROM task_singolo WHERE id = ?", (tid,)).fetchone()
+        row = conn.execute("SELECT id, stato, reparto FROM task_singolo WHERE id = ?", (tid,)).fetchone()
         if not row:
             raise HTTPException(404, "Task non trovato")
         if row["stato"] == "COMPLETATO" and "stato" not in data:
             raise HTTPException(400, "Task COMPLETATO: usa endpoint dedicato per riaprire")
+
+        # Phase A.2: forza livello_cucina=NULL se reparto effettivo non e' cucina
+        effective_reparto = data.get("reparto", row["reparto"])
+        if effective_reparto != "cucina":
+            data["livello_cucina"] = None
 
         sets = [f"{k} = ?" for k in data.keys()]
         params = list(data.values()) + [tid]
