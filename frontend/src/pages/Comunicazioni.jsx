@@ -1,4 +1,4 @@
-// @version: v1.0-comunicazioni
+// @version: v2.0-mattoni — refactor con M.I UI primitives (Btn, PageLayout, StatusBadge, EmptyState)
 // Pagina Bacheca Comunicazioni Staff — TRGB Gestionale (9.2)
 //
 // Admin/superadmin: crea, modifica, archivia comunicazioni
@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch, API_BASE } from "../config/api";
+import { Btn, PageLayout, StatusBadge, EmptyState } from "../components/ui";
 
 const RUOLI_DEST = [
   { value: "tutti", label: "Tutti" },
@@ -165,233 +166,228 @@ export default function Comunicazioni() {
   const attive = comunicazioni.filter(c => c.attiva !== 0);
   const archiviate = comunicazioni.filter(c => c.attiva === 0);
 
+  const pageTitle = (
+    <span style={{ fontFamily: "'Playfair Display', serif" }}>📌 Bacheca Staff</span>
+  );
+
   return (
-    <div className="min-h-screen bg-brand-cream">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+    <PageLayout
+      title={pageTitle}
+      actions={
+        isAdmin && !showForm ? (
+          <Btn variant="primary" onClick={() => setShowForm(true)}>
+            + Nuova comunicazione
+          </Btn>
+        ) : null
+      }
+      wide={false}
+      className="max-w-3xl"
+    >
+      {/* ── Form crea/modifica (solo admin) ── */}
+      {isAdmin && showForm && (
+        <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 p-5 mb-6">
+          <h2 className="text-sm font-semibold text-brand-ink mb-4">
+            {editId ? "Modifica comunicazione" : "Nuova comunicazione"}
+          </h2>
 
-        {/* ── Titolo ── */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-brand-ink" style={{ fontFamily: "'Playfair Display', serif" }}>
-            📌 Bacheca Staff
-          </h1>
-          {isAdmin && !showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-brand-blue text-white hover:bg-brand-blue/90 transition shadow-sm"
+          <input
+            type="text"
+            placeholder="Titolo (es. Vino da spingere stasera)"
+            value={formTitolo}
+            onChange={e => setFormTitolo(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+            style={{ fontSize: "16px" }}
+          />
+
+          <textarea
+            placeholder="Messaggio per lo staff…"
+            value={formMessaggio}
+            onChange={e => setFormMessaggio(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
+            style={{ fontSize: "16px" }}
+          />
+
+          <div className="flex flex-wrap gap-3 mb-4">
+            {/* Destinatari */}
+            <div className="flex-1 min-w-[140px]">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Destinatari</label>
+              <select
+                value={formDest}
+                onChange={e => setFormDest(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
+                style={{ fontSize: "16px" }}
+              >
+                {RUOLI_DEST.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Urgenza */}
+            <div className="flex-1 min-w-[140px]">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Urgenza</label>
+              <select
+                value={formUrgenza}
+                onChange={e => setFormUrgenza(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
+                style={{ fontSize: "16px" }}
+              >
+                <option value="normale">Normale</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+
+            {/* Scadenza */}
+            <div className="flex-1 min-w-[140px]">
+              <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Scade il (opzionale)</label>
+              <input
+                type="date"
+                value={formScadenza}
+                onChange={e => setFormScadenza(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
+                style={{ fontSize: "16px" }}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <Btn variant="ghost" onClick={resetForm}>Annulla</Btn>
+            <Btn
+              variant="primary"
+              onClick={handleSalva}
+              loading={saving}
+              disabled={saving || !formTitolo.trim() || !formMessaggio.trim()}
             >
-              + Nuova comunicazione
-            </button>
-          )}
+              {saving ? "Salvataggio…" : editId ? "Aggiorna" : "Pubblica"}
+            </Btn>
+          </div>
         </div>
+      )}
 
-        {/* ── Form crea/modifica (solo admin) ── */}
-        {isAdmin && showForm && (
-          <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 p-5 mb-6">
-            <h2 className="text-sm font-semibold text-brand-ink mb-4">
-              {editId ? "Modifica comunicazione" : "Nuova comunicazione"}
-            </h2>
+      {/* ── Loading ── */}
+      {loading && (
+        <div className="text-center py-12 text-sm text-neutral-400">Caricamento…</div>
+      )}
 
-            <input
-              type="text"
-              placeholder="Titolo (es. Vino da spingere stasera)"
-              value={formTitolo}
-              onChange={e => setFormTitolo(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
-              style={{ fontSize: "16px" }}
-            />
+      {/* ── Lista comunicazioni attive ── */}
+      {!loading && attive.length === 0 && (
+        <EmptyState
+          icon="📌"
+          title="Nessuna comunicazione attiva"
+          description={isAdmin ? "Pubblicane una per avvisare lo staff di novità, cambi menù o alert di servizio." : "Non ci sono comunicazioni per il tuo ruolo in questo momento."}
+          action={isAdmin ? (
+            <Btn variant="primary" onClick={() => setShowForm(true)}>+ Nuova comunicazione</Btn>
+          ) : null}
+        />
+      )}
 
-            <textarea
-              placeholder="Messaggio per lo staff…"
-              value={formMessaggio}
-              onChange={e => setFormMessaggio(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue resize-none"
-              style={{ fontSize: "16px" }}
-            />
-
-            <div className="flex flex-wrap gap-3 mb-4">
-              {/* Destinatari */}
-              <div className="flex-1 min-w-[140px]">
-                <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Destinatari</label>
-                <select
-                  value={formDest}
-                  onChange={e => setFormDest(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
-                  style={{ fontSize: "16px" }}
-                >
-                  {RUOLI_DEST.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Urgenza */}
-              <div className="flex-1 min-w-[140px]">
-                <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Urgenza</label>
-                <select
-                  value={formUrgenza}
-                  onChange={e => setFormUrgenza(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
-                  style={{ fontSize: "16px" }}
-                >
-                  <option value="normale">Normale</option>
-                  <option value="urgente">Urgente</option>
-                </select>
-              </div>
-
-              {/* Scadenza */}
-              <div className="flex-1 min-w-[140px]">
-                <label className="text-[11px] text-neutral-500 uppercase tracking-wider mb-1 block">Scade il (opzionale)</label>
-                <input
-                  type="date"
-                  value={formScadenza}
-                  onChange={e => setFormScadenza(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-300 text-sm"
-                  style={{ fontSize: "16px" }}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={resetForm}
-                className="px-4 py-2 rounded-lg text-sm text-neutral-600 hover:bg-neutral-100 transition"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleSalva}
-                disabled={saving || !formTitolo.trim() || !formMessaggio.trim()}
-                className="px-5 py-2 rounded-lg text-sm font-medium bg-brand-blue text-white hover:bg-brand-blue/90 transition disabled:opacity-40 shadow-sm"
-              >
-                {saving ? "Salvataggio…" : editId ? "Aggiorna" : "Pubblica"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Loading ── */}
-        {loading && (
-          <div className="text-center py-12 text-sm text-neutral-400">Caricamento…</div>
-        )}
-
-        {/* ── Lista comunicazioni attive ── */}
-        {!loading && attive.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-4xl mb-3">📌</div>
-            <div className="text-sm text-neutral-400">Nessuna comunicazione attiva</div>
-          </div>
-        )}
-
-        {!loading && attive.map(c => (
-          <div
-            key={c.id}
-            className={`bg-white rounded-2xl shadow-sm border mb-3 overflow-hidden transition ${
-              c.urgenza === "urgente"
-                ? "border-l-4 border-l-brand-red border-neutral-200"
-                : "border-neutral-200"
-            } ${c.letta === 0 ? "ring-1 ring-brand-blue/20" : "opacity-80"}`}
-          >
-            <div className="px-5 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {c.urgenza === "urgente" && (
-                      <span className="text-[10px] font-bold text-brand-red uppercase bg-red-50 px-1.5 py-0.5 rounded">
-                        Urgente
-                      </span>
-                    )}
-                    {c.letta === 0 && (
-                      <span className="w-2 h-2 rounded-full bg-brand-blue flex-shrink-0" />
-                    )}
-                  </div>
-                  <h3 className="text-base font-semibold text-brand-ink">{c.titolo}</h3>
-                  <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{c.messaggio}</p>
-                  <div className="flex items-center gap-3 mt-2 text-[11px] text-neutral-400">
-                    <span>{c.autore}</span>
-                    <span>·</span>
-                    <span>{tempoFa(c.created_at)}</span>
-                    {c.dest_ruolo !== "tutti" && (
-                      <>
-                        <span>·</span>
-                        <span className="bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-500">→ {c.dest_ruolo}</span>
-                      </>
-                    )}
-                    {c.scadenza && (
-                      <>
-                        <span>·</span>
-                        <span>scade {c.scadenza}</span>
-                      </>
-                    )}
-                  </div>
+      {!loading && attive.map(c => (
+        <div
+          key={c.id}
+          className={`bg-white rounded-2xl shadow-sm border mb-3 overflow-hidden transition ${
+            c.urgenza === "urgente"
+              ? "border-l-4 border-l-brand-red border-neutral-200"
+              : "border-neutral-200"
+          } ${c.letta === 0 ? "ring-1 ring-brand-blue/20" : "opacity-80"}`}
+        >
+          <div className="px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {c.urgenza === "urgente" && (
+                    <StatusBadge tone="danger" size="sm">Urgente</StatusBadge>
+                  )}
+                  {c.letta === 0 && (
+                    <span className="w-2 h-2 rounded-full bg-brand-blue flex-shrink-0" />
+                  )}
+                </div>
+                <h3 className="text-base font-semibold text-brand-ink">{c.titolo}</h3>
+                <p className="text-sm text-neutral-600 mt-1 whitespace-pre-line">{c.messaggio}</p>
+                <div className="flex items-center gap-2 mt-2 text-[11px] text-neutral-400 flex-wrap">
+                  <span>{c.autore}</span>
+                  <span>·</span>
+                  <span>{tempoFa(c.created_at)}</span>
+                  {c.dest_ruolo !== "tutti" && (
+                    <>
+                      <span>·</span>
+                      <StatusBadge tone="neutral" size="sm">→ {c.dest_ruolo}</StatusBadge>
+                    </>
+                  )}
+                  {c.scadenza && (
+                    <>
+                      <span>·</span>
+                      <span>scade {c.scadenza}</span>
+                    </>
+                  )}
                 </div>
               </div>
+            </div>
 
-              {/* Azioni */}
-              <div className="flex gap-2 mt-3 pt-2 border-t border-neutral-100">
-                {c.letta === 0 && !isAdmin && (
-                  <button
-                    onClick={() => handleSegnaLetta(c.id)}
-                    className="text-xs text-brand-blue hover:underline"
-                  >
-                    Segna come letta
+            {/* Azioni */}
+            <div className="flex gap-2 mt-3 pt-2 border-t border-neutral-100">
+              {c.letta === 0 && !isAdmin && (
+                <button
+                  onClick={() => handleSegnaLetta(c.id)}
+                  className="text-xs text-brand-blue hover:underline"
+                >
+                  Segna come letta
+                </button>
+              )}
+              {isAdmin && (
+                <>
+                  <button onClick={() => handleModifica(c)} className="text-xs text-brand-blue hover:underline">
+                    Modifica
                   </button>
-                )}
-                {isAdmin && (
-                  <>
-                    <button onClick={() => handleModifica(c)} className="text-xs text-brand-blue hover:underline">
-                      Modifica
-                    </button>
-                    <button onClick={() => handleToggleAttiva(c)} className="text-xs text-neutral-500 hover:underline">
-                      Archivia
-                    </button>
-                    <button onClick={() => handleElimina(c.id)} className="text-xs text-brand-red hover:underline">
-                      Elimina
-                    </button>
-                  </>
-                )}
-              </div>
+                  <button onClick={() => handleToggleAttiva(c)} className="text-xs text-neutral-500 hover:underline">
+                    Archivia
+                  </button>
+                  <button onClick={() => handleElimina(c.id)} className="text-xs text-brand-red hover:underline">
+                    Elimina
+                  </button>
+                </>
+              )}
             </div>
           </div>
-        ))}
+        </div>
+      ))}
 
-        {/* ── Archiviate (solo admin) ── */}
-        {isAdmin && archiviate.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider mb-3">
-              Archiviate ({archiviate.length})
-            </h2>
-            {archiviate.map(c => (
-              <div key={c.id} className="bg-white/60 rounded-xl border border-neutral-200 px-5 py-3 mb-2 opacity-60">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-neutral-600">{c.titolo}</span>
-                    <span className="text-[11px] text-neutral-400 ml-2">{tempoFa(c.created_at)}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleToggleAttiva(c)} className="text-xs text-brand-blue hover:underline">
-                      Riattiva
-                    </button>
-                    <button onClick={() => handleElimina(c.id)} className="text-xs text-brand-red hover:underline">
-                      Elimina
-                    </button>
-                  </div>
+      {/* ── Archiviate (solo admin) ── */}
+      {isAdmin && archiviate.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider mb-3">
+            Archiviate ({archiviate.length})
+          </h2>
+          {archiviate.map(c => (
+            <div key={c.id} className="bg-white/60 rounded-xl border border-neutral-200 px-5 py-3 mb-2 opacity-60">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm text-neutral-600">{c.titolo}</span>
+                  <span className="text-[11px] text-neutral-400 ml-2">{tempoFa(c.created_at)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleToggleAttiva(c)} className="text-xs text-brand-blue hover:underline">
+                    Riattiva
+                  </button>
+                  <button onClick={() => handleElimina(c.id)} className="text-xs text-brand-red hover:underline">
+                    Elimina
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 bg-emerald-600 text-white"
+          className="fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-sm font-medium z-50 bg-emerald-600 text-white cursor-pointer"
           onClick={() => setToast(null)}
         >
           {toast}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

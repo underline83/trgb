@@ -3,6 +3,39 @@
 
 ---
 
+## 2026-04-18 — Comunicazioni refactor M.I (seconda pagina mattoni)
+
+### Problema / contesto
+Dopo il pilota `CambioPIN`, serviva una seconda pagina con pattern diversi per validare i mattoni su una situazione più ricca: lista con azioni multiple, badge di stato, form con annulla/salva, empty state, toast.
+
+### Cosa cambia visivamente
+- **Header pagina**: titolo "📌 Bacheca Staff" ora in `<PageLayout title subtitle actions>` con Playfair — font brand, non più `<h1>` grezzo.
+- **Bottone "+ Nuova comunicazione"**: era `bg-brand-blue` manuale → ora `<Btn variant="primary">` (stesso stile, focus ring brand, 44pt touch target).
+- **Bottoni form (Annulla / Pubblica)**: erano due `<button>` custom → ora `<Btn variant="ghost">` + `<Btn variant="primary" loading>`.
+- **Badge "Urgente"**: era `<span class="bg-red-100 text-red-700">` → ora `<StatusBadge tone="danger" size="sm">` (stesso colore, ma riusabile).
+- **Badge destinatario ruolo**: era `<span class="text-[11px] bg-neutral-100 text-neutral-600 border">` → `<StatusBadge tone="neutral" size="sm">`.
+- **Empty state "Nessuna comunicazione attiva"**: card custom → `<EmptyState icon="📌" title description action>` con bottone CTA integrato.
+
+### Cosa NON cambia
+- Logica business identica (stessi fetch, stesso calcolo `hoRicevuto`, stesso marcatore "letta").
+- Layout card: border-l-4 per urgenti, ring-brand-blue/20 per non-lette, toast floating, pulsanti link-style Modifica/Archivia/Elimina.
+- Larghezza `max-w-3xl` mantenuta via `className` su `PageLayout`.
+
+### File toccati
+- `frontend/src/pages/Comunicazioni.jsx` (v1.0 → v2.0-mattoni, refactor cosmetico)
+- `docs/changelog.md` (questa entry)
+
+### Verifica post-push
+1. Apri `/comunicazioni` → header Playfair "📌 Bacheca Staff", sfondo crema, bottone blu brand in alto a destra.
+2. Clic su "+ Nuova comunicazione" → form con bottoni ghost/primary, focus ring brand blue.
+3. Senza comunicazioni attive: empty state con emoji 📌 e CTA "Crea la prima comunicazione".
+4. Comunicazione urgente: badge rosso `StatusBadge tone="danger"` coerente col resto dell'app.
+
+### Rollback
+`git revert` del commit. Nessun altro modulo è impattato.
+
+---
+
 ## 2026-04-18 — CambioPIN pagina pilota M.I (refactor di prova)
 
 ### Problema / contesto
