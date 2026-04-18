@@ -1,8 +1,10 @@
 # Modulo Carta Vini — TRGB Gestionale
-**Ultimo aggiornamento:** 2026-03-15
+**Ultimo aggiornamento:** 2026-04-19 (sessione 47 — nota sub-module Carta Bevande)
 **Stato:** stabile — generazione carta da DB magazzino unico
 **Router:** `app/routers/vini_router.py`
 **DB:** `vini_magazzino.sqlite3` (unico DB, vecchio `vini.sqlite3` eliminato in v3.0)
+
+> **Sub-module Carta Bevande (sessione 47):** la Carta Vini è ora una delle sezioni della più ampia **Carta delle Bevande** (endpoint `/bevande/carta*`, service `carta_bevande_service.py`, DB `bevande.sqlite3`). Gli endpoint `/vini/carta*` descritti sotto restano **invariati** per retro-compat. Vedi `docs/carta_bevande_todo.md` per la checklist e la specifica.
 
 ---
 
@@ -20,6 +22,7 @@ Legge i dati dal **DB magazzino** (`vini_magazzino.sqlite3`) tramite `vini_repos
 Funziona in integrazione con:
 - **Modulo Cantina & Magazzino Vini** (`docs/modulo_magazzino_vini.md`)
 - **Modulo Settings Vini** (ordini tipologie, nazioni e regioni)
+- **Carta delle Bevande** (`docs/carta_bevande_todo.md`) — la Carta Vini è embeddata come sezione `vini_dinamico` nella carta master bevande
 
 ---
 
@@ -124,6 +127,7 @@ Tipologia (GRANDI FORMATI, BOLLICINE, BIANCHI, ROSATI, ROSSI, PASSITI, ANALCOLIC
 - [x] DOCX con tabelle allineate (desc|annata|prezzo) — 2026-03-15
 - [x] Unificazione loader carta (eliminato codice duplicato) — 2026-03-15
 - [x] Fix cancellazione movimenti (delta inverso) — 2026-03-15
+- [x] Carta Vini embeddata come sezione della Carta Bevande — 2026-04-19 (service `carta_bevande_service.py`, router `bevande_router.py` v1.1, 5 endpoint export unificato). Sezione `vini_dinamico` delega a `carta_vini_service` esistente, nessuna modifica al motore vini
 - [ ] PDF con indici cliccabili (TOC con link interni)
 - [ ] Versioning della carta (storico PDF)
 - [ ] Template multipli (eventi, degustazioni)

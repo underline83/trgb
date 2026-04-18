@@ -47,13 +47,78 @@ router = APIRouter(prefix="/tasks", tags=["Task Manager"])
 # ─── Helpers ───────────────────────────────────────────────────────────
 
 def _require_admin_or_chef(user: dict):
-    if user["role"] not in ("admin", "superadmin", "chef"):
+    # Phase A.3 — brigata cucina: sous_chef/commis parità in lettura col chef.
+    if user["role"] not in ("admin", "superadmin", "chef", "sous_chef", "commis"):
         raise HTTPException(status_code=403, detail="Permesso negato")
 
 
 def _require_admin(user: dict):
     if user["role"] not in ("admin", "superadmin"):
         raise HTTPException(status_code=403, detail="Solo admin")
+
+
+# Phase A.3 — Brigata cucina: filtro auto su letture + anti-escalation su scritture
+def _livello_auto_for_role(role: str) -> Optional[str]:
+    """
+    Ritorna il livello forzato per sous_chef/commis; None = nessun filtro auto.
+    Chef/admin/superadmin/etc vedono tutto e possono filtrare manualmente.
+    """
+    if role == "sous_chef":
+        return "sous_chef"
+    if role == "commis":
+        return "commis"
+    return None
+
+
+def _allowed_livelli_for_role(role: str) -> Optional[set]:
+    """
+    Set dei livello_cucina che il ruolo può assegnare a un task/template cucina
+    (None = livello libero: 'tutta la brigata'). Ritorna None per ruoli senza
+    vincolo (chef/admin/superadmin/etc).
+    """
+    if role == "sous_chef":
+        return {None, "sous_chef"}
+    if role == "commis":
+        return {None, "commis"}
+    return None
+
+
+def _enforce_livello_write(role: str, livello):
+    """
+    Anti-escalation: sous_chef/commis non possono scrivere task con livello
+    superiore al proprio. Solleva 403 in caso di violazione.
+    """
+    allowed = _allowed_livelli_for_role(role)
+    if allowed is None:
+        return
+    if livello not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Non puoi assegnare task a un livello superiore al tuo",
+        )
+
+
+def _check_instance_visibility(conn, role: str, instance_id: int):
+    """
+    Verifica che l'istanza sia visibile al ruolo corrente. Se non lo e',
+    solleva 404 (stessa risposta di una id inesistente — non trapela info).
+    Ritorna la row dell'istanza (join con template) per ulteriore uso.
+    """
+    row = conn.execute("""
+        SELECT i.id, i.stato,
+               COALESCE(i.livello_cucina, t.livello_cucina) AS eff_livello,
+               COALESCE(i.reparto, t.reparto) AS eff_reparto
+          FROM checklist_instance i
+          JOIN checklist_template t ON t.id = i.template_id
+         WHERE i.id = ?
+    """, (instance_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Istanza non trovata")
+    allowed = _allowed_livelli_for_role(role)
+    if allowed is not None and row["eff_reparto"] == "cucina":
+        if row["eff_livello"] not in allowed:
+            raise HTTPException(404, "Istanza non trovata")
+    return row
 
 
 def _normalize_reparto(val):
@@ -180,7 +245,12 @@ def list_templates(
     if attivo is not None:
         where.append("attivo = ?")
         params.append(1 if attivo else 0)
-    if livello_cucina:
+    # Phase A.3 — filtro auto brigata su template per sous_chef/commis.
+    auto_livello = _livello_auto_for_role(user["role"])
+    if auto_livello is not None:
+        where.append("(livello_cucina IS NULL OR livello_cucina = ?)")
+        params.append(auto_livello)
+    elif livello_cucina:
         if livello_cucina not in LIVELLI_CUCINA:
             raise HTTPException(400, f"livello_cucina non valido: {livello_cucina}")
         where.append("livello_cucina = ?")
@@ -215,6 +285,16 @@ def get_template(tid: int, user: dict = Depends(get_current_user)):
         ).fetchone()
         if not row:
             raise HTTPException(404, "Template non trovato")
+        # Phase A.3 — sous_chef/commis non possono leggere template cucina di
+        # livello superiore al proprio.
+        allowed = _allowed_livelli_for_role(user["role"])
+        if allowed is not None and row["reparto"] == "cucina":
+            try:
+                tpl_livello = row["livello_cucina"]
+            except (IndexError, KeyError):
+                tpl_livello = None
+            if tpl_livello not in allowed:
+                raise HTTPException(404, "Template non trovato")
         items = _fetch_items(conn, tid)
         return _row_to_template(row, items).model_dump()
     finally:
@@ -556,6 +636,15 @@ def get_agenda_giornaliera(
             where.append("COALESCE(i.reparto, t.reparto) = ?")
             params.append(rep)
 
+        # Phase A.3 — filtro auto brigata per sous_chef/commis sulle istanze.
+        auto_livello = _livello_auto_for_role(user["role"])
+        if auto_livello is not None:
+            where.append(
+                "(COALESCE(i.livello_cucina, t.livello_cucina) IS NULL "
+                "OR COALESCE(i.livello_cucina, t.livello_cucina) = ?)"
+            )
+            params.append(auto_livello)
+
         sql = f"""
             SELECT i.id
               FROM checklist_instance i
@@ -592,6 +681,10 @@ def get_agenda_giornaliera(
         if rep:
             task_where.append("reparto = ?")
             task_params.append(rep)
+        # Phase A.3 — filtro auto brigata sui task cucina.
+        if auto_livello is not None:
+            task_where.append("(livello_cucina IS NULL OR livello_cucina = ?)")
+            task_params.append(auto_livello)
         tasks_rows = conn.execute(f"""
             SELECT * FROM task_singolo
              WHERE {' AND '.join(task_where)}
@@ -620,6 +713,8 @@ def get_agenda_settimana(
         raise HTTPException(400, "data_inizio non valida (YYYY-MM-DD)")
 
     rep = _normalize_reparto(reparto)
+    # Phase A.3 — filtro auto brigata per sous_chef/commis
+    auto_livello = _livello_auto_for_role(user["role"])
     conn = get_tasks_conn()
     try:
         giorni = []
@@ -633,6 +728,12 @@ def get_agenda_settimana(
             if rep:
                 inst_where.append("COALESCE(i.reparto, t.reparto) = ?")
                 inst_params.append(rep)
+            if auto_livello is not None:
+                inst_where.append(
+                    "(COALESCE(i.livello_cucina, t.livello_cucina) IS NULL "
+                    "OR COALESCE(i.livello_cucina, t.livello_cucina) = ?)"
+                )
+                inst_params.append(auto_livello)
             rows = conn.execute(f"""
                 SELECT i.id, i.turno, i.stato, t.nome AS template_nome,
                        COALESCE(i.reparto, t.reparto) AS reparto
@@ -647,6 +748,9 @@ def get_agenda_settimana(
             if rep:
                 tk_where.append("reparto = ?")
                 tk_params.append(rep)
+            if auto_livello is not None:
+                tk_where.append("(livello_cucina IS NULL OR livello_cucina = ?)")
+                tk_params.append(auto_livello)
             task_rows = conn.execute(f"""
                 SELECT id, titolo, stato, priorita, assegnato_user, reparto
                   FROM task_singolo
@@ -700,6 +804,13 @@ def get_instance(iid: int, user: dict = Depends(get_current_user)):
         inst = _fetch_instance(conn, iid)
         if not inst:
             raise HTTPException(404, "Istanza non trovata")
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono accedere
+        # a istanze cucina di livello superiore (nemmeno via URL diretta).
+        auto_livello = _livello_auto_for_role(user["role"])
+        if auto_livello is not None:
+            inst_livello = inst.get("livello_cucina")
+            if inst_livello not in (None, auto_livello):
+                raise HTTPException(404, "Istanza non trovata")
         return inst
     finally:
         conn.close()
@@ -715,11 +826,9 @@ def assegna_instance(
 ):
     conn = get_tasks_conn()
     try:
-        row = conn.execute(
-            "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Istanza non trovata")
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono agire su
+        # istanze cucina di livello superiore.
+        row = _check_instance_visibility(conn, user["role"], iid)
         if row["stato"] in ("COMPLETATA", "SALTATA"):
             raise HTTPException(400, f"Istanza {row['stato']}: non assegnabile")
 
@@ -739,11 +848,8 @@ def assegna_instance(
 def completa_instance(iid: int, user: dict = Depends(get_current_user)):
     conn = get_tasks_conn()
     try:
-        row = conn.execute(
-            "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Istanza non trovata")
+        # Phase A.3 — anti-escalation
+        row = _check_instance_visibility(conn, user["role"], iid)
         if row["stato"] in ("COMPLETATA", "SALTATA"):
             raise HTTPException(400, f"Istanza gia' {row['stato']}")
 
@@ -774,11 +880,8 @@ def salta_instance(
     _require_admin_or_chef(user)
     conn = get_tasks_conn()
     try:
-        row = conn.execute(
-            "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
-        ).fetchone()
-        if not row:
-            raise HTTPException(404, "Istanza non trovata")
+        # Phase A.3 — anti-escalation
+        row = _check_instance_visibility(conn, user["role"], iid)
         if row["stato"] == "COMPLETATA":
             raise HTTPException(400, "Istanza gia' COMPLETATA")
 
@@ -810,6 +913,9 @@ def check_item(
 
     conn = get_tasks_conn()
     try:
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono registrare
+        # esecuzioni su istanze cucina di livello superiore.
+        _check_instance_visibility(conn, user["role"], payload.instance_id)
         inst = conn.execute(
             "SELECT id, stato, template_id FROM checklist_instance WHERE id = ?",
             (payload.instance_id,),
@@ -982,7 +1088,16 @@ def list_tasks(
         if rep:
             where.append("reparto = ?")
             params.append(rep)
-        if livello_cucina:
+
+        # Phase A.3 — filtro auto server-side per sous_chef/commis.
+        # Il livello forzato dal ruolo sovrascrive l'eventuale query param.
+        auto_livello = _livello_auto_for_role(user["role"])
+        if auto_livello is not None:
+            # Non-cucina hanno sempre livello_cucina=NULL → visibili.
+            # Cucina: visibili solo livello=<auto> o NULL.
+            where.append("(livello_cucina IS NULL OR livello_cucina = ?)")
+            params.append(auto_livello)
+        elif livello_cucina:
             if livello_cucina not in LIVELLI_CUCINA:
                 raise HTTPException(400, f"livello_cucina non valido: {livello_cucina}")
             where.append("livello_cucina = ?")
@@ -1027,6 +1142,11 @@ def create_task(
     if rep not in REPARTI:
         raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
     livello = payload.livello_cucina if rep == "cucina" else None
+    # Phase A.3 — anti-escalation: sous_chef/commis non possono creare task
+    # con livello superiore al proprio (vale solo per reparto=cucina; per
+    # altri reparti livello e' gia' forzato a None).
+    if rep == "cucina":
+        _enforce_livello_write(user["role"], livello)
 
     conn = get_tasks_conn()
     try:
@@ -1087,7 +1207,7 @@ def update_task(
 
     conn = get_tasks_conn()
     try:
-        row = conn.execute("SELECT id, stato, reparto FROM task_singolo WHERE id = ?", (tid,)).fetchone()
+        row = conn.execute("SELECT id, stato, reparto, livello_cucina FROM task_singolo WHERE id = ?", (tid,)).fetchone()
         if not row:
             raise HTTPException(404, "Task non trovato")
         if row["stato"] == "COMPLETATO" and "stato" not in data:
@@ -1097,6 +1217,23 @@ def update_task(
         effective_reparto = data.get("reparto", row["reparto"])
         if effective_reparto != "cucina":
             data["livello_cucina"] = None
+
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono modificare
+        # un task cucina di livello superiore, ne' promuoverlo verso l'alto.
+        if effective_reparto == "cucina":
+            allowed = _allowed_livelli_for_role(user["role"])
+            if allowed is not None:
+                # Il livello attuale deve essere visibile al ruolo.
+                current_livello = row["livello_cucina"] if row["reparto"] == "cucina" else None
+                if current_livello not in allowed:
+                    raise HTTPException(404, "Task non trovato")
+                # Il livello target (dopo l'update) deve essere consentito.
+                effective_livello = data.get("livello_cucina", current_livello)
+                if effective_livello not in allowed:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Non puoi assegnare task a un livello superiore al tuo",
+                    )
 
         sets = [f"{k} = ?" for k in data.keys()]
         params = list(data.values()) + [tid]
@@ -1120,10 +1257,16 @@ def completa_task(
     conn = get_tasks_conn()
     try:
         row = conn.execute(
-            "SELECT id, stato FROM task_singolo WHERE id = ?", (tid,)
+            "SELECT id, stato, reparto, livello_cucina FROM task_singolo WHERE id = ?", (tid,)
         ).fetchone()
         if not row:
             raise HTTPException(404, "Task non trovato")
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono completare
+        # task cucina di livello superiore.
+        allowed = _allowed_livelli_for_role(user["role"])
+        if allowed is not None and row["reparto"] == "cucina":
+            if row["livello_cucina"] not in allowed:
+                raise HTTPException(404, "Task non trovato")
         if row["stato"] == "COMPLETATO":
             raise HTTPException(400, "Task gia' COMPLETATO")
         if row["stato"] == "ANNULLATO":
@@ -1153,9 +1296,17 @@ def delete_task(tid: int, user: dict = Depends(get_current_user)):
     _require_admin_or_chef(user)
     conn = get_tasks_conn()
     try:
-        row = conn.execute("SELECT id FROM task_singolo WHERE id = ?", (tid,)).fetchone()
+        row = conn.execute(
+            "SELECT id, reparto, livello_cucina FROM task_singolo WHERE id = ?", (tid,)
+        ).fetchone()
         if not row:
             raise HTTPException(404, "Task non trovato")
+        # Phase A.3 — anti-escalation: sous_chef/commis non possono cancellare
+        # task cucina di livello superiore.
+        allowed = _allowed_livelli_for_role(user["role"])
+        if allowed is not None and row["reparto"] == "cucina":
+            if row["livello_cucina"] not in allowed:
+                raise HTTPException(404, "Task non trovato")
         conn.execute("DELETE FROM task_singolo WHERE id = ?", (tid,))
         conn.commit()
         return {"ok": True, "deleted_id": tid}

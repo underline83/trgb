@@ -26,6 +26,14 @@ const PRIO_ON = {
 export default function TaskNuovo({ task, onClose, onSaved }) {
   const { toast } = useToast();
   const isEdit = !!task;
+  const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "";
+  // Phase A.3 — anti-escalation FE: sous_chef/commis possono scegliere solo
+  // "tutta la brigata" o il proprio livello. Backend e' fonte di verita'.
+  const livelliOptions = role === "sous_chef"
+    ? LIVELLI_CUCINA.filter(l => l.key === "sous_chef")
+    : role === "commis"
+      ? LIVELLI_CUCINA.filter(l => l.key === "commis")
+      : LIVELLI_CUCINA;
 
   const [titolo, setTitolo] = useState(task?.titolo || "");
   const [descrizione, setDescrizione] = useState(task?.descrizione || "");
@@ -149,6 +157,7 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
             priorita={priorita} setPriorita={setPriorita}
             reparto={reparto} setReparto={setReparto}
             livelloCucina={livelloCucina} setLivelloCucina={setLivelloCucina}
+            livelliOptions={livelliOptions}
             error={error}
           />
         </div>
@@ -224,6 +233,7 @@ export default function TaskNuovo({ task, onClose, onSaved }) {
               priorita={priorita} setPriorita={setPriorita}
               reparto={reparto} setReparto={setReparto}
               livelloCucina={livelloCucina} setLivelloCucina={setLivelloCucina}
+              livelliOptions={livelliOptions}
               error={error}
             />
           </div>
@@ -265,9 +275,11 @@ function FormFields({
   priorita, setPriorita,
   reparto, setReparto,
   livelloCucina, setLivelloCucina,
+  livelliOptions,
   error,
 }) {
   const showLivello = reparto === "cucina";
+  const livelli = livelliOptions || LIVELLI_CUCINA;
 
   return (
     <>
@@ -305,7 +317,7 @@ function FormFields({
           className="w-full text-[16px] bg-white border border-[#e6e1d8] rounded-xl px-3.5 py-3 min-h-[48px] focus:outline-2 focus:outline focus:outline-brand-red"
         >
           <option value="">Tutta la brigata</option>
-          {LIVELLI_CUCINA.map(l => (
+          {livelli.map(l => (
             <option key={l.key} value={l.key}>
               {l.icon} {l.label}
             </option>

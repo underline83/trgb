@@ -59,7 +59,15 @@ export default function TaskList() {
 
   const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "";
   const username = (typeof localStorage !== "undefined" && localStorage.getItem("username")) || "";
-  const canDelete = ["admin", "superadmin", "chef"].includes(role);
+  const canDelete = ["admin", "superadmin", "chef", "sous_chef", "commis"].includes(role);
+  // Phase A.3 — sous_chef/commis: filtro livello e' forzato server-side.
+  // Il dropdown UI viene nascosto per non confondere (server ignora comunque).
+  const isBrigadeSub = role === "sous_chef" || role === "commis";
+  const brigadeHint = role === "sous_chef"
+    ? "Visualizzi i task della tua brigata (sous chef + tutta la brigata)"
+    : role === "commis"
+      ? "Visualizzi i task della tua brigata (commis + tutta la brigata)"
+      : "";
 
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -257,8 +265,9 @@ export default function TaskList() {
             </Pill>
           </div>
 
-          {/* Row 5: pills livello cucina — visibili solo se reparto cucina o tutti */}
-          {(repartoFilter === "" || repartoFilter === "cucina") && (
+          {/* Row 5: pills livello cucina — visibili solo se reparto cucina o
+             tutti, e solo per chi può scegliere (non sous_chef/commis). */}
+          {!isBrigadeSub && (repartoFilter === "" || repartoFilter === "cucina") && (
             <div
               className="mt-2 flex gap-2 overflow-x-auto pb-1"
               style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
@@ -280,6 +289,14 @@ export default function TaskList() {
                   {l.icon} {l.label}
                 </Pill>
               ))}
+            </div>
+          )}
+
+          {/* Phase A.3 — hint brigata per sous_chef/commis */}
+          {isBrigadeSub && (
+            <div className="mt-2 min-h-[44px] flex items-center bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-[13px] text-orange-900">
+              <span aria-hidden="true" className="mr-2">🥘</span>
+              <span>{brigadeHint}</span>
             </div>
           )}
         </div>

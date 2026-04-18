@@ -24,7 +24,11 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 MODULES_SEED_FILE = _DATA_DIR / "modules.json"
 MODULES_FILE = _DATA_DIR / "modules.runtime.json"
 MODULES_META_FILE = _DATA_DIR / "modules.runtime.meta.json"
-VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sommelier", "sala", "viewer"}
+VALID_ROLES = {
+    "superadmin", "admin", "contabile",
+    "chef", "sous_chef", "commis",
+    "sommelier", "sala", "viewer",
+}
 
 
 def _seed_hash() -> Optional[str]:

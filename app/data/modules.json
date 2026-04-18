@@ -33,13 +33,13 @@
     "label": "Gestione Cucina",
     "description": "Archivio ricette, food cost, scelta del macellaio",
     "icon": "📘",
-    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
+    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"],
     "sub": [
-      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef"] },
-      { "key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"] },
-      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] },
+      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"] },
       { "key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"] },
-      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef"] },
+      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"] }
     ]
   },
@@ -62,14 +62,14 @@
     "label": "Flussi di Cassa",
     "description": "Conti correnti, carta di credito, contanti, mance",
     "icon": "🏦",
-    "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"],
+    "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef", "sous_chef", "commis"],
     "sub": [
       { "key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin", "contabile"] },
       { "key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin", "contabile"] },
       { "key": "crossref",     "label": "Riconciliazione",  "roles": ["superadmin", "admin", "contabile"] },
       { "key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin", "contabile"] },
       { "key": "contanti",     "label": "Contanti",         "roles": ["superadmin", "admin"] },
-      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"] },
+      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef", "sous_chef", "commis"] },
       { "key": "impostazioni", "label": "Impostazioni",     "roles": ["superadmin", "admin"] }
     ]
   },
@@ -102,11 +102,11 @@
     "label": "Task Manager",
     "description": "Task operativi multi-reparto + checklist ricorrenti (apertura/chiusura/HACCP)",
     "icon": "📋",
-    "roles": ["superadmin", "admin", "chef", "sala", "viewer"],
+    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "viewer"],
     "sub": [
-      { "key": "agenda",    "label": "Agenda",    "roles": ["superadmin", "admin", "chef", "sala", "viewer"] },
-      { "key": "tasks",     "label": "Task",      "roles": ["superadmin", "admin", "chef", "sala"] },
-      { "key": "templates", "label": "Template",  "roles": ["superadmin", "admin", "chef"] }
+      { "key": "agenda",    "label": "Agenda",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "viewer"] },
+      { "key": "tasks",     "label": "Task",      "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala"] },
+      { "key": "templates", "label": "Template",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] }
     ]
   },
   {
@@ -114,11 +114,11 @@
     "label": "Dipendenti",
     "description": "Personale, buste paga, turni, scadenze documenti, costi",
     "icon": "👥",
-    "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"],
+    "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "sous_chef", "commis", "contabile"],
     "sub": [
       { "key": "anagrafica",   "label": "Anagrafica",   "roles": ["superadmin", "admin"] },
       { "key": "buste-paga",   "label": "Buste Paga",   "roles": ["superadmin", "admin"] },
-      { "key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"] },
+      { "key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "sous_chef", "commis", "contabile"] },
       { "key": "scadenze",     "label": "Scadenze",     "roles": ["superadmin", "admin"] },
       { "key": "costi",        "label": "Costi",        "roles": ["superadmin", "admin"] },
       { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }

@@ -1,8 +1,28 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-17 (sessione 43 — Modulo Cucina MVP)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 46 — Phase A.3: Brigata Cucina)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/modulo_cucina.md`](./modulo_cucina.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 46 — Phase A.3: Brigata Cucina ✅
+
+Resi `sous_chef` e `commis` ruoli utente reali, con parità moduli col chef attuale e filtro task auto server-side (chef vede tutto; sous_chef vede `sous_chef+NULL`; commis vede `commis+NULL`). Anti-escalation sia in lettura sia in scrittura. Backward-compat totale per utenti chef esistenti.
+
+**File toccati:**
+- `app/services/auth_service.py` — `VALID_ROLES` esteso + nuovo helper `is_cucina_brigade`.
+- `app/routers/modules_router.py` — stessa estensione `VALID_ROLES` (duplicazione pre-esistente, allineata).
+- `app/data/modules.json` — ovunque `"chef"` → aggiunti `"sous_chef"` e `"commis"` (Ricette, Flussi/mance, Task Manager, Dipendenti/turni). `modules.runtime.json` NON toccato (auto-sync via `_seed_hash`).
+- `app/routers/tasks_router.py` — helper `_livello_auto_for_role`, `_allowed_livelli_for_role`, `_enforce_livello_write`, `_check_instance_visibility`. Filtro auto su letture (`/tasks/tasks/`, `/agenda/`, `/agenda/settimana`, `/templates/`, `/instances/{id}`, `/templates/{id}`). Anti-escalation su write (create_task, update_task, completa_task, delete_task, assegna/completa/salta_instance, check_item).
+- `frontend/src/pages/admin/GestioneUtenti.jsx` — `ROLES`+`ROLE_LABELS` estesi.
+- `frontend/src/components/LoginForm.jsx` — palette orange-500/yellow-500 coordinata con `LIVELLI_CUCINA`.
+- `frontend/src/pages/tasks/TaskList.jsx` — dropdown livello nascosto per sous_chef/commis + hint orange.
+- `frontend/src/pages/tasks/TaskNuovo.jsx` + `TemplateEditor.jsx` — opzioni dropdown livello limitate al ruolo.
+- `frontend/src/config/versions.jsx` — bump `tasks` 1.2 → 1.3.
+- `docs/changelog.md` + `docs/sessione.md` + `docs/spec_brigata_cucina.md` (spec di riferimento).
+
+**Spec:** `docs/spec_brigata_cucina.md` (single source of truth). Vincoli: worktree `.claude/worktrees/brigata-cucina` su branch `feat/brigata-cucina`; `users.json` NON toccato (è file con hash, backward-compat garantita dall'estensione — non restrizione — di `VALID_ROLES`).
 
 ---
 

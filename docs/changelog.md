@@ -3,6 +3,57 @@
 
 ---
 
+## 2026-04-19 — Phase A.3: Brigata Cucina (sessione 46)
+
+### Contesto
+Phase A.2 ha introdotto il campo `livello_cucina` sui task (chef/sous_chef/commis/NULL). Phase A.3 rende `sous_chef` e `commis` **ruoli utente reali**: l'admin può assegnarli, i moduli hanno parità col chef attuale, il backend filtra automaticamente i task in base alla brigata. Backward-compat totale: gli utenti esistenti con ruolo `chef` continuano a vedere tutto esattamente come prima.
+
+### Decisioni architetturali
+- **Q1 Permessi moduli:** parità col chef. sous_chef e commis vedono gli stessi moduli (Ricette, Mance, Turni, Task Manager, Dipendenti). Tagli granulari in futuro.
+- **Q2 Filtro task:** automatico server-side. Chef/admin/superadmin vedono tutto; `sous_chef` vede `livello_cucina IN ('sous_chef', NULL)`; `commis` vede `IN ('commis', NULL)`. Task non-cucina restano sempre visibili (il filtro tocca la dimensione livello, non il reparto).
+
+### Modifiche
+
+**Backend:**
+- `app/services/auth_service.py` — `VALID_ROLES` esteso con `sous_chef` e `commis`. Nuovo helper `is_cucina_brigade(role)`.
+- `app/routers/modules_router.py` — stessa estensione di `VALID_ROLES` (duplicazione pre-esistente, non consolidata in questo giro).
+- `app/data/modules.json` — ovunque appaia `"chef"` (moduli + sotto-moduli) aggiunti `"sous_chef"` e `"commis"`: Ricette, Flussi (mance), Task Manager, Dipendenti (turni).
+- `app/routers/tasks_router.py`:
+  - Nuovi helper `_livello_auto_for_role`, `_allowed_livelli_for_role`, `_enforce_livello_write`, `_check_instance_visibility`.
+  - Filtro auto server-side su `GET /tasks/tasks/`, `GET /tasks/agenda/`, `GET /tasks/agenda/settimana`, `GET /tasks/templates/`. Sous_chef/commis: il query param `?livello_cucina=…` viene sovrascritto silenziosamente dal filtro auto.
+  - Visibilità su `GET /tasks/instances/{id}` e `GET /tasks/templates/{id}`: record di livello superiore restituiscono 404 (stessa risposta di id inesistente — no info leak).
+  - Anti-escalation su write: `POST/PUT /tasks/tasks`, `POST /tasks/{id}/completa`, `DELETE /tasks/{id}`, `POST /tasks/instances/{id}/assegna|completa|salta`, `POST /tasks/execution/item/{id}/check`. Sous_chef/commis non possono creare/modificare/completare task cucina a livello superiore (403 `"Non puoi assegnare task a un livello superiore al tuo"`).
+  - `_require_admin_or_chef` esteso per includere sous_chef/commis (parità di lettura col chef).
+
+**Frontend:**
+- `frontend/src/pages/admin/GestioneUtenti.jsx` — `ROLES` + `ROLE_LABELS` estesi con `sous_chef` ("🥘 Sous Chef") e `commis` ("🔪 Commis").
+- `frontend/src/components/LoginForm.jsx` — tile login con palette orange-500/yellow-500 (coordinata con `LIVELLI_CUCINA` di `config/reparti.js`): border + bg soft + avatar cerchio.
+- `frontend/src/pages/tasks/TaskList.jsx` — dropdown "Livello cucina" nascosto per sous_chef/commis (il backend forza già il filtro). Hint orange sotto l'header con testo dedicato per brigata.
+- `frontend/src/pages/tasks/TaskNuovo.jsx` + `TemplateEditor.jsx` — opzioni dropdown livello limitate al livello dell'utente (UX anti-escalation; backend fonte di verità).
+- `frontend/src/config/versions.jsx` — bump `tasks` 1.2 → **1.3**.
+
+### Test manuali (VPS dopo deploy)
+1. Admin → Gestione Utenti → assegna ruolo `sous_chef` a un utente test → logout/login → utente vede Task Manager.
+2. Parità moduli: sous_chef vede Ricette, Mance, Turni, Task Manager, Dipendenti.
+3. Chef apre TaskList → vede task di ogni livello; dropdown livello visibile.
+4. Sous_chef apre TaskList → vede solo task `livello_cucina='sous_chef'` o NULL; dropdown livello nascosto; hint arancio visibile.
+5. Commis idem con `'commis'`.
+6. Anti-escalation URL: sous_chef prova `/tasks?livello_cucina=chef` → backend ignora.
+7. Anti-escalation creazione: sous_chef tenta POST `/tasks/tasks/` con livello=chef → 403.
+8. Anti-escalation FE: sous_chef apre form Nuovo task con reparto=cucina → dropdown mostra solo "Tutta la brigata" + "Sous Chef".
+9. Task non-cucina visibili: commis vede task reparto=bar/sala se assegnati.
+10. Backward-compat: utenti chef pre-A.3 continuano a vedere tutto.
+
+### Bump versioni
+- `tasks`: 1.2 → **1.3**
+
+### Commit suggerito
+```
+./push.sh "Phase A.3 — Brigata Cucina: sous_chef+commis ruoli reali. VALID_ROLES esteso (auth+modules), modules.json parità chef, filtro auto server-side su tasks/agenda/instances/templates, anti-escalation su POST/PUT/DELETE, FE GestioneUtenti+LoginForm+TaskList+TaskNuovo+TemplateEditor palette orange/yellow, bump tasks 1.3. Backward-compat totale."
+```
+
+---
+
 ## 2026-04-18 — Phase A.2: Livelli Cucina (sessione 46)
 
 ### Contesto

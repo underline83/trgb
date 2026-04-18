@@ -42,6 +42,15 @@ export default function TemplateEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isNew = !id || id === "nuovo";
+  const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "";
+  // Phase A.3 — anti-escalation FE: sous_chef/commis vedono solo il proprio
+  // livello. Backend e' fonte di verita' (create/update template richiede
+  // comunque admin, ma il dropdown resta coerente se la pagina si apre).
+  const livelliOptions = role === "sous_chef"
+    ? LIVELLI_CUCINA.filter(l => l.key === "sous_chef")
+    : role === "commis"
+      ? LIVELLI_CUCINA.filter(l => l.key === "commis")
+      : LIVELLI_CUCINA;
   const [tpl, setTpl] = useState(emptyTemplate());
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -225,7 +234,7 @@ export default function TemplateEditor() {
                   className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
                 >
                   <option value="">Tutta la brigata</option>
-                  {LIVELLI_CUCINA.map(l => (
+                  {livelliOptions.map(l => (
                     <option key={l.key} value={l.key}>
                       {l.icon} {l.label}
                     </option>

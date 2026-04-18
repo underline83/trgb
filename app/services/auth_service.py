@@ -135,7 +135,11 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # ---------------------------------------------------------------------------
 # CRUD UTENTI (usato da users_router)
 # ---------------------------------------------------------------------------
-VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sommelier", "sala", "viewer"}
+VALID_ROLES = {
+    "superadmin", "admin", "contabile",
+    "chef", "sous_chef", "commis",
+    "sommelier", "sala", "viewer",
+}
 
 
 def is_admin(role: str) -> bool:
@@ -146,6 +150,11 @@ def is_admin(role: str) -> bool:
 def is_superadmin(role: str) -> bool:
     """True solo per superadmin — usare per funzioni riservate (es. preconti)."""
     return role == "superadmin"
+
+
+def is_cucina_brigade(role: str) -> bool:
+    """True per chef, sous_chef, commis — i 3 ruoli della brigata cucina."""
+    return role in ("chef", "sous_chef", "commis")
 
 def list_users() -> list:
     return [
