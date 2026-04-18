@@ -3,12 +3,13 @@
 // Calendario turni — vista settimanale + mensile, CRUD base
 // ============================================================
 
-// @version: v1.0-dipendenti-turni
+// @version: v1.1-mattoni — M.I primitives (Btn) su header, nav periodo, form
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 function toISODate(d) {
   const copy = new Date(d.getTime());
@@ -372,41 +373,31 @@ const handleDeleteTurno = async (turnoId) => {
             </p>
           </div>
 
-          <button
+          <Btn
+            variant="secondary"
+            size="md"
             onClick={() => navigate("/dipendenti")}
-            className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100 transition self-start"
+            className="self-start"
           >
             {"\u2190"} Dipendenti
-          </button>
+          </Btn>
         </div>
 
         {/* CONTROLLI PERIODO + VISTA */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={goPrev}
-              className="px-3 py-2 rounded-xl border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm"
-            >
+            <Btn variant="secondary" size="sm" type="button" onClick={goPrev}>
               ←
-            </button>
+            </Btn>
             <div className="px-3 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-neutral-900 text-sm font-medium">
               {currentMonthLabel}
             </div>
-            <button
-              type="button"
-              onClick={goNext}
-              className="px-3 py-2 rounded-xl border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm"
-            >
+            <Btn variant="secondary" size="sm" type="button" onClick={goNext}>
               →
-            </button>
-            <button
-              type="button"
-              onClick={goToday}
-              className="ml-2 px-3 py-2 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-xs sm:text-sm text-neutral-900"
-            >
+            </Btn>
+            <Btn variant="secondary" size="sm" type="button" onClick={goToday} className="ml-2">
               Oggi
-            </button>
+            </Btn>
           </div>
 
           <div className="flex items-center gap-2">
@@ -538,13 +529,16 @@ const handleDeleteTurno = async (turnoId) => {
           </div>
 
           <div className="mt-3 flex justify-end">
-            <button
+            <Btn
+              variant="chip"
+              tone="violet"
+              size="md"
               type="submit"
               disabled={creating}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow-sm disabled:opacity-60"
+              loading={creating}
             >
               {creating ? "Salvataggio..." : "Aggiungi turno"}
-            </button>
+            </Btn>
           </div>
         </form>
 

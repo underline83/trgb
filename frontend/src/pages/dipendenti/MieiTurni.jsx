@@ -1,4 +1,4 @@
-// @version: v1.1-scroll-settimana-mese
+// @version: v1.2-mattoni — M.I primitives (Btn) su Stampa, Foglio Settimana, Apri settimana
 // Pagina "I miei turni" — TRGB Gestionale
 //
 // Vista self-service accessibile a TUTTI i ruoli autenticati:
@@ -14,6 +14,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../../components/ui";
 
 // ---- UTIL DATE ------------------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -238,18 +239,24 @@ export default function MieiTurni() {
 
             {/* RIGHT: stampa + (admin) foglio completo */}
             <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-              <button onClick={() => window.print()}
+              <Btn
+                variant="secondary"
+                size="md"
+                onClick={() => window.print()}
                 disabled={!vista}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
-                title="Stampa i tuoi turni (usa il dialog nativo del browser per PDF/stampante)">
+                title="Stampa i tuoi turni (usa il dialog nativo del browser per PDF/stampante)"
+              >
                 🖨️ Stampa
-              </button>
+              </Btn>
               {isAdmin && (
-                <button onClick={() => apriInFoglio(settimanaInizio)}
-                  className="min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm font-semibold"
-                  title="Apri il Foglio Settimana completo (solo admin)">
+                <Btn
+                  variant="primary"
+                  size="md"
+                  onClick={() => apriInFoglio(settimanaInizio)}
+                  title="Apri il Foglio Settimana completo (solo admin)"
+                >
                   📋 Foglio Settimana
-                </button>
+                </Btn>
               )}
             </div>
           </div>
@@ -266,10 +273,11 @@ export default function MieiTurni() {
               corrispondente per poter vedere i tuoi turni qui.
             </div>
             {isAdmin && (
-              <button onClick={() => navigate("/dipendenti")}
-                className="mt-4 min-h-[44px] px-4 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm font-semibold">
-                → Vai a Dipendenti
-              </button>
+              <div className="mt-4 inline-block">
+                <Btn variant="primary" size="md" onClick={() => navigate("/dipendenti")}>
+                  → Vai a Dipendenti
+                </Btn>
+              </div>
             )}
           </div>
         )}
@@ -381,11 +389,16 @@ function CardSettimana({ settimana, dipendente, isAdmin, onApriInFoglio }) {
           </span>
         </div>
         {isAdmin && (
-          <button onClick={onApriInFoglio}
-            className="min-h-[40px] px-3 text-sm bg-brand-blue text-white rounded-lg hover:opacity-90 print:hidden"
-            title="Apri nel Foglio Settimana (solo admin)">
-            ✏️ Apri settimana
-          </button>
+          <div className="print:hidden">
+            <Btn
+              variant="primary"
+              size="sm"
+              onClick={onApriInFoglio}
+              title="Apri nel Foglio Settimana (solo admin)"
+            >
+              ✏️ Apri settimana
+            </Btn>
+          </div>
         )}
       </div>
 

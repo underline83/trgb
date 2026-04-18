@@ -1,4 +1,4 @@
-// @version: v1.2-print-dropdown (dipendenti → dropdown + tasto Stampa con @media print friendly)
+// @version: v1.3-mattoni — M.I primitives (Btn) su Stampa + Apri settimana
 // Vista Per Dipendente Turni v2 — TRGB Gestionale
 //
 // Timeline di un singolo dipendente su N settimane (default 4) per rispondere
@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 // ---- UTIL DATE ------------------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -319,12 +320,11 @@ export default function PerDipendente() {
                 <option value={8}>8 settimane</option>
                 <option value={12}>12 settimane</option>
               </select>
-              <button onClick={() => window.print()}
+              <Btn variant="secondary" size="md" onClick={() => window.print()}
                 disabled={!vista}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
                 title="Stampa questa timeline (usa il dialog nativo del browser per PDF/stampante)">
                 🖨️ Stampa
-              </button>
+              </Btn>
             </div>
           </div>
         </div>
@@ -496,10 +496,11 @@ function CardSettimana({ settimana, reparto, dipendente, onApriInFoglio }) {
             {settimana.giorni_lavorati} lav · {settimana.riposi} riposi · {settimana.chiusure.length} chiusure
           </span>
         </div>
-        <button onClick={onApriInFoglio}
-          className="min-h-[40px] px-3 text-sm bg-brand-blue text-white rounded-lg hover:opacity-90 print:hidden">
-          ✏️ Apri settimana
-        </button>
+        <div className="print:hidden">
+          <Btn variant="primary" size="sm" onClick={onApriInFoglio}>
+            ✏️ Apri settimana
+          </Btn>
+        </div>
       </div>
 
       {/* Griglia 7 giorni: desktop-first, mobile card-stack */}

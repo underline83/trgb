@@ -3,6 +3,71 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #11 Dipendenti/Turni (7 pagine toccate, tocco minimo sui file giganti)
+
+### Problema / contesto
+Undicesimo giro M.I, terzo dei 4 mega-batch di chiusura. Scope Dipendenti/Turni: convertire i CTA principali dei file di anagrafica dipendenti (anagrafica, buste paga, gestione reparti) e dei fogli turni (turni calendario, vista mensile, per dipendente, miei turni). Sul file gigante `FoglioSettimana` (1906 righe) applicato "tocco minimo": solo i 2 CTA top-level della toolbar header (Pubblica + Invia WA), lasciando intatti tutti i dialog (copia settimana, template, invia WA personale), i menu overflow ⋯, la matrice cellulare, la timeline laterale e tutti i popover di assegnazione turno. Skippato `DipendentiNav` (tab nav amber hand-tuned, stesso pattern di `ViniNav`). Pattern invariato: `Btn` con `variant` + `size` + `loading`, tone `violet` per CTA del modulo dipendenti (palette viola del modulo).
+
+### Pagine toccate in questo batch
+
+**1. `dipendenti/GestioneReparti.jsx` — refactor M.I primitives su form CTA**
+- "+ Nuovo reparto" / "Salva modifiche" / "Crea reparto" / "Annulla" → `<Btn variant="chip" tone="violet"|secondary size="md" loading={saving}>`.
+
+**2. `dipendenti/DipendentiAnagrafica.jsx` — refactor v2.8-mattoni (791 righe)**
+- Header "+ Nuovo dipendente" → `<Btn variant="chip" tone="violet" size="sm">`.
+- Form submit "Salva modifiche" / "Crea dipendente" → `<Btn variant="chip" tone="violet" size="md" type="submit" loading={saving}>`.
+- "Disattiva" → `<Btn variant="chip" tone="red" size="md">`.
+- Upload documento "Carica" → `<Btn variant="chip" tone="violet" size="sm" loading={docUploading}>`.
+- Tab nav (dati/documenti), palette colori swatches, row mini-action documenti lasciati custom.
+
+**3. `dipendenti/DipendentiBustePaga.jsx` — refactor v2.3-mattoni (848 righe)**
+- Header "📄 Import PDF LUL" / "+ Inserisci Manuale" → `<Btn variant="chip" tone="violet" size="sm" loading={uploading}>` / `<Btn variant="secondary" size="sm">`.
+- Anteprima import "Conferma" / "Annulla" → `<Btn variant="chip" tone="violet" size="md" loading={uploading}>` / `<Btn variant="secondary" size="md">`.
+- Form manuale "Salva" → `<Btn variant="chip" tone="violet" size="md" loading={saving}>`.
+- Empty state "+ Inserisci il primo cedolino" → `<Btn variant="chip" tone="violet" size="md">`.
+- Test PDF debug, WA/× mini-action, PDF name chip lasciati custom.
+
+**4. `dipendenti/PerDipendente.jsx` — refactor v1.3-mattoni (687 righe, tocco minimo)**
+- "🖨️ Stampa" → `<Btn variant="secondary" size="md" disabled={!vista}>`.
+- Card header "✏️ Apri settimana" → `<Btn variant="primary" size="sm">`.
+- Period nav ◀ ▶ Oggi, vista segmented control, selectors lasciati custom.
+
+**5. `dipendenti/VistaMensile.jsx` — refactor v1.3-mattoni (673 righe, tocco minimo)**
+- "🖨️ Stampa" → `<Btn variant="secondary" size="md" disabled={!vista}>`.
+- Pannello giorno "✏️ Apri settimana per modificare" → `<Btn variant="primary" size="md" className="w-full">`.
+- Period nav, vista segmented control lasciati custom.
+
+**6. `dipendenti/DipendentiTurni.jsx` — refactor v1.1-mattoni (707 righe)**
+- Header "← Dipendenti" → `<Btn variant="secondary" size="md">`.
+- Period nav ← → Oggi → `<Btn variant="secondary" size="sm">` ×3.
+- Form "Aggiungi turno" submit → `<Btn variant="chip" tone="violet" size="md" type="submit" loading={creating}>`.
+- View toggle settimanale/mensile (pattern segmented), celle turno colorate con onclick-delete lasciati custom.
+
+**7. `dipendenti/MieiTurni.jsx` — refactor v1.2-mattoni (555 righe)**
+- "🖨️ Stampa" → `<Btn variant="secondary" size="md" disabled={!vista}>`.
+- Admin "📋 Foglio Settimana" → `<Btn variant="primary" size="md">`.
+- Admin empty state "→ Vai a Dipendenti" → `<Btn variant="primary" size="md">`.
+- Card settimana "✏️ Apri settimana" → `<Btn variant="primary" size="sm">`.
+- Toolbar segmented periodo (mese/sett × 2 + Oggi), Metric card, BloccoTurno, SlotPlaceholder lasciati custom: widget timeline bespoke.
+
+**8. `dipendenti/FoglioSettimana.jsx` — refactor v1.11-mattoni (1906 righe, tocco minimo)**
+- Toolbar header "📢 Pubblica" → `<Btn variant="success" size="md" loading={pubblicando}>`.
+- Toolbar header "💬 Invia WA" → `<Btn variant="secondary" size="md">`.
+- Overflow ⋯ menu items (Copia settimana / Template / Esporta PDF / Esporta immagine), toggle settimane ◀ ▶, dialog copia settimana, dialog template (lista + crea + applica), dialog invia WA personale, matrice cellulare, timeline laterale lasciati integralmente custom: widget con pattern strutturali propri.
+
+### File non toccati
+- `dipendenti/DipendentiNav.jsx` — tab nav con pill purple hand-tuned (stesso pattern ViniNav).
+
+### Versione
+- `dipendenti` bumped a v2.27 (da v2.26).
+
+### Commit consigliato
+```
+./push.sh "batch #11 M.I primitives — Dipendenti/Turni (7 pagine, tocco minimo su FoglioSettimana)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #10 Vini/Cantina (11 pagine toccate, tocco minimo sui file giganti)
 
 ### Problema / contesto

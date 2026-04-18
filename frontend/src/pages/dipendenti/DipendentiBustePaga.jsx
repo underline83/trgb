@@ -1,4 +1,4 @@
-// @version: v2.2-buste-paga
+// @version: v2.3-mattoni — M.I primitives (Btn) su CTA header, anteprima, form manuale
 // Buste Paga: lista cedolini, inserimento manuale, upload PDF LUL 2-step (anteprima + conferma)
 // v2.2: bottone WA accanto a PDF per condividere cedolino via WhatsApp (problemi.md C1)
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -7,6 +7,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { openWhatsApp, WA_TEMPLATES, fillTemplate } from "../../utils/whatsapp";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "\u2014";
 const MESI = ["","Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -323,18 +324,13 @@ export default function DipendentiBustePaga() {
         <div className="flex items-center gap-2">
           <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleUploadPDF}
             className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-            className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1.5">
-            {uploading ? (
-              <><span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span> Analizzando...</>
-            ) : (
-              <>{"\uD83D\uDCC4"} Import PDF LUL</>
-            )}
-          </button>
-          <button onClick={() => { resetForm(); setShowForm(true); }}
-            className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50">
+          <Btn variant="chip" tone="violet" size="sm" onClick={() => fileInputRef.current?.click()}
+            disabled={uploading} loading={uploading}>
+            {uploading ? "Analizzando..." : <>{"\uD83D\uDCC4"} Import PDF LUL</>}
+          </Btn>
+          <Btn variant="secondary" size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
             + Inserisci Manuale
-          </button>
+          </Btn>
           <input ref={testInputRef} type="file" accept=".pdf" onChange={handleTestPDF} className="hidden" />
           <Tooltip label="Debug: testa cosa estrae il parser dal PDF senza importare">
             <button onClick={() => testInputRef.current?.click()} disabled={uploading}
@@ -497,18 +493,13 @@ export default function DipendentiBustePaga() {
 
           {/* BOTTONI CONFERMA / ANNULLA */}
           <div className="flex items-center gap-3 pt-3 border-t border-purple-100">
-            <button onClick={handleConfermaImport} disabled={uploading || countTotale === 0}
-              className="px-4 py-2 rounded-xl bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 disabled:opacity-50 flex items-center gap-2">
-              {uploading ? (
-                <><span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"></span> Importando...</>
-              ) : (
-                <>{"\u2705"} Conferma Import ({countTotale} cedolini)</>
-              )}
-            </button>
-            <button onClick={() => { setAnteprima(null); setPdfFile(null); }}
-              className="px-4 py-2 rounded-xl border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100">
+            <Btn variant="chip" tone="violet" size="md" onClick={handleConfermaImport}
+              disabled={uploading || countTotale === 0} loading={uploading}>
+              {uploading ? "Importando..." : <>{"\u2705"} Conferma Import ({countTotale} cedolini)</>}
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => { setAnteprima(null); setPdfFile(null); }}>
               Annulla
-            </button>
+            </Btn>
             <span className="text-[10px] text-neutral-400 ml-auto">
               {countSelAbbinati} abbinati + {countSelNuovi} nuovi selezionati
             </span>
@@ -704,14 +695,13 @@ export default function DipendentiBustePaga() {
             </label>
           </div>
           <div className="flex gap-2 mt-3">
-            <button onClick={handleSave} disabled={saving || !form.dipendente_id || !form.netto}
-              className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
+            <Btn variant="chip" tone="violet" size="md" onClick={handleSave}
+              disabled={saving || !form.dipendente_id || !form.netto} loading={saving}>
               {saving ? "Salvataggio..." : "Salva cedolino"}
-            </button>
-            <button onClick={() => { setShowForm(false); resetForm(); }}
-              className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => { setShowForm(false); resetForm(); }}>
               Annulla
-            </button>
+            </Btn>
           </div>
         </div>
       )}
@@ -723,10 +713,11 @@ export default function DipendentiBustePaga() {
         ) : perMese.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-neutral-400 text-sm">Nessun cedolino per {filtroAnno}.</p>
-            <button onClick={() => { resetForm(); setShowForm(true); }}
-              className="mt-3 px-4 py-2 rounded-lg bg-purple-100 text-purple-700 text-sm font-medium hover:bg-purple-200">
-              + Inserisci il primo cedolino
-            </button>
+            <div className="mt-3 inline-block">
+              <Btn variant="chip" tone="violet" size="md" onClick={() => { resetForm(); setShowForm(true); }}>
+                + Inserisci il primo cedolino
+              </Btn>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

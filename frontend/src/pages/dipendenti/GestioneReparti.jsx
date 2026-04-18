@@ -1,10 +1,11 @@
 // FILE: frontend/src/pages/dipendenti/GestioneReparti.jsx
-// @version: v1.2-isCreating (fix "Nuovo reparto" non apriva il form — sessione 40)
+// @version: v1.3-mattoni — M.I primitives (Btn) su CTA header e form
 // CRUD reparti: lista + form dettaglio con orari, pause staff, colore e icona
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 const EMPTY = {
   id: null,
@@ -165,12 +166,9 @@ export default function GestioneReparti({ embedded = false }) {
             {attivi} attiv{attivi === 1 ? "o" : "i"}
           </span>
         </div>
-        <button
-          onClick={handleNew}
-          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700"
-          style={{ minHeight: 36 }}>
+        <Btn variant="chip" tone="violet" size="sm" onClick={handleNew}>
           + Nuovo reparto
-        </button>
+        </Btn>
       </div>
 
       {error && (
@@ -420,21 +418,13 @@ export default function GestioneReparti({ embedded = false }) {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-                    style={{ minHeight: 40 }}>
+                  <Btn variant="chip" tone="violet" size="md" type="submit" disabled={saving} loading={saving}>
                     {saving ? "Salvataggio..." : form.id ? "Salva modifiche" : "Crea reparto"}
-                  </button>
+                  </Btn>
                   {form.id && form.attivo && (
-                    <button
-                      type="button"
-                      onClick={() => handleDisattiva(form.id)}
-                      className="px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50"
-                      style={{ minHeight: 40 }}>
+                    <Btn variant="chip" tone="red" size="md" type="button" onClick={() => handleDisattiva(form.id)}>
                       Disattiva
-                    </button>
+                    </Btn>
                   )}
                 </div>
               </form>

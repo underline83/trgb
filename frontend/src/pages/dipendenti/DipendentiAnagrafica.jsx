@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/dipendenti/DipendentiAnagrafica.jsx
-// @version: v2.7-auto-id-nickname (sessione 40)
+// @version: v2.8-mattoni — M.I primitives (Btn) su CTA header, form submit, upload docs
 //  - Codice opzionale (placeholder "Auto"): se vuoto, lo genera il backend (DIPNNN)
 //  - Nuovo campo Nickname: appare nelle stampe turno al posto del nome anagrafico
 // Layout: DipendentiNav + header bar + sidebar lista + dettaglio con tabs
@@ -7,6 +7,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 const RUOLI = [
   "Sala - Cameriere", "Sala - Chef de Rang", "Sala - Sommelier",
@@ -316,10 +317,7 @@ export default function DipendentiAnagrafica() {
           <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDC65"} Anagrafica Dipendenti</h1>
           <span className="text-[10px] text-neutral-400">{dipendenti.filter(d => d.attivo).length} attivi</span>
         </div>
-        <button onClick={handleNew}
-          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700">
-          + Nuovo dipendente
-        </button>
+        <Btn variant="chip" tone="violet" size="sm" onClick={handleNew}>+ Nuovo dipendente</Btn>
       </div>
 
       {error && (
@@ -643,15 +641,13 @@ export default function DipendentiAnagrafica() {
                   </div>
 
                   <div className="flex gap-2 pt-2">
-                    <button type="submit" disabled={saving}
-                      className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
+                    <Btn variant="chip" tone="violet" size="md" type="submit" disabled={saving} loading={saving}>
                       {saving ? "Salvataggio..." : form.id ? "Salva modifiche" : "Crea dipendente"}
-                    </button>
+                    </Btn>
                     {form.id && form.attivo && (
-                      <button type="button" onClick={() => handleDisattiva(form.id)}
-                        className="px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50">
+                      <Btn variant="chip" tone="red" size="md" type="button" onClick={() => handleDisattiva(form.id)}>
                         Disattiva
-                      </button>
+                      </Btn>
                     )}
                   </div>
                 </form>
@@ -690,10 +686,10 @@ export default function DipendentiAnagrafica() {
                           <div className="flex items-center gap-2">
                             <input type="file" onChange={e => setDocFile(e.target.files[0])}
                               className="text-[10px] w-40" />
-                            <button type="submit" disabled={docUploading || !docFile}
-                              className="px-3 py-2 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap">
+                            <Btn variant="chip" tone="violet" size="sm" type="submit"
+                              disabled={docUploading || !docFile} loading={docUploading}>
                               {docUploading ? "..." : "Carica"}
-                            </button>
+                            </Btn>
                           </div>
                         </div>
                       </form>

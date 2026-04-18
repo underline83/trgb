@@ -1,4 +1,4 @@
-// @version: v1.2-print (tasto Stampa con @media print + print:hidden toolbar/sidebar + intestazione print-only)
+// @version: v1.3-mattoni — M.I primitives (Btn) su Stampa + Apri settimana
 // Vista Mensile Turni v2 — TRGB Gestionale
 //
 // Griglia calendario 6 righe × 7 colonne (Lun..Dom), sola lettura.
@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 // ---- UTIL DATE ------------------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -267,12 +268,11 @@ export default function VistaMensile() {
 
             {/* RIGHT: azioni condivisione */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={() => window.print()}
+              <Btn variant="secondary" size="md" onClick={() => window.print()}
                 disabled={!vista}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm disabled:opacity-50"
                 title="Stampa vista mensile (usa il dialog nativo del browser per PDF/stampante)">
                 🖨️ Stampa
-              </button>
+              </Btn>
             </div>
           </div>
         </div>
@@ -601,10 +601,11 @@ function PannelloGiorno({ selectedDate, turni, assenze = [], chiuso, reparto, on
         </div>
       )}
 
-      <button onClick={onApriSettimana}
-        className="mt-4 w-full min-h-[44px] px-3 bg-brand-blue text-white rounded-lg hover:opacity-90 text-sm font-semibold">
-        ✏️ Apri settimana per modificare
-      </button>
+      <div className="mt-4">
+        <Btn variant="primary" size="md" onClick={onApriSettimana} className="w-full">
+          ✏️ Apri settimana per modificare
+        </Btn>
+      </div>
       <div className="mt-2 text-[10px] text-neutral-400 text-center">
         La vista mensile è di sola lettura.
       </div>

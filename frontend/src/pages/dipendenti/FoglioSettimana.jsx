@@ -1,4 +1,4 @@
-// @version: v1.10-ios-toolbar (restyling header stile C: left navigate / center segmented / right actions + overflow ⋯)
+// @version: v1.11-mattoni — M.I primitives (Btn) su Pubblica + Invia WA (resto invariato, minimal touch)
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { openWhatsApp } from "../../utils/whatsapp";
 import DipendentiNav from "./DipendentiNav";
+import { Btn } from "../../components/ui";
 
 // ---- UTIL DATE / ISO WEEK -------------------------------------------------
 function pad(n) { return n < 10 ? `0${n}` : `${n}`; }
@@ -507,16 +508,24 @@ export default function FoglioSettimana() {
 
             {/* RIGHT: azioni Fase 11 + overflow ⋯ */}
             <div className="flex items-center gap-2 flex-shrink-0 relative" ref={overflowRef}>
-              <button onClick={pubblicaSettimana} disabled={pubblicando}
-                className="min-h-[44px] px-3 bg-brand-green text-white rounded-lg hover:opacity-90 text-sm disabled:opacity-50 font-medium"
-                title="Pubblica la settimana: crea notifica in-app per lo staff">
-                {pubblicando ? "⏳ Pubblica…" : "📢 Pubblica"}
-              </button>
-              <button onClick={() => setDlgInviaWA(true)}
-                className="min-h-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-sm"
-                title="Invia il riepilogo turni personale ai dipendenti via WhatsApp">
+              <Btn
+                variant="success"
+                size="md"
+                onClick={pubblicaSettimana}
+                disabled={pubblicando}
+                loading={pubblicando}
+                title="Pubblica la settimana: crea notifica in-app per lo staff"
+              >
+                {pubblicando ? "Pubblica…" : "📢 Pubblica"}
+              </Btn>
+              <Btn
+                variant="secondary"
+                size="md"
+                onClick={() => setDlgInviaWA(true)}
+                title="Invia il riepilogo turni personale ai dipendenti via WhatsApp"
+              >
                 💬 Invia WA
-              </button>
+              </Btn>
               <button
                 onClick={() => setOverflowOpen(v => !v)}
                 className="min-h-[44px] min-w-[44px] px-3 bg-white border border-neutral-300 rounded-lg hover:bg-neutral-50 text-lg leading-none"
