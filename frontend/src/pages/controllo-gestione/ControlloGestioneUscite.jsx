@@ -1,4 +1,4 @@
-// @version: v3.2-nav-uniformato (S40-7) — tab bar CG sempre visibile
+// @version: v3.3-mattoni — M.I primitives (Btn) su CTA modali + header action
 // Scadenzario Uscite — layout Cantina: filtri SX, KPI in alto, tabella sticky sortable
 // + Riconciliazione Banca: match uscite ↔ movimenti bancari
 // v3.2 (sessione 40 Wave 3):
@@ -12,6 +12,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import FattureDettaglio from "../admin/FattureDettaglio";
 import Tooltip from "../../components/Tooltip";
 import ControlloGestioneNav from "./ControlloGestioneNav";
+import { Btn } from "../../components/ui";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short" }) : null;
@@ -737,10 +738,9 @@ export default function ControlloGestioneUscite() {
           <h1 className="text-lg font-bold text-sky-900 font-playfair">Scadenzario Uscite</h1>
           <span className="text-[10px] text-neutral-400">{loading ? "Caricamento..." : `${sorted.length} righe`}</span>
         </div>
-        <button onClick={() => navigate("/controllo-gestione/spese-fisse")}
-          className="px-3 py-1 text-xs rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+        <Btn variant="chip" tone="violet" size="sm" onClick={() => navigate("/controllo-gestione/spese-fisse")}>
           Gestisci Spese Fisse
-        </button>
+        </Btn>
       </div>
 
       {/* LAYOUT: Filtri SX + Contenuto DX (Nav 48px + sub-header 49px = 97px) */}
@@ -1432,14 +1432,12 @@ export default function ControlloGestioneUscite() {
               </div>
             </div>
             <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex justify-end gap-2">
-              <button onClick={() => setStampaModal(false)} disabled={batchSaving}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-neutral-700 hover:bg-neutral-200">
+              <Btn variant="ghost" size="sm" onClick={() => setStampaModal(false)} disabled={batchSaving}>
                 Annulla
-              </button>
-              <button onClick={confermaStampaBatch} disabled={batchSaving}
-                className="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+              </Btn>
+              <Btn variant="chip" tone="violet" size="sm" onClick={confermaStampaBatch} disabled={batchSaving} loading={batchSaving}>
                 {batchSaving ? "Creazione batch..." : "Crea batch e stampa"}
-              </button>
+              </Btn>
             </div>
           </div>
         </div>
@@ -1516,14 +1514,12 @@ export default function ControlloGestioneUscite() {
                 </div>
               </div>
               <div className="px-5 py-3 border-t border-neutral-200 bg-neutral-50 flex justify-end gap-2">
-                <button onClick={() => setModaleScadenza(null)}
-                  className="px-4 py-1.5 rounded-lg border border-neutral-300 text-neutral-600 text-xs hover:bg-neutral-100">
+                <Btn variant="ghost" size="sm" onClick={() => setModaleScadenza(null)}>
                   Annulla
-                </button>
-                <button onClick={salvaScadenza} disabled={savingScadenza || !cambiata || !nuovaScadenza}
-                  className="px-4 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 disabled:opacity-50">
+                </Btn>
+                <Btn variant="chip" tone="blue" size="sm" onClick={salvaScadenza} disabled={savingScadenza || !cambiata || !nuovaScadenza} loading={savingScadenza}>
                   {savingScadenza ? "Salvataggio..." : "Salva"}
-                </button>
+                </Btn>
               </div>
             </div>
           </div>

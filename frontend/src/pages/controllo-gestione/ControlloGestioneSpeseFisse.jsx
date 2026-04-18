@@ -1,4 +1,4 @@
-// @version: v2.0-wizard-spese-fisse
+// @version: v2.1-mattoni — M.I primitives (Btn) su header actions + form modale
 // Spese Fisse — wizard guidati per Affitti, Prestiti, Assicurazioni + template Tasse + Rateizzazione fatture
 // v2.0b Fase E: supporto ?highlight=<id>&from=scadenzario per deep-link dallo Scadenzario
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -7,6 +7,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -558,19 +559,16 @@ export default function ControlloGestioneSpeseFisse() {
           </div>
           <div className="flex gap-2">
             {fromScadenzario && (
-              <button onClick={() => navigate("/controllo-gestione/uscite")}
-                className="px-3 py-1.5 text-sm rounded-lg border border-teal-300 text-teal-700 bg-teal-50 hover:bg-teal-100 font-medium">
-                &larr; Torna allo Scadenzario
-              </button>
+              <Btn variant="chip" tone="emerald" size="sm" onClick={() => navigate("/controllo-gestione/uscite")}>
+                ← Torna allo Scadenzario
+              </Btn>
             )}
-            <button onClick={() => navigate("/controllo-gestione")}
-              className="px-3 py-1.5 text-sm rounded-lg border border-neutral-300 text-neutral-600 hover:bg-neutral-50">
-              &larr; Menu
-            </button>
-            <button onClick={() => setShowCreazione(!showCreazione)}
-              className="px-4 py-1.5 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 font-medium">
+            <Btn variant="ghost" size="sm" onClick={() => navigate("/controllo-gestione")}>
+              ← Menu
+            </Btn>
+            <Btn variant="chip" tone="blue" size="sm" onClick={() => setShowCreazione(!showCreazione)}>
               + Nuova Spesa
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -1361,14 +1359,12 @@ export default function ControlloGestioneSpeseFisse() {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <button onClick={handleSave} disabled={saving || !form.titolo.trim() || !form.importo}
-                className="px-4 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-50">
+              <Btn variant="chip" tone="blue" size="md" onClick={handleSave} disabled={saving || !form.titolo.trim() || !form.importo} loading={saving}>
                 {saving ? "Salvataggio..." : editId ? "Salva modifiche" : "Crea spesa"}
-              </button>
-              <button onClick={() => { setShowForm(false); resetForm(); }}
-                className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+              </Btn>
+              <Btn variant="ghost" size="md" onClick={() => { setShowForm(false); resetForm(); }}>
                 Annulla
-              </button>
+              </Btn>
             </div>
           </div>
         )}
@@ -1379,10 +1375,11 @@ export default function ControlloGestioneSpeseFisse() {
         ) : spese.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-neutral-400 text-sm">Nessuna spesa fissa trovata.</p>
-            <button onClick={() => setShowCreazione(true)}
-              className="mt-3 px-4 py-2 rounded-lg bg-sky-100 text-sky-700 text-sm font-medium hover:bg-sky-200">
-              + Aggiungi la prima spesa fissa
-            </button>
+            <div className="mt-3 flex justify-center">
+              <Btn variant="chip" tone="blue" size="md" onClick={() => setShowCreazione(true)}>
+                + Aggiungi la prima spesa fissa
+              </Btn>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden shadow-sm">

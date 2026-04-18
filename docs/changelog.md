@@ -3,6 +3,57 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #15 FINALE Controllo Gestione + Home + Login (2 pagine minimal, 5 già-pronte, 2 skippate)
+
+### Problema / contesto
+Quindicesimo e ULTIMO giro M.I. Chiude definitivamente il refactor di introduzione dei primitives `Btn`, `StatusBadge`, `EmptyState` in tutte le pagine del frontend. Cluster finale: i 7 file del modulo Controllo Gestione (di cui 2 già mattonati dal Wave 3 sessione 40 — Dashboard e Riconciliazione), la Home v9.1 Command Center e Login. Come previsto, Home e LoginForm.jsx sono stati skippati completamente: sono due surface fortemente bespoke (Home Command Center ha regole di design documentate in CLAUDE.md con shadow/radius/colori coordinati a MODULES_MENU; LoginForm è un tile-picker + pinpad mobile-first con avatar cerchio colorato per ruolo). Uscite e SpeseFisse, di dimensione considerevole (1663+2012 righe) e con numerosi pattern di filter chips bespoke, hanno ricevuto "minimal touch" solo sulle CTA più standard (header action, CTA modali footer).
+
+### Pagine toccate in questo batch
+
+**1. `controllo-gestione/ControlloGestioneUscite.jsx` — refactor v3.3-mattoni (1663 righe, tocco minimo)**
+- Header "Gestisci Spese Fisse" (indigo chip) → `<Btn variant="chip" tone="violet" size="sm">`.
+- Modale Stampa Batch footer: "Annulla" → `<Btn variant="ghost" size="sm">`, "Crea batch e stampa" → `<Btn variant="chip" tone="violet" size="sm" loading={batchSaving}>`.
+- Modale Modifica Scadenza footer: "Annulla" → `<Btn variant="ghost" size="sm">`, "Salva" → `<Btn variant="chip" tone="blue" size="sm" loading={savingScadenza}>`.
+- Lasciati bespoke: tutto il blocco sidebar filtri (stato multi-select chip, tipo segment control, periodo preset pills, searches), bulk bar principale (teal 600 Segna pagate, indigo 600 Stampa batch), pagination ‹›, fattura inline bar, scollega/riconcilia inline icons, modale riconciliazione (violet bespoke), stampa HTML template inline. Sono pattern troppo densi e con color logic stateful per essere assimilati ora.
+
+**2. `controllo-gestione/ControlloGestioneSpeseFisse.jsx` — refactor v2.1-mattoni (2012 righe, tocco minimo)**
+- Header "← Torna allo Scadenzario" (teal, condizionale) → `<Btn variant="chip" tone="emerald" size="sm">`.
+- Header "← Menu" → `<Btn variant="ghost" size="sm">`.
+- Header "+ Nuova Spesa" (sky 600 CTA) → `<Btn variant="chip" tone="blue" size="sm">`.
+- Form legacy footer: "Crea/Salva spesa" → `<Btn variant="chip" tone="blue" size="md" loading={saving}>`, "Annulla" → `<Btn variant="ghost" size="md">`.
+- Empty-state "Aggiungi la prima spesa fissa" (sky 100 CTA) → `<Btn variant="chip" tone="blue" size="md">`.
+- Lasciati bespoke: creazione wizard card grid (AFFITTO/PRESTITO/ASSICURAZIONE/TASSE/RATEIZZAZIONE/LIBERA), ogni wizard step (Avanti/Indietro, fonte fattura vs importo, ricalcola), tabella spese con azioni-riga (toggle attiva, piano rate, storico, adeguamento, modifica, elimina) e icone piccole, modali Adeguamento/PianoRate/StoricoRicalcoli/Banca con shadow 2xl e color-coded headers. Preserva il flow wizardato guidato che è il valore specifico di questa pagina.
+
+### Pagine già M.I-ready (nessuna modifica)
+- `ControlloGestioneDashboard.jsx` v1.2-mattoni — `EmptyState` applicato in sessione precedente (#42) per "Nessuna fattura nel periodo"/"Nessuna fattura categorizzata".
+- `ControlloGestioneRiconciliazione.jsx` v1.2-mattoni — `Btn` + `EmptyState` applicati in sessione precedente (#32) per CTA header/worklist/pane dettaglio.
+- `ControlloGestioneLiquidita.jsx` v1.1 — solo `<select>` + Recharts, zero `<button>` da convertire.
+- `ControlloGestioneNav.jsx` v2.0-uniformato — tab navigator con stato active/inactive bespoke coordinato ai moduli Dipendenti/Flussi/Clienti, nessuna conversione possibile senza rompere il pattern.
+- `ControlloGestioneConfronto.jsx` v1.1 — placeholder 20 righe "In sviluppo", nulla da convertire.
+
+### Pagine skippate (definitivo)
+- **`Home.jsx`** (509 righe, v9.1 Command Center responsive mobile) — layout 3-col `<lg:flex-col` con widget/alert/bacheca + pagina 2 moduli Originale Potenziato. CLAUDE.md sezione "Home v3.3 Originale Potenziato — Regole design (sessione 30)" documenta che le card moduli usano emoji+colori coordinati da `modulesMenu.js` con border-radius 14px, shadow `0 2px 10px rgba(0,0,0,.06)`, touch target ≥ 44pt/48pt. Le "card" non sono pulsanti: sono `<div onClick>` clickable che non tollerano il markup di `<button>` standard. Ogni azione rapida (`ADMIN_ACTIONS`), hero Prenotazioni, moduli con badge rosso assoluto hanno color/shadow custom + hover:scale-105 → convertire romperebbe identità visiva e swipe.
+- **`Login.jsx`** + **`components/LoginForm.jsx`** (294 righe totali) — tile utente colorato per ruolo (amber admin/cyan contabile/purple sommelier/rose sala/emerald chef/slate viewer) con avatar cerchio iniziali + pinpad numerico 3×4 con dot indicators e animazione shake errore. Il pinpad ha heights h-14 specifici mobile-first. I tile utente hanno `hover:scale-105` e border-2 colorato per ruolo, pattern estetico standalone. Convertire a `Btn` perderebbe avatar cerchio iniziali e le transizioni ruolo.
+
+### Bump versioni
+- `frontend/src/config/versions.jsx`:
+  - `controlloGestione`: 2.10 → **2.11**
+
+### Cosa rimane
+**Niente**. Il refactor M.I è completo. Le prossime pagine nuove nasceranno direttamente con `Btn`/`StatusBadge`/`EmptyState` dai componenti ui primitives, e le pagine skippate (Home, Login, InstanceDetail, TaskList, DashboardSala, Cucina*) restano bespoke per scelta progettuale — touch/mobile-first o design documentato in CLAUDE.md. Chi toccherà in futuro una di queste per ragioni diverse (bugfix, feature) potrà valutare caso per caso se è opportuno migrare.
+
+### Note design
+- `Btn` variants confermati robusti su tutti i contesti: `chip+tone={blue,violet,emerald,red,amber,sky}`, `ghost`, `secondary`, `dark`, `success`, `danger`, `primary`. `loading` prop usato coerentemente su azioni asincrone (saving, batchSaving, linking).
+- `StatusBadge`, `EmptyState`, `PageLayout` disponibili per uso futuro su pagine nuove.
+- M.I è ufficialmente chiuso. Le regole in CLAUDE.md sezione "Mattoni condivisi" → "M.I UI primitives" restano in vigore: ogni pagina nuova DEVE usarli, pagine esistenti restano com'erano.
+
+### Commit suggerito
+```
+./push.sh "batch #15 FINALE M.I primitives — CG Uscite+SpeseFisse minimal + skip Home/Login (refactor M.I chiuso)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #14 Clienti + Ricette + Prenotazioni + Tasks (11 pagine toccate, di cui 6 minimal, 2 skippate)
 
 ### Problema / contesto
