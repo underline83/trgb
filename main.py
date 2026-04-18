@@ -95,6 +95,9 @@ from app.routers import fattureincloud_router
 # TASK MANAGER — checklist ricorrenti + task singoli (ex-Cucina, rinominato Phase B sessione 46)
 from app.routers.tasks_router import router as tasks_router
 
+# CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
+from app.routers.bevande_router import router as bevande_router
+
 
 # Esegui le migrazioni PRIMA di creare l'app
 run_migrations()   # ✅ esegue le migrazioni su foodcost.db prima di creare l'app
@@ -283,6 +286,10 @@ app.include_router(fattureincloud_router.router)
 # TASK MANAGER — checklist ricorrenti + task singoli (ex-Cucina)
 # (usa DB dedicato app/data/tasks.sqlite3, inizializzato in tasks_router al primo import)
 app.include_router(tasks_router)
+
+# CARTA BEVANDE — sub-modulo Vini per sezioni statiche (Aperitivi, Birre, Distillati, …)
+# (usa DB dedicato app/data/bevande.sqlite3, inizializzato dalla migration 089)
+app.include_router(bevande_router)
 
 
 # ----------------------------------------

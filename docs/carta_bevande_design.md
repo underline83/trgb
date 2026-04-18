@@ -225,14 +225,15 @@ POST   /bevande/voci/reorder                              → body: {sezione_key
 POST   /bevande/voci/bulk-import                          → body: {sezione_key, rows:[{…}]} (per import da testo/CSV)
 ```
 
-### Export
+### Export (tutti staff, JWT obbligatorio)
 ```
 GET    /bevande/carta                       → HTML preview master (vini + altre sezioni attive in ordine)
-GET    /bevande/carta/pdf                   → PDF cliente
+GET    /bevande/carta/pdf                   → PDF cliente (prezzi, senza note interne)
 GET    /bevande/carta/pdf-staff             → PDF staff (include note_interne)
 GET    /bevande/carta/docx                  → DOCX editabile
 GET    /bevande/sezioni/{key}/preview       → HTML preview singola sezione (per l'editor)
 ```
+**Nota**: nessun endpoint pubblico. Differenza "PDF cliente" vs "PDF staff" è solo contenuto (prezzi/note), non autenticazione.
 
 ### Retro-compatibilità
 Gli endpoint `/vini/carta`, `/vini/carta/pdf`, `/vini/carta/docx`, `/vini/carta/pdf-staff` **restano** e continuano a restituire la sola carta vini (serve per link vecchi e per la card "Vini" dell'hub).
@@ -398,12 +399,15 @@ Tutto il modulo è mobile-aware fin dall'inizio (iPad + iPhone per editing in lo
 | Migrazione dati dal Word | Basso | Bulk-import da testo con parser tolerante. |
 | M.B PDF brand potrebbe rivoluzionare l'export | Medio | Accettato: quando arriverà, rifacciamo il renderer in un pomeriggio. Il DB resta. |
 
-## Decisioni aperte (da chiudere prima di partire col codice)
-1. **Multi-lingua?** La carta vecchia era solo IT. Tenere IT per MVP, predisporre `nome_en`, `descrizione_en` in Fase 2? → Proposta: **NO in MVP**, si aggiunge dopo se serve.
-2. **Pubblico o solo staff?** La carta vini ha un URL pubblico (`trgb.tregobbi.it/carta-vini`). Vogliamo un `carta-bevande` pubblico gemello? → Proposta: **SÌ**, stesso pattern, accessibile senza login.
-3. **Versioning automatico carta**: ok generare `v{YYYY}.{MM}.{seq}` dal timestamp? → Proposta: **SÌ**.
+## Decisioni chiuse (2026-04-19)
+1. **Multi-lingua**: **NO** in MVP. Solo italiano. Nessun campo `_en` né switch locale. Si valuterà in futuro se serve.
+2. **URL pubblico `/carta-bevande`**: **NO**. La Carta Bevande resta **solo staff** (JWT). Motivazione da approfondire con Marco. Gli endpoint export richiedono login come il resto del modulo Vini interno.
+3. **Versioning automatico**: **SÌ**. Footer PDF mostra `v{YYYY}.{MM}.{seq}` calcolato da `MAX(updated_at)` su `bevande_sezioni` + `bevande_voci` + aggiornamento carta vini.
 
-Tutte e tre sono conferme rapide da Marco prima della Fase 1.
+Conseguenze:
+- Nessuna rotta pubblica su FastAPI (niente `@router.get` senza `Depends(get_current_user)`).
+- Niente pagina pubblica su frontend (es. `/carta-bevande` route pubblica → non creata).
+- Il tab "Carta" nel menu Vini resta l'unico punto di accesso.
 
 ---
 

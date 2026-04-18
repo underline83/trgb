@@ -8,51 +8,53 @@
 ## FASE 0 — Design & docs (COMPLETATA 2026-04-19)
 - [x] `docs/carta_bevande_design.md` — design completo
 - [x] `docs/carta_bevande_todo.md` — questa checklist
-- [ ] Review di Marco su design doc
-- [ ] Chiusura decisioni aperte §10: multi-lingua, URL pubblico, versioning
+- [x] Review di Marco su design doc
+- [x] Chiusura decisioni aperte §10: multi-lingua NO, URL pubblico NO, versioning SÌ
 
 ---
 
-## FASE 1 — Backend fondazioni
+## FASE 1 — Backend fondazioni (COMPLETATA 2026-04-19)
 
 ### DB e migrazione
-- [ ] Creare `app/migrations/NNN_bevande_sqlite.py`
-- [ ] Migration: connessione/creazione `app/data/bevande.sqlite3`
-- [ ] Migration: `CREATE TABLE bevande_sezioni` (schema §2 design doc)
-- [ ] Migration: `CREATE TABLE bevande_voci` + indice `idx_bevande_voci_sezione`
-- [ ] Migration: seed 8 sezioni (aperitivi, birre, vini, amari_casa, amari_liquori, distillati, tisane, te) con `layout` di default
-- [ ] Migration: seed `schema_form` JSON per ogni sezione (mapping campi §2 design doc)
-- [ ] Aggiornare `docs/database.md` con schema nuovo DB
-- [ ] Aggiungere `bevande.sqlite3` e `bevande*.db-journal` a `.gitignore` (lezione runtime dirs)
-- [ ] Creare `app/data/bevande/` cartella placeholder se serve convenzione
+- [x] Creare `app/models/bevande_db.py` (schema init + seed + helper query)
+- [x] Creare `app/migrations/089_carta_bevande_init.py` (trigger migration idempotente)
+- [x] Migration: connessione/creazione `app/data/bevande.sqlite3`
+- [x] Migration: `CREATE TABLE bevande_sezioni` (schema §2 design doc)
+- [x] Migration: `CREATE TABLE bevande_voci` + indici `idx_bevande_voci_sezione` e `idx_bevande_voci_attivo`
+- [x] Migration: seed 8 sezioni (aperitivi, birre, vini, amari_casa, amari_liquori, distillati, tisane, te) con `layout` di default
+- [x] Migration: seed `schema_form` JSON per ogni sezione (mapping campi §2 design doc)
+- [x] `.gitignore` già copre `app/data/*.sqlite3` — nessuna modifica necessaria
+- [ ] Aggiornare `docs/database.md` con schema nuovo DB → differito a Fase 5
 
 ### Router `bevande_router.py`
-- [ ] Struttura base: import, router prefix `/bevande`, JWT helper
-- [ ] Helper DB connection per `bevande.sqlite3` (coerente con notifiche_service pattern)
+- [x] Struttura base: import, router prefix `/bevande`, JWT `Depends(get_current_user)`
+- [x] Helper DB via `get_bevande_conn()` in `bevande_db.py`
 
 #### Sezioni
-- [ ] `GET /bevande/sezioni/` — lista ordinata (filtra per ruolo)
-- [ ] `GET /bevande/sezioni/{key}` — dettaglio + schema_form
-- [ ] `PUT /bevande/sezioni/{key}` — aggiorna intro_html/ordine/attivo/layout/schema_form
-- [ ] `POST /bevande/sezioni/reorder` — riordino batch
+- [x] `GET /bevande/sezioni/` — lista ordinata + conteggi voci totali/attive per card hub
+- [x] `GET /bevande/sezioni/{key}` — dettaglio + schema_form parsato
+- [x] `PUT /bevande/sezioni/{key}` — aggiorna nome/intro_html/ordine/attivo/layout/schema_form
+- [x] `POST /bevande/sezioni/reorder` — riordino batch
 
 #### Voci
-- [ ] `GET /bevande/voci/?sezione=&attivo=&q=` — lista filtrata + ricerca su nome/produttore
-- [ ] `GET /bevande/voci/{id}` — dettaglio
-- [ ] `POST /bevande/voci/` — crea (valida sezione_key + campi required da schema_form)
-- [ ] `PUT /bevande/voci/{id}` — aggiorna
-- [ ] `DELETE /bevande/voci/{id}` — soft-delete default, `?hard=1` per admin
-- [ ] `POST /bevande/voci/reorder` — riordino batch per sezione
-- [ ] `POST /bevande/voci/bulk-import` — import righe preparate dal frontend
+- [x] `GET /bevande/voci/?sezione=&attivo=&q=` — lista filtrata + ricerca su nome/produttore/descrizione
+- [x] `GET /bevande/voci/{id}` — dettaglio
+- [x] `POST /bevande/voci/` — crea (valida sezione_key, blocca sezione 'vini' dinamica)
+- [x] `PUT /bevande/voci/{id}` — aggiorna (PATCH-like: solo campi forniti)
+- [x] `DELETE /bevande/voci/{id}` — soft-delete default, `?hard=1` solo admin/superadmin
+- [x] `POST /bevande/voci/reorder` — riordino batch (ordine = idx*10)
+- [x] `POST /bevande/voci/bulk-import` — import accodato (MAX(ordine)+10 progressivo)
 
 ### Permessi
-- [ ] Helper `require_carta_editor(user)` → admin/superadmin/sommelier
-- [ ] Helper `require_carta_reader(user)` → tutti tranne viewer
-- [ ] Applicare a ogni endpoint
+- [x] `_require_editor(user)` → admin/superadmin/sommelier (403 altrimenti)
+- [x] `_require_reader(user)` → tutti tranne viewer
+- [x] Applicato a ogni endpoint
 
 ### Registrazione
-- [ ] Importare e `include_router(bevande_router)` in `main.py`
-- [ ] Smoke test endpoint con curl locale (GET sezioni/ e POST voce)
+- [x] Importare e `include_router(bevande_router)` in `main.py`
+- [x] Syntax check (ast.parse) su tutti i file nuovi
+- [x] Smoke test locale: init_bevande_db idempotente + schema + indici + insert + count + version_timestamp — TUTTO OK
+- [ ] Smoke test endpoint dal VPS post-push (GET /bevande/sezioni/ e POST voce)
 
 ---
 
@@ -138,8 +140,8 @@
 ### Frontend punta al nuovo master
 - [ ] `CartaAnteprima.jsx` iframe `/bevande/carta`
 - [ ] Export buttons → `/bevande/carta/*`
-- [ ] Link pubblico `https://trgb.tregobbi.it/carta-bevande` (da confermare decisione §10.2)
 - [ ] `CartaVini.jsx` continua a puntare a `/vini/carta*` (immutata)
+- [ ] **NESSUN endpoint pubblico** (decisione Marco 2026-04-19): tutti export richiedono JWT
 
 ### Retro-compatibilità
 - [ ] Test: `/vini/carta` risponde ancora con solo la carta vini (link vecchi)
