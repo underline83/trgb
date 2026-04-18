@@ -1,4 +1,4 @@
-// @version: v1.2-clienti-dashboard
+// @version: v1.3-mattoni — M.I primitives (Btn/EmptyState) + bg-brand-cream
 // Dashboard CRM — statistiche clienti + prenotazioni, compleanni, top clienti
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
 import { buildWaLink, WA_TEMPLATES } from "../../utils/whatsapp";
+import { Btn, EmptyState } from "../../components/ui";
 
 export default function ClientiDashboard() {
   const navigate = useNavigate();
@@ -34,7 +35,16 @@ export default function ClientiDashboard() {
   if (!stats) return (
     <>
       <ClientiNav current="dashboard" />
-      <div className="p-12 text-center text-neutral-400">Nessun dato disponibile</div>
+      <div className="min-h-screen bg-brand-cream">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+          <EmptyState
+            icon="📊"
+            title="Nessun dato disponibile"
+            description="Ricarica la pagina o verifica la connessione al backend."
+            compact
+          />
+        </div>
+      </div>
     </>
   );
 
@@ -54,7 +64,7 @@ export default function ClientiDashboard() {
   return (
     <>
       <ClientiNav current="dashboard" />
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen bg-brand-cream">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
           <h1 className="text-2xl font-bold text-neutral-900 mb-6">📊 Dashboard Clienti</h1>
 
@@ -83,7 +93,7 @@ export default function ClientiDashboard() {
             <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-neutral-700 mb-4">🎂 Compleanni prossimi 7 giorni</h2>
               {stats.compleanni_prossimi?.length === 0 ? (
-                <p className="text-sm text-neutral-400">Nessun compleanno in arrivo</p>
+                <EmptyState icon="🎂" title="Nessun compleanno in arrivo" compact />
               ) : (
                 <div className="space-y-2">
                   {stats.compleanni_prossimi?.map((c) => {

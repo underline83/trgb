@@ -1,23 +1,24 @@
-// @version: v1.0-clienti-prenotazioni
+// @version: v1.1-mattoni — M.I primitives (Btn/StatusBadge/EmptyState) + bg-brand-cream
 // Vista globale prenotazioni con filtri, ricerca, paginazione
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 const PAGE_SIZE = 50;
 
-const STATI_COLORI = {
-  SEATED: "bg-emerald-100 text-emerald-700",
-  ARRIVED: "bg-emerald-100 text-emerald-700",
-  BILL: "bg-emerald-100 text-emerald-700",
-  LEFT: "bg-neutral-100 text-neutral-600",
-  RECORDED: "bg-sky-100 text-sky-700",
-  CANCELED: "bg-red-100 text-red-600",
-  NO_SHOW: "bg-amber-100 text-amber-700",
-  REFUSED: "bg-red-100 text-red-600",
-  REQUESTED: "bg-blue-100 text-blue-700",
-  PARTIALLY_ARRIVED: "bg-amber-100 text-amber-700",
+const STATO_TONE = {
+  SEATED: "success",
+  ARRIVED: "success",
+  BILL: "success",
+  LEFT: "neutral",
+  RECORDED: "info",
+  CANCELED: "danger",
+  NO_SHOW: "warning",
+  REFUSED: "danger",
+  REQUESTED: "brand",
+  PARTIALLY_ARRIVED: "warning",
 };
 
 const STATI_LABEL = {
@@ -89,7 +90,7 @@ export default function ClientiPrenotazioni() {
   return (
     <>
       <ClientiNav current="prenotazioni" />
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen bg-brand-cream">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           {/* Header + KPI */}
           <div className="flex items-center justify-between mb-4">
@@ -168,10 +169,11 @@ export default function ClientiPrenotazioni() {
                     className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
                 </div>
 
-                <button onClick={() => { setQ(""); setStato(""); setCanale(""); setDataDa(""); setDataA(""); }}
-                  className="w-full text-xs text-neutral-500 hover:text-neutral-700 transition py-1">
+                <Btn variant="ghost" size="sm"
+                  onClick={() => { setQ(""); setStato(""); setCanale(""); setDataDa(""); setDataA(""); }}
+                  className="w-full">
                   Resetta filtri
-                </button>
+                </Btn>
               </div>
             </div>
 
@@ -181,9 +183,12 @@ export default function ClientiPrenotazioni() {
                 {loading ? (
                   <div className="p-12 text-center text-neutral-400">Caricamento...</div>
                 ) : prenotazioni.length === 0 ? (
-                  <div className="p-12 text-center text-neutral-400">
-                    Nessuna prenotazione trovata. Importa da TheFork per iniziare!
-                  </div>
+                  <EmptyState
+                    icon="📅"
+                    title="Nessuna prenotazione trovata"
+                    description="Importa da TheFork o regola i filtri per iniziare."
+                    compact
+                  />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -223,9 +228,9 @@ export default function ClientiPrenotazioni() {
                             </td>
                             <td className="px-3 py-2.5 text-center font-medium">{p.pax}</td>
                             <td className="px-3 py-2.5">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATI_COLORI[p.stato] || "bg-neutral-100 text-neutral-600"}`}>
+                              <StatusBadge tone={STATO_TONE[p.stato] || "neutral"} size="sm">
                                 {STATI_LABEL[p.stato] || p.stato}
-                              </span>
+                              </StatusBadge>
                             </td>
                             <td className="px-3 py-2.5 text-xs text-neutral-600">{fmt(p.canale)}</td>
                             <td className="px-3 py-2.5 text-xs text-neutral-600">{fmt(p.tavolo)}</td>
@@ -244,15 +249,15 @@ export default function ClientiPrenotazioni() {
                 {/* PAGINAZIONE */}
                 {totalePagine > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 bg-neutral-50">
-                    <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition">
+                    <Btn variant="secondary" size="sm" disabled={offset === 0}
+                      onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
                       ← Precedente
-                    </button>
+                    </Btn>
                     <span className="text-xs text-neutral-500">Pagina {pagina} di {totalePagine}</span>
-                    <button disabled={offset + PAGE_SIZE >= totale} onClick={() => setOffset(offset + PAGE_SIZE)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-neutral-300 disabled:opacity-40 hover:bg-white transition">
+                    <Btn variant="secondary" size="sm" disabled={offset + PAGE_SIZE >= totale}
+                      onClick={() => setOffset(offset + PAGE_SIZE)}>
                       Successiva →
-                    </button>
+                    </Btn>
                   </div>
                 )}
               </div>

@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import CucinaNav from "./CucinaNav";
+import Nav from "./Nav";
 import { Btn } from "../../components/ui";
 
 const GIORNI = ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"];
@@ -58,7 +58,7 @@ function labelSettimana(isoLun) {
   return `${fmt(d1)} — ${fmt(d2)}`;
 }
 
-export default function CucinaAgendaSettimana() {
+export default function AgendaSettimana() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [dataInizio, setDataInizio] = useState(lunediDi(params.get("data_inizio") || oggiISO()));
@@ -68,7 +68,7 @@ export default function CucinaAgendaSettimana() {
 
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`${API_BASE}/cucina/agenda/settimana?data_inizio=${dataInizio}`)
+    apiFetch(`${API_BASE}/tasks/agenda/settimana?data_inizio=${dataInizio}`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -90,7 +90,7 @@ export default function CucinaAgendaSettimana() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="settimana" />
+      <Nav current="settimana" />
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
         {/* Controlli */}
@@ -161,7 +161,7 @@ export default function CucinaAgendaSettimana() {
                   >
                     {/* Header giorno */}
                     <button
-                      onClick={() => navigate(`/cucina/agenda?data=${g.data}`)}
+                      onClick={() => navigate(`/tasks/agenda?data=${g.data}`)}
                       className={
                         "w-full text-left p-2 rounded-lg mb-2 transition " +
                         (isToday
@@ -187,7 +187,7 @@ export default function CucinaAgendaSettimana() {
                           <div
                             key={i.id}
                             className="flex items-center gap-1.5 text-xs p-1.5 rounded bg-white border border-neutral-200 cursor-pointer hover:bg-red-50"
-                            onClick={() => navigate(`/cucina/instances/${i.id}`)}
+                            onClick={() => navigate(`/tasks/instances/${i.id}`)}
                             title={`${i.template_nome} — ${i.stato}`}
                           >
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATO_DOT[i.stato] || "bg-neutral-300"}`} />

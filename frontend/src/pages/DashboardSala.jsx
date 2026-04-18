@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v5.0 — Sala Operativa: 3 colonne (prenotazioni, bacheca, azioni)
+// @version: v5.1-mattoni — Sala Operativa con M.I primitive (Btn ghost su "Mostra tutti i moduli")
 // Dashboard per utenti sala — prenotazioni oggi, bacheca comunicazioni, azioni rapide
 
 import React, { useState } from "react";
@@ -8,6 +8,7 @@ import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
 import TrgbLoader from "../components/TrgbLoader";
 import MacellaioCard from "../components/widgets/MacellaioCard";
+import { Btn } from "../components/ui";
 
 /* ── Azioni disponibili per sala ── */
 const SALA_ACTIONS = [
@@ -282,12 +283,14 @@ export default function DashboardSala() {
             <div className="flex-1"></div>
 
             {/* Link home completa */}
-            <button
+            <Btn
+              variant="ghost"
+              size="sm"
               onClick={() => navigate("/?full=1")}
-              className="text-[12px] text-[#a8a49e] text-center lg:mt-2 flex-shrink-0"
+              className="lg:mt-2 flex-shrink-0"
             >
               Mostra tutti i moduli →
-            </button>
+            </Btn>
           </div>
         </div>
       </div>

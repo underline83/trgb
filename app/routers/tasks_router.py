@@ -1,16 +1,16 @@
-# @version: v1.0-cucina-router
+# @version: v1.1-tasks-router (ex-cucina, Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
-Router Cucina — TRGB Gestionale (MVP, sessione 41)
+Router Task Manager — TRGB Gestionale (ex-Cucina MVP sessione 41, rinominato Phase B sessione 46)
 
 Endpoint:
   Template (admin/superadmin/chef):
-    GET    /cucina/templates/            — lista template con filtri
-    GET    /cucina/templates/{id}        — dettaglio template + items
-    POST   /cucina/templates/            — crea template + items
-    PUT    /cucina/templates/{id}        — modifica template (items opzionale replace-all)
-    DELETE /cucina/templates/{id}        — elimina (cascade su items)
-    POST   /cucina/templates/{id}/duplica — duplica con items
+    GET    /tasks/templates/            — lista template con filtri
+    GET    /tasks/templates/{id}        — dettaglio template + items
+    POST   /tasks/templates/            — crea template + items
+    PUT    /tasks/templates/{id}        — modifica template (items opzionale replace-all)
+    DELETE /tasks/templates/{id}        — elimina (cascade su items)
+    POST   /tasks/templates/{id}/duplica — duplica con items
 
 (Agenda, instance, execution, task, scheduler negli Step 3-4.)
 
@@ -24,10 +24,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from datetime import date, datetime, timedelta
 
-from app.models.cucina_db import get_cucina_conn, init_cucina_db
+from app.models.tasks_db import get_tasks_conn, init_tasks_db
 from app.services.auth_service import get_current_user
-from app.services import cucina_scheduler
-from app.schemas.cucina_schema import (
+from app.services import tasks_scheduler
+from app.schemas.tasks_schema import (
     FREQUENZE, REPARTI, TURNI, ITEM_TIPI,
     INSTANCE_STATI, EXEC_STATI, TASK_STATI, TASK_PRIORITA,
     ChecklistItemIn, ChecklistItemOut,
@@ -39,9 +39,9 @@ from app.schemas.cucina_schema import (
 )
 
 # Inizializza DB al primo import
-init_cucina_db()
+init_tasks_db()
 
-router = APIRouter(prefix="/cucina", tags=["Cucina"])
+router = APIRouter(prefix="/tasks", tags=["Task Manager"])
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ def _insert_items(conn, template_id: int, items: List[ChecklistItemIn]) -> None:
         ))
 
 
-# ─── GET /cucina/templates/ ────────────────────────────────────────────
+# ─── GET /tasks/templates/ ────────────────────────────────────────────
 
 @router.get("/templates/")
 def list_templates(
@@ -173,7 +173,7 @@ def list_templates(
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY reparto, turno, nome"
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         rows = conn.execute(sql, params).fetchall()
         out = []
@@ -185,12 +185,12 @@ def list_templates(
         conn.close()
 
 
-# ─── GET /cucina/templates/{id} ────────────────────────────────────────
+# ─── GET /tasks/templates/{id} ────────────────────────────────────────
 
 @router.get("/templates/{tid}")
 def get_template(tid: int, user: dict = Depends(get_current_user)):
     _require_admin_or_chef(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT * FROM checklist_template WHERE id = ?", (tid,)
@@ -203,7 +203,7 @@ def get_template(tid: int, user: dict = Depends(get_current_user)):
         conn.close()
 
 
-# ─── POST /cucina/templates/ ───────────────────────────────────────────
+# ─── POST /tasks/templates/ ───────────────────────────────────────────
 
 @router.post("/templates/", status_code=201)
 def create_template(
@@ -213,7 +213,7 @@ def create_template(
     _require_admin(user)
     _validate_template_payload(payload.model_dump())
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         cur = conn.execute("""
             INSERT INTO checklist_template
@@ -240,7 +240,7 @@ def create_template(
         conn.close()
 
 
-# ─── PUT /cucina/templates/{id} ────────────────────────────────────────
+# ─── PUT /tasks/templates/{id} ────────────────────────────────────────
 
 @router.put("/templates/{tid}")
 def update_template(
@@ -250,7 +250,7 @@ def update_template(
 ):
     _require_admin(user)
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT * FROM checklist_template WHERE id = ?", (tid,)
@@ -295,12 +295,12 @@ def update_template(
         conn.close()
 
 
-# ─── DELETE /cucina/templates/{id} ─────────────────────────────────────
+# ─── DELETE /tasks/templates/{id} ─────────────────────────────────────
 
 @router.delete("/templates/{tid}")
 def delete_template(tid: int, user: dict = Depends(get_current_user)):
     _require_admin(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT id FROM checklist_template WHERE id = ?", (tid,)
@@ -315,12 +315,12 @@ def delete_template(tid: int, user: dict = Depends(get_current_user)):
         conn.close()
 
 
-# ─── POST /cucina/templates/{id}/duplica ───────────────────────────────
+# ─── POST /tasks/templates/{id}/duplica ───────────────────────────────
 
 @router.post("/templates/{tid}/duplica", status_code=201)
 def duplica_template(tid: int, user: dict = Depends(get_current_user)):
     _require_admin(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT * FROM checklist_template WHERE id = ?", (tid,)
@@ -468,7 +468,7 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
     ).model_dump()
 
 
-# ─── GET /cucina/agenda/ ───────────────────────────────────────────────
+# ─── GET /tasks/agenda/ ───────────────────────────────────────────────
 
 @router.get("/agenda/")
 def get_agenda_giornaliera(
@@ -483,17 +483,17 @@ def get_agenda_giornaliera(
 
     # Lazy: genera istanze del giorno + scadute (idempotente)
     try:
-        cucina_scheduler.genera_istanze_per_data(
-            get_cucina_conn().__enter__() if False else get_cucina_conn(),
+        tasks_scheduler.genera_istanze_per_data(
+            get_tasks_conn().__enter__() if False else get_tasks_conn(),
             date.fromisoformat(data_str),
         )
     except Exception:
         pass  # best-effort
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         # Aggiorna scadute
-        cucina_scheduler.check_scadenze(conn)
+        tasks_scheduler.check_scadenze(conn)
 
         # Fetch istanze per la data
         where = ["i.data_riferimento = ?"]
@@ -557,7 +557,7 @@ def get_agenda_giornaliera(
         conn.close()
 
 
-# ─── GET /cucina/agenda/settimana ──────────────────────────────────────
+# ─── GET /tasks/agenda/settimana ──────────────────────────────────────
 
 @router.get("/agenda/settimana")
 def get_agenda_settimana(
@@ -571,13 +571,13 @@ def get_agenda_settimana(
         raise HTTPException(400, "data_inizio non valida (YYYY-MM-DD)")
 
     rep = _normalize_reparto(reparto)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         giorni = []
         for i in range(7):
             d = d0 + timedelta(days=i)
             # Aggiorna scadute al volo
-            cucina_scheduler.check_scadenze(conn)
+            tasks_scheduler.check_scadenze(conn)
 
             inst_where = ["i.data_riferimento = ?"]
             inst_params = [d.isoformat()]
@@ -615,7 +615,7 @@ def get_agenda_settimana(
         conn.close()
 
 
-# ─── POST /cucina/agenda/genera ────────────────────────────────────────
+# ─── POST /tasks/agenda/genera ────────────────────────────────────────
 
 @router.post("/agenda/genera")
 def genera_istanze_range_endpoint(
@@ -633,21 +633,21 @@ def genera_istanze_range_endpoint(
     if (d2 - d1).days > 62:
         raise HTTPException(400, "Intervallo massimo 62 giorni")
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
-        created = cucina_scheduler.genera_istanze_range(conn, d1, d2)
+        created = tasks_scheduler.genera_istanze_range(conn, d1, d2)
         return {"ok": True, "created": created, "range": [d1.isoformat(), d2.isoformat()]}
     finally:
         conn.close()
 
 
-# ─── GET /cucina/instances/{id} ────────────────────────────────────────
+# ─── GET /tasks/instances/{id} ────────────────────────────────────────
 
 @router.get("/instances/{iid}")
 def get_instance(iid: int, user: dict = Depends(get_current_user)):
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
-        cucina_scheduler.check_scadenze(conn)
+        tasks_scheduler.check_scadenze(conn)
         inst = _fetch_instance(conn, iid)
         if not inst:
             raise HTTPException(404, "Istanza non trovata")
@@ -656,7 +656,7 @@ def get_instance(iid: int, user: dict = Depends(get_current_user)):
         conn.close()
 
 
-# ─── POST /cucina/instances/{id}/assegna ───────────────────────────────
+# ─── POST /tasks/instances/{id}/assegna ───────────────────────────────
 
 @router.post("/instances/{iid}/assegna")
 def assegna_instance(
@@ -664,7 +664,7 @@ def assegna_instance(
     payload: AssegnaInstanceIn,
     user: dict = Depends(get_current_user),
 ):
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
@@ -684,11 +684,11 @@ def assegna_instance(
         conn.close()
 
 
-# ─── POST /cucina/instances/{id}/completa ──────────────────────────────
+# ─── POST /tasks/instances/{id}/completa ──────────────────────────────
 
 @router.post("/instances/{iid}/completa")
 def completa_instance(iid: int, user: dict = Depends(get_current_user)):
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
@@ -698,7 +698,7 @@ def completa_instance(iid: int, user: dict = Depends(get_current_user)):
         if row["stato"] in ("COMPLETATA", "SALTATA"):
             raise HTTPException(400, f"Istanza gia' {row['stato']}")
 
-        score = cucina_scheduler.calcola_score_compliance(conn, iid)
+        score = tasks_scheduler.calcola_score_compliance(conn, iid)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn.execute("""
             UPDATE checklist_instance
@@ -714,7 +714,7 @@ def completa_instance(iid: int, user: dict = Depends(get_current_user)):
         conn.close()
 
 
-# ─── POST /cucina/instances/{id}/salta ─────────────────────────────────
+# ─── POST /tasks/instances/{id}/salta ─────────────────────────────────
 
 @router.post("/instances/{iid}/salta")
 def salta_instance(
@@ -723,7 +723,7 @@ def salta_instance(
     user: dict = Depends(get_current_user),
 ):
     _require_admin_or_chef(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT id, stato FROM checklist_instance WHERE id = ?", (iid,)
@@ -748,7 +748,7 @@ def salta_instance(
         conn.close()
 
 
-# ─── POST /cucina/execution/item/{item_id}/check ───────────────────────
+# ─── POST /tasks/execution/item/{item_id}/check ───────────────────────
 
 @router.post("/execution/item/{item_id}/check")
 def check_item(
@@ -759,7 +759,7 @@ def check_item(
     if payload.stato not in ("OK", "FAIL", "SKIPPED"):
         raise HTTPException(400, f"stato non valido: {payload.stato}. Usa OK/FAIL/SKIPPED")
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         inst = conn.execute(
             "SELECT id, stato, template_id FROM checklist_instance WHERE id = ?",
@@ -826,13 +826,13 @@ def check_item(
 def scheduler_genera_giornaliere(user: dict = Depends(get_current_user)):
     """Genera le istanze di oggi e di domani (idempotente)."""
     _require_admin(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         today = date.today()
-        created = cucina_scheduler.genera_istanze_range(
+        created = tasks_scheduler.genera_istanze_range(
             conn, today, today + timedelta(days=1)
         )
-        scaduted = cucina_scheduler.check_scadenze(conn)
+        scaduted = tasks_scheduler.check_scadenze(conn)
         return {"ok": True, "created": created, "marked_scaduta": scaduted}
     finally:
         conn.close()
@@ -842,9 +842,9 @@ def scheduler_genera_giornaliere(user: dict = Depends(get_current_user)):
 def scheduler_check_scadute(user: dict = Depends(get_current_user)):
     """Marca SCADUTE le istanze con scadenza_at oltrepassata."""
     _require_admin_or_chef(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
-        n = cucina_scheduler.check_scadenze(conn)
+        n = tasks_scheduler.check_scadenze(conn)
         return {"ok": True, "marked_scaduta": n}
     finally:
         conn.close()
@@ -896,7 +896,7 @@ def _task_auto_scadenza(conn) -> None:
     conn.commit()
 
 
-# ─── GET /cucina/tasks/ ────────────────────────────────────────────────
+# ─── GET /tasks/tasks/ ────────────────────────────────────────────────
 
 @router.get("/tasks/")
 def list_tasks(
@@ -906,7 +906,7 @@ def list_tasks(
     reparto: Optional[str] = Query(None, description="filtra per reparto (lowercase)"),
     user: dict = Depends(get_current_user),
 ):
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         _task_auto_scadenza(conn)
 
@@ -954,7 +954,7 @@ def list_tasks(
         conn.close()
 
 
-# ─── POST /cucina/tasks/ ───────────────────────────────────────────────
+# ─── POST /tasks/tasks/ ───────────────────────────────────────────────
 
 @router.post("/tasks/", status_code=201)
 def create_task(
@@ -967,7 +967,7 @@ def create_task(
     if rep not in REPARTI:
         raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         cur = conn.execute("""
             INSERT INTO task_singolo
@@ -995,7 +995,7 @@ def create_task(
         conn.close()
 
 
-# ─── PUT /cucina/tasks/{id} ────────────────────────────────────────────
+# ─── PUT /tasks/tasks/{id} ────────────────────────────────────────────
 
 @router.put("/tasks/{tid}")
 def update_task(
@@ -1017,7 +1017,7 @@ def update_task(
             raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
         data["reparto"] = rep or "cucina"
 
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute("SELECT id, stato FROM task_singolo WHERE id = ?", (tid,)).fetchone()
         if not row:
@@ -1036,7 +1036,7 @@ def update_task(
         conn.close()
 
 
-# ─── POST /cucina/tasks/{id}/completa ──────────────────────────────────
+# ─── POST /tasks/tasks/{id}/completa ──────────────────────────────────
 
 @router.post("/tasks/{tid}/completa")
 def completa_task(
@@ -1044,7 +1044,7 @@ def completa_task(
     payload: CompletaTaskIn,
     user: dict = Depends(get_current_user),
 ):
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute(
             "SELECT id, stato FROM task_singolo WHERE id = ?", (tid,)
@@ -1073,12 +1073,12 @@ def completa_task(
         conn.close()
 
 
-# ─── DELETE /cucina/tasks/{id} ─────────────────────────────────────────
+# ─── DELETE /tasks/tasks/{id} ─────────────────────────────────────────
 
 @router.delete("/tasks/{tid}")
 def delete_task(tid: int, user: dict = Depends(get_current_user)):
     _require_admin_or_chef(user)
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     try:
         row = conn.execute("SELECT id FROM task_singolo WHERE id = ?", (tid,)).fetchone()
         if not row:

@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import CucinaNav from "./CucinaNav";
+import Nav from "./Nav";
 import { Btn, EmptyState } from "../../components/ui";
 
 function oggiISO() {
@@ -14,7 +14,7 @@ function oggiISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function CucinaHome() {
+export default function TasksHome() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role") || "";
   const isAdminOrChef = ["admin", "superadmin", "chef"].includes(role);
@@ -31,8 +31,8 @@ export default function CucinaHome() {
     const oggi = oggiISO();
 
     Promise.allSettled([
-      apiFetch(`${API_BASE}/cucina/agenda/?data=${oggi}`).then(r => r.json()),
-      apiFetch(`${API_BASE}/cucina/tasks/`).then(r => r.json()),
+      apiFetch(`${API_BASE}/tasks/agenda/?data=${oggi}`).then(r => r.json()),
+      apiFetch(`${API_BASE}/tasks/tasks/`).then(r => r.json()),
     ])
       .then(([rAg, rTk]) => {
         if (!alive) return;
@@ -64,13 +64,13 @@ export default function CucinaHome() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="home" />
+      <Nav current="home" />
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-red-900 font-playfair">
-            Cucina — Dashboard
+            Task Manager — Dashboard
           </h1>
           <p className="text-sm text-neutral-600 mt-1">
             Checklist giornaliere, task operativi e agenda settimanale.
@@ -87,7 +87,7 @@ export default function CucinaHome() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Agenda oggi */}
           <button
-            onClick={() => navigate("/cucina/agenda")}
+            onClick={() => navigate("/tasks/agenda")}
             className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition min-h-[140px]"
           >
             <div className="flex items-center justify-between mb-2">
@@ -117,7 +117,7 @@ export default function CucinaHome() {
 
           {/* Settimana */}
           <button
-            onClick={() => navigate("/cucina/agenda/settimana")}
+            onClick={() => navigate("/tasks/agenda/settimana")}
             className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition min-h-[140px]"
           >
             <div className="flex items-center justify-between mb-2">
@@ -136,7 +136,7 @@ export default function CucinaHome() {
 
           {/* Task */}
           <button
-            onClick={() => navigate("/cucina/tasks")}
+            onClick={() => navigate("/tasks/tasks")}
             className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition min-h-[140px]"
           >
             <div className="flex items-center justify-between mb-2">
@@ -172,7 +172,7 @@ export default function CucinaHome() {
           {/* Template (solo admin/chef) */}
           {isAdminOrChef && (
             <button
-              onClick={() => navigate("/cucina/templates")}
+              onClick={() => navigate("/tasks/templates")}
               className="bg-white border border-red-200 rounded-2xl shadow-sm p-5 text-left hover:shadow-md transition min-h-[140px]"
             >
               <div className="flex items-center justify-between mb-2">
@@ -206,7 +206,7 @@ export default function CucinaHome() {
                   {bucket.instances.map(inst => (
                     <button
                       key={inst.id}
-                      onClick={() => navigate(`/cucina/instances/${inst.id}`)}
+                      onClick={() => navigate(`/tasks/instances/${inst.id}`)}
                       className="w-full flex items-center justify-between text-left p-3 rounded-lg border border-neutral-200 hover:bg-red-50 transition min-h-[48px]"
                     >
                       <div className="flex items-center gap-3">
@@ -262,7 +262,7 @@ export default function CucinaHome() {
               ? "Attiva uno dei template seed da Configurazione → Template."
               : "Chiedi a un responsabile di attivare i template."}
             action={isAdminOrChef ? (
-              <Btn variant="danger" size="md" onClick={() => navigate("/cucina/templates")}>
+              <Btn variant="danger" size="md" onClick={() => navigate("/tasks/templates")}>
                 Vai ai Template
               </Btn>
             ) : null}

@@ -15,7 +15,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import useToast from "../../hooks/useToast";
-import CucinaNav from "./CucinaNav";
+import Nav from "./Nav";
 
 // ───────────────────────────────────────────────────────────────────
 // Utilities
@@ -50,7 +50,7 @@ function avatarColorByUser(_u) {
 // Component principale
 // ───────────────────────────────────────────────────────────────────
 
-export default function CucinaInstanceDetail() {
+export default function InstanceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -72,7 +72,7 @@ export default function CucinaInstanceDetail() {
 
   const load = useCallback(() => {
     setLoading(true);
-    apiFetch(`${API_BASE}/cucina/instances/${id}`)
+    apiFetch(`${API_BASE}/tasks/instances/${id}`)
       .then(r => {
         if (r.status === 404) throw new Error("Istanza non trovata");
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -92,7 +92,7 @@ export default function CucinaInstanceDetail() {
   const doCheck = async (itemId, stato, valore_numerico, valore_testo, note) => {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/execution/item/${itemId}/check`, {
+      const res = await apiFetch(`${API_BASE}/tasks/execution/item/${itemId}/check`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -129,7 +129,7 @@ export default function CucinaInstanceDetail() {
           await doCheck(it.item_id, "SKIPPED", null, null, null);
         }
       }
-      const res = await apiFetch(`${API_BASE}/cucina/instances/${id}/completa`, { method: "POST" });
+      const res = await apiFetch(`${API_BASE}/tasks/instances/${id}/completa`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
@@ -147,7 +147,7 @@ export default function CucinaInstanceDetail() {
   const doSalta = async (motivo) => {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/instances/${id}/salta`, {
+      const res = await apiFetch(`${API_BASE}/tasks/instances/${id}/salta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ motivo }),
@@ -169,7 +169,7 @@ export default function CucinaInstanceDetail() {
   const doAssegna = async (username) => {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/instances/${id}/assegna`, {
+      const res = await apiFetch(`${API_BASE}/tasks/instances/${id}/assegna`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user: username }),
@@ -274,7 +274,7 @@ export default function CucinaInstanceDetail() {
   if (loading && !inst) {
     return (
       <div className="min-h-screen bg-brand-cream font-sans">
-        <CucinaNav current="agenda" />
+        <Nav current="agenda" />
         <div className="max-w-3xl mx-auto p-6 text-center text-neutral-500">Caricamento...</div>
       </div>
     );
@@ -283,12 +283,12 @@ export default function CucinaInstanceDetail() {
   if (errorBanner && !inst) {
     return (
       <div className="min-h-screen bg-brand-cream font-sans">
-        <CucinaNav current="agenda" />
+        <Nav current="agenda" />
         <div className="max-w-3xl mx-auto p-6">
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
             {errorBanner}
           </div>
-          <button onClick={() => navigate("/cucina/agenda")} className="mt-4 text-red-700 hover:underline">
+          <button onClick={() => navigate("/tasks/agenda")} className="mt-4 text-red-700 hover:underline">
             ← Torna all'agenda
           </button>
         </div>
@@ -307,16 +307,16 @@ export default function CucinaInstanceDetail() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="agenda" />
+      <Nav current="agenda" />
 
       {/* wrapper con padding-bottom per compensare la footbar */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-4 pb-32">
 
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-neutral-500 mb-3">
-          <Link to="/cucina" className="hover:text-brand-ink">Cucina</Link>
+          <Link to="/tasks" className="hover:text-brand-ink">Task Manager</Link>
           <span className="opacity-40">›</span>
-          <Link to="/cucina/agenda" className="hover:text-brand-ink">Agenda oggi</Link>
+          <Link to="/tasks/agenda" className="hover:text-brand-ink">Agenda oggi</Link>
           <span className="opacity-40">›</span>
           <span className="text-brand-ink font-semibold truncate">{inst.template_nome}</span>
         </nav>

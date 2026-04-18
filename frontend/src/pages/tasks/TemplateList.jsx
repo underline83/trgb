@@ -1,17 +1,17 @@
-// @version: v1.1-mattoni — M.I primitives (Btn, StatusBadge, EmptyState)
-// Lista template checklist (MVP, sessione 41) — solo admin/chef
+// @version: v1.2-tasks-rename — Phase B cleanup REPARTI hardcoded + rinomina modulo
+// Lista template checklist (ex-Cucina, sessione 41) — solo admin/chef
 // Filtri reparto/turno/attivo. Azioni: modifica, duplica, elimina, toggle attivo.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
-import CucinaNav from "./CucinaNav";
+import { REPARTI } from "../../config/reparti";
+import Nav from "./Nav";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
-const REPARTI = ["CUCINA", "BAR", "SALA", "ALTRO"];
 const TURNI = ["APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"];
 
-export default function CucinaTemplateList() {
+export default function TemplateList() {
   const navigate = useNavigate();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,8 +28,8 @@ export default function CucinaTemplateList() {
     if (fTurno) qs.set("turno", fTurno);
     if (fAttivo !== "") qs.set("attivo", fAttivo);
     const url = qs.toString()
-      ? `${API_BASE}/cucina/templates/?${qs.toString()}`
-      : `${API_BASE}/cucina/templates/`;
+      ? `${API_BASE}/tasks/templates/?${qs.toString()}`
+      : `${API_BASE}/tasks/templates/`;
     apiFetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -46,7 +46,7 @@ export default function CucinaTemplateList() {
     setSaving(t.id);
     setError("");
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/templates/${t.id}`, {
+      const res = await apiFetch(`${API_BASE}/tasks/templates/${t.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attivo: !t.attivo }),
@@ -67,7 +67,7 @@ export default function CucinaTemplateList() {
     setSaving(t.id);
     setError("");
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/templates/${t.id}/duplica`, {
+      const res = await apiFetch(`${API_BASE}/tasks/templates/${t.id}/duplica`, {
         method: "POST",
       });
       if (!res.ok) {
@@ -89,7 +89,7 @@ export default function CucinaTemplateList() {
     setSaving(t.id);
     setError("");
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/templates/${t.id}`, {
+      const res = await apiFetch(`${API_BASE}/tasks/templates/${t.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -113,7 +113,7 @@ export default function CucinaTemplateList() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="templates" />
+      <Nav current="templates" />
 
       <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
         {/* Header + nuovo */}
@@ -124,7 +124,7 @@ export default function CucinaTemplateList() {
               Crea, attiva e modifica i template. Le istanze si generano automaticamente ogni giorno.
             </p>
           </div>
-          <Btn variant="danger" size="lg" onClick={() => navigate("/cucina/templates/nuovo")}>
+          <Btn variant="danger" size="lg" onClick={() => navigate("/tasks/templates/nuovo")}>
             + Nuovo template
           </Btn>
         </div>
@@ -139,7 +139,11 @@ export default function CucinaTemplateList() {
               className="border rounded-lg px-3 py-2 min-h-[40px]"
             >
               <option value="">Tutti</option>
-              {REPARTI.map(r => <option key={r} value={r}>{r}</option>)}
+              {REPARTI.map(r => (
+                <option key={r.key} value={r.key}>
+                  {r.icon} {r.label}
+                </option>
+              ))}
             </select>
             <label className="text-sm text-neutral-600">Turno:</label>
             <select
@@ -182,7 +186,7 @@ export default function CucinaTemplateList() {
             title="Nessun template"
             description="Crea il tuo primo template per iniziare."
             action={
-              <Btn variant="danger" size="md" onClick={() => navigate("/cucina/templates/nuovo")}>
+              <Btn variant="danger" size="md" onClick={() => navigate("/tasks/templates/nuovo")}>
                 + Nuovo template
               </Btn>
             }
@@ -222,7 +226,7 @@ export default function CucinaTemplateList() {
                         Attiva
                       </Btn>
                     )}
-                    <Btn variant="chip" tone="red" size="md" onClick={() => navigate(`/cucina/templates/${t.id}`)} disabled={saving === t.id}>
+                    <Btn variant="chip" tone="red" size="md" onClick={() => navigate(`/tasks/templates/${t.id}`)} disabled={saving === t.id}>
                       Modifica
                     </Btn>
                     <Btn variant="secondary" size="md" onClick={() => duplica(t)} disabled={saving === t.id} loading={saving === t.id} title="Duplica con suffisso (copia)">

@@ -1,11 +1,12 @@
 // src/pages/vini/RegistroMovimenti.jsx
-// @version: v1.1-modifica
+// @version: v1.2-mattoni — M.I primitives (Btn) su CTA filtri/paginazione/accesso negato
 // Registro globale movimenti cantina — visibile solo admin
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ViniNav from "./ViniNav";
+import { Btn } from "../../components/ui";
 
 const TIPO_LABELS = {
   CARICO:    { label: "Carico",    icon: "⬆️", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -73,10 +74,11 @@ export default function RegistroMovimenti() {
           <div className="text-5xl mb-4">🔒</div>
           <h1 className="text-xl font-bold text-neutral-800 mb-2">Accesso negato</h1>
           <p className="text-neutral-600 text-sm">Questa sezione è riservata agli amministratori.</p>
-          <button type="button" onClick={() => navigate("/vini/magazzino")}
-            className="mt-6 px-5 py-2 rounded-xl text-sm font-semibold bg-amber-700 text-white hover:bg-amber-800 transition">
-            ← Torna alla Cantina
-          </button>
+          <div className="mt-6 flex justify-center">
+            <Btn variant="primary" size="md" onClick={() => navigate("/vini/magazzino")}>
+              ← Torna alla Cantina
+            </Btn>
+          </div>
         </div>
       </div>
     );
@@ -99,10 +101,9 @@ export default function RegistroMovimenti() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => navigate("/vini/magazzino")}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+            <Btn variant="secondary" size="md" onClick={() => navigate("/vini/magazzino")}>
               ← Cantina
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -136,19 +137,14 @@ export default function RegistroMovimenti() {
               {total} moviment{total === 1 ? "o" : "i"} trovat{total === 1 ? "o" : "i"}
             </span>
             <div className="flex gap-2">
-              <button type="button" onClick={() => {
+              <Btn variant="secondary" size="sm" onClick={() => {
                 setTipoFiltro(""); setTextFiltro(""); setDataDa(""); setDataA("");
-              }}
-                className="px-4 py-1.5 rounded-lg text-xs font-semibold border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-100 transition">
+              }}>
                 ✕ Pulisci filtri
-              </button>
-              <button type="button" onClick={() => fetchData(0)}
-                disabled={loading}
-                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  loading ? "bg-gray-300 text-gray-500" : "bg-amber-700 text-white hover:bg-amber-800"
-                }`}>
-                {loading ? "Carico…" : "⟳ Aggiorna"}
-              </button>
+              </Btn>
+              <Btn variant="primary" size="sm" onClick={() => fetchData(0)} disabled={loading} loading={loading}>
+                ⟳ Aggiorna
+              </Btn>
             </div>
           </div>
         </div>
@@ -219,17 +215,15 @@ export default function RegistroMovimenti() {
         {/* PAGINAZIONE */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-4">
-            <button type="button" onClick={() => fetchData(page - 1)} disabled={page === 0}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition disabled:opacity-40">
+            <Btn variant="secondary" size="md" onClick={() => fetchData(page - 1)} disabled={page === 0}>
               ← Precedente
-            </button>
+            </Btn>
             <span className="text-xs text-neutral-500">
               Pagina {page + 1} di {totalPages}
             </span>
-            <button type="button" onClick={() => fetchData(page + 1)} disabled={page >= totalPages - 1}
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition disabled:opacity-40">
+            <Btn variant="secondary" size="md" onClick={() => fetchData(page + 1)} disabled={page >= totalPages - 1}>
               Successiva →
-            </button>
+            </Btn>
           </div>
         )}
 

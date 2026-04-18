@@ -104,14 +104,14 @@ const MODULES_MENU = {
       { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },
     ],
   },
-  cucina: {
-    title: "Cucina", icon: "\uD83C\uDF73", go: "/cucina",
-    color: "bg-red-50 border-red-200 text-red-900", hoverBg: "hover:bg-red-50",
+  tasks: {
+    title: "Task Manager", icon: "\uD83D\uDCCB", go: "/tasks",
+    color: "bg-indigo-50 border-indigo-200 text-indigo-900", hoverBg: "hover:bg-indigo-50",
     sub: [
-      { label: "Agenda giornaliera", go: "/cucina/agenda" },
-      { label: "Agenda settimana",   go: "/cucina/agenda/settimana" },
-      { label: "Task",               go: "/cucina/tasks" },
-      { label: "Template",           go: "/cucina/templates", check: "admin" },
+      { label: "Agenda giornaliera", go: "/tasks/agenda" },
+      { label: "Agenda settimana",   go: "/tasks/agenda/settimana" },
+      { label: "Task",               go: "/tasks/tasks" },
+      { label: "Template",           go: "/tasks/templates", check: "admin" },
     ],
   },
   dipendenti: {

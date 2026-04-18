@@ -98,10 +98,10 @@
     ]
   },
   {
-    "key": "cucina",
-    "label": "Cucina",
-    "description": "Checklist ricorrenti (apertura/chiusura/HACCP) e task operativi",
-    "icon": "🍳",
+    "key": "tasks",
+    "label": "Task Manager",
+    "description": "Task operativi multi-reparto + checklist ricorrenti (apertura/chiusura/HACCP)",
+    "icon": "📋",
     "roles": ["superadmin", "admin", "chef", "sala", "viewer"],
     "sub": [
       { "key": "agenda",    "label": "Agenda",    "roles": ["superadmin", "admin", "chef", "sala", "viewer"] },

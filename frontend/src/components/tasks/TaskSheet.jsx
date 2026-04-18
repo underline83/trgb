@@ -100,7 +100,7 @@ export default function TaskSheet({ task, onClose, onRefresh, canDelete, onEdit 
   async function mutateStato(stato) {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${task.id}`, {
+      const res = await apiFetch(`${API_BASE}/tasks/tasks/${task.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stato }),
@@ -126,7 +126,7 @@ export default function TaskSheet({ task, onClose, onRefresh, canDelete, onEdit 
   async function completaConNote(note) {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${task.id}/completa`, {
+      const res = await apiFetch(`${API_BASE}/tasks/tasks/${task.id}/completa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note_completamento: (note || "").trim() || null }),
@@ -152,7 +152,7 @@ export default function TaskSheet({ task, onClose, onRefresh, canDelete, onEdit 
   async function eliminaConfirmed() {
     setSaving(true);
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${task.id}`, { method: "DELETE" });
+      const res = await apiFetch(`${API_BASE}/tasks/tasks/${task.id}`, { method: "DELETE" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);

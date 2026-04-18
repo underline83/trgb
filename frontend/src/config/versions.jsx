@@ -74,9 +74,9 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
-  cucina: {
-    version: "1.0",
-    label: "Cucina",
+  tasks: {
+    version: "1.1",
+    label: "Task Manager",
     status: "beta",
     color: "blue",
   },

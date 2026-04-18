@@ -1,7 +1,7 @@
-# @version: v1.0-cucina-db
+# @version: v1.1-tasks-db (ex-cucina, rinominato Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
-Database Cucina — TRGB Gestionale (modulo Cucina MVP, sessione 41)
+Database Task Manager — TRGB Gestionale (ex-modulo Cucina MVP, sessione 41 → Phase B sessione 46)
 
 Contiene:
 - checklist_template        — template ricorrenti (apertura/chiusura/HACCP)
@@ -9,10 +9,11 @@ Contiene:
 - checklist_instance        — istanza giornaliera generata dallo scheduler
 - checklist_execution       — esecuzione tap-to-complete di una singola voce
 - task_singolo              — task non ricorrente (personal todo / assegnato)
-- cucina_alert_log          — scaffold V1 (lasciato vuoto in MVP)
+- task_alert_log            — scaffold V1 (ex-cucina_alert_log)
 
-DB separato: app/data/cucina.sqlite3
-La creazione delle tabelle e' gestita dalla migrazione 084_cucina_mvp.py.
+DB separato: app/data/tasks.sqlite3 (ex app/data/cucina.sqlite3, rinominato
+dalla migrazione 086_rename_cucina_to_tasks.py).
+La creazione delle tabelle e' gestita dalla migrazione 084_cucina_mvp.py (storica).
 Qui abbiamo un init difensivo (CREATE IF NOT EXISTS) usato al boot
 per garantire che il DB sia pronto anche su ambienti freschi.
 """
@@ -24,22 +25,22 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "app" / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DB_PATH = DATA_DIR / "cucina.sqlite3"
+DB_PATH = DATA_DIR / "tasks.sqlite3"
 
 
-def get_cucina_conn() -> sqlite3.Connection:
+def get_tasks_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
-def init_cucina_db() -> None:
+def init_tasks_db() -> None:
     """
     Init difensivo al boot: CREATE TABLE IF NOT EXISTS per tutte le tabelle.
     La migrazione 084 fa lo stesso + seed, questo e' un safety net.
     """
-    conn = get_cucina_conn()
+    conn = get_tasks_conn()
     cur = conn.cursor()
 
     cur.execute("""
@@ -133,7 +134,7 @@ def init_cucina_db() -> None:
     """)
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS cucina_alert_log (
+        CREATE TABLE IF NOT EXISTS task_alert_log (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             instance_id         INTEGER,
             task_id             INTEGER,
@@ -158,8 +159,8 @@ def init_cucina_db() -> None:
     cur.execute("CREATE INDEX IF NOT EXISTS idx_task_data ON task_singolo(data_scadenza)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_task_user ON task_singolo(assegnato_user)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_task_stato ON task_singolo(stato)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_alertlog_inst ON cucina_alert_log(instance_id)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_alertlog_task ON cucina_alert_log(task_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_alertlog_inst ON task_alert_log(instance_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_alertlog_task ON task_alert_log(task_id)")
 
     conn.commit()
     conn.close()

@@ -2,7 +2,7 @@
 // - Mobile (<sm): bottom-tab bar iOS-style + optional top-title bar.
 // - sm+: top-nav orizzontale (come nella versione MVP).
 //
-// Il componente expose `<CucinaNav current="..." />` identico al vecchio
+// Il componente expose `<Nav current="..." />` identico al vecchio
 // contract: current ∈ home | agenda | settimana | tasks | templates.
 //
 // Path: il file vive in pages/cucina/ per backward-compat con 7 pagine
@@ -15,18 +15,18 @@ import { VersionBadge } from "../../config/versions";
 
 // Voci "pane" navigazione top (sm+)
 const ITEMS_TOP = [
-  { key: "home",      label: "Home",      to: "/cucina",                   icon: "🍳" },
-  { key: "agenda",    label: "Agenda",    to: "/cucina/agenda",            icon: "📋" },
-  { key: "settimana", label: "Settimana", to: "/cucina/agenda/settimana",  icon: "🗓️" },
-  { key: "tasks",     label: "Task",      to: "/cucina/tasks",             icon: "✅" },
-  { key: "templates", label: "Template",  to: "/cucina/templates",         icon: "🧩", adminOnly: true },
+  { key: "home",      label: "Home",      to: "/tasks",                   icon: "🍳" },
+  { key: "agenda",    label: "Agenda",    to: "/tasks/agenda",            icon: "📋" },
+  { key: "settimana", label: "Settimana", to: "/tasks/agenda/settimana",  icon: "🗓️" },
+  { key: "tasks",     label: "Task",      to: "/tasks/tasks",             icon: "✅" },
+  { key: "templates", label: "Template",  to: "/tasks/templates",         icon: "🧩", adminOnly: true },
 ];
 
 // Tab bar mobile (<sm) — 4 slot max iOS-style
 const TABS_MOBILE = [
-  { key: "agenda",    label: "Oggi",      to: "/cucina/agenda",           icon: "🍳" },
-  { key: "settimana", label: "Settimana", to: "/cucina/agenda/settimana", icon: "📅" },
-  { key: "tasks",     label: "Task",      to: "/cucina/tasks",            icon: "✅" },
+  { key: "agenda",    label: "Oggi",      to: "/tasks/agenda",           icon: "🍳" },
+  { key: "settimana", label: "Settimana", to: "/tasks/agenda/settimana", icon: "📅" },
+  { key: "tasks",     label: "Task",      to: "/tasks/tasks",            icon: "✅" },
   { key: "menu",      label: "Menu",      to: null,                       icon: "⋯" }, // apre sheet
 ];
 
@@ -34,7 +34,7 @@ function isAdminLike(role) {
   return role === "admin" || role === "superadmin" || role === "chef";
 }
 
-export default function CucinaNav({ current = "home" }) {
+export default function Nav({ current = "home" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const role = typeof localStorage !== "undefined" ? localStorage.getItem("role") || "" : "";
@@ -61,10 +61,10 @@ export default function CucinaNav({ current = "home" }) {
             >
               ←
             </button>
-            <Link to="/cucina" className="flex items-center gap-2">
+            <Link to="/tasks" className="flex items-center gap-2">
               <span className="text-2xl">🍳</span>
-              <span className="font-playfair font-bold text-lg text-brand-red">Cucina</span>
-              <VersionBadge modulo="cucina" />
+              <span className="font-playfair font-bold text-lg text-brand-red">Task Manager</span>
+              <VersionBadge modulo="tasks" />
             </Link>
           </div>
           <nav className="flex gap-1 flex-wrap">
@@ -109,7 +109,7 @@ export default function CucinaNav({ current = "home" }) {
           paddingTop: 6,
         }}
         role="tablist"
-        aria-label="Navigazione cucina"
+        aria-label="Navigazione Task Manager"
       >
         <div className="max-w-lg mx-auto flex">
           {TABS_MOBILE.map(t => {
@@ -162,12 +162,12 @@ export default function CucinaNav({ current = "home" }) {
 }
 
 function autoActive(pathname, fallback) {
-  if (pathname.startsWith("/cucina/tasks"))                return "tasks";
-  if (pathname.startsWith("/cucina/agenda/settimana"))     return "settimana";
-  if (pathname.startsWith("/cucina/agenda"))               return "agenda";
-  if (pathname.startsWith("/cucina/instances"))            return "agenda";
-  if (pathname.startsWith("/cucina/templates"))            return "menu";
-  if (pathname === "/cucina")                              return fallback === "home" ? null : fallback;
+  if (pathname.startsWith("/tasks/tasks"))                return "tasks";
+  if (pathname.startsWith("/tasks/agenda/settimana"))     return "settimana";
+  if (pathname.startsWith("/tasks/agenda"))               return "agenda";
+  if (pathname.startsWith("/tasks/instances"))            return "agenda";
+  if (pathname.startsWith("/tasks/templates"))            return "menu";
+  if (pathname === "/tasks")                              return fallback === "home" ? null : fallback;
   return fallback;
 }
 
@@ -196,9 +196,9 @@ function MenuSheet({ admin, onClose, onNavigate }) {
           Altri
         </div>
         <div className="px-4 pt-3 flex flex-col gap-2">
-          <MenuItem icon="🍳" label="Home Cucina" onClick={() => onNavigate("/cucina")} />
+          <MenuItem icon="🍳" label="Home Task Manager" onClick={() => onNavigate("/tasks")} />
           {admin && (
-            <MenuItem icon="🧩" label="Template checklist" onClick={() => onNavigate("/cucina/templates")} />
+            <MenuItem icon="🧩" label="Template checklist" onClick={() => onNavigate("/tasks/templates")} />
           )}
           <MenuItem icon="🏠" label="Home generale TRGB" onClick={() => onNavigate("/")} />
         </div>

@@ -1,7 +1,7 @@
-# @version: v1.0-cucina-scheduler
+# @version: v1.1-tasks-scheduler (ex-cucina, Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
-Scheduler Cucina — genera istanze giornaliere e marca scadute.
+Scheduler Task Manager (ex-Cucina) — genera istanze giornaliere e marca scadute.
 
 In MVP tutti i template hanno frequenza=GIORNALIERA. Lo scheduler:
   1. Per ogni giorno nel range: crea un'istanza per ogni template attivo
@@ -21,7 +21,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
-logger = logging.getLogger("trgb.cucina.scheduler")
+logger = logging.getLogger("trgb.tasks.scheduler")
 
 
 # ─── Helpers ───────────────────────────────────────────────────────────
@@ -200,8 +200,8 @@ def trigger_scheduler(days_ahead: int = 1) -> Dict[str, int]:
     poi controlla le scadenze. Ritorna summary.
     Usato dal dashboard_router in modalita' fire-and-forget.
     """
-    from app.models.cucina_db import get_cucina_conn
-    conn = get_cucina_conn()
+    from app.models.tasks_db import get_tasks_conn
+    conn = get_tasks_conn()
     try:
         today = date.today()
         created = genera_istanze_range(conn, today, today + timedelta(days=days_ahead))

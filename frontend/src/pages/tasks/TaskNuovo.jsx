@@ -23,7 +23,7 @@ const PRIO_ON = {
   BASSA: "bg-[#8a857c] text-white border-[#8a857c]",
 };
 
-export default function CucinaTaskNuovo({ task, onClose, onSaved }) {
+export default function TaskNuovo({ task, onClose, onSaved }) {
   const { toast } = useToast();
   const isEdit = !!task;
 
@@ -73,8 +73,8 @@ export default function CucinaTaskNuovo({ task, onClose, onSaved }) {
 
     try {
       const url = isEdit
-        ? `${API_BASE}/cucina/tasks/${task.id}`
-        : `${API_BASE}/cucina/tasks/`;
+        ? `${API_BASE}/tasks/tasks/${task.id}`
+        : `${API_BASE}/tasks/tasks/`;
       const method = isEdit ? "PUT" : "POST";
       const res = await apiFetch(url, {
         method,

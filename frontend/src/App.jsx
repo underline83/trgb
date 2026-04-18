@@ -92,14 +92,18 @@ const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
 const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
 
 // CUCINA (MVP checklist + task)
-const SceltaMacellaio = lazy(() => import("./pages/cucina/SceltaMacellaio"));
-const CucinaHome = lazy(() => import("./pages/cucina/CucinaHome"));
-const CucinaAgendaGiornaliera = lazy(() => import("./pages/cucina/CucinaAgendaGiornaliera"));
-const CucinaAgendaSettimana = lazy(() => import("./pages/cucina/CucinaAgendaSettimana"));
-const CucinaInstanceDetail = lazy(() => import("./pages/cucina/CucinaInstanceDetail"));
-const CucinaTemplateList = lazy(() => import("./pages/cucina/CucinaTemplateList"));
-const CucinaTemplateEditor = lazy(() => import("./pages/cucina/CucinaTemplateEditor"));
-const CucinaTaskList = lazy(() => import("./pages/cucina/CucinaTaskList"));
+// SceltaMacellaio appartiene semanticamente al modulo "ricette" ma il file
+// vive ancora in pages/tasks/ per retrocompatibilita' (era in pages/cucina/).
+// Spostarlo in pages/ricette/ e' un follow-up cosmetico di Phase C.
+const SceltaMacellaio = lazy(() => import("./pages/tasks/SceltaMacellaio"));
+// Task Manager (ex-Cucina, rinominato Phase B sessione 46)
+const TasksHome = lazy(() => import("./pages/tasks/TasksHome"));
+const TasksAgendaGiornaliera = lazy(() => import("./pages/tasks/AgendaGiornaliera"));
+const TasksAgendaSettimana = lazy(() => import("./pages/tasks/AgendaSettimana"));
+const TasksInstanceDetail = lazy(() => import("./pages/tasks/InstanceDetail"));
+const TasksTemplateList = lazy(() => import("./pages/tasks/TemplateList"));
+const TasksTemplateEditor = lazy(() => import("./pages/tasks/TemplateEditor"));
+const TasksTaskList = lazy(() => import("./pages/tasks/TaskList"));
 
 // COMUNICAZIONI + CAMBIO PIN + IMPOSTAZIONI SISTEMA
 const Comunicazioni = lazy(() => import("./pages/Comunicazioni"));
@@ -376,18 +380,28 @@ export default function App() {
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
 
-        {/* --- SCELTA DEL MACELLAIO (Cucina) --- */}
+        {/* --- SCELTA DEL MACELLAIO (modulo ricette) --- */}
         <Route path="/macellaio" element={<ProtectedRoute module="ricette" sub="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
 
-        {/* --- CUCINA (MVP: checklist ricorrenti + task) --- */}
-        <Route path="/cucina" element={<ProtectedRoute module="cucina"><CucinaHome /></ProtectedRoute>} />
-        <Route path="/cucina/agenda" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaAgendaGiornaliera /></ProtectedRoute>} />
-        <Route path="/cucina/instances/:id" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaInstanceDetail /></ProtectedRoute>} />
-        <Route path="/cucina/templates" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateList /></ProtectedRoute>} />
-        <Route path="/cucina/templates/nuovo" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
-        <Route path="/cucina/templates/:id" element={<ProtectedRoute module="cucina" sub="templates"><CucinaTemplateEditor /></ProtectedRoute>} />
-        <Route path="/cucina/agenda/settimana" element={<ProtectedRoute module="cucina" sub="agenda"><CucinaAgendaSettimana /></ProtectedRoute>} />
-        <Route path="/cucina/tasks" element={<ProtectedRoute module="cucina" sub="tasks"><CucinaTaskList /></ProtectedRoute>} />
+        {/* --- TASK MANAGER (ex-Cucina): checklist ricorrenti + task singoli --- */}
+        <Route path="/tasks" element={<ProtectedRoute module="tasks"><TasksHome /></ProtectedRoute>} />
+        <Route path="/tasks/agenda" element={<ProtectedRoute module="tasks" sub="agenda"><TasksAgendaGiornaliera /></ProtectedRoute>} />
+        <Route path="/tasks/agenda/settimana" element={<ProtectedRoute module="tasks" sub="agenda"><TasksAgendaSettimana /></ProtectedRoute>} />
+        <Route path="/tasks/instances/:id" element={<ProtectedRoute module="tasks" sub="agenda"><TasksInstanceDetail /></ProtectedRoute>} />
+        <Route path="/tasks/templates" element={<ProtectedRoute module="tasks" sub="templates"><TasksTemplateList /></ProtectedRoute>} />
+        <Route path="/tasks/templates/nuovo" element={<ProtectedRoute module="tasks" sub="templates"><TasksTemplateEditor /></ProtectedRoute>} />
+        <Route path="/tasks/templates/:id" element={<ProtectedRoute module="tasks" sub="templates"><TasksTemplateEditor /></ProtectedRoute>} />
+        <Route path="/tasks/tasks" element={<ProtectedRoute module="tasks" sub="tasks"><TasksTaskList /></ProtectedRoute>} />
+
+        {/* Redirect legacy /cucina/* → /tasks/* (bookmark utenti) */}
+        <Route path="/cucina"                  element={<Navigate to="/tasks"                  replace />} />
+        <Route path="/cucina/agenda"           element={<Navigate to="/tasks/agenda"           replace />} />
+        <Route path="/cucina/agenda/settimana" element={<Navigate to="/tasks/agenda/settimana" replace />} />
+        <Route path="/cucina/tasks"            element={<Navigate to="/tasks/tasks"            replace />} />
+        <Route path="/cucina/templates"        element={<Navigate to="/tasks/templates"        replace />} />
+        <Route path="/cucina/templates/nuovo"  element={<Navigate to="/tasks/templates/nuovo"  replace />} />
+        <Route path="/cucina/templates/:id"    element={<Navigate to="/tasks/templates/:id"    replace />} />
+        <Route path="/cucina/instances/:id"    element={<Navigate to="/tasks/instances/:id"    replace />} />
 
         {/* --- COMUNICAZIONI (Bacheca Staff) — accessibile a tutti i loggati --- */}
         <Route path="/comunicazioni" element={<Comunicazioni />} />

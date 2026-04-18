@@ -7,7 +7,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { REPARTI } from "../../config/reparti";
-import CucinaNav from "./CucinaNav";
+import Nav from "./Nav";
 
 const TURNI = ["", "APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"];
 const TIPI = ["CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO"];
@@ -35,7 +35,7 @@ function emptyTemplate() {
   };
 }
 
-export default function CucinaTemplateEditor() {
+export default function TemplateEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isNew = !id || id === "nuovo";
@@ -47,7 +47,7 @@ export default function CucinaTemplateEditor() {
   useEffect(() => {
     if (isNew) return;
     setLoading(true);
-    apiFetch(`${API_BASE}/cucina/templates/${id}`)
+    apiFetch(`${API_BASE}/tasks/templates/${id}`)
       .then(r => {
         if (r.status === 404) throw new Error("Template non trovato");
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -135,8 +135,8 @@ export default function CucinaTemplateEditor() {
 
     try {
       const url = isNew
-        ? `${API_BASE}/cucina/templates/`
-        : `${API_BASE}/cucina/templates/${id}`;
+        ? `${API_BASE}/tasks/templates/`
+        : `${API_BASE}/tasks/templates/${id}`;
       const method = isNew ? "POST" : "PUT";
       const res = await apiFetch(url, {
         method,
@@ -147,7 +147,7 @@ export default function CucinaTemplateEditor() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      navigate("/cucina/templates");
+      navigate("/tasks/templates");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -158,7 +158,7 @@ export default function CucinaTemplateEditor() {
   if (loading) {
     return (
       <div className="min-h-screen bg-brand-cream font-sans">
-        <CucinaNav current="templates" />
+        <Nav current="templates" />
         <div className="max-w-3xl mx-auto p-6 text-center text-neutral-500">Caricamento...</div>
       </div>
     );
@@ -166,11 +166,11 @@ export default function CucinaTemplateEditor() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="templates" />
+      <Nav current="templates" />
 
       <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
         <button
-          onClick={() => navigate("/cucina/templates")}
+          onClick={() => navigate("/tasks/templates")}
           className="text-sm text-neutral-500 hover:text-neutral-900"
         >
           ← Lista template
@@ -315,7 +315,7 @@ export default function CucinaTemplateEditor() {
             {saving ? "Salvataggio..." : (isNew ? "✓ Crea template" : "✓ Salva modifiche")}
           </button>
           <button
-            onClick={() => navigate("/cucina/templates")}
+            onClick={() => navigate("/tasks/templates")}
             className="px-4 py-3 border rounded-lg font-medium hover:bg-neutral-50 min-h-[52px]"
           >
             Annulla

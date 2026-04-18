@@ -3,6 +3,74 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #7 (5 pagine: RegistroMovimenti, ClientiPrenotazioni, ClientiDashboard, DashboardSala, ControlloGestioneDashboard)
+
+### Problema / contesto
+Settimo giro di refactor mattoni M.I su pagine dashboard/registro (240–320 righe) — focus su registro movimenti cantina, vista prenotazioni clienti, CRM dashboard, dashboard sala operativa e dashboard controllo gestione. Pattern uguale ai batch precedenti:
+- bottoni con `<Btn>` varianti (no più `bg-xxx-100 text-xxx-700` sparsi)
+- empty state con `<EmptyState>` (icona + descrizione)
+- badge stato con `<StatusBadge>` tonal mapping (palette unica)
+- nessun cambio di logica, nessuna migrazione
+
+### Pagine toccate in questo batch
+
+**1. `vini/RegistroMovimenti.jsx` — refactor v1.2-mattoni (240 righe)**
+- "← Torna alla Cantina" (pannello accesso negato, amber-700) → `<Btn variant="primary" size="md">`.
+- Header "← Cantina" (border neutral) → `<Btn variant="secondary" size="md">`.
+- "✕ Pulisci filtri" / "⟳ Aggiorna" (amber-700 + loading) → `<Btn variant="secondary" size="sm">` / `<Btn variant="primary" size="sm" loading={loading}>`.
+- Paginazione "← Precedente" / "Successiva →" → `<Btn variant="secondary" size="md" disabled={...}>`.
+- Badge TIPO_LABELS (CARICO/SCARICO/VENDITA/...) lasciato custom: mapping centralizzato con icon + colori dedicati.
+
+**2. `clienti/ClientiPrenotazioni.jsx` — refactor v1.1-mattoni (265 righe)**
+- `STATI_COLORI` map (tailwind grezzo) sostituita da `STATO_TONE` → `<StatusBadge tone={...} size="sm">` (success/warning/danger/info/brand/neutral).
+- "Resetta filtri" (sidebar, link-like text) → `<Btn variant="ghost" size="sm">`.
+- Empty state "Nessuna prenotazione trovata" → `<EmptyState icon="📅" compact>`.
+- Paginazione ← / → → `<Btn variant="secondary" size="sm" disabled={...}>`.
+- Sfondo pagina `bg-neutral-50` → `bg-brand-cream`.
+
+**3. `clienti/ClientiDashboard.jsx` — refactor v1.3-mattoni (280 righe)**
+- Early return "Nessun dato disponibile" → `<EmptyState icon="📊" compact>` (wrappato in brand-cream layout).
+- Empty compleanni prossimi → `<EmptyState icon="🎂" compact>`.
+- Sfondo pagina `bg-neutral-50` → `bg-brand-cream`.
+- KPI StatCard interno (grafici rank/canale/mese) lasciato custom: template tintato specifico per dashboard.
+- Mini-chip WA/Email nella lista compleanni lasciate come `<a>` (target="_blank" + mailto, semantica link preservata).
+
+**4. `DashboardSala.jsx` — refactor v5.1-mattoni (296 righe)**
+- "Mostra tutti i moduli →" (link text-only) → `<Btn variant="ghost" size="sm">`.
+- Layout sala operativa (3 colonne, tabs turno, card comunicazioni con URGENZA_STYLE, card azioni SALA_ACTIONS tinte) lasciato custom: dashboard hand-tuned che guida il servizio in tempo reale.
+- Empty state "Nessuna prenotazione per turno" / "Nessuna comunicazione" lasciate inline (aesthetic tight dashboard, `compact` sarebbe overkill).
+
+**5. `controllo-gestione/ControlloGestioneDashboard.jsx` — refactor v1.2-mattoni (321 righe)**
+- Empty state "Nessuna fattura nel periodo" → `<EmptyState icon="📦" compact>`.
+- Empty state "Nessuna fattura categorizzata" → `<EmptyState icon="🏷️" compact>`.
+- Componente KPI interno con soglie colore + PeriodSelector lasciati custom: dashboard finanziaria con pattern tonal specifico.
+- Barre andamento annuale + top fornitori/categorie con bar-proportional lasciate custom: logica proporzionale inline.
+
+### Pagina saltata (nessuna conversione M.I applicabile)
+- **`admin/CorrispettiviAnnual.jsx`** (263 righe): solo selettore anno + BarChart Recharts + tabelle dettaglio. Nessun CTA, nessun empty state, nessun badge da convertire. Page-level M.I già allineato (bg-brand-cream già presente). Versione invariata.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch registro/prenotazioni/stats/dashboard invariati).
+- KPI/StatCard/bar-chart inline lasciati custom: template tintati specifici per ogni dashboard.
+- Card SALA_ACTIONS, URGENZA badges, TIPO_LABELS con icon mapping lasciati custom: centralizzati in costanti dedicate.
+- Mini-link WA/Email come `<a>` anchor (semantica href preservata).
+- Nessuna migrazione DB, nessun cambio di API, nessuna logica nuova.
+
+### File toccati
+- `frontend/src/pages/vini/RegistroMovimenti.jsx`
+- `frontend/src/pages/clienti/ClientiPrenotazioni.jsx`
+- `frontend/src/pages/clienti/ClientiDashboard.jsx`
+- `frontend/src/pages/DashboardSala.jsx`
+- `frontend/src/pages/controllo-gestione/ControlloGestioneDashboard.jsx`
+- `docs/changelog.md`
+
+### Comando push
+```
+./push.sh "refactor M.I batch #7 — 5 pagine dashboard/registro su mattoni (Btn/StatusBadge/EmptyState)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #6 (6 pagine: PrecontiAdmin, PrenotazioniSettimana, ControlloGestioneRiconciliazione, ClientiMailchimp, CucinaAgendaSettimana, CorrispettiviRiepilogo)
 
 ### Problema / contesto

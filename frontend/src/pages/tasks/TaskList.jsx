@@ -14,9 +14,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { API_BASE, apiFetch } from "../../config/api";
 import { REPARTI, getReparto } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
-import CucinaNav from "./CucinaNav";
-import CucinaTaskNuovo from "./CucinaTaskNuovo";
-import TaskSheet from "../../components/cucina/TaskSheet";
+import Nav from "./Nav";
+import TaskNuovo from "./TaskNuovo";
+import TaskSheet from "../../components/tasks/TaskSheet";
 
 // ── Costanti ───────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const PRIO_LEFT = {
 
 // ── Component ──────────────────────────────────────────────────
 
-export default function CucinaTaskList() {
+export default function TaskList() {
   const { toast } = useToast();
 
   const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "";
@@ -81,8 +81,8 @@ export default function CucinaTaskList() {
     const qs = new URLSearchParams();
     if (repartoFilter) qs.set("reparto", repartoFilter);
     const url = qs.toString()
-      ? `${API_BASE}/cucina/tasks/?${qs.toString()}`
-      : `${API_BASE}/cucina/tasks/`;
+      ? `${API_BASE}/tasks/tasks/?${qs.toString()}`
+      : `${API_BASE}/tasks/tasks/`;
     apiFetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -129,7 +129,7 @@ export default function CucinaTaskList() {
 
   async function quickComplete(task) {
     try {
-      const res = await apiFetch(`${API_BASE}/cucina/tasks/${task.id}/completa`, {
+      const res = await apiFetch(`${API_BASE}/tasks/tasks/${task.id}/completa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note_completamento: null }),
@@ -150,7 +150,7 @@ export default function CucinaTaskList() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="tasks" />
+      <Nav current="tasks" />
 
       {/* Mobile: sticky header stacked; sm+: non sticky (c'e' gia' la top-nav) */}
       <div className="sm:static sticky top-0 z-20 bg-brand-cream border-b border-[#e6e1d8]">
@@ -322,7 +322,7 @@ export default function CucinaTaskList() {
 
       {/* Nuovo / modifica task */}
       {editor && (
-        <CucinaTaskNuovo
+        <TaskNuovo
           task={editor === "new" ? null : editor}
           onClose={() => setEditor(null)}
           onSaved={() => { setEditor(null); load(); }}

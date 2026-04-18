@@ -1,7 +1,8 @@
-# @version: v1.0-cucina-schema
+# @version: v1.1-tasks-schema (ex-cucina, rinominato Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
-Schemi Pydantic per il modulo Cucina (MVP).
+Schemi Pydantic per il modulo Task Manager (ex Cucina MVP).
+Valori `reparto` lowercase in config/reparti.js (Phase A, sessione 45).
 """
 
 from typing import List, Optional

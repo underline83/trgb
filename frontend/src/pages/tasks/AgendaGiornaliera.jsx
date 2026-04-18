@@ -6,8 +6,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { REPARTI, getReparto } from "../../config/reparti";
-import CucinaNav from "./CucinaNav";
-import { RepartoBadge } from "./CucinaTaskList";
+import Nav from "./Nav";
+import { RepartoBadge } from "./TaskList";
 
 function oggiISO() {
   const d = new Date();
@@ -41,7 +41,7 @@ const TASK_STATO_CLS = {
   ANNULLATO:  "bg-neutral-100 text-neutral-500 border-neutral-300 line-through",
 };
 
-export default function CucinaAgendaGiornaliera() {
+export default function AgendaGiornaliera() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState(params.get("data") || oggiISO());
@@ -57,7 +57,7 @@ export default function CucinaAgendaGiornaliera() {
     const qs = new URLSearchParams({ data });
     if (turno) qs.set("turno", turno);
     if (reparto) qs.set("reparto", reparto);
-    apiFetch(`${API_BASE}/cucina/agenda/?${qs.toString()}`)
+    apiFetch(`${API_BASE}/tasks/agenda/?${qs.toString()}`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -89,7 +89,7 @@ export default function CucinaAgendaGiornaliera() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
-      <CucinaNav current="agenda" />
+      <Nav current="agenda" />
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
         {/* Controlli: data + filtro turno */}
@@ -195,7 +195,7 @@ export default function CucinaAgendaGiornaliera() {
               {bucket.instances.map(inst => (
                 <button
                   key={inst.id}
-                  onClick={() => navigate(`/cucina/instances/${inst.id}`)}
+                  onClick={() => navigate(`/tasks/instances/${inst.id}`)}
                   className={
                     "w-full flex items-center justify-between text-left p-3 rounded-lg border transition min-h-[56px] " +
                     (STATO_CLS[inst.stato] || "border-neutral-200") +
@@ -257,7 +257,7 @@ export default function CucinaAgendaGiornaliera() {
             </div>
             <div className="mt-3 pt-3 border-t border-neutral-100">
               <button
-                onClick={() => navigate("/cucina/tasks")}
+                onClick={() => navigate("/tasks/tasks")}
                 className="text-sm text-red-700 hover:text-red-900 font-medium"
               >
                 Gestisci tutti i task →

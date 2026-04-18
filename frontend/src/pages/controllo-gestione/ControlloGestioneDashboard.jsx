@@ -1,10 +1,11 @@
-// @version: v1.1-nav-uniformato (padding esterno rimosso, wrapper px interno — S40-7)
+// @version: v1.2-mattoni — M.I primitives (EmptyState) su "nessuna fattura"
 // Dashboard unificata: vendite, acquisti, banca, margine, andamento annuale
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import TrgbLoader from "../../components/TrgbLoader";
+import { EmptyState } from "../../components/ui";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -254,7 +255,7 @@ export default function ControlloGestioneDashboard() {
                 })}
               </div>
             ) : (
-              <p className="text-xs text-neutral-400 py-4 text-center">Nessuna fattura nel periodo</p>
+              <EmptyState icon="📦" title="Nessuna fattura nel periodo" compact />
             )}
           </div>
 
@@ -284,7 +285,7 @@ export default function ControlloGestioneDashboard() {
                 })}
               </div>
             ) : (
-              <p className="text-xs text-neutral-400 py-4 text-center">Nessuna fattura categorizzata</p>
+              <EmptyState icon="🏷️" title="Nessuna fattura categorizzata" compact />
             )}
           </div>
         </div>
