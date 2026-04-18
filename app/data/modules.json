@@ -62,14 +62,14 @@
     "label": "Flussi di Cassa",
     "description": "Conti correnti, carta di credito, contanti, mance",
     "icon": "🏦",
-    "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef", "sous_chef", "commis"],
+    "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"],
     "sub": [
       { "key": "dashboard",    "label": "Dashboard",        "roles": ["superadmin", "admin", "contabile"] },
       { "key": "cc",           "label": "Conti Correnti",   "roles": ["superadmin", "admin", "contabile"] },
       { "key": "crossref",     "label": "Riconciliazione",  "roles": ["superadmin", "admin", "contabile"] },
       { "key": "carta",        "label": "Carta di Credito", "roles": ["superadmin", "admin", "contabile"] },
       { "key": "contanti",     "label": "Contanti",         "roles": ["superadmin", "admin"] },
-      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef", "sous_chef", "commis"] },
+      { "key": "mance",        "label": "Mance",            "roles": ["superadmin", "admin", "contabile", "sala", "sommelier", "chef"] },
       { "key": "impostazioni", "label": "Impostazioni",     "roles": ["superadmin", "admin"] }
     ]
   },
@@ -114,11 +114,11 @@
     "label": "Dipendenti",
     "description": "Personale, buste paga, turni, scadenze documenti, costi",
     "icon": "👥",
-    "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "sous_chef", "commis", "contabile"],
+    "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"],
     "sub": [
       { "key": "anagrafica",   "label": "Anagrafica",   "roles": ["superadmin", "admin"] },
       { "key": "buste-paga",   "label": "Buste Paga",   "roles": ["superadmin", "admin"] },
-      { "key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "sous_chef", "commis", "contabile"] },
+      { "key": "turni",        "label": "Turni",        "roles": ["superadmin", "admin", "sala", "sommelier", "chef", "contabile"] },
       { "key": "scadenze",     "label": "Scadenze",     "roles": ["superadmin", "admin"] },
       { "key": "costi",        "label": "Costi",        "roles": ["superadmin", "admin"] },
       { "key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"] }
