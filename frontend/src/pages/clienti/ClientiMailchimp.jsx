@@ -1,8 +1,9 @@
-// @version: v1.0-clienti-mailchimp
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA Sincronizza + bg-brand-cream
 // Pagina integrazione Mailchimp — stato connessione, sync contatti, log
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
+import { Btn } from "../../components/ui";
 
 export default function ClientiMailchimp({ embedded = false }) {
   const [status, setStatus] = useState(null);
@@ -114,10 +115,9 @@ MAILCHIMP_LIST_ID=il-tuo-audience-id`}
                     Include: nome, cognome, telefono, compleanno, citta, rank, segmento marketing, allergie, preferenze, tags CRM.
                   </p>
                 </div>
-                <button onClick={handleSync} disabled={syncing}
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 shadow-sm flex-shrink-0">
-                  {syncing ? "Sync in corso..." : "Sincronizza ora"}
-                </button>
+                <Btn variant="success" size="md" onClick={handleSync} disabled={syncing} loading={syncing}>
+                  Sincronizza ora
+                </Btn>
               </div>
 
               {/* Cosa viene sincronizzato */}
@@ -236,7 +236,7 @@ MAILCHIMP_LIST_ID=il-tuo-audience-id`}
   return (
     <>
       <ClientiNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen bg-brand-cream">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
           {content}
         </div>

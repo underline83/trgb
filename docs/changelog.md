@@ -3,6 +3,68 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #6 (6 pagine: PrecontiAdmin, PrenotazioniSettimana, ControlloGestioneRiconciliazione, ClientiMailchimp, CucinaAgendaSettimana, CorrispettiviRiepilogo)
+
+### Problema / contesto
+Sesto giro di refactor mattoni M.I sulle pagine "vista" e workbench (150–250 righe) — focus su moduli admin/preconti, prenotazioni settimana, riconciliazione CG, integrazione Mailchimp, agenda settimanale Cucina. Pattern uguale ai batch precedenti:
+- bottoni con `<Btn>` varianti (no più `bg-xxx-100 text-xxx-700` sparsi)
+- empty state con `<EmptyState>` (icona + descrizione)
+- badge stato con `<StatusBadge>` (palette unica)
+- nessun cambio di logica, nessuna migrazione
+
+### Pagine toccate in questo batch
+
+**1. `admin/PrecontiAdmin.jsx` — refactor v1.1-mattoni (150 righe)**
+- Empty state "Nessun pre-conto" → `<EmptyState icon="🍽️" compact>`.
+- Badge turno pranzo/cena inline → `<StatusBadge tone={turno === "pranzo" ? "warning" : "violet"}>`.
+
+**2. `prenotazioni/PrenotazioniSettimana.jsx` — refactor v1.1-mattoni (152 righe)**
+- "Questa settimana" CTA (indigo chip) → `<Btn variant="chip" tone="blue" size="sm">`.
+- Nav frecce ◀▶ e card giorni cliccabili lasciate custom (icon button piccoli + layout giorno specifico).
+
+**3. `controllo-gestione/ControlloGestioneRiconciliazione.jsx` — refactor v1.2-mattoni (227 righe)**
+- "← Scadenzario" header (border neutral) → `<Btn variant="secondary" size="sm">`.
+- Bottone ↻ ricarica (border neutral, dentro Tooltip) → `<Btn variant="secondary" size="sm">`.
+- Empty state worklist (filtered.length === 0) → `<EmptyState icon={uscite.length === 0 ? "🎉" : "🔎"}>` con titoli/descrizioni differenziate.
+- Empty state pane DX "Seleziona una uscita" → `<EmptyState icon="👈" compact>`.
+
+**4. `clienti/ClientiMailchimp.jsx` — refactor v1.1-mattoni (246 righe)**
+- "Sincronizza ora" CTA (teal-600) → `<Btn variant="success" size="md" loading={syncing}>`.
+- Sfondo pagina `bg-neutral-50` → `bg-brand-cream` (allineamento brand TRGB-02).
+- Risultato sync con grid 4 KPI lasciato custom (struttura analitica specifica).
+
+**5. `cucina/CucinaAgendaSettimana.jsx` — refactor v1.1-mattoni (246 righe)**
+- Nav settimana "← Settimana prec." e "Settimana succ. →" (border neutral) → `<Btn variant="secondary" size="md">`.
+- "Questa settimana" CTA (red-50 chip) → `<Btn variant="chip" tone="red" size="md">`.
+- Card giorni con grid istanze/task lasciate custom (rendering complesso con dot stati specifici).
+
+**6. `admin/CorrispettiviRiepilogo.jsx` — refactor v1.1-mattoni (247 righe)**
+- Empty state "Nessuna chiusura trovata" → `<EmptyState icon="📋" compact>`.
+- Accordion anno cliccabile (con totali destra + ▲▼) lasciato custom: layout strutturato specifico.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch worklist/sync/load multi-anno invariati).
+- Card giorni complesse (CucinaAgenda, PrenotazioniSettimana) lasciate custom: rendering troppo specifico.
+- Accordion CorrispettiviRiepilogo lasciato custom: layout strutturato.
+- Badge multi-stato dot (cucina/task) lasciati custom.
+- Nessuna migrazione DB, nessun cambio di API.
+
+### File toccati
+- `frontend/src/pages/admin/PrecontiAdmin.jsx`
+- `frontend/src/pages/prenotazioni/PrenotazioniSettimana.jsx`
+- `frontend/src/pages/controllo-gestione/ControlloGestioneRiconciliazione.jsx`
+- `frontend/src/pages/clienti/ClientiMailchimp.jsx`
+- `frontend/src/pages/cucina/CucinaAgendaSettimana.jsx`
+- `frontend/src/pages/admin/CorrispettiviRiepilogo.jsx`
+- `docs/changelog.md`
+
+### Comando push
+```
+./push.sh "refactor M.I batch #6 — 6 pagine vista/workbench su mattoni (Btn/StatusBadge/EmptyState + brand-cream Mailchimp)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #5 (6 pagine: BancaImport, FlussiCassaMance, RicetteDettaglio, StatisticheDashboard, StatisticheProdotti, DipendentiScadenze)
 
 ### Problema / contesto

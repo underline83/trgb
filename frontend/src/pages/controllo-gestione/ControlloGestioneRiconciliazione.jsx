@@ -1,4 +1,4 @@
-// @version: v1.1-nav-uniformato (S40-7) — sfondo brand-cream, title sky/playfair, nav current
+// @version: v1.2-mattoni — M.I primitives (Btn, EmptyState) su CTA/empty worklist+pane
 // Workbench Riconciliazione Banca — split-pane dedicato.
 // SX: worklist uscite "Da collegare" (PAGATA_MANUALE senza movimento bancario)
 // DX: pannello riutilizzabile RiconciliaBancaPanel con tab Auto + Ricerca libera
@@ -16,6 +16,7 @@ import ControlloGestioneNav from "./ControlloGestioneNav";
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
 import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
 import Tooltip from "../../components/Tooltip";
+import { Btn, EmptyState } from "../../components/ui";
 
 const CG = `${API_BASE}/controllo-gestione`;
 
@@ -107,12 +108,9 @@ export default function ControlloGestioneRiconciliazione() {
               <div className="text-xs text-neutral-500">Da collegare</div>
               <div className="text-2xl font-bold text-amber-600">{totale}</div>
             </div>
-            <button
-              onClick={() => navigate("/controllo-gestione/uscite")}
-              className="px-3 py-2 text-sm border border-neutral-300 rounded-lg hover:bg-neutral-50"
-            >
+            <Btn variant="secondary" size="sm" onClick={() => navigate("/controllo-gestione/uscite")}>
               ← Scadenzario
-            </button>
+            </Btn>
           </div>
         </div>
       </div>
@@ -139,12 +137,7 @@ export default function ControlloGestioneRiconciliazione() {
               className="px-2 py-1 text-xs border border-neutral-300 rounded w-48"
             />
             <Tooltip label="Ricarica">
-              <button
-                onClick={fetchWorklist}
-                className="px-2 py-1 text-xs border border-neutral-300 rounded hover:bg-neutral-50"
-              >
-                ↻
-              </button>
+              <Btn variant="secondary" size="sm" onClick={fetchWorklist}>↻</Btn>
             </Tooltip>
           </div>
 
@@ -152,11 +145,14 @@ export default function ControlloGestioneRiconciliazione() {
             {loading && uscite.length === 0 ? (
               <div className="p-8 text-center text-sm text-neutral-500">Caricamento…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-8 text-center text-sm text-neutral-500">
-                {uscite.length === 0
-                  ? "🎉 Nessuna uscita da collegare."
-                  : "Nessun risultato per il filtro."}
-              </div>
+              <EmptyState
+                icon={uscite.length === 0 ? "🎉" : "🔎"}
+                title={uscite.length === 0 ? "Tutto collegato" : "Nessun risultato"}
+                description={uscite.length === 0
+                  ? "Nessuna uscita da collegare ai movimenti bancari."
+                  : "Nessun risultato per il filtro corrente."}
+                compact
+              />
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-neutral-50 text-xs text-neutral-600 uppercase sticky top-0">
@@ -215,8 +211,13 @@ export default function ControlloGestioneRiconciliazione() {
               compact
             />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-sm text-neutral-500">
-              Seleziona una uscita dalla worklist per iniziare.
+            <div className="flex-1 flex items-center justify-center">
+              <EmptyState
+                icon="👈"
+                title="Seleziona una uscita"
+                description="Clicca su una riga della worklist per iniziare la riconciliazione."
+                compact
+              />
             </div>
           )}
         </div>

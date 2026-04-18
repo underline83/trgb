@@ -1,9 +1,10 @@
-// @version: v1.0-prenotazioni-settimana
+// @version: v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
 // Vista settimanale riepilogativa — modulo Prenotazioni TRGB
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
+import { Btn } from "../../components/ui";
 
 const GIORNI_LABEL = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 const GIORNI_SHORT = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -73,12 +74,14 @@ export default function PrenotazioniSettimana() {
               <div className="text-sm text-neutral-500">{rangeLabel}</div>
             </div>
             <button onClick={() => nav(1)} className="p-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg">▶</button>
-            <button
+            <Btn
+              variant="chip"
+              tone="blue"
+              size="sm"
               onClick={() => { setData(getLunedi(oggi)); navigate(`/prenotazioni/settimana/${getLunedi(oggi)}`, { replace: true }); }}
-              className="px-3 py-1 text-xs bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 font-medium"
             >
               Questa settimana
-            </button>
+            </Btn>
           </div>
         </div>
 

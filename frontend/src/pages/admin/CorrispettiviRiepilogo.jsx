@@ -1,9 +1,11 @@
 // src/pages/admin/CorrispettiviRiepilogo.jsx
-// @version: v1.0 — Riepilogo chiusure mese per mese (multi-anno)
+// @version: v1.1-mattoni — M.I primitives (EmptyState) su "nessuna chiusura"
+// Riepilogo chiusure mese per mese (multi-anno)
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import VenditeNav from "./VenditeNav";
+import { EmptyState } from "../../components/ui";
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -95,7 +97,12 @@ export default function CorrispettiviRiepilogo() {
           )}
 
           {!loading && sortedYears.length === 0 && (
-            <p className="text-neutral-500">Nessuna chiusura trovata nel database.</p>
+            <EmptyState
+              icon="📋"
+              title="Nessuna chiusura trovata"
+              description="Nessun dato di chiusura cassa presente nel database."
+              compact
+            />
           )}
 
           {/* TOTALI COMPLESSIVI */}

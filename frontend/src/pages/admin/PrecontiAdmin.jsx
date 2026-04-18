@@ -1,10 +1,11 @@
 // src/pages/admin/PrecontiAdmin.jsx
-// @version: v1.0
+// @version: v1.1-mattoni — M.I primitives (StatusBadge, EmptyState)
 // Pagina admin per controllo storico pre-conti (contanti non battuti al registratore)
 
 import React, { useState, useEffect, useMemo } from "react";
 import VenditeNav from "./VenditeNav";
 import { API_BASE, apiFetch } from "../../config/api";
+import { StatusBadge, EmptyState } from "../../components/ui";
 
 function fmt(n) {
   return Number(n || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -107,9 +108,12 @@ export default function PrecontiAdmin() {
         )}
 
         {!loading && !error && grouped.length === 0 && (
-          <div className="bg-white rounded-2xl shadow p-8 border border-neutral-200 text-center text-neutral-400">
-            Nessun pre-conto trovato nel periodo selezionato.
-          </div>
+          <EmptyState
+            icon="🍽️"
+            title="Nessun pre-conto"
+            description="Nessun pre-conto trovato nel periodo selezionato."
+            compact
+          />
         )}
 
         {!loading && !error && grouped.map((g, gi) => (
@@ -120,13 +124,9 @@ export default function PrecontiAdmin() {
                 <span className="text-sm font-bold text-neutral-800">
                   {new Date(g.date + "T00:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                 </span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                  g.turno === "pranzo"
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                }`}>
+                <StatusBadge tone={g.turno === "pranzo" ? "warning" : "violet"} size="sm">
                   {g.turno === "pranzo" ? "☀️" : "🌙"} {g.turno}
-                </span>
+                </StatusBadge>
                 <span className="text-xs text-neutral-400">inserita da {g.created_by || "—"}</span>
               </div>
               <span className="text-sm font-bold text-orange-700">€ {fmt(g.totale)}</span>

@@ -1,3 +1,4 @@
+// @version: v1.1-mattoni — M.I primitives (Btn) su navigazione settimana
 // Agenda settimanale Cucina (MVP, sessione 41)
 // Tabella 7 colonne (lun-dom) con istanze + task per giorno.
 // Navigazione settimana avanti/indietro. Click giorno → /cucina/agenda?data=X
@@ -6,6 +7,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import CucinaNav from "./CucinaNav";
+import { Btn } from "../../components/ui";
 
 const GIORNI = ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"];
 
@@ -94,26 +96,30 @@ export default function CucinaAgendaSettimana() {
         {/* Controlli */}
         <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
+            <Btn
+              variant="secondary"
+              size="md"
               onClick={() => setDataInizio(shiftISO(dataInizio, -7))}
-              className="px-3 py-2 border rounded-lg hover:bg-red-50 min-h-[44px]"
               title="Settimana precedente"
             >
               ← Settimana prec.
-            </button>
-            <button
+            </Btn>
+            <Btn
+              variant="chip"
+              tone="red"
+              size="md"
               onClick={() => setDataInizio(lunediDi(oggiISO()))}
-              className="px-3 py-2 border border-red-200 bg-red-50 text-red-900 rounded-lg hover:bg-red-100 min-h-[44px] text-sm font-medium"
             >
               Questa settimana
-            </button>
-            <button
+            </Btn>
+            <Btn
+              variant="secondary"
+              size="md"
               onClick={() => setDataInizio(shiftISO(dataInizio, 7))}
-              className="px-3 py-2 border rounded-lg hover:bg-red-50 min-h-[44px]"
               title="Settimana successiva"
             >
               Settimana succ. →
-            </button>
+            </Btn>
             <div className="flex-1" />
             <input
               type="date"
