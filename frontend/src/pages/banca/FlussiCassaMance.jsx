@@ -1,8 +1,10 @@
 // src/pages/banca/FlussiCassaMance.jsx
-// @version: v1.0 — Mance dentro Flussi di Cassa (visibile a tutti, incluso SALA)
+// @version: v1.1-mattoni — StatusBadge turno + EmptyState
+// Mance dentro Flussi di Cassa (visibile a tutti, incluso SALA)
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import FlussiCassaNav from "./FlussiCassaNav";
 import { API_BASE, apiFetch } from "../../config/api";
+import { StatusBadge, EmptyState } from "../../components/ui";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -98,10 +100,12 @@ export default function FlussiCassaMance() {
           {loading ? (
             <div className="text-center py-10 text-neutral-400">Caricamento...</div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-10 text-neutral-400">
-              <p className="text-3xl mb-2">🎁</p>
-              <p>Nessuna mancia registrata in {MONTH_NAMES[mese - 1]} {anno}</p>
-            </div>
+            <EmptyState
+              icon="🎁"
+              title={`Nessuna mancia in ${MONTH_NAMES[mese - 1]} ${anno}`}
+              description="Le mance vengono registrate dalla chiusura turno: appariranno qui non appena disponibili."
+              compact
+            />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-neutral-200">
               <table className="w-full text-sm">
@@ -122,13 +126,9 @@ export default function FlussiCassaMance() {
                       <tr key={r.id} className="border-t border-neutral-100 hover:bg-amber-50/40 transition">
                         <td className="px-4 py-2.5 font-medium text-neutral-800">{fmtDate(r.date)}</td>
                         <td className="px-4 py-2.5">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            r.turno === "pranzo"
-                              ? "bg-amber-100 text-amber-700 border border-amber-200"
-                              : "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                          }`}>
+                          <StatusBadge tone={r.turno === "pranzo" ? "warning" : "violet"} size="sm">
                             {r.turno === "pranzo" ? "Pranzo" : "Cena"}
-                          </span>
+                          </StatusBadge>
                         </td>
                         <td className="px-4 py-2.5 text-right font-bold text-amber-700">€ {fmt(r.mance)}</td>
                         <td className="px-4 py-2.5 text-right text-neutral-600">{r.coperti || "—"}</td>

@@ -1,8 +1,9 @@
-// @version: v1.1-banca-import-warning
+// @version: v1.2-mattoni — M.I primitives (Btn, EmptyState) su CTA import + storico
 // Import CSV Banco BPM + storico import
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
+import { Btn, EmptyState } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
 
@@ -91,17 +92,9 @@ export default function BancaImport() {
               accept=".csv"
               className="text-sm"
             />
-            <button
-              onClick={handleUpload}
-              disabled={uploading}
-              className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-                uploading
-                  ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700"
-              }`}
-            >
+            <Btn variant="success" size="md" onClick={handleUpload} disabled={uploading} loading={uploading}>
               {uploading ? "Importazione..." : "Importa"}
-            </button>
+            </Btn>
           </div>
         </div>
 
@@ -149,7 +142,12 @@ export default function BancaImport() {
         {logLoading ? (
           <div className="text-center py-8 text-neutral-400">Caricamento...</div>
         ) : importLog.length === 0 ? (
-          <div className="text-center py-8 text-neutral-400">Nessuna importazione effettuata.</div>
+          <EmptyState
+            icon="🏦"
+            title="Nessuna importazione effettuata"
+            description="Carica il primo CSV Banco BPM per iniziare a tracciare i movimenti."
+            compact
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

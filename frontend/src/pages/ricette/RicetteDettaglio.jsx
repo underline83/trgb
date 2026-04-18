@@ -1,4 +1,4 @@
-// @version: v2.0-ricette-dettaglio
+// @version: v2.1-mattoni — M.I primitives (Btn, StatusBadge)
 // Dettaglio Ricetta — visualizzazione con food cost calcolato
 // Mostra: header, ingredienti con costi, totale, % food cost
 
@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import RicetteNav from "./RicetteNav";
+import { Btn, StatusBadge } from "../../components/ui";
 
 const FC = `${API_BASE}/foodcost`;
 
@@ -58,9 +59,9 @@ export default function RicetteDettaglio() {
       <div className="min-h-screen bg-brand-cream p-6">
         <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
           <p className="text-red-600 mb-4">{error || "Ricetta non trovata"}</p>
-          <button onClick={() => navigate("/ricette/archivio")} className="text-orange-700 underline">
-            Torna all'archivio
-          </button>
+          <Btn variant="secondary" size="md" onClick={() => navigate("/ricette/archivio")}>
+            ← Torna all'archivio
+          </Btn>
         </div>
       </div>
     );
@@ -84,9 +85,7 @@ export default function RicetteDettaglio() {
                 {r.name}
               </h1>
               {r.is_base && (
-                <span className="text-xs bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded-full font-semibold">
-                  Base
-                </span>
+                <StatusBadge tone="brand" size="sm">Base</StatusBadge>
               )}
             </div>
             <p className="text-neutral-600 text-sm">
@@ -95,12 +94,9 @@ export default function RicetteDettaglio() {
             </p>
           </div>
           <div className="flex gap-2 justify-center sm:justify-end flex-wrap">
-            <button
-              onClick={() => navigate(`/ricette/modifica/${r.id}`)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold bg-orange-700 text-white hover:bg-orange-800 shadow transition"
-            >
+            <Btn variant="primary" size="md" onClick={() => navigate(`/ricette/modifica/${r.id}`)}>
               Modifica
-            </button>
+            </Btn>
           </div>
         </div>
 

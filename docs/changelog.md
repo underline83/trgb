@@ -3,6 +3,69 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #5 (6 pagine: BancaImport, FlussiCassaMance, RicetteDettaglio, StatisticheDashboard, StatisticheProdotti, DipendentiScadenze)
+
+### Problema / contesto
+Quinto giro di refactor mattoni M.I sulle pagine operative residue (160–340 righe) — focus su Banca import, Flussi mance, Ricette dettaglio, Statistiche dashboard/prodotti, Dipendenti scadenze. Stesse regole dei batch 1-4:
+- bottoni con `<Btn>` varianti (no più `bg-xxx-100 text-xxx-700` sparsi)
+- empty state con `<EmptyState>` (icona + descrizione)
+- badge stato con `<StatusBadge>` (palette unica)
+- nessun cambio di logica, nessuna migrazione
+
+### Pagine toccate in questo batch
+
+**1. `banca/BancaImport.jsx` — refactor v1.2-mattoni (186 righe)**
+- "Importa" (emerald-600) → `<Btn variant="success" size="md" loading={uploading}>`.
+- Empty state "Nessuna importazione" → `<EmptyState icon="🏦" compact>`.
+
+**2. `banca/FlussiCassaMance.jsx` — refactor v1.1-mattoni (160 righe)**
+- Empty state "Nessuna mancia in {mese}" → `<EmptyState icon="🎁" compact>` con titolo dinamico.
+- Pranzo/Cena badge inline → `<StatusBadge tone={r.turno === "pranzo" ? "warning" : "violet"} size="sm">`.
+
+**3. `ricette/RicetteDettaglio.jsx` — refactor v2.1-mattoni (209 righe)**
+- "← Torna all'archivio" (errore) → `<Btn variant="secondary" size="md">`.
+- "Modifica" (orange-700) → `<Btn variant="primary" size="md">`.
+- Badge "Base" header → `<StatusBadge tone="brand" size="sm">`.
+- `FcBadge` (food cost % con soglia dinamica) lasciato custom: serve colore variabile per soglia.
+
+**4. `statistiche/StatisticheDashboard.jsx` — refactor v1.1-mattoni (247 righe)**
+- 3 empty state convertiti: categorie → `<EmptyState icon="📊" compact>`, top prodotti → `<EmptyState icon="🏆" compact>`, trend → `<EmptyState icon="📈" compact>`.
+- Filtro periodo, KPI card e bar chart Trend lasciati custom (struttura specifica del modulo).
+
+**5. `statistiche/StatisticheProdotti.jsx` — refactor v1.1-mattoni (210 righe)**
+- "Cerca" submit (rose-600) → `<Btn type="submit" variant="primary" size="sm">`.
+- Empty state "Nessun prodotto trovato" → `<EmptyState icon="🔎" compact>`.
+- Paginazione "← Precedenti / Successivi →" → `<Btn variant="ghost" size="sm" disabled={...}>`.
+
+**6. `dipendenti/DipendentiScadenze.jsx` — refactor v1.1-mattoni (340 righe)**
+- "+ Nuova Scadenza" header (purple-600) → `<Btn variant="primary" size="sm">`.
+- Form Save/Annulla → `<Btn variant="primary" loading={saving}>` / `<Btn variant="secondary">`.
+- Empty state lista filtrata → `<EmptyState icon="📋" compact>` (titoli/descrizioni differenziate per "nessuna scadenza" vs "nessun risultato").
+- Azioni riga "Modifica/✕" → `<Btn variant="chip" tone="sky|red" size="sm">`.
+- Semaforo KPI filtri (Scaduti/In scadenza/Validi con dot + active ring) lasciato custom: layout filtro dinamico.
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch, POST, PUT, DELETE invariati).
+- Tabelle dati con tfoot totale lasciate inline.
+- Badge multi-soglia (FcBadge food cost) lasciato custom.
+- Nessuna migrazione DB, nessun cambio di API.
+
+### File toccati
+- `frontend/src/pages/banca/BancaImport.jsx`
+- `frontend/src/pages/banca/FlussiCassaMance.jsx`
+- `frontend/src/pages/ricette/RicetteDettaglio.jsx`
+- `frontend/src/pages/statistiche/StatisticheDashboard.jsx`
+- `frontend/src/pages/statistiche/StatisticheProdotti.jsx`
+- `frontend/src/pages/dipendenti/DipendentiScadenze.jsx`
+- `docs/changelog.md`
+
+### Comando push
+```
+./push.sh "refactor M.I batch #5 — 6 pagine operative su mattoni (Btn/StatusBadge/EmptyState)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #4 (5 pagine: StatisticheImport, RicetteDashboard, RicetteArchivio, CucinaHome, DashboardDipendenti, CucinaTemplateList)
 
 ### Problema / contesto

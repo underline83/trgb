@@ -1,8 +1,9 @@
-// @version: v1.0-statistiche-prodotti
+// @version: v1.1-mattoni — M.I primitives (Btn, EmptyState) su CTA + paginazione
 // Dettaglio prodotti con filtri, ricerca e paginazione
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
+import { Btn, EmptyState } from "../../components/ui";
 
 const EP = `${API_BASE}/statistiche`;
 
@@ -134,19 +135,19 @@ export default function StatisticheProdotti() {
               className="border border-neutral-300 rounded-lg px-3 py-1.5 text-sm w-full"
             />
           </div>
-          <button
-            type="submit"
-            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 shadow transition"
-          >
-            Cerca
-          </button>
+          <Btn type="submit" variant="primary" size="sm">Cerca</Btn>
         </form>
 
         {/* Tabella prodotti */}
         {loading ? (
           <p className="text-neutral-400 text-sm py-8 text-center">Caricamento...</p>
         ) : prodotti.length === 0 ? (
-          <p className="text-neutral-400 text-sm py-8 text-center">Nessun prodotto trovato.</p>
+          <EmptyState
+            icon="🔎"
+            title="Nessun prodotto trovato"
+            description="Modifica i filtri o la ricerca per vedere più risultati."
+            compact
+          />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -176,31 +177,25 @@ export default function StatisticheProdotti() {
 
             {/* Paginazione */}
             <div className="flex items-center justify-between mt-4">
-              <button
+              <Btn
+                variant="ghost"
+                size="sm"
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
                 disabled={offset === 0}
-                className={`px-3 py-1.5 rounded-lg text-sm ${
-                  offset === 0
-                    ? "text-neutral-300 cursor-not-allowed"
-                    : "text-rose-700 hover:bg-rose-50"
-                }`}
               >
                 ← Precedenti
-              </button>
+              </Btn>
               <span className="text-xs text-neutral-400">
                 {offset + 1}–{offset + prodotti.length}
               </span>
-              <button
+              <Btn
+                variant="ghost"
+                size="sm"
                 onClick={() => setOffset(offset + PAGE_SIZE)}
                 disabled={prodotti.length < PAGE_SIZE}
-                className={`px-3 py-1.5 rounded-lg text-sm ${
-                  prodotti.length < PAGE_SIZE
-                    ? "text-neutral-300 cursor-not-allowed"
-                    : "text-rose-700 hover:bg-rose-50"
-                }`}
               >
                 Successivi →
-              </button>
+              </Btn>
             </div>
           </>
         )}

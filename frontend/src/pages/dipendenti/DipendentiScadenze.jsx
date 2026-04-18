@@ -1,4 +1,4 @@
-// @version: v1.0-scadenze-documenti
+// @version: v1.1-mattoni — M.I primitives (Btn, EmptyState) su CTA/azioni/empty
 // Scadenze documenti dipendenti: HACCP, corsi sicurezza, visite mediche, ecc.
 // Semaforo verde/giallo/rosso + CRUD + filtri
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import DipendentiNav from "./DipendentiNav";
+import { Btn, EmptyState } from "../../components/ui";
 
 const fmt = (n) => n != null ? Number(n).toLocaleString("it-IT", { minimumFractionDigits: 0 }) : "\u2014";
 const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" }) : null;
@@ -140,10 +141,9 @@ export default function DipendentiScadenze() {
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-bold text-purple-900 font-playfair">{"\uD83D\uDEA8"} Scadenze Documenti</h1>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700">
+        <Btn variant="primary" size="sm" onClick={() => { resetForm(); setShowForm(true); }}>
           + Nuova Scadenza
-        </button>
+        </Btn>
       </div>
 
       {/* SEMAFORO KPI */}
@@ -239,14 +239,18 @@ export default function DipendentiScadenze() {
             </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button onClick={handleSave} disabled={saving || !form.dipendente_id || !form.data_scadenza}
-              className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">
-              {saving ? "Salvataggio..." : editId ? "Salva modifiche" : "Crea"}
-            </button>
-            <button onClick={() => { setShowForm(false); resetForm(); }}
-              className="px-4 py-2 rounded-lg border border-neutral-300 text-neutral-600 text-sm hover:bg-neutral-50">
+            <Btn
+              variant="primary"
+              size="md"
+              onClick={handleSave}
+              disabled={saving || !form.dipendente_id || !form.data_scadenza}
+              loading={saving}
+            >
+              {editId ? "Salva modifiche" : "Crea"}
+            </Btn>
+            <Btn variant="secondary" size="md" onClick={() => { setShowForm(false); resetForm(); }}>
               Annulla
-            </button>
+            </Btn>
           </div>
         </div>
       )}
@@ -256,9 +260,16 @@ export default function DipendentiScadenze() {
         {loading ? (
           <div className="text-center py-12 text-neutral-400">Caricamento...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-neutral-400 text-sm">
-            {scadenze.length === 0 ? "Nessuna scadenza registrata." : "Nessun risultato per i filtri."}
-          </div>
+          <EmptyState
+            icon="📋"
+            title={scadenze.length === 0 ? "Nessuna scadenza registrata" : "Nessun risultato"}
+            description={
+              scadenze.length === 0
+                ? "Crea la prima scadenza per iniziare a tracciare HACCP, corsi e visite."
+                : "Prova a modificare i filtri selezionati."
+            }
+            compact
+          />
         ) : (
           <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden shadow-sm">
             <table className="w-full text-sm">
@@ -315,14 +326,12 @@ export default function DipendentiScadenze() {
                       <td className="px-3 py-2 text-xs text-neutral-500">{s.ente_rilascio || "\u2014"}</td>
                       <td className="px-3 py-2 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => openEdit(s)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 hover:bg-sky-200">
+                          <Btn variant="chip" tone="sky" size="sm" onClick={() => openEdit(s)}>
                             Modifica
-                          </button>
-                          <button onClick={() => handleDelete(s.id)}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200">
+                          </Btn>
+                          <Btn variant="chip" tone="red" size="sm" onClick={() => handleDelete(s.id)}>
                             {"\u2715"}
-                          </button>
+                          </Btn>
                         </div>
                       </td>
                     </tr>

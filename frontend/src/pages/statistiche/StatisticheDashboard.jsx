@@ -1,9 +1,10 @@
-// @version: v1.0-statistiche-dashboard
+// @version: v1.1-mattoni — EmptyState sui 3 placeholder "Nessun dato"
 // Dashboard Statistiche — categorie, top prodotti, trend mensile
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import StatisticheNav from "./StatisticheNav";
 import TrgbLoader from "../../components/TrgbLoader";
+import { EmptyState } from "../../components/ui";
 
 const EP = `${API_BASE}/statistiche`;
 
@@ -148,7 +149,7 @@ export default function StatisticheDashboard() {
               <div className="bg-white rounded-2xl shadow p-6">
                 <h2 className="text-lg font-bold text-neutral-800 mb-4">Categorie per fatturato</h2>
                 {categorie.length === 0 ? (
-                  <p className="text-neutral-400 text-sm">Nessun dato.</p>
+                  <EmptyState icon="📊" title="Nessun dato" description="Importa un export iPratico per popolare le categorie." compact />
                 ) : (
                   <div className="space-y-2">
                     {categorie.map((c, i) => (
@@ -175,7 +176,7 @@ export default function StatisticheDashboard() {
               <div className="bg-white rounded-2xl shadow p-6">
                 <h2 className="text-lg font-bold text-neutral-800 mb-4">Top 15 prodotti</h2>
                 {topProdotti.length === 0 ? (
-                  <p className="text-neutral-400 text-sm">Nessun dato.</p>
+                  <EmptyState icon="🏆" title="Nessun dato" description="Nessun prodotto venduto nel periodo selezionato." compact />
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -212,7 +213,7 @@ export default function StatisticheDashboard() {
             <div className="bg-white rounded-2xl shadow p-6">
               <h2 className="text-lg font-bold text-neutral-800 mb-4">Trend mensile</h2>
               {trend.length === 0 ? (
-                <p className="text-neutral-400 text-sm">Nessun dato per il trend.</p>
+                <EmptyState icon="📈" title="Nessun dato per il trend" description="Serve almeno un mese importato per mostrare il trend." compact />
               ) : (
                 <div className="flex items-end gap-1 h-48">
                   {trend.map((t, i) => {
