@@ -5,7 +5,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { REPARTI, getReparto } from "../../config/reparti";
 import CucinaNav from "./CucinaNav";
+import { RepartoBadge } from "./CucinaTaskList";
 
 function oggiISO() {
   const d = new Date();
@@ -44,6 +46,7 @@ export default function CucinaAgendaGiornaliera() {
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState(params.get("data") || oggiISO());
   const [turno, setTurno] = useState(params.get("turno") || "");
+  const [reparto, setReparto] = useState(params.get("reparto") || "");
   const [agenda, setAgenda] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,6 +56,7 @@ export default function CucinaAgendaGiornaliera() {
     setError("");
     const qs = new URLSearchParams({ data });
     if (turno) qs.set("turno", turno);
+    if (reparto) qs.set("reparto", reparto);
     apiFetch(`${API_BASE}/cucina/agenda/?${qs.toString()}`)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -61,7 +65,7 @@ export default function CucinaAgendaGiornaliera() {
       .then(setAgenda)
       .catch(e => setError(e.message || "Errore caricamento agenda"))
       .finally(() => setLoading(false));
-  }, [data, turno]);
+  }, [data, turno, reparto]);
 
   useEffect(() => {
     loadAgenda();
@@ -69,8 +73,9 @@ export default function CucinaAgendaGiornaliera() {
     const next = new URLSearchParams();
     next.set("data", data);
     if (turno) next.set("turno", turno);
+    if (reparto) next.set("reparto", reparto);
     setParams(next, { replace: true });
-  }, [data, turno]);
+  }, [data, turno, reparto]);
 
   const istanze = (agenda?.turni || []).flatMap(b => b.instances);
   const kpi = {
@@ -135,6 +140,29 @@ export default function CucinaAgendaGiornaliera() {
           </div>
         </div>
 
+        {/* Pills REPARTO — mobile scroll x, sm+ wrap */}
+        <div
+          className="flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible pb-1"
+          style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+          role="tablist"
+          aria-label="Filtri reparto"
+        >
+          <PillBasic
+            active={reparto === ""}
+            onClick={() => setReparto("")}
+          >
+            Tutti
+          </PillBasic>
+          {REPARTI.map(r => (
+            <PillReparto
+              key={r.key}
+              reparto={r}
+              active={reparto === r.key}
+              onClick={() => setReparto(r.key)}
+            />
+          ))}
+        </div>
+
         {/* KPI sintetici */}
         {!loading && agenda && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -178,11 +206,11 @@ export default function CucinaAgendaGiornaliera() {
                     <span className={"text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap " + (STATO_CLS[inst.stato] || "")}>
                       {inst.stato}
                     </span>
+                    <RepartoBadge reparto={inst.reparto} />
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-neutral-900 truncate">{inst.template_nome}</div>
                       <div className="text-xs text-neutral-600 truncate">
-                        {inst.reparto}
-                        {inst.scadenza_at && ` · entro ${inst.scadenza_at.slice(11, 16)}`}
+                        {inst.scadenza_at && `entro ${inst.scadenza_at.slice(11, 16)}`}
                         {inst.assegnato_user && ` · @${inst.assegnato_user}`}
                         {inst.score_compliance != null && ` · score ${inst.score_compliance}%`}
                       </div>
@@ -214,6 +242,7 @@ export default function CucinaAgendaGiornaliera() {
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <PrioritaBadge priorita={t.priorita} />
+                    <RepartoBadge reparto={t.reparto} />
                     <span className="font-medium truncate">{t.titolo}</span>
                     {t.assegnato_user && (
                       <span className="text-xs text-neutral-500 whitespace-nowrap">@{t.assegnato_user}</span>
@@ -271,5 +300,53 @@ function PrioritaBadge({ priorita }) {
     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${map[priorita] || "bg-neutral-100"}`}>
       {priorita}
     </span>
+  );
+}
+
+// Pill "Tutti" neutra — uso la stessa estetica della TaskList per coerenza
+function PillBasic({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        "flex-shrink-0 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors min-h-[40px] " +
+        (active
+          ? "bg-brand-red text-white border-brand-red"
+          : "bg-white text-neutral-600 border-[#e6e1d8] hover:bg-[#EFEBE3]")
+      }
+      style={{ scrollSnapAlign: "start" }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Pill reparto colorata quando attiva (replica di RepartoPill di TaskList)
+function PillReparto({ reparto, active, onClick }) {
+  const activeCls = {
+    cucina:       "bg-red-100 text-red-900 border-red-400",
+    bar:          "bg-amber-100 text-amber-900 border-amber-400",
+    sala:         "bg-rose-100 text-rose-900 border-rose-400",
+    pulizia:      "bg-emerald-100 text-emerald-900 border-emerald-400",
+    manutenzione: "bg-slate-100 text-slate-900 border-slate-400",
+  }[reparto.key] || "bg-red-100 text-red-900 border-red-400";
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        "flex-shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors min-h-[40px] " +
+        (active ? activeCls : "bg-white text-neutral-700 border-[#e6e1d8] hover:bg-[#EFEBE3]")
+      }
+      style={{ scrollSnapAlign: "start" }}
+    >
+      <span aria-hidden="true">{reparto.icon}</span>
+      <span>{reparto.label}</span>
+    </button>
   );
 }

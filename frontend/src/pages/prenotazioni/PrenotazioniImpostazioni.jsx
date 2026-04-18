@@ -1,9 +1,10 @@
-// @version: v2.0-sidebar-layout
+// @version: v2.1-mattoni — refactor leggero con M.I primitives (Btn, EmptyState), bg brand-cream
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget)
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn, EmptyState } from "../../components/ui";
 
 // ── Sidebar items ──
 const SECTIONS = [
@@ -73,14 +74,9 @@ function SlotManager({ label, slots, onChange }) {
           onChange={(e) => setNewSlot(e.target.value)}
           className="px-3 py-1.5 border border-neutral-300 rounded-lg text-sm w-28"
         />
-        <button
-          type="button"
-          onClick={addSlot}
-          disabled={!newSlot.trim()}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition disabled:opacity-40"
-        >
+        <Btn variant="primary" size="sm" onClick={addSlot} disabled={!newSlot.trim()}>
           + Aggiungi
-        </button>
+        </Btn>
       </div>
     </div>
   );
@@ -159,7 +155,7 @@ export default function PrenotazioniImpostazioni() {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="impostazioni" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
@@ -185,7 +181,7 @@ export default function PrenotazioniImpostazioni() {
                   <button
                     key={s.key}
                     onClick={() => setSection(s.key)}
-                    className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                    className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                       active
                         ? "bg-indigo-50 text-indigo-900 shadow-sm border border-indigo-200"
                         : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
@@ -203,17 +199,16 @@ export default function PrenotazioniImpostazioni() {
 
             {/* Salva — sempre visibile nella sidebar */}
             <div className="mt-6 px-3">
-              <button
+              <Btn
+                variant="primary"
+                size="md"
                 onClick={save}
                 disabled={saving || !dirty}
-                className={`w-full px-4 py-2.5 rounded-lg font-medium text-sm transition shadow-sm ${
-                  dirty
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                    : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-                }`}
+                loading={saving}
+                className="w-full"
               >
-                {saving ? "Salvataggio..." : dirty ? "Salva modifiche" : "Nessuna modifica"}
-              </button>
+                {dirty ? "Salva modifiche" : "Nessuna modifica"}
+              </Btn>
             </div>
           </div>
 
@@ -488,16 +483,18 @@ function WidgetSection({ config, update }) {
         </p>
       </div>
 
-      <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-8 text-center">
-        <div className="text-4xl mb-3">🚧</div>
-        <h4 className="font-semibold text-neutral-600 mb-2">In arrivo — Fase 3</h4>
-        <p className="text-sm text-neutral-500 max-w-md mx-auto">
-          Il widget pubblico permettera' ai clienti di prenotare direttamente dal sito.
-          Qui potrai configurare aspetto, orari disponibili, e campi del form.
-        </p>
-        <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-neutral-200 rounded-lg text-xs text-neutral-500">
-          <input type="checkbox" checked={config.widget_attivo === "1"} disabled className="rounded" />
-          Widget attivo
+      <div className="bg-white rounded-xl border border-neutral-200">
+        <EmptyState
+          icon="🚧"
+          title="In arrivo — Fase 3"
+          description="Il widget pubblico permettera' ai clienti di prenotare direttamente dal sito. Qui potrai configurare aspetto, orari disponibili, e campi del form."
+          watermark
+        />
+        <div className="flex justify-center pb-6 -mt-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg text-xs text-neutral-500">
+            <input type="checkbox" checked={config.widget_attivo === "1"} disabled className="rounded" />
+            Widget attivo
+          </div>
         </div>
       </div>
     </div>

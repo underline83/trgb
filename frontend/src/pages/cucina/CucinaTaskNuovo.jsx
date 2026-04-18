@@ -13,6 +13,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { REPARTI } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
 
 const PRIORITA = ["ALTA", "MEDIA", "BASSA"];
@@ -32,6 +33,7 @@ export default function CucinaTaskNuovo({ task, onClose, onSaved }) {
   const [oraScadenza, setOraScadenza] = useState(task?.ora_scadenza || "");
   const [assegnato, setAssegnato] = useState(task?.assegnato_user || "");
   const [priorita, setPriorita] = useState(task?.priorita || "MEDIA");
+  const [reparto, setReparto] = useState(task?.reparto || "cucina");
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -66,6 +68,7 @@ export default function CucinaTaskNuovo({ task, onClose, onSaved }) {
       ora_scadenza: oraScadenza || null,
       assegnato_user: assegnato.trim() || null,
       priorita,
+      reparto: (reparto || "cucina").toLowerCase(),
     };
 
     try {
@@ -137,6 +140,7 @@ export default function CucinaTaskNuovo({ task, onClose, onSaved }) {
             oraScadenza={oraScadenza} setOraScadenza={setOraScadenza}
             assegnato={assegnato} setAssegnato={setAssegnato}
             priorita={priorita} setPriorita={setPriorita}
+            reparto={reparto} setReparto={setReparto}
             error={error}
           />
         </div>
@@ -249,6 +253,7 @@ function FormFields({
   oraScadenza, setOraScadenza,
   assegnato, setAssegnato,
   priorita, setPriorita,
+  reparto, setReparto,
   error,
 }) {
   return (
@@ -258,6 +263,19 @@ function FormFields({
           {error}
         </div>
       )}
+
+      <Label>Reparto *</Label>
+      <select
+        value={reparto || "cucina"}
+        onChange={e => setReparto(e.target.value)}
+        className="w-full text-[16px] bg-white border border-[#e6e1d8] rounded-xl px-3.5 py-3 min-h-[48px] focus:outline-2 focus:outline focus:outline-brand-red"
+      >
+        {REPARTI.map(r => (
+          <option key={r.key} value={r.key}>
+            {r.icon} {r.label}
+          </option>
+        ))}
+      </select>
 
       <Label>Titolo *</Label>
       <input

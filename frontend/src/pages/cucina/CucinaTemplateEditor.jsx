@@ -6,9 +6,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import { REPARTI } from "../../config/reparti";
 import CucinaNav from "./CucinaNav";
 
-const REPARTI = ["CUCINA", "BAR", "SALA", "ALTRO"];
 const TURNI = ["", "APERTURA", "PRANZO", "POMERIGGIO", "CENA", "CHIUSURA", "GIORNATA"];
 const TIPI = ["CHECKBOX", "NUMERICO", "TEMPERATURA", "TESTO"];
 
@@ -25,7 +25,7 @@ const EMPTY_ITEM = {
 function emptyTemplate() {
   return {
     nome: "",
-    reparto: "CUCINA",
+    reparto: "cucina",
     frequenza: "GIORNALIERA",
     turno: "",
     ora_scadenza_entro: "",
@@ -189,6 +189,19 @@ export default function CucinaTemplateEditor() {
         {/* Dati template */}
         <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Reparto *">
+              <select
+                value={tpl.reparto || "cucina"}
+                onChange={e => setField("reparto", e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
+              >
+                {REPARTI.map(r => (
+                  <option key={r.key} value={r.key}>
+                    {r.icon} {r.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Nome *">
               <input
                 type="text"
@@ -197,15 +210,6 @@ export default function CucinaTemplateEditor() {
                 className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
                 placeholder="es. Apertura cucina"
               />
-            </Field>
-            <Field label="Reparto">
-              <select
-                value={tpl.reparto}
-                onChange={e => setField("reparto", e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 min-h-[44px]"
-              >
-                {REPARTI.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
             </Field>
             <Field label="Turno">
               <select

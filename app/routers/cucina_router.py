@@ -56,9 +56,16 @@ def _require_admin(user: dict):
         raise HTTPException(status_code=403, detail="Solo admin")
 
 
+def _normalize_reparto(val):
+    """Normalizza reparto in lowercase. Phase A (sessione 45): canonical form = lower."""
+    if val is None:
+        return None
+    return str(val).strip().lower() or None
+
+
 def _validate_template_payload(payload: dict) -> None:
     """Valida reparto/frequenza/turno/tipi item. Solleva 400 con messaggio chiaro."""
-    reparto = payload.get("reparto")
+    reparto = _normalize_reparto(payload.get("reparto"))
     if reparto and reparto not in REPARTI:
         raise HTTPException(400, f"reparto non valido: {reparto}. Valori: {sorted(REPARTI)}")
 
@@ -150,9 +157,10 @@ def list_templates(
 
     where = []
     params = []
-    if reparto:
+    rep = _normalize_reparto(reparto)
+    if rep:
         where.append("reparto = ?")
-        params.append(reparto)
+        params.append(rep)
     if turno:
         where.append("turno = ?")
         params.append(turno)
@@ -213,7 +221,7 @@ def create_template(
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             payload.nome,
-            payload.reparto,
+            _normalize_reparto(payload.reparto) or "cucina",
             payload.frequenza,
             payload.turno,
             payload.ora_scadenza_entro,
@@ -251,6 +259,9 @@ def update_template(
             raise HTTPException(404, "Template non trovato")
 
         data = payload.model_dump(exclude_unset=True, exclude={"items"})
+        # Normalizza reparto a lowercase prima di validare/salvare
+        if "reparto" in data:
+            data["reparto"] = _normalize_reparto(data["reparto"]) or "cucina"
         # Valida solo i campi presenti
         _validate_template_payload({**dict(row), **data, "items": [
             i.model_dump() for i in (payload.items or [])
@@ -432,11 +443,18 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
 
     items = [_row_to_execution(r) for r in rows]
 
+    # Reparto: prefer instance (post-085), fallback al template (record legacy).
+    inst_reparto = None
+    try:
+        inst_reparto = inst["reparto"]
+    except (IndexError, KeyError):
+        inst_reparto = None
+
     return ChecklistInstanceOut(
         id=inst["id"],
         template_id=inst["template_id"],
         template_nome=inst["template_nome"],
-        reparto=inst["template_reparto"],
+        reparto=(inst_reparto or inst["template_reparto"] or "cucina"),
         data_riferimento=inst["data_riferimento"],
         turno=inst["turno"],
         scadenza_at=inst["scadenza_at"],
@@ -456,10 +474,12 @@ def _fetch_instance(conn, instance_id: int) -> Optional[dict]:
 def get_agenda_giornaliera(
     data: Optional[str] = Query(None, description="YYYY-MM-DD (default: oggi)"),
     turno: Optional[str] = Query(None),
+    reparto: Optional[str] = Query(None, description="filtra istanze+task per reparto (lowercase)"),
     user: dict = Depends(get_current_user),
 ):
     # Tutti gli operativi (no viewer, no bloccati)
     data_str = data or date.today().isoformat()
+    rep = _normalize_reparto(reparto)
 
     # Lazy: genera istanze del giorno + scadute (idempotente)
     try:
@@ -481,6 +501,11 @@ def get_agenda_giornaliera(
         if turno:
             where.append("i.turno = ?")
             params.append(turno)
+        if rep:
+            # Preferisco i.reparto (gia' copiato dal template dallo scheduler).
+            # Fallback: se record legacy senza reparto, usa il template.
+            where.append("COALESCE(i.reparto, t.reparto) = ?")
+            params.append(rep)
 
         sql = f"""
             SELECT i.id
@@ -513,14 +538,18 @@ def get_agenda_giornaliera(
         ]
 
         # Task del giorno (nuovo MVP: tutti gli utenti vedono tutti i task)
-        tasks_rows = conn.execute("""
+        task_where = ["data_scadenza = ?", "stato NOT IN ('ANNULLATO')"]
+        task_params = [data_str]
+        if rep:
+            task_where.append("reparto = ?")
+            task_params.append(rep)
+        tasks_rows = conn.execute(f"""
             SELECT * FROM task_singolo
-             WHERE data_scadenza = ?
-               AND stato NOT IN ('ANNULLATO')
+             WHERE {' AND '.join(task_where)}
              ORDER BY
                 CASE priorita WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END,
                 ora_scadenza
-        """, (data_str,)).fetchall()
+        """, task_params).fetchall()
         tasks = [dict(r) for r in tasks_rows]
 
         return {"data": data_str, "turni": turni_out, "tasks": tasks}
@@ -533,6 +562,7 @@ def get_agenda_giornaliera(
 @router.get("/agenda/settimana")
 def get_agenda_settimana(
     data_inizio: str = Query(..., description="YYYY-MM-DD (lunedi)"),
+    reparto: Optional[str] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     try:
@@ -540,6 +570,7 @@ def get_agenda_settimana(
     except Exception:
         raise HTTPException(400, "data_inizio non valida (YYYY-MM-DD)")
 
+    rep = _normalize_reparto(reparto)
     conn = get_cucina_conn()
     try:
         giorni = []
@@ -548,21 +579,31 @@ def get_agenda_settimana(
             # Aggiorna scadute al volo
             cucina_scheduler.check_scadenze(conn)
 
-            rows = conn.execute("""
-                SELECT i.id, i.turno, i.stato, t.nome AS template_nome
+            inst_where = ["i.data_riferimento = ?"]
+            inst_params = [d.isoformat()]
+            if rep:
+                inst_where.append("COALESCE(i.reparto, t.reparto) = ?")
+                inst_params.append(rep)
+            rows = conn.execute(f"""
+                SELECT i.id, i.turno, i.stato, t.nome AS template_nome,
+                       COALESCE(i.reparto, t.reparto) AS reparto
                   FROM checklist_instance i
                   JOIN checklist_template t ON t.id = i.template_id
-                 WHERE i.data_riferimento = ?
+                 WHERE {' AND '.join(inst_where)}
                  ORDER BY i.turno
-            """, (d.isoformat(),)).fetchall()
+            """, inst_params).fetchall()
 
-            task_rows = conn.execute("""
-                SELECT id, titolo, stato, priorita, assegnato_user
+            tk_where = ["data_scadenza = ?", "stato NOT IN ('ANNULLATO')"]
+            tk_params = [d.isoformat()]
+            if rep:
+                tk_where.append("reparto = ?")
+                tk_params.append(rep)
+            task_rows = conn.execute(f"""
+                SELECT id, titolo, stato, priorita, assegnato_user, reparto
                   FROM task_singolo
-                 WHERE data_scadenza = ?
-                   AND stato NOT IN ('ANNULLATO')
+                 WHERE {' AND '.join(tk_where)}
                  ORDER BY CASE priorita WHEN 'ALTA' THEN 1 WHEN 'MEDIA' THEN 2 ELSE 3 END
-            """, (d.isoformat(),)).fetchall()
+            """, tk_params).fetchall()
 
             giorni.append({
                 "data": d.isoformat(),
@@ -814,6 +855,12 @@ def scheduler_check_scadute(user: dict = Depends(get_current_user)):
 # ======================================================================
 
 def _row_to_task(row) -> dict:
+    # reparto potrebbe mancare se la colonna non e' ancora stata creata
+    # (caso edge: boot prima della migration 085). Default "cucina".
+    try:
+        reparto = row["reparto"] or "cucina"
+    except (IndexError, KeyError):
+        reparto = "cucina"
     return TaskSingoloOut(
         id=row["id"],
         titolo=row["titolo"],
@@ -823,6 +870,7 @@ def _row_to_task(row) -> dict:
         assegnato_user=row["assegnato_user"],
         priorita=row["priorita"],
         stato=row["stato"],
+        reparto=reparto,
         completato_at=row["completato_at"],
         completato_da=row["completato_da"],
         note_completamento=row["note_completamento"],
@@ -855,6 +903,7 @@ def list_tasks(
     user_filter: Optional[str] = Query(None, alias="user", description="Filtra per assegnato_user"),
     data: Optional[str] = Query(None, description="YYYY-MM-DD"),
     stato: Optional[str] = Query(None),
+    reparto: Optional[str] = Query(None, description="filtra per reparto (lowercase)"),
     user: dict = Depends(get_current_user),
 ):
     conn = get_cucina_conn()
@@ -874,6 +923,10 @@ def list_tasks(
                 raise HTTPException(400, f"stato non valido: {stato}. Valori: {sorted(TASK_STATI)}")
             where.append("stato = ?")
             params.append(stato)
+        rep = _normalize_reparto(reparto)
+        if rep:
+            where.append("reparto = ?")
+            params.append(rep)
 
         sql = "SELECT * FROM task_singolo"
         if where:
@@ -910,14 +963,17 @@ def create_task(
 ):
     if payload.priorita not in TASK_PRIORITA:
         raise HTTPException(400, f"priorita non valida: {payload.priorita}. Valori: {sorted(TASK_PRIORITA)}")
+    rep = _normalize_reparto(payload.reparto) or "cucina"
+    if rep not in REPARTI:
+        raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
 
     conn = get_cucina_conn()
     try:
         cur = conn.execute("""
             INSERT INTO task_singolo
                 (titolo, descrizione, data_scadenza, ora_scadenza,
-                 assegnato_user, priorita, origine, ref_modulo, ref_id, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, 'MANUALE', ?, ?, ?)
+                 assegnato_user, priorita, reparto, origine, ref_modulo, ref_id, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUALE', ?, ?, ?)
         """, (
             payload.titolo,
             payload.descrizione,
@@ -925,6 +981,7 @@ def create_task(
             payload.ora_scadenza,
             payload.assegnato_user,
             payload.priorita,
+            rep,
             payload.ref_modulo,
             payload.ref_id,
             user["username"],
@@ -954,6 +1011,11 @@ def update_task(
         raise HTTPException(400, f"priorita non valida: {data['priorita']}")
     if "stato" in data and data["stato"] not in TASK_STATI:
         raise HTTPException(400, f"stato non valido: {data['stato']}")
+    if "reparto" in data:
+        rep = _normalize_reparto(data["reparto"])
+        if rep and rep not in REPARTI:
+            raise HTTPException(400, f"reparto non valido: {rep}. Valori: {sorted(REPARTI)}")
+        data["reparto"] = rep or "cucina"
 
     conn = get_cucina_conn()
     try:

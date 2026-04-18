@@ -1,9 +1,11 @@
-// @version: v4.1-sidebar-clienti-style
+// @version: v5.0-mattoni — refactor con M.I UI primitives (Btn), bg brand-cream, focus ring
 // Impostazioni Vendite — Layout sidebar uniformato a ClientiImpostazioni
+// Nota: NON usa PageLayout (sidebar full-height custom).
 import React, { useState } from "react";
 import VenditeNav from "./VenditeNav";
 import CalendarioChiusure from "./CalendarioChiusure";
 import { API_BASE, apiFetch } from "../../config/api";
+import { Btn } from "../../components/ui";
 
 const MONTH_NAMES = [
   "Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
@@ -135,12 +137,9 @@ function SezioneImportExport() {
               {MONTH_NAMES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
             </select>
           </div>
-          <button onClick={handleExport} disabled={exporting}
-            className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-              exporting ? "bg-neutral-200 text-neutral-500" : "bg-emerald-600 text-white hover:bg-emerald-700"
-            }`}>
+          <Btn variant="success" size="md" onClick={handleExport} disabled={exporting} loading={exporting}>
             {exporting ? "Generazione..." : "Scarica Excel"}
-          </button>
+          </Btn>
         </div>
       </section>
 
@@ -155,12 +154,9 @@ function SezioneImportExport() {
           </p>
         </div>
 
-        <button onClick={handleTemplate} disabled={downloadingTemplate}
-          className={`px-5 py-2 rounded-xl text-sm font-semibold shadow transition ${
-            downloadingTemplate ? "bg-neutral-200 text-neutral-500" : "bg-indigo-600 text-white hover:bg-indigo-700"
-          }`}>
+        <Btn variant="primary" size="md" onClick={handleTemplate} disabled={downloadingTemplate} loading={downloadingTemplate}>
           {downloadingTemplate ? "Generazione..." : "Scarica template"}
-        </button>
+        </Btn>
       </section>
 
       <hr className="border-neutral-200" />
@@ -208,12 +204,9 @@ function SezioneImportExport() {
 
           {/* Button */}
           <div className="flex items-center gap-3">
-            <button type="button" disabled={importing || !file} onClick={handleImport}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold shadow ${
-                importing || !file ? "bg-neutral-200 text-neutral-500 cursor-not-allowed" : "bg-orange-600 text-white hover:bg-orange-700 transition"
-              }`}>
+            <Btn variant="warning" size="md" onClick={handleImport} disabled={importing || !file} loading={importing}>
               {importing ? "Import in corso..." : "Importa corrispettivi"}
-            </button>
+            </Btn>
             {file && !importing && <span className="text-xs text-neutral-500">File: <strong>{file.name}</strong></span>}
           </div>
 
@@ -263,7 +256,7 @@ export default function CorrispettiviImport() {
   return (
     <>
       <VenditeNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex gap-6">
 
@@ -277,7 +270,7 @@ export default function CorrispettiviImport() {
                   const active = activeSection === item.key;
                   return (
                     <button key={item.key} onClick={() => setActiveSection(item.key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                         active
                           ? "bg-indigo-50 text-indigo-900 shadow-sm border border-indigo-200"
                           : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"

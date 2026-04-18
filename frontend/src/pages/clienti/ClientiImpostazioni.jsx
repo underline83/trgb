@@ -1,4 +1,4 @@
-// @version: v2.0-clienti-impostazioni
+// @version: v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import ClientiImport from "./ClientiImport";
 import ClientiDuplicati from "./ClientiDuplicati";
 import ClientiMailchimp from "./ClientiMailchimp";
 import ClientiMenuTemplates from "./ClientiMenuTemplates";
+import { Btn, EmptyState } from "../../components/ui";
 
 // ── Sidebar items ──
 const SECTIONS = [
@@ -48,7 +49,7 @@ export default function ClientiImpostazioni() {
   return (
     <>
       <ClientiNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen bg-brand-cream">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex gap-6">
             {/* ── Sidebar ── */}
@@ -63,7 +64,7 @@ export default function ClientiImpostazioni() {
                     <button
                       key={s.key}
                       onClick={() => goTo(s.key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                         active
                           ? "bg-teal-50 text-teal-900 shadow-sm border border-teal-200"
                           : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
@@ -219,18 +220,14 @@ function SegmentiSection() {
           ))}
         </div>
         <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between">
-          <button onClick={handleReset} className="text-xs text-neutral-500 hover:text-red-600 transition">
+          <Btn variant="ghost" size="sm" onClick={handleReset}>
             Ripristina default
-          </button>
+          </Btn>
           <div className="flex items-center gap-3">
             {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
-            <button
-              onClick={handleSave}
-              disabled={!dirty || saving}
-              className="px-5 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
-            >
-              {saving ? "Salvataggio..." : "Salva"}
-            </button>
+            <Btn variant="success" size="md" onClick={handleSave} disabled={!dirty || saving} loading={saving}>
+              Salva
+            </Btn>
           </div>
         </div>
       </div>
@@ -362,13 +359,12 @@ function TemplateSection() {
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden mb-6">
         <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-100 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-800">Template attivi</h2>
-          <button onClick={() => { resetForm(); setEditing("new"); }}
-            className="text-xs px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition font-medium">
+          <Btn variant="chip" tone="blue" size="sm" onClick={() => { resetForm(); setEditing("new"); }}>
             + Nuovo template
-          </button>
+          </Btn>
         </div>
         {templates.length === 0 ? (
-          <div className="p-8 text-center text-neutral-400 text-sm">Nessun template. Creane uno!</div>
+          <EmptyState icon="📋" title="Nessun template" description="Crea un template per riutilizzare menu e condizioni sui preventivi." compact />
         ) : (
           <div className="divide-y divide-neutral-100">
             {templates.map((tpl) => {
@@ -381,10 +377,8 @@ function TemplateSection() {
                     <span className="ml-2 text-xs text-neutral-400">{tpl.tipo} — {righeCount} voci</span>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => startEdit(tpl)}
-                      className="text-xs px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded transition">Modifica</button>
-                    <button onClick={() => handleDelete(tpl)}
-                      className="text-xs px-2 py-1 text-red-500 hover:bg-red-50 rounded transition">Disattiva</button>
+                    <Btn variant="chip" tone="blue" size="sm" onClick={() => startEdit(tpl)}>Modifica</Btn>
+                    <Btn variant="chip" tone="red" size="sm" onClick={() => handleDelete(tpl)}>Disattiva</Btn>
                   </div>
                 </div>
               );
@@ -459,12 +453,8 @@ function TemplateSection() {
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
-              <button onClick={resetForm}
-                className="px-4 py-1.5 text-xs text-neutral-600 hover:text-neutral-800 transition">Annulla</button>
-              <button onClick={handleSave}
-                className="px-5 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
-                Salva template
-              </button>
+              <Btn variant="ghost" size="sm" onClick={resetForm}>Annulla</Btn>
+              <Btn variant="primary" size="md" onClick={handleSave}>Salva template</Btn>
             </div>
           </div>
         </div>
@@ -590,7 +580,7 @@ function LuoghiSection() {
         </div>
 
         {luoghi.length === 0 ? (
-          <div className="p-8 text-center text-neutral-400 text-sm">Nessun luogo configurato.</div>
+          <EmptyState icon="📍" title="Nessun luogo configurato" description="Aggiungi le sale e gli spazi per gli eventi." compact />
         ) : (
           <div className="divide-y divide-neutral-100">
             {luoghi.map((l, i) => (
@@ -634,27 +624,20 @@ function LuoghiSection() {
             placeholder="Nuovo luogo (es. Privé, Cantina…)"
             className="flex-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm"
           />
-          <button
-            onClick={aggiungi}
-            className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition"
-          >+ Aggiungi</button>
+          <Btn variant="primary" size="sm" onClick={aggiungi} disabled={!nuovo.trim()}>+ Aggiungi</Btn>
         </div>
       </div>
 
       {/* Azioni */}
       <div className="flex items-center justify-between">
-        <button onClick={reset} className="text-xs text-neutral-500 hover:text-red-600 transition">
+        <Btn variant="ghost" size="sm" onClick={reset}>
           Ripristina default (Sala, Giardino, Dehor)
-        </button>
+        </Btn>
         <div className="flex items-center gap-3">
           {dirty && <span className="text-xs text-amber-600 font-medium">Modifiche non salvate</span>}
-          <button
-            onClick={salva}
-            disabled={!dirty || saving}
-            className="px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
-          >
-            {saving ? "Salvataggio..." : "Salva"}
-          </button>
+          <Btn variant="success" size="md" onClick={salva} disabled={!dirty || saving} loading={saving}>
+            Salva
+          </Btn>
         </div>
       </div>
 

@@ -1,11 +1,12 @@
 // src/pages/admin/CalendarioChiusure.jsx
-// @version: v2.0-turni-chiusi
+// @version: v2.1-mattoni — refactor leggero con M.I primitives (Btn, StatusBadge, EmptyState)
 // Configurazione giorni di chiusura: giorno settimanale + ferie/festivi + turni chiusi
 // Incluso dentro la pagina Impostazioni Vendite
 
 import React, { useState, useEffect, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 const GIORNI_SETTIMANA = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"];
 const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
@@ -334,13 +335,9 @@ export default function CalendarioChiusure() {
               className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 text-sm focus:border-teal-400 focus:ring-1 focus:ring-teal-200 outline-none"
             />
           </div>
-          <button
-            onClick={addTurnoChiuso}
-            disabled={!nuovoData || saving}
-            className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
-          >
+          <Btn variant="primary" size="sm" onClick={addTurnoChiuso} disabled={!nuovoData || saving}>
             Aggiungi
-          </button>
+          </Btn>
         </div>
 
         {/* Tabella turni chiusi */}
@@ -360,22 +357,15 @@ export default function CalendarioChiusure() {
                   <tr key={`${tc.data}-${tc.turno}`} className={i % 2 === 0 ? "bg-white" : "bg-neutral-50"}>
                     <td className="px-3 py-2 font-medium text-neutral-800">{fmtDateIT(tc.data)}</td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        tc.turno === "pranzo"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-indigo-100 text-indigo-700"
-                      }`}>
+                      <StatusBadge tone={tc.turno === "pranzo" ? "warning" : "brand"} size="md">
                         {tc.turno}
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="px-3 py-2 text-neutral-600">{tc.motivo || "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => removeTurnoChiuso(tc.data, tc.turno)}
-                        className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-100 transition border border-red-200"
-                      >
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => removeTurnoChiuso(tc.data, tc.turno)}>
                         Elimina
-                      </button>
+                      </Btn>
                     </td>
                   </tr>
                 ))}
@@ -383,7 +373,7 @@ export default function CalendarioChiusure() {
             </table>
           </div>
         ) : (
-          <p className="text-xs text-neutral-400 italic">Nessun turno chiuso configurato.</p>
+          <EmptyState icon="🗓️" title="Nessun turno chiuso configurato" compact />
         )}
       </div>
 

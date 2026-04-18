@@ -12,6 +12,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import { REPARTI, getReparto } from "../../config/reparti";
 import useToast from "../../hooks/useToast";
 import CucinaNav from "./CucinaNav";
 import CucinaTaskNuovo from "./CucinaTaskNuovo";
@@ -65,6 +66,7 @@ export default function CucinaTaskList() {
   // UI state
   const [scope, setScope] = useState("miei");           // miei | tutti
   const [statoFilter, setStatoFilter] = useState("APERTO"); // "" = tutti | key stato
+  const [repartoFilter, setRepartoFilter] = useState(""); // "" = tutti reparti | key reparto
   const [sheetFor, setSheetFor] = useState(null);       // task object
   const [editor, setEditor] = useState(null);           // null | "new" | task
   const [swipedId, setSwipedId] = useState(null);       // id della card attualmente rivelata
@@ -74,8 +76,14 @@ export default function CucinaTaskList() {
   const load = useCallback(() => {
     setLoading(true);
     setErrorBanner("");
-    // Non passo lo stato al BE: filtro client-side per aggiornare i counts istantaneamente
-    apiFetch(`${API_BASE}/cucina/tasks/`)
+    // Lo stato e' filtrato client-side per counts istantanei.
+    // Il reparto va server-side per performance sulle liste grandi.
+    const qs = new URLSearchParams();
+    if (repartoFilter) qs.set("reparto", repartoFilter);
+    const url = qs.toString()
+      ? `${API_BASE}/cucina/tasks/?${qs.toString()}`
+      : `${API_BASE}/cucina/tasks/`;
+    apiFetch(url)
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -83,7 +91,7 @@ export default function CucinaTaskList() {
       .then(setList)
       .catch(e => setErrorBanner(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [repartoFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -201,7 +209,30 @@ export default function CucinaTaskList() {
             </div>
           )}
 
-          {/* Row 3: pills stato scrollabili orizzontalmente */}
+          {/* Row 3: pills REPARTO — mobile scroll x, sm+ wrap */}
+          <div
+            className="mt-2.5 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible pb-1"
+            style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+            role="tablist"
+            aria-label="Filtri reparto"
+          >
+            <Pill
+              active={repartoFilter === ""}
+              onClick={() => setRepartoFilter("")}
+            >
+              Tutti
+            </Pill>
+            {REPARTI.map(r => (
+              <RepartoPill
+                key={r.key}
+                reparto={r}
+                active={repartoFilter === r.key}
+                onClick={() => setRepartoFilter(r.key)}
+              />
+            ))}
+          </div>
+
+          {/* Row 4: pills stato scrollabili orizzontalmente */}
           <div
             className="mt-2.5 flex gap-2 overflow-x-auto pb-1"
             style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
@@ -325,6 +356,53 @@ function Pill({ active, onClick, count, children }) {
         </span>
       )}
     </button>
+  );
+}
+
+// ── Pill reparto (colorata brand-coordinato quando attivo) ─────
+
+function RepartoPill({ reparto, active, onClick }) {
+  // Quando attivo: mostra con il color scheme del reparto (bg-*-50 border-*-300)
+  // Quando inattivo: bianco neutro con solo icona+label.
+  const activeCls = {
+    cucina:       "bg-red-100 text-red-900 border-red-400",
+    bar:          "bg-amber-100 text-amber-900 border-amber-400",
+    sala:         "bg-rose-100 text-rose-900 border-rose-400",
+    pulizia:      "bg-emerald-100 text-emerald-900 border-emerald-400",
+    manutenzione: "bg-slate-100 text-slate-900 border-slate-400",
+  }[reparto.key] || "bg-red-100 text-red-900 border-red-400";
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        "flex-shrink-0 inline-flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold border transition-colors min-h-[40px] " +
+        (active ? activeCls : "bg-white text-neutral-700 border-[#e6e1d8] hover:bg-[#EFEBE3]")
+      }
+      style={{ scrollSnapAlign: "start" }}
+    >
+      <span aria-hidden="true">{reparto.icon}</span>
+      <span>{reparto.label}</span>
+    </button>
+  );
+}
+
+// ── Badge reparto inline (icona + label corto) ─────────────────
+
+export function RepartoBadge({ reparto }) {
+  const r = getReparto(reparto);
+  // Label corto max 6 char — "Manutenzione" → "Manut.", "Pulizia" → "Pulizia"
+  const short = r.label.length > 6 ? r.label.slice(0, 5) + "." : r.label;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide border ${r.color}`}
+      title={r.label}
+    >
+      <span aria-hidden="true">{r.icon}</span>
+      <span>{short}</span>
+    </span>
   );
 }
 
@@ -465,6 +543,7 @@ function TaskRow({ task, revealed, onReveal, onHide, onOpen, onQuickComplete }) 
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-neutral-500">
+          <RepartoBadge reparto={task.reparto} />
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${STATO_CHIP[task.stato] || ""}`}>
             {stLabel}
           </span>

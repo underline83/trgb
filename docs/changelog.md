@@ -3,6 +3,102 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #3 (9 pagine: BancaImpostazioni, RicetteImport, ClientiImport, CorrispettiviImport, FattureImpostazioni, CalendarioChiusure, PrenotazioniImpostazioni, ClientiImpostazioni, ImpostazioniSistema)
+
+### Problema / contesto
+Terzo giro di refactor dei mattoni M.I sulle pagine settings/import che restavano. Pattern uguale ai batch precedenti:
+- bottoni con palette TRGB-02 unica (`<Btn>` invece di `bg-xxx-100 text-xxx-700` sparsi)
+- empty state con `<EmptyState>` (watermark gobbette dove ha senso)
+- badge stato con `<StatusBadge>` (palette unica, 7 toni)
+- focus ring brand su sidebar buttons
+- wrapper `bg-neutral-50` → `bg-brand-cream` dove ancora presente
+- nessun cambio di logica, nessuna migrazione
+
+### Pagine toccate in questo batch
+
+**1. `banca/BancaImpostazioni.jsx` — refactor v2.0-mattoni (1064 righe)**
+- Wrapper sidebar `bg-neutral-50` → `bg-brand-cream` + focus ring brand-blue/40 sui bottoni sidebar.
+- TabImport: "Importa" → `<Btn variant="success">`. Empty state cronologia → `<EmptyState>`.
+- TabCategorie: "Modifica/Rimuovi/Salva/Annulla" → `<Btn>` varianti. Empty state → `<EmptyState>`.
+- TabCategorieRegistrazione: toggle Attiva/Off → `<StatusBadge tone="success|neutral">`. CTA → `<Btn>`.
+- TabDuplicati: badge tipo (cliente/importo/data/cat) → `<StatusBadge tone="warning|danger|success|brand">`. "Elimina N duplicati" → `<Btn variant="danger">`. Sub-badge pre-autoriz/contabilizzato/collegato → `<StatusBadge>`.
+
+**2. `ricette/RicetteImport.jsx` — riscrittura v0.2-mattoni (placeholder, < 100 righe)**
+- Da placeholder grezzo → `<PageLayout>` con Playfair title + `<EmptyState icon="🛠" watermark>`.
+- Bottone "← Torna" → `<Btn variant="secondary">`.
+
+**3. `clienti/ClientiImport.jsx` — refactor v2.0-mattoni (~397 righe)**
+- Wrapper `min-h-screen bg-neutral-50` → `<PageLayout nav={<ClientiNav>} className="max-w-3xl">` (variante non-embedded).
+- "Avvia Import" → `<Btn variant="primary" loading>`. Counter diff → `<StatusBadge tone="warning">`.
+- Bulk actions e per-cliente: `<Btn variant="primary|secondary|chip">`.
+- ExportSection "Esporta CSV" → `<Btn variant="success">`.
+
+**4. `admin/CorrispettiviImport.jsx` — refactor v5.0-mattoni (~310 righe)**
+- Wrapper `bg-neutral-50` → `bg-brand-cream` + focus ring sidebar.
+- "Scarica Excel/template/Importa" → `<Btn variant="success|primary|warning">`.
+
+**5. `admin/FattureImpostazioni.jsx` — refactor parziale (1671 righe)**
+- Solo interventi minimi safe: wrapper `bg-neutral-50` → `bg-brand-cream`, focus ring sidebar.
+- Refactor completo CTA rimandato a batch futuro per dimensione file.
+
+**6. `admin/CalendarioChiusure.jsx` — refactor v2.1-mattoni (399 righe, embedded)**
+- "Aggiungi turno" → `<Btn variant="primary" size="sm">`.
+- Badge pranzo/cena → `<StatusBadge tone="warning|brand">`.
+- "Elimina" → `<Btn variant="chip" tone="red">`.
+- Empty turni → `<EmptyState icon="🗓️" compact>`.
+
+**7. `prenotazioni/PrenotazioniImpostazioni.jsx` — refactor v2.1-mattoni (505 righe)**
+- Wrapper `bg-neutral-50` → `bg-brand-cream` + focus ring sidebar.
+- "+ Aggiungi" slot orario → `<Btn variant="primary" size="sm">`.
+- "Salva modifiche" sidebar → `<Btn variant="primary" loading className="w-full">`.
+- WidgetSection placeholder Fase 3 → `<EmptyState icon="🚧" watermark>`.
+
+**8. `clienti/ClientiImpostazioni.jsx` — refactor v2.1-mattoni (671 righe)**
+- Wrapper `bg-neutral-50` → `bg-brand-cream` + focus ring sidebar.
+- SegmentiSection: "Reset/Salva" → `<Btn variant="ghost|success" loading>`.
+- TemplateSection: "+ Nuovo/Modifica/Disattiva" → `<Btn variant="chip" tone="blue|red">`. Empty list → `<EmptyState>`. Annulla/Salva form → `<Btn variant="ghost|primary">`.
+- LuoghiSection: empty state → `<EmptyState icon="📍">`. "+ Aggiungi/Reset/Salva" → `<Btn>`.
+
+**9. `admin/ImpostazioniSistema.jsx` — refactor leggero v1.1-mattoni (785 righe)**
+- "← Home" header → `<Btn variant="secondary">`.
+- TabUtenti: "+ Nuovo utente" → `<Btn variant="primary">`. Azioni "🔑 Password / 🗑 Elimina" → `<Btn variant="chip" tone="blue|red">`. Modal CTA Crea/Aggiorna/Elimina/Annulla → `<Btn variant="primary|danger|secondary" loading>`.
+- TabModuli: "Salva permessi" → `<Btn variant="success" loading>`. Indicatore "✓ Salvato" → `<StatusBadge tone="success">`.
+- TabBackup: "💾 Scarica backup completo" → `<Btn variant="primary" loading>`. "Scarica" giornalieri → `<Btn variant="chip" tone="blue" loading>`.
+- Tab bar e checkbox table TabModuli: invariati (pattern custom intenzionale).
+
+### Cosa NON cambia in queste pagine
+- Logica business identica (fetch, PUT, DELETE invariati).
+- Tabelle, modali, form input: invariati nella struttura.
+- Nessuna migrazione DB, nessun cambio di API.
+
+### File toccati
+- `frontend/src/pages/banca/BancaImpostazioni.jsx`
+- `frontend/src/pages/ricette/RicetteImport.jsx`
+- `frontend/src/pages/clienti/ClientiImport.jsx`
+- `frontend/src/pages/clienti/ClientiImpostazioni.jsx`
+- `frontend/src/pages/admin/CorrispettiviImport.jsx`
+- `frontend/src/pages/admin/FattureImpostazioni.jsx`
+- `frontend/src/pages/admin/CalendarioChiusure.jsx`
+- `frontend/src/pages/admin/ImpostazioniSistema.jsx`
+- `frontend/src/pages/prenotazioni/PrenotazioniImpostazioni.jsx`
+- `docs/changelog.md` (questa entry)
+
+### Verifica post-push
+1. `/banca/impostazioni` tab Import: bottone "Importa" verde brand. Tab Duplicati: badge tipo colorati StatusBadge (warning/danger/brand). "Elimina duplicati" rosso solido.
+2. `/clienti/import`: pagina dentro PageLayout. CTA "Avvia Import" blu brand, counter diff badge ambra StatusBadge.
+3. `/clienti/impostazioni`: sidebar focus blu brand. Tab Segmenti "Salva" verde. Tab Template Preventivi: empty state con icona 📋, "+ Nuovo template" chip blu.
+4. `/prenotazioni/impostazioni`: tab Widget mostra EmptyState 🚧 con watermark gobbette.
+5. `/admin/impostazioni` tab Backup: "💾 Scarica backup completo" blu brand, lista giornalieri con chip "Scarica" blu.
+6. `/admin/impostazioni/utenti`: "+ Nuovo utente" blu, modali con CTA Btn.
+7. `/admin/corrispettivi-import`: tre CTA verde/blu/ambra brand, sidebar focus blu.
+8. `/admin/calendario-chiusure`: badge pranzo/cena ambra/blu StatusBadge, "Aggiungi" blu primary.
+9. Tutte le pagine: focus visibile blu brand sui bottoni sidebar (test con tasto Tab).
+
+### Rollback
+`git revert` del commit. Le 9 pagine sono indipendenti tra loro: rollback isolato non rompe nulla.
+
+---
+
 ## 2026-04-18 — Batch refactor M.I (4 pagine: GestioneUtenti, NotificheImpostazioni, MancePage, DipendentiImpostazioni)
 
 ### Problema / contesto

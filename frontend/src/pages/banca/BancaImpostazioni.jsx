@@ -1,8 +1,10 @@
-// @version: v1.1-sidebar-clienti-style
-// Impostazioni Flussi Cassa: Import CSV + Categorie (sidebar stile ClientiImpostazioni)
+// @version: v2.0-mattoni — refactor leggero con M.I primitives (Btn, StatusBadge, EmptyState)
+// Impostazioni Flussi Cassa: Import CSV + Categorie (sidebar stile ClientiImpostazioni).
+// Nota: NON usa PageLayout (sidebar full-height custom). Fix wrapper a bg-brand-cream (TRGB-02).
 import React, { useEffect, useState, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
 
@@ -39,7 +41,7 @@ export default function BancaImpostazioni() {
   return (
     <>
       <FlussiCassaNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex gap-6">
 
@@ -53,7 +55,7 @@ export default function BancaImpostazioni() {
                   const active = activeSection === item.key;
                   return (
                     <button key={item.key} onClick={() => setActiveSection(item.key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                         active
                           ? "bg-emerald-50 text-emerald-900 shadow-sm border border-emerald-200"
                           : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
@@ -150,17 +152,9 @@ function TabImport() {
         </p>
         <div className="flex items-center justify-center gap-3">
           <input ref={fileRef} type="file" accept=".csv" className="text-sm" />
-          <button
-            onClick={handleUpload}
-            disabled={uploading}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow transition ${
-              uploading
-                ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                : "bg-emerald-600 text-white hover:bg-emerald-700"
-            }`}
-          >
+          <Btn onClick={handleUpload} variant="success" size="md" loading={uploading} disabled={uploading}>
             {uploading ? "Importazione..." : "Importa"}
-          </button>
+          </Btn>
         </div>
       </div>
 
@@ -204,7 +198,12 @@ function TabImport() {
       {logLoading ? (
         <div className="text-center py-8 text-neutral-400">Caricamento...</div>
       ) : importLog.length === 0 ? (
-        <div className="text-center py-8 text-neutral-400">Nessuna importazione effettuata.</div>
+        <EmptyState
+          icon="📥"
+          title="Nessuna importazione effettuata"
+          description="Carica un CSV della banca per iniziare."
+          compact
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -401,9 +400,11 @@ function TabCategorie() {
       {loading ? (
         <div className="text-center py-12 text-neutral-500">Caricamento...</div>
       ) : categorie.length === 0 ? (
-        <div className="text-center py-12 text-neutral-500">
-          Nessuna categoria trovata. Importa prima i movimenti bancari.
-        </div>
+        <EmptyState
+          icon="🏷️"
+          title="Nessuna categoria trovata"
+          description="Importa prima i movimenti bancari dal tab Import CSV."
+        />
       ) : (
         <div className="space-y-3">
           {categorie.map((c) => {
@@ -463,37 +464,39 @@ function TabCategorie() {
                     {!isEditing ? (
                       <>
                         {!isViewer && (
-                          <button
+                          <Btn
+                            variant="secondary"
+                            size="sm"
                             onClick={(e) => { e.stopPropagation(); startEdit(c); }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
                           >
                             {c.categoria_custom ? "Modifica" : "Mappa"}
-                          </button>
+                          </Btn>
                         )}
                         {!isViewer && c.map_id && (
-                          <button
+                          <Btn
+                            variant="chip"
+                            tone="red"
+                            size="sm"
                             onClick={(e) => { e.stopPropagation(); deleteMap(c.map_id); }}
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
                           >
                             Rimuovi
-                          </button>
+                          </Btn>
                         )}
                       </>
                     ) : (
                       <>
-                        <button
+                        <Btn
+                          variant="success"
+                          size="sm"
                           onClick={() => saveMap(c)}
                           disabled={saving || !editForm.categoria_custom.trim()}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-40"
+                          loading={saving}
                         >
-                          {saving ? "..." : "Salva"}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100 transition"
-                        >
+                          Salva
+                        </Btn>
+                        <Btn variant="secondary" size="sm" onClick={cancelEdit}>
                           Annulla
-                        </button>
+                        </Btn>
                       </>
                     )}
                   </div>
@@ -547,7 +550,7 @@ function TabCategorie() {
                     {drillLoading ? (
                       <div className="text-center py-4 text-neutral-400 text-sm">Caricamento movimenti...</div>
                     ) : drillMovimenti.length === 0 ? (
-                      <div className="text-center py-4 text-neutral-400 text-sm">Nessun movimento in questa categoria.</div>
+                      <EmptyState icon="💭" title="Nessun movimento in questa categoria" compact />
                     ) : (
                       <div className="max-h-80 overflow-y-auto">
                         <table className="w-full text-xs">
@@ -721,17 +724,18 @@ function TabCategorieRegistrazione() {
               )}
             </div>
             <span className="text-xs text-neutral-400 w-8 text-center">{c.ordine}</span>
-            <button onClick={() => toggle(c.id)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition ${
-                c.attiva ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                  : "border-neutral-300 text-neutral-500 bg-neutral-50 hover:bg-neutral-100"
-              }`}>
-              {c.attiva ? "Attiva" : "Off"}
+            <button
+              onClick={() => toggle(c.id)}
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 rounded-full"
+              title={c.attiva ? "Disattiva" : "Attiva"}
+            >
+              <StatusBadge tone={c.attiva ? "success" : "neutral"} size="sm" dot>
+                {c.attiva ? "Attiva" : "Off"}
+              </StatusBadge>
             </button>
-            <button onClick={() => startEdit(c)}
-              className="px-2.5 py-1 rounded-lg text-[10px] font-medium border border-neutral-300 hover:bg-neutral-100 transition">
+            <Btn variant="secondary" size="sm" onClick={() => startEdit(c)}>
               Modifica
-            </button>
+            </Btn>
           </>
         ) : (
           <div className="flex-1 space-y-2">
@@ -757,14 +761,12 @@ function TabCategorieRegistrazione() {
               <input type="number" value={form.ordine} onChange={e => setForm({ ...form, ordine: parseInt(e.target.value) || 0 })}
                 className="w-16 border rounded-lg px-2 py-1 text-sm text-center" title="Ordine" />
               <div className="flex gap-2 ml-auto">
-                <button onClick={save} disabled={saving || !form.label.trim()}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
-                  {saving ? "..." : "Salva"}
-                </button>
-                <button onClick={cancel}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100">
+                <Btn variant="success" size="sm" onClick={save} disabled={saving || !form.label.trim()} loading={saving}>
+                  Salva
+                </Btn>
+                <Btn variant="secondary" size="sm" onClick={cancel}>
                   Annulla
-                </button>
+                </Btn>
               </div>
             </div>
           </div>
@@ -779,10 +781,9 @@ function TabCategorieRegistrazione() {
         <p className="text-neutral-600 text-sm">
           Categorie usate nella Riconciliazione per registrare movimenti senza fattura. I pattern servono per l'auto-detect.
         </p>
-        <button onClick={startNew}
-          className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition">
+        <Btn variant="success" size="md" onClick={startNew}>
           + Nuova
-        </button>
+        </Btn>
       </div>
 
       {error && (
@@ -813,14 +814,12 @@ function TabCategorieRegistrazione() {
             <input type="number" value={form.ordine} onChange={e => setForm({ ...form, ordine: parseInt(e.target.value) || 0 })}
               className="w-16 border rounded-lg px-2 py-1 text-sm text-center" title="Ordine" />
             <div className="flex gap-2 ml-auto">
-              <button onClick={save} disabled={saving || !form.label.trim()}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40">
-                {saving ? "..." : "Crea"}
-              </button>
-              <button onClick={cancel}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100">
+              <Btn variant="success" size="sm" onClick={save} disabled={saving || !form.label.trim()} loading={saving}>
+                Crea
+              </Btn>
+              <Btn variant="secondary" size="sm" onClick={cancel}>
                 Annulla
-              </button>
+              </Btn>
             </div>
           </div>
         </div>
@@ -911,11 +910,11 @@ function TabDuplicati() {
       {loading ? (
         <div className="text-center py-12 text-neutral-500">Analisi movimenti...</div>
       ) : groups.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-3xl mb-2">✅</div>
-          <div className="text-neutral-600 font-medium">Nessun duplicato trovato</div>
-          <div className="text-xs text-neutral-400 mt-1">Tutti i movimenti sono unici</div>
-        </div>
+        <EmptyState
+          icon="✅"
+          title="Nessun duplicato trovato"
+          description="Tutti i movimenti sono unici."
+        />
       ) : (
         <div className="space-y-6">
           {/* Pre-autorizzazioni (più importanti) */}
@@ -989,11 +988,9 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
     <div className="bg-white border border-neutral-200 rounded-xl p-4 mb-3 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            isPreauth ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
-          }`}>
+          <StatusBadge tone={isPreauth ? "warning" : "danger"} size="sm">
             {isPreauth ? "Pre-autoriz." : "Classico"}
-          </span>
+          </StatusBadge>
           <span className="text-sm font-mono font-semibold text-neutral-800">
             {Number(group.importo).toLocaleString("it-IT", { minimumFractionDigits: 2 })} €
           </span>
@@ -1001,13 +998,15 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
             <span className="text-xs text-neutral-500">Data valuta: {fmtDate(group.data_valuta)}</span>
           )}
         </div>
-        <button
+        <Btn
+          variant="danger"
+          size="sm"
           onClick={() => onDelete(keepId, deleteIds)}
           disabled={deleting || !keepId || deleteIds.length === 0}
-          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 transition"
+          loading={deleting === keepId}
         >
-          {deleting === keepId ? "..." : `Elimina ${deleteIds.length} duplicat${deleteIds.length === 1 ? "o" : "i"}`}
-        </button>
+          {`Elimina ${deleteIds.length} duplicat${deleteIds.length === 1 ? "o" : "i"}`}
+        </Btn>
       </div>
 
       <div className="space-y-2">
@@ -1036,12 +1035,12 @@ function DuplicateGroup({ group, onDelete, deleting, fmtDate }) {
                     <span className="text-[10px] text-neutral-400">(val: {fmtDate(m.data_valuta)})</span>
                   )}
                   {m.is_preauth ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">pre-autoriz.</span>
+                    <StatusBadge tone="warning" size="sm">pre-autoriz.</StatusBadge>
                   ) : isPreauth ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 font-medium">contabilizzato</span>
+                    <StatusBadge tone="success" size="sm">contabilizzato</StatusBadge>
                   ) : null}
                   {m.has_links ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">collegato</span>
+                    <StatusBadge tone="brand" size="sm">collegato</StatusBadge>
                   ) : null}
                 </div>
                 <div className="text-xs text-neutral-700 truncate">{m.descrizione || "—"}</div>

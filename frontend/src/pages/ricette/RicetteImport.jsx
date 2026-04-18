@@ -1,35 +1,30 @@
-// @version: v0.1
+// @version: v0.2-mattoni — refactor con M.I UI primitives (PageLayout, Btn, EmptyState)
+// Placeholder Import/Export Ricette. Contenuto ancora da implementare.
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { PageLayout, Btn, EmptyState } from "../../components/ui";
 
 export default function RicetteImport() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6">
-      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl p-10 border">
-
-        <div className="flex justify-end mb-6">
-          <button
-            onClick={() => navigate("/ricette")}
-            className="px-4 py-2 rounded-xl border bg-neutral-50 hover:bg-neutral-100 transition"
-          >
-            ← Torna al Menu Ricette
-          </button>
-        </div>
-
-        <h1 className="text-4xl font-playfair text-neutral-800 mb-3">
-          📥 Import / Export Ricette
-        </h1>
-        <p className="text-neutral-600 mb-6">
-          Importa ed esporta ricette in formato JSON.
-        </p>
-
-        <div className="bg-neutral-50 border border-neutral-300 p-6 rounded-xl shadow-inner">
-          Sezione Import/Export in sviluppo…
-        </div>
-
+    <PageLayout
+      title="📥 Import / Export Ricette"
+      subtitle="Importa ed esporta ricette in formato JSON"
+      actions={
+        <Btn variant="secondary" size="md" onClick={() => navigate("/ricette")}>
+          ← Torna al Menu Ricette
+        </Btn>
+      }
+    >
+      <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 p-8">
+        <EmptyState
+          icon="🛠️"
+          title="Sezione Import/Export in sviluppo"
+          description="A breve potrai esportare e importare ricette in formato JSON."
+          watermark
+        />
       </div>
-    </div>
+    </PageLayout>
   );
 }

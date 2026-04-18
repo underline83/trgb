@@ -1,10 +1,11 @@
-// @version: v1.2-clienti-import
+// @version: v2.0-mattoni — refactor con M.I UI primitives (PageLayout, Btn, StatusBadge)
 // Import clienti + prenotazioni da TheFork XLSX + revisione diff
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
 import Tooltip from "../../components/Tooltip";
+import { PageLayout, Btn, StatusBadge } from "../../components/ui";
 
 function ImportSection({ title, icon, instructions, endpoint, color, note }) {
   const [file, setFile] = useState(null);
@@ -69,12 +70,16 @@ function ImportSection({ title, icon, instructions, endpoint, color, note }) {
           </div>
         </label>
 
-        <button onClick={handleImport} disabled={!file || loading}
-          className={`w-full py-2.5 rounded-lg text-sm font-semibold transition ${
-            !file || loading ? "bg-neutral-200 text-neutral-400 cursor-not-allowed" : "bg-teal-600 text-white hover:bg-teal-700"
-          }`}>
+        <Btn
+          variant="primary"
+          size="md"
+          onClick={handleImport}
+          disabled={!file || loading}
+          loading={loading}
+          className="w-full"
+        >
           {loading ? "Importazione in corso..." : "Avvia Import"}
-        </button>
+        </Btn>
       </div>
 
       {result && (
@@ -194,11 +199,9 @@ function DiffReviewSection({ onCountChange }) {
 
   return (
     <div className="mb-8">
-      <h2 className="text-lg font-bold text-neutral-900 mb-3">
+      <h2 className="text-lg font-bold text-neutral-900 mb-3 flex items-center gap-2">
         Revisione Differenze Import
-        <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
-          {data.totale_diff}
-        </span>
+        <StatusBadge tone="warning" size="md">{data.totale_diff}</StatusBadge>
       </h2>
       <p className="text-sm text-neutral-500 mb-4">
         Queste differenze sono state trovate tra i dati nel CRM e l'ultimo import TheFork.
@@ -207,14 +210,12 @@ function DiffReviewSection({ onCountChange }) {
 
       {/* Azioni globali */}
       <div className="flex gap-2 mb-4">
-        <button onClick={() => handleBulkAll("applica")}
-          className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition">
+        <Btn variant="primary" size="sm" onClick={() => handleBulkAll("applica")}>
           Applica tutte ({data.totale_diff})
-        </button>
-        <button onClick={() => handleBulkAll("ignora")}
-          className="px-3 py-1.5 text-xs font-semibold bg-neutral-500 text-white rounded-lg hover:bg-neutral-600 transition">
+        </Btn>
+        <Btn variant="secondary" size="sm" onClick={() => handleBulkAll("ignora")}>
           Ignora tutte
-        </button>
+        </Btn>
       </div>
 
       {data.clienti.map(cliente => {
@@ -234,14 +235,12 @@ function DiffReviewSection({ onCountChange }) {
                 </span>
               </div>
               <div className="flex gap-1.5">
-                <button onClick={() => handleAction(allIds, "applica")} disabled={acting[allKey]}
-                  className="px-2 py-1 text-xs font-medium bg-teal-100 text-teal-700 rounded hover:bg-teal-200 transition disabled:opacity-50">
+                <Btn variant="chip" tone="emerald" size="sm" onClick={() => handleAction(allIds, "applica")} disabled={acting[allKey]}>
                   Applica tutto
-                </button>
-                <button onClick={() => handleAction(allIds, "ignora")} disabled={acting[allKey]}
-                  className="px-2 py-1 text-xs font-medium bg-neutral-100 text-neutral-600 rounded hover:bg-neutral-200 transition disabled:opacity-50">
+                </Btn>
+                <Btn variant="chip" tone="neutral" size="sm" onClick={() => handleAction(allIds, "ignora")} disabled={acting[allKey]}>
                   Ignora tutto
-                </button>
+                </Btn>
               </div>
             </div>
 
@@ -270,14 +269,12 @@ function DiffReviewSection({ onCountChange }) {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={() => handleAction([d.id], "applica")} disabled={acting[dKey]}
-                        className="px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 transition disabled:opacity-50">
+                      <Btn variant="primary" size="sm" onClick={() => handleAction([d.id], "applica")} disabled={acting[dKey]}>
                         Applica
-                      </button>
-                      <button onClick={() => handleAction([d.id], "ignora")} disabled={acting[dKey]}
-                        className="px-2 py-1 text-xs bg-neutral-200 text-neutral-600 rounded hover:bg-neutral-300 transition disabled:opacity-50">
+                      </Btn>
+                      <Btn variant="secondary" size="sm" onClick={() => handleAction([d.id], "ignora")} disabled={acting[dKey]}>
                         Ignora
-                      </button>
+                      </Btn>
                     </div>
                   </div>
                 );
@@ -328,12 +325,9 @@ function ExportSection() {
           Esporta i clienti in formato CSV compatibile con Google Contacts / Gmail.
           Include nome, email, telefono, compleanni, allergie, tag come gruppi.
         </p>
-        <button onClick={handleExport} disabled={exporting}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-            exporting ? "bg-neutral-200 text-neutral-400" : "bg-emerald-600 text-white hover:bg-emerald-700"
-          }`}>
+        <Btn variant="success" size="md" onClick={handleExport} disabled={exporting} loading={exporting}>
           {exporting ? "Esportazione..." : "Scarica CSV per Google Contacts"}
-        </button>
+        </Btn>
       </div>
     </div>
   );
@@ -384,13 +378,11 @@ export default function ClientiImport({ embedded = false }) {
   if (embedded) return content;
 
   return (
-    <>
-      <ClientiNav current="impostazioni" diffCount={diffCount} />
-      <div className="min-h-screen bg-neutral-50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          {content}
-        </div>
-      </div>
-    </>
+    <PageLayout
+      nav={<ClientiNav current="impostazioni" diffCount={diffCount} />}
+      className="max-w-3xl"
+    >
+      {content}
+    </PageLayout>
   );
 }

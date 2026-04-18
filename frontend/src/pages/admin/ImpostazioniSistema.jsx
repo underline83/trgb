@@ -1,8 +1,10 @@
+// @version: v1.1-mattoni — refactor leggero CTA con M.I primitives (Btn, StatusBadge, EmptyState)
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { invalidateModulesCache } from "../../hooks/useModuleAccess";
 import NotificheImpostazioni from "./NotificheImpostazioni";
+import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 // ---------------------------------------------------------------------------
 // COSTANTI
@@ -51,10 +53,9 @@ export default function ImpostazioniSistema() {
             <h1 className="text-3xl font-bold text-neutral-800 mb-1">⚙️ Impostazioni Sistema</h1>
             <p className="text-neutral-500 text-sm">Gestione utenti e permessi moduli.</p>
           </div>
-          <button onClick={() => navigate("/")}
-            className="self-start px-4 py-2 rounded-xl text-sm font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 shadow-sm transition">
+          <Btn variant="secondary" size="md" onClick={() => navigate("/")} className="self-start">
             ← Home
-          </button>
+          </Btn>
         </div>
 
         {/* TAB BAR */}
@@ -176,10 +177,9 @@ function TabUtenti({ currentUsername }) {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <button onClick={() => openModal("add")}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-neutral-600 text-white hover:bg-neutral-700 shadow transition">
+        <Btn variant="primary" size="md" onClick={() => openModal("add")}>
           + Nuovo utente
-        </button>
+        </Btn>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-neutral-200">
@@ -211,15 +211,13 @@ function TabUtenti({ currentUsername }) {
                 </td>
                 <td className="px-5 py-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => openModal("password", u)}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
+                    <Btn variant="chip" tone="blue" size="sm" onClick={() => openModal("password", u)}>
                       🔑 Password
-                    </button>
+                    </Btn>
                     {u.username !== currentUsername && (
-                      <button onClick={() => openModal("delete", u)}
-                        className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition">
+                      <Btn variant="chip" tone="red" size="sm" onClick={() => openModal("delete", u)}>
                         🗑 Elimina
-                      </button>
+                      </Btn>
                     )}
                   </div>
                 </td>
@@ -259,14 +257,12 @@ function TabUtenti({ currentUsername }) {
                   </div>
                   {formError && <p className="text-red-600 text-sm">{formError}</p>}
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" disabled={saving}
-                      className="flex-1 bg-neutral-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition">
-                      {saving ? "..." : "Crea utente"}
-                    </button>
-                    <button type="button" onClick={() => setModal(null)}
-                      className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                    <Btn type="submit" variant="primary" size="md" disabled={saving} loading={saving} className="flex-1">
+                      Crea utente
+                    </Btn>
+                    <Btn type="button" variant="secondary" size="md" onClick={() => setModal(null)} className="flex-1">
                       Annulla
-                    </button>
+                    </Btn>
                   </div>
                 </form>
               </>
@@ -300,14 +296,12 @@ function TabUtenti({ currentUsername }) {
                   {formError && <p className="text-red-600 text-sm">{formError}</p>}
                   {formOk && <p className="text-green-600 text-sm font-medium">{formOk}</p>}
                   <div className="flex gap-3 pt-2">
-                    <button type="submit" disabled={saving}
-                      className="flex-1 bg-blue-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                      {saving ? "..." : "Aggiorna"}
-                    </button>
-                    <button type="button" onClick={() => setModal(null)}
-                      className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                    <Btn type="submit" variant="primary" size="md" disabled={saving} loading={saving} className="flex-1">
+                      Aggiorna
+                    </Btn>
+                    <Btn type="button" variant="secondary" size="md" onClick={() => setModal(null)} className="flex-1">
                       Annulla
-                    </button>
+                    </Btn>
                   </div>
                 </form>
               </>
@@ -321,14 +315,12 @@ function TabUtenti({ currentUsername }) {
                 </p>
                 {formError && <p className="text-red-600 text-sm mb-4">{formError}</p>}
                 <div className="flex gap-3">
-                  <button onClick={handleDelete} disabled={saving}
-                    className="flex-1 bg-red-600 text-white rounded-xl py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition">
-                    {saving ? "..." : "Elimina"}
-                  </button>
-                  <button onClick={() => setModal(null)}
-                    className="flex-1 border border-neutral-300 rounded-xl py-2 text-sm hover:bg-neutral-50 transition">
+                  <Btn variant="danger" size="md" onClick={handleDelete} disabled={saving} loading={saving} className="flex-1">
+                    Elimina
+                  </Btn>
+                  <Btn variant="secondary" size="md" onClick={() => setModal(null)} className="flex-1">
                     Annulla
-                  </button>
+                  </Btn>
                 </div>
               </>
             )}
@@ -571,11 +563,10 @@ function TabModuli() {
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
       <div className="flex items-center gap-4">
-        <button onClick={handleSave} disabled={saving}
-          className="px-6 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 disabled:opacity-50 shadow transition">
-          {saving ? "Salvataggio..." : "Salva permessi"}
-        </button>
-        {saved && <span className="text-green-600 text-sm font-medium">✓ Salvato</span>}
+        <Btn variant="success" size="md" onClick={handleSave} disabled={saving} loading={saving}>
+          Salva permessi
+        </Btn>
+        {saved && <StatusBadge tone="success" size="md">✓ Salvato</StatusBadge>}
       </div>
     </>
   );
@@ -736,10 +727,9 @@ function TabBackup() {
         <p className="text-sm text-neutral-600 mb-4">
           Crea un backup fresco di tutti i database e scaricalo sul tuo computer.
         </p>
-        <button onClick={handleDownloadNow} disabled={downloading}
-          className="px-6 py-2.5 bg-neutral-600 text-white rounded-xl text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 shadow transition">
-          {downloading ? "Preparazione backup..." : "💾 Scarica backup completo"}
-        </button>
+        <Btn variant="primary" size="md" onClick={handleDownloadNow} disabled={downloading} loading={downloading}>
+          💾 Scarica backup completo
+        </Btn>
         {success && <p className="text-green-600 text-sm font-medium mt-3">{success}</p>}
         {error && <p className="text-red-600 text-sm mt-3">{error}</p>}
       </div>
@@ -763,11 +753,16 @@ function TabBackup() {
                     <td className="px-5 py-3 text-neutral-800">{b.date}</td>
                     <td className="px-5 py-3 text-right text-neutral-500">{b.size_mb} MB</td>
                     <td className="px-5 py-3 text-right">
-                      <button onClick={() => handleDownloadDaily(b.filename)}
+                      <Btn
+                        variant="chip"
+                        tone="blue"
+                        size="sm"
+                        onClick={() => handleDownloadDaily(b.filename)}
                         disabled={downloadingFile === b.filename}
-                        className="px-3 py-1.5 text-xs rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition disabled:opacity-50">
-                        {downloadingFile === b.filename ? "..." : "Scarica"}
-                      </button>
+                        loading={downloadingFile === b.filename}
+                      >
+                        Scarica
+                      </Btn>
                     </td>
                   </tr>
                 ))}

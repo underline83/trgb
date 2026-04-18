@@ -1303,7 +1303,7 @@ export default function FattureImpostazioni() {
   return (
     <>
       <FattureNav current="impostazioni" />
-      <div className="min-h-screen bg-neutral-50 font-sans">
+      <div className="min-h-screen bg-brand-cream font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex gap-6">
 
@@ -1317,7 +1317,7 @@ export default function FattureImpostazioni() {
                   const active = activeSection === item.key;
                   return (
                     <button key={item.key} onClick={() => setActiveSection(item.key)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 ${
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-1 ${
                         active
                           ? "bg-teal-50 text-teal-900 shadow-sm border border-teal-200"
                           : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
