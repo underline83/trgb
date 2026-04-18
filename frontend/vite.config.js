@@ -37,6 +37,43 @@ export default defineConfig({
     __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
   },
 
+  // Code-splitting: un chunk vendor per libreria pesante + un chunk per modulo
+  // applicativo. Cosi' il primo load scarica solo React + router + Home,
+  // e ogni modulo (vini, dipendenti, ecc.) arriva on-demand via React.lazy.
+  build: {
+    // Aumenta warning: con recharts e xlsx la soglia 500KB e' sempre rossa
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        // Nome stabile dei chunk (cacheable con hash sul contenuto)
+        chunkFileNames: "assets/[name]-[hash].js",
+        manualChunks(id) {
+          // --- Vendor: raggruppa librerie node_modules per peso/uso ---
+          if (id.includes("node_modules")) {
+            if (id.includes("recharts") || id.includes("d3-")) return "vendor-charts";
+            if (id.includes("xlsx") || id.includes("exceljs")) return "vendor-xlsx";
+            if (id.includes("react-router")) return "vendor-router";
+            if (
+              id.includes("react-dom") ||
+              id.includes("scheduler") ||
+              /node_modules\/react\//.test(id)
+            ) {
+              return "vendor-react";
+            }
+            return "vendor";
+          }
+
+          // --- App: un chunk per modulo (cartella sotto src/pages/<modulo>/) ---
+          const m = id.match(/\/src\/pages\/([^/]+)\//);
+          if (m) return `module-${m[1]}`;
+
+          // --- Servizi/utils condivisi: lasciamo che Rollup li metta nel chunk
+          //     del modulo che li importa (nessun return = default) ---
+        },
+      },
+    },
+  },
+
   server: {
     host: "127.0.0.1",
     port: 5173,

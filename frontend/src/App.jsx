@@ -1,146 +1,144 @@
-// @version: v5.1-no-hub-pages — eliminate *Menu.jsx hub, ingresso modulo diretto su Dashboard (role-aware)
+// @version: v5.2-lazy-routes — code-splitting per modulo via React.lazy + Suspense
 // App principale — Routing TRGB Gestionale Web
 
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
+// Eager: necessari al primo paint (login, header, guardie, error/toast, auto-update)
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
+import TrgbLoader from "./components/TrgbLoader";
 import { ToastProvider } from "./components/Toast";
-import ImpostazioniSistema from "./pages/admin/ImpostazioniSistema";
-// import useAppHeight from "./hooks/useAppHeight"; // disabilitato sessione 26+, da reinvestigare
 import useUpdateChecker from "./hooks/useUpdateChecker";
 
-// --- GESTIONE VINI ---
-import ViniCarta from "./pages/vini/ViniCarta";
-import ViniVendite from "./pages/vini/ViniVendite";
-import ViniImpostazioni from "./pages/vini/ViniImpostazioni";
+// --- Lazy: pagine modulo (chunk on-demand, raggruppati per cartella in vite.config) ---
 
-// --- MAGAZZINO VINI ---
-import MagazzinoVini from "./pages/vini/MagazzinoVini";
-import MagazzinoViniDettaglio from "./pages/vini/MagazzinoViniDettaglio";
-import MagazzinoViniNuovo from "./pages/vini/MagazzinoViniNuovo";
+// GESTIONE VINI
+const ViniCarta = lazy(() => import("./pages/vini/ViniCarta"));
+const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
+const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
+const MagazzinoVini = lazy(() => import("./pages/vini/MagazzinoVini"));
+const MagazzinoViniDettaglio = lazy(() => import("./pages/vini/MagazzinoViniDettaglio"));
+const MagazzinoViniNuovo = lazy(() => import("./pages/vini/MagazzinoViniNuovo"));
+const MagazzinoAdmin = lazy(() => import("./pages/vini/MagazzinoAdmin"));
+const RegistroMovimenti = lazy(() => import("./pages/vini/RegistroMovimenti"));
+const DashboardVini = lazy(() => import("./pages/vini/DashboardVini"));
 
-// --- ADMIN MAGAZZINO ---
-import MagazzinoAdmin from "./pages/vini/MagazzinoAdmin";
-import RegistroMovimenti from "./pages/vini/RegistroMovimenti";
-// CantinaTools: contenuto ora in ViniImpostazioni (/vini/settings)
+// RICETTE & FOOD COST
+const RicetteNuova = lazy(() => import("./pages/ricette/RicetteNuova"));
+const RicetteArchivio = lazy(() => import("./pages/ricette/RicetteArchivio"));
+const RicetteDettaglio = lazy(() => import("./pages/ricette/RicetteDettaglio"));
+const RicetteModifica = lazy(() => import("./pages/ricette/RicetteModifica"));
+const RicetteIngredienti = lazy(() => import("./pages/ricette/RicetteIngredienti"));
+const RicetteIngredientiPrezzi = lazy(() => import("./pages/ricette/RicetteIngredientiPrezzi"));
+const RicetteMatching = lazy(() => import("./pages/ricette/RicetteMatching"));
+const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
+const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
 
-// --- DASHBOARD VINI ---
-import DashboardVini from "./pages/vini/DashboardVini";
+// VENDITE
+const ChiusuraTurno = lazy(() => import("./pages/admin/ChiusuraTurno"));
+const ChiusureTurnoLista = lazy(() => import("./pages/admin/ChiusureTurnoLista"));
+const CorrispettiviImport = lazy(() => import("./pages/admin/CorrispettiviImport"));
+const CorrispettiviGestione = lazy(() => import("./pages/admin/CorrispettiviGestione"));
+const CorrispettiviDashboard = lazy(() => import("./pages/admin/CorrispettiviDashboard"));
+const CorrispettiviRiepilogo = lazy(() => import("./pages/admin/CorrispettiviRiepilogo"));
 
-// --- IPRATICO SYNC (ora sezione interna di ViniImpostazioni — sessione 39) ---
-// import rimosso: il file resta in src/pages/vini/iPraticoSync.jsx
-// e viene importato direttamente da ViniImpostazioni per la sezione dedicata.
+// ACQUISTI / FATTURE
+const FattureImport = lazy(() => import("./pages/admin/FattureImport"));
+const FattureDashboard = lazy(() => import("./pages/admin/FattureDashboard"));
+const FattureFornitoreDettaglio = lazy(() => import("./pages/admin/FattureFornitoreDettaglio"));
+const FattureElenco = lazy(() => import("./pages/admin/FattureElenco"));
+const FattureDettaglio = lazy(() => import("./pages/admin/FattureDettaglio"));
+const FattureFornitoriElenco = lazy(() => import("./pages/admin/FattureFornitoriElenco"));
+const FattureInCloud = lazy(() => import("./pages/admin/FattureInCloud"));
+const FattureImpostazioni = lazy(() => import("./pages/admin/FattureImpostazioni"));
+const FattureProformeElenco = lazy(() => import("./pages/admin/FattureProformeElenco"));
 
-// --- GESTIONE RICETTE & FOOD COST ---
-import RicetteNuova from "./pages/ricette/RicetteNuova";
-import RicetteArchivio from "./pages/ricette/RicetteArchivio";
-import RicetteDettaglio from "./pages/ricette/RicetteDettaglio";
-import RicetteModifica from "./pages/ricette/RicetteModifica";
-import RicetteIngredienti from "./pages/ricette/RicetteIngredienti";
-import RicetteIngredientiPrezzi from "./pages/ricette/RicetteIngredientiPrezzi";
-import RicetteMatching from "./pages/ricette/RicetteMatching";
-import RicetteDashboard from "./pages/ricette/RicetteDashboard";
-import RicetteSettings from "./pages/ricette/RicetteSettings";
+// DIPENDENTI
+const DipendentiAnagrafica = lazy(() => import("./pages/dipendenti/DipendentiAnagrafica"));
+const DipendentiTurni = lazy(() => import("./pages/dipendenti/DipendentiTurni"));
+const FoglioSettimana = lazy(() => import("./pages/dipendenti/FoglioSettimana"));
+const VistaMensile = lazy(() => import("./pages/dipendenti/VistaMensile"));
+const PerDipendente = lazy(() => import("./pages/dipendenti/PerDipendente"));
+const MieiTurni = lazy(() => import("./pages/dipendenti/MieiTurni"));
+const GestioneReparti = lazy(() => import("./pages/dipendenti/GestioneReparti"));
+const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiImpostazioni"));
+const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"));
+const DipendentiBustePaga = lazy(() => import("./pages/dipendenti/DipendentiBustePaga"));
+const DipendentiScadenze = lazy(() => import("./pages/dipendenti/DipendentiScadenze"));
+const DashboardDipendenti = lazy(() => import("./pages/dipendenti/DashboardDipendenti"));
 
-// --- CHIUSURA TURNO ---
-import ChiusuraTurno from "./pages/admin/ChiusuraTurno";
-import ChiusureTurnoLista from "./pages/admin/ChiusureTurnoLista";
-// GestioneContanti e MancePage ora dentro Flussi di Cassa
+// CLIENTI / CRM
+const ClientiLista = lazy(() => import("./pages/clienti/ClientiLista"));
+const ClientiScheda = lazy(() => import("./pages/clienti/ClientiScheda"));
+const ClientiDashboard = lazy(() => import("./pages/clienti/ClientiDashboard"));
+const ClientiPrenotazioni = lazy(() => import("./pages/clienti/ClientiPrenotazioni"));
+const ClientiPreventivi = lazy(() => import("./pages/clienti/ClientiPreventivi"));
+const ClientiPreventivoScheda = lazy(() => import("./pages/clienti/ClientiPreventivoScheda"));
+const ClientiImport = lazy(() => import("./pages/clienti/ClientiImport"));
+const ClientiDuplicati = lazy(() => import("./pages/clienti/ClientiDuplicati"));
+const ClientiMailchimp = lazy(() => import("./pages/clienti/ClientiMailchimp"));
+const ClientiImpostazioni = lazy(() => import("./pages/clienti/ClientiImpostazioni"));
 
-// --- AREA AMMINISTRAZIONE ---
-// AdminMenu rimosso — /admin ora redirect a /impostazioni
-import CorrispettiviImport from "./pages/admin/CorrispettiviImport";
-import CorrispettiviGestione from "./pages/admin/CorrispettiviGestione";
-import CorrispettiviDashboard from "./pages/admin/CorrispettiviDashboard";
-// CorrispettiviAnnual rimosso — integrato nella dashboard unificata
-import CorrispettiviRiepilogo from "./pages/admin/CorrispettiviRiepilogo";
-import FattureImport from "./pages/admin/FattureImport";
-import FattureDashboard from "./pages/admin/FattureDashboard";
-import FattureFornitoreDettaglio from "./pages/admin/FattureFornitoreDettaglio";
-import FattureElenco from "./pages/admin/FattureElenco";
-import FattureDettaglio from "./pages/admin/FattureDettaglio";
-import FattureFornitoriElenco from "./pages/admin/FattureFornitoriElenco";
-import FattureInCloud from "./pages/admin/FattureInCloud";
-import FattureImpostazioni from "./pages/admin/FattureImpostazioni";
-import FattureProformeElenco from "./pages/admin/FattureProformeElenco";
-import DipendentiAnagrafica from "./pages/dipendenti/DipendentiAnagrafica";
-import DipendentiTurni from "./pages/dipendenti/DipendentiTurni";
-import FoglioSettimana from "./pages/dipendenti/FoglioSettimana";
-import VistaMensile from "./pages/dipendenti/VistaMensile";
-import PerDipendente from "./pages/dipendenti/PerDipendente";
-import MieiTurni from "./pages/dipendenti/MieiTurni";
-import GestioneReparti from "./pages/dipendenti/GestioneReparti";
-import DipendentiImpostazioni from "./pages/dipendenti/DipendentiImpostazioni";
-import DipendentiCosti from "./pages/dipendenti/DipendentiCosti";
-import DipendentiBustePaga from "./pages/dipendenti/DipendentiBustePaga";
-import DipendentiScadenze from "./pages/dipendenti/DipendentiScadenze";
-import DashboardDipendenti from "./pages/dipendenti/DashboardDipendenti";
+// PRENOTAZIONI
+const PrenotazioniPlanning = lazy(() => import("./pages/prenotazioni/PrenotazioniPlanning"));
+const PrenotazioniSettimana = lazy(() => import("./pages/prenotazioni/PrenotazioniSettimana"));
+const PrenotazioniImpostazioni = lazy(() => import("./pages/prenotazioni/PrenotazioniImpostazioni"));
+const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
+const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
 
-// --- GESTIONE CLIENTI CRM ---
-import ClientiLista from "./pages/clienti/ClientiLista";
-import ClientiScheda from "./pages/clienti/ClientiScheda";
-import ClientiDashboard from "./pages/clienti/ClientiDashboard";
-import ClientiPrenotazioni from "./pages/clienti/ClientiPrenotazioni";
-import ClientiPreventivi from "./pages/clienti/ClientiPreventivi";
-import ClientiPreventivoScheda from "./pages/clienti/ClientiPreventivoScheda";
-import ClientiImport from "./pages/clienti/ClientiImport";
-import ClientiDuplicati from "./pages/clienti/ClientiDuplicati";
-import ClientiMailchimp from "./pages/clienti/ClientiMailchimp";
-import ClientiImpostazioni from "./pages/clienti/ClientiImpostazioni";
+// CUCINA (MVP checklist + task)
+const SceltaMacellaio = lazy(() => import("./pages/cucina/SceltaMacellaio"));
+const CucinaHome = lazy(() => import("./pages/cucina/CucinaHome"));
+const CucinaAgendaGiornaliera = lazy(() => import("./pages/cucina/CucinaAgendaGiornaliera"));
+const CucinaAgendaSettimana = lazy(() => import("./pages/cucina/CucinaAgendaSettimana"));
+const CucinaInstanceDetail = lazy(() => import("./pages/cucina/CucinaInstanceDetail"));
+const CucinaTemplateList = lazy(() => import("./pages/cucina/CucinaTemplateList"));
+const CucinaTemplateEditor = lazy(() => import("./pages/cucina/CucinaTemplateEditor"));
+const CucinaTaskList = lazy(() => import("./pages/cucina/CucinaTaskList"));
 
-// --- PRENOTAZIONI ---
-import PrenotazioniPlanning from "./pages/prenotazioni/PrenotazioniPlanning";
-import PrenotazioniSettimana from "./pages/prenotazioni/PrenotazioniSettimana";
-import PrenotazioniImpostazioni from "./pages/prenotazioni/PrenotazioniImpostazioni";
-import TavoliEditor from "./pages/prenotazioni/TavoliEditor";
-import TavoliMappa from "./pages/prenotazioni/TavoliMappa";
+// COMUNICAZIONI + CAMBIO PIN + IMPOSTAZIONI SISTEMA
+const Comunicazioni = lazy(() => import("./pages/Comunicazioni"));
+const CambioPIN = lazy(() => import("./pages/CambioPIN"));
+const ImpostazioniSistema = lazy(() => import("./pages/admin/ImpostazioniSistema"));
 
-// --- COMUNICAZIONI (Bacheca Staff — 9.2) ---
-import SceltaMacellaio from "./pages/cucina/SceltaMacellaio";
+// FLUSSI DI CASSA (ex Banca)
+const BancaDashboard = lazy(() => import("./pages/banca/BancaDashboard"));
+const BancaMovimenti = lazy(() => import("./pages/banca/BancaMovimenti"));
+const BancaImport = lazy(() => import("./pages/banca/BancaImport"));
+const BancaCategorie = lazy(() => import("./pages/banca/BancaCategorie"));
+const BancaCrossRef = lazy(() => import("./pages/banca/BancaCrossRef"));
+const BancaImpostazioni = lazy(() => import("./pages/banca/BancaImpostazioni"));
+const CartaCreditoPage = lazy(() => import("./pages/banca/CartaCreditoPage"));
+const FlussiCassaContanti = lazy(() => import("./pages/banca/FlussiCassaContanti"));
+const FlussiCassaMance = lazy(() => import("./pages/banca/FlussiCassaMance"));
 
-// --- CUCINA (modulo MVP — checklist + task) ---
-import CucinaHome from "./pages/cucina/CucinaHome";
-import CucinaAgendaGiornaliera from "./pages/cucina/CucinaAgendaGiornaliera";
-import CucinaAgendaSettimana from "./pages/cucina/CucinaAgendaSettimana";
-import CucinaInstanceDetail from "./pages/cucina/CucinaInstanceDetail";
-import CucinaTemplateList from "./pages/cucina/CucinaTemplateList";
-import CucinaTemplateEditor from "./pages/cucina/CucinaTemplateEditor";
-import CucinaTaskList from "./pages/cucina/CucinaTaskList";
-import Comunicazioni from "./pages/Comunicazioni";
+// CONTROLLO DI GESTIONE
+const ControlloGestioneDashboard = lazy(() => import("./pages/controllo-gestione/ControlloGestioneDashboard"));
+const ControlloGestioneConfronto = lazy(() => import("./pages/controllo-gestione/ControlloGestioneConfronto"));
+const ControlloGestioneUscite = lazy(() => import("./pages/controllo-gestione/ControlloGestioneUscite"));
+const ControlloGestioneSpeseFisse = lazy(() => import("./pages/controllo-gestione/ControlloGestioneSpeseFisse"));
+const ControlloGestioneRiconciliazione = lazy(() => import("./pages/controllo-gestione/ControlloGestioneRiconciliazione"));
+const ControlloGestioneLiquidita = lazy(() => import("./pages/controllo-gestione/ControlloGestioneLiquidita"));
 
-// --- CAMBIO PIN ---
-import CambioPIN from "./pages/CambioPIN";
+// STATISTICHE
+const StatisticheDashboard = lazy(() => import("./pages/statistiche/StatisticheDashboard"));
+const StatisticheProdotti = lazy(() => import("./pages/statistiche/StatisticheProdotti"));
+const StatisticheImport = lazy(() => import("./pages/statistiche/StatisticheImport"));
+const StatisticheCoperti = lazy(() => import("./pages/statistiche/StatisticheCoperti"));
 
-// --- FLUSSI DI CASSA (ex Banca) ---
-import BancaDashboard from "./pages/banca/BancaDashboard";
-import BancaMovimenti from "./pages/banca/BancaMovimenti";
-import BancaImport from "./pages/banca/BancaImport";
-import BancaCategorie from "./pages/banca/BancaCategorie";
-import BancaCrossRef from "./pages/banca/BancaCrossRef";
-import BancaImpostazioni from "./pages/banca/BancaImpostazioni";
-import CartaCreditoPage from "./pages/banca/CartaCreditoPage";
-import FlussiCassaContanti from "./pages/banca/FlussiCassaContanti";
-import FlussiCassaMance from "./pages/banca/FlussiCassaMance";
-
-// --- CONTROLLO DI GESTIONE ---
-import ControlloGestioneDashboard from "./pages/controllo-gestione/ControlloGestioneDashboard";
-import ControlloGestioneConfronto from "./pages/controllo-gestione/ControlloGestioneConfronto";
-import ControlloGestioneUscite from "./pages/controllo-gestione/ControlloGestioneUscite";
-import ControlloGestioneSpeseFisse from "./pages/controllo-gestione/ControlloGestioneSpeseFisse";
-import ControlloGestioneRiconciliazione from "./pages/controllo-gestione/ControlloGestioneRiconciliazione";
-import ControlloGestioneLiquidita from "./pages/controllo-gestione/ControlloGestioneLiquidita";
-
-// --- STATISTICHE ---
-import StatisticheDashboard from "./pages/statistiche/StatisticheDashboard";
-import StatisticheProdotti from "./pages/statistiche/StatisticheProdotti";
-import StatisticheImport from "./pages/statistiche/StatisticheImport";
-import StatisticheCoperti from "./pages/statistiche/StatisticheCoperti";
+// Fallback per Suspense: TrgbLoader centrato nello spazio tra Header e il banner update
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[calc(100dvh-97px)] bg-brand-cream">
+      <TrgbLoader size={64} label="Caricamento modulo…" />
+    </div>
+  );
+}
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
@@ -168,6 +166,7 @@ export default function App() {
     <BrowserRouter>
       <Header onLogout={handleLogout} />
       <ErrorBoundary>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         {/* HOME */}
         <Route path="/" element={<Home />} />
@@ -403,6 +402,7 @@ export default function App() {
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       </ErrorBoundary>
 
       {/* Banner auto-update — polling /version.json */}

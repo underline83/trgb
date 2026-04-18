@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-04-18 — Code-splitting frontend (bundle on-demand)
+
+### Problema / contesto
+Il frontend serviva un singolo bundle JS monolitico (~2.3 MB) con tutti i ~100 import statici delle pagine modulo in `App.jsx`. Ogni primo load (o ogni reload dopo push) scaricava ricette, fatture, clienti, vini, cucina, ecc. anche se l'utente andava solo in Home. Penalità forte su iPad/mobile e su reti lente.
+
+### Novità
+- **`App.jsx` v5.2-lazy-routes**: tutte le pagine modulo passate a `React.lazy(() => import(...))`. Restano eager solo Login, Home, Header, ProtectedRoute, ModuleRedirect, ErrorBoundary, ToastProvider, TrgbLoader, useUpdateChecker. `<Routes>` wrappato in `<Suspense fallback={<RouteFallback />}>` con `TrgbLoader size={64}` centrato tra header e banner update.
+- **`vite.config.js` manualChunks**: vendor chunks separati (`vendor-react`, `vendor-router`, `vendor-charts` per recharts+d3, `vendor-xlsx`, `vendor` resto). App chunks per modulo: un chunk per cartella `src/pages/<nome>/` (`module-vini`, `module-dipendenti`, `module-cucina`, ecc.). `chunkSizeWarningLimit: 900` per silenziare warning di librerie pesanti.
+
+### Atteso
+- Primo load dopo push: chunk iniziale drasticamente più piccolo (solo React+router+Home+Login). I moduli arrivano solo quando si naviga sulla rotta → cache HTTP dei chunk con hash nel nome, niente redownload se non cambia il chunk.
+- Bundle recharts/xlsx isolati: chi non apre dashboard grafici non scarica 400+ KB di Recharts.
+
+### Cosa verificare dopo push
+- `dist/assets/` deve contenere decine di file `module-*.js` e `vendor-*.js` (prima era ~2-3 file giganti).
+- Network tab su primo ingresso Home: solo `index`, `vendor-react`, `vendor-router`, `module-home` (o simili). Andando su `/vini/carta` parte il download del chunk `module-vini`.
+- Il `RouteFallback` (TrgbLoader) appare per un istante tra click menu e render pagina. Se non appare è solo perché la rete è veloce, non è un bug.
+
+### File toccati
+- `frontend/src/App.jsx` (422 → 423 righe, refactor completo routing)
+- `frontend/vite.config.js` (+40 righe config build)
+
+### Rollback se qualcosa va storto
+`git revert` del commit — nessuna migrazione DB, nessuna API modificata. Solo build config frontend.
+
+---
+
 ## 2026-04-17 — Modulo Cucina MVP v1.0
 
 ### Problema / contesto
