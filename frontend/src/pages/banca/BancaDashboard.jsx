@@ -1,4 +1,4 @@
-// @version: v1.2-banca-dashboard
+// @version: v1.3-mattoni — M.I primitives (Btn) su CTA empty state Importa CSV (tocco minimo)
 // Dashboard Banca — panoramica saldo, entrate/uscite, andamento, breakdown
 // v1.2: nuovo selettore periodi (Mese con scelta mese/anno, Anno con scelta anno, Personalizzato)
 import React, { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
 
@@ -297,12 +298,11 @@ export default function BancaDashboard() {
             {!isViewer && (
               <>
                 <br />
-                <button
-                  onClick={() => navigate("/banca/import")}
-                  className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow transition"
-                >
-                  Importa CSV
-                </button>
+                <div className="mt-4 inline-block">
+                  <Btn variant="success" size="md" onClick={() => navigate("/banca/import")}>
+                    Importa CSV
+                  </Btn>
+                </div>
               </>
             )}
           </div>

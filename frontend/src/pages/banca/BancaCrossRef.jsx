@@ -1,11 +1,13 @@
-// @version: v5.2-bulk-parcheggia-senza-match (S40-12) — tab Parcheggiati, azioni bulk
+// @version: v5.3-mattoni — M.I primitives (Btn) su bulk actions toolbar (tocco minimo, file >1400 righe)
 // Riconciliazione — match movimenti bancari ↔ fatture, spese fisse, registrazione diretta
 // v5: multi-link (bonifici multi-fattura), ricerca entrate (storni), dedup, matching migliorato
 // v5.1: chiusura manuale riconciliazione n-a-1 (mig 059) per N/C, bonifici multipli, fattura+rata
+// v5.2: bulk parcheggia senza match (S40-12), tab Parcheggiati
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
 import Tooltip from "../../components/Tooltip";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
 
@@ -994,46 +996,46 @@ export default function BancaCrossRef() {
                         ));
                       })()}
                     </div>
-                    <button onClick={handleBulkRegistra} disabled={!bulkCat || bulkRegistering}
-                      className="px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition">
+                    <Btn variant="primary" size="md" onClick={handleBulkRegistra} disabled={!bulkCat || bulkRegistering} loading={bulkRegistering}>
                       {bulkRegistering ? "..." : `Registra ${bulkSelected.size}`}
-                    </button>
+                    </Btn>
                   </>
                 )}
 
                 {/* S40-12: Parcheggia bulk — su senza/suggerimenti */}
                 {(tab === "senza" || tab === "suggerimenti") && (
-                  <button onClick={handleBulkParcheggia} disabled={bulkRegistering}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 disabled:opacity-40 transition">
+                  <Btn variant="chip" tone="amber" size="sm" onClick={handleBulkParcheggia} disabled={bulkRegistering}>
                     🅿️ Parcheggia {bulkSelected.size}
-                  </button>
+                  </Btn>
                 )}
 
                 {/* S40-12: Flagga senza match bulk — solo su suggerimenti */}
                 {tab === "suggerimenti" && (
-                  <button onClick={handleBulkDismiss}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-neutral-100 text-neutral-700 border border-neutral-300 hover:bg-neutral-200 transition">
+                  <Btn variant="chip" tone="neutral" size="sm" onClick={handleBulkDismiss}>
                     ❓ Flagga senza match
-                  </button>
+                  </Btn>
                 )}
 
                 {/* S40-12: Disparcheggia bulk — solo su parcheggiati */}
                 {tab === "parcheggiati" && (
-                  <button
+                  <Btn
+                    variant="chip"
+                    tone="emerald"
+                    size="sm"
                     onClick={async () => {
                       for (const id of bulkSelected) {
                         await handleDisparcheggia(id);
                       }
                       setBulkSelected(new Set());
                     }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition">
+                  >
                     ↩ Disparcheggia {bulkSelected.size}
-                  </button>
+                  </Btn>
                 )}
 
-                <button onClick={deselectAll} className="px-3 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 border border-neutral-200 ml-auto">
+                <Btn variant="ghost" size="sm" onClick={deselectAll} className="ml-auto">
                   Deseleziona
-                </button>
+                </Btn>
               </div>
             </div>
           )}

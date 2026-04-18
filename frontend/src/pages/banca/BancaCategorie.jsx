@@ -1,8 +1,9 @@
-// @version: v1.1-banca-categorie
+// @version: v1.2-mattoni — M.I primitives (Btn) su row actions (Modifica/Rimuovi/Salva/Annulla)
 // Gestione categorie banca con mapping personalizzato + drill-down movimenti
 import React, { useEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import FlussiCassaNav from "./FlussiCassaNav";
+import { Btn } from "../../components/ui";
 
 const FC = `${API_BASE}/banca`;
 
@@ -249,37 +250,38 @@ export default function BancaCategorie() {
                       {!isEditing ? (
                         <>
                           {!isViewer && (
-                            <button
+                            <Btn
+                              variant="secondary"
+                              size="sm"
                               onClick={(e) => { e.stopPropagation(); startEdit(c); }}
-                              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 transition"
                             >
                               {c.categoria_custom ? "Modifica" : "Mappa"}
-                            </button>
+                            </Btn>
                           )}
                           {!isViewer && c.map_id && (
-                            <button
+                            <Btn
+                              variant="danger"
+                              size="sm"
                               onClick={(e) => { e.stopPropagation(); deleteMap(c.map_id); }}
-                              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition"
                             >
                               Rimuovi
-                            </button>
+                            </Btn>
                           )}
                         </>
                       ) : (
                         <>
-                          <button
+                          <Btn
+                            variant="success"
+                            size="sm"
                             onClick={() => saveMap(c)}
                             disabled={saving || !editForm.categoria_custom.trim()}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-40"
+                            loading={saving}
                           >
                             {saving ? "..." : "Salva"}
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-300 hover:bg-neutral-100 transition"
-                          >
+                          </Btn>
+                          <Btn variant="secondary" size="sm" onClick={cancelEdit}>
                             Annulla
-                          </button>
+                          </Btn>
                         </>
                       )}
                     </div>

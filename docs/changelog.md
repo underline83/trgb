@@ -3,6 +3,50 @@
 
 ---
 
+## 2026-04-18 — Batch refactor M.I #12 Banca rimanente (2 pagine toccate, 1 tocco minimo, 1 skippata)
+
+### Problema / contesto
+Dodicesimo giro M.I, primo "sottolotto" del grande "Rimanenti" (~46 file totali). Ho deciso di spezzare "Rimanenti" in batch più piccoli per non degradare la qualità della conversione e non bruciare il context: questo #12 chiude il cluster **Banca rimanente** (tutti i file sotto `pages/banca/` non ancora toccati), mentre Fatture admin + Corrispettivi arriveranno nel #13, Clienti + Ricette + Prenotazioni + Tasks nel #14, e Controllo Gestione + Home + Login nel #15. Pattern invariato: `Btn` con `variant` + `size` + `loading`, palette emerald per il modulo Banca, tocco minimo sul file da 1424 righe.
+
+### Pagine toccate in questo batch
+
+**1. `banca/BancaCategorie.jsx` — refactor v1.2-mattoni (412 righe)**
+- Row action "Modifica" / "Mappa" → `<Btn variant="secondary" size="sm">`.
+- Row action "Rimuovi" → `<Btn variant="danger" size="sm">`.
+- Inline edit "Salva" → `<Btn variant="success" size="sm" loading={saving} disabled={saving || !editForm.categoria_custom.trim()}>`.
+- Inline edit "Annulla" → `<Btn variant="secondary" size="sm">`.
+- Drill-down inline mini-actions (Sposta/OK/× a `text-[10px]`) e color preset swatches lasciati custom.
+
+**2. `banca/BancaDashboard.jsx` — refactor v1.3-mattoni (507 righe, tocco minimo)**
+- Empty state "Importa CSV" (bg-emerald-600) → `<Btn variant="success" size="md">` in wrapper `div.mt-4 inline-block`.
+- `modoBtn` helper (segmented control mese/anno/custom/tutto), period nav arrows mese/anno, "Vedi tutti i movimenti →" text-link lasciati custom: widget bespoke.
+
+**3. `banca/BancaCrossRef.jsx` — refactor v5.3-mattoni (1424 righe, tocco minimo)**
+- Bulk toolbar "Registra N" (bg-indigo-600) → `<Btn variant="primary" size="md" loading={bulkRegistering} disabled={!bulkCat || bulkRegistering}>`.
+- Bulk toolbar "🅿️ Parcheggia N" (chip amber) → `<Btn variant="chip" tone="amber" size="sm">`.
+- Bulk toolbar "❓ Flagga senza match" (chip neutral) → `<Btn variant="chip" tone="neutral" size="sm">`.
+- Bulk toolbar "↩ Disparcheggia N" (chip emerald) → `<Btn variant="chip" tone="emerald" size="sm">`.
+- Bulk toolbar "Deseleziona" (ghost) → `<Btn variant="ghost" size="sm" className="ml-auto">`.
+- Reset filtri inline, chip toggle preset data/direzione/tipo link, filter-panel open/close, bulk cat picker, row expand ▾, per-riga link/unlink/chiudi/riapri/dismiss/undismiss, modale registra singola e relativi cat picker lasciati integralmente custom: widget riconciliazione bespoke.
+
+### Pagine skippate
+- `banca/CartaCreditoPage.jsx` — placeholder skeleton 67 righe, nessun bottone reale.
+
+### Versione
+- `flussiCassa` bumped a v1.12 (da v1.11) — il modulo racchiude tutte le pagine sotto `banca/`.
+
+### Prossimi sottolotti (proposti)
+- **Batch #13 Fatture admin + Corrispettivi + chiusure**: `admin/Fatture*` (Categorie, Dashboard, Dettaglio, Elenco, Elettroniche, FornitoriElenco minimal, Import, Impostazioni minimal, InCloud, ProformeElenco) + `admin/Corrispettivi*` (Annual, Dashboard minimal, Gestione) + `admin/ChiusuraTurno` minimal + `admin/ChiusureTurnoLista` + `admin/GestioneContanti` minimal.
+- **Batch #14 Clienti + Ricette + Prenotazioni + Tasks**: `clienti/*` (Lista, Scheda, Preventivi, PreventivoScheda, Duplicati, MenuTemplates, PreventivoMenuComposer) + `ricette/*` (Modifica, Ingredienti, IngredientiPrezzi, Settings, Nuova, Matching) + `prenotazioni/*` (Form, Planning, TavoliEditor, TavoliMappa) + `tasks/*` (TaskNuovo, TaskList, TemplateEditor, AgendaGiornaliera, InstanceDetail minimal, SceltaMacellaio).
+- **Batch #15 Controllo Gestione + Home + Login**: `controllo-gestione/*` (Confronto, Liquidita, SpeseFisse minimal, Uscite minimal) + `Home.jsx` + `Login.jsx` + eventuale `DashboardDipendenti` rimasto.
+
+### Commit consigliato
+```
+./push.sh "batch #12 M.I primitives — Banca rimanente (BancaCategorie, BancaDashboard, BancaCrossRef)"
+```
+
+---
+
 ## 2026-04-18 — Batch refactor M.I #11 Dipendenti/Turni (7 pagine toccate, tocco minimo sui file giganti)
 
 ### Problema / contesto
