@@ -105,11 +105,9 @@ export default function Home() {
   const role = localStorage.getItem("role");
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "";
 
-  // Sala → dashboard dedicata
-  if (role === "sala" && !searchParams.get("full")) {
-    return <DashboardSala />;
-  }
-
+  // TUTTI gli hook SOPRA l'early return (regola degli hooks: stesso numero a ogni render).
+  // Se un sala naviga a /?full=1, lo stesso componente Home viene ri-renderizzato
+  // senza l'early return → se gli hook fossero sotto, React #310.
   const [modules, setModules] = useState([]);
   const [modulesLoading, setModulesLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -118,6 +116,9 @@ export default function Home() {
   const { comunicazioni, loading: comLoading, nonLette, segnaLetta } = useComunicazioni();
   // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
   const { actions: homeActions } = useHomeActions();
+
+  // Sala → dashboard dedicata (dopo gli hook)
+  const isSalaDashboard = role === "sala" && !searchParams.get("full");
 
   // Fetch moduli visibili
   useEffect(() => {
@@ -149,6 +150,13 @@ export default function Home() {
       if (dx > 0 && page === 1) setPage(0);
     }
   }, [page]);
+
+  // Sala senza ?full=1 → dashboard dedicata. Gli hook sopra sono TUTTI stati chiamati
+  // anche in questo ramo, quindi quando l'utente clicca "Mostra tutti i moduli"
+  // (→ /?full=1) il re-render non cambia il numero di hook (no React #310).
+  if (isSalaDashboard) {
+    return <DashboardSala />;
+  }
 
   const loading = modulesLoading || widgetsLoading;
   const turno = getTurno();
