@@ -113,6 +113,9 @@ const Comunicazioni = lazy(() => import("./pages/Comunicazioni"));
 const CambioPIN = lazy(() => import("./pages/CambioPIN"));
 const ImpostazioniSistema = lazy(() => import("./pages/admin/ImpostazioniSistema"));
 
+// DEMO / VETRINA MATTONI (admin only, non linkata da menu)
+const CalendarDemo = lazy(() => import("./pages/admin/CalendarDemo"));
+
 // FLUSSI DI CASSA (ex Banca)
 const BancaDashboard = lazy(() => import("./pages/banca/BancaDashboard"));
 const BancaMovimenti = lazy(() => import("./pages/banca/BancaMovimenti"));
@@ -418,6 +421,9 @@ export default function App() {
         {/* --- IMPOSTAZIONI SISTEMA (admin only) --- */}
         <Route path="/impostazioni" element={<ProtectedRoute module="impostazioni"><ImpostazioniSistema /></ProtectedRoute>} />
         <Route path="/admin/impostazioni" element={<Navigate to="/impostazioni" replace />} />
+
+        {/* --- DEMO MATTONE M.E CALENDAR (admin only, NON linkata da menu) --- */}
+        <Route path="/calendario-demo" element={<ProtectedRoute module="impostazioni"><CalendarDemo /></ProtectedRoute>} />
 
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />

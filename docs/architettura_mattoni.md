@@ -1,6 +1,6 @@
 # TRGB — Architettura a Mattoni Condivisi
 **Creato:** 2026-04-13 (sessione 31)
-**Ultimo aggiornamento:** 2026-04-16 (sessione 40 — M.F Alert engine implementato)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 48 — M.E Calendar implementato)
 **Scopo:** Mappa delle dipendenze tra moduli e servizi condivisi. Guida l'ordine di sviluppo.
 
 **Stato mattoni:**
@@ -8,7 +8,9 @@
 - ✅ M.C WA composer (sessione 31)
 - ✅ **M.B PDF brand** (sessione 34) — `app/services/pdf_brand.py`, template in `app/templates/pdf/`. Sblocca 10.3 ✅, 4.2 ✅, inventario ✅. Da sblocco: 4.5 P&L, 3.8 cash flow, 6.2 cedolini, 7.3 carta vini NO (motore separato)
 - ✅ **M.F Alert engine** (sessione 40) — `app/services/alert_engine.py` + `app/routers/alerts_router.py`. 3 checker: fatture scadenza, dipendenti documenti, vini sottoscorta. Trigger automatico da dashboard, anti-duplicato 12-24h. Genera notifiche via M.A.
-- ⏳ M.D Email service, M.E Calendar, M.G Permessi, M.H Import engine — DA FARE
+- ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
+- ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: `docs/mattone_calendar.md`.
+- ⏳ M.D Email service, M.G Permessi, M.H Import engine — DA FARE
 
 **Regola critica:** il PDF della Carta Vini (`carta_vini_service.py` + endpoints `/vini/carta/pdf*`) ha un motore dedicato e NON deve essere sostituito con M.B. Ha requisiti specifici (TOC, layout calici) che giustificano il motore separato.
 
@@ -101,12 +103,30 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 ---
 
-### M.E — Calendar component (frontend)
+### M.E — Calendar component (frontend) ✅
 
-**Cosa:** componente React calendario riutilizzabile (giorno/settimana/mese) con eventi colorati.
-**Frontend:** `components/shared/CalendarView.jsx` — riceve `events[]` con data, label, colore, onClick
-**Effort:** M (1 sessione — componente ricco con 3 viste)
-**Roadmap:** nuovo, trasversale
+**Stato:** IMPLEMENTATO sessione 48 (2026-04-19)
+**Cosa:** componente React calendario riutilizzabile (giorno/settimana/mese) con eventi colorati. Stateless, controllato — il chiamante gestisce `view`, `currentDate`, `events[]`.
+**Frontend:** `frontend/src/components/calendar/CalendarView.jsx` (pubblico) + `MonthView.jsx`, `WeekView.jsx`, `DayView.jsx`, `calendarUtils.js`, `constants.js`
+**Spec completa:** `docs/mattone_calendar.md`
+**Demo:** `/calendario-demo` (admin/superadmin, non linkata da menu) → `frontend/src/pages/admin/CalendarDemo.jsx`
+**Come usarlo:**
+```jsx
+import { CalendarView } from "../../components/calendar";
+
+<CalendarView
+  view={view} onViewChange={setView}
+  currentDate={date} onDateChange={setDate}
+  events={events}
+  onSelectDate={(d) => ...}
+  onSelectEvent={(ev) => ...}
+/>
+```
+**Shape evento:** `{ id, start: Date, end?: Date, allDay?: bool, title, subtitle?, color?: "blue"|"red"|"green"|"amber"|"violet"|"slate", icon?: emoji, meta?: {...} }`
+**Tastiera:** ←/→ nav, `T` oggi, `M`/`S`/`G` cambio vista.
+**Escape hatches:** `renderEvent(ev, {view, compact})` per custom card, `renderDayCell(day, events, ctx)` per celle custom (caso turni dipendenti con linee colorate per ruolo).
+**Limiti v1:** no drag&drop, no creazione inline (click restituisce callback), no fusi multipli.
+**Effort reale:** 1 sessione (step 1→5 autonomi).
 
 **Chi lo usa:**
 | ID | Modulo | Vista |

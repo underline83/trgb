@@ -1,11 +1,11 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-19 (sessione 47 — Carta Bevande v1.0 release)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 48 — M.E Calendar mattone implementato)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
 > Quando un punto viene completato, spostarlo in "Completati" in fondo con data.
 > **Architettura a mattoni:** vedi `docs/architettura_mattoni.md` per dipendenze e ordine sviluppo a Wave.
-> Mattoni condivisi: ✅ M.A Notifiche, ✅ M.B PDF brand (sessione 34), ✅ M.C WA composer, M.D Email, M.E Calendar, M.F Alert engine, M.G Permessi, M.H Import engine
+> Mattoni condivisi: ✅ M.A Notifiche, ✅ M.B PDF brand (sessione 34), ✅ M.C WA composer, ✅ **M.E Calendar** (sessione 48), ✅ M.F Alert engine (sessione 40), ✅ M.I UI primitives (2026-04-18), M.D Email, M.G Permessi, M.H Import engine
 > **Nota M.B:** la Carta Vini resta con motore separato (`carta_vini_service.py`), non usare M.B per 7.3 PDF — è già stato escluso esplicitamente.
 
 ---
@@ -195,6 +195,14 @@
 | 11.10 | iPad kiosk mode fullscreen | S | FUTURO | Modalità senza header/nav, solo l'istanza del turno attivo. PWA display-mode standalone |
 | 11.11 | Drag & drop ordinamento items editor | S | FUTURO | Sostituire bottoni ▲▼ con drag nativo. Nice-to-have |
 | 11.12 | Unificazione label "Gestione Cucina" | S | DA FARE | Oggi "Gestione Cucina" è del modulo ricette e "Cucina" del nuovo. Decidere: rename ricette → "Ricette & FoodCost", o merge dei due moduli sotto un unico "Gestione Cucina" con sub |
+
+---
+
+## Completati — Sessione 48 (2026-04-19)
+
+| Cosa | Note |
+|------|------|
+| **Mattone M.E Calendar** — componente React condiviso | Nuovo mattone `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese 6×7, settimana 7 col, giorno lista). Palette brand 6 colori, tastiera ←/→/T/M/S/G, drill-down "+N altri" → vista giorno, render prop per custom cell/event. Zero dipendenze esterne (pure React). Demo su `/calendario-demo` (admin only, non linkata) con ~20 eventi finti che coprono i 4 casi d'uso roadmap (2.1 Prenotazioni blu, 3.7 Scadenziario rosso/amber, 6.4 Turni verde, 6.5 Scadenze doc slate, checklist viola). Spec completa in `docs/mattone_calendar.md`. Sblocca 2.1, 3.7, 6.4 senza dover prima costruire il mattone in ogni modulo. Effort: 1 sessione (5 commit atomici). |
 
 ---
 

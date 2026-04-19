@@ -1,8 +1,48 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 46 — Phase A.3: Brigata Cucina)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/modulo_cucina.md`](./modulo_cucina.md)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 48 — Mattone M.E Calendar)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 48 — Mattone M.E Calendar ✅
+
+Implementato in autonomia il mattone condiviso **M.E — componente calendario React riutilizzabile**. Sblocca tre consumer roadmap (2.1 Agenda prenotazioni, 3.7 Scadenziario flussi, 6.4 Calendario turni, 6.5 Scadenze documenti) senza che ogni modulo debba riscriversi il proprio calendario. Zero dipendenze esterne (pure React + Tailwind), stateless controllato, 3 viste (mese/settimana/giorno), palette brand, tastiera built-in, render prop escape hatches.
+
+**Demo admin-only:** URL diretto `/calendario-demo` (NON linkato da menu), `~20` eventi finti che coprono tutti i 4 casi d'uso (prenotazioni blu, scadenze fatture rosse/amber, turni verde, checklist viola, scadenze documenti slate).
+
+**File nuovi:**
+- `frontend/src/components/calendar/CalendarView.jsx` (componente pubblico)
+- `frontend/src/components/calendar/MonthView.jsx` + `WeekView.jsx` + `DayView.jsx`
+- `frontend/src/components/calendar/calendarUtils.js` (helpers date)
+- `frontend/src/components/calendar/constants.js` (MESI_IT, COLORI_EVENTO, VIEWS)
+- `frontend/src/components/calendar/index.js` (barrel)
+- `frontend/src/pages/admin/CalendarDemo.jsx` (vetrina demo)
+- `docs/mattone_calendar.md` (spec completa)
+
+**File modificati:**
+- `frontend/src/App.jsx` — lazy import + rotta `/calendario-demo` (module="impostazioni")
+- `docs/architettura_mattoni.md` — M.E marcato ✅ con snippet d'uso
+- `docs/roadmap.md` — header mattoni aggiornato + sezione Completati sessione 48
+- `docs/changelog.md` — entry 2026-04-19 (Mattone M.E)
+
+**Limiti v1 (espliciti):**
+- No drag&drop (può essere aggiunto nel `renderEvent` del consumer)
+- No creazione inline (il click emette callback; modale è del consumer)
+- No eventi multi-giorno con span continuo (allDay su più giorni → mostrato su ogni giornata)
+- No fusi orari multipli, no i18n
+
+**Prossimi consumer (nell'ordine del backlog Wave 2+):**
+- 3.7 Scadenziario flussi (use case più diretto: fatture + rate + stipendi già in DB)
+- 2.1 Agenda prenotazioni (integrazione con il planning esistente)
+- 6.4 Calendario turni (useremo `renderDayCell` per linee colorate per ruolo)
+
+---
+
+## SESSIONE 47 — Carta Bevande v1.0 Fase 3 ✅
+
+Estensione Carta Vini a 7 sezioni bevande (Aperitivi, Birre, Amari casa, Amari & Liquori, Distillati, Tisane, Tè). Nuovo service `carta_bevande_service.py` con 3 layout dispatcher (`tabella_4col` / `scheda_estesa` / `nome_badge_desc`) + sezione `vini_dinamico` delegata a `carta_vini_service`. Router `bevande_router.py` v1.1 con 5 endpoint (HTML preview, PDF cliente, PDF staff, DOCX, preview per-sezione). CSS `.bev-*` allineato HTML/PDF con page-break-avoid. Retro-compat assoluta: endpoint `/vini/carta*` invariati, DB `bevande.sqlite3` isolato. Resta Fase 4 (popolamento voci — task Marco).
 
 ---
 

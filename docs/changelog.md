@@ -3,6 +3,86 @@
 
 ---
 
+## 2026-04-19 — Mattone M.E Calendar (sessione 48)
+
+### Contesto
+Completato il mattone condiviso M.E — componente React calendario riutilizzabile — pianificato in `docs/architettura_mattoni.md`. Sblocca tre consumer roadmap (2.1 Agenda prenotazioni, 3.7 Scadenziario flussi, 6.4 Calendario turni, 6.5 Scadenze documenti) senza che ognuno debba scriversi il proprio calendario. Stack: pure React, zero dipendenze esterne (niente FullCalendar/react-big-calendar, che avrebbero appesantito il bundle ~300 KB).
+
+### Decisioni architetturali
+- **Stateless e controllato.** Il chiamante passa `view`, `currentDate`, `events[]` e reagisce ai callback `onViewChange`, `onDateChange`, `onSelectDate`, `onSelectEvent`. Zero stato interno (tranne fallback `new Date()` se `currentDate` manca). Permette integrazione flessibile: Prenotazioni può sincronizzare la data col routing `:data`, Scadenziario può filtrare lato server, Turni può combinare con drag&drop futuro.
+- **3 viste.** `mese` (griglia 6×7, sempre 42 celle con giorni fuori-mese sfumati), `settimana` (7 colonne scrollable orizzontale su mobile), `giorno` (lista verticale con sezioni "Tutto il giorno" / "Orari").
+- **Palette brand.** 6 colori preset (`blue`/`red`/`green`/`amber`/`violet`/`slate`), ciascuno con variante `soft` (bg chiaro + border) e `solid`. Mapping fatto in `constants.js`, così i consumer passano solo `color: "blue"` e ottengono look coerente.
+- **Render prop escape hatches.** `renderEvent(ev, ctx)` per card custom (es. Scadenziario con importo grande), `renderDayCell(day, events, ctx)` per celle intere custom (es. Turni con linee colorate orizzontali per ruolo). Niente fork o variant API.
+- **Tastiera built-in.** `←`/`→` nav, `T` oggi, `M`/`S`/`G` cambio vista. Listener su root `div` `tabIndex=0` per non interferire con input figli (filtra `INPUT`/`TEXTAREA`).
+- **Drill-down.** Click giorno con `+N altri` o in generale → se è stato passato `onViewChange` il calendario cambia vista a "giorno" + cambia data; altrimenti emette solo `onSelectDate`. Doppio pattern rispetta moduli che vogliono drill-down vs. moduli che vogliono solo selezione.
+- **Italiano hardcoded.** `MESI_IT`, `GIORNI_IT_3`/`_1`, `weekStartsOn=1` default. No i18n prematura.
+- **Toolbar opzionale.** `showToolbar={false}` permette di integrarlo sotto una toolbar custom del modulo chiamante.
+
+### Limiti v1 (espliciti nello spec)
+- No drag&drop nativo (si può implementare nel `renderEvent` del consumer).
+- No creazione inline (il click emette callback; modale è del consumer).
+- No multi-giorno con render span continuo (evento `allDay` che copre più giorni viene mostrato su ogni giornata separatamente).
+- No fusi orari multipli (tutto locale).
+- No mini-calendario (picker) separato.
+
+### File nuovi
+- `frontend/src/components/calendar/CalendarView.jsx` — componente pubblico, unica export usata dai consumer.
+- `frontend/src/components/calendar/MonthView.jsx` — griglia 6×7 con chip `MAX_CHIPS=3` + "+N altri".
+- `frontend/src/components/calendar/WeekView.jsx` — 7 colonne con header sticky + badge giorno.
+- `frontend/src/components/calendar/DayView.jsx` — lista verticale con sezioni allDay/timed.
+- `frontend/src/components/calendar/calendarUtils.js` — helpers date (`sameDay`, `addDays`, `addMonths`, `monthGrid`, `weekDays`, `eventsOnDay`, `sortEvents`, `format*`).
+- `frontend/src/components/calendar/constants.js` — `MESI_IT`, `GIORNI_IT*`, `COLORI_EVENTO`, `VIEWS`.
+- `frontend/src/components/calendar/index.js` — barrel: `export { CalendarView, ...utils, ...constants }`.
+- `frontend/src/pages/admin/CalendarDemo.jsx` — pagina demo admin-only con ~20 eventi finti (blu prenotazioni, rosso/amber scadenze, verde turni, viola checklist, slate documenti) + pannello debug stato + ultima card cliccata.
+- `docs/mattone_calendar.md` — spec completa (API, event shape, decisioni, consumer roadmap, limiti v1, 5-step plan).
+
+### File modificati
+- `frontend/src/App.jsx` — lazy import `CalendarDemo` + nuova rotta `/calendario-demo` (protetta da `module="impostazioni"` = admin/superadmin, NON linkata da menu).
+- `docs/architettura_mattoni.md` — M.E marcato ✅ IMPLEMENTATO con snippet d'uso + escape hatches + limiti. Header stato mattoni aggiornato.
+- `docs/roadmap.md` — header mattoni aggiornato, aggiunta sezione "Completati — Sessione 48".
+
+### Uso tipo
+```jsx
+import { CalendarView } from "../../components/calendar";
+
+<CalendarView
+  view={view} onViewChange={setView}
+  currentDate={date} onDateChange={setDate}
+  events={events}
+  onSelectDate={(d) => ...}
+  onSelectEvent={(ev) => ...}
+/>
+```
+
+Shape evento:
+```js
+{
+  id: "xyz",
+  start: Date, end?: Date, allDay?: bool,
+  title, subtitle?,
+  color?: "blue" | "red" | "green" | "amber" | "violet" | "slate",
+  icon?: "🍽️",
+  meta?: { ... } // dati custom, il componente non li tocca
+}
+```
+
+### Test manuali (VPS dopo deploy)
+1. Login admin → URL diretto `/calendario-demo` (non c'è voce menu). Dovrebbe apparire il calendario mese con la data odierna centrata.
+2. Switch view Mese/Settimana/Giorno — deve cambiare layout senza perdere la data.
+3. Oggi ha ≥4 eventi: in vista mese devono apparire 3 chip + "+1 altri" cliccabile → drill-down su vista giorno filtrato su oggi.
+4. Tastiera: dare focus al calendario (click sul bordo), premere `→` → avanza (giorno/settimana/mese a seconda della vista). `T` → torna a oggi.
+5. Click su una scadenza rossa all-day: pannello debug in basso mostra il JSON dell'evento cliccato con `allDay: true`.
+6. Mobile (iPad portrait): vista mese ridimensiona, vista settimana scrolla orizzontale. Nessun overflow.
+
+### Nessuna migrazione DB
+Mattone puramente frontend. Nessun cambiamento su backend, router o schema.
+
+### Limiti noti
+- Il fallback interno `new Date()` dentro `CalendarView` è memoizzato con `useMemo([])`: il componente non si ri-rende da solo a mezzanotte. I consumer che vogliono highlight "oggi" sempre aggiornato devono passare `currentDate` esplicito o re-mount. Per ora accettabile.
+- `eventsOnDay` scandisce tutto l'array eventi per ogni cella (42×N in vista mese). Per N < 200 eventi visibili è trascurabile. Quando un consumer reale avrà N > 500 eventi/mese, sarà sensato un indice `Map<dateKey, Event[]>` costruito una volta a monte del `<CalendarView>`.
+
+---
+
 ## 2026-04-19 — Phase A.3: Brigata Cucina (sessione 46)
 
 ### Contesto
