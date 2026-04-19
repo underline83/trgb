@@ -1,4 +1,4 @@
-// @version: v9.1 — Home v3.4 Command Center responsive mobile: <lg natural flow scroll verticale, ≥lg layout 3-col intatto
+// @version: v9.2 — Home v3.5: azioni rapide da DB (useHomeActions) — sessione 49
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../config/api";
@@ -8,6 +8,7 @@ import DashboardSala from "./DashboardSala";
 import TrgbLoader from "../components/TrgbLoader";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
+import useHomeActions from "../hooks/useHomeActions";
 import MacellaioCard from "../components/widgets/MacellaioCard";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
@@ -25,14 +26,16 @@ const MODULE_FALLBACK = {
   impostazioni:        { sub1: "Utenti, moduli, backup", sub2: "" },
 };
 
-/* Azioni rapide admin (v3 — 5 bottoni con sub-label) */
-const ADMIN_ACTIONS = [
-  { label: "Chiusura Turno",     sub: "Fine servizio",     go: "/vendite/fine-turno",                                                  icon: "💵", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Prenotazioni",       sub: "Planning completo",  go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10),      icon: "📅", color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Cantina Vini",       sub: "Magazzino",          go: "/vini/magazzino",                                                      icon: "🍷", color: "bg-amber-50 border-amber-200 text-amber-900" },
-  { label: "Food Cost",          sub: "Ricette e costi",    go: "/ricette/archivio",                                                    icon: "📘", color: "bg-orange-50 border-orange-200 text-orange-900" },
-  { label: "Controllo Gestione", sub: "Dashboard P&L",      go: "/controllo-gestione/dashboard",                                        icon: "📊", color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
-];
+/* Azioni rapide: caricate via useHomeActions() dal DB (sessione 49).
+ * Se la route base del DB e' "/prenotazioni", in UI la espandiamo a
+ * /prenotazioni/planning/YYYY-MM-DD cosi' admin va dritto al planning di oggi
+ * (stesso comportamento prima della migrazione a DB). */
+function resolveRoute(baseRoute) {
+  if (baseRoute === "/prenotazioni") {
+    return "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10);
+  }
+  return baseRoute;
+}
 
 /* Gobbette SVG mini */
 function GobbetteMini({ className = "" }) {
@@ -113,6 +116,8 @@ export default function Home() {
   const [turnoTab, setTurnoTab] = useState("pranzo");
   const { data: widgets, loading: widgetsLoading } = useHomeWidgets();
   const { comunicazioni, loading: comLoading, nonLette, segnaLetta } = useComunicazioni();
+  // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
+  const { actions: homeActions } = useHomeActions();
 
   // Fetch moduli visibili
   useEffect(() => {
@@ -371,19 +376,19 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* ═══ COL 3: Azioni rapide ═══ */}
+                {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}
                 <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2.5 lg:overflow-visible pb-2 lg:pb-0">
-                  {ADMIN_ACTIONS.map((a) => (
+                  {homeActions.map((a) => (
                     <div
-                      key={a.go}
-                      onClick={() => navigate(a.go)}
-                      className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 ${a.color}`}
+                      key={a.id ?? a.key}
+                      onClick={() => navigate(resolveRoute(a.route))}
+                      className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 ${a.color || ""}`}
                       style={{ boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}
                     >
-                      <span className="text-2xl leading-none">{a.icon}</span>
+                      <span className="text-2xl leading-none">{a.emoji}</span>
                       <div className="min-w-0">
                         <div className="text-[14px] font-bold leading-tight truncate">{a.label}</div>
-                        <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>
+                        {a.sub && <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>}
                       </div>
                     </div>
                   ))}

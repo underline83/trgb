@@ -1,14 +1,32 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 48 — Mattone M.E Calendar)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 49 — Home per ruolo configurabile)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
 
-## SESSIONE 48 — Mattone M.E Calendar ✅
+## SESSIONE 49 — Home per ruolo configurabile ✅ (da testare post-push)
 
-Implementato in autonomia il mattone condiviso **M.E — componente calendario React riutilizzabile**. Sblocca tre consumer roadmap (2.1 Agenda prenotazioni, 3.7 Scadenziario flussi, 6.4 Calendario turni, 6.5 Scadenze documenti) senza che ogni modulo debba riscriversi il proprio calendario. Zero dipendenze esterne (pure React + Tailwind), stateless controllato, 3 viste (mese/settimana/giorno), palette brand, tastiera built-in, render prop escape hatches.
+Spostata la config dei pulsanti rapidi Home (prima hardcoded negli array `ADMIN_ACTIONS` di Home.jsx e `SALA_ACTIONS` di DashboardSala.jsx) nel DB. Admin può ora scegliere quali pulsanti mostrare nella Home di ciascun ruolo, in che ordine, con che emoji/colore/route, dall'interfaccia Impostazioni → "🏠 Home per ruolo". Supporta 9 ruoli (admin, superadmin, contabile, sommelier, chef, sous_chef, commis, sala, viewer). Fallback FE statico garantisce zero regressioni se il BE è giù.
+
+**Deliverable:**
+- BE: migration 090 (tabella `home_actions` in foodcost.db) + router CRUD+reorder+reset + seed defaults centralizzato in `app/services/home_actions_defaults.py`.
+- FE: hook `useHomeActions()` con fallback statico, refactor Home.jsx/DashboardSala.jsx per leggere dal hook invece degli array hardcoded, tab "Home per ruolo" in Impostazioni con selettore ruolo, lista riordinabile (▲/▼), toggle attivo, modal edit/new con tendina route estratta da `modulesMenu.js`, reset defaults per ruolo.
+- Docs: `home_per_ruolo.md` spec, changelog + questo file + versions.jsx bump home 3.4 → 3.5.
+
+**Da testare post-push:**
+1. Migration: controllare log avvio backend che crei la tabella + 44 righe seed.
+2. Home admin: stessi 5 pulsanti di prima (chiusura turno, prenotazioni, cantina, food cost, CG).
+3. DashboardSala: stessi 4 pulsanti di prima.
+4. Impostazioni → Home per ruolo: selettore ruolo funziona, riordino persiste, toggle attivo/disattivo funziona, aggiungi/modifica/elimina funziona, reset defaults ripristina seed.
+5. Creare un pulsante custom per un ruolo, rifare login con quell'account → appare.
+
+---
+
+## SESSIONE 48 — Mattone M.E Calendar ✅ (deployato + testato OK)
+
+Implementato in autonomia il mattone condiviso **M.E — componente calendario React riutilizzabile**. Push 2026-04-19, test manuali su VPS verificati OK (tutte le 3 viste, tastiera, drill-down, responsive iPad). Sblocca tre consumer roadmap (2.1 Agenda prenotazioni, 3.7 Scadenziario flussi, 6.4 Calendario turni, 6.5 Scadenze documenti) senza che ogni modulo debba riscriversi il proprio calendario. Zero dipendenze esterne (pure React + Tailwind), stateless controllato, 3 viste (mese/settimana/giorno), palette brand, tastiera built-in, render prop escape hatches.
 
 **Demo admin-only:** URL diretto `/calendario-demo` (NON linkato da menu), `~20` eventi finti che coprono tutti i 4 casi d'uso (prenotazioni blu, scadenze fatture rosse/amber, turni verde, checklist viola, scadenze documenti slate).
 

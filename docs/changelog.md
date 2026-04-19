@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-04-19 — Home per ruolo configurabile (sessione 49)
+
+### Contesto
+Marco: "come facciamo a cambiare le home dei dipendenti? posso fissare di pulsanti specifici?"
+Gli array hardcoded `ADMIN_ACTIONS` (Home.jsx) e `SALA_ACTIONS` (DashboardSala.jsx) erano clonati su tutti i ruoli non-sala. Regola granitica CLAUDE.md: "Config sempre in Impostazioni, mai hardcoded". Spostata la config in DB + UI admin.
+
+### Decisioni
+- **Tabella `home_actions` in foodcost.db** (non DB dedicato): campi `ruolo, ordine, key, label, sub, emoji, route, color, attivo`, UNIQUE `(ruolo, key)`, index `(ruolo, ordine)`.
+- **9 ruoli supportati** (admin, superadmin, contabile, sommelier, chef, sous_chef, commis, sala, viewer). Seed iniziale clona la config pre-sessione (zero regressioni).
+- **Fallback superadmin→admin** a livello GET se la tabella non ha righe per superadmin (ma il seed li scrive entrambi, così admin può differenziarli).
+- **Route validation minimale**: solo "deve iniziare con /". Niente whitelist dura — i moduli nuovi non devono toccare il BE.
+- **UI tendina + custom**: l'admin sceglie da tendina popolata da `modulesMenu.js` o inserisce una route personalizzata.
+- **Fallback FE statico** (`config/homeActionsFallback.js`) se il BE è down: Home continua a mostrare i pulsanti di prima.
+
+### File nuovi
+- `app/migrations/090_home_actions.py` — CREATE TABLE + seed 44 righe (8·5 admin-like + 4 sala).
+- `app/services/home_actions_defaults.py` — fonte di verità seed (usata da migrazione e router `/reset/`).
+- `app/routers/home_actions_router.py` — CRUD + reorder + reset, prefix `/settings/home-actions`, admin-only su write.
+- `frontend/src/hooks/useHomeActions.js` — hook che fetch con fallback statico automatico.
+- `frontend/src/config/homeActionsFallback.js` — valori identici al seed DB.
+- `frontend/src/pages/admin/TabHomeActions.jsx` — UI configurazione (selettore ruolo + lista riordinabile + modal edit/new + reset default).
+- `docs/home_per_ruolo.md` — spec completa.
+
+### File modificati
+- `main.py` — import + include_router home_actions_router.
+- `frontend/src/pages/Home.jsx` — rimosso ADMIN_ACTIONS hardcoded, usa useHomeActions(). `resolveRoute()` gestisce il caso speciale `/prenotazioni` → `/prenotazioni/planning/YYYY-MM-DD`. Version: v9.1 → v9.2.
+- `frontend/src/pages/DashboardSala.jsx` — rimosso SALA_ACTIONS, usa useHomeActions("sala"). Version: v5.1 → v5.2.
+- `frontend/src/pages/admin/ImpostazioniSistema.jsx` — aggiunta tab "🏠 Home per ruolo". Version: v1.1 → v1.2.
+- `frontend/src/config/versions.jsx` — bump home 3.4 → 3.5.
+
+### Rollout
+1. Push → migrazione 090 gira al boot e crea tabella + seed.
+2. FE nuovo: Home e DashboardSala leggono da API `/settings/home-actions/?ruolo=...`.
+3. Admin apre Impostazioni → tab "Home per ruolo" e personalizza.
+
+### Rischio & rollback
+- Se BE down: fallback statico in FE (nessun disservizio).
+- Se la tabella è vuota per un ruolo: superadmin cade su admin; altri ruoli vedono lista vuota → fallback FE la riempie.
+- Rollback: `DROP TABLE home_actions;` + revert FE.
+
+---
+
 ## 2026-04-19 — Mattone M.E Calendar (sessione 48)
 
 ### Contesto
@@ -66,13 +108,13 @@ Shape evento:
 }
 ```
 
-### Test manuali (VPS dopo deploy)
-1. Login admin → URL diretto `/calendario-demo` (non c'è voce menu). Dovrebbe apparire il calendario mese con la data odierna centrata.
-2. Switch view Mese/Settimana/Giorno — deve cambiare layout senza perdere la data.
-3. Oggi ha ≥4 eventi: in vista mese devono apparire 3 chip + "+1 altri" cliccabile → drill-down su vista giorno filtrato su oggi.
-4. Tastiera: dare focus al calendario (click sul bordo), premere `→` → avanza (giorno/settimana/mese a seconda della vista). `T` → torna a oggi.
-5. Click su una scadenza rossa all-day: pannello debug in basso mostra il JSON dell'evento cliccato con `allDay: true`.
-6. Mobile (iPad portrait): vista mese ridimensiona, vista settimana scrolla orizzontale. Nessun overflow.
+### Test manuali VPS — ✅ VERIFICATI (2026-04-19)
+1. Login admin → URL diretto `/calendario-demo` (non c'è voce menu). Calendario mese con la data odierna centrata. ✅
+2. Switch view Mese/Settimana/Giorno — layout cambia, data mantenuta. ✅
+3. Oggi ha ≥4 eventi: vista mese mostra 3 chip + "+1 altri" cliccabile → drill-down su vista giorno. ✅
+4. Tastiera: focus sul calendario, `→` avanza, `T` torna a oggi, `M`/`S`/`G` cambia vista. ✅
+5. Click su evento: pannello debug mostra JSON corretto con tutti i campi. ✅
+6. Mobile (iPad portrait): vista mese ridimensiona, vista settimana scrolla orizzontale, nessun overflow. ✅
 
 ### Nessuna migrazione DB
 Mattone puramente frontend. Nessun cambiamento su backend, router o schema.

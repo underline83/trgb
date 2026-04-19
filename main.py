@@ -86,6 +86,9 @@ from app.routers.notifiche_router import com_router as comunicazioni_router
 # ALERT ENGINE — mattone M.F controllo soglie/scadenze
 from app.routers.alerts_router import router as alerts_router
 
+# HOME PER RUOLO — config pulsanti rapidi Home per ogni ruolo (sessione 49)
+from app.routers.home_actions_router import router as home_actions_router
+
 # SCELTA DEL MACELLAIO — tagli carne disponibili alla vendita
 from app.routers.scelta_macellaio_router import router as scelta_macellaio_router
 
@@ -276,6 +279,10 @@ app.include_router(comunicazioni_router)
 
 # ALERT ENGINE (mattone M.F — controlla soglie/scadenze, genera notifiche via M.A)
 app.include_router(alerts_router)
+
+# HOME PER RUOLO — azioni rapide Home configurabili da Impostazioni per ogni ruolo
+# (sostituisce gli array hardcoded ADMIN_ACTIONS/SALA_ACTIONS, sessione 49)
+app.include_router(home_actions_router)
 
 # SCELTA DEL MACELLAIO
 app.include_router(scelta_macellaio_router)

@@ -1,22 +1,15 @@
 // FILE: frontend/src/pages/DashboardSala.jsx
-// @version: v5.1-mattoni — Sala Operativa con M.I primitive (Btn ghost su "Mostra tutti i moduli")
+// @version: v5.2 — Azioni rapide da DB (useHomeActions, sessione 49)
 // Dashboard per utenti sala — prenotazioni oggi, bacheca comunicazioni, azioni rapide
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
+import useHomeActions from "../hooks/useHomeActions";
 import TrgbLoader from "../components/TrgbLoader";
 import MacellaioCard from "../components/widgets/MacellaioCard";
 import { Btn } from "../components/ui";
-
-/* ── Azioni disponibili per sala ── */
-const SALA_ACTIONS = [
-  { label: "Chiusura Turno", sub: "Fine servizio",    icon: "💵", go: "/vendite/fine-turno",      color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Prenotazioni",   sub: "Planning completo", icon: "📅", go: "/prenotazioni",            color: "bg-indigo-50 border-indigo-200 text-indigo-900" },
-  { label: "Carta dei Vini",  sub: "Cerca vini",         icon: "🍷", go: "/vini/carta",              color: "bg-amber-50 border-amber-200 text-amber-900" },
-  { label: "Mance",          sub: "Registra mance",    icon: "💰", go: "/flussi-cassa/mance",      color: "bg-emerald-50 border-emerald-200 text-emerald-900" },
-];
 
 /* ── Saluto contestuale ── */
 function getGreeting() {
@@ -83,6 +76,8 @@ export default function DashboardSala() {
   const displayName = localStorage.getItem("display_name") || localStorage.getItem("username") || "Sala";
   const { data: widgets, loading: wLoading } = useHomeWidgets();
   const { comunicazioni, loading: cLoading, nonLette, segnaLetta } = useComunicazioni();
+  // Azioni rapide configurate in Impostazioni (con fallback statico se BE down)
+  const { actions: salaActions } = useHomeActions("sala");
   const [turnoTab, setTurnoTab] = useState("pranzo"); // pranzo | cena
 
   const loading = wLoading || cLoading;
@@ -263,19 +258,19 @@ export default function DashboardSala() {
           </div>
           </div>
 
-          {/* ═══ COL 3: Azioni rapide ═══ */}
+          {/* ═══ COL 3: Azioni rapide (config da Impostazioni → Home per ruolo) ═══ */}
           <div className="flex flex-row lg:flex-col gap-2.5 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
-            {SALA_ACTIONS.map((a) => (
+            {salaActions.map((a) => (
               <div
-                key={a.go}
-                onClick={() => navigate(a.go)}
-                className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 flex-shrink-0 lg:flex-shrink ${a.color}`}
+                key={a.id ?? a.key}
+                onClick={() => navigate(a.route)}
+                className={`rounded-[14px] border cursor-pointer active:scale-[.97] transition-transform flex items-center gap-3 px-4 py-3.5 flex-shrink-0 lg:flex-shrink ${a.color || ""}`}
                 style={{ minWidth: 150, boxShadow: "0 2px 10px rgba(0,0,0,.06)" }}
               >
-                <span className="text-2xl leading-none">{a.icon}</span>
+                <span className="text-2xl leading-none">{a.emoji}</span>
                 <div>
                   <div className="text-[14px] font-bold leading-tight">{a.label}</div>
-                  <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>
+                  {a.sub && <div className="text-[11px] opacity-60 mt-0.5 hidden lg:block">{a.sub}</div>}
                 </div>
               </div>
             ))}

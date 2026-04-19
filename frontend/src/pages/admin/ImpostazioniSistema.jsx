@@ -1,9 +1,10 @@
-// @version: v1.1-mattoni — refactor leggero CTA con M.I primitives (Btn, StatusBadge, EmptyState)
+// @version: v1.2 — tab "Home per ruolo" (sessione 49)
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { invalidateModulesCache } from "../../hooks/useModuleAccess";
 import NotificheImpostazioni from "./NotificheImpostazioni";
+import TabHomeActions from "./TabHomeActions";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ const ROLE_LABELS = {
   viewer:    { label: "Viewer",    icon: "👁" },
 };
 const ALL_ROLES = ["admin", "contabile", "chef", "sous_chef", "commis", "sommelier", "sala", "viewer"];
-const VALID_TABS = ["utenti", "moduli", "notifiche", "backup"];
+const VALID_TABS = ["utenti", "moduli", "notifiche", "home-actions", "backup"];
 
 // ---------------------------------------------------------------------------
 // COMPONENTE PRINCIPALE
@@ -61,12 +62,13 @@ export default function ImpostazioniSistema() {
         </div>
 
         {/* TAB BAR */}
-        <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 mb-8 w-fit">
+        <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 mb-8 w-fit flex-wrap">
           {[
-            { key: "utenti",  label: "👤 Utenti" },
-            { key: "moduli",  label: "🔐 Moduli & Permessi" },
-            { key: "notifiche", label: "🔔 Notifiche" },
-            { key: "backup",  label: "💾 Backup" },
+            { key: "utenti",       label: "👤 Utenti" },
+            { key: "moduli",       label: "🔐 Moduli & Permessi" },
+            { key: "notifiche",    label: "🔔 Notifiche" },
+            { key: "home-actions", label: "🏠 Home per ruolo" },
+            { key: "backup",       label: "💾 Backup" },
           ].map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`px-5 py-2 rounded-lg text-sm font-medium transition
@@ -80,6 +82,7 @@ export default function ImpostazioniSistema() {
         {tab === "utenti" && <TabUtenti currentUsername={currentUsername} />}
         {tab === "moduli" && <TabModuli />}
         {tab === "notifiche" && <NotificheImpostazioni />}
+        {tab === "home-actions" && <TabHomeActions />}
         {tab === "backup" && <TabBackup />}
       </div>
     </div>
