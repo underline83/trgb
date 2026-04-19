@@ -15,6 +15,9 @@ import ImportTestoModal from "../../components/vini/carta/ImportTestoModal";
 // Campi numerici da normalizzare prima di POST/PUT
 const NUMERIC_FIELDS = new Set(["gradazione", "ibu", "prezzo_eur"]);
 
+// Helper: identificatore campo — seed BE usa `key`, altri schemi potrebbero usare `name`
+const fieldId = (f) => f?.name ?? f?.key;
+
 function normalizeValues(values) {
   const out = {};
   for (const [k, v] of Object.entries(values)) {
@@ -37,9 +40,10 @@ function validate(schema, values) {
   if (!schema || !Array.isArray(schema.fields)) return errors;
   for (const f of schema.fields) {
     if (f.required) {
-      const v = values[f.name];
+      const id = fieldId(f);
+      const v = values[id];
       if (v === undefined || v === null || String(v).trim() === "") {
-        errors[f.name] = "Campo obbligatorio";
+        errors[id] = "Campo obbligatorio";
       }
     }
   }
@@ -49,7 +53,7 @@ function validate(schema, values) {
 function emptyFromSchema(schema) {
   const v = {};
   if (schema && Array.isArray(schema.fields)) {
-    for (const f of schema.fields) v[f.name] = "";
+    for (const f of schema.fields) v[fieldId(f)] = "";
   }
   return v;
 }
@@ -278,7 +282,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
     return fields
       .filter((f) => f.type !== "textarea" && f.type !== "select")
       .slice(0, 6) // massimo 6 colonne
-      .map((f) => ({ key: f.name, label: f.label || f.name }));
+      .map((f) => ({ key: fieldId(f), label: f.label || fieldId(f) }));
   }, [sezione]);
 
   const handleBulkImport = async (rows) => {
