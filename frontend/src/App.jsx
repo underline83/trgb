@@ -2,7 +2,7 @@
 // App principale — Routing TRGB Gestionale Web
 
 import React, { useState, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 
 // Eager: necessari al primo paint (login, header, guardie, error/toast, auto-update)
 import Login from "./pages/Login";
@@ -18,9 +18,9 @@ import useUpdateChecker from "./hooks/useUpdateChecker";
 // --- Lazy: pagine modulo (chunk on-demand, raggruppati per cartella in vite.config) ---
 
 // GESTIONE VINI
+// Nota: CartaVini e CartaSezioneEditor sono importati staticamente da CartaBevande
+// (sono pannelli interni della shell), quindi non servono lazy qui.
 const CartaBevande = lazy(() => import("./pages/vini/CartaBevande"));
-const CartaVini = lazy(() => import("./pages/vini/CartaVini"));
-const CartaSezioneEditor = lazy(() => import("./pages/vini/CartaSezioneEditor"));
 const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
@@ -155,6 +155,12 @@ function RouteFallback() {
   );
 }
 
+// Redirect legacy /vini/carta/sezione/:key → /vini/carta/:key
+function RedirectLegacySezione() {
+  const { key } = useParams();
+  return <Navigate to={`/vini/carta/${key || "vini"}`} replace />;
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   const [role, setRole] = useState(localStorage.getItem("role"));
@@ -196,10 +202,13 @@ export default function App() {
             { sub: "settings",  path: "/vini/settings" },
           ]} />
         } />
-        <Route path="/vini/carta" element={<ProtectedRoute module="vini" sub="carta"><CartaBevande /></ProtectedRoute>} />
-        <Route path="/vini/carta/vini" element={<ProtectedRoute module="vini" sub="carta"><CartaVini /></ProtectedRoute>} />
+        {/* Carta Bevande — shell unica con sidebar 8 sezioni */}
+        <Route path="/vini/carta" element={<Navigate to="/vini/carta/vini" replace />} />
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
-        <Route path="/vini/carta/sezione/:key" element={<ProtectedRoute module="vini" sub="carta"><CartaSezioneEditor /></ProtectedRoute>} />
+        {/* Redirect legacy: /vini/carta/sezione/:key → /vini/carta/:key */}
+        <Route path="/vini/carta/sezione/:key" element={<RedirectLegacySezione />} />
+        {/* Shell con :sezione (vini / aperitivi / birre / amari_casa / amari_liquori / distillati / tisane / te) */}
+        <Route path="/vini/carta/:sezione" element={<ProtectedRoute module="vini" sub="carta"><CartaBevande /></ProtectedRoute>} />
         <Route path="/vini/vendite" element={<ProtectedRoute module="vini" sub="vendite"><ViniVendite /></ProtectedRoute>} />
         <Route path="/vini/settings" element={<ProtectedRoute module="vini" sub="settings"><ViniImpostazioni /></ProtectedRoute>} />
         <Route path="/vini/magazzino" element={<ProtectedRoute module="vini" sub="magazzino"><MagazzinoVini /></ProtectedRoute>} />

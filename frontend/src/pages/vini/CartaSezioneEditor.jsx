@@ -1,11 +1,11 @@
-// @version: v1.0 — Editor sezione Carta Bevande (sessione 2026-04-19)
-// Route: /vini/carta/sezione/:key
-// CRUD voci + riordino + import testo tabellare + toggle attivo/duplica/elimina.
+// @version: v1.1-panel — ora pannello interno della shell CartaBevande (sidebar 8 sezioni)
+// Era una pagina stand-alone con ViniNav e wrapper min-h-screen; ora renderizzato
+// dentro CartaBevande come pannello per le 7 sezioni editabili (non-vini).
+// La sezione corrente e' passata da prop `sezioneKey` (al posto di useParams).
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
-import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import useToast from "../../hooks/useToast";
@@ -54,9 +54,9 @@ function emptyFromSchema(schema) {
   return v;
 }
 
-export default function CartaSezioneEditor() {
+export default function CartaSezioneEditor({ sezioneKey }) {
   const navigate = useNavigate();
-  const { key } = useParams();
+  const key = sezioneKey;
   const { toast } = useToast();
   const token = localStorage.getItem("token");
 
@@ -312,26 +312,17 @@ export default function CartaSezioneEditor() {
   // --------------------------------------------------
   if (loading) {
     return (
-      <div className="min-h-screen bg-brand-cream font-sans">
-        <ViniNav current="carta" />
-        <div className="flex items-center justify-center py-16">
-          <TrgbLoader size={48} label="Caricamento…" />
-        </div>
+      <div className="flex items-center justify-center py-16">
+        <TrgbLoader size={48} label="Caricamento…" />
       </div>
     );
   }
 
   if (!sezione) {
     return (
-      <div className="min-h-screen bg-brand-cream font-sans">
-        <ViniNav current="carta" />
-        <div className="max-w-2xl mx-auto p-8 text-center">
-          <div className="text-5xl mb-3">❌</div>
-          <div className="font-semibold text-neutral-700 mb-4">Sezione non trovata: {key}</div>
-          <Btn variant="secondary" onClick={() => navigate("/vini/carta")}>
-            ← Torna alla Carta
-          </Btn>
-        </div>
+      <div className="p-8 text-center">
+        <div className="text-5xl mb-3">❌</div>
+        <div className="font-semibold text-neutral-700 mb-4">Sezione non trovata: {key}</div>
       </div>
     );
   }
@@ -339,44 +330,38 @@ export default function CartaSezioneEditor() {
   const isViniSection = key === "vini";
 
   return (
-    <div className="min-h-screen bg-brand-cream font-sans">
-      <ViniNav current="carta" />
-      <div className="max-w-7xl mx-auto p-4 sm:p-6">
-
-        {/* HEADER */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-brand-ink tracking-tight font-playfair mb-1">
-              📜 {sezione.nome}
-            </h1>
-            <p className="text-neutral-600 text-sm">
-              {voci.length} voci totali · {voci.filter((v) => v.attivo).length} attive in carta
-              {sezione.layout && (
-                <span className="ml-2 text-neutral-400 font-mono text-xs">
-                  layout: {sezione.layout}
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Btn variant="secondary" size="md" onClick={() => navigate("/vini/carta")}>
-              ← Carta
-            </Btn>
-            <Btn variant="secondary" size="md" onClick={openAnteprimaSezione}>
-              👁 Anteprima sezione
-            </Btn>
-            {!isViniSection && (
-              <>
-                <Btn variant="secondary" size="md" onClick={() => setImportOpen(true)}>
-                  📋 Import testo
-                </Btn>
-                <Btn variant="primary" size="md" onClick={openNew}>
-                  + Nuova voce
-                </Btn>
-              </>
+    <div>
+      {/* HEADER PANNELLO */}
+      <div className="flex flex-col lg:flex-row justify-between gap-4 mb-5">
+        <div>
+          <h2 className="text-2xl lg:text-3xl font-bold text-brand-ink tracking-tight font-playfair mb-1">
+            📜 {sezione.nome}
+          </h2>
+          <p className="text-neutral-600 text-sm">
+            {voci.length} voci totali · {voci.filter((v) => v.attivo).length} attive in carta
+            {sezione.layout && (
+              <span className="ml-2 text-neutral-400 font-mono text-xs">
+                layout: {sezione.layout}
+              </span>
             )}
-          </div>
+          </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Btn variant="secondary" size="md" onClick={openAnteprimaSezione}>
+            👁 Anteprima sezione
+          </Btn>
+          {!isViniSection && (
+            <>
+              <Btn variant="secondary" size="md" onClick={() => setImportOpen(true)}>
+                📋 Import testo
+              </Btn>
+              <Btn variant="primary" size="md" onClick={openNew}>
+                + Nuova voce
+              </Btn>
+            </>
+          )}
+        </div>
+      </div>
 
         {isViniSection && (
           <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
@@ -529,8 +514,6 @@ export default function CartaSezioneEditor() {
             </div>
           )
         )}
-
-      </div>
 
       {/* MODAL FORM */}
       {modalOpen && (

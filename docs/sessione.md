@@ -1,8 +1,38 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 50 — Selezioni del Giorno: 4 zone unificate)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 50bis — Carta delle Bevande: shell con sidebar)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 50bis — Carta delle Bevande: shell con sidebar 8 sezioni ✅ (da testare post-push)
+
+Dopo aver visto funzionare la shell di Selezioni del Giorno, Marco ha chiesto lo stesso pattern per la pagina `/vini/carta`. Prima era un hub-griglia con 8 card (Vini + 7 sezioni bevande); ora è una shell con sidebar a sinistra (8 voci sezione) e pannello a destra che cambia in base a `:sezione` nell'URL. Stesso layout di `SelezioniDelGiorno` e `ViniImpostazioni`.
+
+**Decisioni:**
+- Shell `/vini/carta/:sezione` rimpiazza l'hub-griglia.
+- `CartaVini` e `CartaSezioneEditor` trasformati in **panel senza wrapper** (niente `min-h-screen`, niente `<ViniNav>`, niente bottone "← Carta"): ora sono blocchi renderizzati dentro la shell.
+- `CartaSezioneEditor` riceve la sezione da prop `sezioneKey` invece che da `useParams()`.
+- Default redirect `/vini/carta` → `/vini/carta/vini` (niente schermata intermedia).
+- Redirect legacy `/vini/carta/sezione/:key` → `/vini/carta/:key`.
+- Export buttons (PDF / PDF Staff / Word) e Btn "👁 Anteprima" vivono nell'header della shell, visibili per tutte le sezioni.
+- `ViniNav` renderizzato una sola volta dalla shell, i panel non lo includono più.
+- `CartaVini` e `CartaSezioneEditor` importati staticamente in `CartaBevande` (rimossi lazy imports doppi in App.jsx).
+
+**Deliverable:**
+- FE: `CartaBevande.jsx` v2.0-shell, `CartaVini.jsx` v3.6-panel, `CartaSezioneEditor.jsx` v1.1-panel, `App.jsx` nuove route + RedirectLegacySezione, `versions.jsx` vini 3.11 → 3.12.
+- Docs: changelog + questo file.
+
+**Da testare post-push (Ctrl+Shift+R):**
+1. `/vini/carta` redirige immediatamente a `/vini/carta/vini` — no schermata intermedia hub-griglia.
+2. Sidebar mostra 8 sezioni con icone e contatori. Click su sezione cambia URL e pannello senza ricaricare.
+3. Sezione "Vini" mostra anteprima embedded + 4 Btn (Aggiorna Anteprima / HTML / PDF / Word) dedicati.
+4. Sezioni editabili (es. "Aperitivi") mostrano tabella + Btn "+ Nuova voce" + modal form + import testo.
+5. Vecchi link `/vini/carta/sezione/aperitivi` redirigono a `/vini/carta/aperitivi`.
+6. Btn "👁 Anteprima" in header shell apre `/vini/carta/anteprima` (pagina separata).
+7. Btn PDF / PDF Staff / Word in header aprono i download bevande.
+8. ViniNav in cima alla pagina con tab "Carta" evidenziata, una sola volta (no doppio nav).
 
 ---
 

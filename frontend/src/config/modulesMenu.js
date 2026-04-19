@@ -49,7 +49,7 @@ const MODULES_MENU = {
     ],
   },
   selezioni: {
-    title: "Selezioni del Giorno", icon: "\uD83C\uDF7D\uFE0F", go: "/selezioni/macellaio",
+    title: "Selezioni", icon: "\uD83C\uDF7D\uFE0F", go: "/selezioni/macellaio",
     color: "bg-red-50 border-red-200 text-red-900", hoverBg: "hover:bg-red-50",
     sub: [
       { label: "Macellaio", go: "/selezioni/macellaio" },

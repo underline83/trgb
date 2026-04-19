@@ -3,6 +3,64 @@
 
 ---
 
+## 2026-04-19 — Carta delle Bevande: shell con sidebar 8 sezioni (vini v3.12)
+
+### Contesto
+Dopo aver visto funzionare la shell di Selezioni del Giorno, Marco chiede lo stesso
+pattern per `/vini/carta`: invece dell'hub-griglia con 8 card, una pagina unica con
+sidebar a sinistra che mostra le 8 sezioni (Vini + 7 bevande) e il pannello a destra
+che cambia in base al path `/vini/carta/:sezione`.
+
+### Decisioni
+- **Shell unica** `/vini/carta/:sezione` sostituisce l'hub-griglia: layout `flex gap-6`
+  con `<div className="w-56 flex-shrink-0">` per sidebar e `<div className="flex-1">` per
+  content. Stesso pattern di `SelezioniDelGiorno` e `ViniImpostazioni`.
+- **Default redirect** `/vini/carta` → `/vini/carta/vini` (evita schermata intermedia).
+- **Pannelli interni**: `CartaVini` (sezione "vini") e `CartaSezioneEditor` (altre 7
+  sezioni) trasformati in panel "senza wrapper" — rimossi `min-h-screen`, `<ViniNav>`
+  e bottone "← Carta": ora sono blocchi di contenuto renderizzati dentro la shell.
+- **`ViniNav` una sola volta**: la shell lo rende in cima, i panel no (evita doppio nav).
+- **Anteprima globale** resta a parte come pagina `/vini/carta/anteprima`, raggiungibile
+  dal Btn "👁 Anteprima" in header shell. Non è una sezione editabile, è una preview
+  read-only di tutte le sezioni insieme.
+- **Export buttons** (PDF / PDF Staff / Word) spostati nell'header della shell: restano
+  visibili per tutte le sezioni, perché agiscono sulla carta intera.
+- **`CartaSezioneEditor`** ora riceve la sezione da prop `sezioneKey` invece che da
+  `useParams()` — così si può renderizzare dentro la shell senza che la shell stessa
+  debba ricalcolare l'URL.
+- **Import statico** dei due panel dentro `CartaBevande` (niente doppio `lazy()` inutile).
+
+### File modificati
+- `frontend/src/pages/vini/CartaBevande.jsx` — v2.0-shell, da hub-griglia a shell+sidebar.
+- `frontend/src/pages/vini/CartaVini.jsx` — v3.6-panel, rimosso wrapper + ViniNav.
+- `frontend/src/pages/vini/CartaSezioneEditor.jsx` — v1.1-panel, rimosso wrapper +
+  ViniNav + bottone back; ora accetta `sezioneKey` come prop.
+- `frontend/src/App.jsx` — route `/vini/carta/:sezione`, redirect `/vini/carta` → `/vini/carta/vini`,
+  redirect legacy `/vini/carta/sezione/:key` → `/vini/carta/:key`. Rimossi lazy imports non
+  più necessari (`CartaVini`, `CartaSezioneEditor`).
+- `frontend/src/config/versions.jsx` — vini 3.11 → 3.12.
+
+### Routes risultanti (Carta)
+- `GET /vini/carta` → 302 `/vini/carta/vini` (default)
+- `GET /vini/carta/:sezione` → shell (vini / aperitivi / birre / amari_casa /
+  amari_liquori / distillati / tisane / te)
+- `GET /vini/carta/anteprima` → `CartaAnteprima` (invariata)
+- `GET /vini/carta/sezione/:key` → 302 `/vini/carta/:key` (legacy)
+
+### Test checklist
+- [ ] `/vini/carta` redirige a `/vini/carta/vini` senza schermata intermedia.
+- [ ] Sidebar mostra 8 sezioni con icone, contatori voci, badge "off" se `!attivo`.
+- [ ] Click su sezione cambia URL e pannello senza ricaricare la pagina.
+- [ ] Sezione "Vini" mostra anteprima embedded + 4 Btn export dedicati.
+- [ ] Sezioni editabili (es. aperitivi) mostrano tabella + Btn "+ Nuova voce" + modal form.
+- [ ] Modal import testo funzionante per le sezioni editabili.
+- [ ] `/vini/carta/sezione/aperitivi` redirige a `/vini/carta/aperitivi`.
+- [ ] Btn "👁 Anteprima" in header shell apre `/vini/carta/anteprima`.
+- [ ] Btn PDF / PDF Staff / Word in header aprono i download bevande.
+- [ ] ViniNav tab "Carta" evidenziata correttamente nella shell.
+
+---
+
 ## 2026-04-19 — Selezioni del Giorno: 4 zone unificate (refactor sessione 50)
 
 ### Contesto
