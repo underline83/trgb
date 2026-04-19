@@ -98,6 +98,9 @@ from app.routers.scelta_salumi_router import router as scelta_salumi_router
 # SCELTA DEI FORMAGGI — formaggi disponibili alla vendita (sessione 50)
 from app.routers.scelta_formaggi_router import router as scelta_formaggi_router
 
+# SCELTA DEL PESCATO — pesce/crostacei/molluschi (sessione 50, refactor "Selezioni del Giorno")
+from app.routers.scelta_pescato_router import router as scelta_pescato_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -298,6 +301,9 @@ app.include_router(scelta_salumi_router)
 
 # SCELTA DEI FORMAGGI — gemello macellaio per formaggi con campo latte (sessione 50)
 app.include_router(scelta_formaggi_router)
+
+# SCELTA DEL PESCATO — gemello macellaio con campo zona_fao (sessione 50, "Selezioni del Giorno")
+app.include_router(scelta_pescato_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)

@@ -89,17 +89,27 @@ DEFAULT_MODULES = [
     },
     {
         "key": "ricette", "label": "Gestione Cucina", "icon": "\U0001f4d8",
-        "description": "Archivio ricette, food cost, scelta del macellaio",
+        "description": "Archivio ricette, food cost, ingredienti",
         "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
         "sub": [
             {"key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef"]},
             {"key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"]},
-            {"key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
-            {"key": "salumi",      "label": "Scelta dei Salumi",    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
-            {"key": "formaggi",    "label": "Scelta dei Formaggi",  "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
             {"key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"]},
             {"key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef"]},
             {"key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"]},
+        ],
+    },
+    {
+        # NUOVO modulo top-level "Selezioni del Giorno" — accorpa Macellaio + Salumi + Formaggi + Pescato.
+        # Sostituisce le sub omonime sotto `ricette` (sessione 50, refactor pagina unica /selezioni).
+        "key": "selezioni", "label": "Selezioni del Giorno", "icon": "\U0001f37d\ufe0f",
+        "description": "Macellaio, salumi, formaggi e pescato del giorno per la sala",
+        "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
+        "sub": [
+            {"key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
+            {"key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
+            {"key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
+            {"key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
         ],
     },
     {

@@ -101,6 +101,9 @@ const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
 const SceltaMacellaio = lazy(() => import("./pages/tasks/SceltaMacellaio"));
 const SceltaSalumi = lazy(() => import("./pages/tasks/SceltaSalumi"));
 const SceltaFormaggi = lazy(() => import("./pages/tasks/SceltaFormaggi"));
+
+// SELEZIONI DEL GIORNO (modulo unico — macellaio/pescato/salumi/formaggi via :zona)
+const SelezioniDelGiorno = lazy(() => import("./pages/selezioni/SelezioniDelGiorno"));
 // Task Manager (ex-Cucina, rinominato Phase B sessione 46)
 const TasksHome = lazy(() => import("./pages/tasks/TasksHome"));
 const TasksAgendaGiornaliera = lazy(() => import("./pages/tasks/AgendaGiornaliera"));
@@ -215,9 +218,6 @@ export default function App() {
             { sub: "dashboard",   path: "/ricette/dashboard" },
             { sub: "archivio",    path: "/ricette/archivio" },
             { sub: "ingredienti", path: "/ricette/ingredienti" },
-            { sub: "macellaio",   path: "/macellaio" },
-            { sub: "salumi",      path: "/salumi" },
-            { sub: "formaggi",    path: "/formaggi" },
             { sub: "matching",    path: "/ricette/matching" },
             { sub: "settings",    path: "/ricette/settings" },
           ]} />
@@ -393,14 +393,15 @@ export default function App() {
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
 
-        {/* --- SCELTA DEL MACELLAIO (modulo ricette) --- */}
-        <Route path="/macellaio" element={<ProtectedRoute module="ricette" sub="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
+        {/* --- SELEZIONI DEL GIORNO (modulo unico 4 zone: macellaio/pescato/salumi/formaggi) --- */}
+        <Route path="/selezioni" element={<Navigate to="/selezioni/macellaio" replace />} />
+        <Route path="/selezioni/:zona" element={<ProtectedRoute module="selezioni"><SelezioniDelGiorno /></ProtectedRoute>} />
 
-        {/* --- SCELTA DEI SALUMI (modulo ricette) --- */}
-        <Route path="/salumi" element={<ProtectedRoute module="ricette" sub="salumi"><SceltaSalumi /></ProtectedRoute>} />
-
-        {/* --- SCELTA DEI FORMAGGI (modulo ricette) --- */}
-        <Route path="/formaggi" element={<ProtectedRoute module="ricette" sub="formaggi"><SceltaFormaggi /></ProtectedRoute>} />
+        {/* Redirect legacy → nuova route /selezioni/:zona (bookmark utenti / deep link) */}
+        <Route path="/macellaio" element={<Navigate to="/selezioni/macellaio" replace />} />
+        <Route path="/salumi"    element={<Navigate to="/selezioni/salumi"    replace />} />
+        <Route path="/formaggi"  element={<Navigate to="/selezioni/formaggi"  replace />} />
+        <Route path="/pescato"   element={<Navigate to="/selezioni/pescato"   replace />} />
 
         {/* --- TASK MANAGER (ex-Cucina): checklist ricorrenti + task singoli --- */}
         <Route path="/tasks" element={<ProtectedRoute module="tasks"><TasksHome /></ProtectedRoute>} />

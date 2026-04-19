@@ -3,6 +3,81 @@
 
 ---
 
+## 2026-04-19 — Selezioni del Giorno: 4 zone unificate (refactor sessione 50)
+
+### Contesto
+Marco: voleva un secondo giro di refactoring sulle "Scelte" per renderle un modulo unico
+("Selezioni del Giorno") con 4 zone — Macellaio, Pescato, Salumi, Formaggi — sotto
+un'unica voce di menu, single-page navigation con sidebar a sinistra.
+
+### Decisioni
+- **Quarta zona "Pescato"** aggiunta accanto a Macellaio: stesso modello (peso/prezzo/venduto)
+  con un campo extra `zona_fao` (provenienza FAO o area pesca). Categorie seed: Crudo 🍣,
+  Cotto 🐟, Crostacei 🦐, Molluschi 🦑.
+- **Salumi/Formaggi cambiano modello stato**: da "venduto/disponibile" a "attivo/archiviato"
+  (toggle in carta ↔ archivio). UI nuova: niente piu' grammatura/prezzo nei form (resta solo
+  nei record vecchi per retrocompat). Endpoint `PATCH /{id}/venduto` mantenuto come
+  `deprecated=True` alias per non rompere link esistenti.
+- **Pagina shell unica** `/selezioni/:zona` che rimpiazza `/macellaio`, `/salumi`, `/formaggi`:
+  layout sidebar (stile ViniImpostazioni: `w-56 flex-shrink-0`, nav space-y-0.5) + content
+  area con `<ZonaPanel zona={zona} />` generico guidato da `ZONA_CONFIG`. Una sola pagina,
+  4 comportamenti via config.
+- **Widget Home unificato**: `SelezioniCard` 2x2 con 4 mini-blocchi colorati (rosso/azzurro/
+  ambra/giallo) sostituisce le card separate `MacellaioCard`/`SalumiCard`/`FormaggiCard`
+  in Home e DashboardSala. Click su mini-blocco → `/selezioni/<zona>`.
+- **modules_router**: nuovo modulo top-level `selezioni` (label "Selezioni del Giorno")
+  con sub `macellaio/pescato/salumi/formaggi`. Sub equivalenti rimossi dal modulo `ricette`.
+- **Redirect legacy**: `/macellaio`, `/salumi`, `/formaggi`, `/pescato` → `/selezioni/<zona>`
+  per preservare bookmark utenti. `modulesMenu.js` punta direttamente alle nuove route.
+
+### File nuovi
+- `app/migrations/094_scelta_pescato.py` — tabelle `pescato_tagli` (con `zona_fao`),
+  `pescato_categorie`, `pescato_config`. 4 categorie seed.
+- `app/routers/scelta_pescato_router.py` — prefix `/pescato`, mirror esatto del macellaio
+  con campo `zona_fao` aggiuntivo, CRUD + categorie + config.
+- `frontend/src/pages/selezioni/zonaConfig.js` — `ZONA_CONFIG` per le 4 zone (endpoint,
+  stato venduto/attivo, accent Tailwind, campiExtra). `ZONA_ORDER`, `isValidZona()`.
+- `frontend/src/pages/selezioni/ZonaPanel.jsx` — pannello CRUD generico guidato da config.
+  Mostra peso/prezzo solo se `cfg.stato === "venduto"`. Filtro adattivo
+  (attivi/archiviati vs disponibili/venduti). PATCH endpoint scelto da `cfg.stato`.
+- `frontend/src/pages/selezioni/SelezioniDelGiorno.jsx` — shell con sidebar a sinistra
+  (4 zone come bottoni stile ViniImpostazioni con accent attivo per zona) + content area
+  che monta `<ZonaPanel zona={zona} key={zona} />`.
+- `frontend/src/components/widgets/SelezioniCard.jsx` — widget Home 2x2 con 4 mini-blocchi
+  colorati. Click su blocco → `/selezioni/<zona>`. Mostra disponibili totali in header
+  + preview top-2 categorie per ogni zona.
+
+### File modificati
+- `main.py` — registra `scelta_pescato_router`.
+- `app/routers/modules_router.py` — nuovo modulo `selezioni` con 4 sub; rimozione sub
+  macellaio/salumi/formaggi da `ricette`.
+- `app/routers/scelta_salumi_router.py` (v1.1) — aggiunge `attivo`/`archiviato_at`
+  (mig 093), `PATCH /{id}/attivo`, lista filtra per `attivo`. PATCH `/venduto` deprecato.
+- `app/routers/scelta_formaggi_router.py` (v1.1) — stesso refactor di salumi.
+- `app/routers/dashboard_router.py` — `_pescato_widget`, `SelezioniWidget` raggruppato,
+  `_salumi_widget` e `_formaggi_widget` ora contano `attivo=1` (non piu' `venduto=0`).
+- `frontend/src/App.jsx` — nuova route `/selezioni/:zona` (lazy `SelezioniDelGiorno`),
+  redirect legacy. Sub macellaio/salumi/formaggi tolti dal `ModuleRedirect` di `/ricette`.
+- `frontend/src/config/modulesMenu.js` — nuovo blocco `selezioni` (icon 🍽️, color rosso),
+  ricette ridotto a archivio/ingredienti/matching/dashboard/impostazioni.
+- `frontend/src/pages/Home.jsx` — un solo `<SelezioniCard data={widgets?.selezioni} />`
+  rimpiazza i 3 widget separati. Fallback subtitle aggiornati per `ricette` + `selezioni`.
+- `frontend/src/pages/DashboardSala.jsx` — `MacellaioCard` → `SelezioniCard`.
+- `frontend/src/config/versions.jsx` — sezione `selezioni v1.0 beta` rimpiazza
+  `macellaio/salumi/formaggi` separate.
+
+### Note retrocompat
+- Le tabelle `salumi_tagli`/`formaggi_tagli` mantengono entrambe le colonne `venduto`/
+  `venduto_at` (legacy) e `attivo`/`archiviato_at` (mig 093). Il PATCH `/venduto` setta
+  entrambi i campi per coerenza durante la transizione.
+- I file `pages/tasks/SceltaMacellaio.jsx`, `SceltaSalumi.jsx`, `SceltaFormaggi.jsx`
+  restano in repo ma non sono piu' raggiungibili da App.jsx (route rimosse). Si possono
+  cancellare in un follow-up cosmetico.
+- Le card `MacellaioCard`/`SalumiCard`/`FormaggiCard` restano in repo ma non sono piu'
+  importate. Anch'esse rimovibili in cleanup.
+
+---
+
 ## 2026-04-19 — Scelta dei Salumi e Scelta dei Formaggi (sessione 50)
 
 ### Contesto

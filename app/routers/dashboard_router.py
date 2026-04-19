@@ -115,14 +115,35 @@ class FormaggiWidget(BaseModel):
     categorie: List[CategoriaGruppo] = []
     altre: int = 0
 
+class PescatoWidget(BaseModel):
+    disponibili: int = 0
+    venduti_oggi: int = 0
+    categorie: List[CategoriaGruppo] = []
+    altre: int = 0
+
+class SelezioniWidget(BaseModel):
+    """
+    Raggruppamento compatto per la Home: macellaio/salumi/formaggi/pescato
+    in una singola card "Selezioni del Giorno". Ogni zona espone il conteggio
+    disponibili (o attivi per salumi/formaggi) e le categorie visibili.
+    """
+    macellaio: MacellaioWidget = MacellaioWidget()
+    salumi: SalumiWidget = SalumiWidget()
+    formaggi: FormaggiWidget = FormaggiWidget()
+    pescato: PescatoWidget = PescatoWidget()
+
 class DashboardHome(BaseModel):
     prenotazioni: PrenotazioniOggi
     incasso_ieri: IncassoIeri
     coperti_mese: CopertiMese
     fatture_pending: FatturePending
+    # Widget singoli (retrocompat per la vecchia Home / DashboardSala)
     macellaio: MacellaioWidget = MacellaioWidget()
     salumi: SalumiWidget = SalumiWidget()
     formaggi: FormaggiWidget = FormaggiWidget()
+    pescato: PescatoWidget = PescatoWidget()
+    # Raggruppamento nuovo per la SelezioniCard unificata (sessione 50)
+    selezioni: SelezioniWidget = SelezioniWidget()
     alerts: List[AlertItem] = []
     moduli: List[ModuloSummary] = []
 
@@ -361,7 +382,9 @@ def _macellaio_widget(oggi: str, tagli_per_cat: int = 2) -> MacellaioWidget:
 def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
     """
     Widget salumi raggruppato per categoria.
-    Specchio di _macellaio_widget su tabelle salumi_*.
+    Dopo mig 093: il contatore `disponibili` conta i tagli con `attivo = 1`
+    (in carta). `venduti_oggi` resta sempre 0: per salumi il concetto "venduto"
+    non esiste piu' (vedere `toggle_attivo` nel router).
     """
     try:
         conn = get_foodcost_connection()
@@ -377,19 +400,13 @@ def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
         if max_cat < 1:
             max_cat = 1
 
-        # ── Count totali ──
+        # ── Count attivi (= in carta) ──
         r1 = conn.execute("""
             SELECT COUNT(*) as cnt FROM salumi_tagli
-            WHERE COALESCE(venduto, 0) = 0
+            WHERE COALESCE(attivo, 1) = 1
         """).fetchone()
         disponibili = r1["cnt"] if r1 else 0
-
-        r2 = conn.execute("""
-            SELECT COUNT(*) as cnt FROM salumi_tagli
-            WHERE COALESCE(venduto, 0) = 1
-              AND venduto_at LIKE ?
-        """, (oggi + "%",)).fetchone()
-        venduti_oggi = r2["cnt"] if r2 else 0
+        venduti_oggi = 0  # non piu' usato per salumi
 
         # ── Mappa categoria → (emoji, ordine). Categorie attive ordinate. ──
         cat_rows = conn.execute("""
@@ -403,11 +420,11 @@ def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
         }
         ordine_categorie = [r["nome"] for r in cat_rows]
 
-        # ── Aggrega tagli disponibili per categoria ──
+        # ── Aggrega tagli attivi per categoria ──
         tagli_rows = conn.execute("""
             SELECT nome, categoria, grammatura_g, prezzo_euro, id
             FROM salumi_tagli
-            WHERE COALESCE(venduto, 0) = 0
+            WHERE COALESCE(attivo, 1) = 1
             ORDER BY id DESC
         """).fetchall()
 
@@ -462,7 +479,8 @@ def _salumi_widget(oggi: str, tagli_per_cat: int = 2) -> SalumiWidget:
 def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
     """
     Widget formaggi raggruppato per categoria.
-    Specchio di _macellaio_widget su tabelle formaggi_*.
+    Dopo mig 093: il contatore `disponibili` conta i tagli con `attivo = 1`
+    (in carta). `venduti_oggi` resta sempre 0.
     """
     try:
         conn = get_foodcost_connection()
@@ -478,19 +496,13 @@ def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
         if max_cat < 1:
             max_cat = 1
 
-        # ── Count totali ──
+        # ── Count attivi (= in carta) ──
         r1 = conn.execute("""
             SELECT COUNT(*) as cnt FROM formaggi_tagli
-            WHERE COALESCE(venduto, 0) = 0
+            WHERE COALESCE(attivo, 1) = 1
         """).fetchone()
         disponibili = r1["cnt"] if r1 else 0
-
-        r2 = conn.execute("""
-            SELECT COUNT(*) as cnt FROM formaggi_tagli
-            WHERE COALESCE(venduto, 0) = 1
-              AND venduto_at LIKE ?
-        """, (oggi + "%",)).fetchone()
-        venduti_oggi = r2["cnt"] if r2 else 0
+        venduti_oggi = 0  # non piu' usato per formaggi
 
         # ── Mappa categoria → (emoji, ordine). Categorie attive ordinate. ──
         cat_rows = conn.execute("""
@@ -504,11 +516,11 @@ def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
         }
         ordine_categorie = [r["nome"] for r in cat_rows]
 
-        # ── Aggrega tagli disponibili per categoria ──
+        # ── Aggrega tagli attivi per categoria ──
         tagli_rows = conn.execute("""
             SELECT nome, categoria, grammatura_g, prezzo_euro, id
             FROM formaggi_tagli
-            WHERE COALESCE(venduto, 0) = 0
+            WHERE COALESCE(attivo, 1) = 1
             ORDER BY id DESC
         """).fetchall()
 
@@ -558,6 +570,108 @@ def _formaggi_widget(oggi: str, tagli_per_cat: int = 2) -> FormaggiWidget:
     except Exception as e:
         logger.warning(f"Dashboard: errore formaggi widget: {e}")
         return FormaggiWidget()
+
+
+def _pescato_widget(oggi: str, tagli_per_cat: int = 2) -> PescatoWidget:
+    """
+    Widget pescato raggruppato per categoria.
+    Specchio esatto di _macellaio_widget su tabelle pescato_* (mig 094).
+    Mantiene la stessa semantica disponibili/venduti_oggi del macellaio.
+    """
+    try:
+        conn = get_foodcost_connection()
+
+        # ── Config max categorie da mostrare ──
+        try:
+            r_cfg = conn.execute(
+                "SELECT valore FROM pescato_config WHERE chiave = 'widget_max_categorie'"
+            ).fetchone()
+            max_cat = int(r_cfg["valore"]) if r_cfg and r_cfg["valore"] else 4
+        except Exception:
+            max_cat = 4
+        if max_cat < 1:
+            max_cat = 1
+
+        # ── Count totali ──
+        r1 = conn.execute("""
+            SELECT COUNT(*) as cnt FROM pescato_tagli
+            WHERE COALESCE(venduto, 0) = 0
+        """).fetchone()
+        disponibili = r1["cnt"] if r1 else 0
+
+        r2 = conn.execute("""
+            SELECT COUNT(*) as cnt FROM pescato_tagli
+            WHERE COALESCE(venduto, 0) = 1
+              AND venduto_at LIKE ?
+        """, (oggi + "%",)).fetchone()
+        venduti_oggi = r2["cnt"] if r2 else 0
+
+        # ── Mappa categoria → (emoji, ordine). Categorie attive ordinate. ──
+        cat_rows = conn.execute("""
+            SELECT nome, emoji, ordine FROM pescato_categorie
+            WHERE attivo = 1
+            ORDER BY ordine ASC, nome ASC
+        """).fetchall()
+        cat_meta = {
+            r["nome"]: {"emoji": r["emoji"], "ordine": r["ordine"]}
+            for r in cat_rows
+        }
+        ordine_categorie = [r["nome"] for r in cat_rows]
+
+        # ── Aggrega tagli disponibili per categoria ──
+        tagli_rows = conn.execute("""
+            SELECT nome, categoria, grammatura_g, prezzo_euro, id
+            FROM pescato_tagli
+            WHERE COALESCE(venduto, 0) = 0
+            ORDER BY id DESC
+        """).fetchall()
+
+        gruppi: dict[str, list] = {}
+        for r in tagli_rows:
+            cat_nome = r["categoria"] or "Senza categoria"
+            gruppi.setdefault(cat_nome, []).append(r)
+
+        ordered_keys: List[str] = []
+        for nome in ordine_categorie:
+            if nome in gruppi:
+                ordered_keys.append(nome)
+        extra = sorted(k for k in gruppi.keys() if k not in ordered_keys)
+        ordered_keys.extend(extra)
+
+        totale_gruppi = len(ordered_keys)
+        visibili = ordered_keys[:max_cat]
+        altre = max(0, totale_gruppi - len(visibili))
+
+        categorie_out: List[CategoriaGruppo] = []
+        for nome in visibili:
+            rows_cat = gruppi[nome]
+            meta = cat_meta.get(nome, {})
+            preview = [
+                TaglioBreve(
+                    nome=rr["nome"] or "",
+                    categoria=rr["categoria"],
+                    grammatura_g=rr["grammatura_g"],
+                    prezzo_euro=rr["prezzo_euro"],
+                )
+                for rr in rows_cat[:tagli_per_cat]
+            ]
+            categorie_out.append(CategoriaGruppo(
+                nome=nome,
+                emoji=meta.get("emoji"),
+                disponibili=len(rows_cat),
+                tagli=preview,
+            ))
+
+        conn.close()
+        return PescatoWidget(
+            disponibili=disponibili,
+            venduti_oggi=venduti_oggi,
+            categorie=categorie_out,
+            altre=altre,
+        )
+    except Exception as e:
+        logger.warning(f"Dashboard: errore pescato widget: {e}")
+        return PescatoWidget()
 
 
 def _fatture_pending() -> FatturePending:
@@ -855,6 +969,7 @@ def get_dashboard_home():
     macellaio = _macellaio_widget(oggi_str)
     salumi = _salumi_widget(oggi_str)
     formaggi = _formaggi_widget(oggi_str)
+    pescato = _pescato_widget(oggi_str)
 
     response = DashboardHome(
         prenotazioni=prenotazioni,
@@ -864,6 +979,13 @@ def get_dashboard_home():
         macellaio=macellaio,
         salumi=salumi,
         formaggi=formaggi,
+        pescato=pescato,
+        selezioni=SelezioniWidget(
+            macellaio=macellaio,
+            salumi=salumi,
+            formaggi=formaggi,
+            pescato=pescato,
+        ),
         alerts=_alerts(oggi_str),
         moduli=_moduli_summary(oggi_str, prenotazioni, incasso, fatture, coperti),
     )

@@ -1,8 +1,40 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 50 — Scelta dei Salumi e dei Formaggi)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 50 — Selezioni del Giorno: 4 zone unificate)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 50 — Selezioni del Giorno: 4 zone unificate ✅ (da testare post-push)
+
+Refactor del lavoro fatto poco prima (Scelta del Macellaio + Scelta dei Salumi + Scelta dei Formaggi) in un **modulo unico "Selezioni del Giorno"** con 4 zone (Macellaio, Pescato, Salumi, Formaggi). Marco voleva una sola voce di menu con sidebar di navigazione fra le 4 zone, stile uniformato alle pagine "Impostazioni" gia' usate (ViniImpostazioni / ClientiImpostazioni).
+
+**Decisioni architetturali:**
+- **Aggiunta quarta zona "Pescato"** (modello macellaio + campo `zona_fao`). Categorie seed Crudo/Cotto/Crostacei/Molluschi.
+- **Salumi/Formaggi: nuovo modello stato** "attivo/archiviato" (toggle in carta ↔ archivio) al posto del modello venduto/disponibile. Niente piu' grammatura/prezzo nella UI nuova. Mantenute le colonne legacy `venduto`/`venduto_at` per retrocompat. PATCH `/venduto` deprecato (alias che setta entrambi).
+- **Pagina shell unica `/selezioni/:zona`** con sidebar a sinistra (stile ViniImpostazioni: `w-56 flex-shrink-0`, nav space-y-0.5, accent attivo per zona) + content area che monta `<ZonaPanel zona={zona} />` generico guidato da `ZONA_CONFIG`. Una sola pagina, 4 comportamenti via config.
+- **Widget Home unificato `SelezioniCard`**: 2x2 con 4 mini-blocchi colorati (rosso/azzurro/ambra/giallo). Sostituisce le 3 card separate `MacellaioCard`/`SalumiCard`/`FormaggiCard` in Home e DashboardSala. Click su mini-blocco → `/selezioni/<zona>`.
+- **modules_router**: nuovo modulo top-level `selezioni` con sub `macellaio/pescato/salumi/formaggi`; sub equivalenti rimossi dal modulo `ricette`.
+- **Redirect legacy**: `/macellaio`, `/salumi`, `/formaggi`, `/pescato` → `/selezioni/<zona>`.
+
+**Deliverable:**
+- BE: migrazione 094 (pescato), router `scelta_pescato_router.py`, refactor `scelta_salumi_router` e `scelta_formaggi_router` (v1.1 attivo/archiviato), `dashboard_router` con `_pescato_widget` + `SelezioniWidget` raggruppato, `modules_router` con nuovo modulo `selezioni`.
+- FE: `pages/selezioni/zonaConfig.js` (4 config), `ZonaPanel.jsx` (CRUD generico), `SelezioniDelGiorno.jsx` (shell + sidebar), `components/widgets/SelezioniCard.jsx` (widget 2x2 unificato). App.jsx con nuova route + redirect legacy. modulesMenu.js con voce unica. Home.jsx + DashboardSala.jsx aggiornati. versions.jsx con `selezioni v1.0 beta`.
+- Docs: changelog + questo file.
+
+**Da testare post-push:**
+1. Migrazione 094: log avvio backend deve creare `pescato_tagli`, `pescato_categorie`, `pescato_config` con i 4 seed.
+2. Push con `-m`: auto-detect dovrebbe attivarsi (modules_router cambia hash JSON moduli).
+3. Login admin → dropdown deve mostrare "Selezioni del Giorno" 🍽️ con 4 sub (Macellaio, Pescato, Salumi, Formaggi). Le voci vecchie sotto Gestione Cucina devono sparire.
+4. Click su "Macellaio" → URL `/selezioni/macellaio`, sidebar con 4 zone, accent rosso sulla zona attiva. Switch fra zone via sidebar deve cambiare URL e contenuto.
+5. Aggiungere un pescato con `zona_fao` "FAO 37.2.1 Adriatico" → controllare che il campo extra sia salvato e mostrato nella tabella.
+6. Aggiungere un salume e un formaggio nuovi (form senza grammatura/prezzo); toggle "Archivia" → deve passare in tab "Archivio".
+7. Tornare in Home → un solo widget `SelezioniCard` con 4 mini-blocchi colorati. Conteggio totale in header. Click su un blocco → naviga alla zona corrispondente.
+8. Bookmark legacy: aprire direttamente `/macellaio` deve fare redirect a `/selezioni/macellaio`. Idem per `/salumi`, `/formaggi`, `/pescato`.
+9. DashboardSala (login utente sala) → deve mostrare `SelezioniCard` al posto di `MacellaioCard`.
+
+**Push suggerito:** `./push.sh "Selezioni del Giorno: modulo unico 4 zone (macellaio/pescato/salumi/formaggi) con sidebar + widget Home unificato"`
 
 ---
 

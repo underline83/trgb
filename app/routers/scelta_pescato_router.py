@@ -1,41 +1,37 @@
 # ============================================================
-# FILE: app/routers/scelta_salumi_router.py
-# Scelta dei Salumi — tagli di salume disponibili alla vendita
+# FILE: app/routers/scelta_pescato_router.py
+# Scelta del Pescato — pesce/crostacei/molluschi disponibili in carta
 # ============================================================
 
-# @version: v1.1-salumi — attivo/archiviato (mig 093)
+# @version: v1.0-pescato
 # -*- coding: utf-8 -*-
 """
-Endpoints modulo "Scelta dei Salumi"
+Endpoints modulo "Scelta del Pescato"
 
 CRUD tagli + toggle venduto + categorie configurabili + config widget.
 
-Schema analogo a macellaio con campi extra:
-  - produttore       → Salumificio/produttore (racconto sala)
-  - stagionatura     → "24 mesi", "in grotta", ecc.
-  - origine_animale  → maiale / cinghiale / oca / misto ...
-  - territorio       → IGP / DOP / Presidio Slow Food / regione
-  - descrizione      → testo lungo per il racconto in sala
+Schema analogo a macellaio con un campo extra:
+  - zona_fao  → Zona FAO / provenienza (es. "FAO 37.2.1 Adriatico", "Mar Mediterraneo")
 
 Tabelle (foodcost.db):
-  - salumi_tagli       (mig 091)
-  - salumi_categorie   (mig 091)
-  - salumi_config      (mig 091)
+  - pescato_tagli       (mig 094)
+  - pescato_categorie   (mig 094)
+  - pescato_config      (mig 094)
 
 Endpoints:
-  GET    /salumi/              → lista tagli (filtro ?stato=disponibili|venduti|tutti)
-  POST   /salumi/              → nuovo taglio
-  PUT    /salumi/{id}          → modifica taglio
-  PATCH  /salumi/{id}/venduto  → segna venduto / ripristina
-  DELETE /salumi/{id}          → elimina taglio
+  GET    /pescato/              → lista tagli (filtro ?stato=disponibili|venduti|tutti)
+  POST   /pescato/              → nuovo taglio
+  PUT    /pescato/{id}          → modifica taglio
+  PATCH  /pescato/{id}/venduto  → segna venduto / ripristina
+  DELETE /pescato/{id}          → elimina taglio
 
-  GET    /salumi/categorie/        → lista categorie attive (ordinate)
-  POST   /salumi/categorie/        → crea categoria
-  PUT    /salumi/categorie/{id}    → modifica categoria
-  DELETE /salumi/categorie/{id}    → elimina categoria (se nessun taglio la usa)
+  GET    /pescato/categorie/        → lista categorie attive (ordinate)
+  POST   /pescato/categorie/        → crea categoria
+  PUT    /pescato/categorie/{id}    → modifica categoria
+  DELETE /pescato/categorie/{id}    → elimina categoria (se nessun taglio la usa)
 
-  GET    /salumi/config/           → config widget (max_categorie, ...)
-  PUT    /salumi/config/           → aggiorna config
+  GET    /pescato/config/           → config widget (max_categorie, ...)
+  PUT    /pescato/config/           → aggiorna config
 """
 
 from __future__ import annotations
@@ -50,11 +46,11 @@ from pydantic import BaseModel, Field
 from app.models.foodcost_db import get_foodcost_connection
 from app.services.auth_service import get_current_user
 
-logger = logging.getLogger("trgb.salumi")
+logger = logging.getLogger("trgb.pescato")
 
 router = APIRouter(
-    prefix="/salumi",
-    tags=["salumi"],
+    prefix="/pescato",
+    tags=["pescato"],
     dependencies=[Depends(get_current_user)],
 )
 
@@ -68,11 +64,7 @@ class TaglioIn(BaseModel):
     categoria: Optional[str] = Field(default=None, max_length=60)
     grammatura_g: Optional[int] = Field(default=None, ge=1)
     prezzo_euro: Optional[float] = Field(default=None, ge=0)
-    produttore: Optional[str] = Field(default=None, max_length=200)
-    stagionatura: Optional[str] = Field(default=None, max_length=100)
-    origine_animale: Optional[str] = Field(default=None, max_length=60)
-    territorio: Optional[str] = Field(default=None, max_length=200)
-    descrizione: Optional[str] = None
+    zona_fao: Optional[str] = Field(default=None, max_length=120)
     note: Optional[str] = None
 
 
@@ -82,15 +74,8 @@ class TaglioOut(BaseModel):
     categoria: Optional[str] = None
     grammatura_g: Optional[int]
     prezzo_euro: Optional[float]
-    produttore: Optional[str] = None
-    stagionatura: Optional[str] = None
-    origine_animale: Optional[str] = None
-    territorio: Optional[str] = None
-    descrizione: Optional[str] = None
+    zona_fao: Optional[str] = None
     note: Optional[str]
-    attivo: bool = True
-    archiviato_at: Optional[str] = None
-    # Retrocompat: campi venduto/venduto_at restano nel DB ma la UI nuova usa attivo.
     venduto: bool
     venduto_at: Optional[str]
     created_at: str
@@ -99,10 +84,6 @@ class TaglioOut(BaseModel):
 
 class TaglioVendutoToggle(BaseModel):
     venduto: bool
-
-
-class TaglioAttivoToggle(BaseModel):
-    attivo: bool
 
 
 class CategoriaIn(BaseModel):
@@ -120,11 +101,11 @@ class CategoriaOut(BaseModel):
     attivo: bool
 
 
-class SalumiConfigOut(BaseModel):
+class PescatoConfigOut(BaseModel):
     widget_max_categorie: int = 4
 
 
-class SalumiConfigIn(BaseModel):
+class PescatoConfigIn(BaseModel):
     widget_max_categorie: int = Field(default=4, ge=1, le=20)
 
 
@@ -135,10 +116,6 @@ class SalumiConfigIn(BaseModel):
 def _row_taglio(row) -> dict:
     d = dict(row)
     d["venduto"] = bool(d.get("venduto", 0))
-    # `attivo` e `archiviato_at` arrivano dalla mig 093; fallback difensivo.
-    d["attivo"] = bool(d.get("attivo", 1)) if "attivo" in d else True
-    if "archiviato_at" not in d:
-        d["archiviato_at"] = None
     return d
 
 
@@ -151,7 +128,7 @@ def _row_categoria(row) -> dict:
 def _get_config_int(conn, chiave: str, default: int) -> int:
     try:
         r = conn.execute(
-            "SELECT valore FROM salumi_config WHERE chiave = ?", (chiave,)
+            "SELECT valore FROM pescato_config WHERE chiave = ?", (chiave,)
         ).fetchone()
         if r and r["valore"] is not None:
             return int(r["valore"])
@@ -163,7 +140,7 @@ def _get_config_int(conn, chiave: str, default: int) -> int:
 def _set_config(conn, chiave: str, valore: str):
     now = datetime.now().isoformat(timespec="seconds")
     conn.execute("""
-        INSERT INTO salumi_config (chiave, valore, updated_at)
+        INSERT INTO pescato_config (chiave, valore, updated_at)
         VALUES (?, ?, ?)
         ON CONFLICT(chiave) DO UPDATE SET valore = excluded.valore, updated_at = excluded.updated_at
     """, (chiave, valore, now))
@@ -181,28 +158,21 @@ def _clean(v: Optional[str]) -> Optional[str]:
 # ─────────────────────────────────────────────────────────
 
 @router.get("/", response_model=List[TaglioOut])
-def lista_tagli(stato: str = "attivi"):
+def lista_tagli(stato: str = "tutti"):
     """
-    Lista salumi.
-    ?stato=attivi       → in carta (default)
-    ?stato=archiviati   → archivio (riattivabili)
-    ?stato=tutti        → tutti
-    Alias legacy (retrocompat): disponibili→attivi, venduti→archiviati.
+    Lista pescato.
+    ?stato=disponibili → solo non venduti
+    ?stato=venduti     → solo venduti
+    ?stato=tutti       → tutti (default)
     """
     conn = get_foodcost_connection()
     try:
-        # Normalizza alias legacy
-        stato_norm = {
-            "disponibili": "attivi",
-            "venduti": "archiviati",
-        }.get(stato, stato)
-
-        base = "SELECT * FROM salumi_tagli"
-        if stato_norm == "attivi":
-            base += " WHERE attivo = 1"
-        elif stato_norm == "archiviati":
-            base += " WHERE attivo = 0"
-        base += " ORDER BY attivo DESC, created_at DESC"
+        base = "SELECT * FROM pescato_tagli"
+        if stato == "disponibili":
+            base += " WHERE venduto = 0"
+        elif stato == "venduti":
+            base += " WHERE venduto = 1"
+        base += " ORDER BY venduto ASC, created_at DESC"
         rows = conn.execute(base).fetchall()
         return [_row_taglio(r) for r in rows]
     finally:
@@ -211,26 +181,23 @@ def lista_tagli(stato: str = "attivi"):
 
 @router.post("/", response_model=TaglioOut, status_code=201)
 def crea_taglio(data: TaglioIn):
-    """Inserisce un nuovo salume."""
+    """Inserisce un nuovo pezzo di pescato."""
     conn = get_foodcost_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         cur = conn.execute("""
-            INSERT INTO salumi_tagli
+            INSERT INTO pescato_tagli
               (nome, categoria, grammatura_g, prezzo_euro,
-               produttore, stagionatura, origine_animale, territorio,
-               descrizione, note, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               zona_fao, note, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             data.nome.strip(), _clean(data.categoria), data.grammatura_g,
             data.prezzo_euro,
-            _clean(data.produttore), _clean(data.stagionatura),
-            _clean(data.origine_animale), _clean(data.territorio),
-            _clean(data.descrizione), _clean(data.note),
+            _clean(data.zona_fao), _clean(data.note),
             now, now,
         ))
         conn.commit()
-        row = conn.execute("SELECT * FROM salumi_tagli WHERE id = ?", (cur.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM pescato_tagli WHERE id = ?", (cur.lastrowid,)).fetchone()
         return _row_taglio(row)
     finally:
         conn.close()
@@ -238,85 +205,48 @@ def crea_taglio(data: TaglioIn):
 
 @router.put("/{taglio_id}", response_model=TaglioOut)
 def modifica_taglio(taglio_id: int, data: TaglioIn):
-    """Modifica un salume esistente."""
+    """Modifica un pezzo di pescato esistente."""
     conn = get_foodcost_connection()
     try:
-        existing = conn.execute("SELECT id FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
-            raise HTTPException(404, "Salume non trovato")
+            raise HTTPException(404, "Pescato non trovato")
         now = datetime.now().isoformat(timespec="seconds")
         conn.execute("""
-            UPDATE salumi_tagli
+            UPDATE pescato_tagli
             SET nome = ?, categoria = ?, grammatura_g = ?, prezzo_euro = ?,
-                produttore = ?, stagionatura = ?, origine_animale = ?, territorio = ?,
-                descrizione = ?, note = ?, updated_at = ?
+                zona_fao = ?, note = ?, updated_at = ?
             WHERE id = ?
         """, (
             data.nome.strip(), _clean(data.categoria), data.grammatura_g,
             data.prezzo_euro,
-            _clean(data.produttore), _clean(data.stagionatura),
-            _clean(data.origine_animale), _clean(data.territorio),
-            _clean(data.descrizione), _clean(data.note),
+            _clean(data.zona_fao), _clean(data.note),
             now, taglio_id,
         ))
         conn.commit()
-        row = conn.execute("SELECT * FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        row = conn.execute("SELECT * FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         return _row_taglio(row)
     finally:
         conn.close()
 
 
-@router.patch("/{taglio_id}/attivo", response_model=TaglioOut)
-def toggle_attivo(taglio_id: int, body: TaglioAttivoToggle):
-    """
-    Segna un salume come attivo (in carta) o archiviato (riattivabile).
-    Endpoint nuovo dopo mig 093.
-    """
-    conn = get_foodcost_connection()
-    try:
-        existing = conn.execute("SELECT id FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
-        if not existing:
-            raise HTTPException(404, "Salume non trovato")
-        now = datetime.now().isoformat(timespec="seconds")
-        archiviato_at = None if body.attivo else now
-        conn.execute("""
-            UPDATE salumi_tagli
-            SET attivo = ?, archiviato_at = ?, updated_at = ?
-            WHERE id = ?
-        """, (int(body.attivo), archiviato_at, now, taglio_id))
-        conn.commit()
-        row = conn.execute("SELECT * FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
-        return _row_taglio(row)
-    finally:
-        conn.close()
-
-
-@router.patch("/{taglio_id}/venduto", response_model=TaglioOut, deprecated=True)
+@router.patch("/{taglio_id}/venduto", response_model=TaglioOut)
 def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
-    """
-    [DEPRECATO] Alias legacy: per salumi/formaggi il concetto "venduto" non
-    ha piu' senso. Usare PATCH /{id}/attivo. Manteniamo questo endpoint per
-    non rompere chiamate esistenti: lo mappiamo su `attivo`.
-    """
+    """Segna un pezzo di pescato come venduto o ripristina a disponibile."""
     conn = get_foodcost_connection()
     try:
-        existing = conn.execute("SELECT id FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
-            raise HTTPException(404, "Salume non trovato")
+            raise HTTPException(404, "Pescato non trovato")
         now = datetime.now().isoformat(timespec="seconds")
-        # body.venduto=True → archivia (attivo=0), body.venduto=False → riattiva
-        attivo_val = 0 if body.venduto else 1
-        archiviato_at = now if body.venduto else None
+        venduto_at = now if body.venduto else None
         conn.execute("""
-            UPDATE salumi_tagli
-            SET attivo = ?, archiviato_at = ?,
-                venduto = ?, venduto_at = ?, updated_at = ?
+            UPDATE pescato_tagli
+            SET venduto = ?, venduto_at = ?, updated_at = ?
             WHERE id = ?
-        """, (attivo_val, archiviato_at,
-              int(body.venduto), (now if body.venduto else None),
-              now, taglio_id))
+        """, (int(body.venduto), venduto_at, now, taglio_id))
         conn.commit()
-        row = conn.execute("SELECT * FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        row = conn.execute("SELECT * FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         return _row_taglio(row)
     finally:
         conn.close()
@@ -324,13 +254,13 @@ def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
 
 @router.delete("/{taglio_id}", status_code=204)
 def elimina_taglio(taglio_id: int):
-    """Elimina un salume."""
+    """Elimina un pezzo di pescato."""
     conn = get_foodcost_connection()
     try:
-        existing = conn.execute("SELECT id FROM salumi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        existing = conn.execute("SELECT id FROM pescato_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
-            raise HTTPException(404, "Salume non trovato")
-        conn.execute("DELETE FROM salumi_tagli WHERE id = ?", (taglio_id,))
+            raise HTTPException(404, "Pescato non trovato")
+        conn.execute("DELETE FROM pescato_tagli WHERE id = ?", (taglio_id,))
         conn.commit()
     finally:
         conn.close()
@@ -342,10 +272,10 @@ def elimina_taglio(taglio_id: int):
 
 @router.get("/categorie/", response_model=List[CategoriaOut])
 def lista_categorie(solo_attive: bool = True):
-    """Lista categorie salumi ordinate per `ordine` ascendente, poi nome."""
+    """Lista categorie pescato ordinate per `ordine` ascendente, poi nome."""
     conn = get_foodcost_connection()
     try:
-        base = "SELECT * FROM salumi_categorie"
+        base = "SELECT * FROM pescato_categorie"
         if solo_attive:
             base += " WHERE attivo = 1"
         base += " ORDER BY ordine ASC, nome ASC"
@@ -357,13 +287,13 @@ def lista_categorie(solo_attive: bool = True):
 
 @router.post("/categorie/", response_model=CategoriaOut, status_code=201)
 def crea_categoria(data: CategoriaIn):
-    """Crea una nuova categoria salumi."""
+    """Crea una nuova categoria pescato."""
     conn = get_foodcost_connection()
     try:
         now = datetime.now().isoformat(timespec="seconds")
         try:
             cur = conn.execute("""
-                INSERT INTO salumi_categorie (nome, emoji, ordine, attivo, created_at, updated_at)
+                INSERT INTO pescato_categorie (nome, emoji, ordine, attivo, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (data.nome.strip(), _clean(data.emoji),
                   int(data.ordine or 999), int(bool(data.attivo)), now, now))
@@ -372,7 +302,7 @@ def crea_categoria(data: CategoriaIn):
             if "UNIQUE" in str(e):
                 raise HTTPException(409, "Categoria con questo nome già esistente")
             raise
-        row = conn.execute("SELECT * FROM salumi_categorie WHERE id = ?", (cur.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM pescato_categorie WHERE id = ?", (cur.lastrowid,)).fetchone()
         return _row_categoria(row)
     finally:
         conn.close()
@@ -380,11 +310,11 @@ def crea_categoria(data: CategoriaIn):
 
 @router.put("/categorie/{cat_id}", response_model=CategoriaOut)
 def modifica_categoria(cat_id: int, data: CategoriaIn):
-    """Modifica categoria salumi (rinomina + propaga nei tagli che la usavano)."""
+    """Modifica categoria pescato (rinomina + propaga nei tagli che la usavano)."""
     conn = get_foodcost_connection()
     try:
         existing = conn.execute(
-            "SELECT * FROM salumi_categorie WHERE id = ?", (cat_id,)
+            "SELECT * FROM pescato_categorie WHERE id = ?", (cat_id,)
         ).fetchone()
         if not existing:
             raise HTTPException(404, "Categoria non trovata")
@@ -393,14 +323,14 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
         nuovo_nome = data.nome.strip()
         try:
             conn.execute("""
-                UPDATE salumi_categorie
+                UPDATE pescato_categorie
                 SET nome = ?, emoji = ?, ordine = ?, attivo = ?, updated_at = ?
                 WHERE id = ?
             """, (nuovo_nome, _clean(data.emoji),
                   int(data.ordine or 999), int(bool(data.attivo)), now, cat_id))
             if vecchio_nome and vecchio_nome != nuovo_nome:
                 conn.execute(
-                    "UPDATE salumi_tagli SET categoria = ? WHERE categoria = ?",
+                    "UPDATE pescato_tagli SET categoria = ? WHERE categoria = ?",
                     (nuovo_nome, vecchio_nome),
                 )
             conn.commit()
@@ -408,7 +338,7 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
             if "UNIQUE" in str(e):
                 raise HTTPException(409, "Categoria con questo nome già esistente")
             raise
-        row = conn.execute("SELECT * FROM salumi_categorie WHERE id = ?", (cat_id,)).fetchone()
+        row = conn.execute("SELECT * FROM pescato_categorie WHERE id = ?", (cat_id,)).fetchone()
         return _row_categoria(row)
     finally:
         conn.close()
@@ -416,24 +346,24 @@ def modifica_categoria(cat_id: int, data: CategoriaIn):
 
 @router.delete("/categorie/{cat_id}", status_code=204)
 def elimina_categoria(cat_id: int):
-    """Elimina una categoria salumi solo se non in uso."""
+    """Elimina una categoria pescato solo se non in uso."""
     conn = get_foodcost_connection()
     try:
         existing = conn.execute(
-            "SELECT nome FROM salumi_categorie WHERE id = ?", (cat_id,)
+            "SELECT nome FROM pescato_categorie WHERE id = ?", (cat_id,)
         ).fetchone()
         if not existing:
             raise HTTPException(404, "Categoria non trovata")
         nome = existing["nome"]
         r = conn.execute(
-            "SELECT COUNT(*) as cnt FROM salumi_tagli WHERE categoria = ?", (nome,)
+            "SELECT COUNT(*) as cnt FROM pescato_tagli WHERE categoria = ?", (nome,)
         ).fetchone()
         if r and r["cnt"] > 0:
             raise HTTPException(
                 409,
-                f"Impossibile eliminare: {r['cnt']} salume/salumi usano ancora '{nome}'. Rinomina o rimuovili prima."
+                f"Impossibile eliminare: {r['cnt']} pezzi di pescato usano ancora '{nome}'. Rinomina o rimuovili prima."
             )
-        conn.execute("DELETE FROM salumi_categorie WHERE id = ?", (cat_id,))
+        conn.execute("DELETE FROM pescato_categorie WHERE id = ?", (cat_id,))
         conn.commit()
     finally:
         conn.close()
@@ -443,24 +373,24 @@ def elimina_categoria(cat_id: int):
 # ENDPOINTS CONFIG
 # ─────────────────────────────────────────────────────────
 
-@router.get("/config/", response_model=SalumiConfigOut)
+@router.get("/config/", response_model=PescatoConfigOut)
 def get_config():
     conn = get_foodcost_connection()
     try:
-        return SalumiConfigOut(
+        return PescatoConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
         )
     finally:
         conn.close()
 
 
-@router.put("/config/", response_model=SalumiConfigOut)
-def update_config(data: SalumiConfigIn):
+@router.put("/config/", response_model=PescatoConfigOut)
+def update_config(data: PescatoConfigIn):
     conn = get_foodcost_connection()
     try:
         _set_config(conn, "widget_max_categorie", str(int(data.widget_max_categorie)))
         conn.commit()
-        return SalumiConfigOut(
+        return PescatoConfigOut(
             widget_max_categorie=_get_config_int(conn, "widget_max_categorie", 4),
         )
     finally:

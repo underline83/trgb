@@ -3,7 +3,7 @@
 # Scelta dei Formaggi — formaggi disponibili alla vendita
 # ============================================================
 
-# @version: v1.0-formaggi
+# @version: v1.1-formaggi — attivo/archiviato (mig 093)
 # -*- coding: utf-8 -*-
 """
 Endpoints modulo "Scelta dei Formaggi"
@@ -70,6 +70,9 @@ class TaglioOut(BaseModel):
     territorio: Optional[str] = None
     descrizione: Optional[str] = None
     note: Optional[str]
+    attivo: bool = True
+    archiviato_at: Optional[str] = None
+    # Retrocompat: campi venduto/venduto_at restano nel DB ma la UI nuova usa attivo.
     venduto: bool
     venduto_at: Optional[str]
     created_at: str
@@ -78,6 +81,10 @@ class TaglioOut(BaseModel):
 
 class TaglioVendutoToggle(BaseModel):
     venduto: bool
+
+
+class TaglioAttivoToggle(BaseModel):
+    attivo: bool
 
 
 class CategoriaIn(BaseModel):
@@ -110,6 +117,10 @@ class FormaggiConfigIn(BaseModel):
 def _row_taglio(row) -> dict:
     d = dict(row)
     d["venduto"] = bool(d.get("venduto", 0))
+    # `attivo` e `archiviato_at` arrivano dalla mig 093; fallback difensivo.
+    d["attivo"] = bool(d.get("attivo", 1)) if "attivo" in d else True
+    if "archiviato_at" not in d:
+        d["archiviato_at"] = None
     return d
 
 
@@ -152,21 +163,27 @@ def _clean(v: Optional[str]) -> Optional[str]:
 # ─────────────────────────────────────────────────────────
 
 @router.get("/", response_model=List[TaglioOut])
-def lista_tagli(stato: str = "tutti"):
+def lista_tagli(stato: str = "attivi"):
     """
     Lista formaggi.
-    ?stato=disponibili → solo non venduti
-    ?stato=venduti     → solo venduti
-    ?stato=tutti       → tutti (default)
+    ?stato=attivi       → in carta (default)
+    ?stato=archiviati   → archivio (riattivabili)
+    ?stato=tutti        → tutti
+    Alias legacy (retrocompat): disponibili→attivi, venduti→archiviati.
     """
     conn = get_foodcost_connection()
     try:
+        stato_norm = {
+            "disponibili": "attivi",
+            "venduti": "archiviati",
+        }.get(stato, stato)
+
         base = "SELECT * FROM formaggi_tagli"
-        if stato == "disponibili":
-            base += " WHERE venduto = 0"
-        elif stato == "venduti":
-            base += " WHERE venduto = 1"
-        base += " ORDER BY venduto ASC, created_at DESC"
+        if stato_norm == "attivi":
+            base += " WHERE attivo = 1"
+        elif stato_norm == "archiviati":
+            base += " WHERE attivo = 0"
+        base += " ORDER BY attivo DESC, created_at DESC"
         rows = conn.execute(base).fetchall()
         return [_row_taglio(r) for r in rows]
     finally:
@@ -230,21 +247,54 @@ def modifica_taglio(taglio_id: int, data: TaglioIn):
         conn.close()
 
 
-@router.patch("/{taglio_id}/venduto", response_model=TaglioOut)
-def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
-    """Segna un formaggio come venduto o ripristina a disponibile."""
+@router.patch("/{taglio_id}/attivo", response_model=TaglioOut)
+def toggle_attivo(taglio_id: int, body: TaglioAttivoToggle):
+    """
+    Segna un formaggio come attivo (in carta) o archiviato (riattivabile).
+    Endpoint nuovo dopo mig 093.
+    """
     conn = get_foodcost_connection()
     try:
         existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         if not existing:
             raise HTTPException(404, "Formaggio non trovato")
         now = datetime.now().isoformat(timespec="seconds")
-        venduto_at = now if body.venduto else None
+        archiviato_at = None if body.attivo else now
         conn.execute("""
             UPDATE formaggi_tagli
-            SET venduto = ?, venduto_at = ?, updated_at = ?
+            SET attivo = ?, archiviato_at = ?, updated_at = ?
             WHERE id = ?
-        """, (int(body.venduto), venduto_at, now, taglio_id))
+        """, (int(body.attivo), archiviato_at, now, taglio_id))
+        conn.commit()
+        row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        return _row_taglio(row)
+    finally:
+        conn.close()
+
+
+@router.patch("/{taglio_id}/venduto", response_model=TaglioOut, deprecated=True)
+def toggle_venduto(taglio_id: int, body: TaglioVendutoToggle):
+    """
+    [DEPRECATO] Alias legacy: per salumi/formaggi il concetto "venduto" non
+    ha piu' senso. Usare PATCH /{id}/attivo. Manteniamo questo endpoint per
+    non rompere chiamate esistenti: lo mappiamo su `attivo`.
+    """
+    conn = get_foodcost_connection()
+    try:
+        existing = conn.execute("SELECT id FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
+        if not existing:
+            raise HTTPException(404, "Formaggio non trovato")
+        now = datetime.now().isoformat(timespec="seconds")
+        attivo_val = 0 if body.venduto else 1
+        archiviato_at = now if body.venduto else None
+        conn.execute("""
+            UPDATE formaggi_tagli
+            SET attivo = ?, archiviato_at = ?,
+                venduto = ?, venduto_at = ?, updated_at = ?
+            WHERE id = ?
+        """, (attivo_val, archiviato_at,
+              int(body.venduto), (now if body.venduto else None),
+              now, taglio_id))
         conn.commit()
         row = conn.execute("SELECT * FROM formaggi_tagli WHERE id = ?", (taglio_id,)).fetchone()
         return _row_taglio(row)

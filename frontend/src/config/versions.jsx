@@ -68,21 +68,9 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
-  macellaio: {
+  selezioni: {
     version: "1.0",
-    label: "Scelta del Macellaio",
-    status: "beta",
-    color: "blue",
-  },
-  salumi: {
-    version: "1.0",
-    label: "Scelta dei Salumi",
-    status: "beta",
-    color: "blue",
-  },
-  formaggi: {
-    version: "1.0",
-    label: "Scelta dei Formaggi",
+    label: "Selezioni del Giorno",
     status: "beta",
     color: "blue",
   },
