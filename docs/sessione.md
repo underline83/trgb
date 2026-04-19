@@ -1,8 +1,37 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 49 — Home per ruolo configurabile)
+**Ultimo aggiornamento:** 2026-04-19 (sessione 50 — Scelta dei Salumi e dei Formaggi)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 50 — Scelta dei Salumi e Scelta dei Formaggi ✅ (da testare post-push)
+
+Duplicato il pattern di "Scelta del Macellaio" su due nuovi moduli: **Scelta dei Salumi** e **Scelta dei Formaggi**, sottomoduli di Gestione Cucina. Marco voleva pagine in cui registrare gli articoli disponibili descrivendoli per la sala (testo lungo "narrabile" da raccontare al cliente). Scelta architettonica: 3 moduli completamente separati (no tabella unica con `tipo`), 3 widget Home distinti.
+
+**Schema dati**: ogni modulo ha `*_tagli` (con `nome, categoria, grammatura_g, prezzo_euro, produttore, stagionatura, territorio, descrizione, note, venduto, venduto_at` + `origine_animale` per salumi / `latte` per formaggi), `*_categorie` (CRUD da Impostazioni futura), `*_config` (chiave/valore — almeno `widget_max_categorie=4`).
+
+**UI lista**: card collassata con badge sintetico (produttore · stagionatura · origine/latte · territorio) + bottone "▼ Mostra dettagli" che apre la `descrizione` per la sala in un box colorato. Separa scheda interna (note operative) da narrazione cliente (descrizione).
+
+**Deliverable:**
+- BE: migrazioni 091 (salumi) + 092 (formaggi), 2 router con CRUD completo, registrazione in `main.py` e in `modules_router.py` (sub `salumi` + `formaggi` su `ricette`, ruoli admin/chef/sala/sommelier/superadmin), estensione `dashboard_router.py` con `_salumi_widget()` e `_formaggi_widget()` e nuovi modelli `SalumiWidget`/`FormaggiWidget`.
+- FE: 2 pagine (`SceltaSalumi.jsx` + `SceltaFormaggi.jsx`) con form 2-col + datalist origine/latte + lista espandibile, 2 widget Home (`SalumiCard` border amber-200 🥓, `FormaggiCard` border yellow-200 🧀) impilati dopo `MacellaioCard`, route `/salumi` e `/formaggi` in App.jsx con `ProtectedRoute module="ricette" sub="salumi"|"formaggi"`, voci dropdown in `modulesMenu.js`, versions.jsx con `salumi` e `formaggi` v1.0 beta.
+- Docs: changelog + questo file.
+
+**Da testare post-push:**
+1. Migrazioni 091 e 092: controllare log avvio backend, devono creare 6 tabelle (`salumi_tagli`, `salumi_categorie`, `salumi_config`, `formaggi_tagli`, `formaggi_categorie`, `formaggi_config`) e i seed delle categorie.
+2. Push con `-m` (auto-detect dovrebbe attivarsi grazie alla modifica di `modules_router.py` che cambia hash del JSON moduli).
+3. Login admin → vedere `/salumi` e `/formaggi` nel dropdown Gestione Cucina.
+4. Aggiungere 2-3 salumi e 2-3 formaggi con descrizione lunga, controllare che la card si espanda e mostri la descrizione in box colorato.
+5. Tornare in Home → verificare che i 3 widget (macellaio, salumi, formaggi) siano impilati nella colonna laterale con count corretto.
+6. PATCH venduto: tap "Venduto" su un articolo → deve diventare grigio + count widget cala + count "venduti oggi" sale.
+7. Login con utente sala → deve poter accedere alle 3 pagine, ma vedere solo i taglieri (non l'editor categorie).
+
+**Comando push:**
+```
+./push.sh "feat: scelta salumi e formaggi - 2 nuovi moduli con widget home dedicati"
+```
 
 ---
 

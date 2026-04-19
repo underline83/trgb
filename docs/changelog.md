@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-04-19 — Scelta dei Salumi e Scelta dei Formaggi (sessione 50)
+
+### Contesto
+Marco: "vorrei 'duplicare' la pagina scelta macellaio, con i taglieri di formaggi e di salumi, due pagine dove segno i salumi che ho e li descrivo per i ragazzi". Obiettivo: dare alla sala due cataloghi separati (oltre al macellaio) con descrizione lunga "narrabile" da raccontare al cliente.
+
+### Decisioni
+- **3 moduli separati** (scelta consapevole di Marco contro la mia proposta di un'unica tabella con `tipo`): `salumi_*` e `formaggi_*` clonano la struttura di `macellaio_*` con campi extra dedicati.
+- **Campi extra comuni** (entrambi i moduli): `produttore` (caseificio per i formaggi), `stagionatura`, `territorio` (DOP/IGP), `descrizione` (textarea lunga per la sala), oltre a tutti i campi macellaio.
+- **Campo dedicato per modulo**: salumi → `origine_animale` (Maiale/Cinghiale/Oca/Anatra/Manzo/Misto via datalist); formaggi → `latte` (Vaccino/Caprino/Ovino/Misto/Bufala).
+- **3 widget Home separati** (scelta esplicita di Marco): `MacellaioCard`, `SalumiCard`, `FormaggiCard` impilati nella colonna laterale Home.
+- **Categorie seed**: salumi → Crudi 🥓, Cotti 🍖, Insaccati 🌭, Lardo; formaggi → Freschi 🧀, Stagionati 🧀, Erborinati 🧀, Caprini 🐐.
+- **UI list**: card collassata con badge sintetico (produttore, stagionatura, origine/latte, territorio) + bottone "▼ Mostra dettagli" che apre la `descrizione` per la sala in un box colorato — separa "scheda interna" da "narrazione cliente".
+
+### File nuovi
+- `app/migrations/091_scelta_salumi.py` — tabelle `salumi_tagli`, `salumi_categorie`, `salumi_config` (4 categorie seed, widget_max_categorie=4).
+- `app/migrations/092_scelta_formaggi.py` — tabelle `formaggi_tagli`, `formaggi_categorie`, `formaggi_config`.
+- `app/routers/scelta_salumi_router.py` — prefix `/salumi`, CRUD tagli + categorie + config + PATCH venduto.
+- `app/routers/scelta_formaggi_router.py` — prefix `/formaggi`, identico ma con campo `latte`.
+- `frontend/src/pages/tasks/SceltaSalumi.jsx` — pagina con form 2-col + datalist origine + lista espandibile.
+- `frontend/src/pages/tasks/SceltaFormaggi.jsx` — gemella con datalist latte.
+- `frontend/src/components/widgets/SalumiCard.jsx` — widget Home, border amber-200, emoji 🥓.
+- `frontend/src/components/widgets/FormaggiCard.jsx` — widget Home, border yellow-200, emoji 🧀.
+
+### File modificati
+- `main.py` — import + include_router salumi/formaggi.
+- `app/routers/dashboard_router.py` — nuovi modelli `SalumiWidget`/`FormaggiWidget` + helper `_salumi_widget()` / `_formaggi_widget()` + due campi nuovi in `DashboardHome`.
+- `app/routers/modules_router.py` — sub `salumi` e `formaggi` aggiunti in `ricette` (ruoli: superadmin/admin/chef/sala/sommelier).
+- `frontend/src/App.jsx` — lazy import + 2 route `/salumi` `/formaggi` + sub nel ModuleRedirect ricette.
+- `frontend/src/config/modulesMenu.js` — voci dropdown sotto Gestione Cucina.
+- `frontend/src/pages/Home.jsx` — import + render dei due nuovi widget dopo MacellaioCard.
+- `frontend/src/config/versions.jsx` — `salumi` e `formaggi` v1.0 beta.
+
+### Note operative
+- Push richiede `-m` per registrare i nuovi sub-moduli in `modules.json` (auto-detect del push.sh dovrebbe attivarsi grazie alla modifica di `modules_router.py`).
+- I 3 widget Home si impilano nella colonna laterale: macellaio, salumi, formaggi nell'ordine di inserimento.
+
+### Comando push
+```
+./push.sh "feat: scelta salumi e formaggi - 2 nuovi moduli con widget home dedicati"
+```
+
+---
+
 ## 2026-04-19 — Home per ruolo configurabile (sessione 49)
 
 ### Contesto

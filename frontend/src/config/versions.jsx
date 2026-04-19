@@ -74,6 +74,18 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  salumi: {
+    version: "1.0",
+    label: "Scelta dei Salumi",
+    status: "beta",
+    color: "blue",
+  },
+  formaggi: {
+    version: "1.0",
+    label: "Scelta dei Formaggi",
+    status: "beta",
+    color: "blue",
+  },
   tasks: {
     version: "1.3",
     label: "Task Manager",

@@ -99,6 +99,8 @@ const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
 // vive ancora in pages/tasks/ per retrocompatibilita' (era in pages/cucina/).
 // Spostarlo in pages/ricette/ e' un follow-up cosmetico di Phase C.
 const SceltaMacellaio = lazy(() => import("./pages/tasks/SceltaMacellaio"));
+const SceltaSalumi = lazy(() => import("./pages/tasks/SceltaSalumi"));
+const SceltaFormaggi = lazy(() => import("./pages/tasks/SceltaFormaggi"));
 // Task Manager (ex-Cucina, rinominato Phase B sessione 46)
 const TasksHome = lazy(() => import("./pages/tasks/TasksHome"));
 const TasksAgendaGiornaliera = lazy(() => import("./pages/tasks/AgendaGiornaliera"));
@@ -214,6 +216,8 @@ export default function App() {
             { sub: "archivio",    path: "/ricette/archivio" },
             { sub: "ingredienti", path: "/ricette/ingredienti" },
             { sub: "macellaio",   path: "/macellaio" },
+            { sub: "salumi",      path: "/salumi" },
+            { sub: "formaggi",    path: "/formaggi" },
             { sub: "matching",    path: "/ricette/matching" },
             { sub: "settings",    path: "/ricette/settings" },
           ]} />
@@ -391,6 +395,12 @@ export default function App() {
 
         {/* --- SCELTA DEL MACELLAIO (modulo ricette) --- */}
         <Route path="/macellaio" element={<ProtectedRoute module="ricette" sub="macellaio"><SceltaMacellaio /></ProtectedRoute>} />
+
+        {/* --- SCELTA DEI SALUMI (modulo ricette) --- */}
+        <Route path="/salumi" element={<ProtectedRoute module="ricette" sub="salumi"><SceltaSalumi /></ProtectedRoute>} />
+
+        {/* --- SCELTA DEI FORMAGGI (modulo ricette) --- */}
+        <Route path="/formaggi" element={<ProtectedRoute module="ricette" sub="formaggi"><SceltaFormaggi /></ProtectedRoute>} />
 
         {/* --- TASK MANAGER (ex-Cucina): checklist ricorrenti + task singoli --- */}
         <Route path="/tasks" element={<ProtectedRoute module="tasks"><TasksHome /></ProtectedRoute>} />

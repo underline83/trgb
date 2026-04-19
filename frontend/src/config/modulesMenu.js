@@ -44,6 +44,8 @@ const MODULES_MENU = {
       { label: "Archivio",              go: "/ricette/archivio" },
       { label: "Ingredienti",           go: "/ricette/ingredienti" },
       { label: "Scelta del Macellaio",  go: "/macellaio" },
+      { label: "Scelta dei Salumi",     go: "/salumi" },
+      { label: "Scelta dei Formaggi",   go: "/formaggi" },
       { label: "Matching",              go: "/ricette/matching",   check: "admin" },
       { label: "Dashboard",             go: "/ricette/dashboard" },
       { label: "Impostazioni",          go: "/ricette/settings",   check: "admin" },

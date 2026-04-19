@@ -1,0 +1,128 @@
+// FILE: frontend/src/components/widgets/FormaggiCard.jsx
+// @version: v1.0 — Widget Scelta dei Formaggi raggruppato per categoria
+// Mostra count formaggi disponibili + preview per categoria. Click → /formaggi.
+
+import React from "react";
+import { useNavigate } from "react-router-dom";
+
+function formatPrezzo(p) {
+  if (p == null) return "";
+  return `€ ${Number(p).toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function formatGrammi(g) {
+  if (g == null) return "";
+  if (g >= 1000) return `${(g / 1000).toFixed(1).replace(/\.0$/, "")} kg`;
+  return `${g} g`;
+}
+
+/**
+ * Widget Scelta dei Formaggi, raggruppato per categoria.
+ *
+ * Props:
+ *   data: {
+ *     disponibili: int,
+ *     venduti_oggi: int,
+ *     categorie: [{nome, emoji, disponibili, tagli: [{nome, categoria, grammatura_g, prezzo_euro}]}],
+ *     altre: int
+ *   }
+ */
+export default function FormaggiCard({ data }) {
+  const navigate = useNavigate();
+  const disp = data?.disponibili ?? 0;
+  const venduti = data?.venduti_oggi ?? 0;
+  const categorie = data?.categorie || [];
+  const altre = data?.altre ?? 0;
+
+  return (
+    <div
+      onClick={() => navigate("/formaggi")}
+      className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] border border-yellow-200 flex flex-col overflow-hidden cursor-pointer active:scale-[.99] transition-transform flex-shrink-0"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+        <span className="text-[10px] font-bold uppercase tracking-[1.2px] text-[#a8a49e]">
+          🧀 Scelta dei formaggi
+        </span>
+        <div className="flex items-baseline gap-1">
+          <span className="text-xl font-extrabold text-brand-ink leading-none tabular-nums">
+            {disp}
+          </span>
+          <span className="text-[10px] text-[#a8a49e] font-medium">
+            {disp === 1 ? "formaggio" : "formaggi"}
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-header: venduti oggi */}
+      {venduti > 0 && (
+        <div className="px-4 pb-1 text-[11px] text-[#a8a49e] font-medium">
+          {venduti} vendut{venduti === 1 ? "o" : "i"} oggi
+        </div>
+      )}
+
+      {/* Categorie */}
+      {categorie.length > 0 ? (
+        <div className="border-t border-[#f0ede8]">
+          {categorie.map((cat, ci) => (
+            <div
+              key={ci}
+              className={`${ci < categorie.length - 1 ? "border-b border-[#f0ede8]" : ""}`}
+            >
+              {/* Header categoria */}
+              <div className="flex items-center justify-between px-4 pt-2 pb-1 bg-[#fafaf7]">
+                <span className="text-[11px] font-bold uppercase tracking-[.6px] text-brand-ink">
+                  {cat.emoji ? `${cat.emoji} ` : ""}{cat.nome}
+                </span>
+                <span className="text-[10px] text-[#a8a49e] font-medium tabular-nums">
+                  {cat.disponibili}
+                </span>
+              </div>
+
+              {/* Tagli preview */}
+              {cat.tagli && cat.tagli.length > 0 ? (
+                cat.tagli.map((t, ti) => (
+                  <div
+                    key={ti}
+                    className={`flex items-center gap-2.5 px-4 py-1.5 ${ti < cat.tagli.length - 1 ? "border-b border-[#f8f6f2]" : ""}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">
+                        {t.nome}
+                      </div>
+                      {t.grammatura_g && (
+                        <div className="text-[11px] text-[#a8a49e] mt-0.5 truncate">
+                          {formatGrammi(t.grammatura_g)}
+                        </div>
+                      )}
+                    </div>
+                    {t.prezzo_euro != null && (
+                      <span className="text-[13px] font-bold text-brand-ink tabular-nums flex-shrink-0">
+                        {formatPrezzo(t.prezzo_euro)}
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-1.5 text-[11px] text-[#a8a49e] italic">
+                  —
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Footer: altre categorie non mostrate */}
+          {altre > 0 && (
+            <div className="px-4 py-2 text-[11px] text-[#a8a49e] text-center border-t border-[#f0ede8] bg-[#fafaf7]">
+              + {altre} altre categor{altre === 1 ? "ia" : "ie"}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="border-t border-[#f0ede8] px-4 py-5 text-center text-[12px] text-[#a8a49e]">
+          Nessun formaggio disponibile
+        </div>
+      )}
+    </div>
+  );
+}

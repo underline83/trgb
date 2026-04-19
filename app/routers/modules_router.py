@@ -95,6 +95,8 @@ DEFAULT_MODULES = [
             {"key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef"]},
             {"key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"]},
             {"key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
+            {"key": "salumi",      "label": "Scelta dei Salumi",    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
+            {"key": "formaggi",    "label": "Scelta dei Formaggi",  "roles": ["superadmin", "admin", "chef", "sala", "sommelier"]},
             {"key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"]},
             {"key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef"]},
             {"key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"]},

@@ -10,13 +10,15 @@ import useHomeWidgets from "../hooks/useHomeWidgets";
 import useComunicazioni from "../hooks/useComunicazioni";
 import useHomeActions from "../hooks/useHomeActions";
 import MacellaioCard from "../components/widgets/MacellaioCard";
+import SalumiCard from "../components/widgets/SalumiCard";
+import FormaggiCard from "../components/widgets/FormaggiCard";
 
 /* ── Fallback subtitle per moduli (usati quando il backend non ha ancora dati) ── */
 const MODULE_FALLBACK = {
   vini:                { sub1: "Carta, cantina, vendite, dashboard", sub2: "" },
   acquisti:            { sub1: "Fatture XML, fornitori, dashboard", sub2: "" },
   vendite:             { sub1: "Corrispettivi, chiusure cassa, dashboard", sub2: "" },
-  ricette:             { sub1: "Archivio, ingredienti, macellaio, food cost", sub2: "" },
+  ricette:             { sub1: "Archivio, ingredienti, macellaio, salumi, formaggi", sub2: "" },
   "flussi-cassa":      { sub1: "CC, carta, contanti, mance", sub2: "" },
   "controllo-gestione":{ sub1: "Dashboard P&L, scadenzario, confronto", sub2: "" },
   statistiche:         { sub1: "Cucina, coperti, trend, grafici", sub2: "" },
@@ -342,6 +344,12 @@ export default function Home() {
 
                   {/* Widget Scelta del macellaio */}
                   <MacellaioCard data={widgets?.macellaio} />
+
+                  {/* Widget Scelta dei salumi */}
+                  <SalumiCard data={widgets?.salumi} />
+
+                  {/* Widget Scelta dei formaggi */}
+                  <FormaggiCard data={widgets?.formaggi} />
 
                   {/* Bacheca comunicazioni */}
                   <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden max-h-[420px] lg:max-h-none lg:flex-1 lg:min-h-0">

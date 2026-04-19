@@ -92,6 +92,12 @@ from app.routers.home_actions_router import router as home_actions_router
 # SCELTA DEL MACELLAIO — tagli carne disponibili alla vendita
 from app.routers.scelta_macellaio_router import router as scelta_macellaio_router
 
+# SCELTA DEI SALUMI — salumi disponibili alla vendita (sessione 50)
+from app.routers.scelta_salumi_router import router as scelta_salumi_router
+
+# SCELTA DEI FORMAGGI — formaggi disponibili alla vendita (sessione 50)
+from app.routers.scelta_formaggi_router import router as scelta_formaggi_router
+
 # FATTURE IN CLOUD — integrazione API v2
 from app.routers import fattureincloud_router
 
@@ -286,6 +292,12 @@ app.include_router(home_actions_router)
 
 # SCELTA DEL MACELLAIO
 app.include_router(scelta_macellaio_router)
+
+# SCELTA DEI SALUMI — gemello macellaio per salumi con campi extra (sessione 50)
+app.include_router(scelta_salumi_router)
+
+# SCELTA DEI FORMAGGI — gemello macellaio per formaggi con campo latte (sessione 50)
+app.include_router(scelta_formaggi_router)
 
 # FATTURE IN CLOUD
 app.include_router(fattureincloud_router.router)
