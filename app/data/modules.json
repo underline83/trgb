@@ -31,16 +31,28 @@
   {
     "key": "ricette",
     "label": "Gestione Cucina",
-    "description": "Archivio ricette, food cost, scelta del macellaio",
+    "description": "Archivio ricette, food cost, ingredienti",
     "icon": "📘",
     "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"],
     "sub": [
-      { "key": "archivio",    "label": "Archivio",             "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
-      { "key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
-      { "key": "macellaio",   "label": "Scelta del Macellaio", "roles": ["superadmin", "admin", "chef", "sous_chef", "commis", "sala", "sommelier"] },
-      { "key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"] },
-      { "key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
-      { "key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"] }
+      { "key": "archivio",    "label": "Archivio",     "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "ingredienti", "label": "Ingredienti",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "matching",    "label": "Matching",     "roles": ["superadmin", "admin"] },
+      { "key": "dashboard",   "label": "Dashboard",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "settings",    "label": "Impostazioni", "roles": ["superadmin", "admin"] }
+    ]
+  },
+  {
+    "key": "selezioni",
+    "label": "Selezioni del Giorno",
+    "description": "Macellaio, salumi, formaggi e pescato del giorno per la sala",
+    "icon": "🍽️",
+    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"],
+    "sub": [
+      { "key": "macellaio", "label": "Macellaio", "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] },
+      { "key": "salumi",    "label": "Salumi",    "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] },
+      { "key": "formaggi",  "label": "Formaggi",  "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] },
+      { "key": "pescato",   "label": "Pescato",   "roles": ["superadmin", "admin", "chef", "sala", "sommelier"] }
     ]
   },
   {
