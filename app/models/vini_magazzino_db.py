@@ -2192,3 +2192,114 @@ def delete_ordine_pending(vino_id: int) -> bool:
         return cur.rowcount > 0
     finally:
         conn.close()
+
+
+def conferma_arrivo_ordine_pending(
+    vino_id: int,
+    qta_ricevuta: int,
+    utente: str,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Transazione atomica Fase 5 (sessione 2026-04-20):
+    quando la merce ordinata arriva, in UNA SOLA transazione:
+      1. verifica che l'ordine pending esista,
+      2. aggiorna `vini_magazzino.QTA_TOTALE` sommando la qta ricevuta,
+      3. registra un movimento CARICO (origine='ORDINE_ARRIVO'),
+      4. cancella il record `vini_ordini_pending` del vino.
+
+    Se qta_ricevuta ≠ qta_ordinata, la differenza finisce in coda alle
+    note del movimento: "(ordinate X, ricevute Y, delta ±Z)". Così lo
+    storico movimenti tiene traccia degli ammanchi/eccedenze.
+
+    Ritorna un dict con il riepilogo dell'operazione; solleva ValueError
+    in caso di vino/ordine mancanti o qta_ricevuta ≤ 0.
+
+    Tutto dentro `vini_magazzino.sqlite3` → transazione atomica vera
+    (non tocca foodcost.db). Non usa `registra_movimento` perché qui
+    abbiamo bisogno del controllo fine sulla stessa conn.
+    """
+    if qta_ricevuta is None or int(qta_ricevuta) <= 0:
+        raise ValueError("qta_ricevuta deve essere > 0")
+    qta_ricevuta = int(qta_ricevuta)
+
+    now = _now_iso()
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.cursor()
+        cur.execute("BEGIN IMMEDIATE;")
+
+        # 1. Vino esistente?
+        row = cur.execute(
+            "SELECT COALESCE(QTA_TOTALE, 0) AS q FROM vini_magazzino WHERE id = ?;",
+            (vino_id,),
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            raise ValueError(f"Vino id={vino_id} non trovato")
+
+        # 2. Ordine pending esistente?
+        ord_row = cur.execute(
+            "SELECT id, qta FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        ).fetchone()
+        if not ord_row:
+            conn.rollback()
+            raise ValueError(f"Nessun ordine pending per vino id={vino_id}")
+
+        qta_ordinata = int(ord_row["qta"])
+        ordine_id = int(ord_row["id"])
+        differenza = qta_ricevuta - qta_ordinata
+
+        # 3. Aggiorna giacenza + UPDATED_AT
+        nuova_qta = int(row["q"]) + qta_ricevuta
+        cur.execute(
+            "UPDATE vini_magazzino SET QTA_TOTALE = ?, UPDATED_AT = ? WHERE id = ?;",
+            (nuova_qta, now, vino_id),
+        )
+
+        # 4. Componi nota finale (differenza sempre loggata se ≠ 0)
+        note_base = (note or "").strip()
+        if differenza != 0:
+            suffix = f"(ordinate {qta_ordinata}, ricevute {qta_ricevuta}, delta {differenza:+d})"
+            note_finale = f"{note_base} {suffix}".strip() if note_base else suffix
+        else:
+            note_finale = note_base or None
+
+        # 5. Inserisci movimento CARICO (locazione NULL: arrivo generico;
+        #    l'utente può distribuirlo nelle locazioni con movimenti manuali).
+        cur.execute(
+            """INSERT INTO vini_magazzino_movimenti
+               (vino_id, data_mov, tipo, qta, locazione, note, origine, utente, created_at)
+               VALUES (?, ?, 'CARICO', ?, NULL, ?, 'ORDINE_ARRIVO', ?, ?);""",
+            (vino_id, now, qta_ricevuta, note_finale, utente, now),
+        )
+        movimento_id = cur.lastrowid
+
+        # 6. Cancella il pending (ultimo step: se qualcosa saltasse prima
+        #    rollback → il pending resta, niente inconsistenze)
+        cur.execute(
+            "DELETE FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        )
+
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "ordine_id": ordine_id,
+        "movimento_id": movimento_id,
+        "qta_ordinata": qta_ordinata,
+        "qta_ricevuta": qta_ricevuta,
+        "differenza": differenza,
+        "qta_totale_nuova": nuova_qta,
+        "note_movimento": note_finale,
+    }

@@ -100,6 +100,94 @@ Dry-run su DB locale: 28 buste → 27 OK + 1 riparata (Iryna marzo);
 
 ---
 
+## 2026-04-20 — Vini v3.18: Widget riordini Fase 5 — conferma arrivo merce (CARICO atomico)
+
+### Contesto
+Fase 5/8 del refactor widget "📦 Riordini per fornitore" (piano in
+`docs/modulo_vini_riordini.md`). Chiude il ciclo: quando la merce
+ordinata arriva, un solo click trasforma l'ordine pending in un
+movimento CARICO. Tutto in una transazione atomica lato DB.
+
+### Cosa vede l'utente
+- Nella modale di un ordine esistente compare un riquadro verde
+  informativo e, in basso, un nuovo bottone `✅ Arrivata`.
+- Click su "Arrivata" → conferm con riepilogo ordinate/ricevute/delta →
+  il pending si chiude, la giacenza aumenta, compare toast success.
+- Se l'utente cambia la qta prima di "Arrivata", il CARICO usa la nuova
+  qta e la differenza viene annotata automaticamente nel movimento.
+- Refresh dashboard automatico dopo la conferma (giacenza cambiata).
+
+### Decisioni
+- **Atomicità a livello DB**: nuova funzione
+  `conferma_arrivo_ordine_pending(vino_id, qta_ricevuta, utente, note)`
+  in `vini_magazzino_db.py` che apre UNA sola conn, esegue
+  `BEGIN IMMEDIATE` + UPDATE giacenza + INSERT movimento + DELETE
+  pending + COMMIT. Qualsiasi eccezione → rollback. Il pending è
+  cancellato **per ultimo**: se qualcosa saltasse nelle query
+  precedenti, l'ordine resta a disposizione dell'utente.
+- **Non usa `registra_movimento`** perché serve il controllo fine sulla
+  transazione. Il CARICO creato è di tipo "generico" (locazione=NULL,
+  origine=`ORDINE_ARRIVO`); l'utente distribuirà in frigo/loc con
+  movimenti manuali se serve.
+- **Delta loggato nelle note**: se qta_ricevuta ≠ qta_ordinata, le note
+  del movimento includono `(ordinate X, ricevute Y, delta ±Z)` in coda
+  al testo libero dell'utente. Lo storico movimenti tiene memoria di
+  ammanchi/eccedenze senza bisogno di tabelle extra.
+- **origine `ORDINE_ARRIVO`**: nuovo tag per filtrare i CARICO che
+  provengono dal widget Riordini (vs CARICO manuali). Nessun enum DB
+  vincolante (la colonna `origine` è TEXT libero).
+- **qta_ricevuta è il valore dell'input** della modale — non un form
+  separato: UX minimale (un solo campo numerico controlla sia "aggiorna"
+  che "arrivata"). Conferm `window.confirm` con riepilogo chiaro.
+
+### Endpoint nuovo
+| Metodo | Path | Auth | Payload | Ritorno |
+|--------|------|------|---------|---------|
+| `POST` | `/vini/magazzino/{vino_id}/ordine-pending/conferma-arrivo` | user | `{qta_ricevuta: int ≥1, note?: str}` | `{status, ordine_id, movimento_id, qta_ordinata, qta_ricevuta, differenza, qta_totale_nuova, note_movimento}` |
+
+Errori: vino/ordine mancante → 404; qta ≤ 0 → 400.
+
+### File toccati
+- `app/models/vini_magazzino_db.py` → nuova `conferma_arrivo_ordine_pending`
+- `app/routers/vini_magazzino_router.py` → endpoint
+  `POST /{vino_id}/ordine-pending/conferma-arrivo` +
+  `ConfermaArrivoPayload`
+- `frontend/src/pages/vini/DashboardVini.jsx` → handler `confermaArrivo`,
+  state `ordineArriving`, bottone "✅ Arrivata" nella modale, riquadro
+  informativo verde, refresh dashboard post-conferma
+- `frontend/src/config/versions.jsx` → vini 3.17 → 3.18
+
+### Verifica locale (su copia DB)
+Smoke test con 6 casi: senza ordine → 404/ValueError; arrivo esatto
+(delta 0, nessuna suffix in note); eccedenza (+2, suffix `(ordinate 6,
+ricevute 8, delta +2)`); ammanco (-3, suffix preserva nota utente);
+qta_ricevuta=0 → ValueError + pending preservato; vino inesistente →
+ValueError. Stato finale DB coerente: QTA_TOTALE incrementata
+correttamente (5 → 17 → 25 → 32), 3 movimenti CARICO, 1 pending ancora
+aperto (quello non arrivato).
+
+### Da testare post-push (Ctrl+Shift+R prima)
+1. Widget Riordini → crea un ordine di 6 bt su un vino.
+2. Riapri la modale → riquadro verde con spiegazione, bottone
+   "✅ Arrivata" visibile accanto a "Aggiorna".
+3. Click "Arrivata" con qta=6 → confirm "arrivo di 6 bt" → toast verde
+   "6 bt in giacenza". Giacenza aumentata di 6. Pill "+ ordina" di
+   nuovo. Riordini widget refreshato.
+4. Crea ordine di 12 bt → riapri → cambia input a `10` → "Arrivata" →
+   confirm mostra "Ordinate: 12 / Ricevute: 10 / Differenza: -2" →
+   toast "delta -2". Verifica in RegistroMovimenti: nuovo CARICO di 10
+   bt con note che contengono "ordinate 12, ricevute 10, delta -2".
+5. Edge: ordine di 3, cambia input a 0 → "Arrivata" → warn "quantità
+   ricevuta (> 0)". Click "Cancella" invece → pending sparisce, nessun
+   CARICO creato.
+
+### Push
+```
+./push.sh "Vini v3.18: widget riordini Fase 5 — conferma arrivo merce (CARICO atomico, endpoint dedicato)"
+```
+
+---
+
 ## 2026-04-20 — Vini v3.17: Widget riordini Fase 4 — colonna "Riordino" + modale quantità (FE-only)
 
 ### Contesto

@@ -763,6 +763,42 @@ def delete_ordine_pending_endpoint(
 
 
 # ---------------------------------------------------------
+# ENDPOINT: ARRIVO ORDINE (Fase 5, sessione 2026-04-20)
+# Design: docs/modulo_vini_riordini.md §5
+# Transazione atomica: cancella pending + crea CARICO nel movimenti.
+# ---------------------------------------------------------
+class ConfermaArrivoPayload(BaseModel):
+    qta_ricevuta: int = Field(..., ge=1, description="Bottiglie effettivamente arrivate (> 0)")
+    note: Optional[str] = Field(None, description="Note opzionali da allegare al movimento CARICO")
+
+
+@router.post(
+    "/{vino_id}/ordine-pending/conferma-arrivo",
+    summary="Conferma arrivo merce: chiude il pending e registra CARICO in atomica",
+)
+def conferma_arrivo_ordine_pending_endpoint(
+    vino_id: int,
+    payload: ConfermaArrivoPayload,
+    current_user: Any = Depends(get_current_user),
+):
+    utente = _get_username(current_user)
+    try:
+        result = db.conferma_arrivo_ordine_pending(
+            vino_id=vino_id,
+            qta_ricevuta=payload.qta_ricevuta,
+            utente=utente,
+            note=payload.note,
+        )
+    except ValueError as e:
+        msg = str(e)
+        low = msg.lower()
+        if "non trovato" in low or "nessun ordine pending" in low:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+    return {"status": "ok", **result}
+
+
+# ---------------------------------------------------------
 # ENDPOINT: NOTE
 # ---------------------------------------------------------
 @router.get("/{vino_id}/note", summary="Lista note per vino")

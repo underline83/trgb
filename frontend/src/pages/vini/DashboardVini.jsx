@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.4-riordini-fase4 — Widget riordini: colonna "Riordino" numerica + modale quantità (upsert/delete ordine pending)
+// @version: v4.5-riordini-fase5 — Widget riordini: conferma arrivo merce (CARICO atomico via endpoint dedicato)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -123,6 +123,7 @@ export default function DashboardVini() {
   const [ordineNote, setOrdineNote]       = useState("");
   const [ordineSaving, setOrdineSaving]   = useState(false);
   const [ordineDeleting, setOrdineDeleting] = useState(false);
+  const [ordineArriving, setOrdineArriving] = useState(false);  // Fase 5: conferma arrivo merce
 
   const fetchOrdiniPending = useCallback(async () => {
     try {
@@ -144,7 +145,7 @@ export default function DashboardVini() {
     setOrdineNote(existing?.note || "");
   };
   const closeOrdine = () => {
-    if (ordineSaving || ordineDeleting) return;
+    if (ordineSaving || ordineDeleting || ordineArriving) return;
     setOrdineVino(null);
     setOrdineQta("");
     setOrdineNote("");
@@ -211,6 +212,66 @@ export default function DashboardVini() {
       toast("Errore cancellazione ordine: " + (e?.message || ""), { kind: "error" });
     } finally {
       setOrdineDeleting(false);
+    }
+  };
+
+  // Fase 5: conferma arrivo merce → chiude pending + crea CARICO atomico.
+  // La `qta_ricevuta` è il valore dell'input (l'utente può modificarlo se
+  // la merce arrivata è diversa da quella ordinata). Il BE logga la
+  // differenza nelle note del movimento.
+  const confermaArrivo = async () => {
+    if (!ordineVino) return;
+    const existing = ordiniPending[ordineVino.id];
+    if (!existing) return;
+    const n = parseInt(String(ordineQta).trim(), 10);
+    if (!Number.isFinite(n) || n < 1) {
+      toast("Inserisci la quantità ricevuta (> 0)", { kind: "warn" });
+      return;
+    }
+    const diff = n - existing.qta;
+    const msg = diff === 0
+      ? `Confermare l'arrivo di ${n} bt per\n"${ordineVino.DESCRIZIONE}"?\n\n→ L'ordine viene chiuso e la giacenza aumenta di ${n}.`
+      : `Ordinate: ${existing.qta} bt\nRicevute: ${n} bt\nDifferenza: ${diff > 0 ? "+" : ""}${diff}\n\n"${ordineVino.DESCRIZIONE}"\n\n→ Registrare CARICO di ${n} bt e chiudere l'ordine?`;
+    if (!window.confirm(msg)) return;
+    setOrdineArriving(true);
+    try {
+      const resp = await apiFetch(
+        `${API_BASE}/vini/magazzino/${ordineVino.id}/ordine-pending/conferma-arrivo`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            qta_ricevuta: n,
+            note: (ordineNote || "").trim() || null,
+          }),
+        }
+      );
+      if (!resp.ok) {
+        let errMsg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) errMsg = err.detail; } catch {}
+        throw new Error(errMsg);
+      }
+      // Rimuove il pending dallo state locale (ottimistico)
+      setOrdiniPending((prev) => {
+        const next = { ...prev };
+        delete next[ordineVino.id];
+        return next;
+      });
+      toast(
+        diff === 0
+          ? `Arrivo confermato — ${n} bt in giacenza`
+          : `Arrivo confermato — ${n} bt (delta ${diff > 0 ? "+" : ""}${diff})`,
+        { kind: "success" }
+      );
+      setOrdineVino(null);
+      setOrdineQta("");
+      setOrdineNote("");
+      // La giacenza è cambiata → refresh del dashboard.
+      fetchStats(mostraGiacPositiva);
+    } catch (e) {
+      toast("Errore conferma arrivo: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setOrdineArriving(false);
     }
   };
 
@@ -1153,7 +1214,7 @@ export default function DashboardVini() {
           ══════════════════════════════════════════════════════ */}
       {ordineVino && (() => {
         const existing = ordiniPending[ordineVino.id];
-        const busy = ordineSaving || ordineDeleting;
+        const busy = ordineSaving || ordineDeleting || ordineArriving;
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
@@ -1241,18 +1302,38 @@ export default function DashboardVini() {
                 />
               </label>
 
-              <div className="flex items-center justify-between gap-2">
-                <div>
+              {existing && (
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <div className="text-xs font-semibold text-emerald-900 uppercase tracking-wide mb-1">
+                    ✅ Quando la merce arriva
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-snug">
+                    Premi <b>“Arrivata”</b> qui sotto per chiudere l'ordine
+                    e registrare un CARICO di giacenza con la quantità
+                    indicata nell'input. Se le bottiglie arrivate sono
+                    diverse da quelle ordinate, modifica prima il numero:
+                    la differenza viene annotata sul movimento.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   {existing && (
                     <Btn variant="chip" tone="red" size="md" type="button" onClick={deleteOrdine} disabled={busy} loading={ordineDeleting}>
                       {ordineDeleting ? "Cancello…" : "🗑 Cancella"}
                     </Btn>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   <Btn variant="secondary" size="md" type="button" onClick={closeOrdine} disabled={busy}>
                     Annulla
                   </Btn>
+                  {existing && (
+                    <Btn variant="chip" tone="emerald" size="md" type="button" onClick={confermaArrivo} disabled={busy} loading={ordineArriving}>
+                      {ordineArriving ? "Confermo…" : "✅ Arrivata"}
+                    </Btn>
+                  )}
                   <Btn variant="primary" size="md" type="button" onClick={submitOrdine} disabled={busy} loading={ordineSaving}>
                     {ordineSaving ? "Salvo…" : (existing ? "Aggiorna" : "Salva")}
                   </Btn>
