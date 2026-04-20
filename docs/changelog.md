@@ -3,7 +3,7 @@
 
 ---
 
-## 2026-04-20 — Carta delle Bevande: fix form + riordino sezioni + fix auth anteprima/export (vini v3.13)
+## 2026-04-20 — Carta delle Bevande: indice unico + fix form + riordino sezioni + fix auth (vini v3.13)
 
 ### Contesto
 Tre follow-up sulla shell sidebar della carta (v3.12):

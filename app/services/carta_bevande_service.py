@@ -22,6 +22,7 @@ from itertools import groupby
 from typing import Any, Iterable, Optional
 
 from app.models.bevande_db import (
+    count_voci_by_sezione,
     get_bevande_conn,
     get_version_timestamp,
     list_sezioni,
@@ -401,26 +402,81 @@ def build_copertina_html(logo_path: Optional[str] = None, staff: bool = False) -
 
 def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
     """
-    Indice master delle sezioni della carta bevande. Per la sezione 'vini'
-    rimanda all'indice dettagliato vini (che viene stampato dalla carta vini
-    nella sua porzione di documento).
+    Indice UNICO master della carta bevande.
+
+    Regole:
+    - Include solo sezioni con almeno 1 voce attiva (skip categorie vuote).
+    - Rispetta l'ordine `ordine` delle sezioni (settabile dalle frecce admin
+      nella sidebar della shell carta).
+    - Per la sezione 'vini' espande inline il sotto-indice
+      tipologia → nazione → regione, usando lo stesso builder della carta vini
+      (`build_carta_toc_html`) ma senza il wrapper `<div class='toc-page'>`
+      per non aprire un secondo indice annidato.
+    - Stile: identico alla carta vini esistente (classi `toc-title`,
+      `toc-tipologia`, `toc-nazione`, `toc-regione`, `toc-spacer`).
     """
     if not sezioni:
         return ""
-    rows = ["<div class='toc-page'>", "<div class='toc-title'>INDICE</div>"]
+
+    # Conteggi voci (per sezioni bevande standard)
+    counts = count_voci_by_sezione()
+
+    # Carica vini rows una sola volta (serve per: (a) capire se vini è "vuota",
+    # (b) espandere il sub-indice).
+    vini_rows: list[dict[str, Any]] = []
+    try:
+        from app.repositories.vini_repository import load_vini_ordinati
+        vini_rows = list(load_vini_ordinati())
+    except Exception:
+        vini_rows = []
+
+    rows_html: list[str] = ["<div class='toc-page'>", "<div class='toc-title'>INDICE</div>"]
+    any_section = False
+
     for s in sezioni:
         nome = s.get("nome") or ""
         key = s.get("key") or ""
+
         if key == "vini":
-            rows.append(
-                f"<div class='toc-tipologia'>{_esc(nome)}</div>"
-                f"<div class='toc-nazione'>· vedi indice dettagliato nelle pagine vini</div>"
-            )
-        else:
-            rows.append(f"<div class='toc-tipologia'>{_esc(nome)}</div>")
-        rows.append("<div class='toc-spacer'></div>")
-    rows.append("</div>")
-    return "".join(rows)
+            # Skip se cantina vuota
+            if not vini_rows:
+                continue
+            any_section = True
+            rows_html.append(f"<div class='toc-tipologia'>{_esc(nome)}</div>")
+            # Sub-indice tipologie/nazioni/regioni — stesso stile della carta vini.
+            # Chiamiamo build_carta_toc_html e strippiamo il wrapper esterno
+            # <div class='toc-page'> + <div class='toc-title'> per fondere
+            # il sotto-indice nel master.
+            try:
+                from app.services.carta_vini_service import build_carta_toc_html
+                vini_toc_raw = build_carta_toc_html(vini_rows)
+                # Rimuovi <div class='toc-page'>…INDICE…</div> wrapper:
+                # build_carta_toc_html emette "<div class='toc-page'><div class='toc-title'>INDICE</div>…</div>"
+                # Tagliamo il wrapper esterno.
+                prefix = "<div class='toc-page'><div class='toc-title'>INDICE</div>"
+                suffix = "</div>"
+                inner = vini_toc_raw
+                if inner.startswith(prefix) and inner.endswith(suffix):
+                    inner = inner[len(prefix):-len(suffix)]
+                rows_html.append(inner)
+            except Exception:
+                # Fallback silenzioso: in peggio restiamo col solo titolo sezione
+                pass
+            rows_html.append("<div class='toc-spacer'></div>")
+            continue
+
+        # Sezioni bevande standard (aperitivi, birre, amari_casa, ...)
+        c = counts.get(key, {"totale": 0, "attive": 0})
+        if int(c.get("attive", 0) or 0) <= 0:
+            continue  # salta sezioni vuote
+        any_section = True
+        rows_html.append(f"<div class='toc-tipologia'>{_esc(nome)}</div>")
+        rows_html.append("<div class='toc-spacer'></div>")
+
+    if not any_section:
+        return ""
+    rows_html.append("</div>")
+    return "".join(rows_html)
 
 
 # ────────────────────────────────────────────────────────────
@@ -440,13 +496,15 @@ def build_carta_bevande_html(
     - 'vini_dinamico' → delega a carta_vini_service (nel suo stesso stile).
     - altre sezioni → build_section_html.
     """
-    # Import locale per evitare circolarità in caso di reload dev
+    # Import locale per evitare circolarità in caso di reload dev.
+    # build_carta_toc_html non serve piu' qui: il master TOC e' costruito da
+    # build_toc_html (questo service) che delega a carta_vini_service per il
+    # sub-indice tipologie/nazioni/regioni.
     from app.services.carta_vini_service import (
         build_carta_body_html,
         build_carta_body_html_htmlsafe,
         build_calici_section_html,
         build_calici_section_htmlsafe,
-        build_carta_toc_html as build_vini_toc_html,
     )
     from app.repositories.vini_repository import (
         load_vini_ordinati,
@@ -463,17 +521,17 @@ def build_carta_bevande_html(
         if key == "vini" and layout == "vini_dinamico":
             if not include_vini:
                 continue
-            # Blocco vini completo (toc dettagliato + calici + corpo)
+            # Blocco vini completo (calici + corpo). NB: l'indice dettagliato
+            # tipologia/nazione/zona NON va piu' qui: e' gia' incluso nel
+            # master TOC unico (build_toc_html lo espande inline).
             vini_rows = list(load_vini_ordinati())
             calici_rows = list(load_vini_calici())
             if for_pdf:
-                vini_toc = build_vini_toc_html(vini_rows)
                 calici_html = build_calici_section_html(calici_rows)
                 body_vini = build_carta_body_html(vini_rows)
                 parts.append(
                     "<section class='bev-section bev-section-pdf bev-section-vini'>"
                     "<h2 class='bev-section-title'>Vini</h2>"
-                    f"{vini_toc}"
                     f"<div class='carta-body'>{calici_html}{body_vini}</div>"
                     "</section>"
                 )
