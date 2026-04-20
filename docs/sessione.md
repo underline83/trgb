@@ -1,8 +1,69 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-20 (sessione 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 + skip sezioni vuote + numeri pagina indice)
+**Ultimo aggiornamento:** 2026-04-20 (sessione 51 — Vini v3.20 Fase 7 + v3.21 Fase 8 widget riordini + DOPPIO recovery SQLite + passaggio a WAL)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 51 — Vini v3.20 Fase 7 + v3.21 Fase 8 + doppio recovery SQLite + WAL ✅ (testato OK)
+
+Serata lunga: completate le ultime due fasi del refactor widget "📦 Riordini per fornitore" (v3.20 Fase 7 listino inline, v3.21 Fase 8 storico prezzi in SchedaVino), intervallate da **due crash del backend per corruzione di `sqlite_master`** su `vini_magazzino.sqlite3`. Entrambe recuperate col pattern dump+restore documentato nella memoria `feedback_sqlite_corruption_recovery.md`.
+
+**Lato feature — v3.20 Fase 7 (listino inline in DashboardVini):**
+- `frontend/src/pages/vini/DashboardVini.jsx` → colonna "Listino" editabile click-per-click (come già era per Prezzo Carta in Fase 5).
+- Invio POST `/vini/magazzino/{id}/` con `origine="GESTIONALE-EDIT"`: l'hook Fase 6 logga automaticamente la variazione in `vini_prezzi_storico`.
+- Feedback: spinner inline + toast successo/errore.
+
+**Lato feature — v3.21 Fase 8 (sezione "Storico prezzi" in SchedaVino):**
+- `frontend/src/pages/vini/SchedaVino.jsx` → header `v1.3-riordini-fase8`.
+- Nuovo state: `prezziStorico`, `prezziLoading`, `prezziFiltroCampo` (listino / acquisto / ricarico / tutti).
+- `fetchPrezziStorico()` → `GET /vini/magazzino/{id}/prezzi-storico/` → chiamato al mount e dopo ogni `saveEdit()` (riflette subito le modifiche locali).
+- UI: pill di filtro + tabella con colonne Data · Campo · Prima · Dopo · Δ · Origine · Utente · Note. Δ visualizzato con ▲ rosso / ▼ verde (tolleranza 0.005), mapping amichevole di campo e origine (`GESTIONALE-EDIT`, `IMPORT-CSV`, `SCANNER-OCR`…).
+- Nessuna modifica BE: endpoint già presente da Fase 6.
+
+**Lato infrastruttura — doppio recovery SQLite:**
+
+**Incidente #1 (22:37–22:43):**
+- Push di Fase 6 aveva lasciato `sqlite_master` con duplicati su `locazioni_config`, `matrice_celle`, tutti gli `idx_vm_*`.
+- Errore ciclico: `sqlite3.DatabaseError: malformed database schema (idx_vm_tipologia) - index already exists`.
+- `PRAGMA integrity_check` fallisce; `REINDEX` fallisce con lo stesso errore (corruzione a livello catalogo).
+- **Recovery:** `sqlite3 vini_magazzino.sqlite3 ".dump" | sqlite3 vini_magazzino_NEW.sqlite3` — gli errori `UNIQUE constraint` sono ATTESI (sono i duplicati scartati). File risultante 647KB, 1261 vini intatti.
+- Backend UP alle 22:43.
+
+**Incidente #2 (22:51–23:07):**
+- Secondo `./push.sh` lanciato a 5 minuti dal primo → SIGTERM al backend mentre stava scrivendo schema (senza WAL, write atomic non garantito).
+- Corruzione più grave: `malformed database schema (?)` — entry in `sqlite_master` con nome NULL.
+- **PATH A (`.recover` sul file corrotto):** fallito — il DB recuperato (978KB) era privo della tabella `vini_magazzino`. Il `.recover` di SQLite non è riuscito a ricostruire la tabella principale.
+- **PATH B (`.dump` dal `BACKUP-20260420-223719`):** successo — file 647KB con full schema, 1261 vini, `integrity_check = ok`, stessi errori UNIQUE attesi come incidente #1.
+- Accettata micro-perdita dati nella finestra 22:29–22:51 (trascurabile: backend in crash loop quasi tutto il tempo, Marco ha confermato che nessuno ha usato l'app in quella finestra).
+- **Recovery PATH B + switch a WAL:** `VACUUM` + `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;` prima dello swap. Backend UP alle 23:07, HTTP 200 su backend e frontend, WAL attivo → protezione contro SIGTERM mid-write in futuro.
+
+**Deliverable:**
+- FE: `DashboardVini.jsx` (Fase 7), `SchedaVino.jsx` v1.3-riordini-fase8 (Fase 8), `versions.jsx` vini 3.19 → 3.20 → 3.21.
+- BE: nessuna modifica (endpoint Fase 6 già esistente).
+- Docs: `changelog.md` (entry v3.20 + v3.21), `sessione.md` (questa sezione).
+- Memoria: nuova entry `feedback_sqlite_corruption_recovery.md` in auto-memory, referenziata in `MEMORY.md`.
+- VPS: `vini_magazzino.sqlite3` ora in WAL mode (file 647KB pulito, 1261 vini). Backup forensi conservati: `CORROTTO-20260420-224312` (incidente #1), `CORROTTO-2.20260420-230727` (incidente #2), `FORENSE-2251`, `BACKUP-20260420-223719`.
+
+**Testato OK post-recovery (Marco ha confermato tutti i test):**
+1. DashboardVini → colonna Listino editabile inline, salva con hook Fase 6 → entry in storico.
+2. SchedaVino → sezione "Storico prezzi" popolata, filtri pill funzionanti, Δ colorato correttamente.
+3. Modifica listino da dashboard → refresh scheda → storico aggiornato.
+4. Backend stabile su WAL, frontend HTTP 200.
+
+**Follow-up da fare in push dedicato (NON urgente, quando si tocca backend vini):**
+- Aggiungere `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;` dentro `init_magazzino_database()` in `app/models/vini_magazzino_db.py`, così anche se il file viene ricreato da zero parte in WAL. Da replicare in init di `foodcost.db` e `notifiche.sqlite3` per simmetria.
+- Considerare debounce in `push.sh`: se l'ultimo push è < 30 secondi fa → blocca con messaggio. Evita doppio push accidentale che manda SIGTERM mentre il backend sta facendo `init_*_database()`.
+- Pulizia backup forensi: tra 1-2 giorni, tenere solo `CORROTTO-2.20260420-230727.sqlite3` come evidenza e rimuovere gli altri.
+
+**Comandi push già eseguiti (storici):**
+```
+./push.sh "Vini v3.20: widget riordini Fase 7 — listino inline edit in DashboardVini"
+./push.sh "Vini v3.21: widget riordini Fase 7 + SchedaVino Fase 8 — listino inline edit + sezione storico prezzi"
+```
+
+**Stato refactor widget "📦 Riordini per fornitore":** CHIUSO ✅ (tutte le 8 fasi in produzione da v3.21).
 
 ---
 
