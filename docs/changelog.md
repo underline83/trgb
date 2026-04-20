@@ -3,13 +3,44 @@
 
 ---
 
-## 2026-04-20 — Dipendenti v2.28: repair scadenze stipendio orfane + cleanup proforme + diagnostica
+## 2026-04-20 — CG v2.15 + Dipendenti v2.28: fix cancellazione stipendio su annulla-registrazione + repair Iryna marzo
 
-### Causa reale (verificata su DB)
-La busta paga di Iryna marzo 2026 (bp_id=23, netto 1800€, fonte PDF) era
-correttamente importata e collegata a `uscita_netto_id=2089`, ma l'uscita
-`cg_uscite.id=2089` era stata cancellata (probabilmente da un flusso
-automatico, non da UI — Marco non ha endpoint di delete su stipendi).
+### Causa root individuata (non ricapitera')
+Scenario ricostruito su DB:
+1. 10/04 18:41 — batch import PDF cedolini crea uscita `cg_uscite.id=2089`
+   "Stipendio - Iryna Perdei", 1800€, scad 27/04 (senza `fattura_id`,
+   senza `spesa_fissa_id`, `tipo_uscita='STIPENDIO'`).
+2. 14/04 — bonifico di 1800€ → `banca_movimenti.id=1014`.
+3. Dopo il 14/04, dal tab Riconciliazione di CG, il movimento 1014 e' stato
+   agganciato all'uscita 2089 (`banca_movimento_id=1014`).
+4. A un certo punto e' stato chiamato `DELETE /banca/cross-ref/registra/1014`
+   (UI "Annulla registrazione" o flusso equivalente) che eseguiva:
+   ```sql
+   DELETE FROM cg_uscite
+    WHERE banca_movimento_id = 1014
+      AND fattura_id IS NULL
+      AND spesa_fissa_id IS NULL
+   ```
+   Il presupposto era: "senza fattura e senza spesa_fissa → uscita
+   auto-generata dal cross-ref banca, sicura da cancellare". **Falso
+   per gli stipendi**: `_genera_scadenza_stipendio` (modulo Paghe) crea
+   esattamente uscite di questa forma. L'uscita 2089 e' stata eliminata
+   e `buste_paga.uscita_netto_id=2089` e' rimasto puntatore morto.
+5. Gli altri 6 dipendenti si sono salvati perche' non avevano il link
+   banca (tutti `PAGATA_MANUALE`, `banca_movimento_id=NULL`).
+
+### Fix in `banca_router.py::annulla_registrazione`
+Nuovo comportamento:
+- Se l'uscita ha `tipo_uscita` in (`SPESA_BANCARIA`, `COMMISSIONE_POS`,
+  `IMPOSTA_BOLLO`, `ALTRO_USCITA`) — cioe' generata DAL cross-ref banca —
+  mantiene il DELETE: senza movimento non ha ragione di esistere.
+- Altrimenti (`STIPENDIO`, `FATTURA`, `SPESA_FISSA`, `PROFORMA`, ecc.):
+  **UPDATE che scollega il movimento**, non DELETE. Imposta
+  `banca_movimento_id=NULL`, `importo_pagato=0`, `data_pagamento=NULL`,
+  e riporta lo stato a `DA_PAGARE` se era `PAGATA`. L'uscita sopravvive
+  e la riconciliazione puo' essere ripetuta senza perdita di dati.
+
+Risposta endpoint ora ritorna `{"ok": true, "action": "deleted"|"unlinked"|"deleted_entrata", "affected": N}` invece del vecchio `{"ok":true,"deleted":N}`.
 
 Audit completo su `cg_uscite` (2036 righe, progressivo 1..2143, 107
 id mancanti):

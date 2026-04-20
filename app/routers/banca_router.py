@@ -1723,22 +1723,88 @@ def registra_bulk(req: RegistraBulkRequest):
 
 @router.delete("/cross-ref/registra/{movimento_id}")
 def annulla_registrazione(movimento_id: int):
-    """Annulla la registrazione di un movimento (scollega da cg_uscite o cg_entrate)."""
+    """Annulla la registrazione di un movimento: scollega dal cg_uscite / cg_entrate.
+
+    REGOLA IMPORTANTE (fix bug "Iryna marzo 2026", sessione 2026-04-20):
+    Il vecchio comportamento faceva DELETE incondizionato su
+      `cg_uscite WHERE banca_movimento_id=? AND fattura_id IS NULL AND spesa_fissa_id IS NULL`
+    presumendo che senza fattura/spesa_fissa l'uscita fosse per forza
+    auto-generata dalla cross-ref banca e quindi sicura da eliminare.
+
+    Ma gli STIPENDI generati da `_genera_scadenza_stipendio` (modulo
+    Dipendenti/Paghe) sono anch'essi senza fattura e senza spesa_fissa,
+    e hanno un collegamento inverso da `buste_paga.uscita_netto_id` che
+    veniva silenziosamente rotto. Stessa cosa potrebbe valere per altre
+    uscite "di origine esterna" (es. PROFORMA).
+
+    Nuova regola:
+    - Se l'uscita ha `tipo_uscita` tra quelli generati DAL cross-ref
+      banca (SPESA_BANCARIA, COMMISSIONE_POS, IMPOSTA_BOLLO, ALTRO_USCITA):
+      DELETE → l'uscita non esiste se non collegata al movimento.
+    - Altrimenti (STIPENDIO, FATTURA, SPESA_FISSA, PROFORMA, …):
+      UPDATE che scollega il movimento senza distruggere l'uscita
+      (`banca_movimento_id=NULL`, stato torna a DA_PAGARE se era PAGATA
+      tramite banca, cosi' l'utente puo' rifare la riconciliazione).
+    """
+    # Tipi che l'endpoint `POST /cross-ref/registra` crea al volo: senza
+    # il movimento banca non hanno ragione di esistere, quindi DELETE e' ok.
+    TIPI_GENERATI_DA_BANCA = (
+        "SPESA_BANCARIA",
+        "COMMISSIONE_POS",
+        "IMPOSTA_BOLLO",
+        "ALTRO_USCITA",
+    )
+
     conn = get_db()
     cur = conn.cursor()
 
-    # Prova uscita
-    n = cur.execute(
-        "DELETE FROM cg_uscite WHERE banca_movimento_id = ? AND fattura_id IS NULL AND spesa_fissa_id IS NULL",
-        (movimento_id,)
-    ).rowcount
+    # Recupera l'uscita collegata per decidere come trattarla
+    uscita = cur.execute("""
+        SELECT id, tipo_uscita, fattura_id, spesa_fissa_id
+        FROM cg_uscite
+        WHERE banca_movimento_id = ?
+    """, (movimento_id,)).fetchone()
 
-    if n == 0:
-        # Prova entrata
+    n = 0
+    action = None
+
+    if uscita is not None:
+        tipo = (uscita["tipo_uscita"] or "").upper() if hasattr(uscita, "keys") else (uscita[1] or "").upper()
+        # gestione sia Row dict-like sia tuple
+        try:
+            uscita_id = uscita["id"]
+            fatt_id = uscita["fattura_id"]
+            sf_id = uscita["spesa_fissa_id"]
+        except (TypeError, IndexError):
+            uscita_id, tipo, fatt_id, sf_id = uscita
+
+        if tipo in TIPI_GENERATI_DA_BANCA and fatt_id is None and sf_id is None:
+            # Creata dalla cross-ref → eliminabile
+            n = cur.execute(
+                "DELETE FROM cg_uscite WHERE id = ?",
+                (uscita_id,),
+            ).rowcount
+            action = "deleted"
+        else:
+            # Uscita di origine esterna (stipendio, fattura, spesa fissa, proforma, ...):
+            # NON cancellare, solo scollegare il movimento e ripristinare stato.
+            n = cur.execute("""
+                UPDATE cg_uscite
+                SET banca_movimento_id = NULL,
+                    importo_pagato = 0,
+                    data_pagamento = NULL,
+                    stato = CASE WHEN stato = 'PAGATA' THEN 'DA_PAGARE' ELSE stato END
+                WHERE id = ?
+            """, (uscita_id,)).rowcount
+            action = "unlinked"
+    else:
+        # Prova entrata (il cross-ref per entrate crea sempre record nuovi)
         n = cur.execute(
             "DELETE FROM cg_entrate WHERE banca_movimento_id = ?",
             (movimento_id,)
         ).rowcount
+        if n:
+            action = "deleted_entrata"
 
     if n == 0:
         conn.close()
@@ -1746,7 +1812,7 @@ def annulla_registrazione(movimento_id: int):
 
     conn.commit()
     conn.close()
-    return {"ok": True, "deleted": n}
+    return {"ok": True, "action": action, "affected": n}
 
 
 # ═══════════════════════════════════════════════════════
