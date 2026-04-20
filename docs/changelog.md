@@ -3,6 +3,80 @@
 
 ---
 
+## 2026-04-20 — Vini v3.21: SchedaVino Fase 8 — sezione "Storico prezzi"
+
+### Contesto
+Terza e ultima tranche del refactor 8-fasi del widget riordini. La Fase 6
+aveva gia' istituito la tabella `vini_prezzi_storico` con hook automatico
+in `db.update_vino`: Fase 7 ha aggiunto il punto di ingresso principale
+(listino inline edit nel widget). **Fase 8 chiude il cerchio**: rendere
+visibile a Marco la timeline di tutti i cambi prezzo del vino direttamente
+nella sua scheda, con filtri per campo e origine.
+
+### Cosa cambia (FE-only)
+- In `SchedaVino.jsx` nuova sezione **"Storico prezzi"** tra "Movimenti
+  cantina" e "Note operative".
+- Legge endpoint esistente `GET /vini/magazzino/{id}/prezzi-storico/`
+  (Fase 6, accetta opzionale `?campo=...&limit=...`).
+- Per ogni variazione mostra: **Data · Campo · Prima · Dopo · Δ · Origine · Utente · Note**.
+- **Badge colorati** per campo (EURO_LISTINO, PREZZO_CARTA, PREZZO_CALICE,
+  SCONTO) e per origine (GESTIONALE-EDIT, SYNC-CARTA, BULK-UPDATE,
+  PRICING-CALCOLA, PRICING-APPLICA).
+- **Delta visuale**: ▲ rosso per aumento, ▼ verde per diminuzione, con
+  tolleranza 0,005 (no delta se il valore e' di fatto invariato).
+- **Filtro a pill** per campo con conteggi: "Tutti (N)" · "Listino (N)" ·
+  "Carta (N)" ecc. I campi senza voci non vengono mostrati.
+- **Pulsante ⟳ Aggiorna** per ricaricare la sezione on-demand.
+- **Integrazione con edit vino**: dopo `saveEdit()` del form anagrafica
+  viene chiamato `fetchPrezziStorico()` in modo che le modifiche a
+  EURO_LISTINO / PREZZO_CARTA / PREZZO_CALICE / SCONTO fatte via form
+  compaiano subito nello storico.
+
+### UX
+- Formato prezzi italiano con 2 decimali: "12,50 €" / "15,00 %".
+- Tabella scroll orizzontale su mobile, colonne note troncata con
+  ellipsis a 200px.
+- Empty state distinto per "nessuna voce" vs "nessuna voce per il filtro".
+
+### Files toccati
+- `frontend/src/pages/vini/SchedaVino.jsx` — +~150 linee:
+  - header `@version: v1.2-mattoni → v1.3-riordini-fase8`
+  - state `prezziStorico`, `prezziLoading`, `prezziFiltroCampo`
+  - `fetchPrezziStorico()` con guard 404
+  - call in mount effect + dopo `saveEdit()`
+  - JSX SectionHeader "Storico prezzi" + filtro pill + tabella
+- `frontend/src/config/versions.jsx` — bump `vini: 3.20 → 3.21`
+
+### BE
+- **Nessuna modifica backend**: endpoint `/prezzi-storico/` esiste gia'
+  da Fase 6 (router `vini_magazzino_router.py:807`).
+
+### Smoke test (dopo push, Ctrl+Shift+R)
+1. Apri un vino da Magazzino Vini → dovrebbe comparire la sezione
+   "Storico prezzi" tra "Movimenti cantina" e "Note operative".
+2. Se il vino non ha mai cambiato prezzo: empty state "Nessun cambio
+   prezzo registrato per questo vino.".
+3. Edit prezzo tramite form anagrafica (PREZZO_CARTA, es. da 25 a 28):
+   dopo Salva la voce appare subito nello storico con origine
+   "Gestionale", delta ▲ rosso.
+4. Dal widget riordini in Dashboard: click sul listino, cambia valore,
+   Invio → apri quel vino e verifica due voci (EURO_LISTINO +
+   PREZZO_CARTA auto).
+5. Click sulle pill di filtro → la tabella si riduce alle sole voci di
+   quel campo; i conteggi nelle pill sono coerenti.
+
+### Note
+- Fase 7 e Fase 8 vengono pushate insieme in questo ciclo (entrambe
+  FE-only, bassissimo rischio): versione finale vini = 3.21.
+- Refactor widget riordini CONCLUSO: Fasi 0-8 tutte in produzione.
+
+### Push command
+```bash
+./push.sh "Vini v3.21: widget riordini Fase 7 + SchedaVino Fase 8 — listino inline edit + sezione storico prezzi"
+```
+
+---
+
 ## 2026-04-20 — Vini v3.20: Widget riordini Fase 7 — listino inline edit
 
 ### Contesto
