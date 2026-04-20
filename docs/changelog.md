@@ -42,6 +42,13 @@ Tre follow-up sulla shell sidebar della carta (v3.12):
   sul token, (c) crea un blob URL e lo carica nel tab. Usato in `CartaSezioneEditor`
   (anteprima sezione) e `CartaBevande` (PDF, PDF Staff, Word). Stesso pattern già
   usato da `MagazzinoVini` per i PDF — ora centralizzato in un helper riusabile.
+- **CSS inlinato nel wrapper preview BE** (effetto collaterale del passaggio a blob URL):
+  `_html_preview_wrapper` in `bevande_router.py` usava `<link rel="stylesheet"
+  href="/static/css/carta_html.css">`. Con blob URL quel path si risolve sull'origin
+  del documento (app.tregobbi.it) invece che sul backend (trgb.tregobbi.it) → 404 →
+  HTML senza stili. Fix: leggere `CSS_HTML` e inlinearlo in `<style>…</style>`. Il CSS
+  è piccolo (6KB) e l'unico asset esterno è `@import` di Google Fonts (URL assoluto,
+  funziona da qualsiasi origin).
 
 ### File modificati
 - `frontend/src/components/vini/carta/FormDinamico.jsx` — v1.1, helper `fieldId` ovunque.
@@ -53,6 +60,8 @@ Tre follow-up sulla shell sidebar della carta (v3.12):
   usano `openAuthedInNewTab`.
 - `frontend/src/utils/authFetch.js` — NUOVO helper `openAuthedInNewTab(url, opts)` per
   aprire endpoint auth-protetti in un nuovo tab (fetch + blob URL, bypass popup blocker).
+- `app/routers/bevande_router.py` — `_html_preview_wrapper` inlina il CSS invece di
+  linkare `/static/css/carta_html.css` (blob URL non risolve i path relativi al backend).
 - `frontend/src/config/versions.jsx` — bump `vini` 3.12 → 3.13.
 - `docs/changelog.md` — questa entry.
 - `docs/sessione.md` — appunti sessione 50ter.

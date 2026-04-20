@@ -558,15 +558,25 @@ def bulk_import_voci(payload: BulkImport, user: dict = Depends(get_current_user)
 
 
 def _html_preview_wrapper(body_html: str, title: str = "Carta delle Bevande") -> str:
-    """Avvolge il body in un HTML completo per preview browser (carta_html.css)."""
+    """Avvolge il body in un HTML completo per preview browser.
+
+    NB: CSS inlinato invece di `<link>` perche' il FE apre questi HTML come
+    blob URL (per passare l'header JWT tramite fetch). In un blob URL i path
+    relativi si risolvono rispetto all'origin del documento, non a quello del
+    backend → `/static/css/carta_html.css` → 404. Inlineando siamo self-contained.
+    """
     version = get_version_string()
+    try:
+        css_inline = CSS_HTML.read_text(encoding="utf-8")
+    except Exception:
+        css_inline = ""
     return f"""<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{title}</title>
-    <link rel="stylesheet" href="/static/css/carta_html.css">
+    <style>{css_inline}</style>
 </head>
 <body>
     <h1 class="title">OSTERIA TRE GOBBI — {title.upper()}</h1>
