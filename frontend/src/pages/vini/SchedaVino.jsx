@@ -1,6 +1,6 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v1.2-mattoni — M.I primitives (Btn) su save anagrafica/giacenze, movimento, note
-// Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + note)
+// @version: v1.3-riordini-fase8 — Nuova sezione "Storico prezzi" (legge /prezzi-storico/ Fase 6)
+// Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + storico prezzi + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
@@ -173,6 +173,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const [notaText, setNotaText]   = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
 
+  // ── storico prezzi (Fase 8) ─────────────────────────
+  const [prezziStorico, setPrezziStorico]       = useState([]);
+  const [prezziLoading, setPrezziLoading]       = useState(false);
+  const [prezziFiltroCampo, setPrezziFiltroCampo] = useState(""); // "" = tutti
+
   // ── opzioni locazioni ──────────────────────────────
   const [opzioniFrigo, setOpzioniFrigo] = useState([]);
   const [opzioniLoc1, setOpzioniLoc1] = useState([]);
@@ -218,6 +223,26 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     } finally { setNoteLoading(false); }
   };
 
+  // ── fetch storico prezzi (Fase 8) ───────────────────
+  const fetchPrezziStorico = async () => {
+    setPrezziLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/prezzi-storico/`);
+      if (r.ok) {
+        const data = await r.json();
+        setPrezziStorico(Array.isArray(data?.items) ? data.items : []);
+      } else if (r.status === 404) {
+        // vino non trovato: ignoro (il fetch principale lo gestisce)
+        setPrezziStorico([]);
+      }
+    } catch {
+      // silenzioso: se fallisce il fetch, la sezione mostra "Nessun cambio prezzo"
+      setPrezziStorico([]);
+    } finally {
+      setPrezziLoading(false);
+    }
+  };
+
   const fetchOpzioniLocazioni = async () => {
     try {
       const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`);
@@ -251,10 +276,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     if (!vinoId) return;
     // Reset state when vinoId changes
     setVino(null); setEditMode(false); setGiacenzeEdit(false);
-    setMovimenti([]); setNote([]);
+    setMovimenti([]); setNote([]); setPrezziStorico([]);
     fetchVino();
     fetchMovimenti();
     fetchNote();
+    fetchPrezziStorico();
     fetchOpzioniLocazioni();
     fetchTabellaOpts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -414,6 +440,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       notifyUpdate(await r.json());
       setEditMode(false); setSaveMsg("✅ Salvato.");
       fetchMovimenti();  // Ricarica movimenti per mostrare la MODIFICA
+      fetchPrezziStorico();  // Fase 8: ricarica storico se sono cambiati prezzi
       setTimeout(() => setSaveMsg(""), 3000);
     } catch (e) { setSaveMsg(`❌ ${e.message}`); }
     finally { setSaving(false); }
@@ -856,6 +883,166 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+
+            {/* ── STORICO PREZZI (Fase 8) ── */}
+            <div className="border-b border-neutral-200">
+              <SectionHeader title="Storico prezzi">
+                {prezziLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
+                <Btn variant="secondary" size="sm" type="button" onClick={fetchPrezziStorico} disabled={prezziLoading}>
+                  ⟳ Aggiorna
+                </Btn>
+              </SectionHeader>
+              <div className="p-5 space-y-4">
+                {(() => {
+                  const CAMPI_LABEL = {
+                    EURO_LISTINO:  { label: "Listino",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
+                    PREZZO_CARTA:  { label: "Carta",     cls: "bg-amber-50 text-amber-700 border-amber-200" },
+                    PREZZO_CALICE: { label: "Calice",    cls: "bg-rose-50 text-rose-700 border-rose-200" },
+                    SCONTO:        { label: "Sconto",    cls: "bg-violet-50 text-violet-700 border-violet-200" },
+                  };
+                  const ORIGINE_LABEL = {
+                    "GESTIONALE-EDIT":       { label: "Gestionale",   cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                    "SYNC-CARTA":            { label: "Sync carta",   cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                    "BULK-UPDATE":           { label: "Modifica massiva", cls: "bg-orange-50 text-orange-700 border-orange-200" },
+                    "PRICING-CALCOLA":       { label: "Ricalcolo",    cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+                    "PRICING-APPLICA":       { label: "Applica prezzi", cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+                  };
+                  const filtered = prezziFiltroCampo
+                    ? prezziStorico.filter(p => p.campo === prezziFiltroCampo)
+                    : prezziStorico;
+
+                  const fmtPrezzo = (val, campo) => {
+                    if (val == null) return <span className="text-neutral-300 italic">nessuno</span>;
+                    const n = Number(val);
+                    if (!Number.isFinite(n)) return String(val);
+                    if (campo === "SCONTO") return `${fmtNum(n)} %`;
+                    return `${fmtNum(n)} €`;
+                  };
+                  const fmtDelta = (prima, dopo, campo) => {
+                    const p = prima != null ? Number(prima) : null;
+                    const d = dopo != null ? Number(dopo) : null;
+                    if (p == null || d == null) return null;
+                    const diff = d - p;
+                    if (Math.abs(diff) < 0.005) return null;
+                    const up = diff > 0;
+                    const segno = up ? "▲" : "▼";
+                    const cls = up ? "text-red-600" : "text-emerald-700";
+                    const suffix = campo === "SCONTO" ? " %" : " €";
+                    return (
+                      <span className={`text-[11px] font-semibold ${cls}`}>
+                        {segno} {fmtNum(Math.abs(diff))}{suffix}
+                      </span>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {/* Filtro per campo */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Filtra:</span>
+                        <button
+                          type="button"
+                          onClick={() => setPrezziFiltroCampo("")}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                            prezziFiltroCampo === ""
+                              ? "bg-neutral-800 text-white border-neutral-800"
+                              : "bg-white text-neutral-600 border-neutral-300 hover:border-neutral-500"
+                          }`}
+                        >
+                          Tutti ({prezziStorico.length})
+                        </button>
+                        {Object.entries(CAMPI_LABEL).map(([k, info]) => {
+                          const count = prezziStorico.filter(p => p.campo === k).length;
+                          if (count === 0) return null;
+                          const active = prezziFiltroCampo === k;
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => setPrezziFiltroCampo(active ? "" : k)}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                                active
+                                  ? "bg-neutral-800 text-white border-neutral-800"
+                                  : `${info.cls} hover:opacity-80`
+                              }`}
+                            >
+                              {info.label} ({count})
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Lista */}
+                      {!prezziLoading && filtered.length === 0 && (
+                        <div className="text-center py-8 text-sm text-neutral-500 bg-neutral-50 rounded-xl border border-neutral-200">
+                          {prezziStorico.length === 0
+                            ? "Nessun cambio prezzo registrato per questo vino."
+                            : "Nessun cambio prezzo corrisponde al filtro."}
+                        </div>
+                      )}
+                      {filtered.length > 0 && (
+                        <div className="border border-neutral-200 rounded-xl overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-neutral-100">
+                              <tr className="text-xs text-neutral-600 uppercase tracking-wide">
+                                <th className="px-3 py-2 text-left">Data</th>
+                                <th className="px-3 py-2 text-center">Campo</th>
+                                <th className="px-3 py-2 text-right">Prima</th>
+                                <th className="px-3 py-2 text-right">Dopo</th>
+                                <th className="px-3 py-2 text-center">Δ</th>
+                                <th className="px-3 py-2 text-center">Origine</th>
+                                <th className="px-3 py-2 text-left">Utente</th>
+                                <th className="px-3 py-2 text-left">Note</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filtered.map(p => {
+                                const info   = CAMPI_LABEL[p.campo] || { label: p.campo, cls: "bg-neutral-50 text-neutral-600 border-neutral-200" };
+                                const origin = ORIGINE_LABEL[p.origine] || (p.origine ? { label: p.origine, cls: "bg-neutral-50 text-neutral-500 border-neutral-200" } : null);
+                                return (
+                                  <tr key={p.id} className="border-t border-neutral-100 hover:bg-neutral-50 transition">
+                                    <td className="px-3 py-2 text-xs text-neutral-600 whitespace-nowrap">
+                                      {p.created_at?.slice(0, 16).replace("T", " ") || "—"}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${info.cls}`}>
+                                        {info.label}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right font-mono text-xs text-neutral-600">
+                                      {fmtPrezzo(p.valore_prima, p.campo)}
+                                    </td>
+                                    <td className="px-3 py-2 text-right font-mono text-xs font-semibold text-neutral-900">
+                                      {fmtPrezzo(p.valore_dopo, p.campo)}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      {fmtDelta(p.valore_prima, p.valore_dopo, p.campo) || <span className="text-neutral-300">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      {origin ? (
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${origin.cls}`}>
+                                          {origin.label}
+                                        </span>
+                                      ) : (
+                                        <span className="text-neutral-300 text-xs">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-neutral-500">{p.utente || "—"}</td>
+                                    <td className="px-3 py-2 text-xs text-neutral-700" style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {p.note || ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
