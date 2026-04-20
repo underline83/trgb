@@ -458,10 +458,25 @@ def create_vino(data: Dict[str, Any]) -> int:
     return vino_id
 
 
-def duplicate_vino(vino_id: int) -> int:
+def duplicate_vino(
+    vino_id: int,
+    annata: Optional[str] = None,
+    overrides: Optional[Dict[str, Any]] = None,
+) -> int:
     """
     Duplica un vino esistente: copia tutti i campi anagrafici/prezzo/stato,
     azzera giacenze e locazioni, assegna nuovo id (ultimo+1).
+
+    Parametri:
+    - vino_id: id del vino sorgente.
+    - annata: se fornita, imposta ANNATA del duplicato e applica i default
+      "nuova annata": STATO_RIORDINO='0' (Ordinato) e CARTA='NO'
+      (il vino si mette in carta solo quando arriva e viene caricato).
+      Se None, il comportamento è quello storico (copia esatta anagrafica).
+    - overrides: dict opzionale con campi da sovrascrivere esplicitamente.
+      Ha priorità sui default "nuova annata" (caso d'uso avanzato).
+
+    Retrocompatibile con la chiamata `duplicate_vino(vino_id)` senza args.
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -497,6 +512,20 @@ def duplicate_vino(vino_id: int) -> int:
         data["QTA_LOC2"] = 0
         data["QTA_LOC3"] = 0
         data["QTA_TOTALE"] = 0
+
+        # Override "duplica con nuova annata"
+        if annata is not None and str(annata).strip() != "":
+            data["ANNATA"] = str(annata).strip()
+            data["STATO_RIORDINO"] = "0"   # Ordinato
+            data["CARTA"] = "NO"           # In carta solo quando arriva
+
+        # Override espliciti dal chiamante (ultima priorità)
+        if overrides:
+            for k, v in overrides.items():
+                if k in skip and k not in ("ORIGINE",):
+                    # non permettiamo di ripristinare id_excel, QTA_*, LOCAZIONE_*, ecc.
+                    continue
+                data[k] = v
 
         columns = ", ".join(f'"{k}"' for k in data.keys())
         placeholders = ", ".join(["?"] * len(data))

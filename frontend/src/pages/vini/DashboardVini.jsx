@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.2-riordini-fase1 — Widget riordini: colonna Produttore sortabile + pulsante "dettaglio" a sinistra (no row-click)
+// @version: v4.3-riordini-fase2 — Widget riordini: pulsante duplica con nuova annata (modale + POST /duplica {annata})
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -9,6 +9,7 @@ import Tooltip from "../../components/Tooltip";
 import { STATO_RIORDINO, STATO_VENDITA, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
+import useToast from "../../hooks/useToast";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -68,6 +69,51 @@ export default function DashboardVini() {
   const [alertExpanded, setAlertExpanded] = useState(false);
   const [fermiExpanded, setFermiExpanded] = useState(false);
   const FERMI_INITIAL_SHOW = 15;
+
+  // ── Modale "Duplica con nuova annata" (Fase 2) ──────────
+  const { toast } = useToast();
+  const [duplicaVino, setDuplicaVino]     = useState(null);  // vino sorgente o null
+  const [duplicaAnnata, setDuplicaAnnata] = useState("");
+  const [duplicaSaving, setDuplicaSaving] = useState(false);
+
+  const openDuplica = (v) => {
+    setDuplicaVino(v);
+    setDuplicaAnnata(v?.ANNATA ? String(v.ANNATA) : "");
+  };
+  const closeDuplica = () => {
+    if (duplicaSaving) return;
+    setDuplicaVino(null);
+    setDuplicaAnnata("");
+  };
+  const submitDuplica = async () => {
+    if (!duplicaVino) return;
+    const ann = (duplicaAnnata || "").trim();
+    if (!ann) {
+      toast("Inserisci un'annata", { kind: "warn" });
+      return;
+    }
+    if (String(ann) === String(duplicaVino.ANNATA ?? "")) {
+      toast("L'annata coincide con quella originale", { kind: "warn" });
+      return;
+    }
+    setDuplicaSaving(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${duplicaVino.id}/duplica`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annata: ann }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      toast(`Duplicato — annata ${ann}`, { kind: "success" });
+      setDuplicaVino(null);
+      setDuplicaAnnata("");
+      fetchStats(mostraGiacPositiva);
+    } catch (e) {
+      toast("Errore duplicazione: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setDuplicaSaving(false);
+    }
+  };
 
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
@@ -754,6 +800,8 @@ export default function DashboardVini() {
                                 {col.label} {riordSort.key === col.k ? (riordSort.dir === "asc" ? "▲" : "▼") : ""}
                               </th>
                             ))}
+                            {/* Colonna "duplica" — non sortabile */}
+                            <th className="px-2 py-2 w-8 text-center select-none" aria-label="Duplica annata"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-neutral-100">
@@ -827,6 +875,20 @@ export default function DashboardVini() {
                                     </span>
                                   ) : <span className="text-neutral-300">mai</span>}
                                 </td>
+                                <td className="px-1 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => openDuplica(v)}
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full text-neutral-400 hover:text-brand-green hover:bg-brand-green/10 transition"
+                                    title="Duplica con nuova annata"
+                                    aria-label="Duplica con nuova annata"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                  </button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -863,6 +925,80 @@ export default function DashboardVini() {
         </div>
 
       </div>
+
+      {/* ══════════════════════════════════════════════════════
+          MODALE — Duplica con nuova annata (Fase 2)
+          ══════════════════════════════════════════════════════ */}
+      {duplicaVino && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={closeDuplica}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-neutral-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900 font-playfair">
+                  📋 Duplica con nuova annata
+                </h3>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Crea una copia del vino con la nuova annata indicata. Giacenza a 0, stato <b>Ordinato</b>, fuori carta.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDuplica}
+                disabled={duplicaSaving}
+                className="text-neutral-400 hover:text-neutral-700 text-xl leading-none ml-2 shrink-0"
+                aria-label="Chiudi"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-neutral-50 rounded-xl p-3 mb-4 border border-neutral-200">
+              <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Vino sorgente</div>
+              <div className="font-semibold text-neutral-900 text-sm">{duplicaVino.DESCRIZIONE}</div>
+              <div className="text-xs text-neutral-500 mt-0.5">
+                {duplicaVino.TIPOLOGIA}
+                {duplicaVino.PRODUTTORE ? ` · ${duplicaVino.PRODUTTORE}` : ""}
+                {duplicaVino.ANNATA ? ` · annata ${duplicaVino.ANNATA}` : ""}
+              </div>
+            </div>
+
+            <label className="block mb-4">
+              <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                Nuova annata
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={duplicaAnnata}
+                onChange={(e) => setDuplicaAnnata(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitDuplica();
+                  if (e.key === "Escape") closeDuplica();
+                }}
+                disabled={duplicaSaving}
+                autoFocus
+                placeholder="es. 2023"
+                className="mt-1 w-full px-3 py-2 border border-neutral-300 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+              />
+            </label>
+
+            <div className="flex items-center justify-end gap-2">
+              <Btn variant="secondary" size="md" type="button" onClick={closeDuplica} disabled={duplicaSaving}>
+                Annulla
+              </Btn>
+              <Btn variant="primary" size="md" type="button" onClick={submitDuplica} disabled={duplicaSaving} loading={duplicaSaving}>
+                {duplicaSaving ? "Duplico…" : "Duplica"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

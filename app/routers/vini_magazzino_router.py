@@ -405,10 +405,28 @@ def bulk_update(
 @router.post("/{vino_id}/duplica", summary="Duplica un vino esistente (copia anagrafica, azzera giacenze)")
 def duplicate_vino_endpoint(
     vino_id: int,
+    request_body: Optional[dict] = Body(default=None),
     current_user: Any = Depends(get_current_user),
 ):
+    """
+    Body opzionale:
+    - `annata` (str): se presente, imposta ANNATA del duplicato e applica i
+      default "nuova annata" → STATO_RIORDINO='0' (Ordinato), CARTA='NO'.
+      Usato dal widget "Riordini per fornitore" per duplicare un vino con
+      un'annata nuova senza aprire il dettaglio.
+    - `overrides` (dict): override avanzati di altri campi.
+
+    Senza body (o body vuoto) → comportamento storico: copia esatta
+    anagrafica, giacenze a zero.
+    """
+    annata = None
+    overrides = None
+    if isinstance(request_body, dict):
+        annata = request_body.get("annata")
+        overrides = request_body.get("overrides")
+
     try:
-        new_id = db.duplicate_vino(vino_id)
+        new_id = db.duplicate_vino(vino_id, annata=annata, overrides=overrides)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:

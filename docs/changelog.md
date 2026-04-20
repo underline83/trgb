@@ -3,6 +3,64 @@
 
 ---
 
+## 2026-04-20 — Vini v3.16: Widget riordini Fase 2 — pulsante duplica con nuova annata
+
+### Contesto
+Fase 2/8 del refactor widget "📦 Riordini per fornitore" (piano in
+`docs/modulo_vini_riordini.md`). Quando un vino è esaurito ma esiste
+già l'annata successiva presso il fornitore, serve un gesto rapido per
+creare la copia nella nuova annata senza aprire la scheda e rifare
+tutti i campi a mano.
+
+### Decisioni
+- Nuova colonna a destra con **pulsante duplica** (icona copy SVG,
+  32×32, tone brand-green) su ogni riga del widget.
+- Click → **modale** con:
+  - riepilogo vino sorgente (desc/tipologia/produttore/annata),
+  - input `Nuova annata` precompilato con l'annata corrente + focus
+    automatico e submit on Enter,
+  - validazione: annata obbligatoria, deve essere diversa
+    dall'originale (toast warn),
+  - conferma/annulla chiaramente separati, ESC chiude, click fuori
+    chiude, mentre sta salvando bottoni disabilitati.
+- Riuso endpoint esistente `POST /vini/magazzino/{id}/duplica` esteso
+  retrocompatibile per accettare body opzionale `{annata, overrides}`.
+  Chiamate esistenti senza body (SchedaVino) continuano a funzionare
+  identiche.
+- **Comportamento della copia con annata**:
+  - anagrafica clonata (produttore/distributore/etichetta/prezzi…),
+  - giacenze azzerate (già lo faceva il mattone),
+  - `ANNATA` = nuova annata,
+  - `STATO_RIORDINO = '0'` (Ordinato, blu — visivamente chiaro che la
+    nuova annata è già stata ordinata al fornitore),
+  - `CARTA = 'NO'` (entrerà in carta solo all'arrivo fisico).
+
+### File toccati
+- `app/models/vini_magazzino_db.py` → `duplicate_vino(vino_id, annata=None, overrides=None)`
+- `app/routers/vini_magazzino_router.py` → `/duplica` accetta `{annata, overrides}` opzionale
+- `frontend/src/pages/vini/DashboardVini.jsx` → v4.3-riordini-fase2 (colonna + modale + handler)
+- `frontend/src/config/versions.jsx` → vini 3.15 → 3.16
+
+### Da testare post-push (Ctrl+Shift+R)
+1. `/vini/` → widget riordini → aprire un gruppo fornitore.
+2. Sulla destra di ogni riga deve comparire il pulsante 📋 verde.
+3. Click → modale con annata corrente nell'input. Cambiare annata e
+   premere Invio (o "Duplica") → toast verde "Duplicato — annata X".
+4. Verificare su `/vini/magazzino` che esista una nuova voce clonata
+   con annata aggiornata, giacenza 0, stato "Ordinato" (pill blu),
+   CARTA = NO.
+5. ESC chiude la modale. Annata vuota o uguale all'originale → toast
+   warn, nessuna chiamata.
+6. Regressione: da `SchedaVino` "Duplica in nuovo vino" deve continuare
+   a funzionare come prima (niente annata, CARTA invariata).
+
+### Push
+```
+./push.sh "Vini v3.16: widget riordini Fase 2 — pulsante duplica con nuova annata (modale + STATO_RIORDINO=0 + CARTA=NO)"
+```
+
+---
+
 ## 2026-04-20 — Vini v3.15: Widget riordini Fase 1 — colonna Produttore + pulsante dettaglio
 
 ### Contesto
