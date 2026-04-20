@@ -3,6 +3,91 @@
 
 ---
 
+## 2026-04-20 — Vini: Widget riordini Fase 3 — schema + endpoint ordini pending (BE-only)
+
+### Contesto
+Fase 3/8 del refactor widget "📦 Riordini per fornitore" (piano in
+`docs/modulo_vini_riordini.md`). Backend-only: creiamo il contenitore
+per gli ordini aperti (un record per vino) e le API CRUD, senza ancora
+toccare la UI. Le prossime fasi (4 e 5) monteranno sopra questa base la
+colonna "Riordino" del widget e il flusso di arrivo.
+
+### Decisioni
+- **Un solo ordine pending per vino**: `UNIQUE (vino_id)` a livello DB
+  + `CHECK (qta > 0)`. L'endpoint POST fa upsert: se già esiste,
+  aggiorna qta/note ma **non** cambia `data_ordine` (l'ordine è lo
+  stesso, abbiamo solo corretto la quantità).
+- **No modifica a `vini_magazzino_movimenti`**: il CHECK su `tipo`
+  resta `CARICO/SCARICO/VENDITA/RETTIFICA/MODIFICA`. Gli ordini pending
+  vivono nella loro tabella; quando la merce arriva (Fase 5) si
+  registra un normale `CARICO` e il record pending viene cancellato.
+- **Cascade on delete del vino**: se un vino viene eliminato, l'ordine
+  pending sparisce con lui (`ON DELETE CASCADE`).
+- **Join preimpostato nel GET**: `list_ordini_pending` già fa JOIN con
+  `vini_magazzino` per restituire descrizione/produttore/distributore/
+  rappresentante/giacenza → il FE non dovrà fare N+1.
+
+### Schema DB (`app/data/vini_magazzino.sqlite3`)
+```sql
+CREATE TABLE vini_ordini_pending (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  vino_id      INTEGER NOT NULL UNIQUE,
+  qta          INTEGER NOT NULL CHECK (qta > 0),
+  data_ordine  TEXT NOT NULL,
+  note         TEXT,
+  utente       TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_vop_vino ON vini_ordini_pending (vino_id);
+```
+
+### Endpoint nuovi
+| Metodo | Path | Auth | Ritorno |
+|--------|------|------|---------|
+| `GET`    | `/vini/magazzino/ordini-pending/`              | user | `[{id, vino_id, qta, data_ordine, ..., DESCRIZIONE, PRODUTTORE, ...}]` |
+| `POST`   | `/vini/magazzino/{vino_id}/ordine-pending`     | user | `{status, ordine}` (upsert) |
+| `DELETE` | `/vini/magazzino/{vino_id}/ordine-pending`     | user | `{status}` (404 se non esisteva) |
+
+Trailing slash sul GET root `/ordini-pending/` come da regola TRGB.
+
+### File toccati
+- `app/models/vini_magazzino_db.py` → nuova tabella in
+  `init_magazzino_database` + funzioni `list_ordini_pending`,
+  `get_ordine_pending`, `upsert_ordine_pending`, `delete_ordine_pending`
+- `app/routers/vini_magazzino_router.py` → 3 endpoint + modello Pydantic
+  `OrdinePendingCreate(qta: int ≥1, note: Optional[str])`
+- `app/migrations/095_vini_ordini_pending.py` → trigger idempotente che
+  delega a `init_magazzino_database` + log di verifica post-init
+
+### Verifica locale (su copia DB)
+- CREATE TABLE + indici applicati (autoindex UNIQUE + `idx_vop_vino`)
+- Smoke CRUD completo: insert/upsert/list-con-join/delete/idempotenza
+- `CHECK (qta > 0)` rifiuta qta ≤ 0 a livello DB
+- `UNIQUE (vino_id)` rifiuta doppio insert a livello DB
+- `upsert_ordine_pending` mantiene `data_ordine` su update
+
+### Da testare post-push (niente FE — solo API)
+1. Post-push: VPS deve riavviare il backend senza errori (la migration
+   095 parte automatica al boot o al primo import del router; nuova
+   tabella creata in `vini_magazzino.sqlite3`).
+2. Dai logs: `[095] vini_ordini_pending pronta (unique_on_vino_id=1, righe=0)`
+3. Con curl o httpie autenticato:
+   - `GET /vini/magazzino/ordini-pending/` → `[]`
+   - `POST /vini/magazzino/{id}/ordine-pending {"qta":12}` → `{status:"ok", ordine:{...}}`
+   - stesso POST con `{"qta":24}` → update (stesso id, data_ordine invariata)
+   - `GET /vini/magazzino/ordini-pending/` → 1 record con DESCRIZIONE e PRODUTTORE popolati
+   - `POST ... {"qta":0}` → 400
+   - `DELETE /vini/magazzino/{id}/ordine-pending` → 200, secondo DELETE → 404
+
+### Push
+```
+./push.sh "Vini: widget riordini Fase 3 — tabella vini_ordini_pending + API CRUD (migration 095, BE-only)"
+```
+
+---
+
 ## 2026-04-20 — Vini v3.16: Widget riordini Fase 2 — pulsante duplica con nuova annata
 
 ### Contesto
@@ -101,6 +186,50 @@ duplica).
 ```
 ./push.sh "Vini v3.15: widget riordini Fase 1 — colonna Produttore sortabile + pulsante dettaglio a sinistra (no row-click)"
 ```
+
+---
+
+## 2026-04-20 — CG v2.14: Fix spesa fissa "Una tantum" (data pagamento)
+
+### Bug
+Marco segnala che nel form Spese Fisse, scegliendo **frequenza = Una
+tantum**, la data dell'uscita generata finiva sempre al **primo del
+mese** e non era modificabile.
+
+### Root cause
+Il backend `genera_uscite_da_spese_fisse` per UNA_TANTUM usa
+`data_inizio` come data scadenza, ma se `data_inizio` e' NULL ripiega
+su `periodo-giorno_scadenza` — e se anche `giorno_scadenza` e' vuoto,
+default = **1**. Il form generico non guidava l'utente: mostrava
+"Giorno scadenza" e "Data inizio" entrambi opzionali, senza segnalare
+che per una tantum la `data_inizio` e' l'unica data che conta.
+In piu', l'`update_spesa_fissa` non propagava `data_inizio` all'uscita
+gia' generata, quindi anche cambiandola non si aggiornava nulla.
+
+### Fix frontend
+- `ControlloGestioneSpeseFisse.jsx` — form generico:
+  - Quando `frequenza = UNA_TANTUM`:
+    - Nascosti i campi "Giorno scadenza" e "Data fine" (non applicabili)
+    - Unico campo: **"Data pagamento *"** (obbligatorio, tipo date, full-width)
+    - Hint esplicito: "Per una spesa una tantum la data del pagamento
+      coincide con la scadenza."
+  - Cambiando frequenza verso UNA_TANTUM → reset di `giorno_scadenza` e
+    `data_fine` per pulizia.
+  - `handleSave` valida: se UNA_TANTUM senza `data_inizio` → alert e
+    save bloccato.
+
+### Fix backend
+- `PUT /spese-fisse/{id}` — `update_spesa_fissa` ora, se cambia
+  `data_inizio` su una spesa `UNA_TANTUM`, propaga la nuova data a
+  `data_scadenza`, `data_fattura` e `periodo_riferimento` dell'uscita
+  (solo se non e' ancora PAGATA / PAGATA_MANUALE / PARZIALE).
+  Per le altre frequenze nessuna propagazione (ci sarebbero piu' uscite
+  da ricalcolare, fuori scope di una modifica diretta).
+
+### File toccati
+- `frontend/src/pages/controllo-gestione/ControlloGestioneSpeseFisse.jsx`
+- `app/routers/controllo_gestione_router.py` — update_spesa_fissa
+- `frontend/src/config/versions.jsx` — CG 2.13 → 2.14
 
 ---
 

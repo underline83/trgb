@@ -1553,6 +1553,28 @@ def update_spesa_fissa(
               AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
         """, upd_params)
 
+    # Per UNA_TANTUM: se cambia data_inizio, propaga la nuova data_scadenza
+    # e periodo_riferimento all'uscita (non pagata) generata da questa spesa.
+    # Per le frequenze ricorrenti NON si propaga: ci sono piu' uscite e la
+    # data_inizio e' solo l'inizio del piano, non la scadenza di ogni rata.
+    if "data_inizio" in payload:
+        sf_row = fc.execute(
+            "SELECT frequenza, data_inizio FROM cg_spese_fisse WHERE id = ?",
+            (spesa_id,),
+        ).fetchone()
+        if sf_row and sf_row["frequenza"] == "UNA_TANTUM" and sf_row["data_inizio"]:
+            nuova_data = sf_row["data_inizio"]
+            nuovo_periodo = nuova_data[:7]  # YYYY-MM
+            fc.execute("""
+                UPDATE cg_uscite
+                SET data_scadenza = ?,
+                    data_fattura = ?,
+                    periodo_riferimento = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE spesa_fissa_id = ?
+                  AND stato NOT IN ('PAGATA', 'PAGATA_MANUALE', 'PARZIALE')
+            """, (nuova_data, nuova_data, nuovo_periodo, spesa_id))
+
     fc.commit()
     fc.close()
     return {"ok": True}

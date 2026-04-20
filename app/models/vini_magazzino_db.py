@@ -303,6 +303,34 @@ def init_magazzino_database() -> None:
         "ON matrice_celle (vino_id);"
     )
 
+    # -----------------------------------------------------
+    # TABELLA 'vini_ordini_pending'  (Widget Riordini — Fase 3, sessione 2026-04-20)
+    # Un ordine aperto per vino (UNIQUE su vino_id). Popola la colonna
+    # "Riordino" del widget "📦 Riordini per fornitore". Quando arriva la
+    # merce, il record viene cancellato e al suo posto si registra un
+    # normale movimento CARICO (vedi conferma_arrivo_ordine_pending).
+    # Riferimento design: docs/modulo_vini_riordini.md §3.1.
+    # -----------------------------------------------------
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS vini_ordini_pending (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            vino_id      INTEGER NOT NULL UNIQUE,
+            qta          INTEGER NOT NULL CHECK (qta > 0),
+            data_ordine  TEXT NOT NULL,
+            note         TEXT,
+            utente       TEXT,
+            created_at   TEXT NOT NULL,
+            updated_at   TEXT NOT NULL,
+            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+        );
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vop_vino "
+        "ON vini_ordini_pending (vino_id);"
+    )
+
     # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga) per tutti i vini con celle matrice
     vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
     if vino_ids_rows:
@@ -2022,3 +2050,145 @@ def _recalc_qta_loc3_from_matrice(conn: sqlite3.Connection, cur: sqlite3.Cursor,
         (loc3_text, qta_loc3, _now_iso(), vino_id),
     )
     _recalc_qta_totale(conn, vino_id)
+
+
+# ---------------------------------------------------------
+# ORDINI PENDING (Widget Riordini — Fase 3, sessione 2026-04-20)
+# Design: docs/modulo_vini_riordini.md §3.1 e §4
+# Regola: un solo ordine aperto per vino (UNIQUE su vino_id).
+# ---------------------------------------------------------
+def list_ordini_pending() -> List[Dict[str, Any]]:
+    """
+    Lista completa degli ordini pending (join con vini_magazzino per
+    avere descrizione, produttore, distributore già pronti lato FE).
+    Ordinato per data_ordine desc.
+    """
+    conn = get_magazzino_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+              op.id             AS id,
+              op.vino_id        AS vino_id,
+              op.qta            AS qta,
+              op.data_ordine    AS data_ordine,
+              op.note           AS note,
+              op.utente         AS utente,
+              op.created_at     AS created_at,
+              op.updated_at     AS updated_at,
+              v.DESCRIZIONE     AS DESCRIZIONE,
+              v.ANNATA          AS ANNATA,
+              v.TIPOLOGIA       AS TIPOLOGIA,
+              v.PRODUTTORE      AS PRODUTTORE,
+              v.DISTRIBUTORE    AS DISTRIBUTORE,
+              v.RAPPRESENTANTE  AS RAPPRESENTANTE,
+              v.QTA_TOTALE      AS QTA_TOTALE
+            FROM vini_ordini_pending op
+            JOIN vini_magazzino v ON v.id = op.vino_id
+            ORDER BY op.data_ordine DESC, op.id DESC;
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_ordine_pending(vino_id: int) -> Optional[Dict[str, Any]]:
+    """Ritorna l'ordine pending di un vino (o None se non esiste)."""
+    conn = get_magazzino_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def upsert_ordine_pending(
+    vino_id: int,
+    qta: int,
+    utente: str,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Crea o aggiorna l'ordine pending per il vino.
+    - qta deve essere > 0 (il CHECK DB lo garantisce ma falliamo prima con
+      un messaggio chiaro).
+    - Se esiste già un ordine, aggiorna qta/note/updated_at ma **mantiene**
+      data_ordine e created_at originali (la data dell'ordine non cambia
+      per edit di quantità).
+    - Se non esiste, lo crea con data_ordine = now.
+
+    Ritorna il record finale come dict.
+    """
+    if qta is None or int(qta) <= 0:
+        raise ValueError("La quantità ordinata deve essere > 0")
+    qta = int(qta)
+
+    now = _now_iso()
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    try:
+        # Verifica che il vino esista (evita FK silenziosa su SQLite
+        # senza PRAGMA foreign_keys=ON)
+        vino_row = cur.execute(
+            "SELECT id FROM vini_magazzino WHERE id = ?;",
+            (vino_id,),
+        ).fetchone()
+        if not vino_row:
+            raise ValueError(f"Vino id={vino_id} non trovato")
+
+        existing = cur.execute(
+            "SELECT id FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        ).fetchone()
+
+        if existing:
+            cur.execute(
+                """
+                UPDATE vini_ordini_pending
+                SET qta = ?, note = ?, utente = ?, updated_at = ?
+                WHERE vino_id = ?;
+                """,
+                (qta, note, utente, now, vino_id),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO vini_ordini_pending
+                (vino_id, qta, data_ordine, note, utente, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+                """,
+                (vino_id, qta, now, note, utente, now, now),
+            )
+
+        conn.commit()
+
+        row = cur.execute(
+            "SELECT * FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        ).fetchone()
+        return dict(row) if row else {}
+    finally:
+        conn.close()
+
+
+def delete_ordine_pending(vino_id: int) -> bool:
+    """
+    Cancella l'ordine pending del vino. Ritorna True se esisteva,
+    False se non c'era nulla da cancellare.
+    """
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "DELETE FROM vini_ordini_pending WHERE vino_id = ?;",
+            (vino_id,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

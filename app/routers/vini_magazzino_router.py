@@ -713,6 +713,56 @@ def delete_movimento(
 
 
 # ---------------------------------------------------------
+# ENDPOINT: ORDINI PENDING  (Widget Riordini — Fase 3, sessione 2026-04-20)
+# Design: docs/modulo_vini_riordini.md §4
+# Un solo ordine aperto per vino (UNIQUE su vino_id lato DB).
+# ---------------------------------------------------------
+class OrdinePendingCreate(BaseModel):
+    qta: int = Field(..., ge=1, description="Bottiglie ordinate (> 0)")
+    note: Optional[str] = Field(None, description="Note opzionali sull'ordine")
+
+
+@router.get("/ordini-pending/", summary="Lista ordini pending (un record per vino con ordine aperto)")
+def list_ordini_pending_endpoint(
+    current_user: Any = Depends(get_current_user),
+):
+    return db.list_ordini_pending()
+
+
+@router.post("/{vino_id}/ordine-pending", summary="Crea o aggiorna l'ordine pending per un vino (upsert)")
+def upsert_ordine_pending_endpoint(
+    vino_id: int,
+    payload: OrdinePendingCreate,
+    current_user: Any = Depends(get_current_user),
+):
+    utente = _get_username(current_user)
+    try:
+        rec = db.upsert_ordine_pending(
+            vino_id=vino_id,
+            qta=payload.qta,
+            utente=utente,
+            note=payload.note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"status": "ok", "ordine": rec}
+
+
+@router.delete("/{vino_id}/ordine-pending", summary="Cancella l'ordine pending di un vino")
+def delete_ordine_pending_endpoint(
+    vino_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    existed = db.delete_ordine_pending(vino_id)
+    if not existed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nessun ordine pending da cancellare per questo vino.",
+        )
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------
 # ENDPOINT: NOTE
 # ---------------------------------------------------------
 @router.get("/{vino_id}/note", summary="Lista note per vino")

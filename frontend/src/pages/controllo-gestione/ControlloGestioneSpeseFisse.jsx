@@ -170,14 +170,22 @@ export default function ControlloGestioneSpeseFisse() {
   // ── Salva (form generico) ──
   const handleSave = async () => {
     if (!form.titolo.trim() || !form.importo) return;
+    // Per UNA_TANTUM la data e' obbligatoria (altrimenti il backend
+    // fissa l'uscita al 1 del mese corrente).
+    if (form.frequenza === "UNA_TANTUM" && !form.data_inizio) {
+      alert("Per una spesa Una tantum la data di pagamento e' obbligatoria.");
+      return;
+    }
     setSaving(true);
     try {
       const body = {
         ...form,
         importo: parseFloat(form.importo) || 0,
-        giorno_scadenza: form.giorno_scadenza ? parseInt(form.giorno_scadenza) : null,
+        giorno_scadenza: form.frequenza === "UNA_TANTUM"
+          ? null
+          : (form.giorno_scadenza ? parseInt(form.giorno_scadenza) : null),
         data_inizio: form.data_inizio || null,
-        data_fine: form.data_fine || null,
+        data_fine: form.frequenza === "UNA_TANTUM" ? null : (form.data_fine || null),
       };
       const url = editId ? `${CG}/spese-fisse/${editId}` : `${CG}/spese-fisse`;
       const method = editId ? "PUT" : "POST";
@@ -1321,27 +1329,55 @@ export default function ControlloGestioneSpeseFisse() {
               </div>
               <div>
                 <label className="text-xs text-neutral-500 mb-1 block">Frequenza</label>
-                <select value={form.frequenza} onChange={e => setForm({ ...form, frequenza: e.target.value })}
+                <select
+                  value={form.frequenza}
+                  onChange={e => {
+                    const nextFreq = e.target.value;
+                    // Se si passa a UNA_TANTUM: azzera giorno_scadenza e data_fine
+                    // (non applicabili a una spesa singola, inducono il backend a
+                    //  fissare la data al 1 del mese se data_inizio e' vuoto).
+                    if (nextFreq === "UNA_TANTUM") {
+                      setForm({ ...form, frequenza: nextFreq, giorno_scadenza: "", data_fine: "" });
+                    } else {
+                      setForm({ ...form, frequenza: nextFreq });
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm">
                   {FREQ.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Giorno scadenza</label>
-                <input type="number" min="1" max="31" value={form.giorno_scadenza}
-                  onChange={e => setForm({ ...form, giorno_scadenza: e.target.value })}
-                  placeholder="Es. 5 (del mese)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Data inizio</label>
-                <input type="date" value={form.data_inizio} onChange={e => setForm({ ...form, data_inizio: e.target.value })}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-neutral-500 mb-1 block">Data fine</label>
-                <input type="date" value={form.data_fine} onChange={e => setForm({ ...form, data_fine: e.target.value })}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
-              </div>
+              {form.frequenza === "UNA_TANTUM" ? (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="text-xs text-neutral-500 mb-1 block">Data pagamento *</label>
+                    <input type="date" value={form.data_inizio}
+                      onChange={e => setForm({ ...form, data_inizio: e.target.value })}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                    <div className="text-[10px] text-neutral-400 mt-1">
+                      Per una spesa una tantum la data del pagamento coincide con la scadenza.
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Giorno scadenza</label>
+                    <input type="number" min="1" max="31" value={form.giorno_scadenza}
+                      onChange={e => setForm({ ...form, giorno_scadenza: e.target.value })}
+                      placeholder="Es. 5 (del mese)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Data inizio</label>
+                    <input type="date" value={form.data_inizio} onChange={e => setForm({ ...form, data_inizio: e.target.value })}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-neutral-500 mb-1 block">Data fine</label>
+                    <input type="date" value={form.data_fine} onChange={e => setForm({ ...form, data_fine: e.target.value })}
+                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+                  </div>
+                </>
+              )}
               <div>
                 <label className="text-xs text-neutral-500 mb-1 block">Descrizione</label>
                 <input type="text" value={form.descrizione} onChange={e => setForm({ ...form, descrizione: e.target.value })}
