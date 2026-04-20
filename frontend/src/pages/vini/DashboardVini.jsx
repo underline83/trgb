@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.3-riordini-fase2 — Widget riordini: pulsante duplica con nuova annata (modale + POST /duplica {annata})
+// @version: v4.4-riordini-fase4 — Widget riordini: colonna "Riordino" numerica + modale quantità (upsert/delete ordine pending)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -115,6 +115,105 @@ export default function DashboardVini() {
     }
   };
 
+  // ── Ordini pending per widget Riordini (Fase 4) ─────────
+  // Mappa { [vino_id]: { qta, data_ordine, note, utente, updated_at } }
+  const [ordiniPending, setOrdiniPending] = useState({});
+  const [ordineVino, setOrdineVino]       = useState(null);  // vino target modale
+  const [ordineQta, setOrdineQta]         = useState("");
+  const [ordineNote, setOrdineNote]       = useState("");
+  const [ordineSaving, setOrdineSaving]   = useState(false);
+  const [ordineDeleting, setOrdineDeleting] = useState(false);
+
+  const fetchOrdiniPending = useCallback(async () => {
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/ordini-pending/`);
+      if (!resp.ok) return;
+      const arr = await resp.json();
+      const map = {};
+      (arr || []).forEach((o) => { if (o?.vino_id != null) map[o.vino_id] = o; });
+      setOrdiniPending(map);
+    } catch {
+      // silenzioso: il widget continua a funzionare anche senza ordini
+    }
+  }, []);
+
+  const openOrdine = (v) => {
+    const existing = ordiniPending[v.id];
+    setOrdineVino(v);
+    setOrdineQta(existing?.qta != null ? String(existing.qta) : "");
+    setOrdineNote(existing?.note || "");
+  };
+  const closeOrdine = () => {
+    if (ordineSaving || ordineDeleting) return;
+    setOrdineVino(null);
+    setOrdineQta("");
+    setOrdineNote("");
+  };
+  const submitOrdine = async () => {
+    if (!ordineVino) return;
+    const n = parseInt(String(ordineQta).trim(), 10);
+    if (!Number.isFinite(n) || n < 1) {
+      toast("Inserisci una quantità > 0", { kind: "warn" });
+      return;
+    }
+    setOrdineSaving(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${ordineVino.id}/ordine-pending`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ qta: n, note: (ordineNote || "").trim() || null }),
+      });
+      if (!resp.ok) {
+        let msg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) msg = err.detail; } catch {}
+        throw new Error(msg);
+      }
+      const data = await resp.json();
+      setOrdiniPending((prev) => ({ ...prev, [ordineVino.id]: data.ordine }));
+      toast(`Ordine salvato — ${n} bt`, { kind: "success" });
+      setOrdineVino(null);
+      setOrdineQta("");
+      setOrdineNote("");
+    } catch (e) {
+      toast("Errore salvataggio ordine: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setOrdineSaving(false);
+    }
+  };
+  const deleteOrdine = async () => {
+    if (!ordineVino) return;
+    const existing = ordiniPending[ordineVino.id];
+    if (!existing) return;
+    const ok = window.confirm(
+      `Cancellare l'ordine di ${existing.qta} bt per\n"${ordineVino.DESCRIZIONE}"?`
+    );
+    if (!ok) return;
+    setOrdineDeleting(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${ordineVino.id}/ordine-pending`, {
+        method: "DELETE",
+      });
+      if (!resp.ok) {
+        let msg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) msg = err.detail; } catch {}
+        throw new Error(msg);
+      }
+      setOrdiniPending((prev) => {
+        const next = { ...prev };
+        delete next[ordineVino.id];
+        return next;
+      });
+      toast("Ordine cancellato", { kind: "success" });
+      setOrdineVino(null);
+      setOrdineQta("");
+      setOrdineNote("");
+    } catch (e) {
+      toast("Errore cancellazione ordine: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setOrdineDeleting(false);
+    }
+  };
+
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
 
@@ -162,6 +261,12 @@ export default function DashboardVini() {
   useEffect(() => {
     fetchStats(mostraGiacPositiva);
   }, [fetchStats, mostraGiacPositiva]);
+
+  // Fase 4: carico in parallelo la mappa degli ordini pending.
+  // Fetch indipendente dal dashboard — non bloccante, non si refetcha al toggle giacenze.
+  useEffect(() => {
+    fetchOrdiniPending();
+  }, [fetchOrdiniPending]);
 
   // ── KPI tiles ────────────────────────────────────────────
   const kpiStock = stats
@@ -791,6 +896,7 @@ export default function DashboardVini() {
                               { k: "PRODUTTORE", label: "Produttore", align: "text-left" },
                               { k: "STATO_RIORDINO", label: "Stato", align: "text-center" },
                               { k: "QTA_TOTALE", label: "Giac.", align: "text-center" },
+                              { k: "ordine_qta", label: "Riordino", align: "text-center" },
                               { k: "EURO_LISTINO", label: "Listino", align: "text-center" },
                               { k: "ultimo_carico", label: "Ult. carico", align: "text-center" },
                               { k: "ultima_vendita", label: "Ult. vendita", align: "text-center" },
@@ -812,6 +918,10 @@ export default function DashboardVini() {
                             let vb = b[k] ?? "";
                             if (k === "QTA_TOTALE" || k === "EURO_LISTINO") {
                               va = Number(va) || 0; vb = Number(vb) || 0;
+                            } else if (k === "ordine_qta") {
+                              // Valore dinamico: quantità ordine pending (0 se nessuno)
+                              va = Number(ordiniPending[a.id]?.qta) || 0;
+                              vb = Number(ordiniPending[b.id]?.qta) || 0;
                             } else if (k === "ultimo_carico" || k === "ultima_vendita") {
                               va = va || ""; vb = vb || "";
                             } else {
@@ -858,6 +968,44 @@ export default function DashboardVini() {
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-center font-semibold">{v.QTA_TOTALE ?? 0} bt</td>
+                                <td className="px-2 py-2 text-center">
+                                  {(() => {
+                                    const ord = ordiniPending[v.id];
+                                    if (ord) {
+                                      const dataIso = ord.data_ordine || ord.updated_at || "";
+                                      const dataFmt = dataIso
+                                        ? new Date(dataIso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                                        : "";
+                                      const tip = [
+                                        dataFmt ? `Ordinato il ${dataFmt}` : null,
+                                        ord.utente ? `da ${ord.utente}` : null,
+                                        ord.note ? `— ${ord.note}` : null,
+                                      ].filter(Boolean).join(" ");
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => openOrdine(v)}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
+                                          title={tip || "Modifica ordine pending"}
+                                          aria-label="Modifica ordine pending"
+                                        >
+                                          📦 {ord.qta} bt
+                                        </button>
+                                      );
+                                    }
+                                    return (
+                                      <button
+                                        type="button"
+                                        onClick={() => openOrdine(v)}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-neutral-400 border border-dashed border-neutral-300 hover:text-brand-blue hover:border-brand-blue hover:bg-brand-blue/5 transition min-h-[28px]"
+                                        title="Crea ordine per questo vino"
+                                        aria-label="Crea ordine"
+                                      >
+                                        + ordina
+                                      </button>
+                                    );
+                                  })()}
+                                </td>
                                 <td className="px-3 py-2 text-center text-neutral-600">
                                   {v.EURO_LISTINO ? `${fmtNum(v.EURO_LISTINO)} €` : "—"}
                                 </td>
@@ -999,6 +1147,121 @@ export default function DashboardVini() {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════════
+          MODALE — Riordino / Ordine pending (Fase 4)
+          ══════════════════════════════════════════════════════ */}
+      {ordineVino && (() => {
+        const existing = ordiniPending[ordineVino.id];
+        const busy = ordineSaving || ordineDeleting;
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={closeOrdine}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-neutral-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-900 font-playfair">
+                    📦 {existing ? "Modifica ordine" : "Nuovo ordine"}
+                  </h3>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Imposta la quantità ordinata (bottiglie). L'ordine resta aperto finché la merce non arriva.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeOrdine}
+                  disabled={busy}
+                  className="text-neutral-400 hover:text-neutral-700 text-xl leading-none ml-2 shrink-0"
+                  aria-label="Chiudi"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-neutral-50 rounded-xl p-3 mb-4 border border-neutral-200">
+                <div className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Vino</div>
+                <div className="font-semibold text-neutral-900 text-sm">{ordineVino.DESCRIZIONE}</div>
+                <div className="text-xs text-neutral-500 mt-0.5">
+                  {ordineVino.TIPOLOGIA}
+                  {ordineVino.PRODUTTORE ? ` · ${ordineVino.PRODUTTORE}` : ""}
+                  {ordineVino.ANNATA ? ` · annata ${ordineVino.ANNATA}` : ""}
+                </div>
+                {existing && (
+                  <div className="text-[11px] text-blue-700 mt-2 pt-2 border-t border-neutral-200">
+                    Ordine attuale: <b>{existing.qta} bt</b>
+                    {existing.data_ordine && (
+                      <> · dal {new Date(existing.data_ordine).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })}</>
+                    )}
+                    {existing.utente && <> · {existing.utente}</>}
+                  </div>
+                )}
+              </div>
+
+              <label className="block mb-3">
+                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                  Bottiglie ordinate
+                </span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  step="1"
+                  value={ordineQta}
+                  onChange={(e) => setOrdineQta(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitOrdine();
+                    if (e.key === "Escape") closeOrdine();
+                  }}
+                  disabled={busy}
+                  autoFocus
+                  placeholder="es. 6"
+                  className="mt-1 w-full px-3 py-2 border border-neutral-300 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
+                />
+              </label>
+
+              <label className="block mb-4">
+                <span className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                  Note (opzionale)
+                </span>
+                <textarea
+                  value={ordineNote}
+                  onChange={(e) => setOrdineNote(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") closeOrdine();
+                  }}
+                  disabled={busy}
+                  rows={2}
+                  placeholder="es. conferma via WhatsApp, consegna giovedì…"
+                  className="mt-1 w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue resize-none"
+                />
+              </label>
+
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  {existing && (
+                    <Btn variant="chip" tone="red" size="md" type="button" onClick={deleteOrdine} disabled={busy} loading={ordineDeleting}>
+                      {ordineDeleting ? "Cancello…" : "🗑 Cancella"}
+                    </Btn>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Btn variant="secondary" size="md" type="button" onClick={closeOrdine} disabled={busy}>
+                    Annulla
+                  </Btn>
+                  <Btn variant="primary" size="md" type="button" onClick={submitOrdine} disabled={busy} loading={ordineSaving}>
+                    {ordineSaving ? "Salvo…" : (existing ? "Aggiorna" : "Salva")}
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

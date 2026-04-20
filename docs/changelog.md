@@ -100,6 +100,73 @@ Dry-run su DB locale: 28 buste → 27 OK + 1 riparata (Iryna marzo);
 
 ---
 
+## 2026-04-20 — Vini v3.17: Widget riordini Fase 4 — colonna "Riordino" + modale quantità (FE-only)
+
+### Contesto
+Fase 4/8 del refactor widget "📦 Riordini per fornitore" (piano in
+`docs/modulo_vini_riordini.md`). Primo uso FE dell'infrastruttura BE
+costruita in Fase 3: la colonna "Riordino" appare nella tabella del
+widget, cliccabile per impostare/modificare/cancellare la quantità
+ordinata. Zero modifiche backend — tutto attraverso gli endpoint
+`/vini/magazzino/ordini-pending/`, `/vini/magazzino/{id}/ordine-pending`
+(POST upsert e DELETE).
+
+### Cosa vede l'utente
+- Nuova colonna **Riordino** tra "Giac." e "Listino", sortabile.
+- Ordine esistente → pill blu `📦 N bt` con tooltip su data/utente/note.
+- Nessun ordine → placeholder tratteggiato `+ ordina`.
+- Click su entrambi → modale con input quantità (numerica, `min=1`),
+  textarea note opzionale, bottoni "Salva"/"Aggiorna"/"Annulla" e — solo
+  in modifica — "🗑 Cancella" (conferma via `window.confirm`).
+- Modifica e cancellazione aggiornano lo state locale → niente
+  refetch dashboard.
+- Enter = salva, ESC = chiudi.
+
+### Decisioni
+- **Fetch separato** da `dashboard`: `useEffect` dedicato chiama
+  `GET /ordini-pending/` una volta al mount. Il toggle "mostra giacenze
+  positive" NON rifa questa fetch (gli ordini pending non dipendono da
+  quel filtro).
+- **State locale per update**: dopo POST/DELETE si aggiorna
+  `ordiniPending` con merge/remove — nessun bisogno di refetch.
+- **Sort "ordine_qta"**: chiave virtuale che legge
+  `ordiniPending[v.id]?.qta ?? 0`. I vini senza ordine stanno a 0
+  (fondo in asc, testa in desc), coerente con il design.
+- **Validazione FE**: `parseInt ≥ 1` prima del POST. Il BE ha già
+  `Field(..., ge=1)` + `CHECK (qta > 0)` come seconda linea.
+- **Conferma cancellazione**: `window.confirm` classico, sufficiente
+  per un'azione contenuta.
+
+### File toccati
+- `frontend/src/pages/vini/DashboardVini.jsx` → state + handlers
+  ordine (open/close/submit/delete), fetch `useEffect`, colonna header
+  "Riordino" + sort, cella `<td>` con pill/placeholder, modale completa
+  dopo quella duplica
+- `frontend/src/config/versions.jsx` → vini 3.16 → 3.17
+
+### Da testare post-push (Ctrl+Shift+R prima)
+1. Apri Dashboard Vini → Widget "📦 Riordini per fornitore".
+2. Espandi un distributore: la tabella ha la colonna "Riordino" tra
+   "Giac." e "Listino".
+3. Su un vino senza ordine → placeholder `+ ordina`. Click → modale
+   "Nuovo ordine", input autofocus. Scrivi `6` + nota `test`. Enter o
+   "Salva" → toast verde, pill blu `📦 6 bt`.
+4. Click sullo stesso pill → modale "Modifica ordine" con qta=6 e
+   nota=test precompilati, fascia blu "Ordine attuale: 6 bt · dal …".
+5. Cambia qta a `12` → Aggiorna → toast, pill mostra `12 bt`.
+6. Riapri → bottone "🗑 Cancella" → conferm → pill ridiventa
+   `+ ordina`.
+7. Sort sulla colonna "Riordino" → vini con ordine in testa (desc)
+   o in fondo (asc).
+8. Mobile/iPad: modale centrata, bottoni touch-OK ≥ 44pt.
+
+### Push
+```
+./push.sh "Vini v3.17: widget riordini Fase 4 — colonna Riordino + modale quantità (FE)"
+```
+
+---
+
 ## 2026-04-20 — Vini: Widget riordini Fase 3 — schema + endpoint ordini pending (BE-only)
 
 ### Contesto
