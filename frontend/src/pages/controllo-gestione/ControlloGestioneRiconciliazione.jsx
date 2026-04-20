@@ -1,19 +1,29 @@
-// @version: v1.2-mattoni — M.I primitives (Btn, EmptyState) su CTA/empty worklist+pane
-// Workbench Riconciliazione Banca — split-pane dedicato.
-// SX: worklist uscite "Da collegare" (PAGATA_MANUALE senza movimento bancario)
-// DX: pannello riutilizzabile RiconciliaBancaPanel con tab Auto + Ricerca libera
+// @version: v1.3-canali — selettore canale (banca/carta/contanti) in split-pane
+// Workbench Riconciliazione — split-pane dedicato, uno per canale di pagamento.
+//
+// SX: worklist uscite "Da collegare", filtrata per canale selezionato:
+//     - banca    → stato=PAGATA_MANUALE, banca_movimento_id NULL, metodo_pagamento NOT IN (CARTA,CONTANTI)
+//     - carta    → stato=PAGATA_MANUALE, metodo_pagamento=CARTA  (predisposizione modulo futuro)
+//     - contanti → stato=PAGATA_MANUALE, metodo_pagamento=CONTANTI  (edge case, di norma vuoto)
+//
+// DX: pannello dipende dal canale:
+//     - banca    → RiconciliaBancaPanel (Auto + Ricerca libera su banca_movimenti)
+//     - carta    → PagaCartaPanel (placeholder + marca come pagata con carta)
+//     - contanti → PagaContantiPanel (marca come pagata in contanti)
 //
 // Flusso:
-//   1) Utente apre la pagina (da KPI in scadenzario o dal menu CG)
-//   2) Worklist precaricata via GET /controllo-gestione/uscite/da-riconciliare
-//   3) Clic su riga → pannello DX cerca candidati per quella uscita
-//   4) Collega → worklist si aggiorna, rimuove l'item e seleziona il successivo
+//   1) Utente sceglie il canale (default: banca)
+//   2) Worklist ricaricata per quel canale via GET /controllo-gestione/uscite/da-riconciliare?canale=...
+//   3) Clic su una riga → pannello DX del canale
+//   4) Azione completata → worklist si aggiorna, passa al successivo
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ControlloGestioneNav from "./ControlloGestioneNav";
 import RiconciliaBancaPanel from "../../components/riconciliazione/RiconciliaBancaPanel";
+import PagaCartaPanel from "../../components/riconciliazione/PagaCartaPanel";
+import PagaContantiPanel from "../../components/riconciliazione/PagaContantiPanel";
 import StatoRiconciliazioneBadge from "../../components/riconciliazione/StatoRiconciliazioneBadge";
 import Tooltip from "../../components/Tooltip";
 import { Btn, EmptyState } from "../../components/ui";
@@ -35,8 +45,40 @@ function labelContext(u) {
   return `${who} · € ${fmt(u.totale)} · ${fmtDate(u.data_pagamento || u.data_scadenza)}`;
 }
 
+// ── Definizione canali ──
+const CANALI = [
+  {
+    key: "banca",
+    label: "Banca",
+    icon: "🏦",
+    emptyHint: "Nessuna uscita da collegare ai movimenti bancari.",
+    activeClass: "bg-violet-100 text-violet-900 border-violet-300",
+    idleClass:   "text-neutral-600 border-transparent hover:bg-neutral-50",
+    kpiClass:    "text-violet-600",
+  },
+  {
+    key: "carta",
+    label: "Carta",
+    icon: "💳",
+    emptyHint: "Nessuna uscita in attesa di riconciliazione carta. Il modulo Carta di Credito e' in arrivo.",
+    activeClass: "bg-amber-100 text-amber-900 border-amber-300",
+    idleClass:   "text-neutral-600 border-transparent hover:bg-neutral-50",
+    kpiClass:    "text-amber-600",
+  },
+  {
+    key: "contanti",
+    label: "Contanti",
+    icon: "💵",
+    emptyHint: "Nessuna uscita da registrare in contanti.",
+    activeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    idleClass:   "text-neutral-600 border-transparent hover:bg-neutral-50",
+    kpiClass:    "text-emerald-600",
+  },
+];
+
 export default function ControlloGestioneRiconciliazione() {
   const navigate = useNavigate();
+  const [canale, setCanale] = useState("banca");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [uscite, setUscite] = useState([]);
@@ -44,11 +86,13 @@ export default function ControlloGestioneRiconciliazione() {
   const [selected, setSelected] = useState(null); // uscita selezionata nel pane DX
   const [q, setQ] = useState("");
 
+  const canaleCfg = CANALI.find((c) => c.key === canale) || CANALI[0];
+
   const fetchWorklist = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const r = await apiFetch(`${CG}/uscite/da-riconciliare?limit=300`);
+      const r = await apiFetch(`${CG}/uscite/da-riconciliare?limit=300&canale=${canale}`);
       const j = await r.json();
       if (!r.ok || !j.ok) throw new Error(j.error || "Errore caricamento worklist");
       const list = j.uscite || [];
@@ -64,7 +108,7 @@ export default function ControlloGestioneRiconciliazione() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canale]);
 
   useEffect(() => {
     fetchWorklist();
@@ -79,16 +123,18 @@ export default function ControlloGestioneRiconciliazione() {
     });
   }, [uscite, q]);
 
-  const handleLinked = useCallback(() => {
-    // Dopo collegamento: ricarica worklist e sposta selezione al prossimo
-    const currentId = selected?.id;
-    const currentIdx = uscite.findIndex((u) => u.id === currentId);
-    fetchWorklist().then(() => {
-      // Il setSelected dentro fetchWorklist gestisce l'orfano; qui non serve altro
-      // ma se vogliamo saltare al "prossimo" invece che alla prima riga,
-      // lo possiamo fare con un piccolo ritardo usando ref (fuori scope v1)
-    });
-  }, [selected, uscite, fetchWorklist]);
+  const handleClosed = useCallback(() => {
+    // Dopo azione completata (linked/paid): ricarica worklist e sposta selezione
+    fetchWorklist();
+  }, [fetchWorklist]);
+
+  // Quando si cambia canale: resetta selezione e ricerca
+  const handleCanaleChange = (newCanale) => {
+    if (newCanale === canale) return;
+    setCanale(newCanale);
+    setSelected(null);
+    setQ("");
+  };
 
   return (
     <div className="min-h-screen bg-brand-cream">
@@ -96,18 +142,39 @@ export default function ControlloGestioneRiconciliazione() {
 
       {/* Header */}
       <div className="bg-white border-b border-neutral-200 px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Riconciliazione banca</h1>
+            <h1 className="text-2xl font-bold text-sky-900 font-playfair">Riconciliazione</h1>
             <p className="text-sm text-neutral-500 mt-0.5">
-              Collega le uscite dichiarate pagate ai movimenti bancari corrispondenti
+              Collega le uscite dichiarate pagate al canale di pagamento corrispondente
             </p>
           </div>
+
           <div className="flex items-center gap-3">
+            {/* Selettore canale */}
+            <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-1">
+              {CANALI.map((c) => {
+                const active = canale === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    onClick={() => handleCanaleChange(c.key)}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition border ${
+                      active ? c.activeClass + " shadow-sm" : c.idleClass
+                    }`}
+                  >
+                    <span className="mr-1.5">{c.icon}</span>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="text-right">
               <div className="text-xs text-neutral-500">Da collegare</div>
-              <div className="text-2xl font-bold text-amber-600">{totale}</div>
+              <div className={`text-2xl font-bold ${canaleCfg.kpiClass}`}>{totale}</div>
             </div>
+
             <Btn variant="secondary" size="sm" onClick={() => navigate("/controllo-gestione/uscite")}>
               ← Scadenzario
             </Btn>
@@ -126,7 +193,9 @@ export default function ControlloGestioneRiconciliazione() {
         {/* Pane SX: worklist */}
         <div className="w-1/2 bg-white border border-neutral-200 rounded-lg flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-200 flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-neutral-700">Worklist</h2>
+            <h2 className="text-sm font-semibold text-neutral-700">
+              {canaleCfg.icon} Worklist {canaleCfg.label}
+            </h2>
             <span className="text-xs text-neutral-500">{filtered.length} uscite</span>
             <div className="flex-1" />
             <input
@@ -149,7 +218,7 @@ export default function ControlloGestioneRiconciliazione() {
                 icon={uscite.length === 0 ? "🎉" : "🔎"}
                 title={uscite.length === 0 ? "Tutto collegato" : "Nessun risultato"}
                 description={uscite.length === 0
-                  ? "Nessuna uscita da collegare ai movimenti bancari."
+                  ? canaleCfg.emptyHint
                   : "Nessun risultato per il filtro corrente."}
                 compact
               />
@@ -198,24 +267,46 @@ export default function ControlloGestioneRiconciliazione() {
           </div>
         </div>
 
-        {/* Pane DX: RiconciliaBancaPanel */}
+        {/* Pane DX: pannello dipende dal canale */}
         <div className="w-1/2 bg-white border border-neutral-200 rounded-lg flex flex-col overflow-hidden">
           {selected ? (
-            <RiconciliaBancaPanel
-              key={selected.id}
-              uscitaId={selected.id}
-              contextLabel={labelContext(selected)}
-              dataRif={selected.data_pagamento || selected.data_scadenza}
-              importo={Math.abs(Number(selected.totale) || 0)}
-              onLinked={handleLinked}
-              compact
-            />
+            canale === "banca" ? (
+              <RiconciliaBancaPanel
+                key={`banca-${selected.id}`}
+                uscitaId={selected.id}
+                contextLabel={labelContext(selected)}
+                dataRif={selected.data_pagamento || selected.data_scadenza}
+                importo={Math.abs(Number(selected.totale) || 0)}
+                onLinked={handleClosed}
+                compact
+              />
+            ) : canale === "carta" ? (
+              <PagaCartaPanel
+                key={`carta-${selected.id}`}
+                uscitaId={selected.id}
+                contextLabel={labelContext(selected)}
+                dataRif={selected.data_pagamento || selected.data_scadenza}
+                importo={Math.abs(Number(selected.totale) || 0)}
+                onPaid={handleClosed}
+                compact
+              />
+            ) : (
+              <PagaContantiPanel
+                key={`contanti-${selected.id}`}
+                uscitaId={selected.id}
+                contextLabel={labelContext(selected)}
+                dataRif={selected.data_pagamento || selected.data_scadenza}
+                importo={Math.abs(Number(selected.totale) || 0)}
+                onPaid={handleClosed}
+                compact
+              />
+            )
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <EmptyState
                 icon="👈"
                 title="Seleziona una uscita"
-                description="Clicca su una riga della worklist per iniziare la riconciliazione."
+                description={`Clicca su una riga della worklist per iniziare la riconciliazione ${canaleCfg.label.toLowerCase()}.`}
                 compact
               />
             </div>

@@ -136,8 +136,13 @@ body {
 /* Macro-sezione dell'indice unificato carta bevande (Vini, Aperitivi,
    Amari di Casa, Distillati, ...). Stile D.3 — sessione 2026-04-20:
    uppercase · light (400) · tracking ampio · colore marrone-terra.
-   Distinta dalle sotto-voci (toc-tipologia) che restano 14pt bold. */
+   Distinta dalle sotto-voci (toc-tipologia) che restano 14pt bold.
+   Dal 2026-04-20: ancora flex con leader dotted + numero pagina
+   via target-counter (WeasyPrint). */
 .toc-macro {
+    display: flex;
+    align-items: baseline;
+    text-decoration: none;
     font-size: 18pt;
     font-weight: 400;
     text-transform: uppercase;
@@ -148,9 +153,37 @@ body {
 }
 
 .toc-tipologia {
+    display: flex;
+    align-items: baseline;
+    text-decoration: none;
     font-size: 14pt;
     font-weight: 700;
+    color: #2b2118;
     margin-top: 12pt;
+}
+
+/* Leader dotted tra titolo e numero pagina. */
+.toc-macro .toc-leader,
+.toc-tipologia .toc-leader {
+    flex: 1;
+    min-width: 12pt;
+    border-bottom: 1pt dotted #b89b6d;
+    margin: 0 8pt 4pt;
+}
+
+/* Numero di pagina — iniettato da WeasyPrint via target-counter
+   leggendo l'attributo href dell'ancora (#sez-xxx / #vini-tip-xxx). */
+.toc-macro .toc-pn::after,
+.toc-tipologia .toc-pn::after {
+    content: target-counter(attr(href url), page);
+    font-weight: 600;
+    letter-spacing: 0;
+    color: #2b2118;
+}
+
+.toc-macro .toc-pn::after {
+    font-weight: 500;
+    color: #5a4634;
 }
 
 .toc-nazione {

@@ -1943,27 +1943,62 @@ def get_candidati_banca(
 @router.get("/uscite/da-riconciliare")
 def get_uscite_da_riconciliare(
     limit: int = 200,
+    canale: str = "banca",
     current_user=Depends(get_current_user),
 ):
     """
-    Worklist per il Workbench di riconciliazione.
-    Restituisce le cg_uscite dichiarate pagate ma senza movimento bancario collegato
-    (stato = PAGATA_MANUALE AND banca_movimento_id IS NULL), ordinate per data pagamento desc.
+    Worklist per il Workbench di riconciliazione, filtrabile per canale.
+
+    Parametri:
+      canale = "banca" (default) | "carta" | "contanti"
+        - banca:    uscite PAGATA_MANUALE senza banca_movimento_id
+                    E metodo_pagamento NON in ('CARTA','CONTANTI')
+                    (cioe' pagamenti tipo bonifico/conto corrente/assegno/NULL)
+        - carta:    uscite PAGATA_MANUALE con metodo_pagamento='CARTA'
+                    (predisposizione per il futuro modulo Carta di Credito
+                    che collegherà gli estratti carta ai cg_uscite)
+        - contanti: uscite pagate in contanti (metodo_pagamento='CONTANTI').
+                    Di norma sono già PAGATA automatiche, ma possono esserci
+                    edge case in PAGATA_MANUALE.
+
+    Restituisce righe ordinate per data pagamento desc.
     """
     fc = get_fc_db()
     try:
-        rows = fc.execute("""
+        canale = (canale or "banca").lower()
+        if canale == "carta":
+            where = (
+                "u.stato = 'PAGATA_MANUALE' "
+                "AND u.banca_movimento_id IS NULL "
+                "AND u.metodo_pagamento = 'CARTA'"
+            )
+        elif canale == "contanti":
+            where = (
+                "u.stato = 'PAGATA_MANUALE' "
+                "AND u.banca_movimento_id IS NULL "
+                "AND u.metodo_pagamento = 'CONTANTI'"
+            )
+        else:
+            # default "banca": esclude CARTA e CONTANTI (questi hanno il loro canale)
+            canale = "banca"
+            where = (
+                "u.stato = 'PAGATA_MANUALE' "
+                "AND u.banca_movimento_id IS NULL "
+                "AND (u.metodo_pagamento IS NULL "
+                "     OR u.metodo_pagamento NOT IN ('CARTA','CONTANTI'))"
+            )
+
+        rows = fc.execute(f"""
             SELECT
                 u.id, u.stato, u.totale, u.importo_pagato,
                 u.data_fattura, u.data_scadenza, u.data_pagamento,
-                u.fornitore_nome, u.periodo_riferimento,
+                u.fornitore_nome, u.periodo_riferimento, u.metodo_pagamento,
                 u.fattura_id, u.spesa_fissa_id, u.banca_movimento_id,
                 sf.titolo AS spesa_fissa_titolo,
                 sf.tipo   AS spesa_fissa_tipo
             FROM cg_uscite u
             LEFT JOIN cg_spese_fisse sf ON sf.id = u.spesa_fissa_id
-            WHERE u.stato = 'PAGATA_MANUALE'
-              AND u.banca_movimento_id IS NULL
+            WHERE {where}
             ORDER BY COALESCE(u.data_pagamento, u.data_scadenza) DESC, u.id DESC
             LIMIT ?
         """, (limit,)).fetchall()
@@ -1975,10 +2010,10 @@ def get_uscite_da_riconciliare(
             uscite.append(d)
 
         # Conta totale (per mostrare badge/KPI anche quando limit tronca)
-        total = fc.execute("""
+        total = fc.execute(f"""
             SELECT COUNT(*) AS c
-            FROM cg_uscite
-            WHERE stato = 'PAGATA_MANUALE' AND banca_movimento_id IS NULL
+            FROM cg_uscite u
+            WHERE {where}
         """).fetchone()
         totale = int(total["c"] if total else 0)
 
@@ -1987,6 +2022,7 @@ def get_uscite_da_riconciliare(
             "uscite": uscite,
             "totale": totale,
             "limit": limit,
+            "canale": canale,
         }
     finally:
         fc.close()
@@ -2840,6 +2876,141 @@ def scollega_uscita(
     fc.close()
 
     return {"ok": True, "nuovo_stato": "PAGATA_MANUALE"}
+
+
+# ── Riconciliazione alternativa: CONTANTI ─────────────────────────
+@router.post("/uscite/{uscita_id}/paga-contanti")
+def paga_uscita_contanti(
+    uscita_id: int,
+    payload: dict = Body(default={}),
+    current_user=Depends(get_current_user),
+):
+    """
+    Chiude la riconciliazione di una uscita marcandola come pagata in contanti.
+    Body (tutti opzionali): { data_pagamento?: "YYYY-MM-DD", note?: str }
+
+    Effetto:
+      - metodo_pagamento = 'CONTANTI'
+      - stato = 'PAGATA'  (il modulo Contanti E' la prova di pagamento)
+      - data_pagamento = oggi o valore passato
+      - importo_pagato = totale
+      - banca_movimento_id = NULL (non coinvolge la banca)
+
+    Errore se l'uscita è gia' collegata a un movimento bancario:
+    scollegarla prima con DELETE /uscite/{id}/riconcilia.
+    """
+    data_pag = payload.get("data_pagamento") or date.today().isoformat()
+    nota_extra = (payload.get("note") or "").strip()
+
+    fc = get_fc_db()
+    try:
+        u_row = fc.execute(
+            "SELECT id, stato, banca_movimento_id, note FROM cg_uscite WHERE id = ?",
+            (uscita_id,),
+        ).fetchone()
+        if not u_row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        u = dict(u_row)
+
+        if u["banca_movimento_id"]:
+            return {
+                "ok": False,
+                "error": "Uscita gia' collegata a un movimento bancario. Scollegala prima.",
+            }
+
+        note_final = (u.get("note") or "").strip()
+        if nota_extra:
+            note_final = f"{note_final} | {nota_extra}".strip(" |")
+
+        fc.execute("""
+            UPDATE cg_uscite
+            SET metodo_pagamento = 'CONTANTI',
+                stato = 'PAGATA',
+                data_pagamento = ?,
+                importo_pagato = totale,
+                note = ?,
+                banca_movimento_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (data_pag, note_final or None, uscita_id))
+        fc.commit()
+
+        return {
+            "ok": True,
+            "nuovo_stato": "PAGATA",
+            "metodo_pagamento": "CONTANTI",
+            "data_pagamento": data_pag,
+        }
+    finally:
+        fc.close()
+
+
+# ── Riconciliazione alternativa: CARTA DI CREDITO ─────────────────
+@router.post("/uscite/{uscita_id}/paga-carta")
+def paga_uscita_carta(
+    uscita_id: int,
+    payload: dict = Body(default={}),
+    current_user=Depends(get_current_user),
+):
+    """
+    Chiude la riconciliazione di una uscita marcandola come pagata con carta di credito.
+    Body (tutti opzionali): { data_pagamento?: "YYYY-MM-DD", note?: str }
+
+    NOTA: il modulo Carta di Credito (matching con estratti carta) e' pianificato
+    ma non ancora implementato. Per ora l'uscita viene marcata con:
+      - metodo_pagamento = 'CARTA'
+      - stato = 'PAGATA_MANUALE'  (in attesa del matcher carta)
+      - data_pagamento = oggi o valore passato
+      - importo_pagato = totale
+      - banca_movimento_id = NULL
+
+    L'uscita scompare dalla worklist "banca" (filtrata per canale) e
+    apparira' nella worklist "carta" quando il modulo sara' attivo.
+    """
+    data_pag = payload.get("data_pagamento") or date.today().isoformat()
+    nota_extra = (payload.get("note") or "").strip()
+
+    fc = get_fc_db()
+    try:
+        u_row = fc.execute(
+            "SELECT id, stato, banca_movimento_id, note FROM cg_uscite WHERE id = ?",
+            (uscita_id,),
+        ).fetchone()
+        if not u_row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        u = dict(u_row)
+
+        if u["banca_movimento_id"]:
+            return {
+                "ok": False,
+                "error": "Uscita gia' collegata a un movimento bancario. Scollegala prima.",
+            }
+
+        note_final = (u.get("note") or "").strip()
+        if nota_extra:
+            note_final = f"{note_final} | {nota_extra}".strip(" |")
+
+        fc.execute("""
+            UPDATE cg_uscite
+            SET metodo_pagamento = 'CARTA',
+                stato = 'PAGATA_MANUALE',
+                data_pagamento = ?,
+                importo_pagato = totale,
+                note = ?,
+                banca_movimento_id = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (data_pag, note_final or None, uscita_id))
+        fc.commit()
+
+        return {
+            "ok": True,
+            "nuovo_stato": "PAGATA_MANUALE",
+            "metodo_pagamento": "CARTA",
+            "data_pagamento": data_pag,
+        }
+    finally:
+        fc.close()
 
 
 # ═══════════════════════════════════════════════════════════════════

@@ -66,7 +66,10 @@ def build_carta_body_html(rows: Iterable[Dict[str, Any]]) -> str:
 
     for tip, g1 in groupby(rows, k_tip):
         g1 = list(g1)
-        html += f"<h2 class='tipologia'>{tip}</h2>"
+        # id='vini-tip-<slug>' serve come target per `target-counter` nel TOC
+        # (numeri di pagina). Stabile e unico per tipologia (sessione 2026-04-20).
+        tip_id = f"vini-tip-{slugify(tip)}"
+        html += f"<h2 id='{tip_id}' class='tipologia'>{tip}</h2>"
 
         for naz, g1b in groupby(g1, k_naz):
             g1b = list(g1b)
@@ -330,7 +333,16 @@ def build_carta_toc_html(rows: Iterable[Dict[str, Any]]) -> str:
 
     for tip, g1 in groupby(rows, k_tip):
         g1 = list(g1)
-        html.append(f"<div class='toc-tipologia'>{tip}</div>")
+        tip_slug = slugify(tip)
+        # Ancora verso l'h2 tipologia nel corpo → attiva target-counter in PDF
+        # per il numero di pagina (gestito via CSS `.toc-pn::after`).
+        html.append(
+            f"<a class='toc-tipologia' href='#vini-tip-{tip_slug}'>"
+            f"<span class='toc-name'>{tip}</span>"
+            f"<span class='toc-leader'></span>"
+            f"<span class='toc-pn'></span>"
+            f"</a>"
+        )
 
         for naz, g1b in groupby(g1, k_naz):
             g1b = list(g1b)

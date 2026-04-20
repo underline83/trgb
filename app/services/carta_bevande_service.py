@@ -367,8 +367,10 @@ def build_section_html(
     intro_html = sezione.get("intro_html") or ""
     intro_block = f"<div class='bev-intro'>{intro_html}</div>" if intro_html else ""
     wrap_class = "bev-section bev-section-pdf" if for_pdf else "bev-section"
+    # id='sez-<key>' serve come target per `target-counter` nel TOC (numeri pagina).
+    sez_id = f"sez-{_esc(sezione.get('key') or '')}"
     return (
-        f"<section class='{wrap_class}' data-sezione='{_esc(sezione.get('key'))}'>"
+        f"<section id='{sez_id}' class='{wrap_class}' data-sezione='{_esc(sezione.get('key'))}'>"
         f"<h2 class='bev-section-title'>{_esc(sezione.get('nome'))}</h2>"
         f"{intro_block}"
         f"{body_html}"
@@ -446,7 +448,14 @@ def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
             if not vini_rows:
                 continue
             any_section = True
-            rows_html.append(f"<div class='toc-macro'>{_esc(nome)}</div>")
+            # Ancora verso <section id='sez-vini'> → target-counter per numero pagina.
+            rows_html.append(
+                f"<a class='toc-macro' href='#sez-vini'>"
+                f"<span class='toc-name'>{_esc(nome)}</span>"
+                f"<span class='toc-leader'></span>"
+                f"<span class='toc-pn'></span>"
+                f"</a>"
+            )
             # Sub-indice tipologie/nazioni/regioni — stesso stile della carta vini.
             # Chiamiamo build_carta_toc_html e strippiamo il wrapper esterno
             # <div class='toc-page'> + <div class='toc-title'> per fondere
@@ -474,7 +483,14 @@ def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
         if int(c.get("attive", 0) or 0) <= 0:
             continue  # salta sezioni vuote
         any_section = True
-        rows_html.append(f"<div class='toc-macro'>{_esc(nome)}</div>")
+        # Ancora verso <section id='sez-<key>'> → target-counter per numero pagina.
+        rows_html.append(
+            f"<a class='toc-macro' href='#sez-{_esc(key)}'>"
+            f"<span class='toc-name'>{_esc(nome)}</span>"
+            f"<span class='toc-leader'></span>"
+            f"<span class='toc-pn'></span>"
+            f"</a>"
+        )
         rows_html.append("<div class='toc-spacer'></div>")
 
     if not any_section:
@@ -530,11 +546,15 @@ def build_carta_bevande_html(
             # master TOC unico (build_toc_html lo espande inline).
             vini_rows = list(load_vini_ordinati())
             calici_rows = list(load_vini_calici())
+            # Skip sezione vini se cantina vuota: evita <h2>Vini</h2> seguito da
+            # "Nessun vino da mostrare" nel corpo carta (sessione 2026-04-20).
+            if not vini_rows and not calici_rows:
+                continue
             if for_pdf:
                 calici_html = build_calici_section_html(calici_rows)
                 body_vini = build_carta_body_html(vini_rows)
                 parts.append(
-                    "<section class='bev-section bev-section-pdf bev-section-vini'>"
+                    "<section id='sez-vini' class='bev-section bev-section-pdf bev-section-vini'>"
                     "<h2 class='bev-section-title'>Vini</h2>"
                     f"<div class='carta-body'>{calici_html}{body_vini}</div>"
                     "</section>"
@@ -543,7 +563,7 @@ def build_carta_bevande_html(
                 calici_html = build_calici_section_htmlsafe(calici_rows)
                 body_vini = build_carta_body_html_htmlsafe(vini_rows)
                 parts.append(
-                    "<section class='bev-section bev-section-vini'>"
+                    "<section id='sez-vini' class='bev-section bev-section-vini'>"
                     "<h2 class='bev-section-title'>Vini</h2>"
                     f"{calici_html}"
                     f"{body_vini}"
@@ -553,6 +573,10 @@ def build_carta_bevande_html(
 
         # Sezioni bevande standard
         voci = _load_voci_attive(key) if key else []
+        # Skip sezione senza voci attive: evita blocchi "Tisane" (o altro) con
+        # solo titolo e nulla sotto (sessione 2026-04-20).
+        if not voci:
+            continue
         parts.append(build_section_html(s, voci, for_pdf=for_pdf, staff=staff))
 
     return "".join(parts)

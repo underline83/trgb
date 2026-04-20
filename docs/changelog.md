@@ -3,7 +3,68 @@
 
 ---
 
-## 2026-04-20 — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro-cat leggibile (variante D.3)
+## 2026-04-20 — CG v2.12: Riconciliazione multi-canale (Banca / Carta / Contanti)
+
+### Contesto
+La pagina `/controllo-gestione/riconciliazione` finora lavorava solo su
+movimenti bancari: worklist di `cg_uscite` PAGATA_MANUALE senza
+`banca_movimento_id`, pannello DX con matching auto + ricerca libera su
+`banca_movimenti`. Marco ha chiesto di poter **"settare anche carta di
+credito (modulo che poi faremo) oppure contanti"** come canale di chiusura
+della riconciliazione, non solo banca.
+
+### Decisioni
+- Introdotto il concetto di **canale di riconciliazione**: `banca` (default)
+  / `carta` (predisposizione futura) / `contanti`. La worklist viene
+  filtrata per canale; il pannello DX cambia forma in base al canale.
+- Per `banca` resta tutto come prima (`RiconciliaBancaPanel`, auto+ricerca).
+- Per `carta` e `contanti` non serve un matcher a movimenti: basta un
+  form compatto "marca come pagata" (data + note + conferma).
+- Chi paga in contanti → `stato=PAGATA` (il modulo Contanti E' la prova).
+- Chi paga con carta → `stato=PAGATA_MANUALE` con `metodo_pagamento='CARTA'`:
+  esce dalla worklist banca e sarà visibile nella worklist carta quando
+  arriverà il modulo Carta di Credito (matcher con estratto).
+
+### Backend
+- `GET /controllo-gestione/uscite/da-riconciliare` ora accetta
+  `?canale=banca|carta|contanti` (default `banca`, retrocompatibile).
+  - banca: `PAGATA_MANUALE AND banca_movimento_id IS NULL AND metodo_pagamento NOT IN ('CARTA','CONTANTI')`
+  - carta: `PAGATA_MANUALE AND metodo_pagamento='CARTA'`
+  - contanti: `PAGATA_MANUALE AND metodo_pagamento='CONTANTI'` (edge case)
+- `POST /controllo-gestione/uscite/{id}/paga-contanti` (nuovo): body
+  `{data_pagamento?, note?}` → `metodo_pagamento='CONTANTI'`,
+  `stato='PAGATA'`, `importo_pagato=totale`.
+- `POST /controllo-gestione/uscite/{id}/paga-carta` (nuovo): body
+  `{data_pagamento?, note?}` → `metodo_pagamento='CARTA'`,
+  `stato='PAGATA_MANUALE'`.
+- Entrambi rifiutano uscite già collegate a un movimento bancario
+  (bisogna scollegare prima con `DELETE /uscite/{id}/riconcilia`).
+
+### Frontend
+- `ControlloGestioneRiconciliazione.jsx` v1.3: selettore canale a
+  segmented control in header (🏦 Banca / 💳 Carta / 💵 Contanti),
+  worklist e pannello DX reagiscono al canale selezionato. KPI
+  "Da collegare" si colora col canale (violet/amber/emerald).
+- Nuovo `components/riconciliazione/PagaContantiPanel.jsx`: form compatto
+  verde con data + note + conferma. POST su `/paga-contanti`.
+- Nuovo `components/riconciliazione/PagaCartaPanel.jsx`: form compatto
+  ambra con banner "modulo carta in arrivo" + data + note + conferma.
+  POST su `/paga-carta`.
+- `RiconciliaBancaPanel.jsx` invariato (usato anche in SpeseFisse).
+
+### File toccati
+- `app/routers/controllo_gestione_router.py` (+canale query param + 2 endpoint)
+- `frontend/src/pages/controllo-gestione/ControlloGestioneRiconciliazione.jsx`
+- `frontend/src/components/riconciliazione/PagaContantiPanel.jsx` (nuovo)
+- `frontend/src/components/riconciliazione/PagaCartaPanel.jsx` (nuovo)
+- `frontend/src/config/versions.jsx` (CG 2.11 → 2.12)
+
+### Deploy
+`./push.sh "CG v2.12: Riconciliazione multi-canale (Banca/Carta/Contanti) con worklist filtrata e pannelli dedicati"`
+
+---
+
+## 2026-04-20 — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro-cat leggibile (D.3) + skip sezioni vuote + numeri pagina indice
 
 ### Contesto
 Due lamentele convergenti di Marco sulla Carta Bevande (shell unificata
@@ -45,6 +106,31 @@ nata in 50bis):
   `.toc-tipologia` resta per il sotto-indice vini (Rossi/Bianchi/Bollicine)
   invariato. Niente cambiamenti al sotto-indice, solo al livello sopra.
 
+**C. Skip sezioni vuote dal TOC e dal corpo**
+- `build_carta_bevande_html` in `carta_bevande_service.py`: salta il blocco
+  vini se `vini_rows` e `calici_rows` sono entrambi vuoti, e salta le sezioni
+  standard quando `_load_voci_attive(key)` torna lista vuota. Prima il builder
+  emetteva l'`<h2>` di sezione anche senza voci → "Tisane", "Distillati"…
+  apparivano come titoli vuoti nell'indice e nel corpo.
+- `build_toc_html` già skippava le sezioni standard vuote via `counts.attive`;
+  ora è coerente col corpo (entrambi i builder applicano lo stesso filtro).
+
+**D. Numeri di pagina nell'indice PDF (target-counter)**
+- Aggiunti anchor id nel corpo:
+  - `build_section_html` → `<section id='sez-<key>'>` per ogni sezione bevande
+  - `build_carta_bevande_html` → `<section id='sez-vini'>` sul blocco vini
+  - `build_carta_body_html` in `carta_vini_service.py` → `<h2 id='vini-tip-<slug>'>`
+    per ogni tipologia vini
+- `build_toc_html` e `build_carta_toc_html` ora emettono `<a class='toc-macro|toc-tipologia' href='#…'>`
+  con struttura `<span class='toc-name'>…</span><span class='toc-leader'></span><span class='toc-pn'></span>`.
+- CSS `carta_pdf.css`:
+  - `.toc-macro` e `.toc-tipologia` convertiti a flex-anchor (`display: flex; align-items: baseline; text-decoration: none`)
+  - `.toc-leader` → `flex:1; border-bottom: 1pt dotted #b89b6d` (leader a punti nello stile carta)
+  - `.toc-pn::after` → `content: target-counter(attr(href url), page)` (WeasyPrint legge l'ancora e sostituisce col numero di pagina reale del PDF)
+- Effetto: indice carta bevande PDF ora ha numeri di pagina per ogni macro
+  (Vini, Aperitivi, Amari di Casa, …) e per ogni tipologia vini
+  (Rossi, Bianchi, Bollicine, …). Ospite può arrivare direttamente alla pagina.
+
 ### Effetti
 - Carta Bevande PDF: indice visivamente gerarchico, macro pulite e eleganti,
   sotto-voci vini nitide sotto.
@@ -57,8 +143,9 @@ nata in 50bis):
 ### File toccati
 - `frontend/src/pages/vini/CartaBevande.jsx` — v2.3-shell (rimosse frecce)
 - `frontend/src/pages/vini/ViniImpostazioni.jsx` — zona "Ordine Categorie"
-- `static/css/carta_pdf.css` — nuova classe `.toc-macro`
-- `app/services/carta_bevande_service.py` — `build_toc_html` emette `.toc-macro`
+- `static/css/carta_pdf.css` — `.toc-macro`/`.toc-tipologia` flex-anchor, `.toc-leader`, `.toc-pn::after` con `target-counter`
+- `app/services/carta_bevande_service.py` — `build_toc_html` emette `.toc-macro` come ancora + skip sezioni vuote; `build_section_html` aggiunge `id='sez-<key>'`; `build_carta_bevande_html` aggiunge `id='sez-vini'` e skippa vini/sezioni vuote
+- `app/services/carta_vini_service.py` — `build_carta_toc_html` emette `.toc-tipologia` come ancora; `build_carta_body_html` aggiunge `id='vini-tip-<slug>'`
 - `frontend/src/config/versions.jsx` — vini 3.13 → 3.14
 - `docs/mockups/mockup_toc_macro.html` — mockup di confronto (conservato per
   future decisioni tipografiche sulla carta)

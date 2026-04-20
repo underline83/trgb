@@ -1,14 +1,14 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-20 (sessione 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3)
+**Ultimo aggiornamento:** 2026-04-20 (sessione 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 + skip sezioni vuote + numeri pagina indice)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
 
-## SESSIONE 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 ✅ (da testare post-push)
+## SESSIONE 50quinquies — Vini v3.14: Ordine Categorie + TOC macro D.3 + skip vuote + numeri pagina ✅ (da testare post-push)
 
-Due fix convergenti sulla Carta Bevande:
+Quattro fix convergenti sulla Carta Bevande:
 
 **1. Frecce ↑↓ via dalla sidebar, Ordine Categorie in Impostazioni**
 - Marco: *"La gestione dell'ordinamento che vive nella pagina carta non mi piace per nulla"*. Le frecce admin in sidebar erano incoerenti col resto della UI ordinamento (Impostazioni Vini > Ordinamento Carta).
@@ -21,22 +21,45 @@ Due fix convergenti sulla Carta Bevande:
 - Aggiunta classe `.toc-macro` in `static/css/carta_pdf.css`: 18pt · peso 400 · uppercase · tracking 0.32em · colore `#5a4634` (marrone-terra, stesso delle nazioni).
 - `build_toc_html` in `carta_bevande_service.py` emette `.toc-macro` per le macro (sia "Vini" che le 7 sezioni bevande standard); `.toc-tipologia` resta per il sotto-indice vini (Rossi/Bianchi/Bollicine).
 
+**3. Skip sezioni vuote da TOC e corpo**
+- Marco: *"compaiono ancora le categorie vuote, riusciamo a nasconderle?"*. Sezioni senza voci attive (es. "Tisane" senza record) apparivano come `<h2>` vuoto nel corpo e nell'indice.
+- `build_carta_bevande_html` in `carta_bevande_service.py`: salta il blocco vini se `vini_rows` + `calici_rows` sono entrambi vuoti; salta le sezioni standard se `_load_voci_attive(key)` torna lista vuota.
+- TOC era già coerente via `counts.attive` — ora i due builder (TOC + corpo) applicano lo stesso filtro.
+
+**4. Numeri di pagina nell'indice PDF (WeasyPrint target-counter)**
+- Marco: *"volevo chiederti se riusciamo a gestire i numeri pagine nell'indice"*.
+- Aggiunte ancore nel corpo:
+  - `build_section_html` → `<section id='sez-<key>'>` per ogni sezione bevande
+  - `build_carta_bevande_html` → `<section id='sez-vini'>` sul blocco vini
+  - `build_carta_body_html` in `carta_vini_service.py` → `<h2 id='vini-tip-<slug>'>` per ogni tipologia
+- `build_toc_html` e `build_carta_toc_html` ora emettono ancore `<a class='toc-macro|toc-tipologia' href='#…'>` con struttura `<span class='toc-name'>…</span><span class='toc-leader'></span><span class='toc-pn'></span>`.
+- CSS `carta_pdf.css`:
+  - `.toc-macro`/`.toc-tipologia` convertiti a flex-anchor (display:flex, align-items:baseline, text-decoration:none)
+  - `.toc-leader` → flex:1 con border-bottom dotted `#b89b6d` (leader a punti nello stile carta)
+  - `.toc-pn::after` → `content: target-counter(attr(href url), page)` — WeasyPrint legge l'href e sostituisce col numero di pagina reale
+- Effetto: ogni macro (Vini, Aperitivi, Amari di Casa…) e ogni tipologia vini (Rossi, Bianchi, Bollicine…) nell'indice ora ha linea dotted + numero pagina a destra. Comportamento da carta stampata professionale.
+
 **Deliverable:**
 - FE: `CartaBevande.jsx` v2.3-shell, `ViniImpostazioni.jsx` (+ zona Ordine Categorie), `versions.jsx` vini 3.13 → 3.14.
-- BE: `carta_bevande_service.py` `build_toc_html`, `static/css/carta_pdf.css` nuova classe `.toc-macro`.
+- BE:
+  - `carta_bevande_service.py` → `build_toc_html` emette `.toc-macro` come ancora; `build_section_html` aggiunge `id='sez-<key>'`; `build_carta_bevande_html` aggiunge `id='sez-vini'` e skippa sezioni/vini vuoti.
+  - `carta_vini_service.py` → `build_carta_toc_html` emette `.toc-tipologia` come ancora; `build_carta_body_html` aggiunge `id='vini-tip-<slug>'`.
+  - `static/css/carta_pdf.css` → `.toc-macro`/`.toc-tipologia` flex-anchor + `.toc-leader` dotted + `.toc-pn::after` con `target-counter`.
 - Docs: mockup conservato in `docs/mockups/mockup_toc_macro.html`, changelog, sessione.
 
 **Da testare post-push (Ctrl+Shift+R):**
 1. `/vini/carta/aperitivi` → sidebar pulita, nessuna freccia ↑↓.
 2. `/vini/impostazioni/ordinamento-carta` → prima zona "Ordine Categorie" con le 8 sezioni (vini + 7 bevande). Drag/up/down riordina, "Salva" persiste.
 3. Dopo save: refresh → ordine persiste sia qui sia nella sidebar di `/vini/carta`.
-4. Export PDF (`📄 PDF`) da `/vini/carta/*` → aprire → indice: "VINI"/"APERITIVI"/"AMARI DI CASA"/… in uppercase grande chiaro, ben staccate dalle sotto-voci Rossi/Bianchi che restano 14pt bold nero.
+4. Export PDF (`📄 PDF`) da `/vini/carta/*` → aprire → indice: "VINI"/"APERITIVI"/"AMARI DI CASA"/… in uppercase grande chiaro, ben staccate dalle sotto-voci Rossi/Bianchi.
 5. Ordine nell'indice PDF rispetta il nuovo "Ordine Categorie".
-6. PDF Staff e Word: stesso comportamento (Word usa il suo template DOCX, solo PDF è impattato dal CSS).
+6. **NUOVO** — indice PDF: ogni macro (e ogni tipologia vini) ha linea dotted + numero pagina a destra. I numeri corrispondono alla pagina dove compare effettivamente la sezione nel corpo.
+7. **NUOVO** — sezioni senza voci attive (es. "Tisane", "Distillati" se vuoti) NON compaiono più né nell'indice né nel corpo.
+8. PDF Staff e Word: stesso comportamento (Word usa il suo template DOCX, solo PDF è impattato dal CSS).
 
 **Comando push:**
 ```
-./push.sh "Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 leggibile"
+./push.sh "Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 + skip sezioni vuote + numeri pagina nell'indice"
 ```
 
 ---
