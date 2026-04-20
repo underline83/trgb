@@ -3,6 +3,47 @@
 
 ---
 
+## 2026-04-20 — CG v2.13: Sposta canale rapido dalla worklist riconciliazione
+
+### Contesto
+Dopo v2.12 (tre worklist per canale) Marco ha chiesto di poter
+riassegnare il canale di un'uscita **direttamente dalla tabella**: una
+fattura finita per errore sulla worklist banca deve poter essere spostata
+su carta o contanti con un clic, senza aprire il pannello DX.
+
+### Decisioni
+- Menu per-riga **"Sposta ▾"** nella worklist (nuova colonna "Azioni").
+  Mostra gli altri due canali (non quello corrente) come destinazioni.
+- Toast di conferma/errore in basso a destra, auto-hide 3s, dismissibile.
+- L'uscita spostata esce dalla worklist corrente e compare in quella di
+  destinazione al prossimo reload (triggerato automaticamente).
+- Protezione server-side: se `banca_movimento_id IS NOT NULL` (già
+  collegata a un movimento bancario), lo spostamento è rifiutato con
+  errore chiaro — bisogna scollegare prima tramite
+  `DELETE /uscite/{id}/riconcilia`.
+
+### Backend
+- `POST /controllo-gestione/uscite/{uscita_id}/cambia-canale`
+  body `{canale: 'banca' | 'carta' | 'contanti'}`
+  - `banca`    → `metodo_pagamento=NULL`, `stato=PAGATA_MANUALE`
+  - `carta`    → `metodo_pagamento='CARTA'`, `stato=PAGATA_MANUALE`
+  - `contanti` → `metodo_pagamento='CONTANTI'`, `stato=PAGATA`
+- Restituisce `{ok, uscita_id, canale, metodo_pagamento, stato}` o
+  `{ok: false, error}` in caso di uscita agganciata.
+
+### Frontend
+- `ControlloGestioneRiconciliazione.jsx` (v1.4-sposta-canale):
+  nuova colonna "Azioni" con dropdown "Sposta ▾", gestione click-outside
+  e ESC per chiudere, `e.stopPropagation()` per non selezionare la riga
+  quando si interagisce col menu, toast di esito fisso in basso.
+
+### File toccati
+- `app/routers/controllo_gestione_router.py` — nuovo endpoint `cambia-canale`
+- `frontend/src/pages/controllo-gestione/ControlloGestioneRiconciliazione.jsx`
+- `frontend/src/config/versions.jsx` — CG 2.12 → 2.13
+
+---
+
 ## 2026-04-20 — CG v2.12: Riconciliazione multi-canale (Banca / Carta / Contanti)
 
 ### Contesto

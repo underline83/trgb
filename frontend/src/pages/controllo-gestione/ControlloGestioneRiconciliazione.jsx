@@ -1,4 +1,4 @@
-// @version: v1.3-canali — selettore canale (banca/carta/contanti) in split-pane
+// @version: v1.4-sposta-canale — menu "Sposta in ▾" per riassegnazione rapida riga
 // Workbench Riconciliazione — split-pane dedicato, uno per canale di pagamento.
 //
 // SX: worklist uscite "Da collegare", filtrata per canale selezionato:
@@ -17,7 +17,7 @@
 //   3) Clic su una riga → pannello DX del canale
 //   4) Azione completata → worklist si aggiorna, passa al successivo
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ControlloGestioneNav from "./ControlloGestioneNav";
@@ -85,6 +85,10 @@ export default function ControlloGestioneRiconciliazione() {
   const [totale, setTotale] = useState(0);
   const [selected, setSelected] = useState(null); // uscita selezionata nel pane DX
   const [q, setQ] = useState("");
+  const [menuOpenId, setMenuOpenId] = useState(null); // id uscita con menu "Sposta in" aperto
+  const [movingId, setMovingId] = useState(null);     // id uscita attualmente in spostamento (loading)
+  const [toast, setToast] = useState(null);           // { msg, tone: 'ok'|'err' }
+  const menuRef = useRef(null);
 
   const canaleCfg = CANALI.find((c) => c.key === canale) || CANALI[0];
 
@@ -134,6 +138,65 @@ export default function ControlloGestioneRiconciliazione() {
     setCanale(newCanale);
     setSelected(null);
     setQ("");
+    setMenuOpenId(null);
+  };
+
+  // Chiudi menu "Sposta in ▾" cliccando fuori / su ESC
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const onClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpenId(null);
+      }
+    };
+    const onEsc = (e) => { if (e.key === "Escape") setMenuOpenId(null); };
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [menuOpenId]);
+
+  // Auto-hide toast dopo 3s
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  // Azione: sposta uscita in altro canale (POST /uscite/{id}/cambia-canale)
+  const spostaCanale = async (uscita, targetCanale) => {
+    if (!uscita || !targetCanale || targetCanale === canale) {
+      setMenuOpenId(null);
+      return;
+    }
+    setMenuOpenId(null);
+    setMovingId(uscita.id);
+    try {
+      const res = await apiFetch(`${CG}/uscite/${uscita.id}/cambia-canale`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canale: targetCanale }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.ok === false) {
+        throw new Error(j.error || "Errore nello spostamento");
+      }
+      const targetCfg = CANALI.find((c) => c.key === targetCanale);
+      setToast({
+        tone: "ok",
+        msg: `${targetCfg?.icon || ""} Spostato in ${targetCfg?.label || targetCanale}`,
+      });
+      // Se era l'uscita selezionata, deseleziona (uscirà dalla worklist corrente)
+      if (selected?.id === uscita.id) setSelected(null);
+      fetchWorklist();
+    } catch (e) {
+      console.error("Errore sposta canale:", e);
+      setToast({ tone: "err", msg: e.message || "Errore di rete" });
+    } finally {
+      setMovingId(null);
+    }
   };
 
   return (
@@ -230,18 +293,22 @@ export default function ControlloGestioneRiconciliazione() {
                     <th className="px-3 py-2 text-left font-medium w-24">Pagata il</th>
                     <th className="px-3 py-2 text-right font-medium w-24">Importo</th>
                     <th className="px-3 py-2 text-left font-medium w-20">Tipo</th>
+                    <th className="px-3 py-2 text-right font-medium w-28">Azioni</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((u) => {
                     const isSel = selected?.id === u.id;
+                    const isMoving = movingId === u.id;
+                    const menuOpen = menuOpenId === u.id;
+                    const altriCanali = CANALI.filter((c) => c.key !== canale);
                     return (
                       <tr
                         key={u.id}
                         onClick={() => setSelected(u)}
                         className={`border-t border-neutral-100 cursor-pointer hover:bg-amber-50 ${
                           isSel ? "bg-amber-100 hover:bg-amber-100" : ""
-                        }`}
+                        } ${isMoving ? "opacity-60" : ""}`}
                       >
                         <td className="px-3 py-2">
                           <div className="font-medium text-neutral-800 truncate max-w-xs">
@@ -258,6 +325,46 @@ export default function ControlloGestioneRiconciliazione() {
                           € {fmt(u.totale)}
                         </td>
                         <td className="px-3 py-2 text-xs text-neutral-600">{tipoUscita(u)}</td>
+                        <td className="px-3 py-2 text-right relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenId(menuOpen ? null : u.id);
+                            }}
+                            disabled={isMoving}
+                            title="Sposta in altro canale"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-neutral-300 rounded bg-white hover:bg-neutral-50 text-neutral-700 disabled:opacity-50"
+                          >
+                            {isMoving ? "…" : <>Sposta <span className="text-neutral-400">▾</span></>}
+                          </button>
+
+                          {menuOpen && (
+                            <div
+                              ref={menuRef}
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-2 top-full mt-1 z-20 w-44 bg-white border border-neutral-200 rounded-md shadow-lg py-1"
+                            >
+                              <div className="px-3 py-1.5 text-[10px] text-neutral-400 uppercase tracking-wide border-b border-neutral-100">
+                                Sposta in
+                              </div>
+                              {altriCanali.map((c) => (
+                                <button
+                                  key={c.key}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    spostaCanale(u, c.key);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-50 flex items-center gap-2"
+                                >
+                                  <span className="text-base leading-none">{c.icon}</span>
+                                  <span className="font-medium text-neutral-800">{c.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -313,6 +420,29 @@ export default function ControlloGestioneRiconciliazione() {
           )}
         </div>
       </div>
+
+      {/* Toast notifica sposta canale */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div
+            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 border ${
+              toast.tone === "ok"
+                ? "bg-emerald-600 text-white border-emerald-700"
+                : "bg-red-600 text-white border-red-700"
+            }`}
+          >
+            <span>{toast.msg}</span>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="ml-2 text-white/80 hover:text-white text-lg leading-none"
+              aria-label="Chiudi"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

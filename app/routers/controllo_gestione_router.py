@@ -2945,6 +2945,77 @@ def paga_uscita_contanti(
         fc.close()
 
 
+# ── Cambio canale rapido (worklist → sposta in altro canale) ──────
+@router.post("/uscite/{uscita_id}/cambia-canale")
+def cambia_canale_uscita(
+    uscita_id: int,
+    payload: dict = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """
+    Sposta un'uscita da un canale di riconciliazione all'altro.
+    Body: { "canale": "banca" | "carta" | "contanti" }
+
+    Effetto sul DB (cg_uscite):
+      - canale='banca'    → metodo_pagamento=NULL, stato=PAGATA_MANUALE
+                            (torna in attesa di match a movimento bancario)
+      - canale='carta'    → metodo_pagamento='CARTA', stato=PAGATA_MANUALE
+                            (riconciliazione delegata al futuro modulo Carta)
+      - canale='contanti' → metodo_pagamento='CONTANTI', stato=PAGATA
+                            (il modulo Contanti È la prova di pagamento)
+
+    Rifiuta se l'uscita e' gia' collegata a un movimento bancario
+    (va scollegata prima con DELETE /uscite/{id}/riconcilia).
+    """
+    target = (payload.get("canale") or "").lower().strip()
+    if target not in ("banca", "carta", "contanti"):
+        return {"ok": False, "error": "canale deve essere 'banca', 'carta' o 'contanti'"}
+
+    fc = get_fc_db()
+    try:
+        u_row = fc.execute(
+            "SELECT id, stato, banca_movimento_id, metodo_pagamento FROM cg_uscite WHERE id = ?",
+            (uscita_id,),
+        ).fetchone()
+        if not u_row:
+            return {"ok": False, "error": "Uscita non trovata"}
+        u = dict(u_row)
+
+        if u["banca_movimento_id"]:
+            return {
+                "ok": False,
+                "error": "Uscita gia' collegata a un movimento bancario. Scollegala prima.",
+            }
+
+        if target == "banca":
+            new_metodo = None
+            new_stato = "PAGATA_MANUALE"
+        elif target == "carta":
+            new_metodo = "CARTA"
+            new_stato = "PAGATA_MANUALE"
+        else:  # contanti
+            new_metodo = "CONTANTI"
+            new_stato = "PAGATA"
+
+        fc.execute("""
+            UPDATE cg_uscite
+            SET metodo_pagamento = ?,
+                stato = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (new_metodo, new_stato, uscita_id))
+        fc.commit()
+
+        return {
+            "ok": True,
+            "canale": target,
+            "metodo_pagamento": new_metodo,
+            "nuovo_stato": new_stato,
+        }
+    finally:
+        fc.close()
+
+
 # ── Riconciliazione alternativa: CARTA DI CREDITO ─────────────────
 @router.post("/uscite/{uscita_id}/paga-carta")
 def paga_uscita_carta(
