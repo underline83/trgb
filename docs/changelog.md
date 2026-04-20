@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-04-20 — Vini v3.15: Widget riordini Fase 1 — colonna Produttore + pulsante dettaglio
+
+### Contesto
+Fase 1/8 del refactor widget "📦 Riordini per fornitore" descritto in
+`docs/modulo_vini_riordini.md`. Marco voleva poter ordinare la tabella
+per produttore (campo che era solo sottotitolo del nome) e separare il
+gesto "apri dettaglio" dal click generale sulla riga, per liberare i
+click sulle altre celle nelle fasi successive (riordino, listino inline,
+duplica).
+
+### Decisioni
+- Nuova colonna **Produttore** sortabile fra "Vino" e "Stato".
+- Produttore rimosso dal sottotitolo del nome (era ridondante).
+- **Niente più row-click-navigate.** Nuova colonna a sinistra con
+  pulsante occhio (SVG, 32×32, touch target 44pt via padding) che apre
+  `/vini/magazzino/{id}`.
+- Le 6 colonne sortabili preesistenti (Vino, Stato, Giac., Listino,
+  Ult. carico, Ult. vendita) sono **rimaste invariate** — l'ordinamento
+  già funzionava tramite `toggleRiordSort`, Marco non se ne era accorto.
+
+### File toccati
+- `frontend/src/pages/vini/DashboardVini.jsx` → v4.2-riordini-fase1
+- `frontend/src/config/versions.jsx` → vini 3.14 → 3.15
+- `docs/modulo_vini_riordini.md` (nuovo, piano completo 8 fasi)
+
+### Da testare post-push (Ctrl+Shift+R)
+1. `/vini/` (DashboardVini) → scroll al widget "📦 Riordini per fornitore".
+2. Aprire un gruppo fornitore: la riga del vino ora NON è più cliccabile;
+   un'icona 👁 in colonna 1 apre il dettaglio vino.
+3. Nuova colonna "Produttore" visibile tra "Vino" e "Stato". Cliccando
+   l'header ordina asc/desc.
+4. Sottotitolo del nome vino ora mostra solo `TIPOLOGIA · ANNATA` (senza
+   produttore duplicato).
+5. Le altre 6 colonne (Vino, Stato, Giac., Listino, Ult. carico,
+   Ult. vendita) continuano a essere sortabili cliccando sugli header.
+
+### Push
+```
+./push.sh "Vini v3.15: widget riordini Fase 1 — colonna Produttore sortabile + pulsante dettaglio a sinistra (no row-click)"
+```
+
+---
+
 ## 2026-04-20 — CG v2.13: Sposta canale rapido dalla worklist riconciliazione
 
 ### Contesto

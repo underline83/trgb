@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.1-mattoni — M.I primitives (Btn) su header e accesso rapido
+// @version: v4.2-riordini-fase1 — Widget riordini: colonna Produttore sortabile + pulsante "dettaglio" a sinistra (no row-click)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
