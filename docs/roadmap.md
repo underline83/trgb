@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-19 (sessione 48 — M.E Calendar mattone implementato)
+**Ultimo aggiornamento:** 2026-04-20 (sessione 51 — chiusura refactor widget riordini vini + follow-up infrastrutturali SQLite)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -24,6 +24,9 @@
 | 1.8 | Notifiche push browser (scadenze, prenotazioni, backup) | M | DA FARE | Web Push API, Safari 16.4+ |
 | 1.9 | Health check endpoint + uptime monitor | S | DA FARE | /health + UptimeRobot/Betterstack gratis |
 | 1.10 | Aggiornamento automatico frontend (banner nuova versione) | S | DA FARE | Polling BUILD_VERSION ogni 5 min |
+| 1.11 | WAL mode in init_*_database() per tutti i DB SQLite | S | DA FARE | **Priorità alta**. Sessione 51: doppio crash `malformed database schema` su `vini_magazzino.sqlite3` per SIGTERM mid-write senza WAL. VPS ora manualmente in WAL, ma se il file viene ricreato da zero riparte in DELETE. Aggiungere `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;` in `init_magazzino_database()` (`app/models/vini_magazzino_db.py`) + `foodcost.db` init + `notifiche.sqlite3` init + eventuali altri init_*_database(). |
+| 1.12 | push.sh: debounce anti-doppio-push | S | DA FARE | **Priorità alta**. Sessione 51: secondo `./push.sh` lanciato a 5 min dal primo ha mandato SIGTERM al backend mid-write → corruzione SQLite. Fix: in `push.sh` controllare `mtime` dell'ultimo push (es. timestamp in `.last_push`) e bloccare con messaggio se < 30s. Opzionale: controllo anche `systemctl is-active trgb-backend` prima di pushare. |
+| 1.13 | Pulizia backup forensi vini_magazzino | S | DA FARE | Sessione 51: in `/home/marco/trgb/trgb/app/data/` restano `CORROTTO-20260420-224312`, `CORROTTO-2.20260420-230727`, `FORENSE-2251`, `BACKUP-20260420-223719`. Tra 1-2 giorni di uptime stabile tenere solo `CORROTTO-2.20260420-230727` come referto e rimuovere gli altri. |
 
 ---
 
@@ -195,6 +198,15 @@
 | 11.10 | iPad kiosk mode fullscreen | S | FUTURO | Modalità senza header/nav, solo l'istanza del turno attivo. PWA display-mode standalone |
 | 11.11 | Drag & drop ordinamento items editor | S | FUTURO | Sostituire bottoni ▲▼ con drag nativo. Nice-to-have |
 | 11.12 | Unificazione label "Gestione Cucina" | S | DA FARE | Oggi "Gestione Cucina" è del modulo ricette e "Cucina" del nuovo. Decidere: rename ricette → "Ricette & FoodCost", o merge dei due moduli sotto un unico "Gestione Cucina" con sub |
+
+---
+
+## Completati — Sessione 51 (2026-04-20)
+
+| Cosa | Note |
+|------|------|
+| **Refactor widget "📦 Riordini per fornitore"** — Fase 7 + Fase 8 (chiusura 8/8 fasi) | v3.20: colonna Listino editabile inline in DashboardVini (pattern identico a Prezzo Carta di Fase 5). v3.21: sezione "Storico prezzi" in SchedaVino (`v1.3-riordini-fase8`) con filtro pill (listino/acquisto/ricarico/tutti), tabella Data/Campo/Prima/Dopo/Δ/Origine/Utente/Note, Δ colorato ▲red/▼green (tolleranza 0.005). Endpoint `/vini/magazzino/{id}/prezzi-storico/` già esistente da Fase 6. Refresh storico automatico dopo ogni `saveEdit()`. Tutti gli 8 step del refactor ora in produzione. |
+| **Recovery doppio corruzione SQLite `vini_magazzino.sqlite3`** | Due crash consecutivi per `malformed database schema` durante la sessione. #1 (duplicati in sqlite_master) recuperato con `.dump \| sqlite3 NEW`. #2 (entry NULL in sqlite_master) dopo doppio push ravvicinato che ha mandato SIGTERM mid-write: `.recover` produce DB privo di `vini_magazzino`, `.dump` da BACKUP-223719 recupera il file pulito (647KB, 1261 vini, integrity ok). Swap + **passaggio a WAL mode** (`journal_mode=WAL`, `synchronous=NORMAL`) per prevenire SIGTERM-corruption futuri. Pattern documentato in memoria `feedback_sqlite_corruption_recovery.md`. Follow-up in roadmap 1.11 (WAL nel codice), 1.12 (debounce push.sh), 1.13 (cleanup backup forensi). |
 
 ---
 

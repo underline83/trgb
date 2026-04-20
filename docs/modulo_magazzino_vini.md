@@ -283,8 +283,19 @@ Pannello modale con filtri componibili per generare PDF inventario:
 - [x] Filtro locazione unificato (2 dropdown, ricerca cross-colonna) — 2026-03-16
 - [x] Stampa selezionati diretta PDF (POST con IDs, no dialog) — 2026-03-16
 - [x] SchedaVino layout sidebar+main con colori dinamici per TIPOLOGIA — 2026-03-16
+- [x] **Refactor widget "📦 Riordini per fornitore" — 8 fasi** — 2026-04-20 (sessione 51, v3.14 → v3.21)
+  - Fase 1: sort produttore + pulsante dettaglio a SX
+  - Fase 2: duplica vino con nuova annata
+  - Fase 3: schema `vini_ordini_pending` + endpoint CRUD
+  - Fase 4: colonna riordino + modale quantità
+  - Fase 5: arrivo → converti ordine pending in CARICO + edit inline prezzo carta
+  - Fase 6: tabella `vini_prezzi_storico` + hook PATCH con `origine` (GESTIONALE-EDIT / IMPORT-CSV / SCANNER-OCR) + endpoint lettura
+  - Fase 7: listino inline in DashboardVini (v3.20)
+  - Fase 8: sezione "Storico prezzi" in SchedaVino con filtri campo + Δ colorato (v3.21)
 - [ ] Filtri lato server per dataset molto grandi
-- [ ] Sincronizzazione storico prezzi
-- [ ] Import Excel con diff interattivo
+- [ ] Import Excel con diff interattivo (roadmap 7.5)
+- [ ] Grafico storico prezzi fornitore (roadmap 7.7) — dati già in DB, serve solo UI Recharts
 - [ ] Integrazione carichi automatici da Fatture XML
 - [ ] Integrazione con modulo FoodCost → consumo ricette
+- [ ] Alert sottoscorta (roadmap 7.6) — usa M.A + M.F
+- [ ] Inventario rapido da iPad (roadmap 7.8)

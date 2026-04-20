@@ -42,6 +42,34 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
+### S51-1. Backend in crash loop — `malformed database schema` su `vini_magazzino.sqlite3` ✅ 2026-04-20
+**Segnalato:** 2026-04-20 (sessione 51, doppio incidente nel giro di un'ora)
+**Modulo:** Infrastruttura / SQLite / init_magazzino_database
+**Gravità:** alta (backend fuori servizio)
+
+**Sintomo:**
+- Incidente #1: dopo push di Fase 6 (creazione tabella `vini_prezzi_storico`) il backend cicla in crash con `sqlite3.DatabaseError: malformed database schema (idx_vm_tipologia) - index already exists`.
+- Incidente #2: dopo secondo push lanciato a ~5 minuti dal primo, backend cicla di nuovo con `malformed database schema (?)` (entry in `sqlite_master` con nome NULL, corruzione più grave).
+
+**Causa radice:**
+1. Il DB era in modalità journal DELETE (default SQLite), non WAL. Senza WAL, un SIGTERM al processo durante una scrittura su `sqlite_master` lascia il catalogo inconsistente.
+2. `init_magazzino_database()` è invocato a import-time da `app/routers/vini_magazzino_router.py:249`: ogni deploy tenta `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`, che in condizioni di race con catalogo corrotto crashano.
+3. `post-receive` hook del VPS fa `systemctl restart trgb-backend` immediato → se arriva un secondo push mentre il backend sta ancora inizializzando, SIGTERM mid-write → corruzione.
+
+**Fix applicato (sessione 51):**
+1. Recovery #1: `sqlite3 vini_magazzino.sqlite3 ".dump" | sqlite3 vini_magazzino_NEW.sqlite3` — gli errori UNIQUE sui duplicati sono ATTESI (duplicati scartati dal restore). File risultante: 647KB, 1261 vini, `integrity_check=ok`.
+2. Recovery #2: `.recover` sul file corrotto NON funziona (DB recuperato manca della tabella `vini_magazzino`). Soluzione: `.dump` dal backup preventivo `BACKUP-20260420-223719.sqlite3` → pulito. Micro-perdita dati accettata (backend in crash loop nella finestra contestata).
+3. **Passaggio a WAL mode** pre-swap: `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`. Questo è il fix preventivo: con WAL, SQLite può recuperare dal log al prossimo open anche dopo SIGTERM mid-write.
+
+**Follow-up ancora da fare (roadmap sezione 1):**
+- **1.11** Aggiungere `PRAGMA journal_mode=WAL` dentro `init_magazzino_database()` + init di `foodcost.db` e `notifiche.sqlite3`, così anche su file ricreati da zero parte in WAL.
+- **1.12** `push.sh` debounce anti-doppio-push (< 30s → blocca) per evitare SIGTERM durante startup del backend.
+- **1.13** Pulizia backup forensi quando stabile.
+
+**Pattern recovery documentato:** `.auto-memory/feedback_sqlite_corruption_recovery.md` (regola: dump+restore, MAI `REINDEX` in-place).
+
+---
+
 ### S40-15. Acquisti — Import FIC salta dettaglio righe ✅ 2026-04-16
 **Segnalato:** 2026-04-16 (sessione 40)
 **Modulo:** Acquisti / Import Fatture in Cloud
