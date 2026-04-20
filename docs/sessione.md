@@ -1,8 +1,40 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-19 (sessione 50bis — Carta delle Bevande: shell con sidebar)
+**Ultimo aggiornamento:** 2026-04-20 (sessione 50ter — fix form key/name + riordino sezioni admin)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 50ter — Carta delle Bevande: fix form + riordino sezioni + fix auth export ✅ (da testare post-push)
+
+Tre follow-up sulla shell sidebar (50bis):
+
+**1. Bug form "un campo scrive su tutti"** — inserendo una nuova voce in una sezione, digitare nel campo "nome" popolava anche "ingredienti" e "note". Root cause: il seed backend usa `{"key": "nome", …}` mentre il FE leggeva `f.name` (undefined) → tutti i campi condividevano chiave `undefined` nello state. Fix lato FE: helper `fieldId(f) = f?.name ?? f?.key` in `FormDinamico.jsx` + `CartaSezioneEditor.jsx` (`validate`, `emptyFromSchema`, `importColumns`). Retro-compat con entrambe le convention, zero migrazioni.
+
+**2. Riordino sezioni (gap UI)** — il backend ha sempre avuto `POST /bevande/sezioni/reorder` ma nessun punto UI lo usava. Aggiunte frecce ↑↓ nella sidebar della shell, visibili solo a admin/superadmin. `moveSezione(index, direction)` swappa col vicino, rinumera 10/20/30/…, POST batch, rollback ottimistico su errore. Stesso pattern del riordino voci dentro l'editor.
+
+**3. Fix auth anteprima/export (bug segnalato da Marco mid-session)** — cliccando "Anteprima sezione" in una sezione (es. birre), il tab nuovo mostrava "Not authenticated". `window.open(url)` non inoltra l'header `Authorization: Bearer`. Stesso bug latente su PDF/PDF Staff/Word nell'header shell. Creato helper `frontend/src/utils/authFetch.js` con `openAuthedInNewTab(url, opts)`: apre subito un tab placeholder (bypass popup blocker), poi fa fetch con token, crea blob URL, lo carica nel tab. Usato in `CartaSezioneEditor` (anteprima sezione) e `CartaBevande` (PDF/PDF Staff/Word).
+
+**Deliverable:**
+- FE: `FormDinamico.jsx` v1.1, `CartaSezioneEditor.jsx` v1.2-panel, `CartaBevande.jsx` v2.2-shell, nuovo `utils/authFetch.js`, `versions.jsx` vini 3.12 → 3.13.
+- Docs: changelog + questo file.
+
+**Da testare post-push (Ctrl+Shift+R):**
+1. `/vini/carta/aperitivi` → clic "+ Nuova voce" → scrivere in "nome" NON popola gli altri campi.
+2. Ripetere test per altre 6 sezioni (birre, amari_casa, amari_liquori, distillati, tisane, te).
+3. Frecce ↑↓ in sidebar visibili SOLO per admin/superadmin.
+4. Clic ↑ sulla seconda sezione → swap con la prima, toast verde, sidebar si riordina.
+5. Clic ↓ sull'ultima → freccia disabilitata.
+6. F5 dopo riordino → ordine persiste (DB aggiornato).
+7. Export PDF/HTML/Word rispetta il nuovo ordine sezioni.
+8. Clic "👁 Anteprima sezione" in birre → apre tab con HTML della sezione, NIENTE 401.
+9. PDF / PDF Staff / Word nell'header shell → aprono correttamente.
+
+**Comando push:**
+```
+./push.sh "Carta Bevande: fix form (key/name) + riordino sezioni admin + fix auth anteprima/export (vini v3.13)"
+```
 
 ---
 

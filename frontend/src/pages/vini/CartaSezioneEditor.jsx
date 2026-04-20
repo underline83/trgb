@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import { openAuthedInNewTab } from "../../utils/authFetch";
 import { Btn } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import useToast from "../../hooks/useToast";
@@ -308,7 +309,9 @@ export default function CartaSezioneEditor({ sezioneKey }) {
 
   const openAnteprimaSezione = () => {
     const url = `${API_BASE}/bevande/sezioni/${key}/preview`;
-    window.open(url, "_blank");
+    openAuthedInNewTab(url, {
+      onError: (err) => toast(`Errore anteprima: ${err.message}`, { kind: "error" }),
+    });
   };
 
   // --------------------------------------------------

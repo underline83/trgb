@@ -3,6 +3,74 @@
 
 ---
 
+## 2026-04-20 — Carta delle Bevande: fix form + riordino sezioni + fix auth anteprima/export (vini v3.13)
+
+### Contesto
+Tre follow-up sulla shell sidebar della carta (v3.12):
+1. **Bug form**: inserendo una nuova voce in una qualsiasi sezione, scrivere nel campo
+   "nome" popolava contemporaneamente anche "ingredienti" e "note". Root cause: il seed
+   backend (`app/models/bevande_db.py`) definisce i campi form come `{"key": "nome", …}`
+   ma il FE leggeva `f.name` che era `undefined` — tutti i campi condividevano la
+   stessa chiave `undefined` nello state React.
+2. **Gap UI riordino sezioni**: il backend espone da sempre `POST /bevande/sezioni/reorder`
+   (batch `[{key, ordine}, …]`), ma non c'era UI per usarlo. Marco l'ha notato durante
+   il primo giro: "come 'ordini' le varie categorie? in impostazioni non vedo
+   l'ordinamento".
+3. **Bug 401 su anteprima/export**: cliccando "Anteprima sezione" il tab nuovo mostrava
+   "Not authenticated". `window.open(url)` non inoltra l'header `Authorization: Bearer`,
+   quindi ogni endpoint protetto da `Depends(get_current_user)` risponde 401. Stesso
+   problema latente sui bottoni PDF/PDF Staff/Word nell'header della shell.
+
+### Decisioni
+- **Fix form — FE side, retro-compat**: introdotto helper `fieldId(f) = f?.name ?? f?.key`
+  sia in `FormDinamico.jsx` sia in `CartaSezioneEditor.jsx`. Preferisce `name` (vecchio
+  convention, usato in alcuni schemi storici), cade su `key` (convention attuale del
+  seed). Zero migrazioni, zero rischio su dati esistenti, funziona per entrambi i naming.
+- **Riordino sezioni — frecce ↑↓ nella sidebar, admin/superadmin-only**: invece di un
+  pannello dedicato in Impostazioni, le frecce vivono esattamente dove servono. Pattern
+  identico al riordino voci dentro `CartaSezioneEditor` (bottoni ↑↓ che chiamano PATCH).
+  - Visibili solo se `role === "admin" || role === "superadmin"` (coerente con il check
+    standard del resto del FE).
+  - `moveSezione(index, direction)` swappa il vicino, rinumera tutto a 10/20/30/… per
+    avere spazio tra voci future, POST `/bevande/sezioni/reorder` con lista completa.
+  - Update **ottimistico** con rollback su errore (ripristina `prevSezioni`).
+  - Frecce disabilitate ai bordi (primo/ultimo). `stopPropagation` per non triggerare
+    il click che cambia pannello.
+- **Fix auth anteprima/export — nuovo helper `openAuthedInNewTab`**: creato
+  `frontend/src/utils/authFetch.js` con una funzione che (a) apre subito un tab
+  placeholder per bypassare i popup blocker, (b) fa fetch con `Authorization: Bearer`
+  sul token, (c) crea un blob URL e lo carica nel tab. Usato in `CartaSezioneEditor`
+  (anteprima sezione) e `CartaBevande` (PDF, PDF Staff, Word). Stesso pattern già
+  usato da `MagazzinoVini` per i PDF — ora centralizzato in un helper riusabile.
+
+### File modificati
+- `frontend/src/components/vini/carta/FormDinamico.jsx` — v1.1, helper `fieldId` ovunque.
+- `frontend/src/pages/vini/CartaSezioneEditor.jsx` — v1.2-panel, `validate()` +
+  `emptyFromSchema()` + `importColumns` ora usano `fieldId(f)`; anteprima sezione usa
+  `openAuthedInNewTab`.
+- `frontend/src/pages/vini/CartaBevande.jsx` — v2.2-shell, `moveSezione()` + frecce ↑↓
+  nella sidebar (admin-only), reorder batch con rollback ottimistico; PDF/PDF Staff/Word
+  usano `openAuthedInNewTab`.
+- `frontend/src/utils/authFetch.js` — NUOVO helper `openAuthedInNewTab(url, opts)` per
+  aprire endpoint auth-protetti in un nuovo tab (fetch + blob URL, bypass popup blocker).
+- `frontend/src/config/versions.jsx` — bump `vini` 3.12 → 3.13.
+- `docs/changelog.md` — questa entry.
+- `docs/sessione.md` — appunti sessione 50ter.
+
+### Test checklist (post push + Ctrl+Shift+R)
+- [ ] In `/vini/carta/aperitivi`, clic su "+ Nuova voce" → scrivere in "nome" NON popola
+      gli altri campi. Stesso test per altre 6 sezioni.
+- [ ] Frecce ↑↓ visibili in sidebar per admin/superadmin, NON visibili per altri ruoli.
+- [ ] Clic ↑ sulla seconda sezione → swap con la prima, toast verde, sidebar si riordina.
+- [ ] Clic ↓ sull'ultima → freccia disabilitata (niente azione).
+- [ ] Dopo reload (F5) l'ordine persiste (DB aggiornato).
+- [ ] Export PDF/HTML/Word rispetta il nuovo ordine sezioni.
+- [ ] "👁 Anteprima sezione" in una sezione (es. birre) → apre tab nuovo con l'HTML
+      della sezione, NON più "Not authenticated".
+- [ ] PDF / PDF Staff / Word nell'header shell → aprono correttamente (blob URL).
+
+---
+
 ## 2026-04-19 — Carta delle Bevande: shell con sidebar 8 sezioni (vini v3.12)
 
 ### Contesto

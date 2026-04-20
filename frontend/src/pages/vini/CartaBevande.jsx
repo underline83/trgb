@@ -1,4 +1,4 @@
-// @version: v2.0-shell — Shell unica con sidebar per le 8 sezioni della Carta delle Bevande
+// @version: v2.2-shell — Shell sidebar + riordino sezioni admin + fix auth export/anteprima
 // Layout sidebar a sinistra + pannello a destra (stesso pattern di SelezioniDelGiorno
 // e ViniImpostazioni). La sezione attiva e' presa da useParams(":sezione").
 //
@@ -8,10 +8,15 @@
 //
 // La sezione "Anteprima globale" resta una pagina a sé (/vini/carta/anteprima),
 // raggiungibile dal Btn in header.
+//
+// v2.1: admin/superadmin vedono frecce ↑↓ accanto a ogni sezione nella sidebar.
+// Swappa l'ordine tra i due vicini e chiama POST /bevande/sezioni/reorder
+// (batch: lista completa {key, ordine}). Update ottimistico + rollback su errore.
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { API_BASE } from "../../config/api";
+import { openAuthedInNewTab } from "../../utils/authFetch";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
@@ -41,6 +46,8 @@ export default function CartaBevande() {
   const [loading, setLoading] = useState(true);
 
   const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+  const isAdmin = role === "admin" || role === "superadmin";
 
   const loadSezioni = useCallback(async () => {
     setLoading(true);
@@ -63,6 +70,39 @@ export default function CartaBevande() {
     loadSezioni();
   }, [loadSezioni]);
 
+  // --- Riordino sezioni (solo admin): swap ordine con il vicino
+  const moveSezione = async (index, direction) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= sezioni.length) return;
+
+    // Swap ottimistico in state
+    const prevSezioni = sezioni;
+    const reordered = [...sezioni];
+    [reordered[index], reordered[newIndex]] = [reordered[newIndex], reordered[index]];
+    // Rinumero ordine 10,20,30,... per avere spazio tra le voci
+    const withOrder = reordered.map((s, i) => ({ ...s, ordine: (i + 1) * 10 }));
+    setSezioni(withOrder);
+
+    // Payload per il backend: lista completa {key, ordine}
+    const items = withOrder.map(s => ({ key: s.key, ordine: s.ordine }));
+    try {
+      const r = await fetch(`${API_BASE}/bevande/sezioni/reorder`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(items),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast("Ordine sezioni aggiornato", { kind: "success" });
+    } catch (e) {
+      console.error("[CartaBevande] moveSezione:", e);
+      toast("Errore nel riordino: ripristino lo stato precedente", { kind: "error" });
+      setSezioni(prevSezioni);
+    }
+  };
+
   // --- Routing: niente sezione → vai a "vini" (prima sezione di default)
   if (!sezione) {
     return <Navigate to="/vini/carta/vini" replace />;
@@ -74,9 +114,13 @@ export default function CartaBevande() {
   }
 
   const openAnteprima = () => navigate("/vini/carta/anteprima");
-  const downloadPdf = () => window.open(`${API_BASE}/bevande/carta/pdf`, "_blank");
-  const downloadPdfStaff = () => window.open(`${API_BASE}/bevande/carta/pdf-staff`, "_blank");
-  const downloadWord = () => window.open(`${API_BASE}/bevande/carta/docx`, "_blank");
+  const onExportErr = (err) => toast(`Errore export: ${err.message}`, { kind: "error" });
+  const downloadPdf = () =>
+    openAuthedInNewTab(`${API_BASE}/bevande/carta/pdf`, { onError: onExportErr });
+  const downloadPdfStaff = () =>
+    openAuthedInNewTab(`${API_BASE}/bevande/carta/pdf-staff`, { onError: onExportErr });
+  const downloadWord = () =>
+    openAuthedInNewTab(`${API_BASE}/bevande/carta/docx`, { onError: onExportErr });
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
@@ -134,40 +178,77 @@ export default function CartaBevande() {
                 Sezioni
               </h2>
               <nav className="space-y-0.5">
-                {sezioni.map(s => {
+                {sezioni.map((s, idx) => {
                   const style = SEZIONE_STYLE[s.key] || DEFAULT_STYLE;
                   const active = s.key === sezione;
                   const voci = s.voci_totale ?? 0;
                   const attive = s.voci_attive ?? 0;
+                  const isFirst = idx === 0;
+                  const isLast = idx === sezioni.length - 1;
                   return (
-                    <button
+                    <div
                       key={s.key}
-                      onClick={() => navigate(`/vini/carta/${s.key}`)}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition flex items-start gap-2.5 min-h-[44px] ${
+                      className={`flex items-stretch rounded-lg transition ${
                         active
                           ? `${style.active} shadow-sm`
-                          : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-800"
+                          : "text-neutral-600 hover:bg-neutral-100"
                       }`}
                     >
-                      <span className="text-base mt-0.5">{style.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium flex items-center gap-2">
-                          <span>{s.nome}</span>
-                          {!s.attivo && (
-                            <span className="text-[9px] uppercase font-bold bg-neutral-200 text-neutral-600 rounded-full px-1.5 py-0.5">
-                              off
-                            </span>
-                          )}
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/vini/carta/${s.key}`)}
+                        className="flex-1 text-left px-3 py-2.5 rounded-l-lg flex items-start gap-2.5 min-h-[44px]"
+                      >
+                        <span className="text-base mt-0.5">{style.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium flex items-center gap-2">
+                            <span>{s.nome}</span>
+                            {!s.attivo && (
+                              <span className="text-[9px] uppercase font-bold bg-neutral-200 text-neutral-600 rounded-full px-1.5 py-0.5">
+                                off
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-[11px] mt-0.5 leading-tight ${
+                            active ? "opacity-80" : "text-neutral-400"
+                          }`}>
+                            {s.key === "vini"
+                              ? "dinamica · da Cantina"
+                              : `${voci} voci · ${attive} attive`}
+                          </div>
                         </div>
-                        <div className={`text-[11px] mt-0.5 leading-tight ${
-                          active ? "opacity-80" : "text-neutral-400"
-                        }`}>
-                          {s.key === "vini"
-                            ? "dinamica · da Cantina"
-                            : `${voci} voci · ${attive} attive`}
+                      </button>
+                      {isAdmin && (
+                        <div className="flex flex-col justify-center pr-1 gap-0.5">
+                          <button
+                            type="button"
+                            disabled={isFirst}
+                            onClick={(e) => { e.stopPropagation(); moveSezione(idx, -1); }}
+                            title="Sposta su"
+                            className={`w-5 h-5 text-[10px] leading-none rounded flex items-center justify-center ${
+                              isFirst
+                                ? "opacity-20 cursor-not-allowed"
+                                : "hover:bg-white/60 active:bg-white/80"
+                            }`}
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isLast}
+                            onClick={(e) => { e.stopPropagation(); moveSezione(idx, +1); }}
+                            title="Sposta giù"
+                            className={`w-5 h-5 text-[10px] leading-none rounded flex items-center justify-center ${
+                              isLast
+                                ? "opacity-20 cursor-not-allowed"
+                                : "hover:bg-white/60 active:bg-white/80"
+                            }`}
+                          >
+                            ▼
+                          </button>
                         </div>
-                      </div>
-                    </button>
+                      )}
+                    </div>
                   );
                 })}
               </nav>
