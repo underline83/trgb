@@ -590,10 +590,9 @@ def update_vino_magazzino(
             campi_modificati[campo] = nuovo_val
             valori_prima[campo] = vecchio_val
 
-    db.update_vino(vino_id, data)
-    updated = db.get_vino_by_id(vino_id)
-
     utente = _get_username(current_user)
+    db.update_vino(vino_id, data, utente=utente, origine="GESTIONALE-EDIT")
+    updated = db.get_vino_by_id(vino_id)
 
     # Log MODIFICA per campi anagrafica
     if campi_modificati:
@@ -796,6 +795,42 @@ def conferma_arrivo_ordine_pending_endpoint(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     return {"status": "ok", **result}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: STORICO PREZZI (Fase 6, sessione 2026-04-20)
+# ---------------------------------------------------------
+_PREZZI_CAMPI_VALIDI = ("EURO_LISTINO", "PREZZO_CARTA", "PREZZO_CALICE", "SCONTO")
+
+
+@router.get(
+    "/{vino_id}/prezzi-storico/",
+    summary="Storico cambi prezzo di un vino (ordinato dal piu' recente)",
+)
+def list_prezzi_storico_endpoint(
+    vino_id: int,
+    campo: Optional[str] = None,
+    limit: int = 200,
+    current_user: Any = Depends(get_current_user),
+):
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    if campo and campo not in _PREZZI_CAMPI_VALIDI:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"campo non valido. Ammessi: {', '.join(_PREZZI_CAMPI_VALIDI)}",
+        )
+    if limit < 1 or limit > 1000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="limit deve essere tra 1 e 1000",
+        )
+    try:
+        rows = db.list_prezzi_storico(vino_id=vino_id, campo=campo, limit=limit)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"vino_id": vino_id, "count": len(rows), "items": rows}
 
 
 # ---------------------------------------------------------

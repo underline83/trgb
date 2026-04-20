@@ -36,6 +36,70 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+# ---------------------------------------------------------
+# STORICO PREZZI — helper privato (Fase 6, sessione 2026-04-20)
+# ---------------------------------------------------------
+# Campi prezzo tracciati nello storico. Se vuoi aggiungerne altri, aggiorna
+# ANCHE il CHECK constraint su vini_prezzi_storico.campo e la migrazione.
+_PREZZI_TRACCIATI = ("EURO_LISTINO", "PREZZO_CARTA", "PREZZO_CALICE", "SCONTO")
+
+
+def _num_or_none(val: Any) -> Optional[float]:
+    """Normalizza valore prezzo per confronto: None/'' → None, altrimenti float."""
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _log_prezzi_cambiati_conn(
+    cur: sqlite3.Cursor,
+    vino_id: int,
+    vecchi: Dict[str, Any],
+    nuovi: Dict[str, Any],
+    utente: Optional[str] = None,
+    origine: Optional[str] = None,
+    note: Optional[str] = None,
+) -> int:
+    """
+    Inserisce righe in vini_prezzi_storico per ogni campo prezzo cambiato.
+    Usa il cursor passato (stessa connessione/transazione del chiamante).
+    NON fa commit. Ritorna il numero di righe inserite.
+
+    - `vecchi`: dict con i valori PRIMA dell'UPDATE (chiave = nome campo).
+    - `nuovi`:  dict con i valori DOPO  l'UPDATE  (chiave = nome campo).
+    - Solo campi presenti in `nuovi` vengono confrontati.
+    - Delta < 0.01 considerato invariato (tolleranza arrotondamenti).
+    - Campi NULL → numerico considerati cambio; numerico → NULL pure.
+    """
+    now = _now_iso()
+    inserted = 0
+    for campo in _PREZZI_TRACCIATI:
+        if campo not in nuovi:
+            continue  # campo non toccato in questa UPDATE
+        v_prima = _num_or_none(vecchi.get(campo))
+        v_dopo = _num_or_none(nuovi.get(campo))
+        # Entrambi None → invariato
+        if v_prima is None and v_dopo is None:
+            continue
+        # Uno dei due None → cambio
+        if v_prima is None or v_dopo is None:
+            pass  # log
+        else:
+            if abs(v_dopo - v_prima) < 0.01:
+                continue  # tolleranza arrotondamenti
+        cur.execute(
+            """INSERT INTO vini_prezzi_storico
+               (vino_id, campo, valore_prima, valore_dopo, utente, origine, note, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);""",
+            (vino_id, campo, v_prima, v_dopo, utente, origine, note, now),
+        )
+        inserted += 1
+    return inserted
+
+
 def init_magazzino_database() -> None:
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -331,6 +395,37 @@ def init_magazzino_database() -> None:
         "ON vini_ordini_pending (vino_id);"
     )
 
+    # -----------------------------------------------------
+    # TABELLA 'vini_prezzi_storico'  (Widget Riordini — Fase 6, sessione 2026-04-20)
+    # Tracciamento storico dei cambi prezzo per ogni vino. Una riga per ogni
+    # variazione di EURO_LISTINO / PREZZO_CARTA / PREZZO_CALICE / SCONTO.
+    # Alimentata automaticamente da update_vino / bulk_update_vini /
+    # upsert_vino_from_carta quando il valore cambia davvero (>0.01 delta).
+    # Visibile in tab "Storico" del dettaglio vino (Fase 8).
+    # -----------------------------------------------------
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS vini_prezzi_storico (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            vino_id       INTEGER NOT NULL,
+            campo         TEXT NOT NULL CHECK (
+                              campo IN ('EURO_LISTINO','PREZZO_CARTA','PREZZO_CALICE','SCONTO')
+                          ),
+            valore_prima  REAL,
+            valore_dopo   REAL,
+            utente        TEXT,
+            origine       TEXT,
+            note          TEXT,
+            created_at    TEXT NOT NULL,
+            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+        );
+        """
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vps_vino_data "
+        "ON vini_prezzi_storico (vino_id, created_at DESC);"
+    )
+
     # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga) per tutti i vini con celle matrice
     vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
     if vino_ids_rows:
@@ -610,6 +705,21 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
 
     data.setdefault("ORIGINE", "EXCEL")
 
+    # --- Pre-lettura prezzi per storico (solo se vino esiste già con stesso id_excel) ---
+    conn.row_factory = sqlite3.Row
+    row_pre = cur.execute(
+        "SELECT id, PREZZO_CARTA, EURO_LISTINO, SCONTO "
+        "FROM vini_magazzino WHERE id_excel = ?;",
+        (data["id_excel"],),
+    ).fetchone()
+    vecchi_prezzi_carta: Dict[str, Any] = {}
+    if row_pre:
+        vecchi_prezzi_carta = {
+            "PREZZO_CARTA": row_pre["PREZZO_CARTA"],
+            "EURO_LISTINO": row_pre["EURO_LISTINO"],
+            "SCONTO": row_pre["SCONTO"],
+        }
+
     cur.execute(
         """
         INSERT INTO vini_magazzino (
@@ -671,7 +781,7 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         data,
     )
 
-    conn.commit()
+    # NB: commit rinviato dopo il log storico prezzi (così falliscono insieme o nulla)
 
     # Se è un INSERT nuova, lastrowid contiene l'id;
     # se è un UPDATE, lo recuperiamo con una SELECT.
@@ -684,22 +794,64 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         ).fetchone()
         vino_id = row["id"] if row else None
 
+    # --- Storico prezzi: solo se esisteva già un vino (cioè update, non insert) ---
+    if vino_id and vecchi_prezzi_carta:
+        nuovi_prezzi_carta = {
+            "PREZZO_CARTA": data.get("PREZZO_CARTA"),
+            "EURO_LISTINO": data.get("EURO_LISTINO"),
+            "SCONTO": data.get("SCONTO"),
+        }
+        try:
+            _log_prezzi_cambiati_conn(
+                cur, vino_id, vecchi_prezzi_carta, nuovi_prezzi_carta,
+                utente=None, origine="SYNC-CARTA", note=None,
+            )
+        except Exception:
+            pass
+
+    conn.commit()
     conn.close()
     return vino_id
 
 
-def update_vino(vino_id: int, data: Dict[str, Any]) -> None:
+def update_vino(
+    vino_id: int,
+    data: Dict[str, Any],
+    utente: Optional[str] = None,
+    origine: Optional[str] = None,
+    note: Optional[str] = None,
+) -> None:
     """
     Aggiorna i campi di un vino esistente (solo quelli passati in 'data').
+
+    Storico prezzi (Fase 6): se `data` contiene uno tra EURO_LISTINO /
+    PREZZO_CARTA / PREZZO_CALICE / SCONTO e il valore cambia effettivamente,
+    viene inserita una riga in `vini_prezzi_storico` (tolleranza 0.01).
+    `utente` e `origine` sono opzionali (default None): se il chiamante li
+    passa vengono loggati. Se nessun campo prezzo è in data, il log non parte.
     """
     if not data:
         return
 
     conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     data = dict(data)
     data["UPDATED_AT"] = _now_iso()
+
+    # --- Pre-lettura valori prezzo per storico (solo se almeno un campo prezzo in data) ---
+    vecchi_prezzi: Dict[str, Any] = {}
+    prezzi_in_data = [k for k in _PREZZI_TRACCIATI if k in data]
+    if prezzi_in_data:
+        cols_sql = ", ".join(prezzi_in_data)
+        row_prima = cur.execute(
+            f"SELECT {cols_sql} FROM vini_magazzino WHERE id = ?;",
+            (vino_id,),
+        ).fetchone()
+        if row_prima:
+            for c in prezzi_in_data:
+                vecchi_prezzi[c] = row_prima[c]
 
     set_parts = [f"{k} = ?" for k in data.keys()]
     values = list(data.values())
@@ -714,20 +866,43 @@ def update_vino(vino_id: int, data: Dict[str, Any]) -> None:
     if any(k in data for k in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3")):
         _recalc_qta_totale(conn, vino_id)
 
+    # --- Storico prezzi: log cambi se richiesto ---
+    if prezzi_in_data:
+        try:
+            _log_prezzi_cambiati_conn(
+                cur, vino_id, vecchi_prezzi, data,
+                utente=utente, origine=origine, note=note,
+            )
+        except Exception:
+            # Best-effort: se il log fallisce non rompere l'UPDATE principale
+            pass
+
     conn.commit()
     conn.close()
 
 
-def bulk_update_vini(updates: List[Dict[str, Any]]) -> int:
+def bulk_update_vini(
+    updates: List[Dict[str, Any]],
+    utente: Optional[str] = None,
+    origine: Optional[str] = None,
+    note: Optional[str] = None,
+) -> int:
     """
     Aggiorna più vini in un'unica transazione.
     Ogni elemento deve avere 'id' + i campi da aggiornare.
     Ritorna il numero di vini aggiornati.
+
+    Storico prezzi (Fase 6): per ogni vino, se vengono toccati
+    EURO_LISTINO / PREZZO_CARTA / PREZZO_CALICE / SCONTO e il valore cambia,
+    viene inserita una riga in `vini_prezzi_storico` (tolleranza 0.01).
+    `utente` e `origine` sono opzionali — il chiamante li passa se vuole
+    tracciarli (es. ricalcolo-tutti → origine="RICALCOLO-TUTTI").
     """
     if not updates:
         return 0
 
     conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     now = _now_iso()
     count = 0
@@ -740,6 +915,19 @@ def bulk_update_vini(updates: List[Dict[str, Any]]) -> int:
         data = {k: v for k, v in item.items() if k != "id"}
         if not data:
             continue
+
+        # --- Pre-lettura valori prezzo per storico ---
+        vecchi_prezzi: Dict[str, Any] = {}
+        prezzi_in_data = [k for k in _PREZZI_TRACCIATI if k in data]
+        if prezzi_in_data:
+            cols_sql = ", ".join(prezzi_in_data)
+            row_prima = cur.execute(
+                f"SELECT {cols_sql} FROM vini_magazzino WHERE id = ?;",
+                (vino_id,),
+            ).fetchone()
+            if row_prima:
+                for c in prezzi_in_data:
+                    vecchi_prezzi[c] = row_prima[c]
 
         data["UPDATED_AT"] = now
         set_parts = [f"{k} = ?" for k in data.keys()]
@@ -754,6 +942,16 @@ def bulk_update_vini(updates: List[Dict[str, Any]]) -> int:
 
         if any(k in data for k in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3")):
             recalc_ids.append(vino_id)
+
+        # --- Storico prezzi: log cambi se prezzi coinvolti ---
+        if prezzi_in_data:
+            try:
+                _log_prezzi_cambiati_conn(
+                    cur, vino_id, vecchi_prezzi, data,
+                    utente=utente, origine=origine, note=note,
+                )
+            except Exception:
+                pass
 
     for vid in recalc_ids:
         _recalc_qta_totale(conn, vid)
@@ -2303,3 +2501,44 @@ def conferma_arrivo_ordine_pending(
         "qta_totale_nuova": nuova_qta,
         "note_movimento": note_finale,
     }
+
+
+# ---------------------------------------------------------
+# STORICO PREZZI (Fase 6, sessione 2026-04-20)
+# ---------------------------------------------------------
+def list_prezzi_storico(
+    vino_id: int,
+    campo: Optional[str] = None,
+    limit: int = 200,
+) -> List[Dict[str, Any]]:
+    """
+    Ritorna lo storico prezzi di un vino, ordinato per data discendente (piu'
+    recente prima). Se `campo` e' specificato (es. 'PREZZO_CARTA'), filtra.
+
+    Ogni riga contiene: id, vino_id, campo, valore_prima, valore_dopo,
+    utente, origine, note, created_at.
+    """
+    if campo and campo not in _PREZZI_TRACCIATI:
+        raise ValueError(
+            f"campo non valido: {campo}. Consentiti: {', '.join(_PREZZI_TRACCIATI)}"
+        )
+    conn = get_magazzino_connection()
+    conn.row_factory = sqlite3.Row
+    try:
+        where = ["vino_id = ?"]
+        params: List[Any] = [vino_id]
+        if campo:
+            where.append("campo = ?")
+            params.append(campo)
+        params.append(int(limit))
+        sql = (
+            "SELECT id, vino_id, campo, valore_prima, valore_dopo, "
+            "utente, origine, note, created_at "
+            "FROM vini_prezzi_storico "
+            "WHERE " + " AND ".join(where) + " "
+            "ORDER BY created_at DESC, id DESC LIMIT ?;"
+        )
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

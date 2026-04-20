@@ -100,6 +100,108 @@ Dry-run su DB locale: 28 buste → 27 OK + 1 riparata (Iryna marzo);
 
 ---
 
+## 2026-04-20 — Vini v3.19: Widget riordini Fase 6 — storico prezzi (BE-only, tabella + hook automatici + endpoint)
+
+### Contesto
+Fase 6/8 del refactor widget "📦 Riordini per fornitore" (piano in
+`docs/modulo_vini_riordini.md`). Fase backend-only: prepara il terreno
+per la tab "Storico" del dettaglio vino (Fase 8) e per il listino
+inline edit (Fase 7). Ogni volta che un prezzo (EURO_LISTINO,
+PREZZO_CARTA, PREZZO_CALICE, SCONTO) cambia su un vino, viene loggato
+automaticamente in una tabella dedicata. Nessun cambio UI in questa fase.
+
+### Cosa cambia sotto il cofano
+- Nuova tabella `vini_prezzi_storico` in `vini_magazzino.sqlite3`:
+  `id, vino_id, campo, valore_prima, valore_dopo, utente, origine, note, created_at`.
+  CHECK constraint su `campo` (solo i 4 prezzi tracciati). Indice
+  `idx_vps_vino_data (vino_id, created_at DESC)` per query rapide.
+  Creata in `init_magazzino_database()` con `CREATE TABLE IF NOT EXISTS`
+  (idempotente). `FOREIGN KEY ON DELETE CASCADE`: se un vino viene
+  eliminato, lo storico prezzi lo segue.
+
+### Hook automatici (trasparenti ai chiamanti esistenti)
+Tutti e tre i punti di mutazione prezzo ora loggano:
+- `update_vino(vino_id, data, utente=None, origine=None, note=None)`:
+  prima dell'UPDATE legge i valori PREZZO_*, dopo chiama
+  `_log_prezzi_cambiati_conn`. Parametri `utente/origine/note` opzionali
+  (retro-compatibile con chiamanti che passano solo `data`).
+- `bulk_update_vini(updates, utente=None, origine=None, note=None)`:
+  stesso pattern in loop, una riga di log per ogni vino con prezzo
+  cambiato.
+- `upsert_vino_from_carta(data)`: se il vino esiste già (SELECT su
+  `id_excel`), confronta PREZZO_CARTA / EURO_LISTINO / SCONTO pre e
+  post; logga con `origine="SYNC-CARTA"`. Sul primo INSERT niente log
+  (non è un cambio, è una creazione).
+
+### Regole del log
+- Tolleranza 0.01: delta sotto questa soglia NON logga (evita rumore
+  su arrotondamenti).
+- None → numero o numero → None: loggato (cambio vero).
+- Campo non presente in `data`: mai loggato.
+- Campo non prezzo (es. NOTE, DESCRIZIONE): mai logga lo storico
+  prezzi.
+- Se il log fallisce per qualsiasi motivo, l'UPDATE principale va
+  comunque a buon fine (best-effort, try/except con `pass`).
+
+### Origini già cablate
+- `GESTIONALE-EDIT` — PATCH `/vini/magazzino/{id}` (router passa
+  `utente` + `origine`)
+- `SYNC-CARTA` — upsert dalla carta vini Excel (senza utente)
+- `BULK-UPDATE` — chiamate future da ricalcolo tutti / calici (router
+  pricing: andrà passato esplicitamente quando serve)
+
+### Nuovo endpoint
+`GET /vini/magazzino/{vino_id}/prezzi-storico/?campo=&limit=200`
+- Auth: qualsiasi utente loggato (solo lettura)
+- Filtri: `campo` opzionale (enum dei 4 prezzi), `limit` 1..1000
+- Errori: 404 vino inesistente, 400 campo non valido / limit fuori range
+- Risposta: `{"vino_id": int, "count": int, "items": [...]}` con items
+  ordinati per `created_at DESC, id DESC` (più recente prima).
+
+### Smoke test (12 casi, copia DB)
+Passati tutti: tabella creata + schema + indice, update singolo logga,
+update identico non logga, tolleranza 0.01, update campo non-prezzo
+non logga, multi-campo (EURO_LISTINO + SCONTO) logga 2 righe,
+bulk_update logga per ogni vino, list ordinamento DESC corretto,
+filtro campo, campo invalido respinto con ValueError.
+
+### Frontend
+Nessun cambio. Fase 7 (listino inline edit nel widget) e Fase 8
+(tab "Storico" in SchedaVino) useranno questo storico.
+
+### Come verificare lato UI (dev console)
+```js
+fetch(`${API_BASE}/vini/magazzino/12/prezzi-storico/`, {
+  headers: { Authorization: `Bearer ${token}` }
+}).then(r => r.json()).then(console.log)
+```
+Modificando un prezzo da UI e rifacendo la GET → compare la nuova riga
+in cima con `utente`, `origine`, valore prima/dopo.
+
+### Files toccati
+- `app/models/vini_magazzino_db.py` (+138 -18)
+  - Nuova tabella `vini_prezzi_storico` nell'init
+  - Helper privato `_log_prezzi_cambiati_conn` + `_num_or_none` +
+    costante `_PREZZI_TRACCIATI`
+  - `update_vino`: firma estesa, pre-read prezzi, log post-UPDATE
+  - `bulk_update_vini`: firma estesa, stesso pattern in loop
+  - `upsert_vino_from_carta`: pre-read + log con origine `SYNC-CARTA`,
+    commit rinviato per coerenza
+  - Nuova `list_prezzi_storico(vino_id, campo?, limit=200)`
+- `app/routers/vini_magazzino_router.py` (+39)
+  - Costante `_PREZZI_CAMPI_VALIDI`
+  - Nuovo endpoint `GET /{vino_id}/prezzi-storico/`
+  - PATCH: ora passa `utente` e `origine="GESTIONALE-EDIT"` a
+    `update_vino` (utente era già calcolato ma dopo l'UPDATE; ora
+    spostato prima)
+- `frontend/src/config/versions.jsx`: vini 3.18 → 3.19
+- `docs/changelog.md`: questa entry
+
+### Push
+`./push.sh "Vini v3.19: widget riordini Fase 6 — storico prezzi BE (tabella + hook update_vino/bulk/upsert + endpoint GET)"`
+
+---
+
 ## 2026-04-20 — Vini v3.18: Widget riordini Fase 5 — conferma arrivo merce (CARICO atomico)
 
 ### Contesto
