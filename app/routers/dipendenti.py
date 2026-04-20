@@ -1346,8 +1346,16 @@ def crea_busta_paga(
 
 
 def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
-    """Genera una riga in cg_uscite (foodcost.db) per lo stipendio netto."""
+    """Genera una riga in cg_uscite (foodcost.db) per lo stipendio netto.
+
+    Eventuali errori vengono loggati esplicitamente (prima era silent failure:
+    si tornava None senza spiegazione, con il risultato che la busta paga
+    veniva salvata ma l'uscita nello scadenzario CG NON veniva creata e
+    nessuno se ne accorgeva — vedi bug "Iryna marzo 2026" aprile 2026).
+    """
     import sqlite3 as _sqlite3
+    import logging as _logging
+    _log = _logging.getLogger("trgb")
 
     FOODCOST_DB = "app/data/foodcost.db"
 
@@ -1357,6 +1365,12 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
         [payload["dipendente_id"]]
     ).fetchone()
     if not dip:
+        _log.error(
+            "generazione scadenza stipendio saltata: dipendente id=%s non trovato "
+            "(bp_id=%s mese=%s anno=%s)",
+            payload.get("dipendente_id"), bp_id,
+            payload.get("mese"), payload.get("anno"),
+        )
         return None
 
     giorno = dip["giorno_paga"] or 15
@@ -1421,6 +1435,131 @@ def _genera_scadenza_stipendio(conn_dip, bp_id, payload):
         return uscita_id
     finally:
         fc_conn.close()
+
+
+@router.get("/buste-paga/scadenze-mancanti")
+def scadenze_stipendio_mancanti(
+    anno: Optional[int] = None,
+    mese: Optional[int] = None,
+    current_user=Depends(get_current_user),
+):
+    """
+    Elenca le buste paga che NON hanno una scadenza collegata nello
+    scadenzario CG (cg_uscite). Usato per diagnosticare casi come "lo
+    stipendio di X non compare nel scadenzario" (bug Iryna marzo 2026).
+
+    Una busta paga e' "orfana" se:
+    - `uscita_netto_id IS NULL` (non e' mai stata generata l'uscita), OPPURE
+    - `uscita_netto_id` punta a un id che non esiste piu' in cg_uscite
+      (uscita cancellata manualmente).
+    """
+    import sqlite3 as _sqlite3
+    FOODCOST_DB = "app/data/foodcost.db"
+
+    conn = get_dipendenti_conn()
+    query = """
+        SELECT bp.id, bp.dipendente_id, bp.mese, bp.anno, bp.netto,
+               bp.uscita_netto_id, bp.note, bp.fonte,
+               d.nome, d.cognome, d.giorno_paga, d.attivo
+        FROM buste_paga bp
+        JOIN dipendenti d ON d.id = bp.dipendente_id
+        WHERE 1=1
+    """
+    params = []
+    if anno:
+        query += " AND bp.anno = ?"
+        params.append(anno)
+    if mese:
+        query += " AND bp.mese = ?"
+        params.append(mese)
+    query += " ORDER BY bp.anno DESC, bp.mese DESC, d.cognome ASC"
+
+    tutte = conn.execute(query, params).fetchall()
+    conn.close()
+
+    # Quali uscite esistono davvero?
+    ids_uscita = [r["uscita_netto_id"] for r in tutte if r["uscita_netto_id"]]
+    esistenti = set()
+    if ids_uscita:
+        fc = _sqlite3.connect(FOODCOST_DB)
+        try:
+            placeholders = ",".join("?" * len(ids_uscita))
+            rows = fc.execute(
+                f"SELECT id FROM cg_uscite WHERE id IN ({placeholders})",
+                ids_uscita,
+            ).fetchall()
+            esistenti = {r[0] for r in rows}
+        finally:
+            fc.close()
+
+    mancanti = []
+    for r in tutte:
+        r = dict(r)
+        manca_perche = None
+        if r["uscita_netto_id"] is None:
+            manca_perche = "mai_generata"
+        elif r["uscita_netto_id"] not in esistenti:
+            manca_perche = "uscita_cancellata"
+        if manca_perche:
+            r["manca_perche"] = manca_perche
+            r["mese_label"] = MESI_IT[r["mese"]] if 1 <= r["mese"] <= 12 else str(r["mese"])
+            mancanti.append(r)
+
+    return {
+        "ok": True,
+        "count": len(mancanti),
+        "buste_paga": mancanti,
+    }
+
+
+@router.post("/buste-paga/{bp_id}/rigenera-scadenza")
+def rigenera_scadenza_busta_paga(
+    bp_id: int,
+    current_user=Depends(get_current_user),
+):
+    """
+    Rigenera la scadenza nello scadenzario CG per una busta paga.
+    Usa la stessa logica di `_genera_scadenza_stipendio` (che fa upsert
+    su fornitore_nome + data_scadenza).
+
+    Response: { ok, uscita_id, data_scadenza }
+    """
+    conn = get_dipendenti_conn()
+    try:
+        bp = conn.execute(
+            "SELECT id, dipendente_id, mese, anno, netto FROM buste_paga WHERE id = ?",
+            [bp_id],
+        ).fetchone()
+        if not bp:
+            raise HTTPException(404, "Busta paga non trovata")
+        bp = dict(bp)
+        if bp["netto"] is None:
+            raise HTTPException(400, "Busta paga senza netto: impossibile generare scadenza")
+
+        uscita_id = _genera_scadenza_stipendio(conn, bp["id"], {
+            "dipendente_id": bp["dipendente_id"],
+            "mese": bp["mese"],
+            "anno": bp["anno"],
+            "netto": bp["netto"],
+        })
+        if not uscita_id:
+            raise HTTPException(500, "Generazione scadenza fallita (vedi log)")
+
+        # Rileggi data_scadenza per il response
+        import sqlite3 as _sqlite3
+        fc = _sqlite3.connect("app/data/foodcost.db")
+        try:
+            row = fc.execute(
+                "SELECT data_scadenza FROM cg_uscite WHERE id = ?",
+                [uscita_id],
+            ).fetchone()
+            data_scad = row[0] if row else None
+        finally:
+            fc.close()
+
+        return {"ok": True, "uscita_id": uscita_id, "data_scadenza": data_scad}
+    finally:
+        conn.close()
 
 
 @router.delete("/buste-paga/{bp_id}")

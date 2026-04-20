@@ -3,6 +3,72 @@
 
 ---
 
+## 2026-04-20 — Dipendenti v2.28: repair scadenze stipendio orfane + cleanup proforme + diagnostica
+
+### Causa reale (verificata su DB)
+La busta paga di Iryna marzo 2026 (bp_id=23, netto 1800€, fonte PDF) era
+correttamente importata e collegata a `uscita_netto_id=2089`, ma l'uscita
+`cg_uscite.id=2089` era stata cancellata (probabilmente da un flusso
+automatico, non da UI — Marco non ha endpoint di delete su stipendi).
+
+Audit completo su `cg_uscite` (2036 righe, progressivo 1..2143, 107
+id mancanti):
+- **Iryna marzo 2026** → unico dato realmente perso (riparato).
+- **Blocco 2097-2101** (5 proforme riconciliate 16/04 — LARA ABRATI ×3,
+  RISERVA SAN MASSIMO, PIZZO COCA): NON dati persi. Il flusso di
+  riconciliazione proforma→fattura cancella l'uscita provvisoria e crea
+  quella definitiva, ma dimentica di aggiornare `fe_proforme.cg_uscita_id`.
+  Tutti gli importi sono correttamente contabilizzati nelle rispettive
+  uscite FATTURA (id 2116, 2117, 72, 2120, 2119, tutte PAGATA).
+- **Blocco 1761-1800** (40), **1995-1998** (4), **2008-2009** (2):
+  artefatti di rebuild rateizzazioni Prestito BPM 1/2 del 31/03 e 04/04.
+  Uscite rigenerate sopra con nuovi id, nessuna FK morta.
+- **14 singoli + 21 coppie** (124-125, 182-183, …): pattern regolare
+  tipico di stipendi (lordo+netto) cancellati durante reimport cedolini;
+  tutte le buste_paga attuali collegate a uscite valide (verificato).
+
+### Migrazione 096 — repair one-shot
+`app/migrations/096_repair_scadenze_stipendio_orfane.py`:
+per ogni busta_paga con `uscita_netto_id IS NULL` o puntatore a
+`cg_uscite` inesistente, rigenera l'uscita e ricollega la busta.
+Logica identica a `_genera_scadenza_stipendio`:
+- data_scadenza = `giorno_paga` dipendente del mese N+1
+  (Iryna ha `giorno_paga=27` → 2026-04-27, allineato a gen/feb);
+- upsert su `fornitore_nome + data_scadenza + tipo='STIPENDIO'`;
+- stato `DA_PAGARE` (Marco la marca pagata in UI se gia' saldata).
+
+Idempotente: rilanciabile senza effetti; se tutto e' collegato, no-op.
+
+Include anche cleanup link stantii in `fe_proforme.cg_uscita_id`: per
+ogni proforma RICONCILIATA con puntatore morto, cerca l'uscita FATTURA
+effettiva (match su fornitore + numero_fattura + importo) e rilinka.
+
+Dry-run su DB locale: 28 buste → 27 OK + 1 riparata (Iryna marzo);
+5 proforme con link morto → 5 rilinkate, 0 orfane.
+
+### Protezione futura — diagnostica/repair runtime
+
+1. **Log esplicito** in `_genera_scadenza_stipendio` (prima: silent
+   `return None` se dipendente non trovato → busta salvata, scadenza
+   saltata, nessuna traccia). Ora logga un `error` con bp_id/mese/anno.
+2. **Endpoint diagnostico** `GET /buste-paga/scadenze-mancanti?anno=&mese=`:
+   elenca tutte le buste_paga prive di uscita valida in `cg_uscite` (sia
+   `uscita_netto_id NULL` sia uscita cancellata a valle), con dettagli
+   dipendente, per spot-check in UI futura.
+3. **Endpoint repair** `POST /buste-paga/{bp_id}/rigenera-scadenza`:
+   rilancia `_genera_scadenza_stipendio` su una busta esistente; ritorna
+   `{ok, uscita_id, data_scadenza}`. Utile quando succede di nuovo senza
+   dover rilanciare una migrazione.
+
+### File toccati
+- `app/migrations/096_repair_scadenze_stipendio_orfane.py` (nuovo, repair)
+- `app/routers/dipendenti.py`:
+  - `_genera_scadenza_stipendio` → log errore invece di silent return
+  - 2 nuovi endpoint diagnostica + repair
+- `frontend/src/config/versions.jsx`: `dipendenti` 2.27 → **2.28**
+
+---
+
 ## 2026-04-20 — Vini: Widget riordini Fase 3 — schema + endpoint ordini pending (BE-only)
 
 ### Contesto
