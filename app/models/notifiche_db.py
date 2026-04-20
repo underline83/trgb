@@ -1,4 +1,4 @@
-# @version: v1.0-notifiche-db
+# @version: v1.1-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Notifiche — TRGB Gestionale (mattone M.A)
@@ -22,8 +22,13 @@ DB_PATH = DATA_DIR / "notifiche.sqlite3"
 
 
 def get_notifiche_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    # Fix 1.11 (sessione 51) — WAL + synchronous NORMAL per prevenire corruzioni
+    # dello sqlite_master sotto SIGTERM mid-write (incidenti 2026-04-20).
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 

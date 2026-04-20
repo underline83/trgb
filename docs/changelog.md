@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-04-21 — Fix 1.11: WAL mode + .gitignore `-wal`/`-shm` (post-mortem corruzioni sessione 51)
+
+### Contesto
+Il 20/04/2026 sera, durante la sessione 51, si sono verificati **tre incidenti
+consecutivi** di corruzione `malformed database schema` su `vini_magazzino.sqlite3`,
+tutti risolti con `.dump` + restore ma con causa radice sconosciuta.
+
+### Causa radice — trovata il 21/04/2026 alle 00:55 CEST
+Il DB vini girava in **rollback journal (DELETE mode)**, mentre `foodcost.db` era in
+WAL. Quando il backend usava il DB in WAL dopo recovery, **i file `-wal` e `-shm`
+NON erano coperti da `.gitignore`**: il `.gitignore` aveva `app/data/*.db-wal` e
+`app/data/*.db-shm` (quindi foodcost era protetto), ma **mancava** `app/data/*.sqlite3-wal`
+e `app/data/*.sqlite3-shm`.
+
+A ogni `push.sh`, il `post-receive` hook VPS eseguiva `git clean -fd` → cancellava
+i file `-wal`/`-shm` dei DB `.sqlite3` in WAL → `systemctl restart trgb-backend`
+→ SQLite riapriva il DB senza il WAL contenente le transazioni recenti → sqlite_master
+corrotto. Combo letale: **WAL + `git clean -fd` + gap in .gitignore**.
+
+Match perfetto con i log deploy: tutti e 3 gli incidenti coincidono al minuto con
+un `deploy OK` (22:29, 22:51, 23:13 del 20/04).
+
+### Fix
+- **`.gitignore`**: aggiunte `app/data/*.sqlite3-wal` e `app/data/*.sqlite3-shm`.
+- **`app/models/vini_magazzino_db.py`** (v1.6-wal-protected): `get_magazzino_connection()`
+  ora setta `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`.
+- **`app/models/foodcost_db.py`**: aggiunto `PRAGMA synchronous=NORMAL` (WAL gia' presente).
+- **`app/models/notifiche_db.py`** (v1.1-wal-protected): aggiunti WAL + synchronous + busy_timeout.
+
+### Impatto e migrazione
+Al primo restart dopo il push, i DB vini + notifiche passano automaticamente in
+WAL mode (persistito nell'header del file). Da quel momento:
+- scritture resistono a SIGTERM mid-write (via `-wal`/`-shm` ora gitignored)
+- concorrenza lettori/scrittori migliorata
+- rischio corruzione via `git clean -fd` azzerato
+
+### Follow-up aperto
+Altri DB senza WAL esplicito (bevande, clienti, tasks, settings, dipendenti,
+admin_finance, core/database.py). Copertura in giro successivo (1.11.2).
+
+---
+
 ## 2026-04-20 — Vini v3.21: SchedaVino Fase 8 — sezione "Storico prezzi"
 
 ### Contesto

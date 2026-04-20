@@ -1,12 +1,79 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-20 (sessione 51 — Vini v3.20 Fase 7 + v3.21 Fase 8 widget riordini + DOPPIO recovery SQLite + passaggio a WAL)
+**Ultimo aggiornamento:** 2026-04-21 (sessione 51 cont. — post-mortem corruzioni SQLite: **causa radice trovata**, fix 1.11 applicato)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
 ---
 
-## SESSIONE 51 — Vini v3.20 Fase 7 + v3.21 Fase 8 + doppio recovery SQLite + WAL ✅ (testato OK)
+## SESSIONE 51 cont. (2026-04-21 00:55) — POST-MORTEM CORRUZIONI: causa radice trovata + fix 1.11 applicato
+
+### Contesto
+La sessione 51 (20/04) si era chiusa con due recovery SQLite e passaggio manuale a WAL.
+Durante l'aggiornamento docs post-sessione ho fatto il terzo push della serata (23:13).
+Al mio rientro per check log (21/04 ~00:30), il backend era in **crash loop da ~2h**
+con la stessa corruzione (restart counter 646). Terzo incidente dello stesso tipo.
+
+### Causa radice (trovata dopo il terzo recovery)
+**Bug nel `.gitignore`.** Il file aveva:
+```
+app/data/*.db-wal    ← protegge foodcost
+app/data/*.db-shm    ← protegge foodcost
+app/data/*.sqlite3   ← vini, notifiche, clienti, ecc.
+# MANCAVA: app/data/*.sqlite3-wal
+# MANCAVA: app/data/*.sqlite3-shm
+```
+
+Flusso corruzione a ogni push:
+1. DB in WAL → nascono `vini_magazzino.sqlite3-wal` e `-shm`
+2. `push.sh` → post-receive VPS → **`git clean -fd`** → cancella i due file non gitignored
+3. `systemctl restart trgb-backend` → SQLite riapre senza WAL → sqlite_master corrotto
+
+Match perfetto log deploy: 22:29, 22:51, 23:13 (+ 23:16) = push = corruzioni.
+Foodcost salvo perché i suoi `-wal`/`-shm` erano gia' gitignored.
+
+### Fix 1.11 applicato (commit successivo a questo doc)
+1. **`.gitignore`**: aggiunte `app/data/*.sqlite3-wal` e `*.sqlite3-shm` con commento storico.
+2. **`app/models/vini_magazzino_db.py`** → v1.6-wal-protected: `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000` in `get_magazzino_connection()`.
+3. **`app/models/notifiche_db.py`** → v1.1-wal-protected: stessi 3 PRAGMA.
+4. **`app/models/foodcost_db.py`**: aggiunto `synchronous=NORMAL` (WAL gia' presente).
+
+### Recovery #3 (00:32)
+- Preservato corrotto attuale come `CORROTTO-3-003238.sqlite3`
+- `.dump` da `BACKUP-20260420-223719.sqlite3` → 647KB pulito
+- `PRAGMA journal_mode=WAL; synchronous=NORMAL; VACUUM;`
+- COUNT 1261 vini ✅, integrity ok ✅, swap + restart ok
+- Backend `active (running)` alle 00:32:47, endpoint HTTP 200/401 ✅
+
+### Deliverable pronto per push (atomico, critico)
+- `.gitignore` (2 righe + commento)
+- `app/models/vini_magazzino_db.py` (v1.6)
+- `app/models/foodcost_db.py`
+- `app/models/notifiche_db.py` (v1.1)
+- `docs/changelog.md` (entry post-mortem)
+- `docs/problemi.md` (S51-1 ora con causa radice)
+- `docs/roadmap.md` (1.11 ✅, 1.11.2 nuovo, 1.12 downgrade priorita')
+- `docs/sessione.md` (questa sezione)
+
+### Follow-up aperti
+- **1.11.2** coprire con WAL anche: `bevande`, `clienti`, `tasks`, `settings`, `dipendenti`, `admin_finance`, `core/database.py`
+- **1.12** `push.sh` debounce anti-doppio-push (priorità ora media, il bug principale è risolto)
+- **1.13** cleanup backup forensi quando stabile: ora ci sono anche `CORROTTO-3-*` e `FORENSE-2251`
+
+### Comando push (atomico)
+```
+./push.sh "fix 1.11: WAL + .gitignore -wal/-shm — risolve corruzioni SQLite sessione 51 (post-mortem)"
+```
+
+⚠️ **ATTENZIONE AL PRIMO PUSH DOPO QUESTO FIX**: verificare che il backend torni UP
+con `systemctl status trgb-backend` e `curl https://trgb.tregobbi.it/`. Se il DB è gia'
+in WAL (lo è: abbiamo fatto recovery #3), il push NON dovrebbe corrompere, perché:
+- Le nuove righe `.gitignore` escludono `-wal`/`-shm` da `git clean -fd`
+- Il codice PRAGMA assicura che anche un DB ricreato da zero parta in WAL
+
+---
+
+## SESSIONE 51 — Vini v3.20 Fase 7 + v3.21 Fase 8 + TRIPLO recovery SQLite + WAL ✅ (testato OK)
 
 Serata lunga: completate le ultime due fasi del refactor widget "📦 Riordini per fornitore" (v3.20 Fase 7 listino inline, v3.21 Fase 8 storico prezzi in SchedaVino), intervallate da **due crash del backend per corruzione di `sqlite_master`** su `vini_magazzino.sqlite3`. Entrambe recuperate col pattern dump+restore documentato nella memoria `feedback_sqlite_corruption_recovery.md`.
 

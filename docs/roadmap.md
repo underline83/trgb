@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-20 (sessione 51 — chiusura refactor widget riordini vini + follow-up infrastrutturali SQLite)
+**Ultimo aggiornamento:** 2026-04-21 (sessione 51 cont. — post-mortem corruzioni SQLite: trovata causa radice `.gitignore` + fix WAL)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -24,9 +24,10 @@
 | 1.8 | Notifiche push browser (scadenze, prenotazioni, backup) | M | DA FARE | Web Push API, Safari 16.4+ |
 | 1.9 | Health check endpoint + uptime monitor | S | DA FARE | /health + UptimeRobot/Betterstack gratis |
 | 1.10 | Aggiornamento automatico frontend (banner nuova versione) | S | DA FARE | Polling BUILD_VERSION ogni 5 min |
-| 1.11 | WAL mode in init_*_database() per tutti i DB SQLite | S | DA FARE | **Priorità alta**. Sessione 51: doppio crash `malformed database schema` su `vini_magazzino.sqlite3` per SIGTERM mid-write senza WAL. VPS ora manualmente in WAL, ma se il file viene ricreato da zero riparte in DELETE. Aggiungere `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;` in `init_magazzino_database()` (`app/models/vini_magazzino_db.py`) + `foodcost.db` init + `notifiche.sqlite3` init + eventuali altri init_*_database(). |
-| 1.12 | push.sh: debounce anti-doppio-push | S | DA FARE | **Priorità alta**. Sessione 51: secondo `./push.sh` lanciato a 5 min dal primo ha mandato SIGTERM al backend mid-write → corruzione SQLite. Fix: in `push.sh` controllare `mtime` dell'ultimo push (es. timestamp in `.last_push`) e bloccare con messaggio se < 30s. Opzionale: controllo anche `systemctl is-active trgb-backend` prima di pushare. |
-| 1.13 | Pulizia backup forensi vini_magazzino | S | DA FARE | Sessione 51: in `/home/marco/trgb/trgb/app/data/` restano `CORROTTO-20260420-224312`, `CORROTTO-2.20260420-230727`, `FORENSE-2251`, `BACKUP-20260420-223719`. Tra 1-2 giorni di uptime stabile tenere solo `CORROTTO-2.20260420-230727` come referto e rimuovere gli altri. |
+| 1.11 | WAL mode in init_*_database() per `vini_magazzino`, `foodcost`, `notifiche` + fix `.gitignore` `-wal`/`-shm` | S | ✅ FATTO 2026-04-21 | **Causa radice trovata.** Mancavano `app/data/*.sqlite3-wal` e `*.sqlite3-shm` nel `.gitignore` → `git clean -fd` del post-receive VPS cancellava WAL → corruzione al restart. Fix: `.gitignore` aggiornato + `PRAGMA journal_mode=WAL; synchronous=NORMAL; busy_timeout=30000;` in `get_magazzino_connection()`, `get_foodcost_connection()`, `get_notifiche_conn()`. |
+| 1.11.2 | Coprire con WAL gli altri DB SQLite | S | DA FARE | `bevande.sqlite3`, `clienti.sqlite3`, `tasks.sqlite3`, `settings.sqlite3`, `dipendenti.sqlite3`, `admin_finance.sqlite3`, `core/database.py`. Stessi 3 PRAGMA in ogni `get_*_connection()`. Low-risk, pattern identico al fix 1.11. |
+| 1.12 | push.sh: debounce anti-doppio-push | S | DA FARE | **Priorità media** (dopo fix 1.11 il rischio è molto più basso). Sessione 51: 3 push consecutivi hanno corrotto il DB 3 volte. Con 1.11 + gitignore fix il problema è risolto, ma un debounce < 30s previene comunque SIGTERM ravvicinati durante startup. Fix: in `push.sh` timestamp in `.last_push` e blocco se troppo recente. |
+| 1.13 | Pulizia backup forensi vini_magazzino | S | DA FARE | Sessione 51: in `/home/marco/trgb/trgb/app/data/` restano `CORROTTO-20260420-224312`, `CORROTTO-2.20260420-230727`, `CORROTTO-3-*`, `FORENSE-2251`, `BACKUP-20260420-223719`. Tra 1-2 giorni di uptime stabile tenere solo un CORROTTO come referto e rimuovere gli altri. |
 
 ---
 
@@ -201,12 +202,14 @@
 
 ---
 
-## Completati — Sessione 51 (2026-04-20)
+## Completati — Sessione 51 (2026-04-20/21)
 
 | Cosa | Note |
 |------|------|
 | **Refactor widget "📦 Riordini per fornitore"** — Fase 7 + Fase 8 (chiusura 8/8 fasi) | v3.20: colonna Listino editabile inline in DashboardVini (pattern identico a Prezzo Carta di Fase 5). v3.21: sezione "Storico prezzi" in SchedaVino (`v1.3-riordini-fase8`) con filtro pill (listino/acquisto/ricarico/tutti), tabella Data/Campo/Prima/Dopo/Δ/Origine/Utente/Note, Δ colorato ▲red/▼green (tolleranza 0.005). Endpoint `/vini/magazzino/{id}/prezzi-storico/` già esistente da Fase 6. Refresh storico automatico dopo ogni `saveEdit()`. Tutti gli 8 step del refactor ora in produzione. |
-| **Recovery doppio corruzione SQLite `vini_magazzino.sqlite3`** | Due crash consecutivi per `malformed database schema` durante la sessione. #1 (duplicati in sqlite_master) recuperato con `.dump \| sqlite3 NEW`. #2 (entry NULL in sqlite_master) dopo doppio push ravvicinato che ha mandato SIGTERM mid-write: `.recover` produce DB privo di `vini_magazzino`, `.dump` da BACKUP-223719 recupera il file pulito (647KB, 1261 vini, integrity ok). Swap + **passaggio a WAL mode** (`journal_mode=WAL`, `synchronous=NORMAL`) per prevenire SIGTERM-corruption futuri. Pattern documentato in memoria `feedback_sqlite_corruption_recovery.md`. Follow-up in roadmap 1.11 (WAL nel codice), 1.12 (debounce push.sh), 1.13 (cleanup backup forensi). |
+| **Recovery TRIPLO corruzione SQLite `vini_magazzino.sqlite3`** | Tre crash consecutivi per `malformed database schema` durante la sessione (22:29, 22:51, 23:13). Tutti recuperati con `.dump \| sqlite3 NEW` da `BACKUP-20260420-223719.sqlite3` (647KB, 1261 vini, integrity ok ogni volta). |
+| **Post-mortem: causa radice delle 3 corruzioni** (2026-04-21 00:55) | **Bug sistemico trovato.** Il `.gitignore` copriva `app/data/*.db-wal`/`-shm` (foodcost) ma NON `app/data/*.sqlite3-wal`/`-shm` (vini, notifiche, ecc.). Ad ogni push, il post-receive VPS eseguiva `git clean -fd` → cancellava i file `-wal`/`-shm` del DB vini → `systemctl restart trgb-backend` → sqlite_master corrotto. Match perfetto con deploy.log (3 push = 3 corruzioni). Foodcost mai corrotto perché i suoi `-wal`/`-shm` erano gia' gitignored. |
+| **Fix 1.11 applicato** | 1) `.gitignore`: aggiunte `app/data/*.sqlite3-wal` e `*.sqlite3-shm` con commento storico. 2) `vini_magazzino_db.py` → v1.6-wal-protected: WAL + synchronous=NORMAL + busy_timeout in `get_magazzino_connection()`. 3) `notifiche_db.py` → v1.1-wal-protected: idem. 4) `foodcost_db.py`: aggiunto `synchronous=NORMAL` (WAL gia' c'era). Pattern recovery aggiornato in `.auto-memory/feedback_sqlite_corruption_recovery.md`. Follow-up residui: 1.11.2 (coprire altri DB), 1.12 (debounce push.sh), 1.13 (cleanup backup forensi). |
 
 ---
 

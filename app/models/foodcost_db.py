@@ -37,6 +37,7 @@ def get_foodcost_connection():
     conn = sqlite3.connect(FOODCOST_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")  # Fix 1.11 (sessione 51)
     conn.execute("PRAGMA busy_timeout=30000")
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn

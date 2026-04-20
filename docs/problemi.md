@@ -42,31 +42,47 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 
 ## Risolti
 
-### S51-1. Backend in crash loop — `malformed database schema` su `vini_magazzino.sqlite3` ✅ 2026-04-20
-**Segnalato:** 2026-04-20 (sessione 51, doppio incidente nel giro di un'ora)
-**Modulo:** Infrastruttura / SQLite / init_magazzino_database
-**Gravità:** alta (backend fuori servizio)
+### S51-1. Backend in crash loop — `malformed database schema` su `vini_magazzino.sqlite3` ✅ 2026-04-21
+**Segnalato:** 2026-04-20 (sessione 51, TRE incidenti nel giro di un'ora)
+**Modulo:** Infrastruttura / SQLite / `.gitignore` / post-receive VPS
+**Gravità:** alta (backend fuori servizio) — **causa radice trovata dopo 3 recovery**
 
 **Sintomo:**
-- Incidente #1: dopo push di Fase 6 (creazione tabella `vini_prezzi_storico`) il backend cicla in crash con `sqlite3.DatabaseError: malformed database schema (idx_vm_tipologia) - index already exists`.
-- Incidente #2: dopo secondo push lanciato a ~5 minuti dal primo, backend cicla di nuovo con `malformed database schema (?)` (entry in `sqlite_master` con nome NULL, corruzione più grave).
+- Incidente #1 (22:29): dopo push di Fase 6 (creazione tabella `vini_prezzi_storico`) il backend cicla in crash con `sqlite3.DatabaseError: malformed database schema (idx_vm_tipologia) - index already exists`.
+- Incidente #2 (22:51): dopo secondo push, backend cicla di nuovo con `malformed database schema (?)` (entry in `sqlite_master` con nome NULL, corruzione più grave).
+- Incidente #3 (23:13): dopo terzo push (docs fix docs sessione), IDENTICO sintomo. Finalmente il pattern si palesa: **ogni `push.sh` = corruzione**.
 
-**Causa radice:**
-1. Il DB era in modalità journal DELETE (default SQLite), non WAL. Senza WAL, un SIGTERM al processo durante una scrittura su `sqlite_master` lascia il catalogo inconsistente.
-2. `init_magazzino_database()` è invocato a import-time da `app/routers/vini_magazzino_router.py:249`: ogni deploy tenta `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`, che in condizioni di race con catalogo corrotto crashano.
-3. `post-receive` hook del VPS fa `systemctl restart trgb-backend` immediato → se arriva un secondo push mentre il backend sta ancora inizializzando, SIGTERM mid-write → corruzione.
+**Causa radice (trovata 2026-04-21 00:55 CEST):**
+Bug sistemico in `.gitignore`. Il file aveva:
+```
+app/data/*.db
+app/data/*.db-wal    ← protegge foodcost
+app/data/*.db-shm    ← protegge foodcost
+app/data/*.sqlite3   ← vini, notifiche, clienti, dipendenti, ecc.
+# MANCAVA: app/data/*.sqlite3-wal
+# MANCAVA: app/data/*.sqlite3-shm
+```
 
-**Fix applicato (sessione 51):**
-1. Recovery #1: `sqlite3 vini_magazzino.sqlite3 ".dump" | sqlite3 vini_magazzino_NEW.sqlite3` — gli errori UNIQUE sui duplicati sono ATTESI (duplicati scartati dal restore). File risultante: 647KB, 1261 vini, `integrity_check=ok`.
-2. Recovery #2: `.recover` sul file corrotto NON funziona (DB recuperato manca della tabella `vini_magazzino`). Soluzione: `.dump` dal backup preventivo `BACKUP-20260420-223719.sqlite3` → pulito. Micro-perdita dati accettata (backend in crash loop nella finestra contestata).
-3. **Passaggio a WAL mode** pre-swap: `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;`. Questo è il fix preventivo: con WAL, SQLite può recuperare dal log al prossimo open anche dopo SIGTERM mid-write.
+Flusso corruzione:
+1. `vini_magazzino.sqlite3` era (o diventava dopo recovery) in WAL mode → nascevano file `-wal` e `-shm`
+2. `push.sh` → `git push` → post-receive VPS → **`git clean -fd`** → **cancellava `vini_magazzino.sqlite3-wal` e `-shm`** (non in .gitignore)
+3. `systemctl restart trgb-backend` → SQLite riapriva il DB senza il WAL contenente le transazioni pendenti → `sqlite_master` corrotto
+4. `init_magazzino_database()` crash a `CREATE TABLE IF NOT EXISTS` → uvicorn exit → systemd restart infinito
 
-**Follow-up ancora da fare (roadmap sezione 1):**
-- **1.11** Aggiungere `PRAGMA journal_mode=WAL` dentro `init_magazzino_database()` + init di `foodcost.db` e `notifiche.sqlite3`, così anche su file ricreati da zero parte in WAL.
-- **1.12** `push.sh` debounce anti-doppio-push (< 30s → blocca) per evitare SIGTERM durante startup del backend.
-- **1.13** Pulizia backup forensi quando stabile.
+Match perfetto log deploy: 22:29, 22:51, 23:13 = 3 push = 3 corruzioni. `foodcost.db` non si è mai corrotto perché il suo `-wal`/`-shm` era gia' gitignored.
 
-**Pattern recovery documentato:** `.auto-memory/feedback_sqlite_corruption_recovery.md` (regola: dump+restore, MAI `REINDEX` in-place).
+**Fix applicato (commit fix 1.11):**
+1. **`.gitignore`**: aggiunte `app/data/*.sqlite3-wal` e `app/data/*.sqlite3-shm`. Commento storico inline per memoria.
+2. **`app/models/vini_magazzino_db.py`** → v1.6-wal-protected: `get_magazzino_connection()` setta esplicitamente `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`.
+3. **`app/models/notifiche_db.py`** → v1.1-wal-protected: stessi PRAGMA aggiunti in `get_notifiche_conn()`.
+4. **`app/models/foodcost_db.py`**: aggiunto `synchronous=NORMAL` (WAL gia' presente, `db-wal`/`db-shm` gia' gitignored).
+
+**Recovery manuale (documentato in memoria):** `.dump` + restore in file nuovo + WAL pre-swap + `VACUUM`. Pattern in `.auto-memory/feedback_sqlite_corruption_recovery.md`.
+
+**Follow-up aperti (roadmap sezione 1):**
+- **1.11.2** Coprire con WAL anche: `bevande.sqlite3`, `clienti.sqlite3`, `tasks.sqlite3`, `settings.sqlite3`, `dipendenti.sqlite3`, `admin_finance.sqlite3`, `core/database.py`.
+- **1.12** `push.sh` debounce anti-doppio-push (< 30s → blocca) per ridurre superficie SIGTERM mid-write.
+- **1.13** Pulizia backup forensi vini quando stabile (CORROTTO-*, BACKUP-20260420-*, FORENSE-2251).
 
 ---
 

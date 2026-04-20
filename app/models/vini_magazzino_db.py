@@ -1,4 +1,4 @@
-# @version: v1.5-modifica-log
+# @version: v1.6-wal-protected
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Database Vini (Magazzino)
@@ -27,8 +27,15 @@ DB_MAG_PATH = Path("app/data/vini_magazzino.sqlite3")
 
 def get_magazzino_connection() -> sqlite3.Connection:
     DB_MAG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_MAG_PATH)
+    conn = sqlite3.connect(DB_MAG_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    # Fix 1.11 (sessione 51) — WAL + synchronous NORMAL per resistere a SIGTERM
+    # mid-write e prevenire corruzioni dello sqlite_master come nei tre incidenti
+    # del 2026-04-20. WAL persiste nell'header del file, gli altri pragma sono
+    # per-connessione e vanno settati ad ogni apertura.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

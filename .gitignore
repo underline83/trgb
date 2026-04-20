@@ -37,6 +37,12 @@ app/data/*.db-shm
 # File di backfill v2.0a2 (dry-run generato dalla mig 057 e approved per apply)
 app/data/backfill_*.csv
 app/data/*.sqlite3
+# ⚠️ WAL/SHM per DB .sqlite3 — sessione 51 (2026-04-20)
+# Senza queste righe, `git clean -fd` del post-receive VPS cancellava i file
+# -wal e -shm dei DB in WAL mode → sqlite_master corrotto al restart.
+# Tre incidenti consecutivi il 20/04/2026 prima di trovare la causa radice.
+app/data/*.sqlite3-wal
+app/data/*.sqlite3-shm
 app/data/*.prev
 app/data/.fuse_hidden*
 app/data/backups/
