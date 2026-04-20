@@ -3,6 +3,73 @@
 
 ---
 
+## 2026-04-20 — Vini v3.20: Widget riordini Fase 7 — listino inline edit
+
+### Contesto
+Seconda tranche del refactor 8-fasi del widget "📦 Riordini per fornitore"
+nella Dashboard Vini. Obiettivo della Fase 7: permettere a Marco di
+correggere al volo il prezzo di listino di un vino mentre valuta il
+riordino, senza dover aprire la scheda del vino.
+
+### Cosa cambia (FE-only)
+- La colonna **Listino** del widget riordini diventa **cliccabile inline**:
+  click sulla cella → input numerico con autofocus.
+- **Invio / blur** → salvataggio (PATCH `/vini/magazzino/{id}` con
+  `{ EURO_LISTINO: n }`). **ESC** → annulla.
+- Accetta numero `≥ 0` con virgola o punto decimale. Input **vuoto**
+  → pulisce il listino (salva `null`).
+- **No-op silenzioso** se il valore non cambia (tolleranza 0,005): esce
+  dall'edit senza chiamata di rete ne' toast.
+- **Patch ottimistica**: la riga nel widget viene aggiornata con la
+  risposta completa del BE, che include il **PREZZO_CARTA ricalcolato
+  automaticamente** dal router (`calcola_prezzo_carta(euro)` quando
+  EURO_LISTINO cambia e PREZZO_CARTA non e' nel payload).
+- Lo **storico prezzi Fase 6** logga automaticamente la variazione
+  (`origine="GESTIONALE-EDIT"`, utente dal JWT): nessun codice aggiuntivo
+  nel FE per il log — tutto via hook in `db.update_vino`.
+- Toast conferma: "Listino aggiornato — X,XX €" oppure "Listino rimosso".
+
+### UX
+- Icona matita in hover sulla cella (opacita' 0 → 60% su hover) come cue
+  di editabilita'.
+- Input: 14px minimo (iOS no-zoom), min-height 32px.
+- Safe: il salvataggio e' disabilitato durante il commit (flag
+  `listinoSaving`). Se il salvataggio fallisce, toast di errore e la cella
+  torna allo stato pre-edit (draft conservato).
+
+### Files toccati
+- `frontend/src/pages/vini/DashboardVini.jsx` — +~90 linee:
+  - header `@version: v4.5-riordini-fase5 → v4.6-riordini-fase7`
+  - state `listinoEditing`, `listinoDraft`, `listinoSaving`
+  - handlers `openListinoEdit`, `saveListino`, `cancelListinoEdit`
+  - cella Listino del widget riordini (condizionale input vs. bottone)
+- `frontend/src/config/versions.jsx` — bump `vini: 3.19 → 3.20`
+
+### BE
+- **Nessuna modifica backend**: il router PATCH esistente gia' fa:
+  - auto-calcolo `PREZZO_CARTA` da `EURO_LISTINO` (riga 562-565)
+  - log storico prezzi Fase 6 via `db.update_vino(..., origine="GESTIONALE-EDIT")`
+  - ritorno della riga aggiornata intera (`dict(updated)`)
+
+### Smoke test (dopo push, Ctrl+Shift+R)
+1. Aprire Dashboard Vini, espandere un gruppo nel widget 📦 Riordini.
+2. Click sulla cella Listino di un vino → appare input con valore corrente.
+3. Cambiare valore (es. 12,50) e premere Invio → toast verde, cella
+   aggiornata, prezzo carta anche aggiornato (se visibile altrove).
+4. Click di nuovo, svuotare l'input, Invio → "Listino rimosso", cella mostra —.
+5. Click, cambiare valore, ESC → nessun salvataggio, cella torna al vecchio valore.
+6. Click, stesso valore, Invio → no-op silenzioso (nessun toast).
+7. Verifica storico: `curl /vini/magazzino/{id}/prezzi-storico/` → voci
+   con `campo: EURO_LISTINO` e `origine: GESTIONALE-EDIT`, piu' voci
+   per `PREZZO_CARTA` (auto-calcolato).
+
+### Push command
+```bash
+./push.sh "Vini v3.20: widget riordini Fase 7 — listino inline edit (PATCH EURO_LISTINO + auto PREZZO_CARTA + storico auto)"
+```
+
+---
+
 ## 2026-04-20 — CG v2.15 + Dipendenti v2.28: fix cancellazione stipendio su annulla-registrazione + repair Iryna marzo
 
 ### Causa root individuata (non ricapitera')

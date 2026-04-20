@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.5-riordini-fase5 — Widget riordini: conferma arrivo merce (CARICO atomico via endpoint dedicato)
+// @version: v4.6-riordini-fase7 — Widget riordini: listino inline edit (PATCH EURO_LISTINO + auto PREZZO_CARTA + storico auto)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -124,6 +124,90 @@ export default function DashboardVini() {
   const [ordineSaving, setOrdineSaving]   = useState(false);
   const [ordineDeleting, setOrdineDeleting] = useState(false);
   const [ordineArriving, setOrdineArriving] = useState(false);  // Fase 5: conferma arrivo merce
+
+  // ── Listino inline edit per widget Riordini (Fase 7) ────
+  // listinoEditing = id del vino attualmente in edit (null se nessuno)
+  // listinoDraft   = valore stringa dell'input (consente virgola/punto)
+  // listinoSaving  = flag salvataggio in corso → disabilita input
+  const [listinoEditing, setListinoEditing] = useState(null);
+  const [listinoDraft, setListinoDraft]     = useState("");
+  const [listinoSaving, setListinoSaving]   = useState(false);
+
+  const openListinoEdit = (v) => {
+    setListinoEditing(v.id);
+    setListinoDraft(v.EURO_LISTINO != null ? String(v.EURO_LISTINO).replace(".", ",") : "");
+  };
+  const cancelListinoEdit = () => {
+    if (listinoSaving) return;
+    setListinoEditing(null);
+    setListinoDraft("");
+  };
+  const saveListino = async (v) => {
+    if (listinoSaving) return;
+    const raw = String(listinoDraft).trim().replace(",", ".");
+    // Null allowed (clear the field)
+    let nuovo = null;
+    if (raw !== "") {
+      const n = parseFloat(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        toast("Valore non valido: usa un numero ≥ 0 (es. 12,50)", { kind: "warn" });
+        return;
+      }
+      nuovo = Math.round(n * 100) / 100;
+    }
+    const vecchio = v.EURO_LISTINO != null ? Number(v.EURO_LISTINO) : null;
+    // No-op: stesso valore (tolleranza 0.01)
+    if (
+      (vecchio == null && nuovo == null) ||
+      (vecchio != null && nuovo != null && Math.abs(vecchio - nuovo) < 0.005)
+    ) {
+      cancelListinoEdit();
+      return;
+    }
+    setListinoSaving(true);
+    try {
+      const resp = await apiFetch(`${API_BASE}/vini/magazzino/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ EURO_LISTINO: nuovo }),
+      });
+      if (!resp.ok) {
+        let msg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) msg = err.detail; } catch {}
+        throw new Error(msg);
+      }
+      const updated = await resp.json();
+      // Patch ottimistica: aggiorno la riga nel widget riordini con tutti i campi
+      // tornati dal BE (include il PREZZO_CARTA ricalcolato automaticamente).
+      setStats((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        if (Array.isArray(prev.riordini_per_fornitore)) {
+          next.riordini_per_fornitore = prev.riordini_per_fornitore.map((x) =>
+            x.id === v.id ? { ...x, ...updated } : x
+          );
+        }
+        if (Array.isArray(prev.alert_carta_senza_giacenza)) {
+          next.alert_carta_senza_giacenza = prev.alert_carta_senza_giacenza.map((x) =>
+            x.id === v.id ? { ...x, ...updated } : x
+          );
+        }
+        return next;
+      });
+      toast(
+        nuovo == null
+          ? "Listino rimosso"
+          : `Listino aggiornato — ${fmtNum(nuovo)} €`,
+        { kind: "success" }
+      );
+      setListinoEditing(null);
+      setListinoDraft("");
+    } catch (e) {
+      toast("Errore salvataggio listino: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setListinoSaving(false);
+    }
+  };
 
   const fetchOrdiniPending = useCallback(async () => {
     try {
@@ -1067,8 +1151,49 @@ export default function DashboardVini() {
                                     );
                                   })()}
                                 </td>
-                                <td className="px-3 py-2 text-center text-neutral-600">
-                                  {v.EURO_LISTINO ? `${fmtNum(v.EURO_LISTINO)} €` : "—"}
+                                <td className="px-3 py-2 text-center">
+                                  {listinoEditing === v.id ? (
+                                    <div className="flex items-center justify-center gap-1">
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={listinoDraft}
+                                        onChange={(e) => setListinoDraft(e.target.value)}
+                                        onBlur={() => saveListino(v)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            saveListino(v);
+                                          } else if (e.key === "Escape") {
+                                            e.preventDefault();
+                                            cancelListinoEdit();
+                                          }
+                                        }}
+                                        disabled={listinoSaving}
+                                        autoFocus
+                                        placeholder="0,00"
+                                        className="w-20 px-2 py-1 border border-brand-blue rounded-md text-sm text-right font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                                        style={{ minHeight: "32px", fontSize: "14px" }}
+                                      />
+                                      <span className="text-neutral-500 text-xs">€</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => openListinoEdit(v)}
+                                      className="group inline-flex items-center gap-1 text-neutral-600 hover:text-brand-blue hover:bg-brand-blue/5 rounded px-2 py-1 transition min-h-[28px]"
+                                      title="Click per modificare il prezzo di listino"
+                                      aria-label="Modifica prezzo listino"
+                                    >
+                                      <span>
+                                        {v.EURO_LISTINO ? `${fmtNum(v.EURO_LISTINO)} €` : <span className="text-neutral-300">—</span>}
+                                      </span>
+                                      <svg className="w-3 h-3 opacity-0 group-hover:opacity-60 transition" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M12 20h9"></path>
+                                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                      </svg>
+                                    </button>
+                                  )}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {v.ultimo_carico ? (
