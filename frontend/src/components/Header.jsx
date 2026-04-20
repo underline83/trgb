@@ -91,10 +91,13 @@ export default function Header({ onLogout }) {
     ? visibleModules.filter(k => MODULES_MENU[k])
     : Object.keys(MODULES_MENU);
 
-  // Rileva modulo corrente dal path
+  // Rileva modulo corrente dal path.
+  // Match su `go` base e anche su qualsiasi sub.go: necessario per sub-path "esterni"
+  // come /selezioni/* che vivono sotto Cucina (ricette) pur non condividendone il prefix.
   const currentPath = location.pathname;
+  const matchesPath = (go) => go && (currentPath === go || currentPath.startsWith(go + "/"));
   const currentModule = Object.entries(MODULES_MENU).find(([_, cfg]) =>
-    currentPath === cfg.go || currentPath.startsWith(cfg.go + "/")
+    matchesPath(cfg.go) || (cfg.sub || []).some(s => matchesPath(s.go))
   );
   const isHome = currentPath === "/" || currentPath === "";
 

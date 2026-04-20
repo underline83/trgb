@@ -1,8 +1,72 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-20 (sessione 50ter — fix form key/name + riordino sezioni admin)
+**Ultimo aggiornamento:** 2026-04-20 (sessione 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 50quinquies — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 ✅ (da testare post-push)
+
+Due fix convergenti sulla Carta Bevande:
+
+**1. Frecce ↑↓ via dalla sidebar, Ordine Categorie in Impostazioni**
+- Marco: *"La gestione dell'ordinamento che vive nella pagina carta non mi piace per nulla"*. Le frecce admin in sidebar erano incoerenti col resto della UI ordinamento (Impostazioni Vini > Ordinamento Carta).
+- `CartaBevande.jsx` → v2.3-shell: rimosse frecce, `moveSezione()`, role/isAdmin. Sidebar = sola navigazione.
+- `ViniImpostazioni.jsx` → tab "Ordinamento Carta" guadagna come **prima zona** "Ordine Categorie", cornice ambra uniforme alle altre zone. Usa `OrderList` + `POST /bevande/sezioni/reorder` (endpoint gia' esistente).
+
+**2. TOC PDF — macro-sezioni leggibili (variante D.3)**
+- Marco: *"nell'indice la macro categoria (vini, amari…) e' veramente poco visibile"*. Prima le macro ("Vini", "Aperitivi", "Amari di Casa") usavano `.toc-tipologia` identica alle sotto-voci ("Rossi", "Bianchi").
+- Iterazione a 3 round di mockup (in `docs/mockups/mockup_toc_macro.html`): R1 decorativo → rifiutato ("terribile, gioca col testo"); R2 5 varianti solo tipografia → scelta variante D (grande ma light); R3 D × 3 colori reali → scelta **D.3**.
+- Aggiunta classe `.toc-macro` in `static/css/carta_pdf.css`: 18pt · peso 400 · uppercase · tracking 0.32em · colore `#5a4634` (marrone-terra, stesso delle nazioni).
+- `build_toc_html` in `carta_bevande_service.py` emette `.toc-macro` per le macro (sia "Vini" che le 7 sezioni bevande standard); `.toc-tipologia` resta per il sotto-indice vini (Rossi/Bianchi/Bollicine).
+
+**Deliverable:**
+- FE: `CartaBevande.jsx` v2.3-shell, `ViniImpostazioni.jsx` (+ zona Ordine Categorie), `versions.jsx` vini 3.13 → 3.14.
+- BE: `carta_bevande_service.py` `build_toc_html`, `static/css/carta_pdf.css` nuova classe `.toc-macro`.
+- Docs: mockup conservato in `docs/mockups/mockup_toc_macro.html`, changelog, sessione.
+
+**Da testare post-push (Ctrl+Shift+R):**
+1. `/vini/carta/aperitivi` → sidebar pulita, nessuna freccia ↑↓.
+2. `/vini/impostazioni/ordinamento-carta` → prima zona "Ordine Categorie" con le 8 sezioni (vini + 7 bevande). Drag/up/down riordina, "Salva" persiste.
+3. Dopo save: refresh → ordine persiste sia qui sia nella sidebar di `/vini/carta`.
+4. Export PDF (`📄 PDF`) da `/vini/carta/*` → aprire → indice: "VINI"/"APERITIVI"/"AMARI DI CASA"/… in uppercase grande chiaro, ben staccate dalle sotto-voci Rossi/Bianchi che restano 14pt bold nero.
+5. Ordine nell'indice PDF rispetta il nuovo "Ordine Categorie".
+6. PDF Staff e Word: stesso comportamento (Word usa il suo template DOCX, solo PDF è impattato dal CSS).
+
+**Comando push:**
+```
+./push.sh "Vini v3.14: Ordine Categorie in Impostazioni + TOC macro D.3 leggibile"
+```
+
+---
+
+## SESSIONE 50quater — Home v3.6: Selezioni sotto "Gestione Cucina" ✅ (da testare post-push)
+
+Marco: *"il modulo selezioni vive in cucina, non deve avere tile suo in home"*.
+
+Cambio di mental model UI: Selezioni del Giorno non e' un modulo autonomo ma una funzione della cucina (preparata dai cuochi, letta da sala/sommelier). Sparisce come tile a se' stante, resta un widget in Home pagina 1 e diventa una sub-voce di "Gestione Cucina".
+
+**Modifiche:**
+- `frontend/src/pages/Home.jsx` — `visibleModules` esclude `m.key === "selezioni"`. Il widget `SelezioniCard` in pagina 1 (quello con 4 mini-blocchi: macellaio/pescato/salumi/formaggi) rimane invariato.
+- `frontend/src/config/modulesMenu.js` — rimossa voce top-level `selezioni`. Aggiunte 4 sotto-voci `Selezioni · <zona>` dentro `ricette.sub` (Gestione Cucina). Route invariate (`/selezioni/<zona>`).
+- `frontend/src/components/Header.jsx` — `currentModule` ora matcha anche `sub.go` del menu (non solo il prefix di `cfg.go`). Cosi' navigando a `/selezioni/*` l'header mostra "Gestione Cucina" come modulo attivo. Pattern generale, utile per futuri sub-menu cross-modulo.
+- `frontend/src/config/versions.jsx` — home 3.5 → 3.6.
+
+**Invarianti:**
+- Route `/selezioni/*` non cambiano (no impatto bookmark/cronologia).
+- Permessi da `modules.json` invariati (la sezione `selezioni` resta nel DB, solo la UI cambia).
+- Widget SelezioniCard in Home pagina 1 resta.
+
+**Da testare post-push (Ctrl+Shift+R):**
+1. Home pagina 2 "Moduli" → non c'e' piu' la tile Selezioni.
+2. Header dropdown → non c'e' piu' "Selezioni" come voce top-level.
+3. Header dropdown → "Gestione Cucina" contiene le 4 voci `Selezioni · Macellaio/Pescato/Salumi/Formaggi`.
+4. Clic su una voce Selezioni → naviga correttamente a `/selezioni/<zona>`.
+5. Mentre si e' su `/selezioni/*` → Header mostra "📘 Gestione Cucina" come modulo corrente (non "Menu").
+6. Widget SelezioniCard in Home pagina 1 invariato.
+
+**Comando push:** `./push.sh "Home v3.6: Selezioni sotto Gestione Cucina, via tile top-level"`
 
 ---
 

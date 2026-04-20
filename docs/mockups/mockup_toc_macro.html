@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mockup indice Carta Bevande — Variante D × 3</title>
+<!-- Cormorant Garamond (stesso font della carta stampata TRGB) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
+<style>
+  /* ────────────────────────────────────────────────────
+     Valori presi 1:1 da static/css/carta_pdf.css:
+     - font:  "Cormorant Garamond", serif
+     - ink:   #2b2118   (body color)
+     - terra: #5a4634   (toc-nazione, page number)
+     - oro:   #b89b6d   (border tipologia — qui NON usato,
+                         solo palette di riferimento)
+     - sfondo pagina: bianco
+     ──────────────────────────────────────────────────── */
+
+  body {
+    background: #f4f1ec;           /* brand-cream, come wrapper web */
+    color: #2b2118;
+    margin: 0;
+    padding: 40px 20px 80px;
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
+    font-size: 12pt;
+  }
+
+  .frame {
+    max-width: 720px;
+    margin: 0 auto 40px;
+    background: #ffffff;           /* carta = sfondo bianco */
+    border: 1px solid #e5ddd0;
+    padding: 40px 56px 48px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    border-radius: 4px;
+  }
+
+  .variant-label {
+    max-width: 720px;
+    margin: 0 auto 6px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-weight: 600;
+  }
+  .variant-label strong {
+    color: #E8402B;
+    font-size: 14px;
+    letter-spacing: .04em;
+  }
+  .variant-descr {
+    max-width: 720px;
+    margin: 0 auto 18px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 12.5px;
+    color: #555;
+    line-height: 1.5;
+  }
+  .variant-descr code {
+    background: #eee;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+
+  /* ─── BASE indice (valori di carta_pdf.css) ─── */
+  .toc-title {
+    text-align: center;
+    font-size: 18pt;
+    font-weight: 700;
+    margin-bottom: 14pt;
+    color: #2b2118;
+  }
+  .toc-tipologia {
+    font-size: 14pt;
+    font-weight: 700;
+    margin-top: 12pt;
+    color: #2b2118;
+  }
+  .toc-nazione {
+    font-size: 12pt;
+    font-weight: 600;
+    margin-left: 10pt;
+    margin-top: 4pt;
+    color: #5a4634;
+  }
+  .toc-regione {
+    font-size: 11.8pt;
+    margin-left: 24pt;
+    color: #2b2118;
+  }
+  .toc-spacer { height: 6pt; }
+
+  /* ─── STATO ATTUALE (riferimento, nessun cambio) ─── */
+  .ref .toc-macro {
+    font-size: 14pt;
+    font-weight: 700;
+    margin-top: 12pt;
+    color: #2b2118;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     VARIANTE D.1 — "pura D" in colori carta
+     18pt · peso 400 · uppercase · tracking .32em
+     color #2b2118 (inchiostro carta)
+     ═══════════════════════════════════════════════════ */
+  .d1 .toc-macro {
+    font-size: 18pt;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: .32em;
+    margin-top: 22pt;
+    margin-bottom: 6pt;
+    color: #2b2118;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     VARIANTE D.2 — "D più grande"
+     22pt · peso 400 · uppercase · tracking .36em
+     color #2b2118
+     Salto verticale più marcato tra macro e tipologia.
+     ═══════════════════════════════════════════════════ */
+  .d2 .toc-macro {
+    font-size: 22pt;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: .36em;
+    margin-top: 26pt;
+    margin-bottom: 8pt;
+    color: #2b2118;
+  }
+
+  /* ═══════════════════════════════════════════════════
+     VARIANTE D.3 — "D calda"
+     18pt · peso 400 · uppercase · tracking .32em
+     color #5a4634 (stesso marrone-terra della nazione)
+     La macro si integra cromaticamente con la carta,
+     meno "stacco" visivo dell'inchiostro nero pieno.
+     ═══════════════════════════════════════════════════ */
+  .d3 .toc-macro {
+    font-size: 18pt;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: .32em;
+    margin-top: 22pt;
+    margin-bottom: 6pt;
+    color: #5a4634;
+  }
+</style>
+</head>
+<body>
+
+  <!-- STATO ATTUALE -->
+  <div class="variant-label">Stato attuale <strong>— macro e tipologia identiche</strong></div>
+  <div class="variant-descr">
+    Oggi "Vini", "Aperitivi"… usano <code>.toc-tipologia</code> → stessa cosa di "Rossi", "Bianchi".
+  </div>
+  <div class="frame ref">
+    <div class="toc-title">INDICE</div>
+    <div class="toc-macro">Vini</div>
+    <div class="toc-tipologia">Rossi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Piemonte</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Toscana</div>
+    <div class="toc-tipologia">Bianchi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Friuli</div>
+    <div class="toc-tipologia">Bollicine</div>
+    <div class="toc-spacer"></div>
+    <div class="toc-macro">Aperitivi</div>
+    <div class="toc-spacer"></div>
+    <div class="toc-macro">Amari di Casa</div>
+    <div class="toc-spacer"></div>
+    <div class="toc-macro">Distillati</div>
+  </div>
+
+  <!-- VARIANT D.1 -->
+  <div class="variant-label"><strong>D.1</strong> — pura D in colori carta (18pt · 400 · uppercase · tracking .32em · #2b2118)</div>
+  <div class="variant-descr">
+    Macro <strong>grande ma light</strong>, stesso inchiostro della tipologia.
+    Contrasta per aria e peso, non per colore.
+  </div>
+  <div class="frame d1">
+    <div class="toc-title">INDICE</div>
+    <div class="toc-macro">Vini</div>
+    <div class="toc-tipologia">Rossi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Piemonte</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Toscana</div>
+    <div class="toc-tipologia">Bianchi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Friuli</div>
+    <div class="toc-tipologia">Bollicine</div>
+    <div class="toc-macro">Aperitivi</div>
+    <div class="toc-macro">Amari di Casa</div>
+    <div class="toc-macro">Distillati</div>
+  </div>
+
+  <!-- VARIANT D.2 -->
+  <div class="variant-label"><strong>D.2</strong> — D più grande (22pt · 400 · uppercase · tracking .36em · #2b2118)</div>
+  <div class="variant-descr">
+    Stessa estetica di D.1 ma con un salto dimensionale più evidente (22pt vs 14pt).
+    Gerarchia più marcata, occupa più spazio verticale.
+  </div>
+  <div class="frame d2">
+    <div class="toc-title">INDICE</div>
+    <div class="toc-macro">Vini</div>
+    <div class="toc-tipologia">Rossi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Piemonte</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Toscana</div>
+    <div class="toc-tipologia">Bianchi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Friuli</div>
+    <div class="toc-tipologia">Bollicine</div>
+    <div class="toc-macro">Aperitivi</div>
+    <div class="toc-macro">Amari di Casa</div>
+    <div class="toc-macro">Distillati</div>
+  </div>
+
+  <!-- VARIANT D.3 -->
+  <div class="variant-label"><strong>D.3</strong> — D calda (18pt · 400 · uppercase · tracking .32em · #5a4634)</div>
+  <div class="variant-descr">
+    Stessa D.1 ma colore marrone-terra <code>#5a4634</code> (lo stesso dei nomi nazione).
+    Macro e nazione condividono il tono; la tipologia è più scura. Più integrato, meno "stacco".
+  </div>
+  <div class="frame d3">
+    <div class="toc-title">INDICE</div>
+    <div class="toc-macro">Vini</div>
+    <div class="toc-tipologia">Rossi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Piemonte</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Toscana</div>
+    <div class="toc-tipologia">Bianchi</div>
+    <div class="toc-nazione">· Italia</div>
+    <div class="toc-regione">&nbsp;&nbsp;— Friuli</div>
+    <div class="toc-tipologia">Bollicine</div>
+    <div class="toc-macro">Aperitivi</div>
+    <div class="toc-macro">Amari di Casa</div>
+    <div class="toc-macro">Distillati</div>
+  </div>
+
+  <div class="variant-descr" style="margin-top: 36px; text-align: center; color: #888;">
+    Scrivimi D.1 / D.2 / D.3 — oppure un mix (es. "D.3 ma 20pt").
+  </div>
+
+</body>
+</html>

@@ -3,6 +3,126 @@
 
 ---
 
+## 2026-04-20 — Vini v3.14: Ordine Categorie in Impostazioni + TOC macro-cat leggibile (variante D.3)
+
+### Contesto
+Due lamentele convergenti di Marco sulla Carta Bevande (shell unificata
+nata in 50bis):
+1. *"La gestione dell'ordinamento che vive nella pagina carta non mi piace
+   per nulla"* — le frecce ↑↓ admin nella sidebar di `/vini/carta/:sezione`
+   erano un corpo estraneo rispetto al resto della UI ordinamento (che vive
+   in `Impostazioni Vini > Ordinamento Carta` per tipologie, nazioni, regioni,
+   formati). Pattern incoerente.
+2. *"Nell'indice la macro categoria (vini, amari…) è veramente poco visibile"*
+   — l'indice unico PDF della carta bevande usava `.toc-tipologia` sia per
+   le macro ("Vini", "Aperitivi", "Amari di Casa"…) sia per le sotto-voci
+   dei vini ("Rossi", "Bianchi", "Bollicine"). Gerarchia persa.
+
+### Decisioni
+
+**A. Sposta "Ordine Categorie" in Impostazioni (frecce via dalla sidebar)**
+- `CartaBevande.jsx` → v2.3-shell: sidebar pulita, una `<button>` per sezione,
+  zero pulsanti ↑/↓, rimossa la `moveSezione()` + role/isAdmin locali. La
+  sidebar torna a essere navigazione, non editing.
+- `ViniImpostazioni.jsx` → tab "Ordinamento Carta" guadagna una nuova **prima**
+  zona "Ordine Categorie" (cornice ambra coerente con le altre zone tipologie/
+  nazioni/regioni/formati), che carica le sezioni bevande via
+  `GET /bevande/sezioni/` e le salva batch con `POST /bevande/sezioni/reorder`
+  (endpoint gia' esistente da 50bis, nessun backend da toccare). Stesso
+  componente `OrderList` usato per le altre liste → pattern 100% uniforme.
+- Effetto: tutto l'ordinamento della carta vive in un solo posto, con una sola
+  grammatica visiva.
+
+**B. TOC PDF — macro-sezioni in stile D.3**
+- Aggiunta classe `.toc-macro` in `static/css/carta_pdf.css`: 18pt, peso 400
+  (light, non bold come `.toc-tipologia`), `text-transform: uppercase`,
+  `letter-spacing: 0.32em`, colore `#5a4634` (marrone-terra, stesso delle
+  nazioni). Stacco dalla tipologia via **aria + case + colore caldo**, niente
+  bande colorate, filetti o numerazioni (rifiutati da Marco come troppo
+  decorativi dopo il primo round di mockup).
+- `build_toc_html` in `carta_bevande_service.py` → ora emette `<div class='toc-macro'>`
+  per le macro (sia "Vini" che "Aperitivi"/"Amari di Casa"/…), mentre
+  `.toc-tipologia` resta per il sotto-indice vini (Rossi/Bianchi/Bollicine)
+  invariato. Niente cambiamenti al sotto-indice, solo al livello sopra.
+
+### Effetti
+- Carta Bevande PDF: indice visivamente gerarchico, macro pulite e eleganti,
+  sotto-voci vini nitide sotto.
+- Sidebar Carta Bevande web: pulita, sola navigazione.
+- Impostazioni Vini: ordinamento completo delle macro-sezioni + di tutte le
+  assi interne (tipologie/nazioni/regioni/formati) in un unico tab.
+- Anteprima HTML preview non tocca il TOC (viene generato solo per PDF) →
+  nessun cambio lato preview web.
+
+### File toccati
+- `frontend/src/pages/vini/CartaBevande.jsx` — v2.3-shell (rimosse frecce)
+- `frontend/src/pages/vini/ViniImpostazioni.jsx` — zona "Ordine Categorie"
+- `static/css/carta_pdf.css` — nuova classe `.toc-macro`
+- `app/services/carta_bevande_service.py` — `build_toc_html` emette `.toc-macro`
+- `frontend/src/config/versions.jsx` — vini 3.13 → 3.14
+- `docs/mockups/mockup_toc_macro.html` — mockup di confronto (conservato per
+  future decisioni tipografiche sulla carta)
+
+### Processo
+Iterazione in 3 round di mockup per arrivare a D.3: (1) prima proposta con
+bande colorate, filetti oro, numerazione romana — scartata come "terribile,
+devi giocare con il testo"; (2) 5 varianti solo tipografiche (uppercase,
+small-caps, corsivo, light large, size bump) — variante D scelta; (3) D
+declinata in 3 colori del CSS reale (ink #2b2118, più grande, colore
+terra #5a4634) — scelta D.3. Buona lezione: per decisioni tipografiche su
+brand maturo non introdurre mai decorazioni nuove al primo tentativo,
+partire dall'economia minima e scalare solo se insufficiente.
+
+---
+
+## 2026-04-20 — Home v3.6: Selezioni sotto "Gestione Cucina", via il tile a sé
+
+### Contesto
+Marco: "il modulo selezioni vive in cucina, non deve avere tile suo in home". Finora
+Selezioni del Giorno aveva:
+- una tile dedicata a pagina 2 della Home (griglia "Moduli"),
+- una voce top-level nel dropdown del Header, fiancheggiando moduli veri come Vini,
+  Acquisti, Cucina.
+Nel mental model operativo pero' Selezioni e' una funzione della cucina: viene
+preparata dai cuochi, letta da sala/sommelier, e non e' un modulo autonomo.
+
+### Decisioni
+- **Via la tile top-level dalla Home**: `Home.jsx` filtra `m.key !== "selezioni"` prima
+  della sezione ruoli. Il widget `SelezioniCard` a pagina 1 (4 mini-blocchi con gli
+  ingredienti scelti del giorno) resta: e' un widget di servizio, non un tile modulo.
+- **Via la voce top-level dal dropdown Header**: rimosso l'entry `selezioni` da
+  `MODULES_MENU` in `modulesMenu.js`. Niente modifiche a `modules.json` — i permessi
+  (ruoli che vedono la sezione) restano guidati dal DB, solo la navigazione UI cambia.
+- **Selezioni come sub di "Gestione Cucina"**: aggiunte 4 voci dentro `ricette.sub`:
+  `Selezioni · Macellaio | Pescato | Salumi | Formaggi` che puntano a `/selezioni/<zona>`.
+  Stesse route, stesse pagine, stessi permessi — cambia solo dove le si raggiunge.
+- **Header currentModule con match sub.go**: generalizzato il match del modulo corrente
+  in `Header.jsx` per riconoscere anche i path "esterni" al prefix di `cfg.go`. Cosi'
+  navigando a `/selezioni/*` l'header mostra "Gestione Cucina" come modulo corrente
+  invece di cadere su "Menu" generico. Beneficio collaterale: pattern riutilizzabile
+  per futuri sub-menu che puntano a route cross-modulo.
+
+### Effetti
+- Home pagina 2: 12 tile attive invece di 13 (via Selezioni).
+- Header dropdown: Selezioni raggiungibili SOLO come sub di Cucina — coerente con
+  il mental model.
+- Widget SelezioniCard su pagina 1 invariato.
+- URL invariati: chi ha bookmark `/selezioni/macellaio` continua a funzionare.
+
+### File toccati
+- `frontend/src/config/modulesMenu.js` — via `selezioni:` top-level, +4 sub in ricette
+- `frontend/src/pages/Home.jsx` — filter `m.key !== "selezioni"` nei visibleModules
+- `frontend/src/components/Header.jsx` — currentModule matcha anche sub.go
+- `frontend/src/config/versions.jsx` — home 3.5 → 3.6
+- `docs/changelog.md`, `docs/sessione.md` — questo entry
+
+### Comando deploy
+```sh
+./push.sh "Home v3.6: Selezioni sotto Gestione Cucina, via tile top-level"
+```
+
+---
+
 ## 2026-04-20 — Carta delle Bevande: indice unico + fix form + riordino sezioni + fix auth (vini v3.13)
 
 ### Contesto

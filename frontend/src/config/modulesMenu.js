@@ -3,6 +3,10 @@
 // NOTA: il controllo accessi reale passa da modules.json (useModuleAccess hook).
 // Il campo `check` qui è cosmetico/legacy — mantenuto per documentazione.
 // sub: sotto-pagine visibili nel dropdown header. check: null=tutti, "admin", "superadmin"
+//
+// Nota (sessione 2026-04-20): Selezioni del Giorno non ha piu' tile a se' in Home ne'
+// voce top-level nel dropdown Header. Vive come sotto-voce di "Gestione Cucina" (ricette).
+// Il widget SelezioniCard sulla Home pagina 1 resta (widget di servizio).
 
 const MODULES_MENU = {
   vini: {
@@ -45,17 +49,12 @@ const MODULES_MENU = {
       { label: "Ingredienti",   go: "/ricette/ingredienti" },
       { label: "Matching",      go: "/ricette/matching",   check: "admin" },
       { label: "Dashboard",     go: "/ricette/dashboard" },
+      // Selezioni del giorno: gestite qui dentro (sessione 2026-04-20 — niente tile a sé in Home)
+      { label: "Selezioni · Macellaio", go: "/selezioni/macellaio" },
+      { label: "Selezioni · Pescato",   go: "/selezioni/pescato" },
+      { label: "Selezioni · Salumi",    go: "/selezioni/salumi" },
+      { label: "Selezioni · Formaggi",  go: "/selezioni/formaggi" },
       { label: "Impostazioni",  go: "/ricette/settings",   check: "admin" },
-    ],
-  },
-  selezioni: {
-    title: "Selezioni", icon: "\uD83C\uDF7D\uFE0F", go: "/selezioni/macellaio",
-    color: "bg-red-50 border-red-200 text-red-900", hoverBg: "hover:bg-red-50",
-    sub: [
-      { label: "Macellaio", go: "/selezioni/macellaio" },
-      { label: "Pescato",   go: "/selezioni/pescato" },
-      { label: "Salumi",    go: "/selezioni/salumi" },
-      { label: "Formaggi",  go: "/selezioni/formaggi" },
     ],
   },
   "flussi-cassa": {

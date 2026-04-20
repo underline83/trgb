@@ -132,9 +132,13 @@ export default function Home() {
       .finally(() => setModulesLoading(false));
   }, []);
 
-  const visibleModules = modules.filter((m) =>
-    m.roles?.includes(role) || (role === "superadmin" && m.roles?.includes("admin"))
-  );
+  // "selezioni" non ha piu' tile a se' in Home: vive sotto "Gestione Cucina" (sub di ricette)
+  // Il widget SelezioniCard a pagina 1 resta (e' un widget di servizio, non un tile modulo).
+  const visibleModules = modules
+    .filter((m) => m.key !== "selezioni")
+    .filter((m) =>
+      m.roles?.includes(role) || (role === "superadmin" && m.roles?.includes("admin"))
+    );
 
   /* ── Swipe gesture ── */
   const touchStartX = useRef(0);

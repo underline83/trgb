@@ -412,8 +412,12 @@ def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
       tipologia → nazione → regione, usando lo stesso builder della carta vini
       (`build_carta_toc_html`) ma senza il wrapper `<div class='toc-page'>`
       per non aprire un secondo indice annidato.
-    - Stile: identico alla carta vini esistente (classi `toc-title`,
-      `toc-tipologia`, `toc-nazione`, `toc-regione`, `toc-spacer`).
+    - Stile (dal 2026-04-20, variante D.3): le macro-sezioni
+      (Vini, Aperitivi, Amari di Casa, …) usano la classe `toc-macro`
+      (18pt, peso 400, uppercase, tracking 0.32em, colore #5a4634),
+      distinta dalle sotto-voci della carta vini che restano in
+      `toc-tipologia` (14pt bold). Così la gerarchia macro/sub è
+      leggibile a colpo d'occhio nell'indice PDF.
     """
     if not sezioni:
         return ""
@@ -442,7 +446,7 @@ def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
             if not vini_rows:
                 continue
             any_section = True
-            rows_html.append(f"<div class='toc-tipologia'>{_esc(nome)}</div>")
+            rows_html.append(f"<div class='toc-macro'>{_esc(nome)}</div>")
             # Sub-indice tipologie/nazioni/regioni — stesso stile della carta vini.
             # Chiamiamo build_carta_toc_html e strippiamo il wrapper esterno
             # <div class='toc-page'> + <div class='toc-title'> per fondere
@@ -470,7 +474,7 @@ def build_toc_html(sezioni: list[dict[str, Any]]) -> str:
         if int(c.get("attive", 0) or 0) <= 0:
             continue  # salta sezioni vuote
         any_section = True
-        rows_html.append(f"<div class='toc-tipologia'>{_esc(nome)}</div>")
+        rows_html.append(f"<div class='toc-macro'>{_esc(nome)}</div>")
         rows_html.append("<div class='toc-spacer'></div>")
 
     if not any_section:

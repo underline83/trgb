@@ -133,6 +133,20 @@ body {
     margin-bottom: 14pt;
 }
 
+/* Macro-sezione dell'indice unificato carta bevande (Vini, Aperitivi,
+   Amari di Casa, Distillati, ...). Stile D.3 — sessione 2026-04-20:
+   uppercase · light (400) · tracking ampio · colore marrone-terra.
+   Distinta dalle sotto-voci (toc-tipologia) che restano 14pt bold. */
+.toc-macro {
+    font-size: 18pt;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: #5a4634;
+    margin-top: 22pt;
+    margin-bottom: 6pt;
+}
+
 .toc-tipologia {
     font-size: 14pt;
     font-weight: 700;

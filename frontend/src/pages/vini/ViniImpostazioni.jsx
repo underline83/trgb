@@ -144,6 +144,9 @@ export default function ViniImpostazioni() {
   const [settingsMsg, setSettingsMsg] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [showOrdinamento, setShowOrdinamento] = useState(false);
+  // Ordine Categorie Carta Bevande (sessione 2026-04-20): spostato qui dalla sidebar di CartaBevande.
+  // Sezioni: vini, aperitivi, birre, amari_casa, amari_liquori, distillati, tisane, te.
+  const [sezioniBev, setSezioniBev] = useState([]);
 
   // --- Markup Prezzi ---
   const [markupBP, setMarkupBP] = useState(null);  // [{costo, moltiplicatore}, ...]
@@ -179,14 +182,17 @@ export default function ViniImpostazioni() {
   const fetchLocConfig = useCallback(async () => {
     try { const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`); if (r.ok) setLocConfig(await r.json()); } catch {}
   }, []);
+  const fetchSezioniBev = useCallback(async () => {
+    try { const r = await apiFetch(`${API_BASE}/bevande/sezioni/`); if (r.ok) setSezioniBev(await r.json()); } catch {}
+  }, []);
 
   useEffect(() => {
     if (activeSection === "ordinamento" && !showOrdinamento) setShowOrdinamento(true);
   }, [activeSection]);
 
   useEffect(() => {
-    if (showOrdinamento) { fetchTipologie(); fetchNazioni(); fetchFiltri(); fetchFormati(); }
-  }, [showOrdinamento, fetchTipologie, fetchNazioni, fetchFiltri, fetchFormati]);
+    if (showOrdinamento) { fetchSezioniBev(); fetchTipologie(); fetchNazioni(); fetchFiltri(); fetchFormati(); }
+  }, [showOrdinamento, fetchSezioniBev, fetchTipologie, fetchNazioni, fetchFiltri, fetchFormati]);
 
   useEffect(() => {
     if (selectedNazione) fetchRegioni(selectedNazione);
@@ -213,6 +219,22 @@ export default function ViniImpostazioni() {
   // SALVA IMPOSTAZIONI
   // -------------------------------------------------------
   const flash = (msg) => { setSettingsMsg(msg); setTimeout(() => setSettingsMsg(""), 3000); };
+
+  // Ordine Categorie Carta Bevande: invia lista completa [{key, ordine}] a /bevande/sezioni/reorder.
+  // Rinumera 10/20/30/… cosi' c'e' spazio tra le voci per eventuali insert futuri.
+  const saveSezioniBev = async () => {
+    setSettingsLoading(true);
+    try {
+      const payload = sezioniBev.map((s, i) => ({ key: s.key, ordine: (i + 1) * 10 }));
+      const r = await apiFetch(`${API_BASE}/bevande/sezioni/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) flash("Ordine categorie carta bevande salvato"); else throw new Error();
+    } catch { flash("Errore salvataggio ordine categorie"); }
+    setSettingsLoading(false);
+  };
 
   const saveTipologie = async () => {
     setSettingsLoading(true);
@@ -602,6 +624,26 @@ export default function ViniImpostazioni() {
         </button>
       ) : (
         <div className="space-y-5">
+          {/* ORDINE CATEGORIE CARTA BEVANDE — prima zona in assoluto (sessione 2026-04-20) */}
+          <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-neutral-800">Ordine Categorie</h3>
+              <button onClick={saveSezioniBev} disabled={settingsLoading || sezioniBev.length === 0}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-amber-700 text-white hover:bg-amber-800 shadow-sm transition disabled:opacity-50">Salva</button>
+            </div>
+            <p className="text-xs text-neutral-500 mb-3">
+              Ordine delle macro-sezioni della Carta delle Bevande (vini, aperitivi, birre, amari, distillati, tisane, tè) — usato sia nella sidebar della pagina sia nell'indice/stampa della carta.
+            </p>
+            {sezioniBev.length > 0 ? (
+              <OrderList
+                items={sezioniBev}
+                labelKey="nome"
+                onReorder={setSezioniBev}
+                uppercase={false}
+              />
+            ) : <p className="text-sm text-neutral-400">Caricamento…</p>}
+          </div>
+
           {/* TIPOLOGIE */}
           <div className="border border-neutral-200 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
