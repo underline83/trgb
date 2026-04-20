@@ -738,8 +738,11 @@ export default function DashboardVini() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-[10px] text-neutral-500 uppercase tracking-wide border-b border-neutral-200">
+                            {/* Colonna "info" — non sortabile */}
+                            <th className="px-2 py-2 w-8 text-center select-none" aria-label="Apri dettaglio"></th>
                             {[
                               { k: "DESCRIZIONE", label: "Vino", align: "text-left" },
+                              { k: "PRODUTTORE", label: "Produttore", align: "text-left" },
                               { k: "STATO_RIORDINO", label: "Stato", align: "text-center" },
                               { k: "QTA_TOTALE", label: "Giac.", align: "text-center" },
                               { k: "EURO_LISTINO", label: "Listino", align: "text-center" },
@@ -773,13 +776,29 @@ export default function DashboardVini() {
                             const ggCarico = giorniDa(v.ultimo_carico);
                             const ggVendita = giorniDa(v.ultima_vendita);
                             return (
-                              <tr key={v.id} className="hover:bg-orange-50/40 cursor-pointer transition"
-                                onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                              <tr key={v.id} className="hover:bg-orange-50/40 transition">
+                                <td className="px-1 py-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/vini/magazzino/${v.id}`)}
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full text-neutral-400 hover:text-brand-blue hover:bg-brand-blue/10 transition"
+                                    title="Apri dettaglio vino"
+                                    aria-label="Apri dettaglio vino"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                      <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                  </button>
+                                </td>
                                 <td className="px-4 py-2">
                                   <div className="font-semibold text-neutral-800">{v.DESCRIZIONE}</div>
                                   <div className="text-[10px] text-neutral-400">
-                                    {v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}
+                                    {v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}
                                   </div>
+                                </td>
+                                <td className="px-3 py-2 text-neutral-700">
+                                  {v.PRODUTTORE || <span className="text-neutral-300">—</span>}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {v.STATO_RIORDINO ? (
