@@ -1,7 +1,7 @@
 # app/routers/admin_finance.py
 # @version: v2.1 — export/import/template canonici + gestione contanti
 
-from datetime import date as date_type, datetime
+from datetime import date as date_type, datetime, timedelta
 from pathlib import Path
 import shutil
 import sqlite3
@@ -683,11 +683,19 @@ WEEKDAY_IT = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Saba
 # HELPER INTERNO: aggregazione shift_closures per data
 # ---------------------------------------------------------
 
-def _aggregate_shift_closures_by_date(conn: sqlite3.Connection, ym_prefix: str) -> Dict[str, dict]:
+def _aggregate_shift_closures_by_date(
+    conn: sqlite3.Connection,
+    ym_prefix: str = None,
+    date_from: str = None,
+    date_to: str = None,
+) -> Dict[str, dict]:
     """
     Legge i dati da shift_closures (per-turno) per il mese specificato,
     aggrega per data, e ritorna un dict keyed by date string con valori
     compatibili con il dashboard.
+
+    Se date_from/date_to sono passati, filtra per intervallo data invece
+    che per ym_prefix.
 
     Per ogni data:
     - Se esiste 'cena': usa i valori giornalieri di cena (contanti, pos_*, etc., preconto)
@@ -726,29 +734,49 @@ def _aggregate_shift_closures_by_date(conn: sqlite3.Connection, ym_prefix: str) 
     try:
         cur = conn.cursor()
 
-        # Leggi shift_closures per il mese
-        cur.execute(
+        # Leggi shift_closures per il mese (o intervallo data)
+        if date_from or date_to:
+            where = []
+            sql_params = []
+            if date_from:
+                where.append("date >= ?")
+                sql_params.append(date_from)
+            if date_to:
+                where.append("date <= ?")
+                sql_params.append(date_to)
+            sql = f"""
+                SELECT date, turno, preconto, fatture, contanti,
+                       pos_bpm, pos_sella, theforkpay, other_e_payments,
+                       bonifici, mance, note
+                FROM shift_closures
+                WHERE {' AND '.join(where)}
+                ORDER BY date ASC,
+                         CASE WHEN turno = 'pranzo' THEN 0 ELSE 1 END
             """
-            SELECT
-                date,
-                turno,
-                preconto,
-                fatture,
-                contanti,
-                pos_bpm,
-                pos_sella,
-                theforkpay,
-                other_e_payments,
-                bonifici,
-                mance,
-                note
-            FROM shift_closures
-            WHERE substr(date, 1, 7) = ?
-            ORDER BY date ASC,
-                     CASE WHEN turno = 'pranzo' THEN 0 ELSE 1 END
-            """,
-            (ym_prefix,),
-        )
+            cur.execute(sql, tuple(sql_params))
+        else:
+            cur.execute(
+                """
+                SELECT
+                    date,
+                    turno,
+                    preconto,
+                    fatture,
+                    contanti,
+                    pos_bpm,
+                    pos_sella,
+                    theforkpay,
+                    other_e_payments,
+                    bonifici,
+                    mance,
+                    note
+                FROM shift_closures
+                WHERE substr(date, 1, 7) = ?
+                ORDER BY date ASC,
+                         CASE WHEN turno = 'pranzo' THEN 0 ELSE 1 END
+                """,
+                (ym_prefix,),
+            )
         shift_rows = cur.fetchall()
 
         if not shift_rows:
@@ -1487,8 +1515,10 @@ class CashDayRow(BaseModel):
 
 
 class CashDailyResponse(BaseModel):
-    year: int
-    month: int
+    year: Optional[int] = None
+    month: Optional[int] = None
+    data_da: Optional[str] = None
+    data_a: Optional[str] = None
     giorni: List[CashDayRow]
     versamenti: List[CashDepositOut]
     totale_contanti: float
@@ -1498,38 +1528,71 @@ class CashDailyResponse(BaseModel):
 
 @router.get("/cash/daily", response_model=CashDailyResponse)
 async def get_cash_daily(
-    year: int = Query(..., ge=2000, le=2100),
-    month: int = Query(..., ge=1, le=12),
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    data_da: Optional[str] = Query(None, description="YYYY-MM-DD (se passato, override mese)"),
+    data_a: Optional[str] = Query(None, description="YYYY-MM-DD (se passato, override mese)"),
 ):
     """
-    Contanti fiscali giornalieri per il mese:
+    Contanti fiscali giornalieri per il mese (o intervallo data_da/data_a):
     contanti_fiscali = corrispettivi_tot - pagamenti_elettronici
-    + lista versamenti in banca + saldo cumulativo
+    + lista versamenti in banca + saldo cumulativo.
+
+    Se data_da/data_a sono passati, l'intervallo ha priorità sul filtro anno/mese.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     ensure_daily_closures_table(conn)
     _ensure_cash_deposits_table(conn)
 
-    ym_prefix = f"{year:04d}-{month:02d}"
+    use_range = bool(data_da or data_a)
+    ym_prefix = None
+    if not use_range:
+        if not year or not month:
+            conn.close()
+            raise HTTPException(status_code=400, detail="year e month obbligatori se non si usa data_da/data_a")
+        ym_prefix = f"{year:04d}-{month:02d}"
 
     try:
         # Dati giornalieri (stessa logica di stats/monthly)
-        shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix)
+        if use_range:
+            shift_data = _aggregate_shift_closures_by_date(conn, date_from=data_da, date_to=data_a)
+        else:
+            shift_data = _aggregate_shift_closures_by_date(conn, ym_prefix=ym_prefix)
 
         cur = conn.cursor()
-        cur.execute(
+        if use_range:
+            where = []
+            sql_params = []
+            if data_da:
+                where.append("date >= ?")
+                sql_params.append(data_da)
+            if data_a:
+                where.append("date <= ?")
+                sql_params.append(data_a)
+            sql = f"""
+                SELECT date, weekday, corrispettivi_tot, contanti_finali,
+                       pos_bpm, pos_sella, theforkpay, other_e_payments,
+                       bonifici, totale_incassi,
+                       COALESCE(is_closed, 0) AS is_closed
+                FROM daily_closures
+                WHERE {' AND '.join(where)}
+                ORDER BY date ASC
             """
-            SELECT date, weekday, corrispettivi_tot, contanti_finali,
-                   pos_bpm, pos_sella, theforkpay, other_e_payments,
-                   bonifici, totale_incassi,
-                   COALESCE(is_closed, 0) AS is_closed
-            FROM daily_closures
-            WHERE substr(date, 1, 7) = ?
-            ORDER BY date ASC
-            """,
-            (ym_prefix,),
-        )
+            cur.execute(sql, tuple(sql_params))
+        else:
+            cur.execute(
+                """
+                SELECT date, weekday, corrispettivi_tot, contanti_finali,
+                       pos_bpm, pos_sella, theforkpay, other_e_payments,
+                       bonifici, totale_incassi,
+                       COALESCE(is_closed, 0) AS is_closed
+                FROM daily_closures
+                WHERE substr(date, 1, 7) = ?
+                ORDER BY date ASC
+                """,
+                (ym_prefix,),
+            )
         daily_rows = cur.fetchall()
 
         # Merge
@@ -1586,21 +1649,39 @@ async def get_cash_daily(
                 contanti_fiscali=contanti, is_closed=False,
             ))
 
-        # Versamenti del mese
-        cur.execute(
+        # Versamenti del mese (o intervallo)
+        if use_range:
+            where = []
+            sql_params = []
+            if data_da:
+                where.append("date >= ?")
+                sql_params.append(data_da)
+            if data_a:
+                where.append("date <= ?")
+                sql_params.append(data_a)
+            sql = f"""
+                SELECT id, date, importo, note, created_by, created_at, banca_movimento_id
+                FROM cash_deposits
+                WHERE {' AND '.join(where)}
+                ORDER BY date ASC, id ASC
             """
-            SELECT id, date, importo, note, created_by, created_at
-            FROM cash_deposits
-            WHERE substr(date, 1, 7) = ?
-            ORDER BY date ASC, id ASC
-            """,
-            (ym_prefix,),
-        )
+            cur.execute(sql, tuple(sql_params))
+        else:
+            cur.execute(
+                """
+                SELECT id, date, importo, note, created_by, created_at, banca_movimento_id
+                FROM cash_deposits
+                WHERE substr(date, 1, 7) = ?
+                ORDER BY date ASC, id ASC
+                """,
+                (ym_prefix,),
+            )
         versamenti = [
             CashDepositOut(
                 id=r["id"], date=r["date"], importo=r["importo"],
                 note=r["note"] or "", created_by=r["created_by"] or "",
                 created_at=r["created_at"] or "",
+                banca_movimento_id=r["banca_movimento_id"],
             )
             for r in cur.fetchall()
         ]
@@ -1610,12 +1691,219 @@ async def get_cash_daily(
         conn.close()
 
     return CashDailyResponse(
-        year=year, month=month,
+        year=year if not use_range else None,
+        month=month if not use_range else None,
+        data_da=data_da if use_range else None,
+        data_a=data_a if use_range else None,
         giorni=giorni, versamenti=versamenti,
         totale_contanti=round(totale_contanti, 2),
         totale_versato=round(totale_versato, 2),
         saldo_da_versare=round(totale_contanti - totale_versato, 2),
     )
+
+
+def _contanti_fiscali_by_date(conn: sqlite3.Connection, date_from: Optional[str], date_to: Optional[str]) -> Dict[str, float]:
+    """
+    Ritorna dict { 'YYYY-MM-DD': contanti_fiscali } per tutti i giorni con contanti > 0
+    nell'intervallo [date_from, date_to]. Se entrambi None: tutti i giorni.
+    Logica: shift_closures aggregati (se esistono) hanno precedenza su daily_closures.
+    """
+    import calendar as _cal
+    shift_data = _aggregate_shift_closures_by_date(conn, date_from=date_from, date_to=date_to)
+
+    cur = conn.cursor()
+    where = []
+    params: list = []
+    if date_from:
+        where.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("date <= ?")
+        params.append(date_to)
+    wq = f"WHERE {' AND '.join(where)}" if where else ""
+    cur.execute(f"""
+        SELECT date, weekday, corrispettivi_tot,
+               pos_bpm, pos_sella, theforkpay, other_e_payments,
+               bonifici, COALESCE(is_closed, 0) AS is_closed
+        FROM daily_closures
+        {wq}
+        ORDER BY date ASC
+    """, tuple(params))
+    daily_rows = cur.fetchall()
+
+    merged: Dict[str, dict] = {}
+    for ds, sd in shift_data.items():
+        merged[ds] = sd
+    for r in daily_rows:
+        ds = r["date"]
+        if ds not in merged:
+            merged[ds] = {
+                'date': ds, 'weekday': r["weekday"] or '',
+                'corrispettivi_tot': r["corrispettivi_tot"] or 0,
+                'pos_bpm': r["pos_bpm"] or 0, 'pos_sella': r["pos_sella"] or 0,
+                'theforkpay': r["theforkpay"] or 0,
+                'other_e_payments': r["other_e_payments"] or 0,
+                'bonifici': r["bonifici"] or 0,
+                'is_closed': bool(r["is_closed"]),
+            }
+
+    result: Dict[str, float] = {}
+    for d in merged.values():
+        if d.get('is_closed'):
+            continue
+        corr = d.get('corrispettivi_tot', 0) or 0
+        elett = (
+            (d.get('pos_bpm', 0) or 0) +
+            (d.get('pos_sella', 0) or 0) +
+            (d.get('theforkpay', 0) or 0) +
+            (d.get('other_e_payments', 0) or 0) +
+            (d.get('bonifici', 0) or 0)
+        )
+        contanti = max(0.0, float(corr) - float(elett))
+        if contanti > 0:
+            result[d['date']] = contanti
+    return result
+
+
+@router.get("/cash/flow")
+async def get_cash_flow(
+    year: Optional[int] = Query(None, ge=2000, le=2100),
+    month: Optional[int] = Query(None, ge=1, le=12),
+    data_da: Optional[str] = Query(None),
+    data_a: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """
+    Flusso contanti — eventi cronologici con saldo cumulativo:
+    - Entrata: contanti fiscali giornalieri (corrispettivi - pagamenti elettronici)
+    - Uscita : pagamenti di cg_uscite con metodo_pagamento = 'CONTANTI'
+
+    Filtrabile per year+month (default) oppure per intervallo data_da/data_a.
+    Saldo cumulativo riportato dal periodo precedente (somma storica entrate - uscite).
+    Giorni senza entrate né uscite non compaiono.
+    """
+    import calendar as _cal
+
+    use_range = bool(data_da or data_a)
+    if use_range:
+        period_start = data_da  # può essere None se solo data_a
+        period_end = data_a      # può essere None se solo data_da
+    else:
+        if not year or not month:
+            raise HTTPException(status_code=400, detail="year+month o data_da/data_a richiesti")
+        last = _cal.monthrange(year, month)[1]
+        period_start = f"{year:04d}-{month:02d}-01"
+        period_end = f"{year:04d}-{month:02d}-{last:02d}"
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    ensure_daily_closures_table(conn)
+
+    # 1. Saldo iniziale riportato: sum(entrate_storiche) - sum(uscite_storiche) prima di period_start
+    saldo_iniziale = 0.0
+    prev_end: Optional[str] = None
+    if period_start:
+        try:
+            prev_end = (datetime.strptime(period_start, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        except ValueError:
+            prev_end = None
+
+    if prev_end:
+        try:
+            contanti_storici = _contanti_fiscali_by_date(conn, None, prev_end)
+            saldo_iniziale = sum(contanti_storici.values())
+        except Exception:
+            saldo_iniziale = 0.0
+        # Spese storiche dal DB foodcost
+        try:
+            fc = sqlite3.connect(FOODCOST_DB_PATH)
+            fc.row_factory = sqlite3.Row
+            r = fc.execute("""
+                SELECT COALESCE(SUM(COALESCE(importo_pagato, totale, 0)), 0) AS tot
+                FROM cg_uscite
+                WHERE metodo_pagamento = 'CONTANTI'
+                  AND data_pagamento IS NOT NULL
+                  AND data_pagamento < ?
+            """, (period_start,)).fetchone()
+            saldo_iniziale -= float(r["tot"] or 0)
+            fc.close()
+        except Exception:
+            pass
+
+    # 2. Entrate nel periodo
+    try:
+        contanti_periodo = _contanti_fiscali_by_date(conn, period_start, period_end)
+    finally:
+        conn.close()
+
+    # 3. Uscite nel periodo
+    fc = sqlite3.connect(FOODCOST_DB_PATH)
+    fc.row_factory = sqlite3.Row
+    where = ["metodo_pagamento = 'CONTANTI'", "data_pagamento IS NOT NULL"]
+    params: list = []
+    if period_start:
+        where.append("data_pagamento >= ?")
+        params.append(period_start)
+    if period_end:
+        where.append("data_pagamento <= ?")
+        params.append(period_end)
+    spese_rows = fc.execute(f"""
+        SELECT id, fornitore_nome, numero_fattura, data_pagamento,
+               COALESCE(importo_pagato, totale, 0) AS importo,
+               tipo_uscita, note, periodo_riferimento
+        FROM cg_uscite
+        WHERE {' AND '.join(where)}
+        ORDER BY data_pagamento ASC, id ASC
+    """, tuple(params)).fetchall()
+    fc.close()
+
+    # 4. Merge cronologico: entrate del giorno prima delle uscite
+    eventi = []
+    for dt, amt in contanti_periodo.items():
+        eventi.append({
+            "date": dt,
+            "type": "incasso",
+            "descrizione": "Contanti fiscali del giorno",
+            "entrata": round(float(amt), 2),
+            "uscita": 0.0,
+            "tipo_uscita": None,
+            "numero_fattura": None,
+            "uscita_id": None,
+        })
+    for r in spese_rows:
+        descr = r["fornitore_nome"] or r["periodo_riferimento"] or r["note"] or "Pagamento contanti"
+        eventi.append({
+            "date": r["data_pagamento"],
+            "type": "spesa",
+            "descrizione": descr,
+            "entrata": 0.0,
+            "uscita": round(float(r["importo"] or 0), 2),
+            "tipo_uscita": r["tipo_uscita"],
+            "numero_fattura": r["numero_fattura"],
+            "uscita_id": r["id"],
+        })
+    eventi.sort(key=lambda e: (e["date"], 0 if e["type"] == "incasso" else 1, e.get("uscita_id") or 0))
+
+    # 5. Cumulativo
+    saldo = saldo_iniziale
+    for e in eventi:
+        saldo += e["entrata"] - e["uscita"]
+        e["cumulativo"] = round(saldo, 2)
+
+    totale_entrate = sum(e["entrata"] for e in eventi)
+    totale_uscite = sum(e["uscita"] for e in eventi)
+
+    return {
+        "year": year if not use_range else None,
+        "month": month if not use_range else None,
+        "data_da": period_start if use_range else None,
+        "data_a": period_end if use_range else None,
+        "saldo_iniziale": round(saldo_iniziale, 2),
+        "saldo_finale": round(saldo, 2),
+        "totale_entrate": round(totale_entrate, 2),
+        "totale_uscite": round(totale_uscite, 2),
+        "eventi": eventi,
+    }
 
 
 @router.get("/cash/deposit/bank-matches")

@@ -95,7 +95,7 @@ function SezioneMovimentiContanti() {
       </div>
 
       {/* Sub-tab switcher */}
-      <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 w-fit flex-wrap">
         <button
           onClick={() => setSubTab("pagamenti")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
@@ -114,10 +114,20 @@ function SezioneMovimentiContanti() {
           }`}>
           🏦 Versamenti in banca
         </button>
+        <button
+          onClick={() => setSubTab("flusso")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "flusso"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          📊 Flusso contanti
+        </button>
       </div>
 
       {subTab === "pagamenti" && <SubPagamentiContanti />}
       {subTab === "versamenti" && <SubVersamentiContanti />}
+      {subTab === "flusso" && <SubFlussoContanti />}
     </div>
   );
 }
@@ -129,6 +139,9 @@ function SubPagamentiContanti() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const useRange = Boolean(dateFrom || dateTo);
   const [movimenti, setMovimenti] = useState([]);
   const [totale, setTotale] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -145,14 +158,22 @@ function SubPagamentiContanti() {
   const fetchMovimenti = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/movimenti-contanti?anno=${year}&mese=${month}`);
+      const qp = new URLSearchParams();
+      if (useRange) {
+        if (dateFrom) qp.set("data_da", dateFrom);
+        if (dateTo) qp.set("data_a", dateTo);
+      } else {
+        qp.set("anno", String(year));
+        qp.set("mese", String(month));
+      }
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/movimenti-contanti?${qp.toString()}`);
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       const j = await res.json();
       setMovimenti(j.movimenti || []);
       setTotale(j.totale || 0);
     } catch (_) {}
     finally { setLoading(false); }
-  }, [year, month]);
+  }, [year, month, dateFrom, dateTo, useRange]);
 
   useEffect(() => { fetchMovimenti(); }, [fetchMovimenti]);
 
@@ -236,21 +257,42 @@ function SubPagamentiContanti() {
   return (
     <div className="space-y-4">
       {/* Nav mese */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button onClick={goBack} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">← Mese prec.</button>
-        <select value={month} onChange={e => setMonth(Number(e.target.value))}
-          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm">
+      <div className={`flex flex-wrap items-center gap-3 ${useRange ? "opacity-50" : ""}`}>
+        <button onClick={goBack} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">← Mese prec.</button>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} disabled={useRange}
+          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed">
           {MONTH_NAMES.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
         </select>
-        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))}
-          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm" />
-        <button onClick={goForward} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">Mese succ. →</button>
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} disabled={useRange}
+          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed" />
+        <button onClick={goForward} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">Mese succ. →</button>
+      </div>
+
+      {/* Filtro intervallo date */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Intervallo date:</span>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">da</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">a</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        {useRange && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+            ✕ pulisci
+          </button>
+        )}
       </div>
 
       {/* KPI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-          <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Pagamenti contanti del mese</p>
+          <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">{useRange ? "Pagamenti contanti nel periodo" : "Pagamenti contanti del mese"}</p>
           <p className="text-2xl font-bold text-orange-800 mt-1">€ {fmt(totale)}</p>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
@@ -328,7 +370,7 @@ function SubPagamentiContanti() {
       {/* Lista movimenti passati */}
       {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
       {!loading && movimenti.length === 0 && (
-        <div className="text-center text-neutral-400 py-8 text-sm">Nessun pagamento in contanti per questo mese.</div>
+        <div className="text-center text-neutral-400 py-8 text-sm">Nessun pagamento in contanti {useRange ? "nel periodo selezionato" : "per questo mese"}.</div>
       )}
       {!loading && movimenti.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-neutral-200">
@@ -380,6 +422,9 @@ function SubVersamentiContanti() {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const useRange = Boolean(dateFrom || dateTo);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -400,7 +445,15 @@ function SubVersamentiContanti() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/cash/daily?year=${year}&month=${month}`);
+      const qp = new URLSearchParams();
+      if (useRange) {
+        if (dateFrom) qp.set("data_da", dateFrom);
+        if (dateTo) qp.set("data_a", dateTo);
+      } else {
+        qp.set("year", String(year));
+        qp.set("month", String(month));
+      }
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/daily?${qp.toString()}`);
       if (!res.ok) throw new Error(`Errore ${res.status}`);
       setData(await res.json());
     } catch (e) {
@@ -408,7 +461,7 @@ function SubVersamentiContanti() {
     } finally {
       setLoading(false);
     }
-  }, [year, month]);
+  }, [year, month, dateFrom, dateTo, useRange]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -540,26 +593,47 @@ function SubVersamentiContanti() {
       </div>
 
       {/* Navigation */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button onClick={goBack} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
+      <div className={`flex flex-wrap items-center gap-3 ${useRange ? "opacity-50" : ""}`}>
+        <button onClick={goBack} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">
           ← Mese prec.
         </button>
-        <select value={month} onChange={e => setMonth(Number(e.target.value))}
-          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm">
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} disabled={useRange}
+          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed">
           {MONTH_NAMES.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
         </select>
-        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))}
-          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm" />
-        <button onClick={goForward} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm">
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} disabled={useRange}
+          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed" />
+        <button onClick={goForward} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">
           Mese succ. →
         </button>
+      </div>
+
+      {/* Filtro intervallo date */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Intervallo date:</span>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">da</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">a</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        {useRange && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+            ✕ pulisci
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}
       {data && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-            <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Totale contanti mese</p>
+            <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">{useRange ? "Totale contanti periodo" : "Totale contanti mese"}</p>
             <p className="text-2xl font-bold text-orange-800 mt-1">€ {fmt(data.totale_contanti)}</p>
           </div>
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
@@ -773,7 +847,7 @@ function SubVersamentiContanti() {
       {/* Riepilogo versamenti */}
       {data && data.versamenti.length > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-          <h3 className="text-sm font-bold text-emerald-800 mb-2">Versamenti del mese</h3>
+          <h3 className="text-sm font-bold text-emerald-800 mb-2">{useRange ? "Versamenti nel periodo" : "Versamenti del mese"}</h3>
           <div className="space-y-1">
             {data.versamenti.map(v => (
               <div key={v.id} className="flex items-center justify-between text-sm bg-white rounded-lg px-3 py-2 border border-emerald-100">
@@ -793,6 +867,193 @@ function SubVersamentiContanti() {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════
+// SUB: FLUSSO CONTANTI — eventi cronologici con cumulativo
+// ═══════════════════════════════════════════
+function SubFlussoContanti() {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const useRange = Boolean(dateFrom || dateTo);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qp = new URLSearchParams();
+      if (useRange) {
+        if (dateFrom) qp.set("data_da", dateFrom);
+        if (dateTo) qp.set("data_a", dateTo);
+      } else {
+        qp.set("year", String(year));
+        qp.set("month", String(month));
+      }
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/flow?${qp.toString()}`);
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      setData(await res.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [year, month, dateFrom, dateTo, useRange]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const goBack = () => { const d = new Date(year, month - 2, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+  const goForward = () => { const d = new Date(year, month, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+
+  const eventi = data?.eventi || [];
+
+  return (
+    <div className="space-y-4">
+      {/* Nav mese */}
+      <div className={`flex flex-wrap items-center gap-3 ${useRange ? "opacity-50" : ""}`}>
+        <button onClick={goBack} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">← Mese prec.</button>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} disabled={useRange}
+          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed">
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+        </select>
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} disabled={useRange}
+          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed" />
+        <button onClick={goForward} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">Mese succ. →</button>
+      </div>
+
+      {/* Filtro intervallo date */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Intervallo date:</span>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">da</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">a</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        {useRange && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+            ✕ pulisci
+          </button>
+        )}
+      </div>
+
+      {/* KPI */}
+      {data && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Saldo iniziale</p>
+            <p className={`text-lg font-bold mt-1 ${data.saldo_iniziale < 0 ? "text-red-700" : "text-neutral-700"}`}>
+              € {fmt(data.saldo_iniziale)}
+            </p>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Entrate</p>
+            <p className="text-lg font-bold text-emerald-800 mt-1">€ {fmt(data.totale_entrate)}</p>
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+            <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Uscite</p>
+            <p className="text-lg font-bold text-orange-800 mt-1">€ {fmt(data.totale_uscite)}</p>
+          </div>
+          <div className={`rounded-xl p-3 text-center border ${data.saldo_finale < 0 ? "bg-red-50 border-red-200" : "bg-indigo-50 border-indigo-200"}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Saldo finale</p>
+            <p className={`text-lg font-bold mt-1 ${data.saldo_finale < 0 ? "text-red-700" : "text-indigo-800"}`}>
+              € {fmt(data.saldo_finale)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Loading / Error */}
+      {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
+      {error && <div className="text-sm text-red-600">Errore: {error}</div>}
+
+      {/* Tabella eventi */}
+      {data && !loading && eventi.length === 0 && (
+        <div className="text-center text-neutral-400 py-8 text-sm">
+          Nessun movimento contanti {useRange ? "nel periodo selezionato" : "per questo mese"}.
+        </div>
+      )}
+      {data && !loading && eventi.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Tipo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Descrizione</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Entrata</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Uscita</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Cumulativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventi.map((e, idx) => {
+                const isIncasso = e.type === "incasso";
+                return (
+                  <tr key={`${e.type}-${e.uscita_id || e.date}-${idx}`} className={isIncasso ? "hover:bg-emerald-50" : "hover:bg-orange-50"}>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">{fmtDate(e.date)}</td>
+                    <td className="border-b border-neutral-100 px-3 py-2">
+                      {isIncasso
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">📥 Incasso</span>
+                        : e.tipo_uscita === "STIPENDIO"
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">💸 Stipendio</span>
+                        : e.tipo_uscita === "SPESA_FISSA"
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">💸 Spesa fissa</span>
+                        : <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">💸 Fattura</span>
+                      }
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-neutral-700">
+                      {e.descrizione}
+                      {e.numero_fattura && <span className="text-xs text-neutral-400 ml-2">({e.numero_fattura})</span>}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-emerald-700">
+                      {e.entrata > 0 ? `€ ${fmt(e.entrata)}` : "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-orange-700">
+                      {e.uscita > 0 ? `€ ${fmt(e.uscita)}` : "—"}
+                    </td>
+                    <td className={`border-b border-neutral-100 px-3 py-2 text-right font-bold ${
+                      e.cumulativo < 0 ? "text-red-700" : "text-indigo-800"
+                    }`}>
+                      € {fmt(e.cumulativo)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td colSpan={3} className="px-3 py-2">Totale periodo</td>
+                <td className="px-3 py-2 text-right text-emerald-700">€ {fmt(data.totale_entrate)}</td>
+                <td className="px-3 py-2 text-right text-orange-700">€ {fmt(data.totale_uscite)}</td>
+                <td className={`px-3 py-2 text-right ${data.saldo_finale < 0 ? "text-red-700" : "text-indigo-800"}`}>
+                  € {fmt(data.saldo_finale)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {data && data.saldo_iniziale !== 0 && (
+        <p className="text-xs text-neutral-400 italic">
+          Saldo iniziale (€ {fmt(data.saldo_iniziale)}) = entrate storiche − uscite contanti storiche prima del periodo selezionato.
+          Il saldo non tiene conto dei versamenti in banca.
+        </p>
       )}
     </div>
   );

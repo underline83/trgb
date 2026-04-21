@@ -3114,11 +3114,14 @@ def paga_uscita_carta(
 def get_movimenti_contanti(
     anno: int = Query(None),
     mese: int = Query(None),
+    data_da: str = Query(None),
+    data_a: str = Query(None),
     current_user=Depends(get_current_user),
 ):
     """
     Lista uscite pagate in contanti (metodo_pagamento = 'CONTANTI').
-    Filtrabili per anno/mese di data_pagamento.
+    Filtrabili per anno/mese di data_pagamento oppure per intervallo data_da/data_a
+    (se passati, l'intervallo ha priorità sul filtro anno/mese).
     """
     fc = get_fc_db()
     sql = """
@@ -3130,12 +3133,20 @@ def get_movimenti_contanti(
         WHERE metodo_pagamento = 'CONTANTI'
     """
     params = []
-    if anno:
-        sql += " AND strftime('%Y', data_pagamento) = ?"
-        params.append(str(anno))
-    if mese:
-        sql += " AND CAST(strftime('%m', data_pagamento) AS INTEGER) = ?"
-        params.append(mese)
+    if data_da or data_a:
+        if data_da:
+            sql += " AND data_pagamento >= ?"
+            params.append(data_da)
+        if data_a:
+            sql += " AND data_pagamento <= ?"
+            params.append(data_a)
+    else:
+        if anno:
+            sql += " AND strftime('%Y', data_pagamento) = ?"
+            params.append(str(anno))
+        if mese:
+            sql += " AND CAST(strftime('%m', data_pagamento) AS INTEGER) = ?"
+            params.append(mese)
     sql += " ORDER BY data_pagamento DESC, fornitore_nome"
     rows = [dict(r) for r in fc.execute(sql, params).fetchall()]
 

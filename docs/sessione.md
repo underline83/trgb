@@ -1,8 +1,34 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-21 pomeriggio (sessione 53 cont. — vettore corruzione identificato + fix in produzione, S52-1 in osservazione)
+**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + nuovo tab "Flusso contanti")
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 54 (2026-04-22) — FLUSSI CASSA CONTANTI: filtro data + tab Flusso contanti
+
+### Modifiche
+1. **Filtro data da/a** sui tab esistenti `Pagamenti spese` e `Versamenti in banca` (Flussi di cassa → Contanti).
+   - BE: `/controllo-gestione/movimenti-contanti` accetta `data_da`/`data_a` (override su anno/mese).
+   - BE: `/admin/finance/cash/daily` accetta `data_da`/`data_a`, `_aggregate_shift_closures_by_date` esteso con `date_from`/`date_to`.
+   - FE: due input date "da"/"a" + pulsante "✕ pulisci" sotto la nav mese. Se valorizzati, disabilitano la nav mese.
+2. **Nuovo tab "📊 Flusso contanti"** dentro Movimenti Contanti.
+   - BE nuovo endpoint `/admin/finance/cash/flow` (admin_finance.py): eventi cronologici con saldo cumulativo riportato dal periodo precedente.
+     - Entrata = contanti fiscali giornalieri (corrispettivi − elettronici).
+     - Uscita  = `cg_uscite` con `metodo_pagamento = 'CONTANTI'`.
+     - Giorni senza entrate né uscite non compaiono.
+     - Saldo iniziale = somma entrate storiche − somma uscite contanti storiche prima del periodo (non tiene conto dei versamenti in banca, per volontà di Marco).
+   - FE componente `SubFlussoContanti` in `GestioneContanti.jsx`: KPI (saldo iniziale / entrate / uscite / saldo finale) + tabella con cumulativo.
+
+### File toccati
+- `app/routers/controllo_gestione_router.py` → `get_movimenti_contanti` +data_da/data_a
+- `app/routers/admin_finance.py` → `_aggregate_shift_closures_by_date` esteso + `get_cash_daily` +data_da/data_a + helper `_contanti_fiscali_by_date` + endpoint `/cash/flow` + `CashDailyResponse` con year/month/data_da/data_a Optional + import `timedelta`
+- `frontend/src/pages/admin/GestioneContanti.jsx` → filtro data in `SubPagamentiContanti` + `SubVersamentiContanti` + nuovo `SubFlussoContanti` + sub-tab switcher a 3 voci
+
+### Da verificare dopo push
+- che il saldo iniziale del flusso sia sensato (può essere molto alto: tutti gli incassi contanti storici meno tutte le spese contanti storiche — è l'importo netto teorico generato in cassa dall'origine dei dati).
+- che filtro data da/a funzioni anche con uno solo dei due campi compilato (es. solo "da" = "dalla data in poi").
 
 ---
 
