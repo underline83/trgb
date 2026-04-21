@@ -23,9 +23,9 @@ function fmtDate(iso) {
 }
 
 // ── SIDEBAR MENU (Mance ora ha tab dedicata in FlussiCassa) ──
+// Pre-conti + Spese varie unificati sotto "Spese varie" con 3 sub-tab (Pre-conti / Spese varie / Flusso spese)
 const MENU_BASE = [
   { key: "movimenti", label: "Movimenti Contanti", icon: "💶" },
-  { key: "preconti", label: "Pre-conti", icon: "🍽️", superOnly: true },
   { key: "spese", label: "Spese turno", icon: "🧾" },
   { key: "spese-varie", label: "Spese varie", icon: "💸", superOnly: true },
 ];
@@ -68,9 +68,8 @@ export function GestioneContantiContent() {
             {/* Content */}
             <div className="flex-1 p-5 md:p-6 overflow-auto">
               {activeSection === "movimenti" && <SezioneMovimentiContanti />}
-              {activeSection === "preconti" && showSuper && <SezionePreconti />}
               {activeSection === "spese" && <SezioneSpese />}
-              {activeSection === "spese-varie" && showSuper && <SezioneSpeseVarie />}
+              {activeSection === "spese-varie" && showSuper && <SezioneSpeseUnificata />}
             </div>
           </div>
         </div>
@@ -1964,6 +1963,352 @@ function SezioneSpeseVarie() {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════
+// SEZIONE: SPESE VARIE UNIFICATA (wrapper 3 sub-tab)
+// ═══════════════════════════════════════════
+function SezioneSpeseUnificata() {
+  const [subTab, setSubTab] = useState("preconti");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-emerald-900 font-playfair">Spese varie</h1>
+        <p className="text-neutral-500 text-sm mt-1">
+          Pre-conti (contanti incassati non battuti) e spese varie pagate con quei contanti.
+          Il flusso somma entrate e uscite per dare il saldo cassa contanti preconti.
+        </p>
+      </div>
+
+      {/* Sub-tab switcher */}
+      <div className="flex gap-1 bg-neutral-100 rounded-xl p-1 w-fit flex-wrap">
+        <button
+          onClick={() => setSubTab("preconti")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "preconti"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          📥 Pre-conti
+        </button>
+        <button
+          onClick={() => setSubTab("spese")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "spese"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          💸 Spese varie
+        </button>
+        <button
+          onClick={() => setSubTab("flusso")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            subTab === "flusso"
+              ? "bg-white text-emerald-800 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-700"
+          }`}>
+          📊 Flusso spese
+        </button>
+      </div>
+
+      {subTab === "preconti" && <SezionePreconti />}
+      {subTab === "spese" && <SezioneSpeseVarie />}
+      {subTab === "flusso" && <SubFlussoSpese />}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════
+// SUB: FLUSSO SPESE — preconti (entrate) + spese varie (uscite) cronologici
+// ═══════════════════════════════════════════
+function SubFlussoSpese() {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const useRange = Boolean(dateFrom || dateTo);
+  const [preconti, setPreconti] = useState([]);
+  const [spese, setSpese] = useState([]);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Calcolo periodo
+  const periodo = useMemo(() => {
+    if (useRange) {
+      return { from: dateFrom || null, to: dateTo || null };
+    }
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      from: `${year}-${String(month).padStart(2, "0")}-01`,
+      to: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+    };
+  }, [year, month, dateFrom, dateTo, useRange]);
+
+  const currentYear = useMemo(() => {
+    if (periodo.from) return parseInt(periodo.from.slice(0, 4));
+    return new Date().getFullYear();
+  }, [periodo.from]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-categories`);
+      if (res.ok) setCategories(await res.json());
+    } catch (_) { /* ignore */ }
+  }, []);
+
+  const fetchOpeningBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/opening-balance/${currentYear}`);
+      if (res.ok) {
+        const ob = await res.json();
+        setOpeningBalance(ob.importo || 0);
+      }
+    } catch (_) { /* ignore */ }
+  }, [currentYear]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (periodo.from) params.set("date_from", periodo.from);
+      if (periodo.to) params.set("date_to", periodo.to);
+      const [resPreconti, resSpese] = await Promise.all([
+        apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${params}`),
+        apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`),
+      ]);
+      if (!resPreconti.ok) throw new Error(`Errore preconti ${resPreconti.status}`);
+      if (!resSpese.ok) throw new Error(`Errore spese ${resSpese.status}`);
+      const jp = await resPreconti.json();
+      const js = await resSpese.json();
+      setPreconti(jp.preconti || []);
+      setSpese(js.spese || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [periodo.from, periodo.to]);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => { fetchOpeningBalance(); }, [fetchOpeningBalance]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Saldo iniziale: opening balance dell'anno + preconti precedenti nel periodo - spese precedenti
+  // Per semplicità: saldo iniziale = opening balance solo se periodo inizia 1/1; altrimenti 0 + nota
+  // Soluzione semplice: mostriamo solo entrate/uscite del periodo, senza saldo cumulativo ancorato
+  // (questo modulo è più "movimenti" che "cassa fisica")
+
+  // Costruzione eventi cronologici
+  const eventi = useMemo(() => {
+    const evts = [];
+    // Preconti (entrate)
+    for (const p of preconti) {
+      evts.push({
+        type: "preconto",
+        date: p.date,
+        turno: p.turno,
+        descrizione: `Pre-conto${p.tavolo ? ` tavolo ${p.tavolo}` : ""}${p.turno ? ` (${p.turno})` : ""}`,
+        entrata: Number(p.importo || 0),
+        uscita: 0,
+        sub: p.created_by || null,
+      });
+    }
+    // Spese (uscite)
+    for (const s of spese) {
+      evts.push({
+        type: "spesa",
+        date: s.date,
+        categoria: s.categoria,
+        descrizione: s.descrizione || "(senza descrizione)",
+        entrata: 0,
+        uscita: Number(s.importo || 0),
+        sub: s.note || null,
+        id: s.id,
+      });
+    }
+    // Sort: per data; a parità, preconto prima di spesa
+    const typeOrder = { preconto: 0, spesa: 1 };
+    evts.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (typeOrder[a.type] || 9) - (typeOrder[b.type] || 9);
+    });
+    // Cumulativo (parte da 0; il saldo ancorato vive in SezioneSpeseVarie)
+    let cum = 0;
+    for (const e of evts) {
+      cum += (e.entrata || 0) - (e.uscita || 0);
+      e.cumulativo = cum;
+    }
+    return evts;
+  }, [preconti, spese]);
+
+  const totaleEntrate = useMemo(() => preconti.reduce((s, p) => s + Number(p.importo || 0), 0), [preconti]);
+  const totaleUscite = useMemo(() => spese.reduce((s, e) => s + Number(e.importo || 0), 0), [spese]);
+  const saldoPeriodo = totaleEntrate - totaleUscite;
+
+  const catMap = useMemo(() => {
+    const m = {};
+    for (const c of categories) m[c.key] = c;
+    return m;
+  }, [categories]);
+
+  const catLabel = (key) => catMap[key]?.label || key || "—";
+  const catColor = (key) => COLOR_MAP[catMap[key]?.color] || COLOR_MAP.neutral;
+
+  const goBack = () => { const d = new Date(year, month - 2, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+  const goForward = () => { const d = new Date(year, month, 1); setYear(d.getFullYear()); setMonth(d.getMonth() + 1); };
+
+  return (
+    <div className="space-y-4">
+      {/* Nav mese */}
+      <div className={`flex flex-wrap items-center gap-3 ${useRange ? "opacity-50" : ""}`}>
+        <button onClick={goBack} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">← Mese prec.</button>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} disabled={useRange}
+          className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed">
+          {MONTH_NAMES.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+        </select>
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} disabled={useRange}
+          className="w-20 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-sm disabled:cursor-not-allowed" />
+        <button onClick={goForward} disabled={useRange} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-neutral-50 hover:bg-neutral-100 text-sm disabled:cursor-not-allowed">Mese succ. →</button>
+      </div>
+
+      {/* Filtro intervallo date */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Intervallo date:</span>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">da</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-xs text-neutral-500">a</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-sm" />
+        </label>
+        {useRange && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="px-2 py-1 rounded-lg text-xs text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100">
+            ✕ pulisci
+          </button>
+        )}
+      </div>
+
+      {/* KPI */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
+          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Saldo inizio anno</p>
+          <p className={`text-lg font-bold mt-1 ${openingBalance < 0 ? "text-red-700" : "text-neutral-700"}`}>
+            € {fmt(openingBalance)}
+          </p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">anno {currentYear}</p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+          <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Pre-conti (entrate)</p>
+          <p className="text-lg font-bold text-emerald-800 mt-1">€ {fmt(totaleEntrate)}</p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">{preconti.length} registrazioni</p>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+          <p className="text-[10px] font-semibold text-orange-600 uppercase tracking-wide">Spese varie (uscite)</p>
+          <p className="text-lg font-bold text-orange-800 mt-1">€ {fmt(totaleUscite)}</p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">{spese.length} spese</p>
+        </div>
+        <div className={`rounded-xl p-3 text-center border ${saldoPeriodo < 0 ? "bg-red-50 border-red-200" : "bg-indigo-50 border-indigo-200"}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Saldo periodo</p>
+          <p className={`text-lg font-bold mt-1 ${saldoPeriodo < 0 ? "text-red-700" : "text-indigo-800"}`}>
+            € {fmt(saldoPeriodo)}
+          </p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">entrate − uscite</p>
+        </div>
+      </div>
+
+      {/* Loading / Error */}
+      {loading && <div className="text-sm text-neutral-500 animate-pulse">Caricamento...</div>}
+      {error && <div className="text-sm text-red-600">Errore: {error}</div>}
+
+      {/* Tabella eventi */}
+      {!loading && eventi.length === 0 && !error && (
+        <div className="text-center text-neutral-400 py-8 text-sm">
+          Nessun movimento {useRange ? "nel periodo selezionato" : "per questo mese"}.
+        </div>
+      )}
+      {!loading && eventi.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-neutral-200">
+          <table className="min-w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-700">
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Data</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Tipo</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-left">Descrizione</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Entrata</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Uscita</th>
+                <th className="border-b border-neutral-200 px-3 py-2 text-right">Cumulativo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventi.map((e, idx) => {
+                const isPreconto = e.type === "preconto";
+                const rowCls = isPreconto ? "hover:bg-emerald-50" : "hover:bg-orange-50";
+                const rowKey = `${e.type}-${e.id || e.date}-${idx}`;
+                return (
+                  <tr key={rowKey} className={rowCls}>
+                    <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">{fmtDate(e.date)}</td>
+                    <td className="border-b border-neutral-100 px-3 py-2">
+                      {isPreconto ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          📥 Pre-conto{e.turno ? ` · ${e.turno === "pranzo" ? "☀️" : "🌙"}` : ""}
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${catColor(e.categoria)}`}>
+                          💸 {catLabel(e.categoria)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-neutral-700">
+                      {e.descrizione}
+                      {e.sub && <span className="text-xs text-neutral-400 ml-2">({e.sub})</span>}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-emerald-700">
+                      {e.entrata > 0 ? `€ ${fmt(e.entrata)}` : "—"}
+                    </td>
+                    <td className="border-b border-neutral-100 px-3 py-2 text-right font-semibold text-orange-700">
+                      {e.uscita > 0 ? `€ ${fmt(e.uscita)}` : "—"}
+                    </td>
+                    <td className={`border-b border-neutral-100 px-3 py-2 text-right font-bold ${
+                      e.cumulativo < 0 ? "text-red-700" : "text-indigo-800"
+                    }`}>
+                      € {fmt(e.cumulativo)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
+                <td colSpan={3} className="px-3 py-2">Totale periodo ({eventi.length} movimenti)</td>
+                <td className="px-3 py-2 text-right text-emerald-700">€ {fmt(totaleEntrate)}</td>
+                <td className="px-3 py-2 text-right text-orange-700">€ {fmt(totaleUscite)}</td>
+                <td className={`px-3 py-2 text-right ${saldoPeriodo < 0 ? "text-red-700" : "text-indigo-800"}`}>
+                  € {fmt(saldoPeriodo)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      <p className="text-xs text-neutral-400 italic">
+        Il cumulativo parte da 0 all'inizio del periodo: somma solo i movimenti qui elencati.
+        Il saldo cassa contanti preconti (con ancoraggio al saldo inizio anno) si vede nella tab{" "}
+        <strong>Spese varie</strong>.
+      </p>
+    </div>
+  );
+}
+
 
 // Default export per retrocompatibilità (redirect da vecchie route)
 export default GestioneContantiContent;

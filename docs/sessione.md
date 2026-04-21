@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + nuovo tab "Flusso contanti" + baseline saldo iniziale)
+**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + tab "Flusso contanti" + baseline saldo iniziale + unificazione Pre-conti/Spese varie)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
@@ -49,6 +49,30 @@ Implementato:
 ### Verifiche sintassi
 - `python3 -m py_compile admin_finance.py` → OK.
 - esbuild su entrambi i .jsx → OK.
+
+### Iterazione 3 (stessa sessione 54)
+Marco: "Sistemiamo anche la parte di pre-conti e di spese varie; unendole in una sola categoria con 3 tab; come nome della categoria teniamo Spese varie, all'interno 3 tab: Pre-conti, Spese varie; Flusso Spese fa da totale sommando le due".
+
+Implementato (FE only — nessuna modifica BE):
+1. **Sidebar `GestioneContantiContent`**: rimossa voce separata `Pre-conti`. Ora il menu ha 3 voci: `Movimenti Contanti`, `Spese turno`, `Spese varie` (quest'ultima solo `superOnly`).
+2. **Nuovo wrapper `SezioneSpeseUnificata`** con 3 sub-tab pill:
+   - `📥 Pre-conti` → render `<SezionePreconti />` (invariato).
+   - `💸 Spese varie` → render `<SezioneSpeseVarie />` (invariato).
+   - `📊 Flusso spese` → nuovo componente `SubFlussoSpese`.
+3. **Nuovo componente `SubFlussoSpese`**: aggrega cronologicamente preconti (entrate) + spese varie (uscite).
+   - Fetch parallelo `/admin/finance/shift-closures/preconti` + `/admin/finance/cash/expenses` + `/admin/finance/cash/expense-categories` + `/admin/finance/cash/opening-balance/{year}`.
+   - KPI: `Saldo inizio anno`, `Pre-conti entrate`, `Spese varie uscite`, `Saldo periodo` (entrate − uscite).
+   - Tabella: Data / Tipo (badge `📥 Pre-conto` emerald o `💸 <categoria>` con colore dinamico da `COLOR_MAP`) / Descrizione / Entrata / Uscita / Cumulativo.
+   - Cumulativo parte da 0 all'inizio del periodo (non ancorato: il saldo ancorato all'opening balance vive già in `SezioneSpeseVarie`). Nota esplicativa in fondo.
+   - Nav mese + filtro data da/a speculari a `SubFlussoContanti`.
+4. Le funzioni `SezionePreconti` e `SezioneSpeseVarie` sono rimaste invariate: solo `MENU_BASE` e il wrapper sono cambiati.
+
+### File toccati (iter 3)
+- `frontend/src/pages/admin/GestioneContanti.jsx` → `MENU_BASE` 4→3 voci, render `SezioneSpeseUnificata` sul key `spese-varie`, nuovi componenti `SezioneSpeseUnificata` + `SubFlussoSpese`.
+
+### Verifiche sintassi (iter 3)
+- esbuild `GestioneContanti.jsx` → OK.
+- esbuild `BancaImpostazioni.jsx` → OK (non modificato, doppio check).
 
 ---
 
