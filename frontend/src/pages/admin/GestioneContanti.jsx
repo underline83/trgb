@@ -1003,12 +1003,21 @@ function SubFlussoContanti() {
             <tbody>
               {eventi.map((e, idx) => {
                 const isIncasso = e.type === "incasso";
+                const isVersamento = e.type === "versamento";
+                const rowCls = isIncasso
+                  ? "hover:bg-emerald-50"
+                  : isVersamento
+                  ? "hover:bg-sky-50"
+                  : "hover:bg-orange-50";
+                const rowKey = `${e.type}-${e.uscita_id || e.versamento_id || e.date}-${idx}`;
                 return (
-                  <tr key={`${e.type}-${e.uscita_id || e.date}-${idx}`} className={isIncasso ? "hover:bg-emerald-50" : "hover:bg-orange-50"}>
+                  <tr key={rowKey} className={rowCls}>
                     <td className="border-b border-neutral-100 px-3 py-2 whitespace-nowrap">{fmtDate(e.date)}</td>
                     <td className="border-b border-neutral-100 px-3 py-2">
                       {isIncasso
                         ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">📥 Incasso</span>
+                        : isVersamento
+                        ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">🏦 Versamento</span>
                         : e.tipo_uscita === "STIPENDIO"
                         ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">💸 Stipendio</span>
                         : e.tipo_uscita === "SPESA_FISSA"
@@ -1037,9 +1046,18 @@ function SubFlussoContanti() {
             </tbody>
             <tfoot>
               <tr className="font-bold bg-neutral-50 border-t-2 border-neutral-300">
-                <td colSpan={3} className="px-3 py-2">Totale periodo</td>
+                <td colSpan={3} className="px-3 py-2">
+                  Totale periodo
+                  {data.totale_versamenti > 0 && (
+                    <span className="ml-2 text-[11px] font-normal text-sky-700">
+                      (di cui versamenti: € {fmt(data.totale_versamenti)})
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-right text-emerald-700">€ {fmt(data.totale_entrate)}</td>
-                <td className="px-3 py-2 text-right text-orange-700">€ {fmt(data.totale_uscite)}</td>
+                <td className="px-3 py-2 text-right text-orange-700">
+                  € {fmt((Number(data.totale_uscite) || 0) + (Number(data.totale_versamenti) || 0))}
+                </td>
                 <td className={`px-3 py-2 text-right ${data.saldo_finale < 0 ? "text-red-700" : "text-indigo-800"}`}>
                   € {fmt(data.saldo_finale)}
                 </td>
@@ -1049,10 +1067,21 @@ function SubFlussoContanti() {
         </div>
       )}
 
-      {data && data.saldo_iniziale !== 0 && (
+      {data && (
         <p className="text-xs text-neutral-400 italic">
-          Saldo iniziale (€ {fmt(data.saldo_iniziale)}) = entrate storiche − uscite contanti storiche prima del periodo selezionato.
-          Il saldo non tiene conto dei versamenti in banca.
+          {data.baseline_applicato ? (
+            <>
+              Saldo iniziale ancorato al baseline del {fmtDate(data.baseline_date)} (€ {fmt(data.baseline_value)}),
+              aggiornato sommando entrate e sottraendo spese contanti e versamenti fino al giorno prima del periodo.
+              Modificabile da <strong>Impostazioni → Saldo cassa contanti</strong>.
+            </>
+          ) : data.saldo_iniziale !== 0 ? (
+            <>
+              Saldo iniziale (€ {fmt(data.saldo_iniziale)}) = entrate contanti storiche − spese contanti storiche − versamenti storici,
+              dall'inizio dei record fino al giorno prima del periodo. Per ancorarlo a una data nota vai su{" "}
+              <strong>Impostazioni → Saldo cassa contanti</strong>.
+            </>
+          ) : null}
         </p>
       )}
     </div>

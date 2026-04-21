@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + nuovo tab "Flusso contanti")
+**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + nuovo tab "Flusso contanti" + baseline saldo iniziale)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
@@ -29,6 +29,26 @@
 ### Da verificare dopo push
 - che il saldo iniziale del flusso sia sensato (può essere molto alto: tutti gli incassi contanti storici meno tutte le spese contanti storiche — è l'importo netto teorico generato in cassa dall'origine dei dati).
 - che filtro data da/a funzioni anche con uno solo dei due campi compilato (es. solo "da" = "dalla data in poi").
+
+### Iterazione 2 (stessa sessione 54)
+Marco: "sottrai i versamenti così diventa una cassa contanti effettiva; però visto che non abbiamo caricato tutti i dati storici della banca, il numero risulterà troppo sbagliato. In impostazioni aggiungi la possibilità di settare una data iniziale con un valore iniziale".
+
+Implementato:
+1. **BE**: `/admin/finance/cash/flow` ora sottrae anche i **versamenti** (cash_deposits) dal saldo iniziale storico e li mostra come terzo tipo di evento nella tabella (type=`versamento`, icona 🏦, colonna Uscita).
+2. **BE**: nuova tabella `cash_flow_baseline` (single row, id=1) in `admin_finance.sqlite3` con `baseline_date`, `baseline_value`, `note`.
+3. **BE**: endpoints `GET /admin/finance/cash/flow/baseline` e `PUT /admin/finance/cash/flow/baseline` (PUT solo admin/superadmin).
+4. **BE**: logica `/cash/flow` — se baseline attivo e `period_start >= baseline_date`: parte da `baseline_value` alla `baseline_date`, poi applica entrate − spese − versamenti tra baseline_date e giorno prima del periodo. Altrimenti fallback storico completo.
+5. **FE BancaImpostazioni**: nuova voce menu "💰 Saldo cassa contanti" con tab dedicata (`TabCashBaseline`): data + valore iniziale + nota + Save/Reset, con spiegazione in basso.
+6. **FE SubFlussoContanti**: rendering del tipo `versamento` (badge 🏦 Versamento sky), footer che distingue spese+versamenti, nota esplicativa che si adatta a baseline attivo/non attivo.
+
+### File toccati (iter 2)
+- `app/routers/admin_finance.py` → tabella+helper+2 endpoints baseline + helper `_sum_versamenti_range`, `_sum_spese_contanti_range` + `/cash/flow` riscritto con baseline logic + versamenti come eventi + nuovi campi response (`baseline_applicato`, `baseline_date`, `baseline_value`, `totale_versamenti`).
+- `frontend/src/pages/banca/BancaImpostazioni.jsx` → voce menu "cash-baseline" + componente `TabCashBaseline`.
+- `frontend/src/pages/admin/GestioneContanti.jsx` → `SubFlussoContanti` rendering versamento + footer/nota aggiornati.
+
+### Verifiche sintassi
+- `python3 -m py_compile admin_finance.py` → OK.
+- esbuild su entrambi i .jsx → OK.
 
 ---
 

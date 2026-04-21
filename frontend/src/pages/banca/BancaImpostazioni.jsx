@@ -26,6 +26,7 @@ const MENU = [
   { key: "categorie",         label: "Categorie Banca",         icon: "🏷️", desc: "Categorie per classificare i movimenti" },
   { key: "cat-registrazione", label: "Categorie Registrazione", icon: "📋", desc: "Categorie registrazione corrispettivi" },
   { key: "duplicati",         label: "Pulizia Duplicati",       icon: "🧹", desc: "Trova e rimuovi movimenti duplicati" },
+  { key: "cash-baseline",     label: "Saldo cassa contanti",    icon: "💰", desc: "Data + valore iniziale per il Flusso contanti" },
 ];
 
 export default function BancaImpostazioni() {
@@ -36,6 +37,7 @@ export default function BancaImpostazioni() {
     "categorie":         () => <TabCategorie />,
     "cat-registrazione": () => <TabCategorieRegistrazione />,
     "duplicati":         () => <TabDuplicati />,
+    "cash-baseline":     () => <TabCashBaseline />,
   };
 
   return (
@@ -951,6 +953,190 @@ function TabDuplicati() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════
+// TAB SALDO CASSA CONTANTI (baseline per Flusso contanti)
+// ═══════════════════════════════════════════════════════
+function TabCashBaseline() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const [baselineDate, setBaselineDate] = useState("");
+  const [baselineValue, setBaselineValue] = useState("");
+  const [note, setNote] = useState("");
+  const [updatedInfo, setUpdatedInfo] = useState({ updated_by: "", updated_at: null });
+
+  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/admin/finance/cash/flow/baseline`);
+      if (!resp.ok) throw new Error(`Errore ${resp.status}`);
+      const data = await resp.json();
+      setBaselineDate(data.baseline_date || "");
+      setBaselineValue(data.baseline_value != null ? String(data.baseline_value) : "");
+      setNote(data.note || "");
+      setUpdatedInfo({ updated_by: data.updated_by || "", updated_at: data.updated_at || null });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        baseline_date: baselineDate || null,
+        baseline_value: baselineValue === "" ? 0 : parseFloat(baselineValue.toString().replace(",", ".")),
+        note: note || "",
+      };
+      if (payload.baseline_value != null && isNaN(payload.baseline_value)) {
+        throw new Error("Valore non numerico");
+      }
+      const resp = await apiFetch(`${API_BASE}/admin/finance/cash/flow/baseline`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.detail || "Errore salvataggio");
+      }
+      setToast({ type: "ok", msg: "Saldo iniziale aggiornato" });
+      await load();
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm("Rimuovere il saldo iniziale? Il Flusso contanti tornerà a calcolare dallo storico completo.")) return;
+    setSaving(true);
+    setError("");
+    try {
+      const resp = await apiFetch(`${API_BASE}/admin/finance/cash/flow/baseline`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseline_date: null, baseline_value: 0, note: "" }),
+      });
+      if (!resp.ok) throw new Error("Errore reset");
+      setToast({ type: "ok", msg: "Baseline rimossa" });
+      await load();
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-neutral-800 mb-1">Saldo cassa contanti</h2>
+      <p className="text-sm text-neutral-600 mb-5">
+        Ancora il calcolo del <strong>Flusso contanti</strong> a una data e a un valore noti.
+        Il cumulativo visualizzato partirà da questo saldo alla data indicata, sommando poi incassi e
+        sottraendo spese e versamenti successivi. Usalo quando lo storico dei versamenti bancari è incompleto
+        e lo storico pieno darebbe un saldo iniziale irrealistico.
+      </p>
+
+      {toast && (
+        <div className={`mb-4 px-4 py-2.5 rounded-lg text-sm font-medium ${
+          toast.type === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"
+        }`}>{toast.msg}</div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-300 bg-red-50 text-red-800 px-4 py-3 text-sm">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-12 text-neutral-500">Caricamento...</div>
+      ) : (
+        <div className="max-w-xl bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1 block">
+                Data di riferimento
+              </label>
+              <input
+                type="date"
+                value={baselineDate}
+                onChange={(e) => setBaselineDate(e.target.value)}
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+              />
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Il saldo iniziale vale a partire da questo giorno.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1 block">
+                Valore iniziale (€)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={baselineValue}
+                onChange={(e) => setBaselineValue(e.target.value)}
+                placeholder="0,00"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white font-mono"
+              />
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Contanti fisicamente in cassa alla data sopra.
+              </p>
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1 block">
+              Nota (opzionale)
+            </label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Es. Contato manualmente in cassaforte il 22/04/26"
+              className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Btn variant="success" size="md" onClick={handleSave} disabled={saving} loading={saving}>
+              Salva
+            </Btn>
+            {(baselineDate || parseFloat(baselineValue) !== 0) && (
+              <Btn variant="secondary" size="md" onClick={handleReset} disabled={saving}>
+                Rimuovi baseline
+              </Btn>
+            )}
+            {updatedInfo.updated_at && (
+              <span className="text-[11px] text-neutral-500 ml-auto">
+                Ultimo aggiornamento: {new Date(updatedInfo.updated_at).toLocaleString("it-IT")}
+                {updatedInfo.updated_by ? ` · ${updatedInfo.updated_by}` : ""}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 max-w-2xl text-xs text-neutral-500 space-y-1.5 leading-relaxed">
+        <p><strong>Come funziona il calcolo:</strong></p>
+        <p>• <strong>Con baseline attivo</strong>: saldo iniziale del periodo = <em>valore baseline</em> + entrate − spese − versamenti, calcolato tra la data baseline e il giorno prima dell'inizio del periodo richiesto.</p>
+        <p>• <strong>Senza baseline</strong>: saldo iniziale = somma di <em>tutte</em> le entrate storiche − <em>tutte</em> le spese contanti storiche − <em>tutti</em> i versamenti storici, dall'inizio dei record.</p>
+        <p>• Se il periodo richiesto cade prima della data baseline, il baseline viene ignorato e si parte da 0.</p>
+      </div>
     </div>
   );
 }

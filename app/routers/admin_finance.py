@@ -1765,6 +1765,125 @@ def _contanti_fiscali_by_date(conn: sqlite3.Connection, date_from: Optional[str]
     return result
 
 
+# ─── BASELINE CASSA CONTANTI (ancoraggio saldo iniziale) ───
+
+def _ensure_cash_flow_baseline_table(conn: sqlite3.Connection) -> None:
+    """
+    Tabella single-row (id=1) per memorizzare il saldo iniziale della cassa contanti.
+    Serve a evitare che il cumulativo retroceda all'infinito quando lo storico bancario è incompleto.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_flow_baseline (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            baseline_date TEXT,
+            baseline_value REAL DEFAULT 0,
+            note TEXT DEFAULT '',
+            updated_by TEXT DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
+def _get_cash_flow_baseline(conn: sqlite3.Connection) -> dict:
+    _ensure_cash_flow_baseline_table(conn)
+    row = conn.execute("SELECT * FROM cash_flow_baseline WHERE id = 1").fetchone()
+    if not row:
+        return {"baseline_date": None, "baseline_value": 0.0, "note": "", "updated_by": "", "updated_at": None}
+    return dict(row)
+
+
+def _sum_versamenti_range(conn: sqlite3.Connection, date_from: Optional[str], date_to: Optional[str]) -> float:
+    """Somma cash_deposits.importo in un intervallo [date_from, date_to] (inclusi)."""
+    _ensure_cash_deposits_table(conn)
+    where = []
+    params: list = []
+    if date_from:
+        where.append("date >= ?")
+        params.append(date_from)
+    if date_to:
+        where.append("date <= ?")
+        params.append(date_to)
+    wq = f"WHERE {' AND '.join(where)}" if where else ""
+    row = conn.execute(f"SELECT COALESCE(SUM(importo), 0) AS tot FROM cash_deposits {wq}", tuple(params)).fetchone()
+    return float(row["tot"] or 0) if row else 0.0
+
+
+def _sum_spese_contanti_range(date_from: Optional[str], date_to: Optional[str]) -> float:
+    """Somma cg_uscite (metodo_pagamento='CONTANTI') in un intervallo [date_from, date_to] (inclusi)."""
+    fc = sqlite3.connect(FOODCOST_DB_PATH)
+    fc.row_factory = sqlite3.Row
+    try:
+        where = ["metodo_pagamento = 'CONTANTI'", "data_pagamento IS NOT NULL"]
+        params: list = []
+        if date_from:
+            where.append("data_pagamento >= ?")
+            params.append(date_from)
+        if date_to:
+            where.append("data_pagamento <= ?")
+            params.append(date_to)
+        row = fc.execute(f"""
+            SELECT COALESCE(SUM(COALESCE(importo_pagato, totale, 0)), 0) AS tot
+            FROM cg_uscite
+            WHERE {' AND '.join(where)}
+        """, tuple(params)).fetchone()
+        return float(row["tot"] or 0) if row else 0.0
+    finally:
+        fc.close()
+
+
+class CashFlowBaseline(BaseModel):
+    baseline_date: Optional[str] = None
+    baseline_value: float = 0.0
+    note: str = ""
+
+
+@router.get("/cash/flow/baseline")
+async def get_cash_flow_baseline(user=Depends(get_current_user)):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        return _get_cash_flow_baseline(conn)
+    finally:
+        conn.close()
+
+
+@router.put("/cash/flow/baseline")
+async def set_cash_flow_baseline(
+    payload: CashFlowBaseline,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    role = current_user.get("role", "")
+    if not (is_superadmin(role) or role == "admin"):
+        raise HTTPException(status_code=403, detail="Solo admin/superadmin.")
+
+    # Validazione data
+    if payload.baseline_date:
+        try:
+            datetime.strptime(payload.baseline_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="baseline_date formato non valido (atteso YYYY-MM-DD)")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_flow_baseline_table(conn)
+    try:
+        conn.execute("""
+            INSERT INTO cash_flow_baseline (id, baseline_date, baseline_value, note, updated_by, updated_at)
+            VALUES (1, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+                baseline_date = excluded.baseline_date,
+                baseline_value = excluded.baseline_value,
+                note = excluded.note,
+                updated_by = excluded.updated_by,
+                updated_at = datetime('now')
+        """, (payload.baseline_date, payload.baseline_value, payload.note, current_user.get("sub", "")))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.get("/cash/flow")
 async def get_cash_flow(
     year: Optional[int] = Query(None, ge=2000, le=2100),
@@ -1775,12 +1894,18 @@ async def get_cash_flow(
 ):
     """
     Flusso contanti — eventi cronologici con saldo cumulativo:
-    - Entrata: contanti fiscali giornalieri (corrispettivi - pagamenti elettronici)
-    - Uscita : pagamenti di cg_uscite con metodo_pagamento = 'CONTANTI'
+    - Entrata    : contanti fiscali giornalieri (corrispettivi - pagamenti elettronici)
+    - Uscita     : pagamenti di cg_uscite con metodo_pagamento = 'CONTANTI'
+    - Versamento : cash_deposits (portati in banca) — decurtati dal cumulativo
 
     Filtrabile per year+month (default) oppure per intervallo data_da/data_a.
-    Saldo cumulativo riportato dal periodo precedente (somma storica entrate - uscite).
-    Giorni senza entrate né uscite non compaiono.
+
+    Saldo iniziale:
+      - Se in Impostazioni è settato un baseline (data + valore): il cumulativo parte
+        da quel valore alla data indicata. Per il periodo richiesto si riporta:
+            baseline_value + entrate − spese − versamenti, fra baseline_date e giorno precedente period_start.
+      - Altrimenti: somma storica (dall'inizio dei record) di entrate − spese − versamenti
+        fino al giorno precedente period_start.
     """
     import calendar as _cal
 
@@ -1799,7 +1924,12 @@ async def get_cash_flow(
     conn.row_factory = sqlite3.Row
     ensure_daily_closures_table(conn)
 
-    # 1. Saldo iniziale riportato: sum(entrate_storiche) - sum(uscite_storiche) prima di period_start
+    # ── Baseline da Impostazioni ──────────────────────────────────
+    baseline = _get_cash_flow_baseline(conn)
+    baseline_date = baseline.get("baseline_date")
+    baseline_value = float(baseline.get("baseline_value") or 0.0)
+
+    # ── Saldo iniziale ────────────────────────────────────────────
     saldo_iniziale = 0.0
     prev_end: Optional[str] = None
     if period_start:
@@ -1808,35 +1938,60 @@ async def get_cash_flow(
         except ValueError:
             prev_end = None
 
-    if prev_end:
+    # Finestra storica per il riporto:
+    # - con baseline: da baseline_date a prev_end
+    # - senza baseline: da None (inizio record) a prev_end
+    use_baseline = bool(baseline_date)
+    if use_baseline and prev_end and baseline_date > prev_end:
+        # Periodo richiesto precedente al baseline → non applico il baseline, parto da 0
+        use_baseline = False
+        histo_from: Optional[str] = None
+        prev_end_for_histo = prev_end
+    elif use_baseline:
+        histo_from = baseline_date  # incluso
+        prev_end_for_histo = prev_end
+        saldo_iniziale = baseline_value
+    else:
+        histo_from = None
+        prev_end_for_histo = prev_end
+
+    if prev_end_for_histo:
         try:
-            contanti_storici = _contanti_fiscali_by_date(conn, None, prev_end)
-            saldo_iniziale = sum(contanti_storici.values())
+            contanti_storici = _contanti_fiscali_by_date(conn, histo_from, prev_end_for_histo)
+            saldo_iniziale += sum(contanti_storici.values())
         except Exception:
-            saldo_iniziale = 0.0
-        # Spese storiche dal DB foodcost
+            pass
         try:
-            fc = sqlite3.connect(FOODCOST_DB_PATH)
-            fc.row_factory = sqlite3.Row
-            r = fc.execute("""
-                SELECT COALESCE(SUM(COALESCE(importo_pagato, totale, 0)), 0) AS tot
-                FROM cg_uscite
-                WHERE metodo_pagamento = 'CONTANTI'
-                  AND data_pagamento IS NOT NULL
-                  AND data_pagamento < ?
-            """, (period_start,)).fetchone()
-            saldo_iniziale -= float(r["tot"] or 0)
-            fc.close()
+            saldo_iniziale -= _sum_spese_contanti_range(histo_from, prev_end_for_histo)
+        except Exception:
+            pass
+        try:
+            saldo_iniziale -= _sum_versamenti_range(conn, histo_from, prev_end_for_histo)
         except Exception:
             pass
 
-    # 2. Entrate nel periodo
-    try:
-        contanti_periodo = _contanti_fiscali_by_date(conn, period_start, period_end)
-    finally:
-        conn.close()
+    # ── Entrate nel periodo ───────────────────────────────────────
+    contanti_periodo = _contanti_fiscali_by_date(conn, period_start, period_end)
 
-    # 3. Uscite nel periodo
+    # ── Versamenti nel periodo ────────────────────────────────────
+    _ensure_cash_deposits_table(conn)
+    vers_where = []
+    vers_params: list = []
+    if period_start:
+        vers_where.append("date >= ?")
+        vers_params.append(period_start)
+    if period_end:
+        vers_where.append("date <= ?")
+        vers_params.append(period_end)
+    vers_wq = f"WHERE {' AND '.join(vers_where)}" if vers_where else ""
+    versamenti_rows = conn.execute(
+        f"SELECT id, date, importo, note FROM cash_deposits {vers_wq} ORDER BY date ASC, id ASC",
+        tuple(vers_params),
+    ).fetchall()
+    versamenti_rows = [dict(r) for r in versamenti_rows]
+    conn.close()
+
+    # ── Uscite nel periodo (foodcost) ─────────────────────────────
     fc = sqlite3.connect(FOODCOST_DB_PATH)
     fc.row_factory = sqlite3.Row
     where = ["metodo_pagamento = 'CONTANTI'", "data_pagamento IS NOT NULL"]
@@ -1857,7 +2012,8 @@ async def get_cash_flow(
     """, tuple(params)).fetchall()
     fc.close()
 
-    # 4. Merge cronologico: entrate del giorno prima delle uscite
+    # ── Merge cronologico ─────────────────────────────────────────
+    # Ordine intra-giorno: incassi → spese → versamenti
     eventi = []
     for dt, amt in contanti_periodo.items():
         eventi.append({
@@ -1882,16 +2038,34 @@ async def get_cash_flow(
             "numero_fattura": r["numero_fattura"],
             "uscita_id": r["id"],
         })
-    eventi.sort(key=lambda e: (e["date"], 0 if e["type"] == "incasso" else 1, e.get("uscita_id") or 0))
+    for v in versamenti_rows:
+        descr = ("Versamento in banca" + (f" — {v['note']}" if v.get("note") else ""))
+        eventi.append({
+            "date": v["date"],
+            "type": "versamento",
+            "descrizione": descr,
+            "entrata": 0.0,
+            "uscita": round(float(v["importo"] or 0), 2),
+            "tipo_uscita": None,
+            "numero_fattura": None,
+            "uscita_id": None,
+            "versamento_id": v["id"],
+        })
 
-    # 5. Cumulativo
+    def _sort_key(e):
+        type_order = {"incasso": 0, "spesa": 1, "versamento": 2}.get(e["type"], 3)
+        return (e["date"], type_order, e.get("uscita_id") or e.get("versamento_id") or 0)
+    eventi.sort(key=_sort_key)
+
+    # ── Cumulativo ────────────────────────────────────────────────
     saldo = saldo_iniziale
     for e in eventi:
         saldo += e["entrata"] - e["uscita"]
         e["cumulativo"] = round(saldo, 2)
 
     totale_entrate = sum(e["entrata"] for e in eventi)
-    totale_uscite = sum(e["uscita"] for e in eventi)
+    totale_uscite_spese = sum(e["uscita"] for e in eventi if e["type"] == "spesa")
+    totale_versamenti = sum(e["uscita"] for e in eventi if e["type"] == "versamento")
 
     return {
         "year": year if not use_range else None,
@@ -1901,7 +2075,11 @@ async def get_cash_flow(
         "saldo_iniziale": round(saldo_iniziale, 2),
         "saldo_finale": round(saldo, 2),
         "totale_entrate": round(totale_entrate, 2),
-        "totale_uscite": round(totale_uscite, 2),
+        "totale_uscite": round(totale_uscite_spese, 2),
+        "totale_versamenti": round(totale_versamenti, 2),
+        "baseline_applicato": bool(use_baseline),
+        "baseline_date": baseline_date if use_baseline else None,
+        "baseline_value": round(baseline_value, 2) if use_baseline else None,
         "eventi": eventi,
     }
 
