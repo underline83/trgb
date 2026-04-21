@@ -1456,11 +1456,7 @@ function SezioneSpeseVarie() {
   const [formNote, setFormNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Saldo iniziale anno
-  const [showBalanceForm, setShowBalanceForm] = useState(false);
-  const [balanceInput, setBalanceInput] = useState("");
-  const [balanceNoteInput, setBalanceNoteInput] = useState("");
-  const [savingBalance, setSavingBalance] = useState(false);
+  // Saldo iniziale anno — gestito da Flusso spese → Baseline (sola lettura qui)
 
   // Gestione categorie
   const [showCatManager, setShowCatManager] = useState(false);
@@ -1542,24 +1538,6 @@ function SezioneSpeseVarie() {
   const catColor = (key) => COLOR_MAP[catMap[key]?.color] || COLOR_MAP.neutral;
   const catLabel = (key) => catMap[key]?.label || key;
   const activeCats = useMemo(() => categories.filter(c => c.attiva), [categories]);
-
-  // Saldo iniziale
-  const handleSaveBalance = async () => {
-    const importo = parseFloat(balanceInput);
-    if (isNaN(importo)) return;
-    setSavingBalance(true);
-    try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/cash/opening-balance`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: currentYear, importo, note: balanceNoteInput.trim() }),
-      });
-      if (!res.ok) throw new Error("Errore salvataggio");
-      setShowBalanceForm(false);
-      fetchOpeningBalance();
-    } catch (e) { alert(e.message); }
-    finally { setSavingBalance(false); }
-  };
 
   // CRUD spese
   const handleSave = async () => {
@@ -1787,46 +1765,12 @@ function SezioneSpeseVarie() {
         </div>
       </div>
 
-      {/* Saldo iniziale anno */}
-      {!showBalanceForm && (
-        <div className="flex items-center gap-3">
-          <button onClick={() => { setBalanceInput(String(openingBalance || "")); setBalanceNoteInput(openingNote); setShowBalanceForm(true); }}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition">
-            {openingBalance > 0 ? `✏️ Saldo iniziale ${currentYear}: € ${fmt(openingBalance)}` : `+ Imposta saldo iniziale ${currentYear}`}
-          </button>
-          {openingNote && <span className="text-xs text-neutral-400">{openingNote}</span>}
-        </div>
-      )}
-      {showBalanceForm && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-          <h3 className="text-sm font-bold text-indigo-800 mb-3">Saldo iniziale {currentYear}</h3>
-          <p className="text-xs text-neutral-500 mb-3">Contanti pre-conti accumulati prima dell'inizio del tracciamento. Questo valore si somma alle entrate dell'anno.</p>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-500 mb-1">Importo €</label>
-              <input type="number" step="0.01" value={balanceInput}
-                onChange={e => setBalanceInput(e.target.value)} placeholder="0.00"
-                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm w-36" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs font-semibold text-neutral-500 mb-1">Note</label>
-              <input type="text" value={balanceNoteInput}
-                onChange={e => setBalanceNoteInput(e.target.value)} placeholder="es. Contanti in cassa al 1/1"
-                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={handleSaveBalance} disabled={savingBalance}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
-                {savingBalance ? "..." : "Salva"}
-              </button>
-              <button onClick={() => setShowBalanceForm(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50">
-                Annulla
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Saldo iniziale — ora gestito dal tab Flusso spese */}
+      <div className="text-xs text-neutral-400 italic">
+        {openingBalance > 0
+          ? <>Saldo iniziale {currentYear}: € {fmt(openingBalance)}{openingNote && <span className="ml-2">({openingNote})</span>}. Modificabile da <strong>Flusso spese → Baseline saldo</strong>.</>
+          : <>Nessun saldo iniziale impostato. Vai su <strong>Flusso spese → Baseline saldo</strong> per ancorarlo a una data.</>}
+      </div>
 
       {/* Breakdown per categoria */}
       {Object.keys(data.totale_per_categoria || {}).length > 0 && (
@@ -2031,10 +1975,21 @@ function SubFlussoSpese() {
   const useRange = Boolean(dateFrom || dateTo);
   const [preconti, setPreconti] = useState([]);
   const [spese, setSpese] = useState([]);
-  const [openingBalance, setOpeningBalance] = useState(0);
+  const [preRun, setPreRun] = useState({ preconti: 0, spese: 0 }); // tra baseline_date e period_from-1
+  const [baseline, setBaseline] = useState({ baseline_date: null, baseline_value: 0, note: "" });
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Form baseline
+  const [showBaselineForm, setShowBaselineForm] = useState(false);
+  const [bDate, setBDate] = useState("");
+  const [bValue, setBValue] = useState("");
+  const [bNote, setBNote] = useState("");
+  const [savingBaseline, setSavingBaseline] = useState(false);
+
+  const role = localStorage.getItem("role") || "";
+  const canEditBaseline = isSuperAdminRole(role) || role === "admin";
 
   // Calcolo periodo
   const periodo = useMemo(() => {
@@ -2048,11 +2003,6 @@ function SubFlussoSpese() {
     };
   }, [year, month, dateFrom, dateTo, useRange]);
 
-  const currentYear = useMemo(() => {
-    if (periodo.from) return parseInt(periodo.from.slice(0, 4));
-    return new Date().getFullYear();
-  }, [periodo.from]);
-
   const fetchCategories = useCallback(async () => {
     try {
       const res = await apiFetch(`${API_BASE}/admin/finance/cash/expense-categories`);
@@ -2060,53 +2010,91 @@ function SubFlussoSpese() {
     } catch (_) { /* ignore */ }
   }, []);
 
-  const fetchOpeningBalance = useCallback(async () => {
+  const fetchBaseline = useCallback(async () => {
     try {
-      const res = await apiFetch(`${API_BASE}/admin/finance/cash/opening-balance/${currentYear}`);
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/spese/baseline`);
       if (res.ok) {
-        const ob = await res.json();
-        setOpeningBalance(ob.importo || 0);
+        const b = await res.json();
+        setBaseline({
+          baseline_date: b.baseline_date || null,
+          baseline_value: Number(b.baseline_value || 0),
+          note: b.note || "",
+        });
       }
     } catch (_) { /* ignore */ }
-  }, [currentYear]);
+  }, []);
+
+  // Data del giorno prima di period_from (per il range pre-periodo)
+  const dayBeforePeriod = useMemo(() => {
+    if (!periodo.from) return null;
+    const d = new Date(periodo.from + "T00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }, [periodo.from]);
+
+  // Baseline applicato: true se baseline_date è settato e cade <= period_from
+  const baselineApplicato = !!(baseline.baseline_date && periodo.from && baseline.baseline_date <= periodo.from);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // 1. Dati del periodo visualizzato
       const params = new URLSearchParams();
       if (periodo.from) params.set("date_from", periodo.from);
       if (periodo.to) params.set("date_to", periodo.to);
-      const [resPreconti, resSpese] = await Promise.all([
+      const fetches = [
         apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${params}`),
         apiFetch(`${API_BASE}/admin/finance/cash/expenses?${params}`),
-      ]);
+      ];
+      // 2. Se baseline applicato: fetch del range [baseline_date, period_from-1] per calcolare saldo iniziale ancorato
+      let fetchPre = false;
+      if (baselineApplicato && dayBeforePeriod && baseline.baseline_date <= dayBeforePeriod) {
+        const paramsPre = new URLSearchParams({
+          date_from: baseline.baseline_date,
+          date_to: dayBeforePeriod,
+        });
+        fetches.push(
+          apiFetch(`${API_BASE}/admin/finance/shift-closures/preconti?${paramsPre}`),
+          apiFetch(`${API_BASE}/admin/finance/cash/expenses?${paramsPre}`),
+        );
+        fetchPre = true;
+      }
+      const results = await Promise.all(fetches);
+      const [resPreconti, resSpese, resPrePreconti, resPreSpese] = results;
       if (!resPreconti.ok) throw new Error(`Errore preconti ${resPreconti.status}`);
       if (!resSpese.ok) throw new Error(`Errore spese ${resSpese.status}`);
       const jp = await resPreconti.json();
       const js = await resSpese.json();
       setPreconti(jp.preconti || []);
       setSpese(js.spese || []);
+      if (fetchPre) {
+        const jpp = resPrePreconti.ok ? await resPrePreconti.json() : { totale: 0 };
+        const jps = resPreSpese.ok ? await resPreSpese.json() : { totale: 0 };
+        setPreRun({ preconti: Number(jpp.totale || 0), spese: Number(jps.totale || 0) });
+      } else {
+        setPreRun({ preconti: 0, spese: 0 });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [periodo.from, periodo.to]);
+  }, [periodo.from, periodo.to, baselineApplicato, baseline.baseline_date, dayBeforePeriod]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
-  useEffect(() => { fetchOpeningBalance(); }, [fetchOpeningBalance]);
+  useEffect(() => { fetchBaseline(); }, [fetchBaseline]);
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Saldo iniziale: opening balance dell'anno + preconti precedenti nel periodo - spese precedenti
-  // Per semplicità: saldo iniziale = opening balance solo se periodo inizia 1/1; altrimenti 0 + nota
-  // Soluzione semplice: mostriamo solo entrate/uscite del periodo, senza saldo cumulativo ancorato
-  // (questo modulo è più "movimenti" che "cassa fisica")
+  // Saldo iniziale ancorato al baseline
+  const saldoIniziale = useMemo(() => {
+    if (!baselineApplicato) return 0;
+    return Number(baseline.baseline_value || 0) + preRun.preconti - preRun.spese;
+  }, [baselineApplicato, baseline.baseline_value, preRun.preconti, preRun.spese]);
 
   // Costruzione eventi cronologici
   const eventi = useMemo(() => {
     const evts = [];
-    // Preconti (entrate)
     for (const p of preconti) {
       evts.push({
         type: "preconto",
@@ -2118,7 +2106,6 @@ function SubFlussoSpese() {
         sub: p.created_by || null,
       });
     }
-    // Spese (uscite)
     for (const s of spese) {
       evts.push({
         type: "spesa",
@@ -2131,24 +2118,78 @@ function SubFlussoSpese() {
         id: s.id,
       });
     }
-    // Sort: per data; a parità, preconto prima di spesa
     const typeOrder = { preconto: 0, spesa: 1 };
     evts.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return (typeOrder[a.type] || 9) - (typeOrder[b.type] || 9);
     });
-    // Cumulativo (parte da 0; il saldo ancorato vive in SezioneSpeseVarie)
-    let cum = 0;
+    let cum = saldoIniziale;
     for (const e of evts) {
       cum += (e.entrata || 0) - (e.uscita || 0);
       e.cumulativo = cum;
     }
     return evts;
-  }, [preconti, spese]);
+  }, [preconti, spese, saldoIniziale]);
 
   const totaleEntrate = useMemo(() => preconti.reduce((s, p) => s + Number(p.importo || 0), 0), [preconti]);
   const totaleUscite = useMemo(() => spese.reduce((s, e) => s + Number(e.importo || 0), 0), [spese]);
-  const saldoPeriodo = totaleEntrate - totaleUscite;
+  const saldoFinale = saldoIniziale + totaleEntrate - totaleUscite;
+
+  // Handlers baseline
+  const openBaselineForm = () => {
+    setBDate(baseline.baseline_date || "");
+    setBValue(baseline.baseline_value ? String(baseline.baseline_value) : "");
+    setBNote(baseline.note || "");
+    setShowBaselineForm(true);
+  };
+
+  const handleSaveBaseline = async () => {
+    const v = parseFloat(bValue);
+    if (bDate && isNaN(v)) {
+      alert("Inserisci un valore numerico valido.");
+      return;
+    }
+    setSavingBaseline(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/spese/baseline`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseline_date: bDate || null,
+          baseline_value: isNaN(v) ? 0 : v,
+          note: bNote.trim(),
+        }),
+      });
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      setShowBaselineForm(false);
+      await fetchBaseline();
+      await fetchData();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingBaseline(false);
+    }
+  };
+
+  const handleResetBaseline = async () => {
+    if (!confirm("Rimuovere il baseline? Il saldo iniziale tornerà a 0.")) return;
+    setSavingBaseline(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/admin/finance/cash/spese/baseline`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseline_date: null, baseline_value: 0, note: "" }),
+      });
+      if (!res.ok) throw new Error(`Errore ${res.status}`);
+      setShowBaselineForm(false);
+      await fetchBaseline();
+      await fetchData();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setSavingBaseline(false);
+    }
+  };
 
   const catMap = useMemo(() => {
     const m = {};
@@ -2197,14 +2238,74 @@ function SubFlussoSpese() {
         )}
       </div>
 
+      {/* Baseline saldo (form) */}
+      {canEditBaseline && !showBaselineForm && (
+        <div className="flex items-center gap-3">
+          <button onClick={openBaselineForm}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition">
+            {baseline.baseline_date
+              ? `✏️ Baseline saldo: € ${fmt(baseline.baseline_value)} al ${fmtDate(baseline.baseline_date)}`
+              : "+ Imposta baseline saldo (data + valore)"}
+          </button>
+          {baseline.note && <span className="text-xs text-neutral-400">{baseline.note}</span>}
+        </div>
+      )}
+      {canEditBaseline && showBaselineForm && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+          <h3 className="text-sm font-bold text-indigo-800 mb-1">Baseline saldo cassa pre-conti</h3>
+          <p className="text-xs text-neutral-500 mb-3">
+            Ancora il saldo a una data specifica. Da quel giorno in poi il cumulativo verrà calcolato sommando le entrate (pre-conti) e sottraendo le uscite (spese varie).
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Data iniziale</label>
+              <input type="date" value={bDate} onChange={e => setBDate(e.target.value)}
+                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Importo €</label>
+              <input type="number" step="0.01" value={bValue}
+                onChange={e => setBValue(e.target.value)} placeholder="0.00"
+                className="border border-neutral-300 rounded-lg px-3 py-2 text-sm w-36" />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-semibold text-neutral-500 mb-1">Note</label>
+              <input type="text" value={bNote}
+                onChange={e => setBNote(e.target.value)} placeholder="es. Contati fisicamente in cassetto"
+                className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSaveBaseline} disabled={savingBaseline}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                {savingBaseline ? "..." : "Salva"}
+              </button>
+              {baseline.baseline_date && (
+                <button onClick={handleResetBaseline} disabled={savingBaseline}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-700 bg-white hover:bg-red-50 disabled:opacity-50">
+                  Rimuovi
+                </button>
+              )}
+              <button onClick={() => setShowBaselineForm(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-neutral-300 bg-white hover:bg-neutral-50">
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-center">
-          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Saldo inizio anno</p>
-          <p className={`text-lg font-bold mt-1 ${openingBalance < 0 ? "text-red-700" : "text-neutral-700"}`}>
-            € {fmt(openingBalance)}
+          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Saldo iniziale</p>
+          <p className={`text-lg font-bold mt-1 ${saldoIniziale < 0 ? "text-red-700" : "text-neutral-700"}`}>
+            € {fmt(saldoIniziale)}
           </p>
-          <p className="text-[9px] text-neutral-400 mt-0.5">anno {currentYear}</p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">
+            {baselineApplicato
+              ? `baseline ${fmtDate(baseline.baseline_date)}`
+              : "baseline non applicato"}
+          </p>
         </div>
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
           <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Pre-conti (entrate)</p>
@@ -2216,12 +2317,12 @@ function SubFlussoSpese() {
           <p className="text-lg font-bold text-orange-800 mt-1">€ {fmt(totaleUscite)}</p>
           <p className="text-[9px] text-neutral-400 mt-0.5">{spese.length} spese</p>
         </div>
-        <div className={`rounded-xl p-3 text-center border ${saldoPeriodo < 0 ? "bg-red-50 border-red-200" : "bg-indigo-50 border-indigo-200"}`}>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Saldo periodo</p>
-          <p className={`text-lg font-bold mt-1 ${saldoPeriodo < 0 ? "text-red-700" : "text-indigo-800"}`}>
-            € {fmt(saldoPeriodo)}
+        <div className={`rounded-xl p-3 text-center border ${saldoFinale < 0 ? "bg-red-50 border-red-200" : "bg-indigo-50 border-indigo-200"}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Saldo finale</p>
+          <p className={`text-lg font-bold mt-1 ${saldoFinale < 0 ? "text-red-700" : "text-indigo-800"}`}>
+            € {fmt(saldoFinale)}
           </p>
-          <p className="text-[9px] text-neutral-400 mt-0.5">entrate − uscite</p>
+          <p className="text-[9px] text-neutral-400 mt-0.5">iniziale + entrate − uscite</p>
         </div>
       </div>
 
@@ -2291,8 +2392,8 @@ function SubFlussoSpese() {
                 <td colSpan={3} className="px-3 py-2">Totale periodo ({eventi.length} movimenti)</td>
                 <td className="px-3 py-2 text-right text-emerald-700">€ {fmt(totaleEntrate)}</td>
                 <td className="px-3 py-2 text-right text-orange-700">€ {fmt(totaleUscite)}</td>
-                <td className={`px-3 py-2 text-right ${saldoPeriodo < 0 ? "text-red-700" : "text-indigo-800"}`}>
-                  € {fmt(saldoPeriodo)}
+                <td className={`px-3 py-2 text-right ${saldoFinale < 0 ? "text-red-700" : "text-indigo-800"}`}>
+                  € {fmt(saldoFinale)}
                 </td>
               </tr>
             </tfoot>
@@ -2301,9 +2402,17 @@ function SubFlussoSpese() {
       )}
 
       <p className="text-xs text-neutral-400 italic">
-        Il cumulativo parte da 0 all'inizio del periodo: somma solo i movimenti qui elencati.
-        Il saldo cassa contanti preconti (con ancoraggio al saldo inizio anno) si vede nella tab{" "}
-        <strong>Spese varie</strong>.
+        {baselineApplicato ? (
+          <>
+            Saldo iniziale ancorato al baseline del {fmtDate(baseline.baseline_date)} (€ {fmt(baseline.baseline_value)}),
+            aggiornato sommando entrate pre-conti e sottraendo spese varie fino al giorno prima del periodo.
+          </>
+        ) : (
+          <>
+            Nessun baseline attivo: il cumulativo parte da 0 all'inizio del periodo.
+            {canEditBaseline && " Clicca su Imposta baseline per ancorarlo a una data."}
+          </>
+        )}
       </p>
     </div>
   );

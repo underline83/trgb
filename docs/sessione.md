@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + tab "Flusso contanti" + baseline saldo iniziale + unificazione Pre-conti/Spese varie)
+**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + tab "Flusso contanti" + baseline saldo iniziale + unificazione Pre-conti/Spese varie + baseline Flusso spese con data+valore)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
@@ -73,6 +73,28 @@ Implementato (FE only — nessuna modifica BE):
 ### Verifiche sintassi (iter 3)
 - esbuild `GestioneContanti.jsx` → OK.
 - esbuild `BancaImpostazioni.jsx` → OK (non modificato, doppio check).
+
+### Iterazione 4 (stessa sessione 54)
+Marco: "in spese varie c'è un tastino per impostare il saldo iniziale, spostalo in flusso spese e permetti di indicare la data iniziale".
+
+Implementato:
+1. **BE**: nuova tabella `cash_spese_baseline` in `admin_finance.sqlite3` (single-row id=1) — campi `baseline_date`, `baseline_value`, `note`, `updated_by`, `updated_at`.
+2. **BE**: helper `_ensure_cash_spese_baseline_table` + `_get_cash_spese_baseline`, modello Pydantic `CashSpeseBaseline`, endpoints `GET /admin/finance/cash/spese/baseline` e `PUT /admin/finance/cash/spese/baseline` (PUT solo admin/superadmin).
+3. **FE SubFlussoSpese**: form collapsibile "Baseline saldo cassa pre-conti" con input `Data iniziale` + `Importo €` + `Note` + Salva/Rimuovi/Annulla. Visibile solo ad admin/superadmin (lettura `localStorage.role` + `isSuperAdminRole`).
+4. **FE SubFlussoSpese**: logica saldo iniziale ancorato al baseline:
+   - Se `baseline_date` è settato e cade ≤ `period_from`: fetch aggiuntivo preconti+spese nel range `[baseline_date, period_from-1]` → `saldoIniziale = baseline_value + preconti_pre − spese_pre`.
+   - Altrimenti: saldoIniziale = 0.
+   - Il cumulativo della tabella ora parte da `saldoIniziale` invece che da 0; nuova metrica `saldoFinale` al posto di `saldoPeriodo`.
+5. **FE SubFlussoSpese**: KPI aggiornati — "Saldo iniziale" (con info baseline date), "Pre-conti entrate", "Spese varie uscite", "Saldo finale". Nota esplicativa in basso che si adatta a baseline attivo/non attivo.
+6. **FE SezioneSpeseVarie**: rimosso il bottone "Imposta saldo iniziale" + form + handler + state (`showBalanceForm`, `balanceInput`, `balanceNoteInput`, `savingBalance`, `handleSaveBalance`). Sostituito con un hint che rimanda a "Flusso spese → Baseline saldo". La lettura dell'opening balance annuale per il KPI "Saldo anno" resta invariata (due sistemi paralleli di sola lettura per SezioneSpeseVarie, migrazione manuale se serve).
+
+### File toccati (iter 4)
+- `app/routers/admin_finance.py` → blocco BASELINE CASSA SPESE VARIE (tabella + helper + Pydantic + 2 endpoint).
+- `frontend/src/pages/admin/GestioneContanti.jsx` → `SezioneSpeseVarie` pulita (form rimosso, hint aggiunto) + `SubFlussoSpese` riscritto con baseline form/state/logic, fetch pre-range, saldo iniziale/finale ancorati, handlers save/reset.
+
+### Verifiche sintassi (iter 4)
+- `python3 -m py_compile admin_finance.py` → OK.
+- esbuild `GestioneContanti.jsx` → OK.
 
 ---
 

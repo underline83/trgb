@@ -1884,6 +1884,86 @@ async def set_cash_flow_baseline(
         conn.close()
 
 
+# ─── BASELINE CASSA SPESE VARIE (ancoraggio saldo pre-conti / spese varie) ───
+
+def _ensure_cash_spese_baseline_table(conn: sqlite3.Connection) -> None:
+    """
+    Single-row (id=1) per memorizzare data+valore del saldo iniziale della cassa
+    Pre-conti/Spese varie. Sostituisce concettualmente l'opening balance annuale
+    con un ancoraggio flessibile a una data arbitraria.
+    """
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS cash_spese_baseline (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            baseline_date TEXT,
+            baseline_value REAL DEFAULT 0,
+            note TEXT DEFAULT '',
+            updated_by TEXT DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
+def _get_cash_spese_baseline(conn: sqlite3.Connection) -> dict:
+    _ensure_cash_spese_baseline_table(conn)
+    row = conn.execute("SELECT * FROM cash_spese_baseline WHERE id = 1").fetchone()
+    if not row:
+        return {"baseline_date": None, "baseline_value": 0.0, "note": "", "updated_by": "", "updated_at": None}
+    return dict(row)
+
+
+class CashSpeseBaseline(BaseModel):
+    baseline_date: Optional[str] = None
+    baseline_value: float = 0.0
+    note: str = ""
+
+
+@router.get("/cash/spese/baseline")
+async def get_cash_spese_baseline(user=Depends(get_current_user)):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        return _get_cash_spese_baseline(conn)
+    finally:
+        conn.close()
+
+
+@router.put("/cash/spese/baseline")
+async def set_cash_spese_baseline(
+    payload: CashSpeseBaseline,
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.auth_service import is_superadmin
+    role = current_user.get("role", "")
+    if not (is_superadmin(role) or role == "admin"):
+        raise HTTPException(status_code=403, detail="Solo admin/superadmin.")
+
+    if payload.baseline_date:
+        try:
+            datetime.strptime(payload.baseline_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="baseline_date formato non valido (atteso YYYY-MM-DD)")
+
+    conn = sqlite3.connect(DB_PATH)
+    _ensure_cash_spese_baseline_table(conn)
+    try:
+        conn.execute("""
+            INSERT INTO cash_spese_baseline (id, baseline_date, baseline_value, note, updated_by, updated_at)
+            VALUES (1, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(id) DO UPDATE SET
+                baseline_date = excluded.baseline_date,
+                baseline_value = excluded.baseline_value,
+                note = excluded.note,
+                updated_by = excluded.updated_by,
+                updated_at = datetime('now')
+        """, (payload.baseline_date, payload.baseline_value, payload.note, current_user.get("sub", "")))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 @router.get("/cash/flow")
 async def get_cash_flow(
     year: Optional[int] = Query(None, ge=2000, le=2100),
