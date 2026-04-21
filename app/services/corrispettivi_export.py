@@ -219,8 +219,12 @@ def export_corrispettivi_to_excel(
     Se year/month specificati, filtra per periodo.
     Ritorna bytes del file Excel.
     """
-    conn = sqlite3.connect(DB_PATH)
+    # Fix 1.11.2 (sessione 52) — WAL + synchronous + busy_timeout
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
 
     try:
         where_clauses = []

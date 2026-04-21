@@ -3,6 +3,66 @@
 
 ---
 
+## 2026-04-21 (sessione 52) — Hardening post-4ª-corruzione: WAL esteso + cleanup import morti + metodo anti-conflitto
+
+### Contesto
+Il fix 1.11 (21/04 00:55) ha chiuso il vettore `.gitignore → git clean -fd → WAL cancellato`,
+ma alle **00:53 del 21/04, prima del push**, è avvenuta una **4ª corruzione** di
+`vini_magazzino.sqlite3`. Il vettore alternativo resta ignoto (tracciato come **S52-1** in
+`docs/problemi.md`). Dopo recovery #4 il backend è rimasto UP 9.5h consecutive con monitor
+forense attivo e zero re-corruzione, ma senza uso reale dell'app.
+
+Questa sessione applica **hardening preventivo simmetrico** a tutti i DB SQLite del sistema
+e ripulisce codice morto che generava rumore nei log.
+
+### Fix 1.11.2 — WAL + synchronous=NORMAL + busy_timeout=30s esteso
+Pattern identico a 1.11, applicato ai getter di tutti i DB vivi a runtime non ancora coperti:
+- `app/models/bevande_db.py` → v1.1-bevande-wal-protected — `get_bevande_conn()`
+- `app/models/clienti_db.py` → v1.3-clienti-wal-protected — `get_clienti_conn()`
+- `app/models/tasks_db.py` → v1.2-tasks-wal-protected — `get_tasks_conn()`
+- `app/models/settings_db.py` → v2.4-wal-protected — `get_settings_conn()` (vini_settings)
+- `app/models/dipendenti_db.py` → v2.1-dipendenti-wal-protected — `get_dipendenti_conn()`
+- `app/core/database.py` → v1.1-wal-protected — `get_connection()` (vini.sqlite3) + `get_settings_conn()` (vini_settings, secondo wrapper). Helper `_apply_wal_pragmas()` factorizzato.
+- `app/services/vendite_aggregator.py` — `get_vendite_db()` (admin_finance.sqlite3)
+- `app/services/corrispettivi_export.py` — connection runtime in export Excel
+
+Copertura totale PRAGMA `journal_mode=WAL` + `synchronous=NORMAL` + `busy_timeout=30000`
+su tutti i DB SQLite del backend: `vini_magazzino`, `foodcost`, `notifiche`, `vini`,
+`vini_settings`, `bevande`, `clienti`, `tasks`, `dipendenti`, `admin_finance`.
+
+### Cleanup: rimossi import fantasma `from app.models import vini_db`
+Il modulo `app/models/vini_db.py` **non esiste**. Tre file lo importavano con fallback
+automatico a `vini.sqlite3`, ma l'ImportError generava il warning
+`cannot import name 'vini_db' from 'app.models'` nei log (visto al 00:36 del 21/04).
+Rimosso import + ramo `if hasattr(...)`, lasciato solo il fallback già funzionante.
+Zero cambio semantico, meno rumore log, esclude una falsa pista dall'indagine S52-1.
+
+- `app/routers/dashboard_router.py` righe 737-747 (alert sotto-scorta) e 804-813 (riga vini moduli)
+- `app/services/alert_engine.py` righe 402-414 (checker `vini_sottoscorta`)
+
+### Metodo anti-conflitto push ↔ uso attivo (documentato in `docs/deploy.md` sezione 11)
+Post 4ª corruzione, la teoria di lavoro residua è **SIGTERM al backend mid-write**.
+Proposta incrementale 1.14.a/b/c:
+- **1.14.a** (XS): soft-check in `push.sh` con probe HTTP + lettura `/var/log/nginx/trgb-access.log` ultimi 60s → conferma operatore se servizio attivo.
+- **1.14.b** (M): endpoint `GET/POST /system/maintenance/status` + banner FE che polla ogni 30s. `push.sh` attiva il flag prima del push, lo disattiva dopo startup confermato.
+- **1.14.c** (M, futuro): WebSocket quiet-mode per form FE.
+
+Regola operativa intanto: **push solo a ristorante chiuso**, mai durante servizio
+12:00-14:30 / 19:00-23:00, min 2 min tra push consecutivi.
+
+### Docs aggiornati
+- `docs/sessione.md` — apertura sessione 52 con stato monitor + piano blocchi A/B/C/D
+- `docs/problemi.md` — nuovo entry **S52-1** (2° vettore corruzione ignoto, priorità alta)
+- `docs/roadmap.md` — voce 1.11 declassata a ⚠️ PARZIALE, nuove 1.14/1.14.a/b/c + 1.15
+- `docs/deploy.md` — nuova sezione 11 "Anti-conflitto push ↔ uso attivo"
+
+### Commit suggerito
+```bash
+./push.sh "Hardening 1.11.2: WAL esteso a tutti DB + cleanup import vini_db morti + metodo anti-conflitto documentato (S52-1 aperto)"
+```
+
+---
+
 ## 2026-04-21 — Fix 1.11: WAL mode + .gitignore `-wal`/`-shm` (post-mortem corruzioni sessione 51)
 
 ### Contesto

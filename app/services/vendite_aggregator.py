@@ -21,9 +21,16 @@ VENDITE_DB = "app/data/admin_finance.sqlite3"
 
 
 def get_vendite_db() -> sqlite3.Connection:
-    """Apri connessione al DB vendite con row_factory."""
-    conn = sqlite3.connect(VENDITE_DB)
+    """Apri connessione al DB vendite con row_factory.
+
+    Fix 1.11.2 (sessione 52) — WAL + synchronous=NORMAL + busy_timeout:
+    prevenzione corruzioni sqlite_master su SIGTERM mid-write.
+    """
+    conn = sqlite3.connect(VENDITE_DB, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

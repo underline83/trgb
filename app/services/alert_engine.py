@@ -400,18 +400,13 @@ def _check_vini_sottoscorta(dry_run: bool = False, config: dict = None) -> Check
     result = CheckResult(checker="vini_sottoscorta")
 
     try:
-        try:
-            from app.models import vini_db
-            if hasattr(vini_db, 'get_vini_conn'):
-                conn = vini_db.get_vini_conn()
-            else:
-                raise ImportError("get_vini_conn non disponibile")
-        except Exception:
-            import sqlite3 as _sqlite3
-            from pathlib import Path
-            vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
-            conn = _sqlite3.connect(str(vini_path))
-            conn.row_factory = _sqlite3.Row
+        # 2026-04-21 (sessione 52): rimosso import fantasma `from app.models import vini_db`
+        # (modulo inesistente) che cadeva sempre nel fallback. Codice equivalente, meno rumore.
+        import sqlite3 as _sqlite3
+        from pathlib import Path
+        vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
+        conn = _sqlite3.connect(str(vini_path))
+        conn.row_factory = _sqlite3.Row
 
         try:
             rows = conn.execute("""

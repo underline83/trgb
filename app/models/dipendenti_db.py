@@ -1,4 +1,4 @@
-# @version: v2.0-dipendenti-db
+# @version: v2.1-dipendenti-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Dipendenti — TRGB Gestionale
@@ -26,8 +26,12 @@ DB_PATH = DATA_DIR / "dipendenti.sqlite3"
 
 
 def get_dipendenti_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    # Fix 1.11.2 (sessione 52) — WAL + synchronous=NORMAL + busy_timeout
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

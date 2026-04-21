@@ -6,6 +6,37 @@
 
 ---
 
+## Aperti — Priorità alta
+
+### S52-1. Corruzione `vini_magazzino.sqlite3` — secondo vettore ancora ignoto
+**Segnalato:** 2026-04-21 01:12 (dopo che fix 1.11 era stato applicato ma non ha retto)
+**Modulo:** SQLite / persistenza / write pipeline vini magazzino
+**Gravità:** alta (backend fuori servizio ad ogni occorrenza; per ora contenuta da recovery manuale)
+
+**Sintomo:**
+Alle **00:53 del 21/04**, **prima del push delle 00:54**, `vini_magazzino.sqlite3` è stato corrotto per la 4ª volta con `malformed database schema`. Il backend è entrato in crash loop per 342 restart. L'ipotesi iniziale (fix 1.11 — `.gitignore` protegge `-wal/-shm` + PRAGMA WAL in connessione) era necessaria ma **non sufficiente**: il push non è stato la causa di questa occorrenza.
+
+**Dati raccolti:**
+- Timeline corruzioni: 22:29 → 22:51 → 23:16 → 00:53 (intervallo 20-25 min durante finestra di debug attivo). Post recovery #4: 9.5h di `ok` consecutivi con monitor forense `/tmp/trgb_monitor.sh` che logga `PRAGMA quick_check` ogni 30s in `/home/marco/trgb/integrity_monitor.log` → nessun uso reale dell'app durante la notte = validazione parziale.
+- Nessun BackgroundScheduler, apscheduler, startup hook, systemd timer applicativo (verificato).
+- Backup cron (:00:01) sempre regolare, non sincronizzato con i timestamp di corruzione.
+- Commit `c31d70c` (Vini v3.19 Fase 6 storico prezzi) **scagionato** dopo ispezione: solo `CREATE TABLE/INDEX IF NOT EXISTS` idempotenti, hook solo INSERT, nessun DDL runtime pericoloso.
+- 3 import rotti di `vini_db` (modulo inesistente) trovati in `dashboard_router.py` (righe 739, 806) e `alert_engine.py` (riga 404). Errore `cannot import name 'vini_db'` visto in log 00:36 = origine di quegli import. Non causano corruzione diretta, ma vanno puliti.
+
+**Teoria di lavoro:**
+SIGTERM al backend mid-write + WAL con transazioni pendenti → restart → sqlite_master in stato inconsistente. `synchronous=NORMAL` + `busy_timeout=30000` dovrebbero mitigare ma non eliminare.
+
+**Da capire / fare:**
+1. **Validare oggi sotto carico reale** — servizio pranzo + cena, con push se necessari, monitor attivo. Se resta `ok` per una giornata intera di uso normale → teoria sostenibile e si può declassare.
+2. **Metodo anti-conflitto push ↔ uso attivo** (vedi roadmap 1.14 e `docs/deploy.md` sezione 6) per prevenire la finestra di vulnerabilità.
+3. **Fix 1.11.2** (WAL esteso agli altri DB) per simmetria difensiva.
+4. **Pulire i 3 import `vini_db`** rotti (riduce rumore log, esclude questa pista).
+5. Se corruzione ricapita: usare il timestamp del monitor per correlare a journalctl ±2min e isolare l'azione del backend in quel momento.
+
+**Backup forensici disponibili:** `BACKUP-20260420-223719`, `CORROTTO-20260420-224312`, `CORROTTO-2.20260420-230727`, `FORENSE-2251`, `CORROTTO-3-003218`, `CORROTTO-4-*`. Tenerli finché il caso non è risolto.
+
+---
+
 ## Aperti — Priorità media
 
 _(S40-1, S40-2, S40-3 risolti Wave 1 — vedi sezione Risolti.)_

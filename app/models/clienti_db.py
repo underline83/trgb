@@ -1,4 +1,4 @@
-# @version: v1.2-clienti-db
+# @version: v1.3-clienti-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Clienti — TRGB Gestionale (modulo CRM)
@@ -23,9 +23,13 @@ DB_PATH = DATA_DIR / "clienti.sqlite3"
 
 
 def get_clienti_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Fix 1.11.2 (sessione 52) — vedi nota in bevande_db.py
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

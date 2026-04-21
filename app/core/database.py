@@ -1,4 +1,4 @@
-# @version: v1.0-sqlite-backend
+# @version: v1.1-wal-protected
 # -*- coding: utf-8 -*-
 """
 Connessioni SQLite per il gestionale TRGB.
@@ -27,13 +27,25 @@ def _ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _apply_wal_pragmas(conn: sqlite3.Connection) -> None:
+    """
+    Fix 1.11.2 (sessione 52) — WAL + synchronous=NORMAL + busy_timeout
+    per resistere a SIGTERM mid-write e prevenire corruzioni sqlite_master.
+    Applicato simmetricamente a tutti i DB vivi a runtime.
+    """
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+
+
 def get_connection() -> sqlite3.Connection:
     """
     Connessione al DB principale 'vini.sqlite3'.
     """
     _ensure_data_dir()
-    conn = sqlite3.connect(MAIN_DB_PATH)
+    conn = sqlite3.connect(MAIN_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    _apply_wal_pragmas(conn)
     return conn
 
 
@@ -43,6 +55,7 @@ def get_settings_conn() -> sqlite3.Connection:
     (usato per ordinamenti tipologie/regioni, ecc.)
     """
     _ensure_data_dir()
-    conn = sqlite3.connect(SETTINGS_DB_PATH)
+    conn = sqlite3.connect(SETTINGS_DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
+    _apply_wal_pragmas(conn)
     return conn

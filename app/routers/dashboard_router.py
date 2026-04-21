@@ -735,16 +735,15 @@ def _alerts(oggi: str) -> List[AlertItem]:
         logger.warning(f"Dashboard: errore scadenze dipendenti: {e}")
 
     # 3. Vini sotto scorta (se c'è il campo scorta_minima)
+    # Nota 2026-04-21 (sessione 52): rimosso import fantasma `from app.models import vini_db`
+    # (modulo mai esistito) che cadeva sempre nel fallback sottostante. Codice semanticamente
+    # identico, senza il warning `cannot import name 'vini_db'` nei log.
     try:
-        from app.models import vini_db
-        if hasattr(vini_db, 'get_vini_conn'):
-            conn = vini_db.get_vini_conn()
-        else:
-            import sqlite3
-            from pathlib import Path
-            vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
-            conn = sqlite3.connect(vini_path)
-            conn.row_factory = sqlite3.Row
+        import sqlite3
+        from pathlib import Path
+        vini_path = Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3"
+        conn = sqlite3.connect(vini_path)
+        conn.row_factory = sqlite3.Row
 
         # Prova: non tutti i setup hanno scorta_minima
         try:
@@ -802,15 +801,12 @@ def _moduli_summary(oggi: str, prenotazioni: PrenotazioniOggi,
     summaries.append(ModuloSummary(key="vendite", line1=line1, line2=line2))
 
     # ── Vini ──
+    # Nota 2026-04-21 (sessione 52): vedi commento sopra, stesso cleanup import fantasma.
     try:
-        from app.models import vini_db
-        if hasattr(vini_db, "get_vini_conn"):
-            conn = vini_db.get_vini_conn()
-        else:
-            import sqlite3 as _sq
-            from pathlib import Path
-            conn = _sq.connect(Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3")
-            conn.row_factory = _sq.Row
+        import sqlite3 as _sq
+        from pathlib import Path
+        conn = _sq.connect(Path(__file__).resolve().parents[1] / "data" / "vini.sqlite3")
+        conn.row_factory = _sq.Row
         row = conn.execute("SELECT COUNT(*) as cnt FROM vini WHERE COALESCE(attivo,1)=1").fetchone()
         n_vini = row["cnt"] if row else 0
         sotto = 0

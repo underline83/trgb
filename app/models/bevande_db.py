@@ -1,4 +1,4 @@
-# @version: v1.0-bevande-db
+# @version: v1.1-bevande-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Carta Bevande — TRGB Gestionale (sub-modulo del modulo Vini)
@@ -28,9 +28,15 @@ DB_PATH = DATA_DIR / "bevande.sqlite3"
 
 
 def get_bevande_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Fix 1.11.2 (sessione 52) — WAL + synchronous=NORMAL + busy_timeout per
+    # resistere a SIGTERM mid-write e prevenire corruzioni sqlite_master.
+    # Applicato simmetricamente a tutti i DB vivi a runtime.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

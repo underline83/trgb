@@ -1,4 +1,4 @@
-# @version: v1.1-tasks-db (ex-cucina, rinominato Phase B sessione 46)
+# @version: v1.2-tasks-wal-protected (ex-cucina, rinominato Phase B sessione 46)
 # -*- coding: utf-8 -*-
 """
 Database Task Manager — TRGB Gestionale (ex-modulo Cucina MVP, sessione 41 → Phase B sessione 46)
@@ -29,9 +29,13 @@ DB_PATH = DATA_DIR / "tasks.sqlite3"
 
 
 def get_tasks_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Fix 1.11.2 (sessione 52) — vedi nota in bevande_db.py
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 

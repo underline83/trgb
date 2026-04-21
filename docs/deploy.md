@@ -346,4 +346,68 @@ sudo bash /home/marco/trgb/trgb/setup-backup-and-security.sh
 
 ---
 
+# 11. Anti-conflitto push ↔ uso attivo dell'app
+
+> **Contesto storico.** Nella notte fra 20 e 21 aprile 2026 `vini_magazzino.sqlite3` è stato corrotto **4 volte**. Le prime 3 erano spiegate dal bug `.gitignore` (WAL cancellato da `git clean -fd`, fix 1.11). La 4ª è avvenuta **senza push**: SIGTERM al backend + write pendenti in WAL = sqlite_master in stato inconsistente. **La finestra di vulnerabilità esiste ogni volta che `systemctl restart trgb-backend` avviene mentre qualcuno sta scrivendo.**
+
+## 11.1 Opzioni valutate
+
+| # | Metodo | Copertura | Effort | Rischio residuo |
+|---|--------|-----------|--------|-----------------|
+| 1 | **Soft-check pre-push in `push.sh`** — probe HTTP + log accessi ultimi 60s, chiede conferma se servizio attivo | bassa-media | XS | alto (dipende da disciplina operatore) |
+| 2 | **Flag `/system/maintenance` + banner FE** — endpoint admin che setta flag, FE polla e mostra modale "gestionale in aggiornamento" | alta | M | basso (ma polling 30s = finestra 30s) |
+| 3 | **Hard-drain** — endpoint `POST /admin/drain` ritorna 503 su write finché `stop` non arriva | alta | M | molto basso |
+| 4 | **Quiet-mode WebSocket** — FE riceve push "maintenance imminent" e disabilita form | altissima | M-L | bassissimo ma richiede WS |
+| 5 | **Finestre off-peak fisse** — `push.sh` blocca push fuori da 15-17 e 23-8, override con `--force` | media | XS | medio (disciplina) |
+
+## 11.2 Raccomandazione: implementazione incrementale
+
+**Fase a (subito, 10 min) — 1.14.a soft-check in push.sh:**
+
+```bash
+# In push.sh, prima di git push:
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 3 https://trgb.tregobbi.it/ || echo "000")
+ACCESSI=$(ssh trgb "tail -n 200 /var/log/nginx/trgb-access.log 2>/dev/null | awk -v cutoff=\$(date -d '60 sec ago' +%s) '{gsub(/\[|\]/,\"\",\$4); split(\$4,a,\":\"); cmd=\"date -d \\\"\"a[1]\" \"a[2]\":\"a[3]\":\"a[4]\"\\\" +%s\"; cmd|getline ts; close(cmd); if(ts>cutoff)print}' | wc -l" 2>/dev/null || echo "?")
+
+if [ "$HTTP_CODE" = "200" ] && [ "$ACCESSI" != "0" ] && [ "$ACCESSI" != "?" ]; then
+  echo "⚠️  Servizio attivo: $ACCESSI accessi ultimi 60s."
+  read -p "Continuare con push che causera' ~10s di downtime? [y/N] " yn
+  [[ "$yn" != "y" && "$yn" != "Y" ]] && { echo "Annullato."; exit 1; }
+fi
+```
+
+Zero rischio, zero infrastruttura, manda un warning chiaro.
+
+**Fase b (1.14.b, futuro) — flag maintenance + banner FE:**
+
+Backend:
+```python
+# app/routers/system_router.py
+@router.get("/maintenance/status")
+def get_status(): return {"active": _read_flag_file(), "since": ..., "message": ...}
+
+@router.post("/maintenance/activate")
+def activate(current_user=Depends(require_admin)):
+    _write_flag_file({"active": True, "since": now, "message": "Aggiornamento in corso"})
+```
+
+Frontend: `useMaintenance()` hook polla ogni 30s, se `active=true` il layout montaa `<MaintenanceBanner/>` fisso in alto + `<MaintenanceOverlay/>` sopra i form.
+
+`push.sh` wrappato così:
+```
+curl POST /maintenance/activate → git push → wait_startup_ok → curl POST /maintenance/deactivate
+```
+
+**Fase c (1.14.c, futuro) — WS quiet-mode:** solo quando serviranno anche altre feature realtime.
+
+## 11.3 Regola operativa intanto
+
+Finché non è in produzione 1.14.a:
+- **Push SOLO a ristorante chiuso** o in finestre di traffico zero.
+- **Mai push** durante il servizio (12:00-14:30 / 19:00-23:00).
+- **Mai push rapidi consecutivi** (min 2 min tra uno e l'altro per far stabilizzare il backend).
+- Se è un fix urgente in orario di servizio: avvisare prima il personale di non salvare per 30s, poi pushare.
+
+---
+
 # Fine DEPLOY.md

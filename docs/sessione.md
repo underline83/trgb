@@ -1,8 +1,54 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-21 (sessione 51 cont. — post-mortem corruzioni SQLite: **causa radice trovata**, fix 1.11 applicato)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md)
+**Ultimo aggiornamento:** 2026-04-21 mattina (sessione 52 — hardening post-4°-corruzione: fix import morti + WAL esteso + anti-conflitto push)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 52 (2026-04-21 mattina) — HARDENING POST 4° CORRUZIONE + METODO ANTI-CONFLITTO
+
+### Contesto
+Fix 1.11 (WAL + `.gitignore` `*.sqlite3-wal`/`-shm`) **non ha chiuso** il problema:
+alle 00:53 è avvenuta una **quarta corruzione** di `vini_magazzino.sqlite3` **prima** del push
+delle 00:54 → la causa radice iniziale (push → `git clean -fd` → WAL cancellato) spiega
+solo parte degli eventi. Esiste un secondo vettore di corruzione ancora ignoto.
+
+Dopo recovery #4 (01:12, da backup hourly 22:00 + WAL + synchronous=NORMAL + VACUUM) il
+backend è rimasto **UP per 9.5h consecutive** con monitor forense attivo (`/tmp/trgb_monitor.sh`):
+oltre 1000 letture `PRAGMA quick_check` ogni 30s, **tutte `ok`**. DB stabile a 659456 bytes,
+nessun file `-wal` creato (nessuno ha scritto sul DB stanotte = non test di carico vero).
+
+### Indagine codice (stamattina)
+1. **Commit sospetto c31d70c** ("Vini v3.19: widget riordini Fase 6 — storico prezzi BE") ispezionato a fondo: `CREATE TABLE IF NOT EXISTS vini_prezzi_storico` + `CREATE INDEX IF NOT EXISTS idx_vps_vino_data` sono idempotenti. Gli hook in `update_vino` / `bulk_update_vini` / `upsert_vino_from_carta` fanno **solo INSERT**, nessun DDL runtime. **Commit scagionato dal ruolo di colpevole diretto.**
+2. **Import rotti `vini_db`** — trovati 3 riferimenti a `from app.models import vini_db` (modulo inesistente) in `dashboard_router.py:739`, `dashboard_router.py:806`, `alert_engine.py:404`. L'errore `cannot import name 'vini_db' from 'app.models'` visto nel log 00:36 si origina da qui. Non causa direttamente corruzione sqlite_master, ma è codice morto che va pulito.
+3. **`init_magazzino_database()`** è chiamata a import-time del router (`vini_magazzino_router.py:249`): idempotente per i `CREATE ... IF NOT EXISTS`. Il blocco migration MODIFICA (linee 471-518) è pericoloso solo alla PRIMA esecuzione dopo upgrade (già passata).
+
+### Teoria di lavoro residua
+Il pattern delle 4 corruzioni (22:29, 22:51, 23:16, 00:53 — 20-25 min di intervallo
+durante finestra di debug attivo con push concorrenti) e il silenzio delle 9.5h
+successive (zero push, zero uso) suggeriscono **SIGTERM al backend mid-write concorrente
+a write pendenti nel WAL**. La fix 1.11 (WAL persistente + `.gitignore` protetto +
+`synchronous=NORMAL` + `busy_timeout=30000`) **dovrebbe** aver ridotto la finestra di
+vulnerabilità, ma il test vero è oggi sotto carico reale + push.
+
+### Piano sessione 52 (questa sessione)
+| Blocco | Cosa | Effort | Stato |
+|--------|------|--------|-------|
+| **A** | Fix 3 import morti `vini_db` → `vini_magazzino_db` | XS | ▶️ in corso |
+| **B** | Fix 1.11.2: WAL + `synchronous=NORMAL` + `busy_timeout=30000` sui DB rimanenti (`bevande`, `clienti`, `tasks`, `settings`, `dipendenti`, `admin_finance`, `core/database.py`) | S | ▶️ in corso |
+| **C** | Monitor forense resta attivo oggi — se corruzione ricapita sotto carico reale avremo timestamp ±30s correlabile a journalctl | — | attivo |
+| **D** | Metodo anti-conflitto push ↔ uso attivo (vedi sotto + `docs/deploy.md`) | S | ▶️ in corso |
+
+### Deliverable pronti per push (atomico)
+- `app/routers/dashboard_router.py` (2 fix import)
+- `app/services/alert_engine.py` (1 fix import)
+- `app/models/bevande_db.py` / `clienti_db.py` / `tasks_db.py` / ecc. (PRAGMA WAL)
+- `app/core/database.py` (PRAGMA WAL)
+- `docs/deploy.md` (sezione 6 — anti-conflitto)
+- `docs/sessione.md`, `docs/problemi.md`, `docs/roadmap.md`, `docs/changelog.md`
+
+**Commit suggerito:** `./push.sh "Hardening 1.11.2: WAL esteso a tutti DB + fix import vini_db morti + metodo anti-conflitto push/uso documentato"`
 
 ---
 
