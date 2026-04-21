@@ -409,29 +409,38 @@ def init_magazzino_database() -> None:
     # Alimentata automaticamente da update_vino / bulk_update_vini /
     # upsert_vino_from_carta quando il valore cambia davvero (>0.01 delta).
     # Visibile in tab "Storico" del dettaglio vino (Fase 8).
+    #
+    # Sessione 53 (2026-04-21): invece di `CREATE TABLE IF NOT EXISTS`, che
+    # comunque tocca sqlite_master ad ogni boot, facciamo una SELECT esplicita
+    # e creiamo SOLO se la tabella manca. Riduce la superficie di rischio
+    # corruzione sqlite_master al riavvio post-deploy.
     # -----------------------------------------------------
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vini_prezzi_storico (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            vino_id       INTEGER NOT NULL,
-            campo         TEXT NOT NULL CHECK (
-                              campo IN ('EURO_LISTINO','PREZZO_CARTA','PREZZO_CALICE','SCONTO')
-                          ),
-            valore_prima  REAL,
-            valore_dopo   REAL,
-            utente        TEXT,
-            origine       TEXT,
-            note          TEXT,
-            created_at    TEXT NOT NULL,
-            FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
-        );
-        """
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vps_vino_data "
-        "ON vini_prezzi_storico (vino_id, created_at DESC);"
-    )
+    existing_vps = cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='vini_prezzi_storico';"
+    ).fetchone()
+    if not existing_vps:
+        cur.execute(
+            """
+            CREATE TABLE vini_prezzi_storico (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                vino_id       INTEGER NOT NULL,
+                campo         TEXT NOT NULL CHECK (
+                                  campo IN ('EURO_LISTINO','PREZZO_CARTA','PREZZO_CALICE','SCONTO')
+                              ),
+                valore_prima  REAL,
+                valore_dopo   REAL,
+                utente        TEXT,
+                origine       TEXT,
+                note          TEXT,
+                created_at    TEXT NOT NULL,
+                FOREIGN KEY (vino_id) REFERENCES vini_magazzino(id) ON DELETE CASCADE
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX idx_vps_vino_data "
+            "ON vini_prezzi_storico (vino_id, created_at DESC);"
+        )
 
     # Auto-migrazione: ricalcola LOCAZIONE_3 con formato (col,riga) per tutti i vini con celle matrice
     vino_ids_rows = cur.execute("SELECT DISTINCT vino_id FROM matrice_celle").fetchall()
@@ -788,7 +797,11 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         data,
     )
 
-    # NB: commit rinviato dopo il log storico prezzi (così falliscono insieme o nulla)
+    # Sessione 53 (2026-04-21): commit principale SUBITO dopo l'upsert.
+    # Lo storico prezzi è accessorio e va in una transazione separata best-effort
+    # più sotto, così se un SIGTERM cade tra upsert e log, l'upsert è comunque
+    # già committato e non restano frame WAL sospese su vini_magazzino.
+    conn.commit()
 
     # Se è un INSERT nuova, lastrowid contiene l'id;
     # se è un UPDATE, lo recuperiamo con una SELECT.
@@ -801,7 +814,8 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
         ).fetchone()
         vino_id = row["id"] if row else None
 
-    # --- Storico prezzi: solo se esisteva già un vino (cioè update, non insert) ---
+    # --- Storico prezzi: transazione separata best-effort ---
+    # Se fallisce o viene interrotta, l'upsert principale è già al sicuro.
     if vino_id and vecchi_prezzi_carta:
         nuovi_prezzi_carta = {
             "PREZZO_CARTA": data.get("PREZZO_CARTA"),
@@ -813,10 +827,13 @@ def upsert_vino_from_carta(data: Dict[str, Any]) -> Optional[int]:
                 cur, vino_id, vecchi_prezzi_carta, nuovi_prezzi_carta,
                 utente=None, origine="SYNC-CARTA", note=None,
             )
+            conn.commit()
         except Exception:
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
-    conn.commit()
     conn.close()
     return vino_id
 
@@ -870,21 +887,31 @@ def update_vino(
     )
 
     # se vengono toccate quantità delle locazioni, ricalcola totale
+    # (NB: _recalc_qta_totale fa già conn.commit() al suo interno)
     if any(k in data for k in ("QTA_FRIGO", "QTA_LOC1", "QTA_LOC2", "QTA_LOC3")):
         _recalc_qta_totale(conn, vino_id)
 
-    # --- Storico prezzi: log cambi se richiesto ---
+    # Sessione 53 (2026-04-21): commit principale SUBITO, poi il log storico
+    # va in una transazione separata. Se un SIGTERM (deploy restart) cade tra
+    # l'UPDATE e il log, l'UPDATE è comunque già committato e sqlite_master
+    # non resta mai con scritture a metà.
+    conn.commit()
+
+    # --- Storico prezzi: transazione separata best-effort ---
     if prezzi_in_data:
         try:
             _log_prezzi_cambiati_conn(
                 cur, vino_id, vecchi_prezzi, data,
                 utente=utente, origine=origine, note=note,
             )
+            conn.commit()
         except Exception:
             # Best-effort: se il log fallisce non rompere l'UPDATE principale
-            pass
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
-    conn.commit()
     conn.close()
 
 

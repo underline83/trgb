@@ -1,8 +1,77 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-21 mattina (sessione 52 — hardening post-4°-corruzione: fix import morti + WAL esteso + anti-conflitto push)
+**Ultimo aggiornamento:** 2026-04-21 pomeriggio (sessione 53 cont. — vettore corruzione identificato + fix in produzione, S52-1 in osservazione)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 53 cont. (2026-04-21 pomeriggio) — VETTORE CORRUZIONE IDENTIFICATO + FIX IN PRODUZIONE
+
+### Diagnosi (dopo richiamo di Marco a non cercare colpe esterne)
+Riesame profondo di tutto il lavoro del 20/04: il vettore reale era nel commit `c31d70c` (20/04 19:23 — Vini v3.19 Fase 6 storico prezzi BE, *non* nel push S52 scagionato a metà giornata). Tre problemi cumulati nello stesso commit:
+1. `init_magazzino_database()` apriva una scrittura su `sqlite_master` ad ogni boot del router (`CREATE TABLE IF NOT EXISTS vini_prezzi_storico` + `CREATE INDEX IF NOT EXISTS idx_vps_vino_data` con CHECK constraint).
+2. `upsert_vino_from_carta()` e `update_vino()` accorpavano in **una singola transazione lunga** l'UPDATE/UPSERT su `vini_magazzino` + l'INSERT log su `vini_prezzi_storico`, con commit finale unico (commit intermedio rimosso).
+
+Quando il push FE-only `da9b605` delle 22:29 ha riavviato il backend, il SIGTERM è arrivato mentre c'erano frame WAL misti su una transazione aperta → fsync interrotto → `sqlite_master` inconsistente → `malformed database schema`. Le 3 corruzioni successive (22:51, 23:16, 00:53) sono lo stesso pattern ripetuto durante la finestra di debug attivo con push concorrenti.
+
+### Fix applicato (file unico `app/models/vini_magazzino_db.py`)
+1. **`init_magazzino_database()`**: `SELECT 1 FROM sqlite_master` prima di `CREATE TABLE/INDEX` → zero scritture su sqlite_master a ogni boot.
+2. **`upsert_vino_from_carta()`**: `conn.commit()` SUBITO dopo l'UPSERT principale; log storico in transazione separata best-effort (try/rollback).
+3. **`update_vino()`**: stesso pattern.
+4. `bulk_update_vini` lasciato com'è (atomicità voluta per ricalcolo-tutti, usato solo in operazioni manuali — finestra di esposizione molto stretta).
+
+Sintassi verificata con `ast.parse()` → OK. Diff: +56/-29 righe su un solo file.
+
+### Stato post-push
+- S52-1 spostato in **osservazione** (declassabile a chiuso dopo 24-48h di servizio reale senza re-manifestazione).
+- Da fare: riavviare monitor forense (`/tmp/trgb_monitor.sh`) in occasione del prossimo servizio pranzo/cena per validare sotto carico reale.
+- Push S52 definitivamente scagionato: il danno era già nel codice 19:23 del 20/04, S52 ha solo propagato lo stato corrotto scaricato dal VPS.
+
+### Lezione di metodo (per Claude)
+Quando inseguo un vettore di corruzione SQLite e l'ipotesi 1 non regge: **non saltare a una nuova ipotesi esterna**, ma rifare un riesame *delle modifiche del codice già fatte nella sessione*, transazione per transazione. La causa più probabile è una scrittura su `sqlite_master` o una transazione lunga interrotta da SIGTERM, generata da uno dei miei commit recenti.
+
+---
+
+## SESSIONE 53 (2026-04-21 ~12:00-12:55) — 5ª CORRUZIONE + RECOVERY DA `.prev` LOCALE
+
+### Contesto
+Marco ha pushato il deliverable di sessione 52 (hardening 1.11.2 + cleanup `vini_db` + anti-conflitto). Al rientro: backend in **crash loop, 530+ restart in ~50 minuti** (Restart=on-failure, RestartSec=5). Stesso pattern: `malformed database schema (idx_vm_tipologia) - index ... already exists` su `vini_magazzino.sqlite3`. **5ª corruzione consecutiva.**
+
+### Indagine (corretta dopo richiamo di Marco)
+Inizialmente ho perso tempo facendo forensics VPS-side (`.recover` → solo `lost_and_found`, dati strutturalmente persi). Marco ha richiamato all'ordine: `push.sh` salva `cp $db → ${db}.prev` **prima** di scaricare il DB dal VPS, quindi il **backup sano della push precedente è già nel workspace locale**.
+
+Verifica `.prev` (Python sqlite3 dopo `cp` su `/tmp` ext4 — FUSE workspace blocca SQLite I/O):
+- 8 tabelle integre, `vini_magazzino`: **1261 righe**, `vini_magazzino_movimenti`: 267 righe
+- `MAX(updated_at) = 2026-04-20T20:34:31` (= ultimo write reale prima della 1ª corruzione delle 22:43 di ieri)
+
+### Recovery #5 (12:49:58 CEST) — eseguita da Marco
+1. Mac: `scp app/data/vini_magazzino.sqlite3.prev trgb:/tmp/vini_magazzino.RESTORE.sqlite3` (652KB)
+2. VPS: `systemctl stop trgb-backend` → backup corrotto come `CORROTTO-5-20260421-*` → `cp RESTORE → vini_magazzino.sqlite3` → chown marco:marco → `rm -f vini_magazzino.sqlite3-wal vini_magazzino.sqlite3-shm` → `systemctl start trgb-backend`
+3. **Servizio UP alle 12:49:58 CEST** (PID 3232683, 115.4MB), `quick_check = ok`
+
+### Verità forense importante (da non perdere)
+**Il push di sessione 52 NON è il vettore di corruzione.** Cronologia:
+- 20/04 22:43 → 1ª corruzione (sessione 51, recovery #1)
+- 20/04 22:51 → 2ª corruzione
+- 20/04 23:16 → 3ª corruzione
+- 21/04 00:53 → 4ª corruzione (sessione 51 cont., recovery #4)
+- 21/04 ~mattina → DB locale `.sqlite3` viene scaricato dal VPS già corrotto durante push di sessione 52
+- 21/04 12:00 ca. → 5ª manifestazione (in realtà è il riapparire della 4ª, perché `.prev` mostra MAX(updated_at)=20:34 di ieri = stato **prima** della 1ª corruzione)
+
+**Conseguenza:** la finestra reale da indagare è **20/04 22:00 → 21/04 02:00** (4 corruzioni in 2.5h durante debug attivo + push concorrenti). Il push S52 ha solo *propagato* lo stato corrotto.
+
+### Perdita dati
+Tutti i write di `vini_magazzino` tra **20/04 20:34 e 21/04 12:49** sono persi dal DB ufficiale. Per il servizio cena del 20/04 (20:34 → 22:43, ~2h), c'è una possibilità di recupero parziale dal file VPS `vini_magazzino.BACKUP-20260420-223719.sqlite3` (corrotto solo per `idx_vm_tipologia` duplicato, dati probabilmente intatti — da verificare con `.recover` o riprovare `.dump` ignorando il primo errore).
+
+### Lezione di metodo (per Claude — già in memoria)
+Quando il backend va giù dopo un push e c'è una `.sqlite3.prev` nel workspace locale: **aprire `.prev` PRIMA di fare qualsiasi forensica VPS-side**. La diagnostica VPS serve solo dopo aver verificato lo stato del backup di partenza.
+
+### Pendenze sessione 53
+1. **S52-1 NON declassabile**: il vettore vero non è ancora chiaro. Va aperta la finestra journalctl 20/04 22:00 → 21/04 02:00.
+2. Decidere se tentare recupero delta cena 20:34-22:43 da `BACKUP-20260420-223719`.
+3. Aggiornare `problemi.md` (S52-1 con manifestazione #5) e `changelog.md`.
+4. Eventuale unificazione 1.14.a (anti-conflitto soft-check) con Level 1 del mattone housekeeping (proposto da audit S51).
 
 ---
 
