@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.9-alert-widget-faseB2 — Badge combo ritmo+finito ("Top seller 6.1/mese · Finito ~14gg fa"), layout righe ripulito (tolti STATO_VENDITA ridondante, "0 bt" e tipologia duplicata). Ritmo calcolato via app.utils.vini_metrics (riutilizzabile su SchedaVino)
+// @version: v4.10-alert-widget-faseC — Picker inline 5-pill STATO_RIORDINO (D/O/0/A/X) sostituisce singolo toggle "Non ricomprare". Click stato attivo = clear. Etichetta testuale sotto. setStatoRiordino() generalizza toggleNonRicomprare
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -368,25 +368,28 @@ export default function DashboardVini() {
   const toggleDrilldown = (key) =>
     setDrilldown((prev) => (prev === key ? null : key));
 
-  const toggleNonRicomprare = async (vino) => {
-    const isX  = vino.STATO_RIORDINO === "X";
-    const newVal = isX ? null : "X";
+  // Fase C — cambia STATO_RIORDINO di un vino dal widget alert.
+  // Se clicco lo stato corrente → clear (null). Altrimenti imposta il nuovo valore.
+  // Logica "toggle non ricomprare" e' ora un caso d'uso di questa funzione (STATO_RIORDINO='X').
+  const setStatoRiordino = async (vino, nuovoStato) => {
+    const corrente = vino.STATO_RIORDINO || null;
+    const target = (corrente === nuovoStato) ? null : nuovoStato;
     setTogglingId(vino.id);
     try {
       const resp = await apiFetch(`${API_BASE}/vini/magazzino/${vino.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ STATO_RIORDINO: newVal }),
+        body: JSON.stringify({ STATO_RIORDINO: target }),
       });
       if (!resp.ok) throw new Error();
       setStats((prev) => ({
         ...prev,
         alert_carta_senza_giacenza: prev.alert_carta_senza_giacenza.map((v) =>
-          v.id === vino.id ? { ...v, STATO_RIORDINO: newVal } : v
+          v.id === vino.id ? { ...v, STATO_RIORDINO: target } : v
         ),
       }));
     } catch {
-      // noop
+      toast("Errore aggiornamento stato riordino", { kind: "error" });
     } finally {
       setTogglingId(null);
     }
@@ -771,9 +774,19 @@ export default function DashboardVini() {
                 "neutral":      "bg-neutral-100 text-neutral-600 border-neutral-200",
                 "neutral-dark": "bg-slate-100 text-slate-500 border-slate-300",
               };
+              // Fase C — picker inline STATO_RIORDINO: 5 pill D/O/0/A/X.
+              // Attiva = bg saturo + ring colore forte; inattiva = bg bianco outline sottile.
+              // Click su attiva = rimuove (clear); click su inattiva = imposta.
+              // Touch target 32px x 32px (codice singola lettera), insieme formano >44pt gruppo.
+              const STATO_RIORDINO_ORDER = ["D", "O", "0", "A", "X"];
+              const pickerPillCls = (active, codiceInfo) =>
+                active
+                  ? `${codiceInfo.color} border-2 ring-1 ring-offset-0 font-bold`
+                  : "bg-white text-neutral-500 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-400";
               const VinoRow = ({ v, dimmed }) => {
-                const srInfo  = v.STATO_RIORDINO ? STATO_RIORDINO[v.STATO_RIORDINO] : null;
-                const scInfo  = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
+                const scInfo = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
+                const srCorrente = v.STATO_RIORDINO || null;
+                const srLabel = srCorrente ? STATO_RIORDINO[srCorrente]?.label : null;
                 // Badge combo ritmo+finito. L'etichetta "Finito ~Xgg" ha senso solo se
                 // il vino e' stato venduto almeno una volta (altrimenti e' "Mai venduto").
                 const ritmo = v.ritmo_vendita || {};
@@ -796,8 +809,8 @@ export default function DashboardVini() {
                         {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
                         <span className="text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
                       </div>
-                      {/* RIGA 2 — metriche azionabili (ritmo + finito) + stato riordino se c'e' */}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {/* RIGA 2 — metriche azionabili (ritmo+finito) + picker stato riordino */}
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ritmoCls}`}
                           title={ritmo.vendite_totali != null ? `${ritmo.vendite_totali} bt vendute in ${ritmo.giorni_storico}gg di storico (dal 01/03/2026)` : ""}>
                           🛒 {ritmo.label || "—"}
@@ -805,17 +818,43 @@ export default function DashboardVini() {
                             <span className="font-normal opacity-75">· {finitoLbl}</span>
                           )}
                         </span>
-                        {srInfo && (
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${srInfo.color}`}>
-                            <span className={`w-1 h-1 rounded-full ${srInfo.dot}`} />{srInfo.label}
-                          </span>
-                        )}
                         {scInfo && (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
                             <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
                           </span>
                         )}
+
+                        {/* Fase C — picker inline 5-pill STATO_RIORDINO. Sostituisce
+                            il singolo toggle "Non ricomprare" e il badge passivo. */}
+                        <div className="flex items-center gap-1 ml-auto">
+                          <span className="text-[10px] text-neutral-400 uppercase tracking-wide mr-1 hidden sm:inline">Stato:</span>
+                          {STATO_RIORDINO_ORDER.map((code) => {
+                            const info = STATO_RIORDINO[code];
+                            const active = srCorrente === code;
+                            return (
+                              <Tooltip key={code} label={active ? `${info.label} (click per rimuovere)` : info.label}>
+                                <button
+                                  type="button"
+                                  disabled={togglingId === v.id}
+                                  onClick={(e) => { e.stopPropagation(); setStatoRiordino(v, code); }}
+                                  className={`inline-flex items-center justify-center w-8 h-8 rounded-md text-[12px] transition ${pickerPillCls(active, info)} ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                  aria-label={`Imposta stato riordino: ${info.label}`}
+                                  aria-pressed={active}
+                                >
+                                  {code}
+                                </button>
+                              </Tooltip>
+                            );
+                          })}
+                        </div>
                       </div>
+
+                      {/* Etichetta testuale dello stato corrente — aiuta chi non ricorda la legenda D/O/0/A/X */}
+                      {srLabel && (
+                        <div className="text-[11px] text-neutral-500 mt-1">
+                          Stato riordino: <span className="font-semibold text-neutral-700">{srLabel}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0 mt-0.5">
 
@@ -859,18 +898,6 @@ export default function DashboardVini() {
                         );
                       })()}
 
-                      <Tooltip label={dimmed ? "Rimuovi flag — torna in lista urgenti" : "Segna come 'Non ricomprare'"}>
-                        <button type="button" disabled={togglingId === v.id} onClick={() => toggleNonRicomprare(v)}
-                          className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
-                            ${dimmed
-                              ? "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
-                              : "bg-white text-neutral-400 border-neutral-200 hover:bg-neutral-100 hover:text-neutral-700"
-                            }
-                            ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                        >
-                          {dimmed ? "🚫 Non ricomprare" : "◦ Non ricomprare"}
-                        </button>
-                      </Tooltip>
                     </div>
                   </div>
                 );

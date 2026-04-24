@@ -24,7 +24,7 @@ Questo doc copre solo il secondo widget.
 | 1 | Pulsante "📦 Ordina" inline accanto a ogni vino (modale `openOrdine` già esistente) | ✅ **FATTO** (Fase A — 2026-04-24) |
 | 2 | Quantità suggerita basata sullo storico vendite 30/60/90 gg | ✅ **FATTO** (Fase A — 60gg ÷ 2) |
 | 3 | Raggruppamento per distributore (toggle opzionale) | ⏳ Fase E — da fare |
-| 4 | Stato riordino a 3 click (badge `D · O · 0 · X` inline) | ⏳ Fase C — da fare |
+| 4 | Stato riordino a 3 click (badge `D · O · 0 · A · X` inline) | ✅ **FATTO** (Fase C — 2026-04-24) |
 | 5 | "Ultima vendita" / giorni fermo | ✅ **FATTO** (Fase B — 2026-04-24) |
 | 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ⏳ Fase D — da fare |
 | 7 | Export "lista della spesa" su WhatsApp/PDF raggruppata per fornitore | 🔄 Teorizzato — differito |
@@ -78,10 +78,23 @@ Implementato:
   - 0 vendite → `Mai venduto` (neutral-dark)
 - **File toccati:** `app/utils/vini_metrics.py` (nuovo), `app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/DashboardVini.jsx`.
 
-### Fase C — Punto 4 (Badge stato riordino a 3 click)
-- **FE only:** sostituire il solo toggle "Non ricomprare" con quartetto di pill `D · O · 0 · X` usando `STATO_RIORDINO` da `viniConstants.js`. Click su pill → PATCH `STATO_RIORDINO` (endpoint esistente). Stato corrente evidenziato con border pieno, altri outline.
-- **Touch target:** ogni pill ≥ 32px quadrato (raccolte in row di 4 = 128+ px totale, vedi regola 44pt per gruppo).
-- **Push FE-only.**
+### Fase C — Punto 4 (Badge stato riordino a 3 click) — ✅ FATTO 2026-04-24
+
+**Implementato 5 pill inline `D · O · 0 · A · X`** (non 4 come da spec iniziale — Marco approva 5 per includere anche 'A' Annata esaurita, utile su vini in carta dove l'annata specifica non si trova più).
+
+- **FE-only.** Picker in Riga 2 di ogni VinoRow del widget alert, subito dopo il badge ritmo+finito, allineato a destra (`ml-auto`).
+- **Interazione:**
+  - Click su pill inattiva → PATCH `/vini/magazzino/{id}` con `STATO_RIORDINO: code`
+  - Click su pill attiva → PATCH con `STATO_RIORDINO: null` (clear)
+  - Vino con `X` salta automaticamente nella sezione "Non da ricomprare" (opacity 50%, line-through nome) al prossimo render — comportamento atteso.
+- **Stile pill:**
+  - Attiva: colore saturo completo (`STATO_RIORDINO[code].color`) + `border-2` + `ring-1` + `font-bold`
+  - Inattiva: bg bianco + border sottile neutral + hover leggero
+  - Touch target: `w-8 h-8` (32x32px) ciascuna. 5 pill + gap + label → gruppo ≥ 44pt in larghezza totale.
+  - Label testuale sotto ("Stato riordino: Da ordinare") visibile solo quando uno stato e' settato — aiuta chi non ricorda la legenda D/O/0/A/X a colpo d'occhio.
+- **Refactor:** `toggleNonRicomprare()` → `setStatoRiordino(vino, nuovoStato)` generalizzato. Gestisce toggle auto (se click == corrente → clear).
+- **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.10-alert-widget-faseC).
+- **Rimossi:** vecchio bottone "◦ Non ricomprare" sulla colonna destra (sostituito dalla pill X), badge passivo `STATO_RIORDINO` nella riga metriche (ridondante col picker).
 
 ### Fase D — Punto 6 (Filtro rapido tipologia)
 - **FE only:** sopra la lista aggiungere riga di chip `Tutti · Bianchi · Rossi · Bolle · Rosati · Altri` tipo tab (filtra client-side il `urgenti` array per `TIPOLOGIA`). Attivo = brand-blue fill, inattivi = outline. Stato in `useState`, niente persistenza.
