@@ -1,4 +1,4 @@
-// @version: v1.2-mattoni — M.I primitives (Btn) su Stampa, Foglio Settimana, Apri settimana
+// @version: v1.3-minimale — variante 3: pill Pranzo/Cena con etichetta + orario, no totali, no semaforo, no ore lorde/nette
 // Pagina "I miei turni" — TRGB Gestionale
 //
 // Vista self-service accessibile a TUTTI i ruoli autenticati:
@@ -76,20 +76,24 @@ function oggiIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function textOn(hex) {
-  if (!hex) return "#111";
-  const h = hex.replace("#", "");
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 160 ? "#111" : "#fff";
-}
-
-const SEMAFORO_STYLE = {
-  verde:  { label: "≤ 40h",  bg: "#16a34a", fg: "#fff" },
-  giallo: { label: "≤ 48h",  bg: "#ca8a04", fg: "#fff" },
-  rosso:  { label: "> 48h",  bg: "#dc2626", fg: "#fff" },
+// Variante 3: i blocchi turno usano palette PER SERVIZIO (pranzo=amber / cena=indigo),
+// non piu' il colore del dipendente. Il tema resta in linea con Tailwind brand.
+const SERVIZIO_STYLE = {
+  PRANZO: {
+    label: "Pranzo",
+    icon:  "\u2600\uFE0F",  // ☀️
+    cls:   "bg-amber-50 border-amber-200 text-amber-900",
+  },
+  CENA: {
+    label: "Cena",
+    icon:  "\uD83C\uDF19",  // 🌙
+    cls:   "bg-indigo-50 border-indigo-200 text-indigo-900",
+  },
+  ALTRO: {
+    label: "Turno",
+    icon:  "\u2022",        // •
+    cls:   "bg-neutral-100 border-neutral-200 text-neutral-700",
+  },
 };
 
 // ---- COMPONENTE PRINCIPALE ------------------------------------------------
@@ -292,7 +296,7 @@ export default function MieiTurni() {
 
         {!loading && !notLinked && vista && (
           <>
-            <TotaliPeriodo vista={vista} />
+            <DipendenteHeader vista={vista} />
 
             <div className="grid grid-cols-1 gap-4 mt-4 print:gap-2">
               {vista.settimane.map(sett => (
@@ -314,79 +318,38 @@ export default function MieiTurni() {
 }
 
 
-// ---- TOTALI PERIODO -------------------------------------------------------
-function TotaliPeriodo({ vista }) {
-  const t = vista.totali;
+// ---- DIPENDENTE HEADER (minimale, senza totali) --------------------------
+// Variante 3: rimosso il blocco "Totali periodo" con 6 metric cards (ore lorde/nette,
+// giorni lavorati, riposi, chiusure, opzionali). Per il dipendente quei numeri
+// sono rumore da back-office. Lasciato solo: nome + reparto + badge "a chiamata".
+function DipendenteHeader({ vista }) {
   const dip = vista.dipendente;
   return (
-    <div className="bg-white rounded-xl shadow p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-sm text-neutral-500">Periodo</div>
-          <div className="font-semibold">
-            {vista.settimana_inizio} → {vista.settimana_fine}
-            <span className="ml-2 text-neutral-400 text-sm">({vista.num_settimane} sett.)</span>
-          </div>
-        </div>
-        <div>
-          <div className="text-sm text-neutral-500">Dipendente</div>
-          <div className="font-semibold flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: dip.colore || "#6b7280" }}></span>
-            {dip.nome} {dip.cognome}
-            <span className="text-xs text-neutral-500">· {dip.reparto_nome}</span>
-            {dip.a_chiamata && (
-              <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">
-                a chiamata
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mt-4">
-        <Metric label="Ore lorde" value={`${t.ore_lorde.toFixed(1)}h`} />
-        <Metric label="Ore nette" value={`${t.ore_nette.toFixed(1)}h`} accent />
-        <Metric label="Giorni lavorati" value={t.giorni_lavorati} />
-        <Metric label="Riposi" value={t.riposi} />
-        <Metric label="Chiusure" value={t.chiusure} />
-        <Metric label="Opzionali" value={t.opzionali} />
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value, accent = false }) {
-  return (
-    <div className={`rounded-lg border p-2 ${accent ? "bg-brand-blue/5 border-brand-blue/30" : "bg-neutral-50 border-neutral-200"}`}>
-      <div className="text-[11px] text-neutral-500 uppercase tracking-wide">{label}</div>
-      <div className={`text-lg font-bold ${accent ? "text-brand-blue" : "text-neutral-800"}`}>{value}</div>
+    <div className="bg-white rounded-xl shadow px-4 py-3 flex items-center gap-2 flex-wrap">
+      <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: dip.colore || "#6b7280" }}></span>
+      <span className="font-semibold text-neutral-900">{dip.nome} {dip.cognome}</span>
+      <span className="text-xs text-neutral-500">· {dip.reparto_nome}</span>
+      {dip.a_chiamata && (
+        <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">
+          a chiamata
+        </span>
+      )}
     </div>
   );
 }
 
 
 // ---- CARD SETTIMANA -------------------------------------------------------
+// Variante 3: header snello. Tolti semaforo CCNL, badge ore nette,
+// codice ISO e contatori lav/riposi/chiusure. Resta il label periodo.
 function CardSettimana({ settimana, dipendente, isAdmin, onApriInFoglio }) {
-  const sem = SEMAFORO_STYLE[settimana.semaforo] || SEMAFORO_STYLE.verde;
   const oggi = oggiIso();
 
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="px-4 py-3 bg-neutral-50 border-b flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="font-semibold text-sm">
-            {labelWeekRange(settimana.iso)}
-            <span className="text-neutral-400 ml-2 text-xs font-mono">{settimana.iso}</span>
-          </div>
-          <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: sem.bg, color: sem.fg }}
-            title={`Semaforo CCNL: ${sem.label}`}>
-            {settimana.ore_nette.toFixed(1)}h · {sem.label}
-          </span>
-          <span className="text-xs text-neutral-500">
-            {settimana.giorni_lavorati} lav · {settimana.riposi} riposi · {settimana.chiusure.length} chiusure
-          </span>
+        <div className="font-semibold text-sm text-neutral-900">
+          {labelWeekRange(settimana.iso)}
         </div>
         {isAdmin && (
           <div className="print:hidden">
@@ -423,7 +386,9 @@ function CardSettimana({ settimana, dipendente, isAdmin, onApriInFoglio }) {
 
 
 // ---- CELLA GIORNO TIMELINE -----------------------------------------------
-function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
+// Variante 3: rimosso il footer Lordo/Netto, rimossa la pill "Oggi" (sostituita
+// dal testo " · oggi" in brand-blue accanto al nome del giorno + ring 2px).
+function CellaGiornoTimeline({ iso, dato, isToday /* dipendente: piu' usato in v3 */ }) {
   const chiuso = dato.is_chiusura;
   const riposo = dato.is_riposo;
 
@@ -449,15 +414,10 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
 
   return (
     <div className={`${bg} ${borderToday} p-3 min-h-[140px] flex flex-col`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-semibold text-neutral-700">
-          {formatDayShort(iso)}
+      <div className="flex items-center justify-center mb-2">
+        <div className={`text-xs font-semibold ${isToday ? "text-brand-blue" : "text-neutral-700"}`}>
+          {formatDayShort(iso)}{isToday && <span className="ml-1 opacity-80">· oggi</span>}
         </div>
-        {isToday && (
-          <span className="text-[10px] bg-brand-blue text-white px-1.5 py-0.5 rounded font-semibold uppercase tracking-wide">
-            Oggi
-          </span>
-        )}
       </div>
 
       {chiuso && (
@@ -473,34 +433,27 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
       )}
 
       {!chiuso && !riposo && hasAnyTurno && (
-        <div className="flex-1 flex flex-col gap-1">
+        <div className="flex-1 flex flex-col gap-1.5">
           {/* Slot PRANZO — sempre in alto. Placeholder se assente, così cena resta allineata. */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {pranziTurni.length > 0
               ? pranziTurni.map(t => (
-                  <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
+                  <BloccoTurno key={t.id} turno={t} servizio="PRANZO" />
                 ))
               : <SlotPlaceholder />}
           </div>
           {/* Slot CENA — sempre in basso. Placeholder se assente, così pranzo resta allineato. */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             {ceneTurni.length > 0
               ? ceneTurni.map(t => (
-                  <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
+                  <BloccoTurno key={t.id} turno={t} servizio="CENA" />
                 ))
               : <SlotPlaceholder />}
           </div>
           {/* Eventuali turni senza servizio classificato: coda */}
           {altriTurni.map(t => (
-            <BloccoTurno key={t.id} turno={t} dipendenteColore={dipendente?.colore} />
+            <BloccoTurno key={t.id} turno={t} servizio="ALTRO" />
           ))}
-        </div>
-      )}
-
-      {!chiuso && (dato.ore_lorde > 0 || dato.ore_nette > 0) && (
-        <div className="mt-2 pt-2 border-t text-[11px] flex items-center justify-between text-neutral-500">
-          <span>Lordo: <span className="font-semibold text-neutral-700">{dato.ore_lorde.toFixed(1)}h</span></span>
-          <span>Netto: <span className="font-semibold text-brand-blue">{dato.ore_nette.toFixed(1)}h</span></span>
         </div>
       )}
     </div>
@@ -510,28 +463,26 @@ function CellaGiornoTimeline({ iso, dato, isToday, dipendente }) {
 
 // ---- PLACEHOLDER SLOT ----------------------------------------------------
 // Mantiene lo spazio di un BloccoTurno per allineare pranzi/cene fra le celle.
+// Altezza coerente col nuovo blocco 2-righe (label + orario).
 function SlotPlaceholder() {
   return (
     <div
       aria-hidden="true"
-      className="rounded-md px-2 py-1 text-xs border border-transparent invisible"
+      className="rounded-md px-2 py-1 border border-transparent invisible"
     >
-      {/* stesso contenuto strutturale di BloccoTurno per preservare altezza */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-semibold">·</span>
-        <span className="tabular-nums text-[10px]">00:00</span>
-      </div>
+      <div className="text-[10px] leading-tight">·</div>
+      <div className="text-[11px] tabular-nums leading-tight">00:00–00:00</div>
     </div>
   );
 }
 
 
 // ---- BLOCCO TURNO --------------------------------------------------------
-function BloccoTurno({ turno, dipendenteColore }) {
-  const bg = turno.colore_bg || dipendenteColore || "#6b7280";
-  const fg = turno.colore_testo || textOn(bg);
-  const servizio = (turno.servizio || "").toUpperCase();
-  const icon = servizio === "PRANZO" ? "☀️" : servizio === "CENA" ? "🌙" : "•";
+// Variante 3: due righe — label "Pranzo"/"Cena" (piccola) + orario inizio-fine.
+// Palette per servizio (amber/indigo), non piu' per dipendente.
+// OPZIONALE e ANNULLATO preservati (★ + opacity/line-through).
+function BloccoTurno({ turno, servizio }) {
+  const cfg = SERVIZIO_STYLE[servizio] || SERVIZIO_STYLE.ALTRO;
   const stato = (turno.stato || "CONFERMATO").toUpperCase();
   const isOpz = stato === "OPZIONALE";
   const isAnn = stato === "ANNULLATO";
@@ -541,27 +492,22 @@ function BloccoTurno({ turno, dipendenteColore }) {
 
   return (
     <div
-      className="rounded-md px-2 py-1 text-xs border"
+      className={`rounded-md border px-2 py-1 text-center ${cfg.cls}`}
       style={{
-        backgroundColor: bg,
-        color: fg,
-        borderColor: bg,
         opacity: isAnn ? 0.4 : 1,
         textDecoration: isAnn ? "line-through" : "none",
       }}
       title={[turno.turno_nome, turno.note, stato].filter(Boolean).join(" — ")}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-semibold">
-          {isOpz && <span title="Opzionale">★ </span>}
-          {icon} {turno.turno_nome || (servizio || "Turno")}
-        </span>
-        <span className="tabular-nums text-[10px] opacity-90">
-          {ora}–{fine}
-        </span>
+      <div className="text-[10px] leading-tight">
+        {isOpz && <span title="Opzionale">★ </span>}
+        {cfg.icon} {cfg.label}
+      </div>
+      <div className="text-[11px] font-semibold leading-tight tabular-nums">
+        {ora && fine ? `${ora}–${fine}` : (turno.turno_nome || "—")}
       </div>
       {turno.note && (
-        <div className="text-[10px] opacity-80 truncate">{turno.note}</div>
+        <div className="text-[10px] opacity-70 truncate mt-0.5">{turno.note}</div>
       )}
     </div>
   );
