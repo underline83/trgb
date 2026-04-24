@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.10-alert-widget-faseC — Picker inline 5-pill STATO_RIORDINO (D/O/0/A/X) sostituisce singolo toggle "Non ricomprare". Click stato attivo = clear. Etichetta testuale sotto. setStatoRiordino() generalizza toggleNonRicomprare
+// @version: v4.11-alert-widget-faseD — Chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri) client-side sopra la lista urgenti, con conteggi per categoria e auto-hide chip con 0 vini
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -67,6 +67,9 @@ export default function DashboardVini() {
     prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }
   );
   const [alertExpanded, setAlertExpanded] = useState(false);
+  // Fase D — filtro rapido tipologia nel widget alert (reset a ogni refresh pagina).
+  // Valori: null = tutti, "ROSSI" | "BIANCHI" | "BOLLICINE" | "ROSATI" | "ALTRI".
+  const [tipoFiltro, setTipoFiltro] = useState(null);
   const [fermiExpanded, setFermiExpanded] = useState(false);
   const FERMI_INITIAL_SHOW = 15;
 
@@ -903,30 +906,106 @@ export default function DashboardVini() {
                 );
               };
 
-              const urgentiShow = alertExpanded ? urgenti : urgenti.slice(0, ALERT_COLLAPSED_SHOW);
-              const hasMore = urgenti.length > ALERT_COLLAPSED_SHOW;
+              // Fase D — filtro tipologia client-side.
+              // 5 categorie logiche fisse (i piu' comuni) + "Altri" catch-all per
+              // GRANDI FORMATI, PASSITI, VINI ANALCOLICI, ERRORE, null.
+              const CATEGORIE = [
+                { key: "ROSSI",     label: "Rossi",     dot: "bg-red-500",      match: (t) => t === "ROSSI" },
+                { key: "BIANCHI",   label: "Bianchi",   dot: "bg-yellow-400",   match: (t) => t === "BIANCHI" },
+                { key: "BOLLICINE", label: "Bollicine", dot: "bg-sky-400",      match: (t) => t === "BOLLICINE" },
+                { key: "ROSATI",   label: "Rosati",    dot: "bg-pink-400",     match: (t) => t === "ROSATI" },
+                { key: "ALTRI",     label: "Altri",     dot: "bg-neutral-400",  match: (t) => !["ROSSI","BIANCHI","BOLLICINE","ROSATI"].includes(t) },
+              ];
+              const matchesFiltro = (v) => {
+                if (!tipoFiltro) return true;
+                const cat = CATEGORIE.find(c => c.key === tipoFiltro);
+                return cat ? cat.match(v.TIPOLOGIA) : true;
+              };
+              const urgentiFiltrati = urgenti.filter(matchesFiltro);
+              const urgentiShow = alertExpanded ? urgentiFiltrati : urgentiFiltrati.slice(0, ALERT_COLLAPSED_SHOW);
+              const hasMore = urgentiFiltrati.length > ALERT_COLLAPSED_SHOW;
+
+              // Conteggi per ogni categoria (sempre sull'insieme completo `urgenti`,
+              // cosi' i numeri non saltano cambiando filtro).
+              const conteggi = CATEGORIE.reduce((acc, c) => {
+                acc[c.key] = urgenti.filter(v => c.match(v.TIPOLOGIA)).length;
+                return acc;
+              }, {});
 
               return (
-                <div className="divide-y divide-neutral-100">
-                  {urgentiShow.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
-                  {hasMore && !alertExpanded && (
-                    <button type="button" onClick={() => setAlertExpanded(true)}
-                      className="w-full px-6 py-3 text-center text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition">
-                      Mostra tutti ({urgenti.length - ALERT_COLLAPSED_SHOW} altri vini) ▼
-                    </button>
-                  )}
-                  {alertExpanded && hasMore && (
-                    <button type="button" onClick={() => setAlertExpanded(false)}
-                      className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition">
-                      Mostra meno ▲
-                    </button>
-                  )}
-                  {nonRicomprare.length > 0 && (
-                    <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
-                      Non da ricomprare ({nonRicomprare.length})
+                <div>
+                  {/* Riga chip filtro tipologia */}
+                  {urgenti.length > 0 && (
+                    <div className="px-6 py-2.5 bg-neutral-50/70 border-b border-neutral-100 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] text-neutral-400 uppercase tracking-wide mr-1">Filtra:</span>
+                      <button
+                        type="button"
+                        onClick={() => setTipoFiltro(null)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition min-h-[28px] ${
+                          !tipoFiltro
+                            ? "bg-brand-blue text-white border border-brand-blue"
+                            : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-100"
+                        }`}
+                      >
+                        Tutti <span className={!tipoFiltro ? "opacity-90" : "text-neutral-400"}>({urgenti.length})</span>
+                      </button>
+                      {CATEGORIE.map(c => {
+                        const active = tipoFiltro === c.key;
+                        const n = conteggi[c.key] || 0;
+                        if (n === 0 && !active) return null; // nascondi chip con 0 vini (declutter)
+                        return (
+                          <button
+                            key={c.key}
+                            type="button"
+                            onClick={() => setTipoFiltro(active ? null : c.key)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition min-h-[28px] ${
+                              active
+                                ? "bg-brand-blue text-white border border-brand-blue"
+                                : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-100"
+                            }`}
+                          >
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                            {c.label}
+                            <span className={active ? "opacity-90" : "text-neutral-400"}>({n})</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
-                  {nonRicomprare.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
+
+                  <div className="divide-y divide-neutral-100">
+                    {urgentiFiltrati.length === 0 && tipoFiltro && (
+                      <div className="px-6 py-8 text-center text-sm text-neutral-400">
+                        Nessun vino in questa categoria.{" "}
+                        <button type="button" onClick={() => setTipoFiltro(null)}
+                          className="text-brand-blue font-medium hover:underline">
+                          Mostra tutti
+                        </button>
+                      </div>
+                    )}
+                    {urgentiShow.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                    {hasMore && !alertExpanded && (
+                      <button type="button" onClick={() => setAlertExpanded(true)}
+                        className="w-full px-6 py-3 text-center text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition">
+                        Mostra tutti ({urgentiFiltrati.length - ALERT_COLLAPSED_SHOW} altri vini) ▼
+                      </button>
+                    )}
+                    {alertExpanded && hasMore && (
+                      <button type="button" onClick={() => setAlertExpanded(false)}
+                        className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition">
+                        Mostra meno ▲
+                      </button>
+                    )}
+                    {/* Sezione "Non da ricomprare" NON filtrata — resta sempre visibile
+                        sotto. Se Marco vuole filtrare anche quella in futuro, sposto
+                        nonRicomprareFiltrati qui. */}
+                    {nonRicomprare.length > 0 && (
+                      <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
+                        Non da ricomprare ({nonRicomprare.length})
+                      </div>
+                    )}
+                    {nonRicomprare.map((v) => <VinoRow key={v.id} v={v} dimmed={true} />)}
+                  </div>
                 </div>
               );
             })()}

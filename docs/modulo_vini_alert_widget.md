@@ -26,7 +26,7 @@ Questo doc copre solo il secondo widget.
 | 3 | Raggruppamento per distributore (toggle opzionale) | ⏳ Fase E — da fare |
 | 4 | Stato riordino a 3 click (badge `D · O · 0 · A · X` inline) | ✅ **FATTO** (Fase C — 2026-04-24) |
 | 5 | "Ultima vendita" / giorni fermo | ✅ **FATTO** (Fase B — 2026-04-24) |
-| 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ⏳ Fase D — da fare |
+| 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ✅ **FATTO** (Fase D — 2026-04-24) |
 | 7 | Export "lista della spesa" su WhatsApp/PDF raggruppata per fornitore | 🔄 Teorizzato — differito |
 | 8 | Bottone "✅ Arrivato" diretto nel widget (`conferma-arrivo` già in API) | ⏳ Da confermare con Marco |
 
@@ -96,9 +96,20 @@ Implementato:
 - **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.10-alert-widget-faseC).
 - **Rimossi:** vecchio bottone "◦ Non ricomprare" sulla colonna destra (sostituito dalla pill X), badge passivo `STATO_RIORDINO` nella riga metriche (ridondante col picker).
 
-### Fase D — Punto 6 (Filtro rapido tipologia)
-- **FE only:** sopra la lista aggiungere riga di chip `Tutti · Bianchi · Rossi · Bolle · Rosati · Altri` tipo tab (filtra client-side il `urgenti` array per `TIPOLOGIA`). Attivo = brand-blue fill, inattivi = outline. Stato in `useState`, niente persistenza.
-- **Push FE-only.**
+### Fase D — Punto 6 (Filtro rapido tipologia) — ✅ FATTO 2026-04-24
+
+- **FE-only.** Riga chip appena sotto il banner, sopra la lista urgenti.
+- **6 chip:** `Tutti · Rossi · Bianchi · Bollicine · Rosati · Altri`. "Altri" e' catch-all per `GRANDI FORMATI`, `PASSITI E VINI DA MEDITAZIONE`, `VINI ANALCOLICI`, `ERRORE`, null.
+- **Stile:**
+  - Chip attiva: `bg-brand-blue text-white border-brand-blue`
+  - Chip inattiva: bianco + border neutral + hover leggero + dot colorato (rosso/giallo/sky/pink/neutral per tipologia)
+  - Touch target `min-h-[28px]` (in row di chip, gruppo >44pt in altezza)
+  - Chip con 0 vini nascoste automaticamente (declutter) — eccetto quella attiva che resta visibile per poter cliccarla e tornare a "Tutti".
+- **Conteggi:** ogni chip mostra `(N)` calcolato su `urgenti` completo (non sul filtrato), cosi' i numeri non saltano cambiando filtro.
+- **Persistenza:** nessuna (`useState`). Reset al refresh, come da spec.
+- **Sezione "Non da ricomprare":** NON filtrata dal chip — resta sempre visibile in fondo con tutti i suoi vini. Motivo: ha significato di "archivio" scorrelato dalla tipologia. Se Marco vuole filtrarla, flipare `nonRicomprare.map(...)` a `nonRicomprare.filter(matchesFiltro).map(...)` in futuro.
+- **Empty state:** se il filtro non produce risultati, messaggio "Nessun vino in questa categoria" + link "Mostra tutti" che resetta il filtro.
+- **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.11-alert-widget-faseD). Nuovo state `tipoFiltro`, helper `CATEGORIE` + `matchesFiltro()` inline, chip row sopra `urgentiFiltrati`.
 
 ### Fase E — Punto 3 (Raggruppamento per distributore)
 - **FE only:** toggle "Raggruppa per distributore" sotto il banner. Quando attivo: applicare lo stesso pattern `<details>`/`<summary>` di `📦 Riordini per fornitore` alle righe del widget alert. `grouped[key] = { distributore, rappresentante, vini: [] }`.
