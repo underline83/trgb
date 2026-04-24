@@ -1,12 +1,12 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.8-alert-widget-faseB — + badge "Ult. vendita: Ngg fa" con gradazione (verde ≤30gg, amber 31-90, red >90, grigio mai venduto)
+// @version: v4.9-alert-widget-faseB2 — Badge combo ritmo+finito ("Top seller 6.1/mese · Finito ~14gg fa"), layout righe ripulito (tolti STATO_VENDITA ridondante, "0 bt" e tipologia duplicata). Ritmo calcolato via app.utils.vini_metrics (riutilizzabile su SchedaVino)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
-import { STATO_RIORDINO, STATO_VENDITA, STATO_CONSERVAZIONE } from "../../config/viniConstants";
+import { STATO_RIORDINO, STATO_CONSERVAZIONE } from "../../config/viniConstants";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
 import useToast from "../../hooks/useToast";
@@ -763,42 +763,48 @@ export default function DashboardVini() {
                 if (!Number.isFinite(t)) return null;
                 return Math.floor((Date.now() - t) / 86400000);
               };
+              // Mappa color_tone -> classi Tailwind per il badge combo.
+              // Mirror delle categorie di app/utils/vini_metrics.py::calcola_ritmo_vendita
+              const RITMO_CLS = {
+                "emerald":      "bg-emerald-50 text-emerald-800 border-emerald-200",
+                "amber":        "bg-amber-50 text-amber-800 border-amber-200",
+                "neutral":      "bg-neutral-100 text-neutral-600 border-neutral-200",
+                "neutral-dark": "bg-slate-100 text-slate-500 border-slate-300",
+              };
               const VinoRow = ({ v, dimmed }) => {
-                const svInfo  = v.STATO_VENDITA      ? STATO_VENDITA[v.STATO_VENDITA]           : null;
-                const srInfo  = v.STATO_RIORDINO     ? STATO_RIORDINO[v.STATO_RIORDINO]         : null;
+                const srInfo  = v.STATO_RIORDINO ? STATO_RIORDINO[v.STATO_RIORDINO] : null;
                 const scInfo  = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
-                // Fase B — giorni dall'ultima vendita.
-                // null = mai venduto / dato assente. >90gg = rosso (candidato cadavere).
-                const ggUltVendita = giorniDa(v.ultima_vendita);
-                const ultVenditaCls =
-                  ggUltVendita == null ? "bg-neutral-100 text-neutral-500 border-neutral-200"
-                  : ggUltVendita > 90   ? "bg-red-50 text-red-700 border-red-200"
-                  : ggUltVendita > 30   ? "bg-amber-50 text-amber-700 border-amber-200"
-                  :                       "bg-emerald-50 text-emerald-700 border-emerald-200";
-                const ultVenditaLbl =
-                  ggUltVendita == null ? "— mai venduto"
-                  : ggUltVendita === 0 ? "Venduto oggi"
-                  : ggUltVendita === 1 ? "Venduto ieri"
-                  :                      `Ult. vendita: ${ggUltVendita}gg fa`;
+                // Badge combo ritmo+finito. L'etichetta "Finito ~Xgg" ha senso solo se
+                // il vino e' stato venduto almeno una volta (altrimenti e' "Mai venduto").
+                const ritmo = v.ritmo_vendita || {};
+                const ritmoCls = RITMO_CLS[ritmo.color_tone] || RITMO_CLS.neutral;
+                const ggFinito = giorniDa(v.ultima_vendita);
+                const mostraFinito = ritmo.categoria !== "mai" && ggFinito != null;
+                const finitoLbl =
+                  ggFinito == null ? null
+                  : ggFinito === 0 ? "Finito oggi"
+                  : ggFinito === 1 ? "Finito ieri"
+                  :                  `Finito ~${ggFinito}gg fa`;
                 return (
-                  <div className={`px-6 py-3 flex items-start justify-between transition ${dimmed ? "opacity-50" : "hover:bg-red-50"}`}>
+                  <div className={`px-6 py-3 flex items-start justify-between gap-3 transition ${dimmed ? "opacity-50" : "hover:bg-red-50"}`}>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                      {/* RIGA 1 — identita' vino */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight">#{v.id}</span>
                         <span className={`font-semibold text-sm ${dimmed ? "line-through text-neutral-400" : "text-neutral-900"}`}>{v.DESCRIZIONE}</span>
                         {v.ANNATA && <span className="text-xs text-neutral-500">{v.ANNATA}</span>}
                         {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
+                        <span className="text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
                       </div>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {/* Fase B — badge ultima vendita con gradazione temporale. */}
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ultVenditaCls}`}>
-                          🛒 {ultVenditaLbl}
+                      {/* RIGA 2 — metriche azionabili (ritmo + finito) + stato riordino se c'e' */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ritmoCls}`}
+                          title={ritmo.vendite_totali != null ? `${ritmo.vendite_totali} bt vendute in ${ritmo.giorni_storico}gg di storico (dal 01/03/2026)` : ""}>
+                          🛒 {ritmo.label || "—"}
+                          {mostraFinito && (
+                            <span className="font-normal opacity-75">· {finitoLbl}</span>
+                          )}
                         </span>
-                        {svInfo && (
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${svInfo.color}`}>
-                            <span className={`w-1 h-1 rounded-full ${svInfo.dot}`} />{svInfo.label}
-                          </span>
-                        )}
                         {srInfo && (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${srInfo.color}`}>
                             <span className={`w-1 h-1 rounded-full ${srInfo.dot}`} />{srInfo.label}
@@ -811,9 +817,7 @@ export default function DashboardVini() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-3 mt-0.5">
-                      <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
-                      <span className="text-xs text-red-600 font-semibold">0 bt</span>
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
 
                       {/* Fase A — Ordina inline: pill blu se ordine pending, outline "+ ordina" altrimenti.
                           Su righe "dimmed" (Non ricomprare) nascosto per ridurre rumore. */}

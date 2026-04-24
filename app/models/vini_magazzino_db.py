@@ -1682,10 +1682,14 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
 
     # Alert: vini con stato vendita attivo (V/F/S/T) e giacenza = 0 in carta.
     # Include:
-    #  - `vendite_60gg` (sum VENDITA ultimi 60gg) per calcolare `qta_suggerita` in Python
-    #  - `ultima_vendita` (MAX data_mov VENDITA) per mostrare "venduto X gg fa" nel widget
+    #  - `vendite_60gg`     → per calcolare `qta_suggerita` (regola Fase A: 60gg÷2)
+    #  - `vendite_totali`   → somma VENDITA da 2026-03-01 a oggi (inizio sistema)
+    #                         alimenta `ritmo_vendita` via app.utils.vini_metrics
+    #  - `ultima_vendita`   → MAX data_mov VENDITA, per "Finito ~Xgg fa"
+    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
+
     alert_carta = cur.execute(
-        """
+        f"""
         SELECT v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
                v.STATO_RIORDINO, v.STATO_CONSERVAZIONE, v.STATO_VENDITA,
                v.DISTRIBUTORE, v.RAPPRESENTANTE,
@@ -1695,6 +1699,12 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                   AND m.tipo = 'VENDITA'
                   AND datetime(m.data_mov) >= datetime('now', '-60 days')
                ) AS vendite_60gg,
+               (SELECT COALESCE(SUM(m.qta), 0)
+                FROM vini_magazzino_movimenti m
+                WHERE m.vino_id = v.id
+                  AND m.tipo = 'VENDITA'
+                  AND date(m.data_mov) >= '{DATA_INIZIO_STORICO}'
+               ) AS vendite_totali,
                (SELECT MAX(m.data_mov)
                 FROM vini_magazzino_movimenti m
                 WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
@@ -1715,10 +1725,11 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
     ).fetchall()
 
-    # Post-processo: calcolo qta_suggerita = max(1, round(vendite_60gg / 2))
-    # se ci sono vendite recenti, altrimenti None (FE mostra "— nessun suggerimento").
-    # Motivazione: 60gg di vendite / 2 = copertura ~30gg in media per un riordino prudente.
-    def _with_suggerita(row):
+    # Post-processo:
+    #  - `qta_suggerita`: regola Fase A (60gg ÷ 2, floor 1). Immutata.
+    #  - `ritmo_vendita`: dict completo da calcola_ritmo_vendita() — alimenta
+    #    il nuovo badge combo "Finito ~Xgg · N bt/mese · top/medio/poco/mai".
+    def _enrich(row):
         d = dict(row)
         v60 = d.pop("vendite_60gg", 0) or 0
         try:
@@ -1726,9 +1737,16 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         except (TypeError, ValueError):
             v60 = 0
         d["qta_suggerita"] = max(1, round(v60 / 2)) if v60 > 0 else None
+
+        vtot = d.pop("vendite_totali", 0) or 0
+        try:
+            vtot = int(vtot)
+        except (TypeError, ValueError):
+            vtot = 0
+        d["ritmo_vendita"] = calcola_ritmo_vendita(vtot)
         return d
 
-    alert_carta_list = [_with_suggerita(r) for r in alert_carta]
+    alert_carta_list = [_enrich(r) for r in alert_carta]
 
     # KPI vendite (solo tipo=VENDITA)
     kpi_vendite = cur.execute(

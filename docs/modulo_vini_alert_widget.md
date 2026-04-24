@@ -53,17 +53,30 @@ Stesso principio di `modulo_vini_riordini.md`: ogni fase auto-contenuta, un push
 - **File toccati:** `app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/DashboardVini.jsx` (bump v4.7-alert-widget-faseA).
 
 ### Fase B — Punto 5 (Ultima vendita / giorni fermo) — ✅ FATTO 2026-04-24
-- **BE:** query `alert_carta` estesa con subquery `ultima_vendita` (MAX data_mov dove tipo=VENDITA). Stesso pattern usato in `riordini_per_fornitore`.
-- **FE:** nuovo badge pill in ogni riga del widget, accanto ai badge stato:
-  - `🛒 Venduto oggi` (verde, 0 gg)
-  - `🛒 Venduto ieri` (verde, 1 gg)
-  - `🛒 Ult. vendita: Ngg fa` (verde ≤30gg, amber 31–90, rosso >90 "cadavere")
-  - `🛒 — mai venduto` (grigio)
-- **File toccati:** `app/models/vini_magazzino_db.py` (subquery `ultima_vendita` in `alert_carta`), `frontend/src/pages/vini/DashboardVini.jsx` (helper `giorniDa`, badge inline, bump v4.8-alert-widget-faseB).
-- **Test manuali:**
-  - Vino venduto oggi → badge verde "Venduto oggi".
-  - Vino fermo da 5 mesi → badge rosso "Ult. vendita: 150gg fa".
-  - Vino mai venduto → badge grigio "— mai venduto".
+
+**Iter 1 (deprecata, vedi iter 2):** badge "Ult. vendita: Ngg fa" con gradazione rosso/amber/verde sul tempo. Fuorviante: su un vino finito l'ultima vendita e' sempre subito prima del sold-out → dato ridondante/ingannevole.
+
+**Iter 2 (attiva):** ripensamento completo dopo feedback Marco. Il dato che serve e' il **ritmo di vendita storico** (misura di domanda), non il tempo dall'ultima vendita (misura di quando e' finito). Combinati in un badge unico.
+
+Implementato:
+- **Nuovo modulo `app/utils/vini_metrics.py`** — funzione riutilizzabile `calcola_ritmo_vendita(vendite_totali, oggi=None, data_inizio="2026-03-01")`. Ritorna dict con `bt_mese`, `categoria` (`top`/`medio`/`poco`/`mai`), `label` human-friendly, `color_tone` per UI. Data inizio storico = 1 marzo 2026 (entrata in produzione del sistema). Soglie:
+  - `top`: ≥ 5 bt/mese → emerald
+  - `medio`: 1–5 bt/mese → amber
+  - `poco`: < 1 bt/mese → neutral
+  - `mai`: 0 vendite totali → neutral-dark
+  - Helper secondario `giorni_dalla_ultima_vendita()`.
+- **BE `vini_magazzino_db.py::get_dashboard_stats`:** query `alert_carta` estesa con `vendite_totali` (da 2026-03-01) + `ultima_vendita` (MAX data_mov VENDITA). Post-processing Python aggiunge `ritmo_vendita: dict` a ogni riga usando il nuovo helper.
+- **FE `DashboardVini.jsx` (v4.9-alert-widget-faseB2):** layout VinoRow ripensato:
+  - Riga 1 identita': #ID + nome + annata + produttore + tipologia piccola inline
+  - Riga 2 metriche azionabili: badge combo `🛒 Top seller 6.1 bt/mese · Finito ~14gg fa` (classificato sul ritmo, finito appeso in secondaria con opacity 75%, omesso se "Mai venduto"). Badge `STATO_RIORDINO` e `STATO_CONSERVAZIONE` solo se valorizzati.
+  - Tolti: badge `STATO_VENDITA` (ridondante — condizione dell'alert e' V/F/S/T per definizione), `0 bt` (condizione dell'alert), tipologia ripetuta a destra.
+- **Riutilizzabilita':** `app.utils.vini_metrics` e' agnostico dal modulo. Quando si aggiornera' SchedaVino (tab "Statistiche" o "Panoramica") bastera' importare `calcola_ritmo_vendita` e passargli il totale vendite del vino.
+- **Test BE (simulazione):**
+  - 30 vendite / 54gg storico → `Top seller · 16.7 bt/mese` (emerald)
+  - 8 vendite → `Vende · 4.4 bt/mese` (amber)
+  - 1 vendita → `Poco venduto · 0.56 bt/mese` (neutral)
+  - 0 vendite → `Mai venduto` (neutral-dark)
+- **File toccati:** `app/utils/vini_metrics.py` (nuovo), `app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/DashboardVini.jsx`.
 
 ### Fase C — Punto 4 (Badge stato riordino a 3 click)
 - **FE only:** sostituire il solo toggle "Non ricomprare" con quartetto di pill `D · O · 0 · X` usando `STATO_RIORDINO` da `viniConstants.js`. Click su pill → PATCH `STATO_RIORDINO` (endpoint esistente). Stato corrente evidenziato con border pieno, altri outline.
