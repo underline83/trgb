@@ -1028,6 +1028,66 @@ def get_vino_by_id(vino_id: int) -> Optional[sqlite3.Row]:
     return row
 
 
+def get_vino_stats(vino_id: int) -> Dict[str, Any]:
+    """
+    Statistiche di vendita per un singolo vino.
+
+    Restituisce:
+      - vendite_totali: somma qta tipo=VENDITA da DATA_INIZIO_STORICO a oggi
+      - ultima_vendita: ISO date della piu' recente VENDITA (o None)
+      - ritmo_vendita:  dict completo da `calcola_ritmo_vendita()` — vedi
+                        app/utils/vini_metrics.py per la struttura
+      - vendite_per_mese: array [{mese: "YYYY-MM", qta: N}] ordinato crescente
+                         (utile per mini-grafico in SchedaVino)
+
+    Alimenta la sezione "Statistiche vendita" in SchedaVino.
+    """
+    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
+
+    conn = get_magazzino_connection()
+    cur = conn.cursor()
+
+    r = cur.execute(
+        """
+        SELECT
+            COALESCE(SUM(qta), 0) AS vendite_totali,
+            MAX(data_mov)          AS ultima_vendita
+        FROM vini_magazzino_movimenti
+        WHERE vino_id = ? AND tipo = 'VENDITA'
+          AND date(data_mov) >= ?
+        """,
+        (vino_id, DATA_INIZIO_STORICO),
+    ).fetchone()
+
+    vendite_totali = int((r["vendite_totali"] if r else 0) or 0)
+    ultima_vendita = r["ultima_vendita"] if r else None
+
+    # Serie mensile per mini-grafico. strftime('%Y-%m', data_mov) aggrega per mese.
+    per_mese_rows = cur.execute(
+        """
+        SELECT strftime('%Y-%m', data_mov) AS mese,
+               COALESCE(SUM(qta), 0)        AS qta
+        FROM vini_magazzino_movimenti
+        WHERE vino_id = ? AND tipo = 'VENDITA'
+          AND date(data_mov) >= ?
+        GROUP BY mese
+        ORDER BY mese ASC;
+        """,
+        (vino_id, DATA_INIZIO_STORICO),
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        "vino_id": vino_id,
+        "vendite_totali": vendite_totali,
+        "ultima_vendita": ultima_vendita,
+        "ritmo_vendita": calcola_ritmo_vendita(vendite_totali),
+        "vendite_per_mese": [{"mese": r["mese"], "qta": int(r["qta"])} for r in per_mese_rows],
+        "data_inizio_storico": DATA_INIZIO_STORICO,
+    }
+
+
 def search_vini(
     vino_id: Optional[int] = None,
     text: Optional[str] = None,
@@ -1653,6 +1713,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     Restituisce statistiche aggregate per la dashboard operativa.
     Tutto in una sola connessione — query leggere su SQLite.
     """
+    # Helper ritmo vendita (modulo riutilizzabile). Import a livello funzione
+    # per evitare dipendenze circolari a modulo top-level.
+    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
+
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
@@ -1686,8 +1750,6 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     #  - `vendite_totali`   → somma VENDITA da 2026-03-01 a oggi (inizio sistema)
     #                         alimenta `ritmo_vendita` via app.utils.vini_metrics
     #  - `ultima_vendita`   → MAX data_mov VENDITA, per "Finito ~Xgg fa"
-    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
-
     alert_carta = cur.execute(
         f"""
         SELECT v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
@@ -1747,6 +1809,19 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         return d
 
     alert_carta_list = [_enrich(r) for r in alert_carta]
+
+    # Helper condiviso: estrae `vendite_totali` dal row e aggiunge `ritmo_vendita`.
+    # Usato anche per vini_fermi e riordini_per_fornitore (aggiunti in sessione
+    # 2026-04-24 per estendere il ritmo oltre il widget alert).
+    def _with_ritmo(row):
+        d = dict(row)
+        vtot = d.get("vendite_totali", 0) or 0
+        try:
+            vtot = int(vtot)
+        except (TypeError, ValueError):
+            vtot = 0
+        d["ritmo_vendita"] = calcola_ritmo_vendita(vtot)
+        return d
 
     # KPI vendite (solo tipo=VENDITA)
     kpi_vendite = cur.execute(
@@ -1824,12 +1899,20 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     ).fetchall()
 
     # Vini fermi: QTA_TOTALE > 0 e nessun movimento negli ultimi 30 giorni
-    # Include anche vini che non hanno MAI avuto movimenti (LEFT JOIN + IS NULL)
+    # Include anche vini che non hanno MAI avuto movimenti (LEFT JOIN + IS NULL).
+    # Subquery `vendite_totali` (da 2026-03-01) per calcolare il ritmo mensile
+    # in post-processing Python (helper calcola_ritmo_vendita).
     vini_fermi = cur.execute(
-        """
+        f"""
         SELECT
             v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
-            MAX(m.data_mov) AS ultimo_movimento
+            MAX(m.data_mov) AS ultimo_movimento,
+            (SELECT COALESCE(SUM(m2.qta), 0)
+             FROM vini_magazzino_movimenti m2
+             WHERE m2.vino_id = v.id
+               AND m2.tipo = 'VENDITA'
+               AND date(m2.data_mov) >= '{DATA_INIZIO_STORICO}'
+            ) AS vendite_totali
         FROM vini_magazzino v
         LEFT JOIN vini_magazzino_movimenti m ON m.vino_id = v.id
         WHERE v.QTA_TOTALE > 0
@@ -1901,7 +1984,11 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
             (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
              WHERE m.vino_id = v.id AND m.tipo = 'CARICO') AS ultimo_carico,
             (SELECT MAX(m.data_mov) FROM vini_magazzino_movimenti m
-             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita
+             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA') AS ultima_vendita,
+            (SELECT COALESCE(SUM(m.qta), 0) FROM vini_magazzino_movimenti m
+             WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
+               AND date(m.data_mov) >= '{DATA_INIZIO_STORICO}'
+            ) AS vendite_totali
         FROM vini_magazzino v
         {riordini_where}
         ORDER BY v.DISTRIBUTORE, v.RAPPRESENTANTE, v.DESCRIZIONE;
@@ -1945,10 +2032,10 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         "vendite_recenti":            [dict(r) for r in vendite_recenti],
         "movimenti_operativi":        [dict(r) for r in movimenti_operativi],
         "top_venduti_30gg":           [dict(r) for r in top_venduti],
-        "vini_fermi":                 [dict(r) for r in vini_fermi],
+        "vini_fermi":                 [_with_ritmo(r) for r in vini_fermi],
         "movimenti_recenti":          [dict(r) for r in movimenti_recenti],
         "distribuzione_tipologie":    [dict(r) for r in distribuzione],
-        "riordini_per_fornitore":     [dict(r) for r in riordini_per_fornitore],
+        "riordini_per_fornitore":     [_with_ritmo(r) for r in riordini_per_fornitore],
     }
 
 

@@ -541,6 +541,22 @@ def get_vino_magazzino(
     return dict(row)
 
 
+@router.get("/{vino_id}/stats", summary="Statistiche di vendita per il vino")
+def get_vino_stats_endpoint(
+    vino_id: int,
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Ritorna vendite_totali, ultima_vendita, ritmo_vendita (dict completo) e
+    vendite_per_mese per il singolo vino. Alimenta la sezione "Statistiche"
+    in SchedaVino.
+    """
+    row = db.get_vino_by_id(vino_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vino non trovato")
+    return db.get_vino_stats(vino_id)
+
+
 # ---------------------------------------------------------
 # ENDPOINT: UPDATE VINO
 # ---------------------------------------------------------

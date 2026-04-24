@@ -380,8 +380,33 @@ def export_cantina_excel(
     Genera un .xlsx con tutti i vini dal DB cantina,
     in formato compatibile con l'Excel storico di lavoro.
     """
+    # Pre-calcolo vendite_totali per vino con una sola query (evita N+1).
+    # Poi per ogni vino calcoliamo il ritmo in Python (funzione pura).
+    from app.utils.vini_metrics import calcola_ritmo_vendita, DATA_INIZIO_STORICO
+
     conn = mag_db.get_magazzino_connection()
     cur = conn.cursor()
+
+    vendite_map = {}
+    try:
+        for row in cur.execute(
+            """
+            SELECT vino_id, COALESCE(SUM(qta), 0) AS tot
+            FROM vini_magazzino_movimenti
+            WHERE tipo = 'VENDITA' AND date(data_mov) >= ?
+            GROUP BY vino_id
+            """,
+            (DATA_INIZIO_STORICO,),
+        ).fetchall():
+            try:
+                vendite_map[int(row["vino_id"])] = int(row["tot"] or 0)
+            except (TypeError, ValueError):
+                pass
+    except Exception:
+        # Se la tabella movimenti non esiste / e' vuota, proseguiamo con mappa vuota:
+        # tutti i vini risultano "Mai venduto". L'export non si rompe.
+        vendite_map = {}
+
     rows = cur.execute(
         """
         SELECT *
@@ -395,7 +420,7 @@ def export_cantina_excel(
     ws = wb.active
     ws.title = "VINI"
 
-    # Header
+    # Header — ultime 3 colonne aggiunte 2026-04-24 per statistiche vendita.
     headers = [
         "ID", "TIPOLOGIA", "NAZIONE", "REGIONE",
         "CARTA", "DESCRIZIONE", "ANNATA", "PRODUTTORE",
@@ -403,6 +428,7 @@ def export_cantina_excel(
         "PREZZO", "LISTINO", "SCONTO",
         "FRIGORIFERO", "N", "LOCAZIONE 1", "N.1", "LOCAZIONE 2", "N.2",
         "Q.TA", "DISTRIBUTORE", "IPRATICO", "ORIGINE",
+        "VENDITE TOT", "RITMO BT/MESE", "CATEGORIA RITMO",
     ]
 
     header_font = Font(bold=True, color="FFFFFF", size=10)
@@ -423,6 +449,11 @@ def export_cantina_excel(
 
     # Dati
     for row_idx, r in enumerate(rows, 2):
+        vtot = vendite_map.get(int(r["id"]), 0)
+        ritmo = calcola_ritmo_vendita(vtot)
+        # bt_mese None per "Mai venduto" → cella vuota invece di 0 (piu' onesto)
+        ritmo_val = ritmo["bt_mese"] if ritmo["bt_mese"] is not None else None
+        categoria = ritmo["categoria"]  # top | medio | poco | mai
         values = [
             r["id"],
             r["TIPOLOGIA"],
@@ -447,6 +478,9 @@ def export_cantina_excel(
             r["DISTRIBUTORE"],
             r["IPRATICO"],
             r["ORIGINE"],
+            vtot,
+            ritmo_val,
+            categoria,
         ]
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)

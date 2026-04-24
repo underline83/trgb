@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.14-alert-widget-faseF — Bottone "✅ Arrivato" inline sulle righe con ordine pending. Usa la qta ordinata per registrare CARICO e chiudere l'ordine (endpoint conferma-arrivo esistente), senza passare dal modale
+// @version: v4.15-ritmo-vendita-esteso — Ritmo di vendita esteso a widget Riordini-per-fornitore (nuova colonna "Ritmo" sortabile) e Vini-fermi (badge inline sotto il nome). Stesso modulo app.utils.vini_metrics
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -744,30 +744,47 @@ export default function DashboardVini() {
                 <button type="button" onClick={() => setDrilldown(null)} className="text-slate-400 hover:text-slate-700 text-lg">✕</button>
               </div>
               <div className="divide-y divide-neutral-100">
-                {fermiShow.map((v) => (
-                  <div key={v.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
-                    onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight shrink-0">#{v.id}</span>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm text-neutral-900 truncate">{v.DESCRIZIONE}</div>
-                        <div className="text-xs text-neutral-500">{v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0 ml-4">
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-neutral-800">{v.QTA_TOTALE} bt</div>
-                        <div className="text-[11px] text-neutral-400">
-                          {v.ultimo_movimento
-                            ? `ult. mov. ${v.ultimo_movimento.slice(0,10)}`
-                            : <span className="text-red-500 font-semibold">mai movimentato</span>
-                          }
+                {fermiShow.map((v) => {
+                  const rv = v.ritmo_vendita || {};
+                  const tone = rv.color_tone;
+                  const ritmoCls =
+                    tone === "emerald"       ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                    : tone === "amber"        ? "bg-amber-50 text-amber-800 border-amber-200"
+                    : tone === "neutral-dark" ? "bg-slate-100 text-slate-500 border-slate-300"
+                    :                           "bg-neutral-100 text-neutral-600 border-neutral-200";
+                  return (
+                    <div key={v.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition"
+                      onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="inline-flex items-center bg-slate-700 text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono tracking-tight shrink-0">#{v.id}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-neutral-900 truncate">{v.DESCRIZIONE}</div>
+                          <div className="text-xs text-neutral-500 flex items-center gap-2 flex-wrap">
+                            <span>{v.TIPOLOGIA}{v.ANNATA ? ` · ${v.ANNATA}` : ""}{v.PRODUTTORE ? ` · ${v.PRODUTTORE}` : ""}</span>
+                            {rv.label && (
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ritmoCls}`}
+                                title={rv.vendite_totali != null ? `${rv.vendite_totali} bt vendute in ${rv.giorni_storico}gg di storico (dal 01/03/2026)` : ""}>
+                                🛒 {rv.label}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <span className="text-amber-600 text-xs font-semibold">→</span>
+                      <div className="flex items-center gap-4 shrink-0 ml-4">
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-neutral-800">{v.QTA_TOTALE} bt</div>
+                          <div className="text-[11px] text-neutral-400">
+                            {v.ultimo_movimento
+                              ? `ult. mov. ${v.ultimo_movimento.slice(0,10)}`
+                              : <span className="text-red-500 font-semibold">mai movimentato</span>
+                            }
+                          </div>
+                        </div>
+                        <span className="text-amber-600 text-xs font-semibold">→</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {hasMoreFermi && !fermiExpanded && (
                   <button type="button" onClick={() => setFermiExpanded(true)}
                     className="w-full px-6 py-3 text-center text-sm font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 transition">
@@ -1362,6 +1379,7 @@ export default function DashboardVini() {
                               { k: "STATO_RIORDINO", label: "Stato", align: "text-center" },
                               { k: "QTA_TOTALE", label: "Giac.", align: "text-center" },
                               { k: "ordine_qta", label: "Riordino", align: "text-center" },
+                              { k: "ritmo", label: "Ritmo", align: "text-center" },
                               { k: "EURO_LISTINO", label: "Listino", align: "text-center" },
                               { k: "ultimo_carico", label: "Ult. carico", align: "text-center" },
                               { k: "ultima_vendita", label: "Ult. vendita", align: "text-center" },
@@ -1387,6 +1405,10 @@ export default function DashboardVini() {
                               // Valore dinamico: quantità ordine pending (0 se nessuno)
                               va = Number(ordiniPending[a.id]?.qta) || 0;
                               vb = Number(ordiniPending[b.id]?.qta) || 0;
+                            } else if (k === "ritmo") {
+                              // Ordinamento su bt_mese (null = 0, in coda quando asc)
+                              va = Number(a.ritmo_vendita?.bt_mese ?? 0);
+                              vb = Number(b.ritmo_vendita?.bt_mese ?? 0);
                             } else if (k === "ultimo_carico" || k === "ultima_vendita") {
                               va = va || ""; vb = vb || "";
                             } else {
@@ -1468,6 +1490,29 @@ export default function DashboardVini() {
                                       >
                                         + ordina
                                       </button>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-2 py-2 text-center">
+                                  {(() => {
+                                    const rv = v.ritmo_vendita || {};
+                                    const tone = rv.color_tone;
+                                    const cls =
+                                      tone === "emerald"      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : tone === "amber"       ? "bg-amber-50 text-amber-800 border-amber-200"
+                                      : tone === "neutral-dark" ? "bg-slate-100 text-slate-500 border-slate-300"
+                                      :                           "bg-neutral-100 text-neutral-600 border-neutral-200";
+                                    const short =
+                                      rv.categoria === "top"   ? `${rv.bt_mese?.toFixed(1)}/m`
+                                      : rv.categoria === "medio" ? `${rv.bt_mese?.toFixed(1)}/m`
+                                      : rv.categoria === "poco"  ? "poco"
+                                      :                             "mai";
+                                    return (
+                                      <Tooltip label={rv.label || "—"}>
+                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cls}`}>
+                                          {short}
+                                        </span>
+                                      </Tooltip>
                                     );
                                   })()}
                                 </td>

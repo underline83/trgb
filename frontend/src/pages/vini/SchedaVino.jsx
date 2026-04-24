@@ -1,10 +1,11 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v1.3-riordini-fase8 — Nuova sezione "Storico prezzi" (legge /prezzi-storico/ Fase 6)
-// Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + storico prezzi + note)
+// @version: v1.4-statistiche — Nuova sezione "Statistiche vendita" (ritmo bt/mese + grafico mensile)
+// Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + storico prezzi + statistiche + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
 import React, { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import { isAdminRole } from "../../utils/authHelpers";
@@ -175,6 +176,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
 
   // ── storico prezzi (Fase 8) ─────────────────────────
   const [prezziStorico, setPrezziStorico]       = useState([]);
+  // Statistiche vendita (ritmo bt/mese + serie mensile). Alimenta la sezione
+  // "📊 Statistiche vendita" tramite endpoint GET /vini/magazzino/{id}/stats.
+  const [vinoStats, setVinoStats]               = useState(null);
+  const [statsLoading, setStatsLoading]         = useState(false);
   const [prezziLoading, setPrezziLoading]       = useState(false);
   const [prezziFiltroCampo, setPrezziFiltroCampo] = useState(""); // "" = tutti
 
@@ -221,6 +226,19 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/note`);
       if (r.ok) setNote(await r.json());
     } finally { setNoteLoading(false); }
+  };
+
+  // ── fetch statistiche vendita (ritmo + serie mensile) ─
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}/stats`);
+      if (r.ok) setVinoStats(await r.json());
+    } catch {
+      // silenzioso: sezione mostra empty state
+    } finally {
+      setStatsLoading(false);
+    }
   };
 
   // ── fetch storico prezzi (Fase 8) ───────────────────
@@ -276,11 +294,12 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     if (!vinoId) return;
     // Reset state when vinoId changes
     setVino(null); setEditMode(false); setGiacenzeEdit(false);
-    setMovimenti([]); setNote([]); setPrezziStorico([]);
+    setMovimenti([]); setNote([]); setPrezziStorico([]); setVinoStats(null);
     fetchVino();
     fetchMovimenti();
     fetchNote();
     fetchPrezziStorico();
+    fetchStats();
     fetchOpzioniLocazioni();
     fetchTabellaOpts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1039,6 +1058,113 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                             </tbody>
                           </table>
                         </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* ── STATISTICHE VENDITA (v1.4) ── */}
+            <div className="border-b border-neutral-200">
+              <SectionHeader title="Statistiche vendita">
+                {statsLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
+                <Btn variant="secondary" size="sm" type="button" onClick={fetchStats} disabled={statsLoading}>
+                  ⟳ Aggiorna
+                </Btn>
+              </SectionHeader>
+              <div className="p-5 space-y-4">
+                {!vinoStats ? (
+                  <p className="text-sm text-neutral-500">Caricamento statistiche…</p>
+                ) : (() => {
+                  const rv = vinoStats.ritmo_vendita || {};
+                  const tone = rv.color_tone;
+                  const ritmoBadgeCls =
+                    tone === "emerald"       ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                    : tone === "amber"        ? "bg-amber-100 text-amber-800 border-amber-200"
+                    : tone === "neutral-dark" ? "bg-slate-200 text-slate-600 border-slate-300"
+                    :                           "bg-neutral-100 text-neutral-700 border-neutral-200";
+                  const ritmoBarCls =
+                    tone === "emerald"       ? "#10b981"
+                    : tone === "amber"        ? "#f59e0b"
+                    : tone === "neutral-dark" ? "#94a3b8"
+                    :                           "#9ca3af";
+                  const ultVen = vinoStats.ultima_vendita
+                    ? new Date(vinoStats.ultima_vendita).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                    : "mai";
+                  // Formatta mese YYYY-MM → "apr 26" per XAxis
+                  const MESI_ABBR = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+                  const serie = (vinoStats.vendite_per_mese || []).map(m => {
+                    const [y, mm] = m.mese.split("-");
+                    return { label: `${MESI_ABBR[parseInt(mm,10) - 1]} ${y.slice(2)}`, qta: m.qta };
+                  });
+                  return (
+                    <>
+                      {/* KPI — 4 card compatte */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="text-[11px] text-neutral-500 uppercase tracking-wide">Vendite totali</div>
+                          <div className="text-xl font-bold text-neutral-800 mt-0.5">{vinoStats.vendite_totali}</div>
+                          <div className="text-[11px] text-neutral-400">bottiglie</div>
+                        </div>
+                        <div className={`rounded-lg border p-3 ${ritmoBadgeCls}`}>
+                          <div className="text-[11px] uppercase tracking-wide opacity-80">Ritmo vendita</div>
+                          <div className="text-xl font-bold mt-0.5">
+                            {rv.bt_mese != null ? `${rv.bt_mese.toFixed(1)}` : "—"}
+                            {rv.bt_mese != null && <span className="text-xs font-normal opacity-80"> bt/mese</span>}
+                          </div>
+                          <div className="text-[11px] opacity-80">{rv.label || "—"}</div>
+                        </div>
+                        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="text-[11px] text-neutral-500 uppercase tracking-wide">Ultima vendita</div>
+                          <div className="text-xl font-bold text-neutral-800 mt-0.5">{ultVen}</div>
+                          <div className="text-[11px] text-neutral-400">
+                            {vinoStats.ultima_vendita ? `${Math.floor((Date.now() - new Date(vinoStats.ultima_vendita).getTime()) / 86400000)}gg fa` : "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="text-[11px] text-neutral-500 uppercase tracking-wide">Storico</div>
+                          <div className="text-xl font-bold text-neutral-800 mt-0.5">
+                            {rv.mesi_storico != null ? rv.mesi_storico.toFixed(1) : "—"}
+                          </div>
+                          <div className="text-[11px] text-neutral-400">
+                            mesi (dal {vinoStats.data_inizio_storico?.slice(5) || "—"})
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Grafico vendite per mese */}
+                      {serie.length > 0 ? (
+                        <div className="bg-white border border-neutral-200 rounded-xl p-4">
+                          <div className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-3">
+                            Vendite per mese
+                          </div>
+                          <div style={{ width: "100%", height: 200 }}>
+                            <ResponsiveContainer>
+                              <BarChart data={serie} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                                <XAxis dataKey="label" stroke="#6b7280" fontSize={11} />
+                                <YAxis stroke="#6b7280" fontSize={11} allowDecimals={false} />
+                                <RechartsTooltip
+                                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                                  formatter={(value) => [`${value} bt`, "Vendute"]}
+                                />
+                                <Bar dataKey="qta" fill={ritmoBarCls} radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-6 text-center text-sm text-neutral-500">
+                          Nessuna vendita registrata dall'inizio del sistema ({vinoStats.data_inizio_storico}).
+                        </div>
+                      )}
+
+                      {/* Nota metodologica — solo se storico breve (< 90gg) per trasparenza */}
+                      {rv.giorni_storico != null && rv.giorni_storico < 90 && vinoStats.vendite_totali > 0 && (
+                        <p className="text-[11px] text-neutral-400 italic">
+                          Storico disponibile: {rv.giorni_storico}gg. Il ritmo mensile è una stima, si stabilizza con più dati.
+                        </p>
                       )}
                     </>
                   );
