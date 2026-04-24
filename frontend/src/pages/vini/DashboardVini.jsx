@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.6-riordini-fase7 — Widget riordini: listino inline edit (PATCH EURO_LISTINO + auto PREZZO_CARTA + storico auto)
+// @version: v4.7-alert-widget-faseA — Widget alert "Vini in carta senza giacenza": pill "+ ordina" inline + qta_suggerita (vendite 60gg ÷ 2) + hint nel modale
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -225,7 +225,13 @@ export default function DashboardVini() {
   const openOrdine = (v) => {
     const existing = ordiniPending[v.id];
     setOrdineVino(v);
-    setOrdineQta(existing?.qta != null ? String(existing.qta) : "");
+    // Priorita' input qta: 1) ordine pending esistente, 2) qta_suggerita (da storico 60gg),
+    // 3) stringa vuota. Cosi' se Marco clicca "+ ordina" su un vino con storico vendite,
+    // trova gia' il numero suggerito e puo' solo confermare o modificare.
+    let defaultQta = "";
+    if (existing?.qta != null) defaultQta = String(existing.qta);
+    else if (typeof v?.qta_suggerita === "number" && v.qta_suggerita > 0) defaultQta = String(v.qta_suggerita);
+    setOrdineQta(defaultQta);
     setOrdineNote(existing?.note || "");
   };
   const closeOrdine = () => {
@@ -786,6 +792,47 @@ export default function DashboardVini() {
                     <div className="flex items-center gap-2 shrink-0 ml-3 mt-0.5">
                       <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
                       <span className="text-xs text-red-600 font-semibold">0 bt</span>
+
+                      {/* Fase A — Ordina inline: pill blu se ordine pending, outline "+ ordina" altrimenti.
+                          Su righe "dimmed" (Non ricomprare) nascosto per ridurre rumore. */}
+                      {!dimmed && (() => {
+                        const ord = ordiniPending[v.id];
+                        if (ord) {
+                          const dataIso = ord.data_ordine || ord.updated_at || "";
+                          const dataFmt = dataIso
+                            ? new Date(dataIso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" })
+                            : "";
+                          const tip = [
+                            dataFmt ? `Ordinato il ${dataFmt}` : null,
+                            ord.utente ? `da ${ord.utente}` : null,
+                            ord.note ? `— ${ord.note}` : null,
+                          ].filter(Boolean).join(" ");
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
+                              title={tip || "Modifica ordine pending"}
+                              aria-label="Modifica ordine pending"
+                            >
+                              📦 {ord.qta} bt
+                            </button>
+                          );
+                        }
+                        const hasSuggerita = typeof v.qta_suggerita === "number" && v.qta_suggerita > 0;
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-dashed transition min-h-[28px] text-brand-blue border-brand-blue/40 hover:bg-brand-blue/10"
+                            title={hasSuggerita ? `Suggerito ${v.qta_suggerita} bt (storico 60gg)` : "Crea ordine per questo vino"}
+                            aria-label="Crea ordine"
+                          >
+                            + ordina{hasSuggerita ? ` · ${v.qta_suggerita}` : ""}
+                          </button>
+                        );
+                      })()}
+
                       <Tooltip label={dimmed ? "Rimuovi flag — torna in lista urgenti" : "Segna come 'Non ricomprare'"}>
                         <button type="button" disabled={togglingId === v.id} onClick={() => toggleNonRicomprare(v)}
                           className={`ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition
@@ -1408,6 +1455,17 @@ export default function DashboardVini() {
                   placeholder="es. 6"
                   className="mt-1 w-full px-3 py-2 border border-neutral-300 rounded-lg text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-brand-blue"
                 />
+                {/* Hint quantita' suggerita — visibile solo se: nessun ordine esistente,
+                    il vino porta qta_suggerita > 0, e il valore nell'input combacia (= precompilato). */}
+                {!existing && typeof ordineVino?.qta_suggerita === "number" && ordineVino.qta_suggerita > 0 && (
+                  <div className="mt-1.5 text-[11px] text-brand-blue flex items-center gap-1">
+                    <span>💡</span>
+                    <span>
+                      Suggerito: <b>{ordineVino.qta_suggerita} bt</b>
+                      <span className="text-neutral-500"> · storico vendite 60gg ÷ 2</span>
+                    </span>
+                  </div>
+                )}
               </label>
 
               <label className="block mb-4">

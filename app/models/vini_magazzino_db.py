@@ -1680,26 +1680,50 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         """
     ).fetchone()
 
-    # Alert: vini con stato vendita attivo (V/F/S/T) e giacenza = 0 in carta
+    # Alert: vini con stato vendita attivo (V/F/S/T) e giacenza = 0 in carta.
+    # Include `vendite_60gg` (sum VENDITA ultimi 60gg) per calcolare `qta_suggerita`
+    # lato Python — widget alert usa il valore come default nel modale ordine.
     alert_carta = cur.execute(
         """
-        SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, QTA_TOTALE,
-               STATO_RIORDINO, STATO_CONSERVAZIONE, STATO_VENDITA
-        FROM vini_magazzino
-        WHERE CARTA = 'SI'
-          AND (QTA_TOTALE IS NULL OR QTA_TOTALE = 0)
-          AND STATO_VENDITA IN ('V', 'F', 'S', 'T')
+        SELECT v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
+               v.STATO_RIORDINO, v.STATO_CONSERVAZIONE, v.STATO_VENDITA,
+               v.DISTRIBUTORE, v.RAPPRESENTANTE,
+               (SELECT COALESCE(SUM(m.qta), 0)
+                FROM vini_magazzino_movimenti m
+                WHERE m.vino_id = v.id
+                  AND m.tipo = 'VENDITA'
+                  AND datetime(m.data_mov) >= datetime('now', '-60 days')
+               ) AS vendite_60gg
+        FROM vini_magazzino v
+        WHERE v.CARTA = 'SI'
+          AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)
+          AND v.STATO_VENDITA IN ('V', 'F', 'S', 'T')
         ORDER BY
-            CASE WHEN STATO_RIORDINO = 'X' THEN 1 ELSE 0 END,
-            CASE STATO_VENDITA
+            CASE WHEN v.STATO_RIORDINO = 'X' THEN 1 ELSE 0 END,
+            CASE v.STATO_VENDITA
                 WHEN 'S' THEN 0  -- aggressivo prima
                 WHEN 'F' THEN 1  -- spingere
                 WHEN 'V' THEN 2  -- vendere
                 WHEN 'T' THEN 3  -- cautela
                 ELSE 4 END,
-            TIPOLOGIA, DESCRIZIONE;
+            v.TIPOLOGIA, v.DESCRIZIONE;
         """
     ).fetchall()
+
+    # Post-processo: calcolo qta_suggerita = max(1, round(vendite_60gg / 2))
+    # se ci sono vendite recenti, altrimenti None (FE mostra "— nessun suggerimento").
+    # Motivazione: 60gg di vendite / 2 = copertura ~30gg in media per un riordino prudente.
+    def _with_suggerita(row):
+        d = dict(row)
+        v60 = d.pop("vendite_60gg", 0) or 0
+        try:
+            v60 = int(v60)
+        except (TypeError, ValueError):
+            v60 = 0
+        d["qta_suggerita"] = max(1, round(v60 / 2)) if v60 > 0 else None
+        return d
+
+    alert_carta_list = [_with_suggerita(r) for r in alert_carta]
 
     # KPI vendite (solo tipo=VENDITA)
     kpi_vendite = cur.execute(
@@ -1885,8 +1909,8 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
         "vini_senza_listino": kpi["vini_senza_listino"],
         "valore_acquisto":   round(kpi["valore_acquisto"], 2),
         "valore_carta":      round(kpi["valore_carta"], 2),
-        "alert_carta_senza_giacenza": [dict(r) for r in alert_carta],
-        "total_alert_carta":          len(alert_carta),
+        "alert_carta_senza_giacenza": alert_carta_list,
+        "total_alert_carta":          len(alert_carta_list),
         "total_vini_fermi":           len(vini_fermi),
         "vini_senza_listino_list":    [dict(r) for r in senza_listino],
         "vendute_oggi":               kpi_vendite["vendute_oggi"],
