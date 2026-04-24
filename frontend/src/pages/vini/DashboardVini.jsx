@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.12-alert-widget-faseC-rivisto — Picker stato riordino: emoji + label leggibile ("📝 Da ordinare", "🚨 Finito — ordina", "📦 Ordinato", "🗓️ Annata esaurita", "⛔ Non ricomprare") al posto dei codici singola lettera, spostato in riga dedicata per maggiore respiro
+// @version: v4.13-alert-widget-faseE — Toggle "Raggruppa per distributore" (persistenza localStorage); in modalita' raggruppata rendering <details> open per ogni fornitore con conteggio; compatibile con filtro tipologia
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -70,6 +70,13 @@ export default function DashboardVini() {
   // Fase D — filtro rapido tipologia nel widget alert (reset a ogni refresh pagina).
   // Valori: null = tutti, "ROSSI" | "BIANCHI" | "BOLLICINE" | "ROSATI" | "ALTRI".
   const [tipoFiltro, setTipoFiltro] = useState(null);
+  // Fase E — raggruppa per distributore (persistenza localStorage).
+  const [raggruppaDistr, setRaggruppaDistr] = useState(() => {
+    try { return localStorage.getItem("vini_alert_raggruppa") === "true"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("vini_alert_raggruppa", raggruppaDistr ? "true" : "false"); } catch { /* noop */ }
+  }, [raggruppaDistr]);
   const [fermiExpanded, setFermiExpanded] = useState(false);
   const FERMI_INITIAL_SHOW = 15;
 
@@ -938,9 +945,29 @@ export default function DashboardVini() {
                 return acc;
               }, {});
 
+              // Fase E — raggruppamento per distributore applicato DOPO il filtro tipologia.
+              // Chiave di gruppo: "DISTRIBUTORE|||RAPPRESENTANTE". Vini senza distributore
+              // finiscono nel gruppo "— Non assegnato".
+              const buildGruppi = (lista) => {
+                const map = new Map();
+                for (const v of lista) {
+                  const dist = (v.DISTRIBUTORE || "").trim() || "— Non assegnato";
+                  const rapp = (v.RAPPRESENTANTE || "").trim();
+                  const key = `${dist}|||${rapp}`;
+                  if (!map.has(key)) map.set(key, { distributore: dist, rappresentante: rapp, vini: [] });
+                  map.get(key).vini.push(v);
+                }
+                // Ordine: gruppi con piu' vini prima, "Non assegnato" sempre in fondo
+                return [...map.values()].sort((a, b) => {
+                  if (a.distributore === "— Non assegnato") return 1;
+                  if (b.distributore === "— Non assegnato") return -1;
+                  return b.vini.length - a.vini.length;
+                });
+              };
+
               return (
                 <div>
-                  {/* Riga chip filtro tipologia */}
+                  {/* Riga controlli: filtro tipologia + toggle raggruppa */}
                   {urgenti.length > 0 && (
                     <div className="px-6 py-2.5 bg-neutral-50/70 border-b border-neutral-100 flex flex-wrap items-center gap-1.5">
                       <span className="text-[10px] text-neutral-400 uppercase tracking-wide mr-1">Filtra:</span>
@@ -976,6 +1003,19 @@ export default function DashboardVini() {
                           </button>
                         );
                       })}
+
+                      {/* Toggle raggruppamento — allineato a destra, persistenza localStorage. */}
+                      <label className="ml-auto flex items-center gap-2 cursor-pointer select-none" title="Raggruppa per distributore">
+                        <span className="text-[11px] text-neutral-600">Raggruppa per distributore</span>
+                        <span
+                          onClick={() => setRaggruppaDistr(p => !p)}
+                          className={`relative w-9 h-5 rounded-full transition-colors ${raggruppaDistr ? "bg-brand-blue" : "bg-neutral-300"}`}
+                          role="switch"
+                          aria-checked={raggruppaDistr}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${raggruppaDistr ? "translate-x-4" : ""}`} />
+                        </span>
+                      </label>
                     </div>
                   )}
 
@@ -989,22 +1029,56 @@ export default function DashboardVini() {
                         </button>
                       </div>
                     )}
-                    {urgentiShow.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
-                    {hasMore && !alertExpanded && (
-                      <button type="button" onClick={() => setAlertExpanded(true)}
-                        className="w-full px-6 py-3 text-center text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition">
-                        Mostra tutti ({urgentiFiltrati.length - ALERT_COLLAPSED_SHOW} altri vini) ▼
-                      </button>
+
+                    {/* MODALITA' RAGGRUPPATA per distributore */}
+                    {raggruppaDistr && urgentiFiltrati.length > 0 && (
+                      <>
+                        {buildGruppi(urgentiFiltrati).map((g, idx) => (
+                          <details key={`${g.distributore}|${g.rappresentante}|${idx}`} className="group" open>
+                            <summary className="px-6 py-2.5 cursor-pointer hover:bg-neutral-50 transition flex items-center justify-between bg-white sticky top-0 z-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-base">📋</span>
+                                <span className="font-semibold text-sm text-neutral-900 truncate">{g.distributore}</span>
+                                {g.rappresentante && (
+                                  <span className="text-xs text-neutral-500 truncate">({g.rappresentante})</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 ml-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800 border border-red-200">
+                                  {g.vini.length} {g.vini.length === 1 ? "vino" : "vini"}
+                                </span>
+                                <span className="text-neutral-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                              </div>
+                            </summary>
+                            <div className="divide-y divide-neutral-100 border-t border-neutral-100">
+                              {g.vini.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                            </div>
+                          </details>
+                        ))}
+                      </>
                     )}
-                    {alertExpanded && hasMore && (
-                      <button type="button" onClick={() => setAlertExpanded(false)}
-                        className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition">
-                        Mostra meno ▲
-                      </button>
+
+                    {/* MODALITA' LISTA PIATTA (default) */}
+                    {!raggruppaDistr && (
+                      <>
+                        {urgentiShow.map((v) => <VinoRow key={v.id} v={v} dimmed={false} />)}
+                        {hasMore && !alertExpanded && (
+                          <button type="button" onClick={() => setAlertExpanded(true)}
+                            className="w-full px-6 py-3 text-center text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition">
+                            Mostra tutti ({urgentiFiltrati.length - ALERT_COLLAPSED_SHOW} altri vini) ▼
+                          </button>
+                        )}
+                        {alertExpanded && hasMore && (
+                          <button type="button" onClick={() => setAlertExpanded(false)}
+                            className="w-full px-6 py-3 text-center text-sm font-semibold text-neutral-500 bg-neutral-50 hover:bg-neutral-100 transition">
+                            Mostra meno ▲
+                          </button>
+                        )}
+                      </>
                     )}
-                    {/* Sezione "Non da ricomprare" NON filtrata — resta sempre visibile
-                        sotto. Se Marco vuole filtrare anche quella in futuro, sposto
-                        nonRicomprareFiltrati qui. */}
+
+                    {/* Sezione "Non da ricomprare" NON filtrata ne' raggruppata — resta
+                        sempre come archivio sotto. */}
                     {nonRicomprare.length > 0 && (
                       <div className="px-6 py-1.5 bg-neutral-50 text-[11px] text-neutral-400 uppercase tracking-wide font-semibold">
                         Non da ricomprare ({nonRicomprare.length})

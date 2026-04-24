@@ -23,7 +23,7 @@ Questo doc copre solo il secondo widget.
 |---|-----------|-------|
 | 1 | Pulsante "📦 Ordina" inline accanto a ogni vino (modale `openOrdine` già esistente) | ✅ **FATTO** (Fase A — 2026-04-24) |
 | 2 | Quantità suggerita basata sullo storico vendite 30/60/90 gg | ✅ **FATTO** (Fase A — 60gg ÷ 2) |
-| 3 | Raggruppamento per distributore (toggle opzionale) | ⏳ Fase E — da fare |
+| 3 | Raggruppamento per distributore (toggle opzionale) | ✅ **FATTO** (Fase E — 2026-04-24) |
 | 4 | Stato riordino a 3 click (badge `D · O · 0 · A · X` inline) | ✅ **FATTO** (Fase C — 2026-04-24) |
 | 5 | "Ultima vendita" / giorni fermo | ✅ **FATTO** (Fase B — 2026-04-24) |
 | 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ✅ **FATTO** (Fase D — 2026-04-24) |
@@ -120,10 +120,18 @@ Spostate in **Riga 3 dedicata** (prima erano in Riga 2 stipate con il badge ritm
 - **Empty state:** se il filtro non produce risultati, messaggio "Nessun vino in questa categoria" + link "Mostra tutti" che resetta il filtro.
 - **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.11-alert-widget-faseD). Nuovo state `tipoFiltro`, helper `CATEGORIE` + `matchesFiltro()` inline, chip row sopra `urgentiFiltrati`.
 
-### Fase E — Punto 3 (Raggruppamento per distributore)
-- **FE only:** toggle "Raggruppa per distributore" sotto il banner. Quando attivo: applicare lo stesso pattern `<details>`/`<summary>` di `📦 Riordini per fornitore` alle righe del widget alert. `grouped[key] = { distributore, rappresentante, vini: [] }`.
-- Salva preferenza in `localStorage` (`vini_alert_raggruppa`).
-- **Push FE-only.**
+### Fase E — Punto 3 (Raggruppamento per distributore) — ✅ FATTO 2026-04-24
+
+- **FE-only.** Toggle switch "Raggruppa per distributore" in fondo alla riga chip filtro (stesso pattern visivo del toggle "Mostra giacenze positive" in `📦 Riordini per fornitore`).
+- **Persistenza:** `localStorage.vini_alert_raggruppa` ("true"/"false"). Il valore sopravvive al refresh.
+- **Rendering:**
+  - OFF (default): lista piatta con "Mostra tutti/meno" come prima.
+  - ON: `<details open>` per ogni distributore. Summary con `📋 Nome Distributore (Rappresentante) — N vini` + icona ▼ rotante. Ordinamento gruppi: piu' vini prima, "— Non assegnato" sempre in fondo. Ogni gruppo apre di default; collassabile individualmente.
+- **Vini senza distributore:** gruppo catch-all "— Non assegnato" in fondo alla lista.
+- **Interazione con filtro tipologia (Fase D):** il raggruppamento si applica DOPO il filtro. Se filtro = Rossi + raggruppa ON → mostra solo gruppi che hanno vini rossi, con dentro solo i rossi. Empty state standard se filtro azzera tutto.
+- **"Mostra tutti/meno":** nascosto in modalita' raggruppata (i `<details>` sono gia' espandibili individualmente; limitare il numero di gruppi mostrati aggiungerebbe complessita' senza valore). Tutti i gruppi sono sempre visibili.
+- **Sezione "Non da ricomprare":** NON raggruppata, resta flat in fondo (come non era filtrata per tipologia).
+- **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.13-alert-widget-faseE). Nuovo state `raggruppaDistr` + `useEffect` per persistenza, helper `buildGruppi()` inline, split render flat vs raggruppato.
 
 ### Fase F — Punto 8 (opzionale — conferma da Marco)
 - **FE:** colonna dedicata "✅ Arrivato" visibile solo se ordine pending, che apre il modale `conferma-arrivo` (endpoint `POST /vini/magazzino/{id}/ordine-pending/conferma-arrivo` già implementato in fase 5 del doc riordini).
