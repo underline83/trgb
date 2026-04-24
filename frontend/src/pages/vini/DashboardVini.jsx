@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.7-alert-widget-faseA — Widget alert "Vini in carta senza giacenza": pill "+ ordina" inline + qta_suggerita (vendite 60gg ÷ 2) + hint nel modale
+// @version: v4.8-alert-widget-faseB — + badge "Ult. vendita: Ngg fa" con gradazione (verde ≤30gg, amber 31-90, red >90, grigio mai venduto)
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -756,10 +756,30 @@ export default function DashboardVini() {
 
             {/* Lista — visibile solo se aperta */}
             {alertOpen && (() => {
+              // Helper: giorni fra una data ISO e oggi (null se iso mancante)
+              const giorniDa = (iso) => {
+                if (!iso) return null;
+                const t = new Date(iso).getTime();
+                if (!Number.isFinite(t)) return null;
+                return Math.floor((Date.now() - t) / 86400000);
+              };
               const VinoRow = ({ v, dimmed }) => {
                 const svInfo  = v.STATO_VENDITA      ? STATO_VENDITA[v.STATO_VENDITA]           : null;
                 const srInfo  = v.STATO_RIORDINO     ? STATO_RIORDINO[v.STATO_RIORDINO]         : null;
                 const scInfo  = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
+                // Fase B — giorni dall'ultima vendita.
+                // null = mai venduto / dato assente. >90gg = rosso (candidato cadavere).
+                const ggUltVendita = giorniDa(v.ultima_vendita);
+                const ultVenditaCls =
+                  ggUltVendita == null ? "bg-neutral-100 text-neutral-500 border-neutral-200"
+                  : ggUltVendita > 90   ? "bg-red-50 text-red-700 border-red-200"
+                  : ggUltVendita > 30   ? "bg-amber-50 text-amber-700 border-amber-200"
+                  :                       "bg-emerald-50 text-emerald-700 border-emerald-200";
+                const ultVenditaLbl =
+                  ggUltVendita == null ? "— mai venduto"
+                  : ggUltVendita === 0 ? "Venduto oggi"
+                  : ggUltVendita === 1 ? "Venduto ieri"
+                  :                      `Ult. vendita: ${ggUltVendita}gg fa`;
                 return (
                   <div className={`px-6 py-3 flex items-start justify-between transition ${dimmed ? "opacity-50" : "hover:bg-red-50"}`}>
                     <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/vini/magazzino/${v.id}`)}>
@@ -769,25 +789,27 @@ export default function DashboardVini() {
                         {v.ANNATA && <span className="text-xs text-neutral-500">{v.ANNATA}</span>}
                         {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
                       </div>
-                      {(svInfo || srInfo || scInfo) && (
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {svInfo && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${svInfo.color}`}>
-                              <span className={`w-1 h-1 rounded-full ${svInfo.dot}`} />{svInfo.label}
-                            </span>
-                          )}
-                          {srInfo && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${srInfo.color}`}>
-                              <span className={`w-1 h-1 rounded-full ${srInfo.dot}`} />{srInfo.label}
-                            </span>
-                          )}
-                          {scInfo && (
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
-                              <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {/* Fase B — badge ultima vendita con gradazione temporale. */}
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${ultVenditaCls}`}>
+                          🛒 {ultVenditaLbl}
+                        </span>
+                        {svInfo && (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${svInfo.color}`}>
+                            <span className={`w-1 h-1 rounded-full ${svInfo.dot}`} />{svInfo.label}
+                          </span>
+                        )}
+                        {srInfo && (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${srInfo.color}`}>
+                            <span className={`w-1 h-1 rounded-full ${srInfo.dot}`} />{srInfo.label}
+                          </span>
+                        )}
+                        {scInfo && (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${scInfo.color}`}>
+                            <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-3 mt-0.5">
                       <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{v.TIPOLOGIA}</span>

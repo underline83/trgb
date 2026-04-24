@@ -1681,8 +1681,9 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
     ).fetchone()
 
     # Alert: vini con stato vendita attivo (V/F/S/T) e giacenza = 0 in carta.
-    # Include `vendite_60gg` (sum VENDITA ultimi 60gg) per calcolare `qta_suggerita`
-    # lato Python — widget alert usa il valore come default nel modale ordine.
+    # Include:
+    #  - `vendite_60gg` (sum VENDITA ultimi 60gg) per calcolare `qta_suggerita` in Python
+    #  - `ultima_vendita` (MAX data_mov VENDITA) per mostrare "venduto X gg fa" nel widget
     alert_carta = cur.execute(
         """
         SELECT v.id, v.TIPOLOGIA, v.DESCRIZIONE, v.PRODUTTORE, v.ANNATA, v.QTA_TOTALE,
@@ -1693,7 +1694,11 @@ def get_dashboard_stats(includi_giacenza_positiva: bool = False) -> Dict[str, An
                 WHERE m.vino_id = v.id
                   AND m.tipo = 'VENDITA'
                   AND datetime(m.data_mov) >= datetime('now', '-60 days')
-               ) AS vendite_60gg
+               ) AS vendite_60gg,
+               (SELECT MAX(m.data_mov)
+                FROM vini_magazzino_movimenti m
+                WHERE m.vino_id = v.id AND m.tipo = 'VENDITA'
+               ) AS ultima_vendita
         FROM vini_magazzino v
         WHERE v.CARTA = 'SI'
           AND (v.QTA_TOTALE IS NULL OR v.QTA_TOTALE = 0)

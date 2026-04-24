@@ -25,7 +25,7 @@ Questo doc copre solo il secondo widget.
 | 2 | Quantità suggerita basata sullo storico vendite 30/60/90 gg | ✅ **FATTO** (Fase A — 60gg ÷ 2) |
 | 3 | Raggruppamento per distributore (toggle opzionale) | ⏳ Fase E — da fare |
 | 4 | Stato riordino a 3 click (badge `D · O · 0 · X` inline) | ⏳ Fase C — da fare |
-| 5 | "Ultima vendita" / giorni fermo | ⏳ Fase B — da fare |
+| 5 | "Ultima vendita" / giorni fermo | ✅ **FATTO** (Fase B — 2026-04-24) |
 | 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ⏳ Fase D — da fare |
 | 7 | Export "lista della spesa" su WhatsApp/PDF raggruppata per fornitore | 🔄 Teorizzato — differito |
 | 8 | Bottone "✅ Arrivato" diretto nel widget (`conferma-arrivo` già in API) | ⏳ Da confermare con Marco |
@@ -52,10 +52,18 @@ Stesso principio di `modulo_vini_riordini.md`: ogni fase auto-contenuta, un push
 - **Commit:** FE+BE insieme (qta_suggerita richiede BE ma è additiva — retrocompatibile con client vecchi).
 - **File toccati:** `app/models/vini_magazzino_db.py`, `frontend/src/pages/vini/DashboardVini.jsx` (bump v4.7-alert-widget-faseA).
 
-### Fase B — Punto 5 (Ultima vendita / giorni fermo)
-- **BE:** `get_dashboard_stats` → aggiungere `ultima_vendita` (ISO date) al payload di `alert_carta_senza_giacenza`. Il campo esiste già in `riordini_per_fornitore`, estendere anche qui con stessa query.
-- **FE:** nella riga del widget, sotto il nome vino aggiungere `Ult. vendita: 14gg fa` (o `— mai venduto` se null). Colore rosso se > 90gg (candidato cadavere).
-- **Push FE + BE**.
+### Fase B — Punto 5 (Ultima vendita / giorni fermo) — ✅ FATTO 2026-04-24
+- **BE:** query `alert_carta` estesa con subquery `ultima_vendita` (MAX data_mov dove tipo=VENDITA). Stesso pattern usato in `riordini_per_fornitore`.
+- **FE:** nuovo badge pill in ogni riga del widget, accanto ai badge stato:
+  - `🛒 Venduto oggi` (verde, 0 gg)
+  - `🛒 Venduto ieri` (verde, 1 gg)
+  - `🛒 Ult. vendita: Ngg fa` (verde ≤30gg, amber 31–90, rosso >90 "cadavere")
+  - `🛒 — mai venduto` (grigio)
+- **File toccati:** `app/models/vini_magazzino_db.py` (subquery `ultima_vendita` in `alert_carta`), `frontend/src/pages/vini/DashboardVini.jsx` (helper `giorniDa`, badge inline, bump v4.8-alert-widget-faseB).
+- **Test manuali:**
+  - Vino venduto oggi → badge verde "Venduto oggi".
+  - Vino fermo da 5 mesi → badge rosso "Ult. vendita: 150gg fa".
+  - Vino mai venduto → badge grigio "— mai venduto".
 
 ### Fase C — Punto 4 (Badge stato riordino a 3 click)
 - **FE only:** sostituire il solo toggle "Non ricomprare" con quartetto di pill `D · O · 0 · X` usando `STATO_RIORDINO` da `viniConstants.js`. Click su pill → PATCH `STATO_RIORDINO` (endpoint esistente). Stato corrente evidenziato con border pieno, altri outline.
