@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.13-alert-widget-faseE — Toggle "Raggruppa per distributore" (persistenza localStorage); in modalita' raggruppata rendering <details> open per ogni fornitore con conteggio; compatibile con filtro tipologia
+// @version: v4.14-alert-widget-faseF — Bottone "✅ Arrivato" inline sulle righe con ordine pending. Usa la qta ordinata per registrare CARICO e chiudere l'ordine (endpoint conferma-arrivo esistente), senza passare dal modale
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -372,6 +372,51 @@ export default function DashboardVini() {
       toast("Errore conferma arrivo: " + (e?.message || ""), { kind: "error" });
     } finally {
       setOrdineArriving(false);
+    }
+  };
+
+  // Fase F — conferma arrivo diretto da una riga del widget alert, senza aprire
+  // il modale. Usa la qta dell'ordine pending. Se Marco vuole aggiustare la qta
+  // ricevuta, clicca sul pill "📦 N bt" e usa il modale (Fase 5 originale).
+  const [confermandoArrivoId, setConfermandoArrivoId] = useState(null);
+  const confermaArrivoRiga = async (vino) => {
+    const existing = ordiniPending[vino.id];
+    if (!existing) return;
+    const qta = parseInt(existing.qta, 10);
+    if (!Number.isFinite(qta) || qta < 1) {
+      toast("Ordine pending senza quantità valida — apri il modale per correggere", { kind: "warn" });
+      return;
+    }
+    const msg = `Confermare l'arrivo di ${qta} bt per\n"${vino.DESCRIZIONE}"?\n\n→ L'ordine viene chiuso e la giacenza aumenta di ${qta}.`;
+    if (!window.confirm(msg)) return;
+    setConfermandoArrivoId(vino.id);
+    try {
+      const resp = await apiFetch(
+        `${API_BASE}/vini/magazzino/${vino.id}/ordine-pending/conferma-arrivo`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qta_ricevuta: qta, note: null }),
+        }
+      );
+      if (!resp.ok) {
+        let errMsg = "HTTP " + resp.status;
+        try { const err = await resp.json(); if (err?.detail) errMsg = err.detail; } catch {}
+        throw new Error(errMsg);
+      }
+      setOrdiniPending((prev) => {
+        const next = { ...prev };
+        delete next[vino.id];
+        return next;
+      });
+      toast(`Arrivo confermato — ${qta} bt in giacenza`, { kind: "success" });
+      // La giacenza e' cambiata → refresh per rimuovere il vino dall'alert
+      // (non e' piu' giacenza=0) e aggiornare KPI.
+      fetchStats(mostraGiacPositiva);
+    } catch (e) {
+      toast("Errore conferma arrivo: " + (e?.message || ""), { kind: "error" });
+    } finally {
+      setConfermandoArrivoId(null);
     }
   };
 
@@ -874,8 +919,11 @@ export default function DashboardVini() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0 mt-0.5">
 
-                      {/* Fase A — Ordina inline: pill blu se ordine pending, outline "+ ordina" altrimenti.
-                          Su righe "dimmed" (Non ricomprare) nascosto per ridurre rumore. */}
+                      {/* Fase A + F — Ordine inline.
+                          Senza pending: pulsante "+ ordina" outline (apre modale).
+                          Con pending: pill blu cliccabile "📦 N bt" (modifica) + pulsante
+                          verde "✅ Arrivato" (conferma arrivo diretto senza modale).
+                          Su righe "dimmed" (Non ricomprare) tutto nascosto. */}
                       {!dimmed && (() => {
                         const ord = ordiniPending[v.id];
                         if (ord) {
@@ -888,16 +936,29 @@ export default function DashboardVini() {
                             ord.utente ? `da ${ord.utente}` : null,
                             ord.note ? `— ${ord.note}` : null,
                           ].filter(Boolean).join(" ");
+                          const busyArrivo = confermandoArrivoId === v.id;
                           return (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
-                              title={tip || "Modifica ordine pending"}
-                              aria-label="Modifica ordine pending"
-                            >
-                              📦 {ord.qta} bt
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openOrdine(v); }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition min-h-[28px]"
+                                title={tip || "Modifica ordine pending"}
+                                aria-label="Modifica ordine pending"
+                              >
+                                📦 {ord.qta} bt
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busyArrivo}
+                                onClick={(e) => { e.stopPropagation(); confermaArrivoRiga(v); }}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200 transition min-h-[28px] ${busyArrivo ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                title={`Conferma arrivo di ${ord.qta} bt e chiudi ordine`}
+                                aria-label="Conferma arrivo merce"
+                              >
+                                {busyArrivo ? "..." : "✅ Arrivato"}
+                              </button>
+                            </>
                           );
                         }
                         const hasSuggerita = typeof v.qta_suggerita === "number" && v.qta_suggerita > 0;

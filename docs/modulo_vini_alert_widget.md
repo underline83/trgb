@@ -28,7 +28,7 @@ Questo doc copre solo il secondo widget.
 | 5 | "Ultima vendita" / giorni fermo | ✅ **FATTO** (Fase B — 2026-04-24) |
 | 6 | Filtro rapido per tipologia (bianchi / rossi / bolle / ...) | ✅ **FATTO** (Fase D — 2026-04-24) |
 | 7 | Export "lista della spesa" su WhatsApp/PDF raggruppata per fornitore | 🔄 Teorizzato — differito |
-| 8 | Bottone "✅ Arrivato" diretto nel widget (`conferma-arrivo` già in API) | ⏳ Da confermare con Marco |
+| 8 | Bottone "✅ Arrivato" diretto nel widget (`conferma-arrivo` già in API) | ✅ **FATTO** (Fase F — 2026-04-24) |
 
 ---
 
@@ -133,9 +133,13 @@ Spostate in **Riga 3 dedicata** (prima erano in Riga 2 stipate con il badge ritm
 - **Sezione "Non da ricomprare":** NON raggruppata, resta flat in fondo (come non era filtrata per tipologia).
 - **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.13-alert-widget-faseE). Nuovo state `raggruppaDistr` + `useEffect` per persistenza, helper `buildGruppi()` inline, split render flat vs raggruppato.
 
-### Fase F — Punto 8 (opzionale — conferma da Marco)
-- **FE:** colonna dedicata "✅ Arrivato" visibile solo se ordine pending, che apre il modale `conferma-arrivo` (endpoint `POST /vini/magazzino/{id}/ordine-pending/conferma-arrivo` già implementato in fase 5 del doc riordini).
-- Senza di questo, il flusso `arrivo merce` resta nella tabella `📦 Riordini per fornitore` (ok come oggi).
+### Fase F — Punto 8 (Bottone "✅ Arrivato" inline) — ✅ FATTO 2026-04-24
+
+- **FE-only.** Nuovo pulsante emerald `✅ Arrivato` nelle righe con ordine pending, accanto al pill blu `📦 N bt`.
+- Click → conferma `window.confirm` con qta ordinata → POST `/vini/magazzino/{id}/ordine-pending/conferma-arrivo` con `qta_ricevuta = qta_ordinata` → rimuove pending dallo stato locale → toast + refresh dashboard (il vino sparisce dall'alert perché la giacenza è tornata > 0).
+- Se serve modificare la qta ricevuta rispetto all'ordinata: click sul pill blu `📦 N bt` → apre il modale Fase 5 originale dove si può aggiustare qta + eventuali note prima di confermare.
+- **State:** nuovo `confermandoArrivoId` (scoped al singolo vino, non usa `ordineArriving` per non confliggere col modale).
+- **File toccati:** `frontend/src/pages/vini/DashboardVini.jsx` (v4.14-alert-widget-faseF). Nuova funzione `confermaArrivoRiga(vino)`, pulsante aggiunto nel render inline di VinoRow.
 
 ---
 
