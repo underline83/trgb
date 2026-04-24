@@ -1,8 +1,53 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data da/a + tab "Flusso contanti" + baseline saldo iniziale + unificazione Pre-conti/Spese varie + baseline Flusso spese con data+valore)
+**Ultimo aggiornamento:** 2026-04-24 (sessione 55 — SchedaVino redesign: testa fissa con 4 KPI + tab (anagrafica/giacenze/movimenti/prezzi/statistiche/note) al posto del muro verticale)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 55 (2026-04-24) — SCHEDA VINO: testa fissa + linguette
+
+### Problema
+Il dettaglio vino (`SchedaVino.jsx`, usato sia da `MagazzinoVini` come takeover sia da `MagazzinoViniDettaglio` come pagina standalone) era diventato un muro verticale: sidebar scura a sinistra + 6 sezioni impilate a destra (anagrafica, giacenze, movimenti, storico prezzi, statistiche vendita, note). Troppe informazioni in uno scroll unico, poco leggibile su iPad.
+
+### Nuova struttura
+1. **Testa colorata fissa** — sfondo gradiente soft per tipologia (palette `TIPOLOGIA_HEADER` affiancata alla `TIPOLOGIA_SIDEBAR` scura già presente). Contiene:
+   - Badge: codice `#id`, tipologia, bollini In carta / iPratico / Calice / Biologico / stato vendita.
+   - Titolo vino (`DESCRIZIONE · ANNATA · FORMATO`) + sottotitolo (`produttore · regione · vitigni · grado`).
+   - X di chiusura in alto a destra.
+   - **4 KPI sempre visibili**: Giacenza totale, Prezzo carta, Ricarico (× calcolato come `PREZZO_CARTA / (EURO_LISTINO · (1 − SCONTO/100))`, color-coded emerald ≥3, amber ≥2, red <2), Ritmo bt/mese (da `vinoStats.ritmo_vendita.bt_mese`).
+   - Grid `grid-cols-2 md:grid-cols-4` → 2×2 su iPad portrait, 1×4 da tablet landscape.
+2. **Tab bar** orizzontale sotto la testa, con `overflow-x-auto` su portrait. 6 linguette: Anagrafica / Giacenze / Movimenti (n) / Prezzi (n) / Statistiche / Note (n). Contatore a lato per quelle con dati.
+3. **Tab content**: rendering condizionale con `{activeTab === "..." && (...)}`. Le sezioni esistenti sono state mantenute così come sono, avvolte ciascuna nel suo blocco condizionale — niente duplicazione di logica.
+4. **Footer sticky** con `Duplica vino` + `Chiudi` (quando presente `onClose`).
+
+### Logica aggiunta
+- `activeTab` useState, default `"anagrafica"`.
+- `ricarico` useMemo — null se manca listino/prezzo/sconto, altrimenti float.
+- `handleChangeTab(newTab)` — controlla `hasPendingChanges()`, chiede conferma e annulla editMode/giacenzeEdit se l'utente decide comunque di cambiare tab.
+- `tabCount(key)` — contatore per movimenti/prezzi/note (null per anagrafica/giacenze/stats).
+
+### Adattamenti iPad
+- `grid-cols-4` dei prezzi view-mode → `grid-cols-2 md:grid-cols-4`.
+- `grid-cols-4` dei prezzi edit-mode → `grid-cols-2 md:grid-cols-4`.
+- `grid-cols-4` dei FlagToggle → `grid-cols-2 md:grid-cols-5` (sono 5 toggle).
+- Tabella Movimenti: wrapper `overflow-x-auto` + `min-w-[600px]` sulla table → scrolla orizzontalmente su portrait stretto invece di strapparsi.
+- Tabella Prezzi: stesso pattern, `min-w-[720px]`.
+- KPI header `grid-cols-2 md:grid-cols-4`.
+- Tab bar `overflow-x-auto` con `whitespace-nowrap` sulle linguette.
+
+### File toccati
+- `frontend/src/pages/vini/SchedaVino.jsx` → palette `TIPOLOGIA_HEADER` + `getHeaderColors` + costante `TABS`; state `activeTab`, useMemo `ricarico`, handler `handleChangeTab`; blocco render riscritto (testa + tab bar + tab content + footer), sidebar scura rimossa; grid responsive sui prezzi/flag; overflow-x sulle tabelle movimenti/prezzi.
+
+### Da verificare dopo push
+1. Rotazione da iPad landscape a portrait: griglia KPI passa da 1×4 a 2×2, tab bar scrolla.
+2. Navigazione tra tab con anagrafica in edit mode: deve chiedere conferma se ci sono modifiche non salvate.
+3. Che `MagazzinoViniDettaglio` (route `/vini/magazzino/:id`) mostri correttamente la nuova UI — è un wrapper sottile, eredita la nuova struttura.
+4. Frecce `‹ 2/47 ›` della barra ambra in `MagazzinoVini`: NON sono state toccate, stanno sopra la testa colorata perché sono gestite dal parent.
+
+### Cose lasciate aperte (deliberatamente)
+- **FattureDettaglio / FattureFornitoriElenco / ClientiScheda / ControlloGestioneUscite** hanno copiato il pattern "sidebar scura + main" di SchedaVino senza importarlo. NON sono state toccate: resteranno col vecchio stile finché non le si refactora anche loro. Marco ha esplicitamente detto che vuole rivederle in futuro.
 
 ---
 

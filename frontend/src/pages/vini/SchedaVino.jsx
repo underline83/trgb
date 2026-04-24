@@ -1,5 +1,5 @@
 // src/pages/vini/SchedaVino.jsx
-// @version: v1.4-statistiche — Nuova sezione "Statistiche vendita" (ritmo bt/mese + grafico mensile)
+// @version: v2.0-tabs — Redesign con testa fissa (identita + 4 KPI) + tab bar (anagrafica/giacenze/movimenti/prezzi/stats/note). Sessione 55 (2026-04-24).
 // Componente riutilizzabile: scheda vino completa (anagrafica + giacenze + movimenti + storico prezzi + statistiche + note)
 // Usato sia inline in MagazzinoVini che come pagina standalone via MagazzinoViniDettaglio
 
@@ -51,6 +51,39 @@ function getSidebarColors(tipologia) {
   }
   return TIPOLOGIA_SIDEBAR.ERRORE;
 }
+
+// Palette "chiara" per la testa colorata del nuovo layout a tab — una sfumatura
+// soft che sfuma verso bianco, per non disturbare il contenuto sottostante.
+const TIPOLOGIA_HEADER = {
+  ROSSI:       { bg: "bg-gradient-to-b from-red-50 to-white",      border: "border-red-200",    accent: "border-l-red-600",    badge: "bg-red-100 text-red-800 border-red-200",       text: "text-red-900" },
+  BIANCHI:     { bg: "bg-gradient-to-b from-amber-50 to-white",    border: "border-amber-200",  accent: "border-l-amber-600",  badge: "bg-amber-100 text-amber-800 border-amber-200", text: "text-amber-900" },
+  BOLLICINE:   { bg: "bg-gradient-to-b from-yellow-50 to-white",   border: "border-yellow-200", accent: "border-l-yellow-600", badge: "bg-yellow-100 text-yellow-800 border-yellow-200", text: "text-yellow-900" },
+  ROSATI:      { bg: "bg-gradient-to-b from-pink-50 to-white",     border: "border-pink-200",   accent: "border-l-pink-600",   badge: "bg-pink-100 text-pink-800 border-pink-200",   text: "text-pink-900" },
+  "PASSITI E VINI DA MEDITAZIONE": { bg: "bg-gradient-to-b from-orange-50 to-white", border: "border-orange-200", accent: "border-l-orange-600", badge: "bg-orange-100 text-orange-800 border-orange-200", text: "text-orange-900" },
+  "GRANDI FORMATI": { bg: "bg-gradient-to-b from-purple-50 to-white", border: "border-purple-200", accent: "border-l-purple-600", badge: "bg-purple-100 text-purple-800 border-purple-200", text: "text-purple-900" },
+  "VINI ANALCOLICI": { bg: "bg-gradient-to-b from-teal-50 to-white", border: "border-teal-200", accent: "border-l-teal-600", badge: "bg-teal-100 text-teal-800 border-teal-200", text: "text-teal-900" },
+  ERRORE:      { bg: "bg-gradient-to-b from-gray-50 to-white",     border: "border-gray-200",   accent: "border-l-gray-600",   badge: "bg-gray-100 text-gray-700 border-gray-200",   text: "text-gray-900" },
+};
+
+function getHeaderColors(tipologia) {
+  if (!tipologia) return TIPOLOGIA_HEADER.ERRORE;
+  const t = tipologia.toUpperCase();
+  for (const [key, val] of Object.entries(TIPOLOGIA_HEADER)) {
+    if (t.includes(key)) return val;
+  }
+  return TIPOLOGIA_HEADER.ERRORE;
+}
+
+// Linguette del nuovo layout a tab (sessione 2026-04-24: redesign scheda vino).
+// L'ordine qui e' quello con cui compaiono nella TabBar.
+const TABS = [
+  { key: "anagrafica", label: "Anagrafica" },
+  { key: "giacenze",   label: "Giacenze" },
+  { key: "movimenti",  label: "Movimenti" },
+  { key: "prezzi",     label: "Prezzi" },
+  { key: "stats",      label: "Statistiche" },
+  { key: "note",       label: "Note" },
+];
 
 function Field({ label, value }) {
   return (
@@ -134,6 +167,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   const [vino, setVino]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
+
+  // ── tab attiva (sessione 2026-04-24: layout testa+linguette) ─
+  const [activeTab, setActiveTab] = useState("anagrafica");
 
   // ── anagrafica edit ──────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -329,6 +365,20 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       (vino.QTA_LOC2 ?? 0) + (vino.QTA_LOC3 ?? 0);
   }, [vino]);
 
+  // Ricarico = prezzo carta / costo netto fornitore (listino - sconto%).
+  // Mostrato come "× 3,3" nell'header fisso; null se non calcolabile.
+  const ricarico = useMemo(() => {
+    if (!vino) return null;
+    const listino = Number(vino.EURO_LISTINO);
+    const sconto  = Number(vino.SCONTO) || 0;
+    const prezzo  = Number(vino.PREZZO_CARTA);
+    if (!Number.isFinite(listino) || listino <= 0) return null;
+    if (!Number.isFinite(prezzo)  || prezzo  <= 0) return null;
+    const costoNetto = listino * (1 - sconto / 100);
+    if (costoNetto <= 0) return null;
+    return prezzo / costoNetto;
+  }, [vino]);
+
   // ── helper: notifica parent di aggiornamento ───────
   const notifyUpdate = (updatedVino) => {
     setVino(updatedVino);
@@ -364,6 +414,19 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       if (!window.confirm("Hai modifiche non salvate. Vuoi davvero chiudere la scheda?")) return;
     }
     if (onClose) onClose();
+  };
+
+  // Cambio linguetta con check dirty. Se l'utente ha modifiche in corso
+  // (anagrafica o giacenze), chiedere conferma prima di cambiare tab e
+  // annullare la modalita' edit per evitare stati inconsistenti.
+  const handleChangeTab = (newTab) => {
+    if (newTab === activeTab) return;
+    if (hasPendingChanges()) {
+      if (!window.confirm("Hai modifiche non salvate. Vuoi davvero cambiare sezione?")) return;
+      if (editMode) setEditMode(false);
+      if (giacenzeEdit) setGiacenzeEdit(false);
+    }
+    setActiveTab(newTab);
   };
 
   const handleDuplica = async () => {
@@ -559,101 +622,125 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   // ── render ───────────────────────────────────────────
   if (!vinoId) return null;
 
-  const sbc = vino ? getSidebarColors(vino.TIPOLOGIA) : getSidebarColors(null);
+  const hdr = vino ? getHeaderColors(vino.TIPOLOGIA) : getHeaderColors(null);
+  const ritmoMese = vinoStats?.ritmo_vendita?.bt_mese;
+  // Contatori per le linguette
+  const tabCount = (key) =>
+    key === "movimenti" ? movimenti.length :
+    key === "prezzi"    ? prezziStorico.length :
+    key === "note"      ? note.length :
+    null;
 
   return (
-    <div className={`${inline ? "rounded-2xl shadow-lg" : "rounded-3xl shadow-2xl"} overflow-hidden border border-neutral-200`}>
+    <div className={`${inline ? "rounded-2xl shadow-lg" : "rounded-3xl shadow-2xl"} overflow-hidden border border-neutral-200 bg-white`}>
 
       {loading && <div className="bg-white px-8 py-6"><p className="text-sm text-neutral-500">Caricamento…</p></div>}
       {error && !loading && <div className="bg-white px-8 py-6"><p className="text-sm text-red-600">{error}</p></div>}
 
       {!loading && !error && vino && (
-        <div className={`grid grid-cols-1 lg:grid-cols-[260px_1fr]`} style={{ height: inline ? "78vh" : "88vh" }}>
+        <div className={`flex flex-col border-l-4 ${hdr.accent}`} style={{ height: inline ? "78vh" : "88vh" }}>
 
-          {/* ═══════════ SIDEBAR ═══════════ */}
-          <div className={`${sbc.bg} text-white flex flex-col h-full`}>
-
-            {/* ── Header fisso (nome + pulsanti) ── */}
-            <div className="p-4 pb-3">
-              <h2 className="text-base font-bold leading-tight">{vino.DESCRIZIONE}</h2>
-              <p className="text-xs opacity-70 mt-0.5">{vino.PRODUTTORE || "—"} {vino.ANNATA ? `· ${vino.ANNATA}` : ""}</p>
-              <span className="inline-flex items-center mt-1.5 bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">#{vino.id}</span>
-
-              {/* Pulsanti azione — subito sotto il nome */}
-              <div className="flex gap-1.5 mt-3">
-                <button type="button" onClick={startEdit}
-                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white text-neutral-800 hover:bg-neutral-100 transition text-center leading-tight">
-                  Modifica<br/>anagrafica
-                </button>
-                <button type="button" onClick={startGiacenze}
-                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight">
-                  Modifica<br/>giacenze
-                </button>
-                <button type="button" onClick={handleDuplica} disabled={duplicating}
-                  className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold bg-white/15 hover:bg-white/25 transition text-center leading-tight disabled:opacity-50">
-                  {duplicating ? "Duplico…" : <>{`Duplica`}<br/>{`vino`}</>}
-                </button>
+          {/* ═══════════ TESTA: identita + 4 KPI ═══════════ */}
+          <div className={`${hdr.bg} border-b ${hdr.border} px-4 md:px-5 py-3 md:py-4 flex-shrink-0`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                {/* Badge identita + stato */}
+                <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">#{vino.id}</span>
+                  {vino.TIPOLOGIA && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${hdr.badge}`}>{vino.TIPOLOGIA}</span>}
+                  {vino.CARTA === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200">In carta</span>}
+                  {vino.IPRATICO === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-sky-50 text-sky-700 border-sky-200">iPratico</span>}
+                  {vino.VENDITA_CALICE === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-200">Calice</span>}
+                  {vino.BIOLOGICO === "SI" && <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-lime-50 text-lime-700 border-lime-200">Biologico</span>}
+                  {vino.STATO_VENDITA && (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${s.color}`}>{s.label}</span> : null; })()}
+                </div>
+                {/* Nome vino */}
+                <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
+                  {vino.DESCRIZIONE}
+                  {vino.ANNATA ? <span className="opacity-70 font-semibold"> · {vino.ANNATA}</span> : null}
+                  {vino.FORMATO ? <span className="opacity-70 font-normal"> · {vino.FORMATO}</span> : null}
+                </h2>
+                {/* Sottotitolo: produttore · regione · vitigni · grado */}
+                <p className="text-xs text-neutral-600 mt-0.5">
+                  {[
+                    vino.PRODUTTORE,
+                    vino.REGIONE,
+                    vino.VITIGNI,
+                    vino.GRADO_ALCOLICO ? `${fmtNum(vino.GRADO_ALCOLICO, 1)}%` : null,
+                  ].filter(Boolean).join(" · ") || "—"}
+                </p>
               </div>
-            </div>
-
-            {/* ── Contenuto scrollabile ── */}
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
-              {/* Stats grid */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
-                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Bottiglie</div>
-                  <div className="text-xl font-bold">{tot}</div>
-                </div>
-                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
-                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Prezzo</div>
-                  <div className="text-xl font-bold">{vino.PREZZO_CARTA != null ? fmtNum(vino.PREZZO_CARTA, 0) : "—"}<span className="text-xs font-normal opacity-60"> €</span></div>
-                </div>
-                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
-                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Listino</div>
-                  <div className="text-lg font-bold">{vino.EURO_LISTINO != null ? fmtNum(vino.EURO_LISTINO, 0) : "—"}<span className="text-[10px] font-normal opacity-60"> €</span></div>
-                </div>
-                <div className={`${sbc.accent} rounded-lg p-2.5 text-center`}>
-                  <div className="text-[8px] uppercase opacity-60 tracking-wider">Formato</div>
-                  <div className="text-lg font-bold">{vino.FORMATO || "—"}</div>
-                </div>
-              </div>
-
-              {/* Info list */}
-              <ul className="text-[11px] space-y-0 mb-3">
-                {[
-                  ["Tipologia", vino.TIPOLOGIA],
-                  ["Nazione", vino.NAZIONE],
-                  ["Regione", vino.REGIONE],
-                  ["Carta Vini", vino.CARTA || "NO"],
-                  ["Calice", vino.VENDITA_CALICE || "NO"],
-                  ["Biologico", vino.BIOLOGICO || "NO"],
-                  ["Forza Prezzo", vino.FORZA_PREZZO ? "SI" : "NO"],
-                  ["Vendita", (() => { const s = STATO_VENDITA[vino.STATO_VENDITA]; return s ? s.label : vino.STATO_VENDITA || "—"; })()],
-                  ["Riordino", (() => { const s = STATO_RIORDINO[vino.STATO_RIORDINO]; return s ? s.label : vino.STATO_RIORDINO || "—"; })()],
-                  ["Conservazione", (() => { const s = STATO_CONSERVAZIONE[vino.STATO_CONSERVAZIONE]; return s ? s.label : vino.STATO_CONSERVAZIONE || "—"; })()],
-                ].map(([label, val]) => (
-                  <li key={label} className="flex justify-between py-1.5 border-b border-white/10">
-                    <span className="opacity-60">{label}</span>
-                    <span className="font-medium">{val || "—"}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Chiudi */}
               {onClose && (
-                <button type="button" onClick={handleClose}
-                  className="w-full mt-2 px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center">
-                  Chiudi
+                <button type="button" onClick={handleClose} aria-label="Chiudi scheda"
+                  className="flex-shrink-0 w-8 h-8 md:w-9 md:h-9 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 transition text-sm font-semibold">
+                  ✕
                 </button>
               )}
             </div>
+
+            {/* 4 KPI sempre visibili — 2x2 su portrait, 1x4 da md */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3">
+              <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Giacenza</div>
+                <div className="text-lg md:text-xl font-bold text-neutral-900">
+                  {tot}<span className="text-xs font-normal text-neutral-500"> bt</span>
+                </div>
+              </div>
+              <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Prezzo carta</div>
+                <div className="text-lg md:text-xl font-bold text-neutral-900">
+                  {vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA, 0)} €` : "—"}
+                </div>
+              </div>
+              <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Ricarico</div>
+                <div className={`text-lg md:text-xl font-bold ${
+                  ricarico == null ? "text-neutral-400" :
+                  ricarico >= 3    ? "text-emerald-700" :
+                  ricarico >= 2    ? "text-amber-700"  :
+                                     "text-red-700"
+                }`}>
+                  {ricarico != null ? `× ${fmtNum(ricarico, 1)}` : "—"}
+                </div>
+              </div>
+              <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Ritmo</div>
+                <div className="text-lg md:text-xl font-bold text-neutral-900">
+                  {ritmoMese != null
+                    ? <>{fmtNum(ritmoMese, 1)}<span className="text-xs font-normal text-neutral-500"> bt/m</span></>
+                    : "—"}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* ═══════════ MAIN CONTENT ═══════════ */}
-          <div className="bg-white overflow-y-auto">
+          {/* ═══════════ TAB BAR ═══════════ */}
+          <div className="flex gap-1 px-2 md:px-4 border-b border-neutral-200 bg-white overflow-x-auto flex-shrink-0">
+            {TABS.map(tab => {
+              const active = activeTab === tab.key;
+              const c = tabCount(tab.key);
+              return (
+                <button key={tab.key} type="button" onClick={() => handleChangeTab(tab.key)}
+                  className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-medium transition whitespace-nowrap flex-shrink-0 ${
+                    active
+                      ? "text-neutral-900 border-b-2 border-brand-red -mb-px"
+                      : "text-neutral-500 hover:text-neutral-800"
+                  }`}>
+                  {tab.label}
+                  {c != null && c > 0 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-neutral-400">{c}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ═══════════ TAB CONTENT ═══════════ */}
+          <div className="flex-1 overflow-y-auto bg-white">
 
             {/* ── ANAGRAFICA ── */}
-            <div className="border-b border-neutral-200">
+            {activeTab === "anagrafica" && (
+            <div>
               <SectionHeader title="Anagrafica">
                 {saveMsg && <span className="text-xs font-medium">{saveMsg}</span>}
                 {editMode && <>
@@ -677,7 +764,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Field label="Vitigni" value={vino.VITIGNI} />
                       <Field label="Grado alcolico" value={vino.GRADO_ALCOLICO ? `${fmtNum(vino.GRADO_ALCOLICO, 1)}%` : null} />
                     </div>
-                    <div className="grid grid-cols-4 gap-4 pt-3 border-t border-neutral-100">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-neutral-100">
                       <Field label="Prezzo carta" value={vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA)} €` : null} />
                       <Field label="Prezzo calice" value={vino.PREZZO_CALICE != null ? `${fmtNum(vino.PREZZO_CALICE)} €${vino.PREZZO_CALICE_MANUALE ? " ✎" : ""}` : null} />
                       <Field label="Listino" value={vino.EURO_LISTINO != null ? `${fmtNum(vino.EURO_LISTINO)} €` : null} />
@@ -722,7 +809,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Input label="Distributore" name="DISTRIBUTORE" value={editData.DISTRIBUTORE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                       <Input label="Rappresentante" name="RAPPRESENTANTE" value={editData.RAPPRESENTANTE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                     </div>
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="relative">
                         <Input label={`Prezzo carta €${prezzoAutoCalc ? " ✓ auto" : ""}`} name="PREZZO_CARTA" value={editData.PREZZO_CARTA}
                           onChange={e => {
@@ -743,7 +830,7 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <Input label="Listino €" name="EURO_LISTINO" value={editData.EURO_LISTINO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} onBlur={e => autoCalcPrezzo(e.target.value)} type="number" step="0.01" />
                       <Input label="Sconto %" name="SCONTO" value={editData.SCONTO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.01" />
                     </div>
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <FlagToggle label="Carta Vini" name="CARTA" value={editData.CARTA} onChange={v => setEditData(p => ({...p, CARTA: v}))} />
                       <FlagToggle label="iPratico" name="IPRATICO" value={editData.IPRATICO} onChange={v => setEditData(p => ({...p, IPRATICO: v}))} />
                       <FlagToggle label="Calice" name="VENDITA_CALICE" value={editData.VENDITA_CALICE} onChange={v => setEditData(p => ({...p, VENDITA_CALICE: v}))} />
@@ -765,8 +852,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             </div>
 
+            )}
+
             {/* ── GIACENZE ── */}
-            <div className="border-b border-neutral-200">
+            {activeTab === "giacenze" && (
+            <div>
               <SectionHeader title="Giacenze per locazione">
                 {giacenzeEdit && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelGiacenze}>Annulla</Btn>
@@ -828,8 +918,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             </div>
 
+            )}
+
             {/* ── MOVIMENTI ── */}
-            <div className="border-b border-neutral-200">
+            {activeTab === "movimenti" && (
+            <div>
               <SectionHeader title="Movimenti cantina">
                 {movLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
               </SectionHeader>
@@ -868,8 +961,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                     className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   {submitMsg && <p className="text-sm font-medium">{submitMsg}</p>}
                 </div>
-                <div className="border border-neutral-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="border border-neutral-200 rounded-xl overflow-x-auto">
+                  <table className="w-full text-sm min-w-[600px]">
                     <thead className="bg-neutral-100">
                       <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                         <th className="px-3 py-2 text-left">Data</th>
@@ -905,8 +998,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             </div>
 
+            )}
+
             {/* ── STORICO PREZZI (Fase 8) ── */}
-            <div className="border-b border-neutral-200">
+            {activeTab === "prezzi" && (
+            <div>
               <SectionHeader title="Storico prezzi">
                 {prezziLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
                 <Btn variant="secondary" size="sm" type="button" onClick={fetchPrezziStorico} disabled={prezziLoading}>
@@ -1002,8 +1098,8 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         </div>
                       )}
                       {filtered.length > 0 && (
-                        <div className="border border-neutral-200 rounded-xl overflow-hidden">
-                          <table className="w-full text-sm">
+                        <div className="border border-neutral-200 rounded-xl overflow-x-auto">
+                          <table className="w-full text-sm min-w-[720px]">
                             <thead className="bg-neutral-100">
                               <tr className="text-xs text-neutral-600 uppercase tracking-wide">
                                 <th className="px-3 py-2 text-left">Data</th>
@@ -1065,8 +1161,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             </div>
 
+            )}
+
             {/* ── STATISTICHE VENDITA (v1.4) ── */}
-            <div className="border-b border-neutral-200">
+            {activeTab === "stats" && (
+            <div>
               <SectionHeader title="Statistiche vendita">
                 {statsLoading && <span className="text-xs text-neutral-400">Aggiornamento…</span>}
                 <Btn variant="secondary" size="sm" type="button" onClick={fetchStats} disabled={statsLoading}>
@@ -1172,7 +1271,10 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               </div>
             </div>
 
+            )}
+
             {/* ── NOTE ── */}
+            {activeTab === "note" && (
             <div>
               <SectionHeader title="Note operative" />
               <div className="p-5 space-y-4">
@@ -1198,8 +1300,24 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 </div>
               </div>
             </div>
+            )}
 
           </div>
+
+          {/* ═══════════ FOOTER AZIONI ═══════════ */}
+          <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0">
+            <Btn variant="secondary" size="md" type="button" onClick={handleDuplica} disabled={duplicating}>
+              {duplicating ? "Duplico…" : "Duplica vino"}
+            </Btn>
+            {saveMsg && <span className="text-xs font-medium text-neutral-600">{saveMsg}</span>}
+            <span className="flex-1" />
+            {onClose && (
+              <Btn variant="secondary" size="md" type="button" onClick={handleClose}>
+                Chiudi
+              </Btn>
+            )}
+          </div>
+
         </div>
       )}
     </div>

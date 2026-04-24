@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-04-24 (sessione 55) — SchedaVino: redesign a testa fissa + linguette
+
+### Struttura
+- Rimossa sidebar scura verticale laterale. Nuova **testa colorata** in alto (gradiente soft per tipologia, `TIPOLOGIA_HEADER` affiancata alla palette scura `TIPOLOGIA_SIDEBAR` già esistente) con badge identità/stato, titolo vino, sottotitolo e **4 KPI sempre visibili** (Giacenza, Prezzo carta, Ricarico, Ritmo bt/mese).
+- Nuova **tab bar** sotto la testa con 6 linguette: Anagrafica / Giacenze / Movimenti / Prezzi / Statistiche / Note. Contatore accanto al nome per movimenti/prezzi/note. Scroll orizzontale su viewport strette (iPad portrait).
+- Le 6 sezioni esistenti sono state avvolte in blocchi condizionali `{activeTab === "..." && (...)}` — nessuna perdita di funzionalità, solo una visibile alla volta.
+- **Footer sticky** con `Duplica vino` + `Chiudi`.
+
+### Logica
+- `useState(activeTab)` default `"anagrafica"`.
+- `useMemo(ricarico)` = `PREZZO_CARTA / (EURO_LISTINO · (1 − SCONTO/100))`, color-coded (emerald ≥3, amber ≥2, red <2, grigio se non calcolabile).
+- `handleChangeTab(newTab)`: se `hasPendingChanges()` chiede conferma e annulla editMode/giacenzeEdit in caso di cambio forzato.
+
+### Responsive iPad
+- KPI header `grid-cols-2 md:grid-cols-4` → 2×2 portrait, 1×4 landscape.
+- Tab bar `overflow-x-auto` + `whitespace-nowrap` sulle linguette.
+- Prezzi view + edit: `grid-cols-2 md:grid-cols-4`.
+- Flag toggle: `grid-cols-2 md:grid-cols-5`.
+- Tabelle Movimenti/Prezzi: wrapper `overflow-x-auto` + `min-w-[600px]`/`[720px]` — scrollano orizzontalmente invece di strapparsi.
+
+### File toccati
+- `frontend/src/pages/vini/SchedaVino.jsx` (aggiornata la versione interna del commento header: il modulo resta v1.4-statistiche nel changelog interno ma la UI è ridisegnata).
+
+### Note
+- `MagazzinoVini` (takeover dalla lista) e `MagazzinoViniDettaglio` (pagina standalone `/vini/magazzino/:id`) ereditano automaticamente la nuova UI — nessun cambio ai due call site.
+- `FattureDettaglio`, `FattureFornitoriElenco`, `ClientiScheda`, `ControlloGestioneUscite` avevano copiato il vecchio pattern visivamente ma NON importano `SchedaVino` → non si rompono. Resteranno col vecchio stile finché non si refactorano anche loro (deciso con Marco, in un passaggio successivo).
+
+---
+
 ## 2026-04-22 (sessione 54) — Flussi di cassa Contanti: filtro data, Flusso contanti, baselines, unificazione Pre-conti/Spese varie, Flusso spese
 
 ### Iterazione 1 — Filtro data + tab "Flusso contanti"
