@@ -1,5 +1,5 @@
 // src/pages/vini/DashboardVini.jsx
-// @version: v4.11-alert-widget-faseD — Chip filtro tipologia (Tutti/Rossi/Bianchi/Bollicine/Rosati/Altri) client-side sopra la lista urgenti, con conteggi per categoria e auto-hide chip con 0 vini
+// @version: v4.12-alert-widget-faseC-rivisto — Picker stato riordino: emoji + label leggibile ("📝 Da ordinare", "🚨 Finito — ordina", "📦 Ordinato", "🗓️ Annata esaurita", "⛔ Non ricomprare") al posto dei codici singola lettera, spostato in riga dedicata per maggiore respiro
 // Dashboard Vini — KPI in alto, alert compattato, vendite/movimenti/distribuzione
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -777,19 +777,26 @@ export default function DashboardVini() {
                 "neutral":      "bg-neutral-100 text-neutral-600 border-neutral-200",
                 "neutral-dark": "bg-slate-100 text-slate-500 border-slate-300",
               };
-              // Fase C — picker inline STATO_RIORDINO: 5 pill D/O/0/A/X.
-              // Attiva = bg saturo + ring colore forte; inattiva = bg bianco outline sottile.
-              // Click su attiva = rimuove (clear); click su inattiva = imposta.
-              // Touch target 32px x 32px (codice singola lettera), insieme formano >44pt gruppo.
-              const STATO_RIORDINO_ORDER = ["D", "O", "0", "A", "X"];
+              // Fase C iter 2 — picker inline STATO_RIORDINO con emoji + label breve.
+              // Le lettere singole D/O/0/A/X non erano comprensibili se non conoscevi
+              // il codice interno. Ora ogni pill e' autoesplicativa.
+              // Attiva: bg saturo colore stato + border-2 + font-bold.
+              // Inattiva: bianco + border neutro + hover leggero.
+              // Click su attiva = clear; click su inattiva = imposta.
+              const PICKER_STATI = [
+                { code: "D", emoji: "📝", label: "Da ordinare" },
+                { code: "O", emoji: "🚨", label: "Finito — ordina" },
+                { code: "0", emoji: "📦", label: "Ordinato" },
+                { code: "A", emoji: "🗓️", label: "Annata esaurita" },
+                { code: "X", emoji: "⛔", label: "Non ricomprare" },
+              ];
               const pickerPillCls = (active, codiceInfo) =>
                 active
-                  ? `${codiceInfo.color} border-2 ring-1 ring-offset-0 font-bold`
-                  : "bg-white text-neutral-500 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-400";
+                  ? `${codiceInfo.color} border-2 font-semibold shadow-sm`
+                  : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50 hover:border-neutral-400";
               const VinoRow = ({ v, dimmed }) => {
                 const scInfo = v.STATO_CONSERVAZIONE ? STATO_CONSERVAZIONE[v.STATO_CONSERVAZIONE] : null;
                 const srCorrente = v.STATO_RIORDINO || null;
-                const srLabel = srCorrente ? STATO_RIORDINO[srCorrente]?.label : null;
                 // Badge combo ritmo+finito. L'etichetta "Finito ~Xgg" ha senso solo se
                 // il vino e' stato venduto almeno una volta (altrimenti e' "Mai venduto").
                 const ritmo = v.ritmo_vendita || {};
@@ -812,7 +819,7 @@ export default function DashboardVini() {
                         {v.PRODUTTORE && <span className="text-xs text-neutral-400">— {v.PRODUTTORE}</span>}
                         <span className="text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded-full">{v.TIPOLOGIA}</span>
                       </div>
-                      {/* RIGA 2 — metriche azionabili (ritmo+finito) + picker stato riordino */}
+                      {/* RIGA 2 — metriche azionabili (ritmo+finito) */}
                       <div className="flex flex-wrap items-center gap-2 mt-1.5">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${ritmoCls}`}
                           title={ritmo.vendite_totali != null ? `${ritmo.vendite_totali} bt vendute in ${ritmo.giorni_storico}gg di storico (dal 01/03/2026)` : ""}>
@@ -826,38 +833,37 @@ export default function DashboardVini() {
                             <span className={`w-1 h-1 rounded-full ${scInfo.dot}`} />{scInfo.label}
                           </span>
                         )}
-
-                        {/* Fase C — picker inline 5-pill STATO_RIORDINO. Sostituisce
-                            il singolo toggle "Non ricomprare" e il badge passivo. */}
-                        <div className="flex items-center gap-1 ml-auto">
-                          <span className="text-[10px] text-neutral-400 uppercase tracking-wide mr-1 hidden sm:inline">Stato:</span>
-                          {STATO_RIORDINO_ORDER.map((code) => {
-                            const info = STATO_RIORDINO[code];
-                            const active = srCorrente === code;
-                            return (
-                              <Tooltip key={code} label={active ? `${info.label} (click per rimuovere)` : info.label}>
-                                <button
-                                  type="button"
-                                  disabled={togglingId === v.id}
-                                  onClick={(e) => { e.stopPropagation(); setStatoRiordino(v, code); }}
-                                  className={`inline-flex items-center justify-center w-8 h-8 rounded-md text-[12px] transition ${pickerPillCls(active, info)} ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                                  aria-label={`Imposta stato riordino: ${info.label}`}
-                                  aria-pressed={active}
-                                >
-                                  {code}
-                                </button>
-                              </Tooltip>
-                            );
-                          })}
-                        </div>
                       </div>
 
-                      {/* Etichetta testuale dello stato corrente — aiuta chi non ricorda la legenda D/O/0/A/X */}
-                      {srLabel && (
-                        <div className="text-[11px] text-neutral-500 mt-1">
-                          Stato riordino: <span className="font-semibold text-neutral-700">{srLabel}</span>
-                        </div>
-                      )}
+                      {/* RIGA 3 — picker stato riordino autoesplicativo.
+                          Sposto in riga dedicata (era in Riga 2 con label a singola lettera,
+                          poco chiaro). Ora emoji + label breve. Click stato attivo = clear.
+                          Riga scrollabile orizzontalmente su mobile stretto. */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] text-neutral-400 uppercase tracking-wide mr-0.5">
+                          Stato riordino:
+                        </span>
+                        {PICKER_STATI.map(({ code, emoji, label }) => {
+                          const info = STATO_RIORDINO[code];
+                          const active = srCorrente === code;
+                          return (
+                            <Tooltip key={code} label={active ? `${label} — click per rimuovere` : `Imposta: ${label}`}>
+                              <button
+                                type="button"
+                                disabled={togglingId === v.id}
+                                onClick={(e) => { e.stopPropagation(); setStatoRiordino(v, code); }}
+                                className={`inline-flex items-center gap-1 px-2.5 h-8 rounded-full text-[11px] transition ${pickerPillCls(active, info)} ${togglingId === v.id ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                aria-label={`Imposta stato riordino: ${label}`}
+                                aria-pressed={active}
+                              >
+                                <span aria-hidden="true">{emoji}</span>
+                                <span>{label}</span>
+                                {active && <span aria-hidden="true" className="ml-0.5 opacity-70">✓</span>}
+                              </button>
+                            </Tooltip>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 mt-0.5">
 

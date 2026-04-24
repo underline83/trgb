@@ -80,9 +80,18 @@ Implementato:
 
 ### Fase C — Punto 4 (Badge stato riordino a 3 click) — ✅ FATTO 2026-04-24
 
-**Implementato 5 pill inline `D · O · 0 · A · X`** (non 4 come da spec iniziale — Marco approva 5 per includere anche 'A' Annata esaurita, utile su vini in carta dove l'annata specifica non si trova più).
+**Iter 1 (deprecata):** pill quadrate 32x32 con singola lettera `D · O · 0 · A · X`. Fuorviante — se non conosci la legenda interna non capisci cosa stai cliccando.
 
-- **FE-only.** Picker in Riga 2 di ogni VinoRow del widget alert, subito dopo il badge ritmo+finito, allineato a destra (`ml-auto`).
+**Iter 2 (attiva, 2026-04-24):** pill ellittiche con **emoji + label breve**:
+- 📝 Da ordinare
+- 🚨 Finito — ordina
+- 📦 Ordinato
+- 🗓️ Annata esaurita
+- ⛔ Non ricomprare
+
+Spostate in **Riga 3 dedicata** (prima erano in Riga 2 stipate con il badge ritmo, poco respiro). Label "Stato riordino:" in minuscolo accanto. Pill attiva = bg saturo colore STATO_RIORDINO + border-2 + font-semibold + icona ✓ appena visibile. Pill inattive = bianco outline neutro + hover leggero. Rimosso il label testuale ridondante "Stato riordino: X" che c'era sotto nella iter 1 (ora non serve, le pill si spiegano da sole).
+
+- **FE-only.**
 - **Interazione:**
   - Click su pill inattiva → PATCH `/vini/magazzino/{id}` con `STATO_RIORDINO: code`
   - Click su pill attiva → PATCH con `STATO_RIORDINO: null` (clear)
