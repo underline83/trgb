@@ -49,6 +49,13 @@ Il dettaglio vino (`SchedaVino.jsx`, usato sia da `MagazzinoVini` come takeover 
 ### Cose lasciate aperte (deliberatamente)
 - **FattureDettaglio / FattureFornitoriElenco / ClientiScheda / ControlloGestioneUscite** hanno copiato il pattern "sidebar scura + main" di SchedaVino senza importarlo. NON sono state toccate: resteranno col vecchio stile finché non le si refactora anche loro. Marco ha esplicitamente detto che vuole rivederle in futuro.
 
+### Iterazione 2 (stessa sessione 55) — Ricarico spostato
+Marco: "il valore del ricarico ci sta, mettilo nella tab prezzi, ma toglilo da li sopra che non mi piace molto".
+
+- Rimosso il KPI **Ricarico** dalla testa fissa. L'header ora ha **3 KPI** (Giacenza, Prezzo carta, Ritmo) in `grid-cols-3` fisso — 3 colonne sia portrait che landscape, entrano comodi anche su 820px.
+- Nella tab **Prezzi** aggiunta una barra riepilogo in testa alla sezione, sopra il filtro per campo: 5 card compatte (Listino, Sconto, Costo netto, Prezzo carta in emerald, Ricarico con colore semantico × 3+/2+/< 2 come prima). Grid `grid-cols-2 md:grid-cols-5` → 2 colonne su iPad portrait (righe di 2+2+1), 5 su landscape.
+- Costo netto calcolato inline come `EURO_LISTINO · (1 − SCONTO/100)`.
+
 ---
 
 ## SESSIONE 54 (2026-04-22) — FLUSSI CASSA CONTANTI: filtro data + tab Flusso contanti

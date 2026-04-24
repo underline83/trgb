@@ -678,8 +678,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
               )}
             </div>
 
-            {/* 4 KPI sempre visibili — 2x2 su portrait, 1x4 da md */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3">
+            {/* 3 KPI sempre visibili — giacenza / prezzo carta / ritmo.
+                Il ricarico e' stato spostato nella tab Prezzi (sessione 55). */}
+            <div className="grid grid-cols-3 gap-2 md:gap-3 mt-3">
               <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
                 <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Giacenza</div>
                 <div className="text-lg md:text-xl font-bold text-neutral-900">
@@ -690,17 +691,6 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Prezzo carta</div>
                 <div className="text-lg md:text-xl font-bold text-neutral-900">
                   {vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA, 0)} €` : "—"}
-                </div>
-              </div>
-              <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
-                <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Ricarico</div>
-                <div className={`text-lg md:text-xl font-bold ${
-                  ricarico == null ? "text-neutral-400" :
-                  ricarico >= 3    ? "text-emerald-700" :
-                  ricarico >= 2    ? "text-amber-700"  :
-                                     "text-red-700"
-                }`}>
-                  {ricarico != null ? `× ${fmtNum(ricarico, 1)}` : "—"}
                 </div>
               </div>
               <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
@@ -1010,6 +1000,63 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 </Btn>
               </SectionHeader>
               <div className="p-5 space-y-4">
+                {/* Riepilogo prezzi attuali + ricarico calcolato (sessione 55) */}
+                {(() => {
+                  const listino = vino.EURO_LISTINO != null ? Number(vino.EURO_LISTINO) : null;
+                  const sconto  = vino.SCONTO != null ? Number(vino.SCONTO) : null;
+                  const costoNetto = (listino != null && listino > 0)
+                    ? listino * (1 - (sconto || 0) / 100)
+                    : null;
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 md:gap-3">
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2.5">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Listino</div>
+                        <div className="text-base md:text-lg font-bold text-neutral-900">
+                          {listino != null ? `${fmtNum(listino)} €` : "—"}
+                        </div>
+                      </div>
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2.5">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Sconto</div>
+                        <div className="text-base md:text-lg font-bold text-neutral-900">
+                          {sconto != null ? `${fmtNum(sconto)} %` : "—"}
+                        </div>
+                      </div>
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2.5">
+                        <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Costo netto</div>
+                        <div className="text-base md:text-lg font-bold text-neutral-900">
+                          {costoNetto != null ? `${fmtNum(costoNetto)} €` : "—"}
+                        </div>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">
+                        <div className="text-[10px] text-emerald-700 uppercase tracking-wide">Prezzo carta</div>
+                        <div className="text-base md:text-lg font-bold text-emerald-800">
+                          {vino.PREZZO_CARTA != null ? `${fmtNum(vino.PREZZO_CARTA)} €` : "—"}
+                        </div>
+                      </div>
+                      <div className={`rounded-lg p-2.5 border ${
+                        ricarico == null ? "bg-neutral-50 border-neutral-200" :
+                        ricarico >= 3    ? "bg-emerald-50 border-emerald-200" :
+                        ricarico >= 2    ? "bg-amber-50 border-amber-200" :
+                                           "bg-red-50 border-red-200"
+                      }`}>
+                        <div className={`text-[10px] uppercase tracking-wide ${
+                          ricarico == null ? "text-neutral-500" :
+                          ricarico >= 3    ? "text-emerald-700" :
+                          ricarico >= 2    ? "text-amber-700"  :
+                                             "text-red-700"
+                        }`}>Ricarico</div>
+                        <div className={`text-base md:text-lg font-bold ${
+                          ricarico == null ? "text-neutral-400" :
+                          ricarico >= 3    ? "text-emerald-800" :
+                          ricarico >= 2    ? "text-amber-800"  :
+                                             "text-red-800"
+                        }`}>
+                          {ricarico != null ? `× ${fmtNum(ricarico, 1)}` : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {(() => {
                   const CAMPI_LABEL = {
                     EURO_LISTINO:  { label: "Listino",   cls: "bg-teal-50 text-teal-700 border-teal-200" },

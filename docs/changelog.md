@@ -30,6 +30,10 @@
 - `MagazzinoVini` (takeover dalla lista) e `MagazzinoViniDettaglio` (pagina standalone `/vini/magazzino/:id`) ereditano automaticamente la nuova UI — nessun cambio ai due call site.
 - `FattureDettaglio`, `FattureFornitoriElenco`, `ClientiScheda`, `ControlloGestioneUscite` avevano copiato il vecchio pattern visivamente ma NON importano `SchedaVino` → non si rompono. Resteranno col vecchio stile finché non si refactorano anche loro (deciso con Marco, in un passaggio successivo).
 
+### Iterazione 2 — Ricarico fuori dall'header
+- Rimosso il KPI Ricarico dalla testa fissa. L'header ha ora **3 KPI** (Giacenza / Prezzo carta / Ritmo) su `grid-cols-3`.
+- Aggiunta barra riepilogo in testa alla tab **Prezzi**: 5 card `grid-cols-2 md:grid-cols-5` (Listino / Sconto / Costo netto / Prezzo carta / Ricarico) con ricarico color-coded semantico. Costo netto calcolato inline.
+
 ---
 
 ## 2026-04-22 (sessione 54) — Flussi di cassa Contanti: filtro data, Flusso contanti, baselines, unificazione Pre-conti/Spese varie, Flusso spese
