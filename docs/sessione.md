@@ -1,8 +1,114 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-25 (sessione 56 — Fatture+Fornitori redesign: testa fissa + linguette su FattureDettaglio e FornitoreDetailView, breadcrumb anti-matrioska per apertura fattura da dentro un fornitore)
-**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
+**Ultimo aggiornamento:** 2026-04-25 (sessione 57 — Modulo Menu Carta: design + 4 migrazioni + router + 2 pagine FE + import 5 template MEP nel modulo Cucina HACCP + generatore MEP dinamico + export PDF brand)
+**Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 57 (2026-04-25) — MODULO MENU CARTA + import MEP cucina
+
+### Punto di partenza
+Marco ha condiviso il PDF "menù-A5-primavera-2026-definitivo.pdf" e chiesto:
+1) checklist di lavoro per i cuochi, 2) come archiviare nel modulo Gestione Cucina.
+
+### Cosa è stato fatto
+
+**Deliverable preliminari** (sessione preparatoria, niente codice):
+- `docs/menu_carta.md` — design doc completo (619 righe) con schema DB, endpoint, mockup UI, mappa piatti, integrazioni mattoni
+- `Checklist_Cucina_Primavera_2026.docx` (22 pagine) e `.pdf` — mise en place per partita + scheda piatto per ogni piatto del menu
+
+**Implementazione (6 blocchi di codice):**
+
+#### Blocco A — import 5 template MEP nel modulo Cucina HACCP
+- **Migrazione 097_import_mep_templates.py** → tasks.sqlite3
+- 5 nuovi `checklist_template`: MEP Basi & Fondi (33 item, scadenza 09:00), MEP Antipasti (23), MEP Primi (15), MEP Secondi (19), MEP Contorni (11)
+- Tutti reparto=cucina, frequenza=GIORNALIERA, turno=APERTURA, attivo=0 (Marco li attiva da Impostazioni Cucina)
+- 101 item totali estratti dal docx
+- Idempotente (skip su nome duplicato)
+
+#### Blocco B — schema DB Menu Carta
+- **Migrazione 098_menu_carta_init.py** → foodcost.db
+- 4 nuove tabelle: `menu_editions`, `menu_dish_publications`, `menu_tasting_paths`, `menu_tasting_path_steps`
+- ALTER recipes ADD: `allergeni_calcolati`, `istruzioni_impiattamento`, `tempo_servizio_minuti`
+- Vincolo unique: una sola edizione `in_carta` per volta
+
+#### Blocco C2 — seed ricette test (Food Cost) [aggiunto su richiesta Marco "metti come test"]
+- **Migrazione 099_seed_food_cost_test.py** → foodcost.db
+- 9 ingredient_categories, 82 ingredients, 14 ricette base (fondi/salse/polente/mantecature), 28 ricette piatto
+- 186 recipe_items totali con sub_recipe linking
+- Tutte le 28 ricette piatto agganciate a service_type "Alla carta"
+- Marco affinerà i grammi/procedure dal modulo Ricette esistente
+
+#### Blocco C — router Menu Carta + seed Primavera 2026
+- **Migrazione 100_seed_menu_primavera_2026.py** → foodcost.db (1 edition + 36 publications + 2 tasting paths + 10 steps)
+- **app/routers/menu_carta_router.py** → 19 endpoint protected + 1 pubblico (no auth) `/menu-carta/public/today` per QR menu cliente
+- Endpoint principali: editions/ (CRUD + publish/clone/archive), publications/ (CRUD), tasting-paths/ (CRUD)
+- Registrato in `main.py` con prefix `/menu-carta`
+
+#### Blocco D — frontend Menu Carta
+- `frontend/src/pages/cucina/MenuCartaElenco.jsx` — lista edizioni raggruppata per stato (in carta / bozze / archiviate), modali "Nuova" e "Clona"
+- `frontend/src/pages/cucina/MenuCartaDettaglio.jsx` — testa fissa colorata + 4 KPI + 4 tab (Sezioni / Degustazioni / Anteprima / Anagrafica), modale edit pubblicazione con tutti i campi prezzo
+- Voce in `modulesMenu.js`: sotto "Gestione Cucina" → "Menu Carta"
+- Route in `App.jsx`: `/menu-carta` e `/menu-carta/:id`
+- Pattern: testa+tab gemello SchedaVino, palette TRGB-02, Playfair Display sui titoli, touch target 44pt
+
+#### Blocco E — generatore MEP dinamico dal menu attivo
+- Endpoint `POST /menu-carta/editions/{id}/generate-mep` e `GET .../mep-preview`
+- Crea N template "MEP Carta · {Partita} · {slug}" in tasks.sqlite3 — uno per partita (Antipasti/Primi/Secondi/Contorni), un item per piatto pubblicato
+- Item = "Nome piatto — istruzioni_impiattamento" (con flag descrizione_variabile dove applicabile)
+- Idempotente: rimuove i precedenti per quella edizione (LIKE 'MEP Carta · % · {slug}') e li ricrea
+- I 5 template MEP fissi della 097 restano fallback indipendenti
+- Bottone "⚙ Genera MEP cucina" in MenuCartaDettaglio testa
+
+#### Blocco F — export PDF menu cliente
+- Endpoint `GET /menu-carta/editions/{id}/pdf` via mattone M.B PDF brand
+- Template `app/templates/pdf/menu_carta.html` con CSS dedicato in `_menu_carta_css()` del router (Playfair Display titoli sezione maiuscoli centrati con tracking, dish a 2 colonne nome+desc / prezzo, tasting in card bordo blue)
+- Bottone "⬇ PDF stampabile" in MenuCartaDettaglio testa
+- Riusa il branding TRGB (header logo gobbette, strip, footer)
+
+### Architettura: il "pezzo magico"
+Le checklist mise en place del cuoco di partita non sono più hardcoded: derivano dal menu pubblicato. Quando cambia stagione (clone → modifica → publish) basta `POST /generate-mep` e i template MEP della cucina si aggiornano in automatico. I 5 template fissi della 097 restano come scheletro per il caso "menu non ancora archiviato".
+
+### File modificati
+**Migrazioni (4 nuove):** `097_import_mep_templates.py`, `098_menu_carta_init.py`, `099_seed_food_cost_test.py`, `100_seed_menu_primavera_2026.py`
+**Backend nuovo:** `app/routers/menu_carta_router.py`, `app/templates/pdf/menu_carta.html`
+**Backend modificato:** `main.py` (import + include_router x2)
+**Frontend nuovo:** `frontend/src/pages/cucina/MenuCartaElenco.jsx`, `MenuCartaDettaglio.jsx`
+**Frontend modificato:** `frontend/src/config/modulesMenu.js`, `frontend/src/App.jsx`
+**Docs:** `docs/menu_carta.md` (design), `Checklist_Cucina_Primavera_2026.docx`/`.pdf` (operativo)
+
+### Verifiche eseguite
+- Sintassi Python su tutte le migrazioni e router (ast.parse OK)
+- Test end-to-end migrazioni 097-100 su DB di test (counts corretti, idempotenza OK)
+- Generatore MEP testato: edizione Primavera 2026 → 4 template "MEP Carta" con item dai 28 piatti pubblicati
+- esbuild OK su MenuCartaElenco.jsx e MenuCartaDettaglio.jsx (213kb e 229kb)
+- Smoke test importazione router FastAPI: 19 endpoint auth + 1 pubblico registrati
+
+### Da verificare dopo push
+1. Lancia `./push.sh` con il commit (sotto). Le 4 migrazioni partono in ordine.
+2. **Cucina HACCP**: Impostazioni Cucina → Template → vedi 5 nuovi "MEP · ..." con attivo=0. Attiva quelli che vuoi mettere in produzione.
+3. **Menu Carta**: header dropdown → Gestione Cucina → Menu Carta. Vedi "Primavera 2026" in stato `IN CARTA`. Apri → testa+tab + 4 KPI + tutti i 36 piatti raggruppati per sezione.
+4. **Modale piatto**: clic su un piatto → vedi tutti i campi prezzo (singolo/range/piccolo-grande), allergeni, descrizione variabile, badge.
+5. **Anteprima**: tab Anteprima → vedi rendering simil-PDF (vuol dire che i dati sono coerenti per il PDF reale).
+6. **PDF**: bottone "⬇ PDF stampabile" → apre `/menu-carta/editions/1/pdf`. Verifica branding e layout.
+7. **Genera MEP**: bottone "⚙ Genera MEP cucina" → conferma → torna in Impostazioni Cucina e vedi 4 nuovi template "MEP Carta · {partita} · primavera-2026" con item presi dai piatti.
+8. **Clona**: dalla lista edizioni clic "Clona →" → crea bozza Estate 2026 → conferma che ha tutti i 36 piatti.
+9. **Pubblica**: pubblica la bozza → conferma che Primavera 2026 va in archiviata e Estate 2026 va in_carta (vincolo unique).
+10. **Endpoint pubblico**: `GET /menu-carta/public/today` (no auth) → JSON menu corrente per QR cliente.
+
+### Cose lasciate aperte (deliberatamente)
+- **Ricette popolate sono test**: gli ingredienti (manzo filetto, tartare, asparagi, ...) e le grammature sono stimate dal menu PDF. Marco le aggiusta da Modulo Ricette quando vuole. Il food cost % oggi è inattendibile finché non arrivano fatture reali con prezzi mappati.
+- **Foto piatti**: schema pronto (`foto_path` su menu_dish_publications) ma non c'è ancora upload UI.
+- **Multilingua**: niente colonne `_en`. Da v2 quando serve.
+- **Storico prezzi pubblicazioni**: niente trigger di log. Da v2.
+- **Checker M.F per food cost % oltre soglia**: idea nel design doc, da implementare quando le ricette sono popolate sul serio.
+- **Pagina pubblica `/m/{slug}` per QR**: solo l'endpoint API esiste. La pagina frontend pubblica è da fare (Fase 4 della roadmap menu carta).
+
+### Commit suggerito (UNICO push, le migrazioni partono in ordine)
+```
+./push.sh "Modulo Menu Carta sessione 57: 4 migrazioni (097 import MEP, 098 schema, 099 seed ricette test, 100 seed Primavera 2026) + router 20 endpoint + 2 pagine FE testa+tab + generatore MEP dinamico + export PDF brand"
+```
 
 ---
 

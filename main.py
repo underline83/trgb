@@ -30,6 +30,7 @@ from app.routers import foodcost_router
 from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
 from app.routers import foodcost_matching_router
+from app.routers import menu_carta_router
 
 # AMMINISTRAZIONE (corrispettivi & analisi) — modulo unico
 from app.routers.admin_finance import router as admin_finance_router
@@ -225,6 +226,18 @@ app.include_router(
     foodcost_matching_router.router,
     prefix="/foodcost",
     tags=["foodcost-matching"],
+)
+
+# MENU CARTA (sessione 57, mig 098-100)
+app.include_router(
+    menu_carta_router.router,
+    prefix="/menu-carta",
+    tags=["menu-carta"],
+)
+app.include_router(
+    menu_carta_router.public_router,
+    prefix="/menu-carta",
+    tags=["menu-carta-public"],
 )
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)

@@ -41,6 +41,8 @@ const RicetteIngredientiPrezzi = lazy(() => import("./pages/ricette/RicetteIngre
 const RicetteMatching = lazy(() => import("./pages/ricette/RicetteMatching"));
 const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
 const RicetteSettings = lazy(() => import("./pages/ricette/RicetteSettings"));
+const MenuCartaElenco = lazy(() => import("./pages/cucina/MenuCartaElenco"));
+const MenuCartaDettaglio = lazy(() => import("./pages/cucina/MenuCartaDettaglio"));
 
 // VENDITE
 const ChiusuraTurno = lazy(() => import("./pages/admin/ChiusuraTurno"));
@@ -241,6 +243,10 @@ export default function App() {
         <Route path="/ricette/dashboard" element={<ProtectedRoute module="ricette" sub="dashboard"><RicetteDashboard /></ProtectedRoute>} />
         <Route path="/ricette/settings" element={<ProtectedRoute module="ricette" sub="settings"><RicetteSettings /></ProtectedRoute>} />
         <Route path="/ricette/import" element={<Navigate to="/ricette/settings" replace />} />
+
+        {/* --- MENU CARTA (sotto Gestione Cucina, mig 098-100, sessione 57) --- */}
+        <Route path="/menu-carta" element={<ProtectedRoute module="ricette" sub="archivio"><MenuCartaElenco /></ProtectedRoute>} />
+        <Route path="/menu-carta/:id" element={<ProtectedRoute module="ricette" sub="archivio"><MenuCartaDettaglio /></ProtectedRoute>} />
 
         {/* --- AREA AMMINISTRAZIONE (redirect legacy) --- */}
         <Route path="/admin" element={<Navigate to="/impostazioni" replace />} />

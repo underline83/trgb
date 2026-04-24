@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{# ============================================================
+   Menu Carta — template stampabile (sessione 57)
+
+   Variabili attese (vedi router /menu-carta/editions/{id}/pdf):
+     edition       dict (nome, slug, stagione, anno, data_inizio, data_fine, ...)
+     sezioni       dict { sezione_key: [publication, ...] } già ordinato
+     tasting_paths list [tp con steps]
+     SEZIONI_ORDER list di [(key, label)] in ordine stampa
+
+   Layout: ricalca il PDF originale Primavera 2026 (titoli sezione
+   centrati maiuscoli con tracking, piatti con nome+descrizione a sx
+   e prezzo a dx, blocco degustazioni in card, voci di servizio
+   raggruppate in fondo).
+============================================================ #}
+
+{% block content %}
+
+  <div class="menu-cover">
+    <h1 class="cover-title">OSTERIA TRE GOBBI</h1>
+    <div class="cover-divider"></div>
+    <h2 class="cover-edition">{{ edition.nome }}</h2>
+    {% if edition.data_inizio or edition.data_fine %}
+      <p class="cover-dates">
+        {% if edition.data_inizio %}{{ edition.data_inizio }}{% endif %}
+        {% if edition.data_fine %} → {{ edition.data_fine }}{% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+  {% for sez_key, sez_label in SEZIONI_ORDER %}
+    {% set items = sezioni.get(sez_key, []) %}
+    {% if items and sez_key not in ('servizio', 'bambini') %}
+      <section class="menu-section">
+        <h2 class="section-title">{{ sez_label }}</h2>
+        <div class="section-items">
+          {% for p in items %}
+            {% set titolo = p.titolo_override or p.recipe_menu_name or '(senza titolo)' %}
+            {% set desc   = p.descrizione_override or p.recipe_menu_description %}
+            <div class="dish">
+              <div class="dish-content">
+                <div class="dish-title">{{ titolo }}</div>
+                {% if desc %}<div class="dish-desc">{{ desc }}</div>{% endif %}
+                {% if p.allergeni_dichiarati %}
+                  <div class="dish-allergens">Allergeni: {{ p.allergeni_dichiarati }}</div>
+                {% endif %}
+              </div>
+              <div class="dish-price">
+                {% if p.prezzo_label %}{{ p.prezzo_label }}
+                {% elif p.prezzo_singolo is not none %}{{ p.prezzo_singolo|round(0)|int if p.prezzo_singolo == p.prezzo_singolo|round(0)|int else p.prezzo_singolo }}
+                {% elif p.prezzo_min is not none and p.prezzo_max is not none %}da {{ p.prezzo_min|int }} a {{ p.prezzo_max|int }}
+                {% elif p.prezzo_piccolo is not none and p.prezzo_grande is not none %}{{ p.prezzo_piccolo|int }}/{{ p.prezzo_grande|int }}
+                {% else %}—{% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  {% endfor %}
+
+  {% if tasting_paths %}
+    <div class="page-break"></div>
+    {% for tp in tasting_paths %}
+      <section class="tasting-card">
+        <div class="tasting-eyebrow">DEGUSTAZIONE</div>
+        <h2 class="tasting-name">"{{ tp.nome }}"</h2>
+        {% if tp.sottotitolo %}<p class="tasting-sub">{{ tp.sottotitolo }}</p>{% endif %}
+        <ol class="tasting-steps">
+          {% for s in tp.steps %}
+            <li>{{ s.publication_label or s.titolo_libero or '—' }}</li>
+          {% endfor %}
+        </ol>
+        <div class="tasting-price">{{ tp.prezzo_persona|int }} €</div>
+        {% if tp.note %}<p class="tasting-note">{{ tp.note }}</p>{% endif %}
+      </section>
+    {% endfor %}
+  {% endif %}
+
+  {% set bambini = sezioni.get('bambini', []) %}
+  {% set servizio = sezioni.get('servizio', []) %}
+  {% if bambini or servizio %}
+    <div class="footer-grid">
+      {% if bambini %}
+        <div class="footer-block">
+          <h3 class="footer-title">MENÙ BAMBINI</h3>
+          <p class="footer-meta">Disponibile su richiesta.</p>
+          {% for p in bambini %}
+            <div class="footer-line">
+              <span>{{ p.titolo_override }}</span>
+              <span class="footer-price">{{ p.prezzo_singolo|int }} €</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% if servizio %}
+        <div class="footer-block">
+          <h3 class="footer-title">SERVIZIO</h3>
+          {% for p in servizio %}
+            <div class="footer-line">
+              <span>{{ p.titolo_override }}</span>
+              <span class="footer-price">{{ p.prezzo_singolo|int }} €</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <p class="legal-line">
+    Il nostro personale è preparato a rispondervi su allergeni ed intolleranze.
+  </p>
+
+{% endblock %}
+
+{% block after_content %}{% endblock %}
+
+{# CSS specifico passato dal router come css_extra. Lo includo qui sotto come
+   commento per riferimento — la fonte vera è app/routers/menu_carta_router.py
+   funzione _menu_carta_css(). Tenere allineati. #}
+{# CSS_REFERENCE_START
+  /* ============ MENU CARTA — layout ============ */
+  .menu-cover {
+    text-align: center;
+    padding: 60px 0 30px;
+    margin-bottom: 30px;
+  }
+  .cover-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 32pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #111111;
+    margin: 0;
+  }
+  .cover-divider {
+    width: 80px;
+    height: 3px;
+    background: #E8402B;
+    margin: 16px auto 18px;
+  }
+  .cover-edition {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18pt;
+    font-weight: 400;
+    font-style: italic;
+    color: #555;
+    margin: 0;
+  }
+  .cover-dates {
+    font-size: 9pt;
+    color: #999;
+    margin-top: 6px;
+  }
+
+  .menu-section {
+    page-break-inside: avoid;
+    margin-bottom: 30px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18pt;
+    font-weight: 400;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.4em;
+    color: #111111;
+    margin: 0 0 18px;
+    padding-bottom: 6px;
+  }
+  .section-items {
+    margin: 0;
+  }
+  .dish {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0eeea;
+    page-break-inside: avoid;
+  }
+  .dish:last-child { border-bottom: none; }
+  .dish-content { flex: 1; min-width: 0; }
+  .dish-title {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 9.5pt;
+    color: #111111;
+  }
+  .dish-desc {
+    font-size: 8.5pt;
+    color: #555;
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+  .dish-allergens {
+    font-size: 7pt;
+    color: #999;
+    margin-top: 2px;
+    font-style: italic;
+  }
+  .dish-price {
+    font-weight: 700;
+    font-size: 11pt;
+    color: #111111;
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 70px;
+  }
+
+  .tasting-card {
+    border: 2px solid #2E7BE8;
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin: 24px 0;
+    page-break-inside: avoid;
+  }
+  .tasting-eyebrow {
+    font-size: 8pt;
+    letter-spacing: 0.25em;
+    color: #2E7BE8;
+    font-weight: 700;
+    text-align: center;
+  }
+  .tasting-name {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 22pt;
+    font-style: italic;
+    text-align: center;
+    color: #111111;
+    margin: 4px 0 12px;
+  }
+  .tasting-sub {
+    font-size: 8.5pt;
+    color: #555;
+    text-align: center;
+    margin: 0 auto 14px;
+    max-width: 360px;
+    line-height: 1.4;
+  }
+  .tasting-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    text-align: center;
+  }
+  .tasting-steps li {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: #111111;
+    padding: 4px 0;
+  }
+  .tasting-price {
+    font-size: 26pt;
+    font-weight: 700;
+    text-align: center;
+    color: #2E7BE8;
+    margin: 8px 0;
+  }
+  .tasting-note {
+    font-size: 7.5pt;
+    color: #888;
+    text-align: center;
+    font-style: italic;
+    margin: 8px 0 0;
+    line-height: 1.4;
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e0ddd8;
+    page-break-inside: avoid;
+  }
+  .footer-title {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    color: #111111;
+    margin: 0 0 8px;
+  }
+  .footer-meta {
+    font-size: 8pt;
+    color: #999;
+    margin: 0 0 8px;
+    font-style: italic;
+  }
+  .footer-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9pt;
+    padding: 3px 0;
+  }
+  .footer-price {
+    font-weight: 700;
+  }
+
+  .legal-line {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 8pt;
+    color: #888;
+    font-style: italic;
+    border-top: 1px solid #f0eeea;
+    padding-top: 12px;
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+   CSS_REFERENCE_END #}
