@@ -1,10 +1,14 @@
-// @version: v3.3-mattoni — M.I primitives (Btn) su azioni filtri + bulk assegna categoria (tocco minimo, file >1500 righe)
+// @version: v4.0-tabs — Redesign sessione 56 (2026-04-25):
+//   - FornitoreDetailView passa al pattern testa fissa soft + 4 KPI (Totale spesa /
+//     Fatture pagate / Media fattura / Da pagare) + 3 tab (Anagrafica/Fatture/Prodotti).
+//   - Anti-matrioska: lo state della fattura aperta da dentro un fornitore
+//     (`openFatturaFromForn`) sale al container; il container monta FattureDettaglio
+//     a tutta pagina con prop `breadcrumb` (Fornitori › Nome › FT numero) cliccabile.
+//   - segnaPagataManuale e handleFatturaUpdatedInline spostati al container.
 // Elenco fornitori — Layout Cantina: Filtri SX + Lista/Dettaglio inline DX
 // v3.1: supporto deep-link ?piva=xxx per auto-aprire un fornitore specifico
 //       (usato dal bottone "Modifica anagrafica fornitore" in FattureDettaglio).
-// v3.2: FornitoreDetailView refactorato sul pattern SchedaVino/FattureDettaglio
-//       (sidebar colorata + SectionHeader). Sostituito FatturaInlineDetail con
-//       FattureDettaglio (unification: terzo target).
+// v3.2: FornitoreDetailView allineato a SchedaVino/FattureDettaglio (poi superato dal redesign v4.0).
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -36,6 +40,25 @@ function getFornitoreSidebar(isExcluded, nDaPagare) {
   if (nDaPagare > 0) return FORNITORE_SIDEBAR.IN_SOSPESO;
   return FORNITORE_SIDEBAR.ATTIVO;
 }
+
+// Palette "soft" per la testa fissa del nuovo layout (sessione 55, redesign).
+const FORNITORE_HEADER = {
+  ATTIVO:     { bg: "bg-gradient-to-b from-teal-50 to-white",  border: "border-teal-200",  accent: "border-l-teal-600",  badge: "bg-teal-100 text-teal-800 border-teal-200",       text: "text-teal-900" },
+  IN_SOSPESO: { bg: "bg-gradient-to-b from-amber-50 to-white", border: "border-amber-200", accent: "border-l-amber-600", badge: "bg-amber-100 text-amber-800 border-amber-200",    text: "text-amber-900" },
+  ESCLUSO:    { bg: "bg-gradient-to-b from-slate-50 to-white", border: "border-slate-200", accent: "border-l-slate-600", badge: "bg-slate-100 text-slate-700 border-slate-200",    text: "text-slate-900" },
+};
+function getFornitoreHeader(isExcluded, nDaPagare) {
+  if (isExcluded) return FORNITORE_HEADER.ESCLUSO;
+  if (nDaPagare > 0) return FORNITORE_HEADER.IN_SOSPESO;
+  return FORNITORE_HEADER.ATTIVO;
+}
+
+// Linguette del nuovo layout FornitoreDetailView (sessione 55).
+const TABS_FORN = [
+  { key: "anagrafica", label: "Anagrafica" },
+  { key: "fatture",    label: "Fatture" },
+  { key: "prodotti",   label: "Prodotti" },
+];
 
 // ── SectionHeader uniforme a FattureDettaglio/SchedaVino ──
 function SectionHeader({ title, children }) {
@@ -95,6 +118,10 @@ export default function FattureFornitoriElenco() {
   const [openKey, setOpenKey] = useState(null);      // piva || nome del fornitore aperto
   const [detailData, setDetailData] = useState(null); // { fatture, prodotti, stats, fornNome, fornPiva }
   const [detLoading, setDetLoading] = useState(false);
+  // Anti-matrioska: quando l'utente clicca una fattura dalla lista del
+  // fornitore, gestiamo l'id qui al container (non dentro FornitoreDetailView)
+  // e mostriamo FattureDettaglio a tutta pagina con breadcrumb.
+  const [openFatturaFromForn, setOpenFatturaFromForn] = useState(null);
 
   // ── Deep-link ?piva=xxx (da FattureDettaglio → "Modifica anagrafica") ──
   const [searchParams, setSearchParams] = useSearchParams();
@@ -304,6 +331,48 @@ export default function FattureFornitoriElenco() {
     } catch (_) {}
   };
 
+  // Ricarica solo le fatture del fornitore corrente (dopo segna-pagata).
+  const refreshFatture = async () => {
+    if (!openKey) return;
+    try {
+      const enc = encodeURIComponent(openKey);
+      const res = await apiFetch(`${FE}/fatture?fornitore_piva=${enc}&limit=10000`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetailData(prev => prev ? { ...prev, fatture: data.fatture || [] } : prev);
+      }
+    } catch (_) {}
+  };
+
+  // Segna fattura come pagata manualmente. Spostato qui dal FornitoreDetailView
+  // perche' il parent ora monta FattureDettaglio direttamente (anti-matrioska).
+  const segnaPagataManuale = async (fatturaId) => {
+    if (!window.confirm("Segnare questa fattura come pagata manualmente?\n(Metodo: Conto corrente)")) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/controllo-gestione/fattura/${fatturaId}/segna-pagata-manuale`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metodo_pagamento: "CONTO_CORRENTE" }),
+      });
+      const d = await res.json();
+      if (!d.ok) { alert(d.error || "Errore nel segnare come pagata"); return; }
+      await refreshFatture();
+      fetchAll();
+    } catch {
+      alert("Errore di rete");
+    }
+  };
+
+  // Sync di una riga fattura dentro detailData quando FattureDettaglio la
+  // aggiorna (es: nuova scadenza, IBAN override, modalita' pagamento).
+  const handleFatturaUpdatedInline = (f) => {
+    if (!f || !f.id) return;
+    setDetailData(prev => prev ? {
+      ...prev,
+      fatture: (prev.fatture || []).map(x => x.id === f.id ? { ...x, ...f } : x),
+    } : prev);
+  };
+
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
       <FattureNav current="fornitori" />
@@ -412,8 +481,37 @@ export default function FattureFornitoriElenco() {
 
           {loading ? (
             <div className="text-center py-20 text-neutral-400">Caricamento fornitori...</div>
+          ) : openKey && openFatturaFromForn ? (
+            /* Vista FATTURA con breadcrumb (anti-matrioska): FattureDettaglio
+               a tutta pagina, breadcrumb cliccabile in cima per tornare al
+               fornitore o alla lista fornitori. */
+            <div className="flex-1 overflow-auto p-3">
+              <FattureDettaglio
+                fatturaId={openFatturaFromForn}
+                inline={true}
+                onClose={() => setOpenFatturaFromForn(null)}
+                onSegnaPagata={segnaPagataManuale}
+                onFatturaUpdated={handleFatturaUpdatedInline}
+                breadcrumb={[
+                  {
+                    label: "Fornitori",
+                    onClick: () => { setOpenFatturaFromForn(null); setOpenKey(null); setDetailData(null); },
+                  },
+                  {
+                    label: `${detailData?.fornNome || "Fornitore"} (Fatture)`,
+                    onClick: () => setOpenFatturaFromForn(null),
+                  },
+                  {
+                    label: (() => {
+                      const f = (detailData?.fatture || []).find(x => x.id === openFatturaFromForn);
+                      return f ? `FT ${f.numero_fattura || `#${f.id}`}` : `Fattura #${openFatturaFromForn}`;
+                    })(),
+                  },
+                ]}
+              />
+            </div>
           ) : openKey && (detailData || detLoading) ? (
-            /* ═══════ VISTA DETTAGLIO INLINE ═══════ */
+            /* ═══════ VISTA DETTAGLIO FORNITORE ═══════ */
             <FornitoreDetailView
               data={detailData}
               setDetailData={setDetailData}
@@ -424,6 +522,7 @@ export default function FattureFornitoriElenco() {
               onRefresh={refreshDetail}
               onExclude={() => { setOpenKey(null); setDetailData(null); fetchAll(); }}
               onReloadList={fetchAll}
+              onOpenFattura={(id) => setOpenFatturaFromForn(id)}
             />
           ) : filtered.length === 0 ? (
             <div className="text-center py-20 text-neutral-400">
@@ -568,14 +667,13 @@ export default function FattureFornitoriElenco() {
 // ═══════════════════════════════════════════════════════
 // COMPONENTE DETTAGLIO FORNITORE (inline)
 // ═══════════════════════════════════════════════════════
-function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey, onClose, onRefresh, onReloadList }) {
-  const [tab, setTab] = useState("fatture"); // "fatture" | "prodotti"
+function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey, onClose, onRefresh, onReloadList, onOpenFattura }) {
+  // Tab attiva: ora 3 tab (anagrafica, fatture, prodotti). Default "fatture"
+  // come prima (riapertura dopo click su un fornitore dalla lista).
+  const [tab, setTab] = useState("fatture");
 
-  // ── Dettaglio fattura inline ──
-  const [openFatturaId, setOpenFatturaId] = useState(null);
-  // fatturaDetail/fatturaDetLoading non servono più: FattureDettaglio gestisce
-  // il proprio fetch. Manteniamo solo openFatturaId per decidere se mostrare
-  // la lista o il dettaglio inline.
+  // Nota: openFatturaId e' stato rimosso — l'apertura di una fattura e'
+  // gestita dal container tramite onOpenFattura(id) per evitare nesting.
   const [fattSort, setFattSort] = useState({ field: "data_fattura", dir: "desc" });
 
   // ── Selezione fatture per pagamento ──
@@ -622,7 +720,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
     setSelected(new Set());
     setBulkCatId(""); setBulkSubId("");
     setCatGenericaId(""); setSubGenericaId("");
-    setOpenFatturaId(null); setSelFatt(new Set());
+    setSelFatt(new Set());
     setPagMp(""); setPagGiorni(""); setPagNote(""); setPagPreset(""); setPagSaved(false); setPagAutoDetected(null); setPagHasManual(false);
     setLocalExcl(false);
   }, [openKey]);
@@ -786,41 +884,16 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
     else setSelFatt(new Set(nonPagate.map(f => f.id)));
   };
 
-  // ── Apri / chiudi dettaglio fattura inline ──
-  // FattureDettaglio gestisce il proprio fetch; qui serve solo il toggle dell'id.
+  // ── Apri una fattura — delega al container (anti-matrioska) ──
+  // Il container gestisce lo state openFatturaFromForn e mostra FattureDettaglio
+  // a tutta pagina con breadcrumb. Qui ci limitiamo a chiamare il callback.
   const openFattura = (id) => {
-    if (openFatturaId === id) { setOpenFatturaId(null); return; }
-    setOpenFatturaId(id);
+    if (onOpenFattura) onOpenFattura(id);
   };
 
-  // ── Segna pagata manuale (CG) ──
-  // Usata come prop onSegnaPagata di FattureDettaglio: il componente interno
-  // esegue poi il proprio refetch per aggiornare la sidebar colorata.
-  const segnaPagataManuale = async (id) => {
-    if (!window.confirm("Segnare questa fattura come pagata (in attesa di riconciliazione banca)?")) return;
-    try {
-      const res = await apiFetch(`${API_BASE}/controllo-gestione/fattura/${id}/segna-pagata-manuale`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metodo_pagamento: "CONTO_CORRENTE" }),
-      });
-      const d = await res.json();
-      if (!d.ok) { alert(d.error || "Errore"); return; }
-      // Aggiorna lista fatture del fornitore e KPI sidebar
-      await reloadFatture();
-      if (onReloadList) onReloadList();
-    } catch { alert("Errore di rete"); }
-  };
-
-  // Sync della riga fattura modificata dentro il componente FattureDettaglio
-  // (scadenza, IBAN, modalità) — aggiorna la lista locale per coerenza badge.
-  const handleFatturaUpdatedInline = (f) => {
-    if (!f || !f.id) return;
-    setDetailData(prev => prev ? {
-      ...prev,
-      fatture: (prev.fatture || []).map(x => x.id === f.id ? { ...x, ...f } : x),
-    } : prev);
-  };
+  // Nota: segnaPagataManuale e handleFatturaUpdatedInline sono stati spostati
+  // al container (FattureFornitoriElenco), perche' FattureDettaglio e' ora
+  // montato direttamente dal parent e non piu' inline qui.
 
   if (loading) return <div className="text-center py-20 text-neutral-400">Caricamento dettaglio...</div>;
   if (!data) return <div className="text-center py-20 text-neutral-400">Errore caricamento</div>;
@@ -968,12 +1041,15 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
         : "border-transparent text-neutral-500 hover:text-neutral-700"
     }`;
 
-  // ── Sidebar color + tag stato ──
+  // ── Header palette (soft) + tag stato ──
+  // sbc (palette scura) e' mantenuta solo per retrocompatibilita' su eventuali
+  // riferimenti residui — il nuovo layout usa hdr (palette soft).
   const sbc = getFornitoreSidebar(isExcluded, nDaPagare);
+  const hdr = getFornitoreHeader(isExcluded, nDaPagare);
   const statoLabel = isExcluded ? "ESCLUSO" : nDaPagare > 0 ? "IN SOSPESO" : "ATTIVO";
 
   return (
-    <div className="h-full flex flex-col bg-neutral-50">
+    <div className={`h-full flex flex-col bg-white border-l-4 ${hdr.accent}`}>
 
       {/* ══════ TOP BAR (back + proforma + stato esclusione) ══════ */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-200 bg-white flex-shrink-0">
@@ -997,144 +1073,108 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
         </div>
       </div>
 
-      {/* ══════ LAYOUT SIDEBAR + MAIN ══════ */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[300px_1fr] overflow-hidden min-h-0">
-
-        {/* ═══════════ SIDEBAR COLORATA ═══════════ */}
-        <div className={`${sbc.bg} text-white flex flex-col h-full overflow-hidden`}>
-
-          {/* Header fisso */}
-          <div className="p-4 pb-3 flex-shrink-0">
-            <p className="text-[9px] opacity-60 uppercase tracking-wider mb-0.5">Fornitore</p>
-            <h2 className="text-base font-bold leading-tight font-playfair">
-              {fornNome || "—"}
-            </h2>
-            {fornPiva && (
-              <p className="text-[10px] opacity-70 mt-0.5 font-mono">P.IVA {fornPiva}</p>
-            )}
-            {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && (
-              <p className="text-[10px] opacity-60 font-mono">C.F. {anag.fornitore_cf}</p>
-            )}
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className="inline-flex items-center bg-white/20 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+      {/* ═══════════ TESTA: identita + 4 KPI ═══════════ */}
+      <div className={`${hdr.bg} border-b ${hdr.border} px-4 md:px-5 py-3 md:py-4 flex-shrink-0`}>
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="min-w-0 flex-1">
+            {/* Badge stato + categorie */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${hdr.badge}`}>
                 {statoLabel}
               </span>
               {totFatture > 0 && (
-                <span className="inline-flex items-center bg-white/10 text-[10px] px-2 py-0.5 rounded tabular-nums">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-neutral-100 text-neutral-700 border-neutral-200">
                   {totFatture} fatt.
                 </span>
               )}
+              {nDaPagare > 0 && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-amber-100 text-amber-800 border-amber-200">
+                  {nDaPagare} da pagare
+                </span>
+              )}
             </div>
-          </div>
-
-          {/* Contenuto scrollabile */}
-          <div className="flex-1 overflow-y-auto px-4 pb-4">
-
-            {/* Stat principale — Totale spesa */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className={`${sbc.accent} rounded-lg p-2.5 text-center col-span-2`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Totale spesa</div>
-                <div className="text-2xl font-bold font-playfair tabular-nums">
-                  € {fmt(totSpesa)}
-                </div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Imponibile</div>
-                <div className="text-sm font-bold tabular-nums">
-                  € {fmt(totImponibile)}
-                </div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Media fatt.</div>
-                <div className="text-sm font-bold tabular-nums">
-                  € {fmt(totFatture > 0 ? totSpesa / totFatture : 0)}
-                </div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Prodotti</div>
-                <div className="text-sm font-bold tabular-nums">{nProdotti}</div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Pagate</div>
-                <div className="text-sm font-bold tabular-nums">{nPagate}/{totFatture}</div>
-              </div>
-            </div>
-
-            {/* Box "Da pagare" evidenziato se ci sono scadute */}
-            {nDaPagare > 0 && (
-              <div className="mb-3 rounded-lg p-2.5 bg-red-500/25 border border-red-300/40">
-                <div className="text-[9px] uppercase opacity-80 tracking-wider mb-0.5">⚠ Da pagare</div>
-                <div className="text-lg font-bold tabular-nums">€ {fmt(totDaPagare)}</div>
-                <div className="text-[10px] opacity-80">{nDaPagare} fatture aperte</div>
-              </div>
-            )}
-
-            {/* Info list */}
-            <ul className="text-[11px] space-y-0 mb-3">
-              {[
-                ["Primo acquisto", primoAcquisto],
-                ["Ultimo acquisto", ultimoAcquisto],
-              ].filter(([, v]) => v).map(([label, val]) => (
-                <li key={label} className="flex justify-between py-1.5 border-b border-white/10 gap-2">
-                  <span className="opacity-60 flex-shrink-0">{label}</span>
-                  <span className="font-medium text-right">{val}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* Sede anagrafica */}
-            {(anag.fornitore_indirizzo || anag.fornitore_citta) && (
-              <div className="mb-3 pb-2 border-b border-white/10">
-                <div className="text-[9px] opacity-60 uppercase tracking-wider mb-1">Sede</div>
-                <div className="text-[10px] space-y-0.5">
-                  {anag.fornitore_indirizzo && <div className="font-medium">{anag.fornitore_indirizzo}</div>}
-                  {(anag.fornitore_cap || anag.fornitore_citta) && (
-                    <div className="opacity-80">
-                      {[anag.fornitore_cap, anag.fornitore_citta, anag.fornitore_provincia ? `(${anag.fornitore_provincia})` : null]
-                        .filter(Boolean).join(" ")}
-                    </div>
-                  )}
-                  {anag.fornitore_nazione && anag.fornitore_nazione !== "IT" && (
-                    <div className="opacity-60">{anag.fornitore_nazione}</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Stats breakdown categorie (compatto) */}
-            {stats && stats.length > 0 && (
-              <div className="mb-3 pb-2 border-b border-white/10">
-                <div className="text-[9px] opacity-60 uppercase tracking-wider mb-1">Distribuzione categorie</div>
-                <div className="flex flex-wrap gap-1">
-                  {stats.slice(0, 6).map((s, i) => (
-                    <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 border border-white/15 leading-tight">
-                      {s.categoria === "(Non categorizzato)" ? "N/A" : s.categoria}
-                      <span className="ml-1 font-semibold">
-                        {s.totale_spesa?.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}€
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ID tecnico */}
-            <div className="text-[9px] opacity-40 mt-2">
-              ID: {fornPiva || fornNome}
-            </div>
+            {/* Titolo: ragione sociale */}
+            <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
+              {fornNome || "—"}
+            </h2>
+            {/* Sottotitolo: piva, cf, sede */}
+            <p className="text-xs text-neutral-600 mt-0.5 flex flex-wrap gap-x-1.5">
+              {fornPiva && <span className="font-mono">P.IVA {fornPiva}</span>}
+              {anag.fornitore_cf && anag.fornitore_cf !== fornPiva && <><span>·</span><span className="font-mono">C.F. {anag.fornitore_cf}</span></>}
+              {(anag.fornitore_citta || anag.fornitore_indirizzo) && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {[anag.fornitore_indirizzo, anag.fornitore_citta, anag.fornitore_provincia ? `(${anag.fornitore_provincia})` : null]
+                      .filter(Boolean).join(", ")}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
         </div>
 
-        {/* ═══════════ MAIN CONTENT ═══════════ */}
-        <div className="bg-white overflow-y-auto min-w-0">
+        {/* 4 KPI sempre visibili — 2x2 portrait, 1x4 da md */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3">
+          <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+            <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Totale spesa</div>
+            <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">€ {fmt(totSpesa)}</div>
+          </div>
+          <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+            <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Fatture</div>
+            <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">
+              {nPagate}<span className="text-xs text-neutral-500 font-normal"> / {totFatture}</span>
+            </div>
+          </div>
+          <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+            <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Media fatt.</div>
+            <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">€ {fmt(totFatture > 0 ? totSpesa / totFatture : 0)}</div>
+          </div>
+          <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+            <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Da pagare</div>
+            <div className={`text-lg md:text-xl font-bold tabular-nums ${nDaPagare > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+              {nDaPagare > 0 ? `€ ${fmt(totDaPagare)}` : "—"}
+            </div>
+          </div>
+        </div>
+      </div>
 
-          {/* Banner esclusione */}
+      {/* ═══════════ TAB BAR ═══════════ */}
+      <div className="flex gap-1 px-2 md:px-4 border-b border-neutral-200 bg-white overflow-x-auto flex-shrink-0">
+        {TABS_FORN.map(t => {
+          const active = tab === t.key;
+          const c = t.key === "fatture" ? totFatture
+                  : t.key === "prodotti" ? nProdotti
+                  : null;
+          return (
+            <button key={t.key} type="button" onClick={() => setTab(t.key)}
+              className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-medium transition whitespace-nowrap flex-shrink-0 ${
+                active
+                  ? "text-neutral-900 border-b-2 border-teal-600 -mb-px"
+                  : "text-neutral-500 hover:text-neutral-800"
+              }`}>
+              {t.label}
+              {c != null && c > 0 && (
+                <span className="ml-1.5 text-[10px] font-normal text-neutral-400">{c}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ═══════════ TAB CONTENT ═══════════ */}
+      <div className="flex-1 overflow-y-auto bg-white min-w-0">
+
+          {/* Banner esclusione (sempre visibile su qualsiasi tab) */}
           {isExcluded && (
             <div className="mx-5 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
               Questo fornitore è escluso dalle statistiche acquisti (dashboard, KPI, grafici). Le categorie restano editabili.
             </div>
           )}
 
+          {/* ═══════ TAB ANAGRAFICA ═══════ */}
+          {tab === "anagrafica" && (
+          <>
           {/* ── CATEGORIA GENERICA ── */}
           <div className="border-b border-neutral-200">
             <SectionHeader title="Categoria generica fornitore" />
@@ -1255,47 +1295,14 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
               </div>
             </div>
           )}
-
-          {/* ── TABS ── */}
-          <div className="border-b border-neutral-200 bg-neutral-50 px-3 flex-shrink-0">
-            <div className="flex gap-1">
-              <button className={tabCls("fatture")} onClick={() => setTab("fatture")}>
-                Fatture ({totFatture})
-              </button>
-              <button className={tabCls("prodotti")} onClick={() => setTab("prodotti")}>
-                Prodotti ({nProdotti})
-                {nProdotti > 0 && nAssegnati < nProdotti && (
-                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-bold">
-                    {nProdotti - nAssegnati}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
+          </>
+          )}
+          {/* ═══════ /TAB ANAGRAFICA ═══════ */}
 
           {/* ═══════ TAB FATTURE ═══════ */}
           {tab === "fatture" && (
             fatture.length === 0 ? (
               <p className="text-neutral-400 text-sm py-8 text-center">Nessuna fattura trovata.</p>
-            ) : openFatturaId ? (
-              /* ── Dettaglio fattura inline via FattureDettaglio unificato ── */
-              <div className="p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <button
-                    onClick={() => setOpenFatturaId(null)}
-                    className="text-xs text-teal-700 hover:text-teal-900 font-medium transition">
-                    ← Torna alle fatture del fornitore
-                  </button>
-                  <span className="text-[10px] text-neutral-400">ID: {openFatturaId}</span>
-                </div>
-                <FattureDettaglio
-                  fatturaId={openFatturaId}
-                  inline={true}
-                  onClose={() => setOpenFatturaId(null)}
-                  onSegnaPagata={segnaPagataManuale}
-                  onFatturaUpdated={handleFatturaUpdatedInline}
-                />
-              </div>
             ) : (
           <div className="border border-neutral-200 rounded-xl overflow-hidden bg-white shadow-sm">
             {/* Feedback messaggio */}
@@ -1360,7 +1367,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
                     <tr key={f.id}
                       onClick={() => openFattura(f.id)}
                       className={`border-t border-neutral-100 cursor-pointer transition ${
-                        selFatt.has(f.id) ? "bg-sky-50" : openFatturaId === f.id ? "bg-teal-50" : "hover:bg-teal-50/30"
+                        selFatt.has(f.id) ? "bg-sky-50" : "hover:bg-teal-50/30"
                       }`}>
                       <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selFatt.has(f.id)}
@@ -1524,8 +1531,7 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
           )}
         </div>
       )}
-        </div>{/* /main content */}
-      </div>{/* /grid sidebar+main */}
+        </div>{/* /tab content */}
     </div>
   );
 }

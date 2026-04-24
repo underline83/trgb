@@ -3,6 +3,50 @@
 
 ---
 
+## 2026-04-25 (sessione 56) — Fatture & Fornitori: redesign testa+tab + breadcrumb anti-matrioska
+
+### Problema risolto
+Quando dal dettaglio fornitore si apriva una fattura, `FattureDettaglio` veniva montato `inline` dentro `FornitoreDetailView` → due sidebar colorate sovrapposte, due barre "← Torna…", layout matrioska. Risolto portando lo state al container e introducendo un breadcrumb 3-livelli.
+
+### Modifiche FattureDettaglio.jsx
+- Nuova palette `FATTURA_HEADER` (soft) + `getFatturaHeader`. Costante `TABS = [riepilogo, pagamenti, righe]` + state `activeTab` con default `"riepilogo"`. Helper `daysFromToday()` per il calcolo "Da pagare" in giorni.
+- Rimossa sidebar scura. Nuova testa colorata fissa con badge stato (FT, stato uscita, rateizzata, batch, riconciliata banca), titolo (fornitore_nome), sottotitolo, **4 KPI** (Totale, Imponibile, IVA, Da pagare colorato per fascia).
+- Tab `Riepilogo` (nuovo): scadenza/MP/IBAN read-only, info pagamento effettivo, info meta, link a "Modifica anagrafica fornitore".
+- Tab `Pagamenti`: la sezione Pagamenti & Scadenze pre-esistente (3 form editable + banner rateizzata).
+- Tab `Righe`: la tabella righe pre-esistente.
+- Footer sticky con Segna pagata / Modifica anagrafica fornitore / Chiudi.
+- Nuova prop opzionale `breadcrumb` (`Array<{label, onClick?}>`): se presente sostituisce la barra "← Torna" con un breadcrumb 3-livelli cliccabile.
+- Tutte le prop esistenti preservate: `fatturaId, inline, onClose, onFatturaUpdated, onSegnaPagata, ref, hasPendingChanges`. Nessuno dei 4 call site (App.jsx, FattureElenco, FattureFornitoriElenco, ControlloGestioneUscite) si rompe.
+- Dirty-check al cambio tab (chiede conferma se editingScadenza/Iban/Mp).
+
+### Modifiche FattureFornitoriElenco.jsx — container
+- Nuovo state `openFatturaFromForn` (id fattura aperta da dentro un fornitore).
+- Helper `refreshFatture()` per ricaricare solo le fatture del fornitore corrente.
+- `segnaPagataManuale(id)` e `handleFatturaUpdatedInline(f)` spostati qui (erano dentro FornitoreDetailView).
+- Render condizionale: nuovo ramo `openKey && openFatturaFromForn` che monta `<FattureDettaglio breadcrumb=[...] inline />` a tutta pagina con breadcrumb 3-livelli (Fornitori › Nome (Fatture) › FT numero), cliccabile.
+
+### Modifiche FornitoreDetailView (dentro FattureFornitoriElenco.jsx)
+- Nuova palette `FORNITORE_HEADER` (soft, teal/amber/slate) + `getFornitoreHeader`. Costante `TABS_FORN = [anagrafica, fatture, prodotti]`.
+- Rimossa sidebar scura. Nuova testa colorata fissa con badge stato (ATTIVO/IN SOSPESO/ESCLUSO), titolo (fornNome), sottotitolo (P.IVA, C.F., sede), **4 KPI** (Totale spesa, Fatture pagate/totali, Media fatt., Da pagare).
+- Tab `Anagrafica` (nuovo, era nel main content unificato): Categoria generica + Condizioni di pagamento (entrambe spostate qui).
+- Tab `Fatture`: la lista esistente. Click su riga → `onOpenFattura(id)` (callback al container) invece dell'ex `setOpenFatturaId(id)` interno.
+- Tab `Prodotti`: la lista esistente.
+- **Rimosso completamente** lo state `openFatturaId` interno e il blocco `openFatturaId ? <FattureDettaglio inline/> : <lista>`.
+- Rimosse `segnaPagataManuale` e `handleFatturaUpdatedInline` locali (spostate al container).
+- Nuova prop accettata: `onOpenFattura(id)`.
+
+### Responsive iPad
+- KPI `grid-cols-2 md:grid-cols-4`. Tab bar e breadcrumb `overflow-x-auto`. Tabelle Righe/Fatture/Prodotti con wrapper `overflow-x-auto`. Footer azioni con `<Btn size="md">` 44pt.
+
+### Verifica
+- `esbuild` su FattureDettaglio.jsx, FattureFornitoriElenco.jsx, FattureElenco.jsx, ControlloGestioneUscite.jsx, SchedaVino.jsx → tutti OK.
+
+### Note
+- `ClientiScheda` e la vista uscita di `ControlloGestioneUscite` (lato sinistro split) hanno copiato il vecchio pattern visivamente ma non importano i due componenti refactorati → non si rompono. Restano col vecchio stile in attesa del loro turno.
+- Versione modulo Acquisti: 2.8 → 2.9.
+
+---
+
 ## 2026-04-24 (sessione 55) — SchedaVino: redesign a testa fissa + linguette
 
 ### Struttura

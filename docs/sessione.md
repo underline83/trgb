@@ -1,8 +1,84 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-24 (sessione 55 — SchedaVino redesign: testa fissa con 4 KPI + tab (anagrafica/giacenze/movimenti/prezzi/statistiche/note) al posto del muro verticale)
+**Ultimo aggiornamento:** 2026-04-25 (sessione 56 — Fatture+Fornitori redesign: testa fissa + linguette su FattureDettaglio e FornitoreDetailView, breadcrumb anti-matrioska per apertura fattura da dentro un fornitore)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 56 (2026-04-25) — FATTURE+FORNITORI: testa fissa + linguette + breadcrumb anti-matrioska
+
+### Problema
+Il dettaglio fattura (`FattureDettaglio`) e il dettaglio fornitore (`FornitoreDetailView` dentro `FattureFornitoriElenco`) erano al vecchio layout sidebar scura + main, gemello del vecchio SchedaVino. Inoltre — problema vero — quando dal tab Fatture di un fornitore si cliccava una fattura, `FattureDettaglio` veniva montato INLINE dentro `FornitoreDetailView` con `inline={true}` → due sidebar colorate sovrapposte, due barre "← Torna…", layout scatola-dentro-scatola ("matrioska").
+
+### Soluzione adottata (Strada B = redesign completo, scelta da Marco)
+1. Refactor visivo di entrambe le schede al pattern **testa fissa colorata + linguette**, gemello di SchedaVino.
+2. Anti-matrioska: l'apertura della fattura da dentro un fornitore non e' piu' nested. Lo stato `openFatturaFromForn` vive nel container `FattureFornitoriElenco` (non piu' in `FornitoreDetailView`), e quando e' valorizzato il container monta `FattureDettaglio` a tutta pagina passando una prop `breadcrumb`. Il breadcrumb sostituisce la barra "← Torna…" e mostra `Fornitori › {NomeFornitore} (Fatture) › FT {numero}` cliccabile.
+
+### FattureDettaglio.jsx — refactor
+- Aggiunta palette `FATTURA_HEADER` (soft) accanto a `FATTURA_SIDEBAR` esistente. Helper `getFatturaHeader(stato, isRateizzata)`.
+- Aggiunta costante `TABS = [riepilogo, pagamenti, righe]` + state `activeTab` (default `"riepilogo"`).
+- Aggiunto handler `handleChangeTab` con dirty-check (chiede conferma se editingScadenza/Iban/Mp e annulla in caso di cambio forzato).
+- Aggiunta nuova prop opzionale **`breadcrumb`** (`Array<{label, onClick?}>`). Se passata, sostituisce la classica chiusura/return e si rende come barra di navigazione cliccabile in cima.
+- Rimossa sidebar scura. Nuova testa colorata con: badge (FT numero, stato uscita, rateizzata, batch, riconciliata banca), titolo (fornitore_nome), sottotitolo (P.IVA, data fattura, scadenza), 4 KPI (Totale, Imponibile, IVA, "Da pagare" con calcolo giorni mancanti via helper `daysFromToday()`).
+- Tab `Riepilogo`: nuovo, contiene scadenza + modalita' + IBAN (read-only), info pagamento effettivo, info meta (importato/ID/batch), link a "Modifica anagrafica fornitore" (deep-link `?piva=xxx`).
+- Tab `Pagamenti`: contiene la sezione pre-esistente "Pagamenti & Scadenze" con i 3 form editable (scadenza/modalita'/IBAN) e banner rateizzata con link spesa fissa.
+- Tab `Righe`: contiene la tabella righe pre-esistente (con tfoot totale e overflow-x-auto su portrait).
+- Footer sticky con: `Segna pagata` (se `onSegnaPagata` & non pagata & non rateizzata), `Modifica anagrafica fornitore` (se P.IVA), `Chiudi` (se `onClose`).
+- Tutte le prop esistenti (`fatturaId, inline, onClose, onFatturaUpdated, onSegnaPagata, ref, hasPendingChanges`) sono **preservate** — nessuno dei 4 call site (App.jsx route standalone, FattureElenco, FattureFornitoriElenco, ControlloGestioneUscite) si rompe.
+
+### FornitoreDetailView (dentro FattureFornitoriElenco.jsx) — refactor
+- Aggiunta palette `FORNITORE_HEADER` (soft, teal/amber/slate) + helper `getFornitoreHeader`. Costante `TABS_FORN = [anagrafica, fatture, prodotti]` (3 tab invece di 2).
+- Rimossa sidebar scura. Nuova testa colorata con: badge stato (ATTIVO/IN SOSPESO/ESCLUSO + N fatt./N da pagare), titolo (fornNome), sottotitolo (P.IVA, C.F., sede), 4 KPI (Totale spesa, Fatture pagate/totali, Media fatt., Da pagare).
+- Tab `Anagrafica`: contiene **Categoria generica fornitore** (select cat./sottocat. + breakdown stats) e **Condizioni di pagamento** (preset, modalita', giorni, note + auto-rilevamento) — entrambe spostate qui dal main content unificato.
+- Tab `Fatture`: la lista esistente, sort, selezione massiva, segna pagate/non pagate. Click su riga → `onOpenFattura(id)` (callback al container) invece dell'ex `setOpenFatturaId(id)` locale.
+- Tab `Prodotti`: la lista esistente con assegnazione categoria/sottocat e bulk assign.
+- **Rimosso completamente** lo state `openFatturaId` interno e il blocco `openFatturaId ? <FattureDettaglio inline/> : <lista>` — non c'e' piu' nesting.
+- Rimosse le funzioni locali `segnaPagataManuale` e `handleFatturaUpdatedInline` — spostate al container.
+- Aggiunta prop `onOpenFattura` alla signature.
+
+### FattureFornitoriElenco (container) — modifiche
+- Nuovo state `openFatturaFromForn` (id fattura aperta da dentro un fornitore).
+- Helper `refreshFatture()` (ricarica solo le fatture del fornitore corrente dopo un cambio).
+- Funzioni `segnaPagataManuale(id)` e `handleFatturaUpdatedInline(f)` portate qui dal `FornitoreDetailView` (ora passate come prop a `FattureDettaglio`).
+- Nuovo ramo nel render condizionale, prima del ramo fornitore: se `openKey && openFatturaFromForn` → render di `<FattureDettaglio breadcrumb=[...] inline />` con breadcrumb 3-livelli (Fornitori › Nome (Fatture) › FT numero) cliccabile.
+- Passa `onOpenFattura={(id) => setOpenFatturaFromForn(id)}` a `FornitoreDetailView`.
+
+### Anti-matrioska in pratica
+- Click su fornitore nella lista → vista fornitore (testa teal + tab anagrafica/fatture/prodotti).
+- Click su tab `Fatture` → lista fatture del fornitore.
+- Click su una riga fattura → `onOpenFattura(id)` → container setta `openFatturaFromForn` → vista fornitore SPARISCE, vista fattura PRENDE TUTTA LA PAGINA con breadcrumb ambra in cima.
+- Click su `Fornitori` nel breadcrumb → torna alla lista (reset openKey + openFatturaFromForn).
+- Click su `{NomeFornitore} (Fatture)` nel breadcrumb → torna a vista fornitore sul tab Fatture.
+- Una sola scheda di dettaglio aperta alla volta. Mai due sidebar.
+
+### Responsive iPad
+- KPI header `grid-cols-2 md:grid-cols-4` (2x2 su iPad portrait, 1x4 da landscape) in entrambe le schede.
+- Tab bar `overflow-x-auto` + `whitespace-nowrap` sulle linguette.
+- Breadcrumb `overflow-x-auto` per non strapparsi su portrait stretto.
+- Tabelle Righe / lista fatture / lista prodotti gia' avevano `overflow-x-auto` nei wrapper, mantenuto.
+- Bottoni del footer azione su `Btn size="md"` per touch target 44pt.
+
+### File toccati
+- `frontend/src/pages/admin/FattureDettaglio.jsx`
+- `frontend/src/pages/admin/FattureFornitoriElenco.jsx`
+
+### Verifica compilazione (esbuild)
+Tutti e 5 i file potenzialmente impattati passano: `FattureDettaglio.jsx`, `FattureFornitoriElenco.jsx`, `FattureElenco.jsx` (consumer), `ControlloGestioneUscite.jsx` (consumer), `SchedaVino.jsx` (gemello, non toccato).
+
+### Da verificare dopo push
+1. **Lista fatture** (`/acquisti/elenco`): click su una fattura → nuovo layout, tab e KPI funzionano.
+2. **Pagina standalone fattura** (`/acquisti/dettaglio/:id`): stesso layout, FattureNav sopra, back button.
+3. **Lista fornitori** (`/acquisti/fornitori`): click su un fornitore → nuovo layout fornitore.
+4. **Dentro un fornitore**, tab Fatture, click su una fattura → ATTENZIONE matrioska — la vista fornitore deve sparire e apparire SOLO la fattura con breadcrumb ambra in cima.
+5. **Breadcrumb cliccabile**: click sul nome fornitore → torna al fornitore tab Fatture; click su "Fornitori" → torna alla lista fornitori.
+6. **ControlloGestioneUscite** (split lista uscite + dettaglio fattura): la fattura aperta a destra ora ha la nuova UI testa+tab, ma niente breadcrumb (perche' il container non lo passa). Verificare che il flusso sia coerente.
+7. **Deep-link** `?piva=xxx` (cliccabile da `FattureDettaglio` con bottone "Modifica anagrafica fornitore"): apre il fornitore corrispondente. Preservato.
+8. **iPad portrait**: KPI 2x2, tab bar scrolla orizzontalmente, breadcrumb scrolla orizzontalmente.
+9. **Dirty-check**: in `FattureDettaglio` con scadenza/IBAN/MP in editing, cambiare tab → conferma; idem cambiando fornitore.
+
+### Cose lasciate aperte (deliberatamente)
+- **ClientiScheda** e **ControlloGestioneUscite (vista uscita lato sinistro)**: hanno copiato il vecchio pattern visivamente ma non importano `FattureDettaglio`/`FornitoreDetailView` come componenti. Restano col vecchio stile finche' non si refactorano anche loro. Da pianificare in futuro.
 
 ---
 

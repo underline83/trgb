@@ -1,8 +1,10 @@
-// @version: v2.3-mattoni — M.I primitives (Btn) su CTA Segna pagata + Torna (tocco minimo, file 798 righe con bottoni inline molto specifici)
-// Componente riutilizzabile: dettaglio fattura singola con sidebar colorata
-// + main content, layout uniformato a SchedaVino (stesso pattern estetico di
-// MagazzinoVini → SchedaVino). Usato sia come pagina standalone (route
-// /acquisti/dettaglio/:id) sia inline dentro ControlloGestioneUscite.
+// @version: v3.0-tabs — Redesign sessione 56 (2026-04-25): testa fissa colorata
+// soft + 4 KPI (Totale/Imponibile/IVA/Da pagare) + 3 tab (Riepilogo/Pagamenti/Righe)
+// al posto della vecchia sidebar scura. Aggiunta prop `breadcrumb` opzionale per
+// l'apertura via FattureFornitoriElenco senza nesting matrioska.
+// Componente riutilizzabile: dettaglio fattura singola. Usato come pagina
+// standalone (route /acquisti/dettaglio/:id) e inline dentro FattureElenco,
+// FattureFornitoriElenco (con breadcrumb), ControlloGestioneUscite.
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -66,6 +68,42 @@ function getFatturaSidebar(stato, isRateizzata) {
   return FATTURA_SIDEBAR[stato] || FATTURA_SIDEBAR.DEFAULT;
 }
 
+// Palette "soft" per la testa del nuovo layout a tab (sessione 55, redesign).
+// Affianca FATTURA_SIDEBAR (palette scura) ma e' il nuovo default.
+const FATTURA_HEADER = {
+  PAGATA:         { bg: "bg-gradient-to-b from-emerald-50 to-white", border: "border-emerald-200", accent: "border-l-emerald-600", badge: "bg-emerald-100 text-emerald-800 border-emerald-200", text: "text-emerald-900" },
+  PAGATA_MANUALE: { bg: "bg-gradient-to-b from-teal-50 to-white",    border: "border-teal-200",    accent: "border-l-teal-600",    badge: "bg-teal-100 text-teal-800 border-teal-200",       text: "text-teal-900" },
+  DA_PAGARE:      { bg: "bg-gradient-to-b from-amber-50 to-white",   border: "border-amber-200",   accent: "border-l-amber-600",   badge: "bg-amber-100 text-amber-800 border-amber-200",    text: "text-amber-900" },
+  SCADUTA:        { bg: "bg-gradient-to-b from-red-50 to-white",     border: "border-red-200",     accent: "border-l-red-600",     badge: "bg-red-100 text-red-800 border-red-200",          text: "text-red-900" },
+  PARZIALE:       { bg: "bg-gradient-to-b from-blue-50 to-white",    border: "border-blue-200",    accent: "border-l-blue-600",    badge: "bg-blue-100 text-blue-800 border-blue-200",       text: "text-blue-900" },
+  RATEIZZATA:     { bg: "bg-gradient-to-b from-purple-50 to-white",  border: "border-purple-200",  accent: "border-l-purple-600",  badge: "bg-purple-100 text-purple-800 border-purple-200", text: "text-purple-900" },
+  DEFAULT:        { bg: "bg-gradient-to-b from-slate-50 to-white",   border: "border-slate-200",   accent: "border-l-slate-600",   badge: "bg-slate-100 text-slate-700 border-slate-200",    text: "text-slate-900" },
+};
+
+function getFatturaHeader(stato, isRateizzata) {
+  if (isRateizzata) return FATTURA_HEADER.RATEIZZATA;
+  return FATTURA_HEADER[stato] || FATTURA_HEADER.DEFAULT;
+}
+
+// Linguette del nuovo layout a tab (sessione 55).
+const TABS = [
+  { key: "riepilogo",  label: "Riepilogo" },
+  { key: "pagamenti",  label: "Pagamenti" },
+  { key: "righe",      label: "Righe" },
+];
+
+// Calcolo dei giorni mancanti/trascorsi rispetto a una data ISO (YYYY-MM-DD).
+// Ritorna null se la data non e' valida.
+function daysFromToday(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
 // SectionHeader uniforme a SchedaVino
 function SectionHeader({ title, children }) {
   return (
@@ -92,7 +130,7 @@ function SectionHeader({ title, children }) {
  *     il componente esegue automaticamente refetch.
  */
 const FattureDettaglio = forwardRef(function FattureDettaglio(
-  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata } = {},
+  { fatturaId: fatturaIdProp, inline = false, onClose, onFatturaUpdated, onSegnaPagata, breadcrumb = null } = {},
   ref
 ) {
   const { id: idFromParams } = useParams();
@@ -114,6 +152,19 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const [draftMp, setDraftMp] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Tab attiva (sessione 55: layout testa fissa + linguette)
+  const [activeTab, setActiveTab] = useState("riepilogo");
+  const handleChangeTab = (newTab) => {
+    if (newTab === activeTab) return;
+    if (editingScadenza || editingIban || editingMp) {
+      if (!window.confirm("Hai modifiche non salvate. Vuoi davvero cambiare sezione?")) return;
+      setEditingScadenza(false);
+      setEditingIban(false);
+      setEditingMp(false);
+    }
+    setActiveTab(newTab);
+  };
 
   // Esponi hasPendingChanges al parent (pattern SchedaVino)
   useImperativeHandle(ref, () => ({
@@ -322,8 +373,31 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
   const sbc = getFatturaSidebar(statoUscita, isRateizzata);
 
   // ─────────────────────────────────────────────────────────────────────
-  // CORPO del dettaglio con layout sidebar + main (uniformato a SchedaVino)
+  // CORPO del dettaglio — layout testa fissa + linguette (sessione 55)
   // ─────────────────────────────────────────────────────────────────────
+  const hdr = getFatturaHeader(statoUscita, isRateizzata);
+
+  // "Giorni alla scadenza" per il KPI in testa: negativo = scaduta, 0 = oggi.
+  const gg = daysFromToday(scadenzaEff);
+  const ggLabel = fattura.pagato || statoUscita === "PAGATA" || statoUscita === "PAGATA_MANUALE"
+    ? "Pagata"
+    : isRateizzata
+      ? "Rateizzata"
+      : gg == null
+        ? "—"
+        : gg < 0
+          ? `scaduta ${Math.abs(gg)} gg`
+          : gg === 0
+            ? "oggi"
+            : `${gg} gg`;
+  const ggClass =
+    (fattura.pagato || statoUscita === "PAGATA" || statoUscita === "PAGATA_MANUALE") ? "text-emerald-700" :
+    isRateizzata                              ? "text-purple-700" :
+    gg == null                                ? "text-neutral-400" :
+    gg < 0                                    ? "text-red-700"    :
+    gg <= 7                                   ? "text-amber-700"  :
+                                                "text-neutral-900";
+
   const body = (
     <div className={wrapperClass}>
       {/* TOAST */}
@@ -335,138 +409,206 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]" style={gridHeight}>
+      <div className={`flex flex-col border-l-4 ${hdr.accent}`} style={gridHeight}>
 
-        {/* ═══════════ SIDEBAR ═══════════ */}
-        <div className={`${sbc.bg} text-white flex flex-col h-full`}>
-
-          {/* Header fisso */}
-          <div className="p-4 pb-3">
-            <p className="text-[9px] opacity-60 uppercase tracking-wider mb-0.5">Fornitore</p>
-            <h2 className="text-base font-bold leading-tight font-playfair">
-              {fattura.fornitore_nome || "—"}
-            </h2>
-            {fattura.fornitore_piva && (
-              <p className="text-[10px] opacity-70 mt-0.5 font-mono">P.IVA {fattura.fornitore_piva}</p>
-            )}
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className="inline-flex items-center bg-white/20 text-[10px] font-bold px-2 py-0.5 rounded font-mono">
-                FT {fattura.numero_fattura || `#${fattura.id}`}
-              </span>
-              {fattura.data_fattura && (
-                <span className="inline-flex items-center bg-white/10 text-[10px] px-2 py-0.5 rounded">
-                  {fattura.data_fattura}
-                </span>
-              )}
+        {/* ═══════════ BREADCRUMB (solo se passato dal parent — anti-matrioska) ═══════════ */}
+        {Array.isArray(breadcrumb) && breadcrumb.length > 0 && (
+          <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-b border-neutral-200 flex-shrink-0 overflow-x-auto">
+            <div className="flex items-center gap-1.5 text-xs min-w-0">
+              {breadcrumb.map((b, i) => {
+                const last = i === breadcrumb.length - 1;
+                return (
+                  <React.Fragment key={i}>
+                    {b.onClick && !last ? (
+                      <button type="button" onClick={b.onClick}
+                        className="px-2 py-1 rounded-md bg-white border border-neutral-300 hover:bg-neutral-50 transition whitespace-nowrap font-medium text-neutral-700">
+                        {b.label}
+                      </button>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-md font-medium whitespace-nowrap ${
+                        last ? `${hdr.badge} border` : "text-neutral-600"
+                      }`}>
+                        {b.label}
+                      </span>
+                    )}
+                    {!last && <span className="text-neutral-400 flex-shrink-0">›</span>}
+                  </React.Fragment>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          {/* Contenuto scrollabile */}
-          <div className="flex-1 overflow-y-auto px-4 pb-4">
-
-            {/* Stats 2x2 */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className={`${sbc.accent} rounded-lg p-2.5 text-center col-span-2`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Totale fattura</div>
-                <div className="text-2xl font-bold font-playfair tabular-nums">
-                  € {fmt(fattura.totale_fattura)}
-                </div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">Imponibile</div>
-                <div className="text-sm font-bold tabular-nums">
-                  € {fmt(fattura.imponibile_totale)}
-                </div>
-              </div>
-              <div className={`${sbc.accent} rounded-lg p-2 text-center`}>
-                <div className="text-[8px] uppercase opacity-60 tracking-wider">IVA</div>
-                <div className="text-sm font-bold tabular-nums">
-                  € {fmt(fattura.iva_totale)}
-                </div>
-              </div>
-            </div>
-
-            {/* Stato + badge */}
-            {(statoUscita || isRateizzata) && (
-              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+        {/* ═══════════ TESTA: identita + 4 KPI ═══════════ */}
+        <div className={`${hdr.bg} border-b ${hdr.border} px-4 md:px-5 py-3 md:py-4 flex-shrink-0`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {/* Badge identita + stato */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-neutral-900 text-white">
+                  FT {fattura.numero_fattura || `#${fattura.id}`}
+                </span>
                 {statoUscita && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 border border-white/30">
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${hdr.badge}`}>
                     {statoUscita}
                   </span>
                 )}
                 {isRateizzata && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 border border-white/30">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-purple-100 text-purple-800 border-purple-200">
                     Rateizzata
                   </span>
                 )}
                 {uscita?.batch_titolo && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/15 border border-white/20">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-indigo-100 text-indigo-800 border-indigo-200">
                     Batch: {uscita.batch_titolo}
                   </span>
                 )}
-              </div>
-            )}
-
-            {/* Info list */}
-            <ul className="text-[11px] space-y-0 mb-3">
-              {[
-                ["Scadenza eff.", scadenzaEff],
-                hasScadenzaOverride ? ["Scadenza XML", scadenzaXml] : null,
-                ["Mod. pagamento", mpEff ? (mpLabel && mpLabel !== mpEff ? `${mpEff} — ${mpLabel}` : mpEff) : null],
-                ["Pagata il", fattura.data_effettiva_pagamento || uscita?.data_pagamento],
-                uscita?.metodo_pagamento ? ["Metodo", uscita.metodo_pagamento] : null,
-                ["Importato il", fattura.data_import],
-                ["ID interno", fattura.id],
-              ].filter(Boolean).map(([label, val]) => (
-                <li key={label} className="flex justify-between py-1.5 border-b border-white/10 gap-2">
-                  <span className="opacity-60 flex-shrink-0">{label}</span>
-                  <span className="font-medium text-right truncate">{val || "—"}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* IBAN full-width (può essere lungo) */}
-            {ibanEff && (
-              <div className="mb-3 pb-2 border-b border-white/10">
-                <div className="text-[9px] opacity-60 uppercase tracking-wider mb-0.5">IBAN beneficiario</div>
-                <div className="text-[10px] font-mono font-semibold break-all">{ibanEff}</div>
-                {hasIbanOverride && (
-                  <div className="text-[8px] opacity-60 mt-0.5">override attivo</div>
+                {uscita?.banca_movimento_id && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded border bg-emerald-100 text-emerald-800 border-emerald-200">
+                    ✓ Riconciliata
+                  </span>
                 )}
               </div>
+              {/* Titolo: fornitore */}
+              <h2 className={`text-base md:text-lg font-bold leading-tight ${hdr.text}`}>
+                {fattura.fornitore_nome || "—"}
+              </h2>
+              {/* Sottotitolo: p.iva · data fattura · scadenza */}
+              <p className="text-xs text-neutral-600 mt-0.5 flex flex-wrap gap-x-1.5">
+                {fattura.fornitore_piva && <span className="font-mono">P.IVA {fattura.fornitore_piva}</span>}
+                {fattura.data_fattura && <><span>·</span><span>emessa {fattura.data_fattura}</span></>}
+                {scadenzaEff && <><span>·</span><span>scad. {scadenzaEff}</span></>}
+              </p>
+            </div>
+            {onClose && !Array.isArray(breadcrumb) && (
+              <button type="button" onClick={onClose} aria-label="Chiudi dettaglio"
+                className="flex-shrink-0 w-8 h-8 md:w-9 md:h-9 rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 transition text-sm font-semibold">
+                ✕
+              </button>
             )}
+          </div>
 
-            {/* Azioni sidebar */}
-            <div className="space-y-2">
-              {/* Segna pagata — visibile solo se il parent passa onSegnaPagata
-                  e la fattura non risulta già pagata */}
-              {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
-                <Btn variant="chip" tone="amber" size="md" type="button" onClick={handleSegnaPagata} className="w-full">
-                  ✓ Segna pagata
-                </Btn>
-              )}
-
-              {/* Modifica anagrafica fornitore */}
-              {fattura.fornitore_piva && (
-                <Tooltip label="Apri l'anagrafica del fornitore nell'elenco fornitori">
-                  <button
-                    type="button"
-                    onClick={goToFornitoreAnagrafica}
-                    className="w-full px-3 py-2 rounded-lg text-[10px] font-semibold bg-white/10 hover:bg-white/20 transition text-center"
-                  >
-                    ✎ Modifica anagrafica fornitore →
-                  </button>
-                </Tooltip>
-              )}
+          {/* 4 KPI sempre visibili — 2x2 su portrait, 1x4 da md */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-3">
+            <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Totale</div>
+              <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">€ {fmt(fattura.totale_fattura)}</div>
+            </div>
+            <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Imponibile</div>
+              <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">€ {fmt(fattura.imponibile_totale)}</div>
+            </div>
+            <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">IVA</div>
+              <div className="text-lg md:text-xl font-bold text-neutral-900 tabular-nums">€ {fmt(fattura.iva_totale)}</div>
+            </div>
+            <div className="bg-white border border-neutral-200 rounded-lg p-2.5">
+              <div className="text-[10px] text-neutral-500 uppercase tracking-wide">Da pagare</div>
+              <div className={`text-lg md:text-xl font-bold ${ggClass}`}>{ggLabel}</div>
             </div>
           </div>
         </div>
 
-        {/* ═══════════ MAIN CONTENT ═══════════ */}
-        <div className="bg-white overflow-y-auto">
+        {/* ═══════════ TAB BAR ═══════════ */}
+        <div className="flex gap-1 px-2 md:px-4 border-b border-neutral-200 bg-white overflow-x-auto flex-shrink-0">
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            const c = tab.key === "righe" && righe.length > 0 ? righe.length : null;
+            return (
+              <button key={tab.key} type="button" onClick={() => handleChangeTab(tab.key)}
+                className={`px-3 md:px-4 py-2.5 md:py-3 text-xs md:text-sm font-medium transition whitespace-nowrap flex-shrink-0 ${
+                  active
+                    ? "text-neutral-900 border-b-2 border-brand-blue -mb-px"
+                    : "text-neutral-500 hover:text-neutral-800"
+                }`}>
+                {tab.label}
+                {c != null && <span className="ml-1.5 text-[10px] font-normal text-neutral-400">{c}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ═══════════ TAB CONTENT ═══════════ */}
+        <div className="flex-1 overflow-y-auto bg-white">
+
+          {/* ── RIEPILOGO (nuovo, sessione 55) ── */}
+          {activeTab === "riepilogo" && (
+          <div className="p-5 space-y-5">
+            {isRateizzata && (
+              <div className="p-3 bg-purple-100/60 border border-purple-300 rounded-lg text-sm text-purple-900">
+                Questa fattura è stata rateizzata nella spesa fissa{" "}
+                <span className="font-semibold">{fattura.rateizzata_sf_titolo || `#${fattura.rateizzata_in_spesa_fissa_id}`}</span>.
+                Le uscite effettive vivono nel piano rate di quella spesa fissa.
+                <button type="button" onClick={() => goToSpesaFissa(fattura.rateizzata_in_spesa_fissa_id)}
+                  className="ml-2 underline font-medium hover:text-purple-700">
+                  Vai alla spesa fissa →
+                </button>
+              </div>
+            )}
+
+            {/* Dati testata — read only */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">Scadenza effettiva</div>
+                <div className="text-sm font-semibold text-neutral-900 tabular-nums">{scadenzaEff || "—"}</div>
+                {hasScadenzaOverride && scadenzaXml && (
+                  <div className="text-[10px] text-neutral-400 mt-0.5">XML: <span className="tabular-nums">{scadenzaXml}</span></div>
+                )}
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">Modalità pagamento</div>
+                <div className="text-sm font-semibold text-neutral-900">{mpEff || "—"}</div>
+                {mpLabel && mpLabel !== mpEff && <div className="text-[10px] text-neutral-500 mt-0.5">{mpLabel}</div>}
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">Pagata il</div>
+                <div className="text-sm font-semibold text-neutral-900 tabular-nums">{fattura.data_effettiva_pagamento || uscita?.data_pagamento || "—"}</div>
+                {uscita?.metodo_pagamento && <div className="text-[10px] text-neutral-500 mt-0.5">Metodo: {uscita.metodo_pagamento}</div>}
+              </div>
+            </div>
+
+            {/* IBAN full-width */}
+            {ibanEff && (
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">IBAN beneficiario</div>
+                <div className="text-sm font-mono font-semibold text-neutral-900 break-all">{ibanEff}</div>
+                {hasIbanOverride && <div className="text-[10px] text-amber-700 mt-0.5">override attivo</div>}
+              </div>
+            )}
+
+            {/* Info meta */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-3 border-t border-neutral-100">
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">Importato il</div>
+                <div className="text-xs text-neutral-700 tabular-nums">{fattura.data_import || "—"}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">ID interno</div>
+                <div className="text-xs text-neutral-700 font-mono">{fattura.id}</div>
+              </div>
+              {uscita?.batch_titolo && (
+                <div>
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wide mb-0.5">Batch</div>
+                  <div className="text-xs text-neutral-700">{uscita.batch_titolo} <span className="text-neutral-400">({uscita.batch_stato})</span></div>
+                </div>
+              )}
+            </div>
+
+            {/* Link rapido: anagrafica fornitore */}
+            {fattura.fornitore_piva && (
+              <div className="pt-3 border-t border-neutral-100">
+                <button type="button" onClick={goToFornitoreAnagrafica}
+                  className="text-xs font-semibold text-brand-blue hover:underline">
+                  ✎ Modifica anagrafica fornitore →
+                </button>
+              </div>
+            )}
+          </div>
+          )}
 
           {/* ── PAGAMENTI & SCADENZE ── */}
-          <div className="border-b border-neutral-200">
+          {activeTab === "pagamenti" && (
+          <div>
             <SectionHeader title="Pagamenti & Scadenze">
               {statoBadgeClass && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statoBadgeClass}`}>
@@ -699,7 +841,10 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
             </div>
           </div>
 
+          )}
+
           {/* ── RIGHE FATTURA ── */}
+          {activeTab === "righe" && (
           <div>
             <SectionHeader title={`Righe fattura (${righe.length})`}>
               <span className="text-xs text-neutral-400">
@@ -765,8 +910,32 @@ const FattureDettaglio = forwardRef(function FattureDettaglio(
               </div>
             )}
           </div>
+          )}
 
         </div>
+
+        {/* ═══════════ FOOTER AZIONI ═══════════ */}
+        <div className="flex items-center gap-2 px-3 md:px-4 py-2 bg-brand-cream border-t border-neutral-200 flex-shrink-0 flex-wrap">
+          {onSegnaPagata && !fattura.pagato && statoUscita !== "PAGATA" && !isRateizzata && (
+            <Btn variant="primary" size="md" type="button" onClick={handleSegnaPagata}>
+              ✓ Segna pagata
+            </Btn>
+          )}
+          {fattura.fornitore_piva && (
+            <Tooltip label="Apri l'anagrafica del fornitore nell'elenco fornitori">
+              <Btn variant="secondary" size="md" type="button" onClick={goToFornitoreAnagrafica}>
+                ✎ Modifica anagrafica fornitore
+              </Btn>
+            </Tooltip>
+          )}
+          <span className="flex-1" />
+          {onClose && (
+            <Btn variant="secondary" size="md" type="button" onClick={onClose}>
+              Chiudi
+            </Btn>
+          )}
+        </div>
+
       </div>
     </div>
   );
