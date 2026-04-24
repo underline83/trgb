@@ -8,6 +8,7 @@ import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { Btn } from "../../components/ui";
 import ZonaPanel from "./ZonaPanel";
 import { ZONA_CONFIG, ZONA_ORDER, isValidZona } from "./zonaConfig";
+import RicetteNav from "../ricette/RicetteNav";
 
 export default function SelezioniDelGiorno() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function SelezioniDelGiorno() {
 
   return (
     <div className="min-h-screen bg-brand-cream font-sans">
+      <RicetteNav current="selezioni" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
 
         {/* HEADER PAGINA */}

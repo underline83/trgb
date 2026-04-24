@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-21 (sessione 51 cont. — post-mortem corruzioni SQLite: trovata causa radice `.gitignore` + fix WAL)
+**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data + Flusso contanti + baselines + unificazione Pre-conti/Spese varie + Flusso spese)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -63,7 +63,9 @@
 | 3.2 | Migliorare riconciliazione cross-ref | M | DA FARE | Match automatico piu' intelligente |
 | 3.3 | Multi-conto corrente | M | DA FARE | Struttura predisposta, UI da implementare |
 | 3.4 | Carta di credito: import + riconciliazione | M | DA FARE | Usa **M.H** import engine. Scheletro UI gia' pronto |
-| 3.5 | Movimenti contanti: annullamento + filtri | S | DA FARE | |
+| 3.5 | Movimenti contanti: annullamento + filtri | S | ⚠️ PARZIALE 2026-04-22 | **Filtro data da/a fatto** (sessione 54) sui tab Pagamenti spese e Versamenti in banca. Resta da fare: annullamento movimenti. |
+| 3.10 | Flusso contanti (vista cronologica cumulativa) | S | ✅ FATTO 2026-04-22 | Sessione 54 — nuovo tab `📊 Flusso contanti` con entrate (contanti fiscali) − uscite (spese CONTANTI) − versamenti in banca + baseline data+valore modificabile da Impostazioni Banca. |
+| 3.11 | Flusso spese varie (pre-conti + spese varie) | S | ✅ FATTO 2026-04-22 | Sessione 54 — unificazione menu Pre-conti+Spese varie con 3 tab (Pre-conti / Spese varie / Flusso spese). Baseline saldo data+valore modificabile direttamente nel tab Flusso spese (admin/superadmin). |
 | 3.6 | Dashboard grafici Recharts (banca) | S | DA FARE | Sostituire barre CSS |
 | 3.7 | Scadenziario unificato con alert (calendario) | M | DA FARE | Usa **M.E** calendar + **M.A** notifiche + **M.F** alert. Vista calendario: fatture, rate, stipendi, F24 |
 | 3.8 | Cash flow previsionale 30/60/90 giorni | M | DA FARE | Usa **M.B** PDF per export. Proiezione saldo banca basata su scadenze + storico |
@@ -128,6 +130,7 @@
 | 7.6 | Alert sottoscorta | S | DA FARE | Usa **M.A** notifiche + **M.F** alert. Soglia minima configurabile per vino |
 | 7.7 | Storico prezzi fornitore (grafico) | S | DA FARE | Dati gia' in fe_righe |
 | 7.8 | Inventario rapido da iPad | M | DA FARE | Lista per locazione, +/- giacenza, conferma batch |
+| 7.9 | Potenziamento widget "Vini in carta senza giacenza" | M | DA FARE | Spec completa in `docs/modulo_vini_alert_widget.md`. 6 fasi approvate (Ordina inline, qta suggerita, ultima vendita, badge stato 3-click, filtro tipologia, raggruppa per distributore). Punto 7 (export lista WhatsApp) teorizzato e differito — dipende da anagrafica distributori con telefono + template configurabili + mattone M.B PDF |
 
 ---
 

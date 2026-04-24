@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 const TABS = [
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
-  { key: "macellaio", label: "Macellaio", path: "/macellaio", icon: "🥩" },
+  { key: "selezioni", label: "Selezioni", path: "/selezioni/macellaio", icon: "🍽️" },
   { key: "matching", label: "Matching", path: "/ricette/matching", icon: "🔗", roles: ["admin", "sommelier"] },
   { key: "dashboard", label: "Dashboard", path: "/ricette/dashboard", icon: "📊", roles: ["admin", "sommelier"] },
   { key: "settings", label: "Impostazioni", path: "/ricette/settings", icon: "⚙️", roles: ["admin"] },

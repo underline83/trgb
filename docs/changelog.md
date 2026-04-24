@@ -3,6 +3,44 @@
 
 ---
 
+## 2026-04-22 (sessione 54) — Flussi di cassa Contanti: filtro data, Flusso contanti, baselines, unificazione Pre-conti/Spese varie, Flusso spese
+
+### Iterazione 1 — Filtro data + tab "Flusso contanti"
+- Filtro data `da/a` sui tab `Pagamenti spese` e `Versamenti in banca` (Flussi di cassa → Contanti). BE: `/controllo-gestione/movimenti-contanti` e `/admin/finance/cash/daily` accettano `data_da`/`data_a` (override su anno/mese). FE: input date + "✕ pulisci", disabilitano la nav mese se valorizzati.
+- Nuovo tab **📊 Flusso contanti** in Movimenti Contanti: endpoint `/admin/finance/cash/flow` (eventi cronologici con saldo cumulativo riportato). Entrata = contanti fiscali giornalieri (corrispettivi − elettronici). Uscita = `cg_uscite` con `metodo_pagamento='CONTANTI'`. Giorni senza entrate né uscite esclusi.
+- FE componente `SubFlussoContanti` in `GestioneContanti.jsx` con KPI + tabella cumulativa.
+
+### Iterazione 2 — Baseline saldo cassa contanti
+- BE: `/admin/finance/cash/flow` ora sottrae anche i **versamenti in banca** (cash_deposits) dal saldo iniziale storico e li mostra come terzo tipo di evento (type=`versamento`, icona 🏦).
+- BE: nuova tabella `cash_flow_baseline` (single row, id=1) in `admin_finance.sqlite3` con `baseline_date`, `baseline_value`, `note`.
+- BE: endpoints `GET/PUT /admin/finance/cash/flow/baseline` (PUT solo admin/superadmin). Helper `_sum_versamenti_range`, `_sum_spese_contanti_range`.
+- BE: logica `/cash/flow` — se baseline attivo e `period_start >= baseline_date`: parte da `baseline_value` alla `baseline_date`, poi applica entrate − spese − versamenti tra baseline_date e giorno prima del periodo. Altrimenti fallback storico completo.
+- FE `BancaImpostazioni`: voce menu "💰 Saldo cassa contanti" con `TabCashBaseline` (data + valore iniziale + nota + Save/Reset).
+- FE `SubFlussoContanti`: rendering type `versamento` (badge 🏦 sky), footer che distingue spese/versamenti, nota adattiva.
+
+### Iterazione 3 — Unificazione Pre-conti + Spese varie
+- FE only: rimossa voce sidebar `Pre-conti`. Ora il menu di `GestioneContanti` ha 3 voci: Movimenti Contanti, Spese turno, Spese varie (superOnly).
+- Nuovo wrapper `SezioneSpeseUnificata` con 3 sub-tab pill: `📥 Pre-conti`, `💸 Spese varie`, `📊 Flusso spese`.
+- Nuovo componente `SubFlussoSpese`: aggrega cronologicamente preconti (entrate) + spese varie (uscite). KPI (saldo inizio anno / pre-conti entrate / spese uscite / saldo periodo) + tabella con Tipo (badge emerald preconto / colore categoria spesa) + cumulativo + nav mese + filtro data da/a (speculari a `SubFlussoContanti`).
+
+### Iterazione 4 — Baseline saldo Flusso spese (data + valore)
+- BE: nuova tabella `cash_spese_baseline` (single-row id=1) in `admin_finance.sqlite3` — `baseline_date`, `baseline_value`, `note`, `updated_by`, `updated_at`.
+- BE: helper `_ensure_cash_spese_baseline_table` + `_get_cash_spese_baseline`, modello Pydantic `CashSpeseBaseline`, endpoints `GET/PUT /admin/finance/cash/spese/baseline` (PUT solo admin/superadmin, valida formato YYYY-MM-DD).
+- FE `SubFlussoSpese`: form collapsibile "Baseline saldo cassa pre-conti" (Data + Importo + Note + Salva/Rimuovi/Annulla), visibile solo ad admin/superadmin. Il pulsante "Imposta saldo iniziale" di `SezioneSpeseVarie` (year-only, opening_balance) è stato rimosso: sostituito con hint che rimanda a `Flusso spese → Baseline saldo`.
+- FE `SubFlussoSpese`: saldo iniziale ora ancorato al baseline — se `baseline_date ≤ period_from`, fetch preconti+spese nel range `[baseline_date, period_from-1]` → `saldoIniziale = baseline_value + preconti_pre − spese_pre`. Cumulativo tabella parte da `saldoIniziale`; nuova metrica `saldoFinale` al posto di `saldoPeriodo`.
+
+### File toccati (sessione 54)
+- `app/routers/controllo_gestione_router.py` (iter 1).
+- `app/routers/admin_finance.py` (iter 1 + 2 + 4).
+- `frontend/src/pages/admin/GestioneContanti.jsx` (iter 1 + 2 + 3 + 4).
+- `frontend/src/pages/banca/BancaImpostazioni.jsx` (iter 2).
+
+### Verifiche
+- `python3 -m py_compile admin_finance.py` OK su tutte le iterazioni.
+- esbuild JSX OK su tutte le iterazioni.
+
+---
+
 ## 2026-04-21 pomeriggio (sessione 53 cont.) — Vettore corruzione `vini_magazzino` IDENTIFICATO + fix in produzione
 
 ### Diagnosi (chiusa)
