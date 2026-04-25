@@ -733,6 +733,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
             <div>
               <SectionHeader title="Anagrafica">
                 {saveMsg && <span className="text-xs font-medium">{saveMsg}</span>}
+                {!editMode && (
+                  <Btn variant="primary" size="sm" type="button" onClick={startEdit}>✎ Modifica</Btn>
+                )}
                 {editMode && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelEdit}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveEdit} disabled={saving} loading={saving}>{saving ? "Salvo…" : "Salva"}</Btn>
@@ -848,6 +851,9 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
             {activeTab === "giacenze" && (
             <div>
               <SectionHeader title="Giacenze per locazione">
+                {!giacenzeEdit && (
+                  <Btn variant="primary" size="sm" type="button" onClick={startGiacenze}>✎ Modifica</Btn>
+                )}
                 {giacenzeEdit && <>
                   <Btn variant="secondary" size="sm" type="button" onClick={cancelGiacenze}>Annulla</Btn>
                   <Btn variant="primary" size="sm" type="button" onClick={saveGiacenze} disabled={giacenzeSaving} loading={giacenzeSaving}>{giacenzeSaving ? "Salvo…" : "Salva"}</Btn>
