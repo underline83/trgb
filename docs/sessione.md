@@ -189,6 +189,78 @@ Implementato:
 9. Su iPhone tutti i layout sono leggibili e i tap target adeguati.
 10. Su iPad portrait/landscape: contenuto centrato con margini ariosi.
 
+### Iterazione 5 — Vista sommelier `/vini/carta-staff`
+
+Nuova pagina protetta per il sommelier con info live + locazioni:
+
+**Backend** — `GET /vini/magazzino/carta-staff/`:
+- Lista flat vini in carta (`CARTA='SI'`)
+- Campi: codice, descrizione, annata, produttore, regione, tipologia, vitigni, grado, prezzo bottiglia + calice (fallback `PREZZO_CARTA/5`), flag `vendita_calice` e `in_mescita` (BOTTIGLIA_APERTA)
+- **Locazioni**: array `{nome, qta}` solo per le locazioni con qta>0
+- Status calcolato: `in_mescita` se BOTTIGLIA_APERTA=1; `scarsa` se qta<=2; `esaurita` se qta=0; altrimenti `in_carta`
+
+**Frontend** — `frontend/src/pages/vini/CartaStaff.jsx`:
+- Identita' osteria (Cormorant Garamond, palette beige/marrone/terracotta)
+- Toolbar: search + chip filtri (Tutti / 🥂 In mescita / Calici / Scarsa giacenza / per tipologia) con conteggi
+- Tabella raggruppata per Tipologia · Nazione · Regione
+- Riga: codice (R.087), vino+annata+meta, prezzi (bottiglia + 🥂 calice), **locazioni multiple su righe** con qta tra parentesi, giacenza colorata, badge status
+- Auto-refresh ogni 30s
+- Click sulla riga → apre `/vini/magazzino/:id`
+- Responsive: mobile layout card invece di tabella
+
+**Route** `/vini/carta-staff` protetta, voce "🥂 Sommelier" in ViniNav.
+
+### Iterazione 6 — Centro Carta gestionale rifondato
+
+Marco: i 3 pulsanti "Anteprima / Aggiorna anteprima / Apri HTML" creavano confusione. Layout vecchio aveva editor + iframe parziale "solo vini" + 3 set duplicati di pulsanti export.
+
+**Soluzione**: split-pane a 3 colonne con anteprima live della carta intera (vini + bevande) sempre visibile, auto-refresh dopo save.
+
+**`CartaBevande`** (shell v3.0-split-pane):
+- Layout `[sidebar 200px][editor][iframe live]` da `xl:` (≥1280px), stack verticale sotto
+- Header con 5 azioni globali ben distinte:
+  - **⤢ Espandi anteprima** → `/vini/carta/anteprima` (vista a tutta pagina)
+  - **📄 PDF cliente** | **📄 PDF staff** | **📝 Word** → carta master `/bevande/carta/*`
+  - **↗ Vedi come cliente** → apre la pagina pubblica `/carta` in nuova tab
+- State `previewKey` incrementato dopo ogni save → l'iframe si rimonta e ricarica → **no piu' pulsante "Aggiorna anteprima" manuale**
+- L'iframe punta a `/bevande/carta` (carta MASTER vini+bevande), non piu' a `/vini/carta` (parziale).
+
+**`CartaVini`** (v4.0-info-pane):
+- Rimossi i 4 pulsanti locali (Aggiorna anteprima / Apri HTML / Scarica PDF / Scarica Word)
+- Rimosso l'iframe locale (carta intera ora globale)
+- Pannello informativo con: descrizione del flusso vini-da-Cantina, riquadro "cosa entra in carta", 3 bottoni rapidi (Vai alla Cantina / Vista sommelier / Ordinamento)
+
+**`CartaSezioneEditor`**:
+- Nuova prop `onSaved` opzionale
+- Chiamata dopo save voce / toggle attivo / duplica / elimina / reorder / bulk-import
+- CartaBevande la passa per trigger refresh iframe
+
+**`CartaAnteprima`** (v2.0):
+- Vista a tutta pagina dello stesso iframe master
+- Bottoni: ← Centro Carta · Ricarica · PDF cliente · PDF staff · Word
+
+### File toccati (Iter 5+6)
+- `app/routers/vini_magazzino_router.py` — nuovo endpoint `/carta-staff/`.
+- `frontend/src/pages/vini/CartaStaff.jsx` — nuovo componente.
+- `frontend/src/pages/vini/ViniNav.jsx` — voce "Sommelier".
+- `frontend/src/pages/vini/CartaBevande.jsx` — refactor split-pane.
+- `frontend/src/pages/vini/CartaVini.jsx` — pannello info pulito.
+- `frontend/src/pages/vini/CartaAnteprima.jsx` — vista espansa pulita.
+- `frontend/src/pages/vini/CartaSezioneEditor.jsx` — prop `onSaved`.
+- `frontend/src/App.jsx` — lazy + route `/vini/carta-staff`.
+- `frontend/src/config/versions.jsx` — Vini 3.25 → 3.27.
+
+### Da verificare (Iter 5+6)
+1. `/vini/carta-staff` accessibile da menu "Sommelier", mostra vini in tabella con tutti i campi richiesti incluse le locazioni.
+2. Filtro "🥂 In mescita" mostra solo vini con BOTTIGLIA_APERTA=1.
+3. Auto-refresh 30s visibile da log network.
+4. `/vini/carta` apre il Centro Carta con 3 colonne (su desktop): sidebar + editor + anteprima.
+5. Editing una voce in una sezione (es. Aperitivi): dopo "Salva", l'iframe a destra si ricarica automaticamente e mostra la modifica.
+6. Header: "Espandi anteprima" porta a `/vini/carta/anteprima`. "Vedi come cliente" apre `/carta` in nuova tab.
+7. Click su "Vini" nella sidebar: pannello informativo, niente piu' iframe locale, niente piu' pulsanti ridondanti.
+8. CartaAnteprima: bottone "← Centro Carta" torna alla shell. Reload + 3 pulsanti export.
+9. iPad portrait: stack verticale (sidebar in cima, editor sotto, iframe in fondo). Da `xl:` torna lo split a 3 colonne.
+
 ---
 
 ## SESSIONE 57 cont. (2026-04-25 sera) — MODULO GUARDIANO L1+L2+L3 + CLEANUP + S52-1 CHIUSO + PIN admin random

@@ -59,7 +59,7 @@ function emptyFromSchema(schema) {
   return v;
 }
 
-export default function CartaSezioneEditor({ sezioneKey }) {
+export default function CartaSezioneEditor({ sezioneKey, onSaved }) {
   const navigate = useNavigate();
   const key = sezioneKey;
   const { toast } = useToast();
@@ -180,6 +180,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
       toast(editingId ? "Voce aggiornata" : "Voce creata", { kind: "success" });
       closeModal();
       loadAll();
+      onSaved?.();
     } catch (e) {
       console.error("[CartaSezioneEditor] submit:", e);
       toast("Errore nel salvataggio", { kind: "error" });
@@ -200,6 +201,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       loadAll();
+      onSaved?.();
     } catch (e) {
       console.error(e);
       toast("Errore toggle attivo", { kind: "error" });
@@ -231,6 +233,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       toast("Voce duplicata", { kind: "success" });
       loadAll();
+      onSaved?.();
     } catch (e) {
       console.error(e);
       toast("Errore duplicazione", { kind: "error" });
@@ -247,6 +250,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       toast("Voce eliminata", { kind: "success" });
       loadAll();
+      onSaved?.();
     } catch (e) {
       console.error(e);
       toast("Errore eliminazione", { kind: "error" });
@@ -267,6 +271,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
         body: JSON.stringify({ sezione_key: key, order: next.map((v) => v.id) }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      onSaved?.();
     } catch (e) {
       console.error(e);
       toast("Errore nel riordino", { kind: "error" });
@@ -300,6 +305,7 @@ export default function CartaSezioneEditor({ sezioneKey }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast(`${rows.length} voci importate`, { kind: "success" });
       loadAll();
+      onSaved?.();
     } catch (e) {
       console.error(e);
       toast("Errore nell'import", { kind: "error" });

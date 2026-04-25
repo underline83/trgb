@@ -1,90 +1,50 @@
-// @version: v3.6-panel — ora pannello interno della shell CartaBevande (sidebar 8 sezioni)
-// Era una pagina stand-alone con ViniNav e wrapper min-h-screen; ora renderizzato
-// dentro CartaBevande come pannello per la sezione "vini".
-// Route: /vini/carta/vini (gestita dalla shell CartaBevande via :sezione)
+// @version: v4.0-info-pane — sessione 58 fase 2 iter 6 (2026-04-25)
+// Pannello informativo per la sezione "Vini" della carta.
+//
+// Le esport (PDF, Word, anteprima) e l'iframe live sono ora gestiti dalla
+// shell `CartaBevande` a livello globale (carta intera = vini + bevande).
+// Qui resta solo l'informazione che la sezione vini e' dinamica e si edita
+// in Cantina, con un link rapido per andarci.
 
-import React, { useState } from "react";
-import { API_BASE } from "../../config/api";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Btn } from "../../components/ui";
 
 export default function CartaVini() {
-  const [showPreview, setShowPreview] = useState(true);
+  const navigate = useNavigate();
 
-  const cartaPublicUrl = `${API_BASE}/vini/carta`;
-  const cartaPublicSiteUrl = "https://trgb.tregobbi.it/carta-vini";
-
-  // --------------------------------------------------
-  // AZIONI
-  // --------------------------------------------------
-  const refreshPreview = () => {
-    setShowPreview(false);
-    setTimeout(() => setShowPreview(true), 50);
-  };
-
-  const openHtml = () => {
-    window.open(cartaPublicSiteUrl, "_blank");
-  };
-
-  const downloadPdf = () => {
-    window.open(`${API_BASE}/vini/carta/pdf`, "_blank");
-  };
-
-  const downloadWord = () => {
-    window.open(`${API_BASE}/vini/carta/docx`, "_blank");
-  };
-
-  // --------------------------------------------------
-  // RENDER
-  // --------------------------------------------------
   return (
-    <div>
-      {/* HEADER PANNELLO */}
-      <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl lg:text-3xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
-            📜 Carta dei Vini
-          </h2>
-          <p className="text-neutral-600 text-sm">
-            Anteprima live ed esportazioni (HTML, PDF, Word). Le voci arrivano dalla Cantina.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold text-amber-900 tracking-wide font-playfair mb-1">
+          🍷 Sezione Vini
+        </h2>
+        <p className="text-neutral-600 text-sm">
+          Le voci vini della carta sono <strong>dinamiche</strong>: arrivano direttamente dal magazzino Cantina.
+          Per modificare prezzi, annate, descrizioni, vai alla Cantina e aggiorna la scheda del vino —
+          l'anteprima a destra si rinfresca automaticamente.
+        </p>
       </div>
 
-      {/* BOTTONI AZIONI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <Btn variant="primary" size="md" type="button" onClick={refreshPreview}>
-          Aggiorna Anteprima
-        </Btn>
-        <Btn variant="secondary" size="md" type="button" onClick={openHtml}>
-          Apri HTML
-        </Btn>
-        <Btn variant="secondary" size="md" type="button" onClick={downloadPdf}>
-          Scarica PDF
-        </Btn>
-        <Btn variant="secondary" size="md" type="button" onClick={downloadWord}>
-          Scarica Word
-        </Btn>
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="font-semibold mb-1">Cosa entra in carta</div>
+        <ul className="list-disc list-inside space-y-1 text-amber-800">
+          <li>Tutti i vini con flag <code className="px-1 rounded bg-amber-100">CARTA = SI</code></li>
+          <li>Sezione "Al calice" automatica per i vini con <code className="px-1 rounded bg-amber-100">VENDITA_CALICE = SI</code> o <em>bottiglia in mescita</em></li>
+          <li>Ordinati per Tipologia → Nazione → Regione → Produttore (configurabile in Impostazioni Vini)</li>
+        </ul>
       </div>
 
-      {/* ANTEPRIMA EMBEDDED */}
-      <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-        <div className="px-4 py-3 bg-neutral-50 border-b border-neutral-200">
-          <div className="text-sm font-semibold text-neutral-800">
-            Anteprima Carta Vini (live)
-          </div>
-          <div className="text-xs text-neutral-500">
-            Questa è la stessa carta pubblica visibile dal sito.
-          </div>
-        </div>
-
-        {showPreview && (
-          <iframe
-            src={cartaPublicUrl}
-            title="Carta Vini"
-            className="w-full"
-            style={{ height: "75vh", border: "none" }}
-          />
-        )}
+      <div className="flex flex-wrap gap-2">
+        <Btn variant="primary" size="md" type="button" onClick={() => navigate("/vini/magazzino")}>
+          🍷 Vai alla Cantina
+        </Btn>
+        <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/carta-staff")}>
+          🥂 Vista sommelier
+        </Btn>
+        <Btn variant="secondary" size="md" type="button" onClick={() => navigate("/vini/settings")}>
+          ⚙️ Ordinamento
+        </Btn>
       </div>
     </div>
   );

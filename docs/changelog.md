@@ -64,6 +64,22 @@ Prossima fase (rimandata): pagina React dinamica con search, filtri, interazione
     - `nome_badge_desc` (Tisane, Tè): nome + badge tipologia colorato (palette nero/verde/oolong/rosso/puer/bianco/tisana) + prezzo + paese origine + descrizione.
 - Versione modulo Vini: 3.24 → 3.25.
 
+### Iterazione 5 — Vista sommelier `/vini/carta-staff`
+
+- **Backend**: nuovo endpoint protetto `GET /vini/magazzino/carta-staff/`. Lista flat dei vini in carta con campi staff: codice (id_excel), descrizione, annata, produttore, regione, vitigni, grado, prezzo bottiglia, prezzo calice (con fallback `PREZZO_CARTA / 5`), flag `vendita_calice`, `in_mescita` (BOTTIGLIA_APERTA), **lista locazioni con qta** (Frigo/Loc1/Loc2/Loc3 — solo quelle con qta>0), giacenza totale, status calcolato (`in_mescita` / `scarsa` / `in_carta` / `esaurita`).
+- **Frontend**: nuova pagina `frontend/src/pages/vini/CartaStaff.jsx` con identità tipografica osteria (Cormorant Garamond, palette beige/marrone/terracotta). Toolbar con search + chip filtri (Tutti / 🥂 In mescita / Calici / Scarsa giacenza / per tipologia) con conteggi. Tabella raggruppata per Tipologia · Nazione · Regione. Riga densa con codice, vino+meta, prezzi (bottiglia + calice), **locazioni multiple su righe**, giacenza, badge status colorato. Auto-refresh ogni 30s. Click sulla riga → apre la scheda gestionale completa.
+- **Route**: `/vini/carta-staff` protetta, voce "🥂 Sommelier" aggiunta in `ViniNav.jsx`.
+
+### Iterazione 6 — Centro Carta gestionale (refactor `/vini/carta`)
+
+Marco: pagina con 3 set di pulsanti confusi ("Anteprima" / "Aggiorna anteprima" / "Apri HTML"), iframe parziali, "Anteprima" che navigava ad altra pagina mentre "Aggiorna anteprima" aggiornava un iframe locale "solo vini". Decisione: rifondazione.
+
+- **CartaBevande shell** (`v3.0-split-pane`): layout split a 3 colonne `[sidebar 200px][editor][iframe live carta intera]`. L'iframe punta a `/bevande/carta` e si auto-aggiorna (state `previewKey` incrementato dopo ogni salvataggio nell'editor) — no piu' pulsanti manuali. Header con 5 azioni globali: <strong>Espandi anteprima</strong> · <strong>PDF cliente</strong> · <strong>PDF staff</strong> · <strong>Word</strong> · <strong>↗ Vedi come cliente</strong> (apre la pagina pubblica `/carta` in nuova tab). Layout responsive: stack verticale su tablet portrait/mobile, 3 colonne da `xl:` (≥1280px).
+- **CartaVini** (`v4.0-info-pane`): pannello informativo, niente piu' iframe locale ne' pulsanti export. Spiega che le voci vini arrivano dalla Cantina + bottoni rapidi: "Vai alla Cantina" / "Vista sommelier" / "Ordinamento".
+- **CartaSezioneEditor**: nuova prop `onSaved` opzionale; chiamata dopo save voce / toggle attivo / duplica / elimina / reorder / bulk-import. CartaBevande la passa per triggerare il refresh dell'iframe.
+- **CartaAnteprima** (`v2.0`): vista a tutta pagina dello stesso iframe master. Bottoni: ← Centro Carta · Ricarica · PDF cliente · PDF staff · Word.
+- Versione modulo Vini: 3.25 → 3.27.
+
 ---
 
 ## 2026-04-25 (sessione 57 cont.) — Modulo Guardiano L1+L2+L3 + cleanup + S52-1 chiuso
