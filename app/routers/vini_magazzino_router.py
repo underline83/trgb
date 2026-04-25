@@ -538,6 +538,94 @@ def autocomplete_vini(
 # Lista compatta dei vini con BOTTIGLIA_APERTA=1, per il widget rapido in
 # Vendite e in Home Sala/Sommelier (toggle on/off al volo).
 # ---------------------------------------------------------
+@router.get("/carta-staff/", summary="Vini in carta — vista sommelier (locazione, prezzo calice, status)")
+def list_carta_staff(current_user: Any = Depends(get_current_user)):
+    """
+    Sessione 58 fase 2 (2026-04-25). Lista flat dei vini in carta per la
+    pagina staff `/vini/carta-staff`. Include tutti i campi utili al
+    sommelier: locazioni con quantita', prezzo bottiglia + calice
+    (con fallback PREZZO_CARTA/5), flag in_mescita, status calcolato.
+    """
+    conn = db.get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT id, id_excel, TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE,
+               DENOMINAZIONE, ANNATA, VITIGNI, GRADO_ALCOLICO, FORMATO,
+               PREZZO_CARTA, PREZZO_CALICE, VENDITA_CALICE, BOTTIGLIA_APERTA,
+               FRIGORIFERO, QTA_FRIGO,
+               LOCAZIONE_1, QTA_LOC1,
+               LOCAZIONE_2, QTA_LOC2,
+               LOCAZIONE_3, QTA_LOC3,
+               QTA_TOTALE, STATO_VENDITA, STATO_RIORDINO
+          FROM vini_magazzino
+         WHERE CARTA = 'SI'
+           AND TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE'
+        ORDER BY TIPOLOGIA, NAZIONE, REGIONE, PRODUTTORE, DESCRIZIONE
+        """
+    ).fetchall()
+    conn.close()
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        qta_tot = int(d.get("QTA_TOTALE") or 0)
+        bottiglia_aperta = bool(d.get("BOTTIGLIA_APERTA") or 0)
+        # Prezzo calice effettivo (fallback PREZZO_CARTA / 5)
+        prezzo_calice = d.get("PREZZO_CALICE")
+        if prezzo_calice is None or prezzo_calice == 0:
+            pc = d.get("PREZZO_CARTA")
+            if pc and pc > 0:
+                prezzo_calice = round(pc / 5, 2)
+            else:
+                prezzo_calice = None
+        is_calice = (d.get("VENDITA_CALICE") or "") == "SI" or bottiglia_aperta
+        # Locazioni con qta non zero
+        loc_list = []
+        for label, q in [
+            (d.get("FRIGORIFERO"), d.get("QTA_FRIGO")),
+            (d.get("LOCAZIONE_1"), d.get("QTA_LOC1")),
+            (d.get("LOCAZIONE_2"), d.get("QTA_LOC2")),
+            (d.get("LOCAZIONE_3"), d.get("QTA_LOC3")),
+        ]:
+            qn = int(q or 0)
+            if qn > 0 and label:
+                loc_list.append({"nome": label, "qta": qn})
+        # Status semantico
+        if qta_tot == 0 and not bottiglia_aperta:
+            status = "esaurita"
+        elif bottiglia_aperta:
+            status = "in_mescita"
+        elif qta_tot <= 2:
+            status = "scarsa"
+        else:
+            status = "in_carta"
+        out.append({
+            "id": d["id"],
+            "codice": d.get("id_excel"),
+            "tipologia": d.get("TIPOLOGIA"),
+            "nazione": d.get("NAZIONE"),
+            "regione": d.get("REGIONE"),
+            "produttore": d.get("PRODUTTORE"),
+            "descrizione": d.get("DESCRIZIONE"),
+            "denominazione": d.get("DENOMINAZIONE"),
+            "annata": d.get("ANNATA"),
+            "vitigni": d.get("VITIGNI"),
+            "grado_alcolico": d.get("GRADO_ALCOLICO"),
+            "formato": d.get("FORMATO"),
+            "prezzo_carta": d.get("PREZZO_CARTA"),
+            "prezzo_calice": prezzo_calice if is_calice else None,
+            "vendita_calice": (d.get("VENDITA_CALICE") or "") == "SI",
+            "in_mescita": bottiglia_aperta,
+            "locazioni": loc_list,
+            "qta_totale": qta_tot,
+            "stato_vendita": d.get("STATO_VENDITA"),
+            "stato_riordino": d.get("STATO_RIORDINO"),
+            "status": status,
+        })
+    return out
+
+
 @router.get("/calici-disponibili/", summary="Vini con bottiglia aperta in mescita")
 def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
     conn = db.get_magazzino_connection()

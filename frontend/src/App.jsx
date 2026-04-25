@@ -24,6 +24,8 @@ const CartaBevande = lazy(() => import("./pages/vini/CartaBevande"));
 const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
 // PUBBLICA: pagina cliente accessibile da QR — sessione 58 fase 2
 const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
+// STAFF: vista sommelier (loggata) — sessione 58 fase 2 iter 5
+const CartaStaff = lazy(() => import("./pages/vini/CartaStaff"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 const MagazzinoVini = lazy(() => import("./pages/vini/MagazzinoVini"));
@@ -228,6 +230,7 @@ export default function App() {
         {/* Carta Bevande — shell unica con sidebar 8 sezioni */}
         <Route path="/vini/carta" element={<Navigate to="/vini/carta/vini" replace />} />
         <Route path="/vini/carta/anteprima" element={<ProtectedRoute module="vini" sub="carta"><CartaAnteprima /></ProtectedRoute>} />
+        <Route path="/vini/carta-staff" element={<ProtectedRoute module="vini" sub="carta"><CartaStaff /></ProtectedRoute>} />
         {/* Redirect legacy: /vini/carta/sezione/:key → /vini/carta/:key */}
         <Route path="/vini/carta/sezione/:key" element={<RedirectLegacySezione />} />
         {/* Shell con :sezione (vini / aperitivi / birre / amari_casa / amari_liquori / distillati / tisane / te) */}

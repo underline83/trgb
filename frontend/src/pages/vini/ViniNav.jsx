@@ -9,6 +9,7 @@ const TABS = [
   { key: "dashboard", label: "Dashboard", path: "/vini/dashboard", icon: "📊" },
   { key: "cantina", label: "Cantina", path: "/vini/magazzino", icon: "🍷" },
   { key: "carta", label: "Carta", path: "/vini/carta", icon: "📜" },
+  { key: "carta-staff", label: "Sommelier", path: "/vini/carta-staff", icon: "🥂" },
   { key: "vendite", label: "Vendite", path: "/vini/vendite", icon: "🛒" },
   { key: "settings", label: "Impostazioni", path: "/vini/settings", icon: "⚙️", roles: ["admin", "sommelier"] },
 ];
