@@ -81,11 +81,14 @@ if [ -f "$LAST_PUSH_FILE" ]; then
   fi
 fi
 
-# Probe HTTP soft: se il sito risponde 200 e ci sono accessi recenti, chiedi conferma
+# Probe HTTP soft: qualunque risposta 1xx/2xx/3xx/4xx = backend VIVO (anche 401/403/404/405).
+# Solo 5xx o ERR (timeout/curl mancante) = sospetto. FastAPI risponde 405 a HEAD "/" perche'
+# non c'e' handler HEAD sulla root, ma il servizio e' attivo: NON e' un caso di down.
 PROBE_URL="${PROBE_URL:-https://trgb.tregobbi.it/}"
 PROBE_OUT=$(curl -sI -o /dev/null -w "%{http_code}" --max-time 4 "$PROBE_URL" 2>/dev/null || echo "ERR")
-if [ "$PROBE_OUT" = "200" ]; then
-  $VERBOSE && ok "Servizio UP ($PROBE_URL)"
+# Considera vivo se prima cifra e' 1, 2, 3 o 4 (5xx = errore server, ERR = irraggiungibile)
+if [[ "$PROBE_OUT" =~ ^[1234][0-9][0-9]$ ]]; then
+  $VERBOSE && ok "Servizio UP ($PROBE_URL → HTTP $PROBE_OUT)"
   # Tenta lettura accessi ultimi 60s da nginx access log su VPS (best effort, non bloccante)
   RECENT_HITS=$(ssh -q -o ConnectTimeout=4 "$VPS_HOST" \
     "sudo awk -v cutoff=\$(date -u +%s -d '60 seconds ago' 2>/dev/null) '
@@ -105,7 +108,8 @@ if [ "$PROBE_OUT" = "200" ]; then
 elif [ "$PROBE_OUT" = "ERR" ]; then
   $VERBOSE && warn "Probe HTTP non eseguibile (timeout o curl mancante) — skip"
 else
-  $VERBOSE && warn "Probe HTTP ha tornato $PROBE_OUT — sito potrebbe essere down già"
+  # 5xx = backend in errore (probabile down)
+  $VERBOSE && warn "Probe HTTP ha tornato $PROBE_OUT (errore server) — backend potrebbe essere down"
 fi
 
 # ── Sync DB dal VPS ────────────────────────────────────────
