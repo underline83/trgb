@@ -1137,6 +1137,23 @@ function FornitoreDetailView({ data, setDetailData, loading, categorie, openKey,
             </div>
           </div>
         </div>
+
+        {/* Info supplementari: imponibile + primo/ultimo acquisto */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-600 mt-2">
+          <span>
+            Imponibile <span className="font-semibold tabular-nums text-neutral-800">€ {fmt(totImponibile)}</span>
+          </span>
+          {primoAcquisto && (
+            <span>
+              Primo acquisto <span className="font-semibold tabular-nums text-neutral-800">{primoAcquisto}</span>
+            </span>
+          )}
+          {ultimoAcquisto && (
+            <span>
+              Ultimo <span className="font-semibold tabular-nums text-neutral-800">{ultimoAcquisto}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ═══════════ TAB BAR ═══════════ */}
