@@ -119,6 +119,9 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     min_qta_stampa, mostra_negativi, mostra_senza_prezzo = _load_filtri()
 
     # Query dal magazzino
+    # Sessione 58 (2026-04-25): aggiunti PREZZO_CALICE, VENDITA_CALICE,
+    # BOTTIGLIA_APERTA per esporre il prezzo calice nella carta cliente
+    # accanto a quello bottiglia, quando il vino e' venduto a calici.
     rows = cur.execute(
         """
         SELECT
@@ -130,6 +133,9 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             DESCRIZIONE,
             ANNATA,
             PREZZO_CARTA,
+            PREZZO_CALICE,
+            VENDITA_CALICE,
+            BOTTIGLIA_APERTA,
             QTA_TOTALE
         FROM vini_magazzino
         WHERE
@@ -187,6 +193,17 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     # ---------------------------------------------------------
     out: List[Dict[str, Any]] = []
     for r in ordered:
+        # Calcolo prezzo calice "effettivo": se PREZZO_CALICE non c'e'
+        # ma il vino e' venduto al calice / e' in mescita, fallback su
+        # PREZZO_CARTA / 5 (stessa logica di load_vini_calici).
+        prezzo_calice = r["PREZZO_CALICE"]
+        if (prezzo_calice is None or prezzo_calice == 0):
+            pc = r["PREZZO_CARTA"]
+            if pc and pc > 0:
+                prezzo_calice = round(pc / 5, 2)
+
+        is_calice = (r["VENDITA_CALICE"] or "") == "SI" or bool(r["BOTTIGLIA_APERTA"] or 0)
+
         out.append({
             "id": r["id"],
             "TIPOLOGIA": r["TIPOLOGIA"],
@@ -196,6 +213,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             "DESCRIZIONE": r["DESCRIZIONE"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["PREZZO_CARTA"],
+            "PREZZO_CALICE": prezzo_calice if is_calice else None,
             "QTA": r["QTA_TOTALE"],
         })
 

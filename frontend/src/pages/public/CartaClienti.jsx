@@ -211,14 +211,33 @@ const STYLE = `
   font-size: 15px;
 }
 .cc-vino:last-child { border-bottom: none; }
-.cc-vino-nome { color: #2b2118; }
+.cc-vino-nome { color: #2b2118; flex: 1; min-width: 0; }
 .cc-vino-nome em { font-style: italic; color: #2b2118; }
 .cc-vino-annata { color: #5a4634; font-style: italic; margin-left: 4px; }
+.cc-vino-prezzi {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .cc-vino-prezzo {
   font-weight: 700;
   color: #2b2118;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.cc-vino-prezzo-calice {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a4634;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cc-vino-prezzo-calice::before {
+  content: "🥂 ";
+  font-style: normal;
 }
 
 /* Calice card */
@@ -525,7 +544,12 @@ export default function CartaClienti() {
                                 {v.descrizione}
                                 {v.annata && <span className="cc-vino-annata">{v.annata}</span>}
                               </div>
-                              <div className="cc-vino-prezzo">{fmtPrezzo(v.prezzo)} €</div>
+                              <div className="cc-vino-prezzi">
+                                {v.prezzo_calice != null && (
+                                  <span className="cc-vino-prezzo-calice">{fmtPrezzo(v.prezzo_calice)} €</span>
+                                )}
+                                <span className="cc-vino-prezzo">{fmtPrezzo(v.prezzo)} €</span>
+                              </div>
                             </div>
                           ))}
                         </div>

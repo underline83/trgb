@@ -212,6 +212,9 @@ def get_carta_cliente_data():
             "descrizione": r.get("DESCRIZIONE"),
             "annata": r.get("ANNATA"),
             "prezzo": r.get("PREZZO"),
+            # Sessione 58: prezzo calice mostrato accanto se il vino
+            # e' venduto al calice (VENDITA_CALICE='SI' o bottiglia aperta).
+            "prezzo_calice": r.get("PREZZO_CALICE"),
         })
 
     # Conversione ordinata a struttura finale
