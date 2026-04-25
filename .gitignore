@@ -133,3 +133,5 @@ scripts_backup_*/
 # =====================
 # Timestamp ultimo push (debounce anti-doppio-push, sessione 57 cont.)
 .last_push
+# Stato condiviso fra skill /guardiano e push.sh (audit + post-push)
+.guardiano_state.json
