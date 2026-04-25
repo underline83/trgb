@@ -153,6 +153,42 @@ Implementato:
 7. Filtro "🥂 Calici": nasconde la sezione bottiglie e mostra solo i calici.
 8. Search "barolo": filtra in tempo reale solo le voci che matchano (sezioni vuote scompaiono).
 
+### Iterazione 4 — Indice + drill-down + bevande
+
+Marco: il filtro a chip orizzontale strapazzava a destra. Inoltre la carta deve includere anche le bevande (non solo vini).
+
+Implementato:
+
+**Backend:**
+- Endpoint `/vini/carta-cliente/data` esteso: ritorna anche `bevande` (sezioni attive con voci, escluso `note_interne` staff). Riusa `_load_sezioni_attive` + `_load_voci_attive` da `carta_bevande_service`. Skip della sezione "vini" placeholder.
+
+**Frontend (`CartaClienti.jsx` riscritta da zero, v2.0):**
+- **Pagina indice** (homepage): raggruppata in 2 macro VINI / BEVANDE. Voci tipografiche con titolo + sottotitolo + contatore + chevron. La voce "🥂 Al calice" e' marcata in terracotta. Sezione "Indice" stile carta antica.
+- **Drill-down**: tap su una sezione → vista dedicata. Top bar sticky con `‹ Indice` + breadcrumb. Search ristretta alla sezione corrente. Footer prev/next per saltare alle sezioni adiacenti senza tornare all'indice.
+- **Search globale**: dall'indice, mostra lista risultati cross-sezione (vini, calici, bevande) con click che apre la sezione di pertinenza.
+- **Render bevande con 3 pattern**:
+  - `tabella_4col` (Distillati, Amari & Liquori): tabella regione/produttore/nome/prezzo + descrizione opzionale, raggruppata per regione.
+  - `scheda_estesa` (Birre, Aperitivi, Amari di Casa): nome + sottotitolo + prezzo + meta (produttore/regione/formato/gradazione/IBU) + descrizione.
+  - `nome_badge_desc` (Tisane, Te): nome + badge tipologia colorato + prezzo + paese origine + descrizione. Palette badge te' replicata (nero/verde/oolong/rosso/puer/bianco/tisana).
+- Stato locale: `sezioneAperta` (string|null) per drill-down, `search` (resettata al cambio sezione).
+
+### File toccati (Iter 4)
+- `app/routers/vini_router.py` — endpoint estende risposta con `bevande[]`.
+- `frontend/src/pages/public/CartaClienti.jsx` — riscrittura totale (v2.0).
+- `frontend/src/config/versions.jsx` — Vini 3.24 → 3.25.
+
+### Da verificare (Iter 4)
+1. `/carta` apre l'indice con due macro: VINI (Calici + tipologie) e BEVANDE (Aperitivi, Birre, …).
+2. Tap su "Rossi" apre la sezione drill-down. Top bar sticky con `‹ Indice` funzionante.
+3. Search dall'indice: digito "barolo" e vedo lista risultati con label "Rossi · Marchesi di Barolo · Piemonte". Tap su risultato apre Rossi.
+4. Search dentro una sezione: ristretta a quella sezione.
+5. Sezione "Tè" mostra badge colorati per tipologia.
+6. Sezione "Distillati" usa layout tabella 4 colonne con raggruppamento per regione.
+7. Sezione "Birre" mostra scheda estesa con gradazione e IBU se presenti.
+8. Footer prev/next salta alla sezione adiacente.
+9. Su iPhone tutti i layout sono leggibili e i tap target adeguati.
+10. Su iPad portrait/landscape: contenuto centrato con margini ariosi.
+
 ---
 
 ## SESSIONE 57 cont. (2026-04-25 sera) — MODULO GUARDIANO L1+L2+L3 + CLEANUP + S52-1 CHIUSO + PIN admin random

@@ -236,10 +236,47 @@ def get_carta_cliente_data():
             nazioni.append({"nome": naz, "regioni": regioni})
         tipologie.append({"nome": tip, "nazioni": nazioni})
 
+    # ---- BEVANDE (sessione 58 — includere bevande nella carta cliente) ----
+    # Riusa le funzioni del service carta_bevande. Esclude la sezione "vini"
+    # (placeholder dinamico per il PDF master). Rimuove note_interne (staff).
+    bevande_sezioni: List[Dict[str, Any]] = []
+    try:
+        from app.services.carta_bevande_service import (
+            _load_sezioni_attive as _bev_sezioni,
+            _load_voci_attive as _bev_voci,
+        )
+        VOCE_FIELDS_PUBLIC = (
+            "id", "nome", "sottotitolo", "descrizione",
+            "produttore", "regione", "formato", "gradazione",
+            "ibu", "tipologia", "paese_origine",
+            "prezzo_eur", "prezzo_label", "tags",
+        )
+        for s in _bev_sezioni():
+            if s.get("key") == "vini" and s.get("layout") == "vini_dinamico":
+                continue
+            voci_db = _bev_voci(s["key"])
+            voci = [
+                {k: v.get(k) for k in VOCE_FIELDS_PUBLIC}
+                for v in voci_db
+            ]
+            bevande_sezioni.append({
+                "key": s.get("key"),
+                "nome": s.get("nome"),
+                "intro_html": s.get("intro_html"),
+                "layout": s.get("layout") or "scheda_estesa",
+                "voci": voci,
+            })
+    except Exception as e:
+        # Tollerante: se il modulo bevande non e' disponibile o vuoto,
+        # restituiamo solo i vini.
+        print(f"[carta-cliente] bevande non caricate: {e}")
+        bevande_sezioni = []
+
     return {
         "data_aggiornamento": datetime.now().strftime("%d/%m/%Y"),
         "calici": calici,
         "tipologie": tipologie,
+        "bevande": bevande_sezioni,
     }
 
 

@@ -51,6 +51,19 @@ Prossima fase (rimandata): pagina React dinamica con search, filtri, interazione
 - **Identita' osteria**: Cormorant Garamond, palette beige/marrone/terracotta, separatori dotted, filetti decorativi nazione. CSS-in-JS inline nel componente per decoupling dal CSS PDF (utile in futuro quando il cliente fornira' un foglio stile dedicato).
 - Versione modulo Vini: 3.23 → 3.24.
 
+### Iterazione 4 — Carta cliente: indice + drill-down + bevande
+
+- **Backend**: endpoint `/vini/carta-cliente/data` ora include anche `bevande`: lista delle sezioni attive (Aperitivi, Birre, Amari di Casa, Amari & Liquori, Distillati, Tisane, Tè) con voci sanitizzate (escluso `note_interne` staff). Riusa `_load_sezioni_attive()` e `_load_voci_attive()` da `carta_bevande_service`. Skip della sezione "vini" placeholder (gia' nei vini).
+- **Frontend** (`CartaClienti.jsx` riscritta):
+  - Pagina iniziale con **indice tipografico** raggruppato in 2 macro: VINI / BEVANDE. Ogni voce: titolo + contatore + chevron, con sottotitolo opzionale (es. "Italia, Francia, Spagna" sotto Rossi).
+  - Drill-down: tap su una sezione → vista dedicata. Top bar sticky con `‹ Indice` e breadcrumb. Footer con `‹ prev / sezione / next ›` per saltare alle sezioni adiacenti.
+  - Search globale dall'indice: lista risultati cross-sezione (vini, calici, bevande) con tap che apre la sezione di pertinenza. Search contestuale dentro una sezione: ristretta alla sezione corrente.
+  - Render bevande con i 3 pattern del backend:
+    - `tabella_4col` (Distillati, Amari & Liquori): tabella regione/produttore/nome/prezzo + descrizione opzionale.
+    - `scheda_estesa` (Birre, Aperitivi, Amari di Casa): nome + sottotitolo + prezzo + meta (produttore, regione, formato, gradazione, IBU) + descrizione.
+    - `nome_badge_desc` (Tisane, Tè): nome + badge tipologia colorato (palette nero/verde/oolong/rosso/puer/bianco/tisana) + prezzo + paese origine + descrizione.
+- Versione modulo Vini: 3.24 → 3.25.
+
 ---
 
 ## 2026-04-25 (sessione 57 cont.) — Modulo Guardiano L1+L2+L3 + cleanup + S52-1 chiuso
