@@ -94,6 +94,20 @@
 
 ---
 
+## 6. WAL mode esteso a tutti i DB (segnalato S57 cont. 2026-04-25)
+
+**Stato**: WAL già attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Mancano: `bevande`, `clienti`, `tasks`, `settings`, `dipendenti`, `admin_finance` (roadmap 1.11.2).
+
+**Da fare**: applicare uniformemente i 3 PRAGMA standard (`journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=30000`) in ogni `get_xxx_connection()`. Pattern in `docs/architettura_pattern.md` §2.
+
+**Why**: protegge da SIGTERM mid-write durante restart `push.sh` (causa delle 5 corruzioni S51-S53).
+
+**Effort**: S. Low-risk perché identico al fix già in produzione. Da fare in batch in una sessione tecnica dedicata oppure opportunisticamente quando si tocca un singolo DB.
+
+**Tracciato anche in**: `docs/inventario_pulizia.md` (sezione "TODO Wave WAL mode 1.11.2") con tabella di coverage.
+
+---
+
 ## Note metodologiche
 
 - **Quando si tocca grafica**: prima leggere questo file. Se la modifica risolve un punto, spuntarlo + commit nello stesso push.

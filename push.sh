@@ -53,6 +53,61 @@ for arg in "$@"; do
   esac
 done
 
+# ── Modulo Guardiano L1 — Pre-push checks ──────────────────
+# Aggiunto 2026-04-25 (sessione 57 cont.) per ridurre il rischio di:
+#  - SIGTERM al backend mentre utenti scrivono (causa corruzioni SQLite S51-S53)
+#  - Doppio push ravvicinato (= restart durante init_*_database())
+# I check sono SOFT: non bloccano mai con exit 1, solo chiedono conferma.
+
+step "Guardiano: pre-push checks"
+
+LAST_PUSH_FILE="${LAST_PUSH_FILE:-.last_push}"
+PUSH_DEBOUNCE_SECONDS="${PUSH_DEBOUNCE_SECONDS:-30}"
+
+# Debounce: blocca se ultimo push <30s fa (prevent doppio push accidentale)
+if [ -f "$LAST_PUSH_FILE" ]; then
+  LAST_PUSH_TS=$(cat "$LAST_PUSH_FILE" 2>/dev/null || echo "0")
+  NOW_TS=$(date +%s)
+  ELAPSED=$((NOW_TS - LAST_PUSH_TS))
+  if [ "$ELAPSED" -lt "$PUSH_DEBOUNCE_SECONDS" ]; then
+    warn "ultimo push ${ELAPSED}s fa (<${PUSH_DEBOUNCE_SECONDS}s)"
+    echo -e "  ${YELLOW}Doppio push ravvicinato = rischio SIGTERM mid-write durante init DB.${NC}"
+    echo -en "  ${BOLD}Continuare lo stesso? [y/N]${NC} "
+    read -r CONFIRM
+    case "$CONFIRM" in
+      y|Y|s|S) ok "OK, procedo" ;;
+      *) fail "Annullato dall'utente."; exit 0 ;;
+    esac
+  fi
+fi
+
+# Probe HTTP soft: se il sito risponde 200 e ci sono accessi recenti, chiedi conferma
+PROBE_URL="${PROBE_URL:-https://trgb.tregobbi.it/}"
+PROBE_OUT=$(curl -sI -o /dev/null -w "%{http_code}" --max-time 4 "$PROBE_URL" 2>/dev/null || echo "ERR")
+if [ "$PROBE_OUT" = "200" ]; then
+  $VERBOSE && ok "Servizio UP ($PROBE_URL)"
+  # Tenta lettura accessi ultimi 60s da nginx access log su VPS (best effort, non bloccante)
+  RECENT_HITS=$(ssh -q -o ConnectTimeout=4 "$VPS_HOST" \
+    "sudo awk -v cutoff=\$(date -u +%s -d '60 seconds ago' 2>/dev/null) '
+      { gsub(/\[|\]/, \"\", \$4); split(\$4, dt, \":\"); if (dt[1]) ts=mktime(gensub(/-|\\//, \" \", \"g\", dt[1])\" \"dt[2]\" \"dt[3]\" \"dt[4]); if (ts >= cutoff) c++ } END { print c+0 }
+      ' /var/log/nginx/access.log 2>/dev/null" 2>/dev/null || echo "")
+  if [ -n "$RECENT_HITS" ] && [ "$RECENT_HITS" -gt 0 ] 2>/dev/null; then
+    warn "rilevati ${RECENT_HITS} accessi nginx negli ultimi 60s — qualcuno sta usando il gestionale ORA"
+    echo -en "  ${BOLD}Pushare comunque? [y/N]${NC} "
+    read -r CONFIRM
+    case "$CONFIRM" in
+      y|Y|s|S) ok "OK, procedo" ;;
+      *) fail "Annullato dall'utente."; exit 0 ;;
+    esac
+  else
+    $VERBOSE && ok "Nessun accesso recente (clear to push)"
+  fi
+elif [ "$PROBE_OUT" = "ERR" ]; then
+  $VERBOSE && warn "Probe HTTP non eseguibile (timeout o curl mancante) — skip"
+else
+  $VERBOSE && warn "Probe HTTP ha tornato $PROBE_OUT — sito potrebbe essere down già"
+fi
+
 # ── Sync DB dal VPS ────────────────────────────────────────
 step "Sync database dal VPS"
 
@@ -287,6 +342,9 @@ if $SYNC_DRIVE; then
     warn "Sync Drive fallito (non bloccante)"
   fi
 fi
+
+# ── Modulo Guardiano L1 — Stamp .last_push per debounce ───
+date +%s > "$LAST_PUSH_FILE" 2>/dev/null || true
 
 # ── Riepilogo finale ──────────────────────────────────────
 echo ""

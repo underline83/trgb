@@ -117,6 +117,128 @@ def genera_carta_vini_html_alias():
 
 
 # ------------------------------------------------------------
+# CARTA CLIENTE — DATI JSON (sessione 58 — Fase 2)
+# Endpoint pubblico (NO auth) consumato dalla pagina React /carta
+# accessibile via QR sul tavolo. Restituisce la carta vini strutturata
+# per nazione/regione/produttore + sezione calici (incluse bottiglie
+# in mescita anche con qta=0).
+# ------------------------------------------------------------
+@router.get("/carta-cliente/data", summary="Dati JSON carta vini per pagina cliente pubblica")
+def get_carta_cliente_data():
+    """
+    Endpoint pubblico (no auth). Ritorna la carta vini strutturata per
+    consumo client-side dalla pagina React /carta.
+
+    Struttura risposta:
+    {
+      "data_aggiornamento": "25/04/2026",
+      "calici": [
+        {"id", "descrizione", "annata", "produttore", "regione",
+         "tipologia", "prezzo", "in_mescita"}
+      ],
+      "tipologie": [
+        {
+          "nome": "ROSSI",
+          "nazioni": [
+            {
+              "nome": "ITALIA",
+              "regioni": [
+                {
+                  "nome": "PIEMONTE",
+                  "produttori": [
+                    {
+                      "nome": "Marchesi di Barolo",
+                      "vini": [{"id", "descrizione", "annata", "prezzo"}]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    """
+    # ---- CALICI ----
+    calici_rows = list(load_vini_calici())
+    calici = []
+    for r in calici_rows:
+        prezzo = r.get("_PREZZO_CALICE_FINAL")
+        if prezzo is None:
+            prezzo = r.get("PREZZO_CALICE")
+        calici.append({
+            "id": r["id"],
+            "descrizione": r.get("DESCRIZIONE"),
+            "annata": r.get("ANNATA"),
+            "produttore": r.get("PRODUTTORE"),
+            "regione": r.get("REGIONE"),
+            "tipologia": r.get("TIPOLOGIA"),
+            "prezzo": prezzo,
+            "in_mescita": bool(r.get("BOTTIGLIA_APERTA") or 0),
+        })
+
+    # ---- BOTTIGLIE IN CARTA — raggruppate ----
+    flat_rows = list(load_vini_ordinati())
+    tipologie_map: Dict[str, Any] = {}
+    tipologie_order: List[str] = []
+    for r in flat_rows:
+        tip = r.get("TIPOLOGIA") or "—"
+        naz = r.get("NAZIONE") or "—"
+        reg = r.get("REGIONE") or "—"
+        prod = r.get("PRODUTTORE") or "—"
+
+        if tip not in tipologie_map:
+            tipologie_map[tip] = {"nome": tip, "_nazioni_map": {}, "_nazioni_order": []}
+            tipologie_order.append(tip)
+        t = tipologie_map[tip]
+
+        if naz not in t["_nazioni_map"]:
+            t["_nazioni_map"][naz] = {"nome": naz, "_regioni_map": {}, "_regioni_order": []}
+            t["_nazioni_order"].append(naz)
+        n = t["_nazioni_map"][naz]
+
+        if reg not in n["_regioni_map"]:
+            n["_regioni_map"][reg] = {"nome": reg, "_produttori_map": {}, "_produttori_order": []}
+            n["_regioni_order"].append(reg)
+        re = n["_regioni_map"][reg]
+
+        if prod not in re["_produttori_map"]:
+            re["_produttori_map"][prod] = {"nome": prod, "vini": []}
+            re["_produttori_order"].append(prod)
+        p = re["_produttori_map"][prod]
+
+        p["vini"].append({
+            "id": r.get("id"),
+            "descrizione": r.get("DESCRIZIONE"),
+            "annata": r.get("ANNATA"),
+            "prezzo": r.get("PREZZO"),
+        })
+
+    # Conversione ordinata a struttura finale
+    tipologie = []
+    for tip in tipologie_order:
+        t = tipologie_map[tip]
+        nazioni = []
+        for naz in t["_nazioni_order"]:
+            n = t["_nazioni_map"][naz]
+            regioni = []
+            for reg in n["_regioni_order"]:
+                re = n["_regioni_map"][reg]
+                produttori = [
+                    re["_produttori_map"][p] for p in re["_produttori_order"]
+                ]
+                regioni.append({"nome": reg, "produttori": produttori})
+            nazioni.append({"nome": naz, "regioni": regioni})
+        tipologie.append({"nome": tip, "nazioni": nazioni})
+
+    return {
+        "data_aggiornamento": datetime.now().strftime("%d/%m/%Y"),
+        "calici": calici,
+        "tipologie": tipologie,
+    }
+
+
+# ------------------------------------------------------------
 # PDF CLIENTE
 # ------------------------------------------------------------
 @router.get("/carta/pdf")

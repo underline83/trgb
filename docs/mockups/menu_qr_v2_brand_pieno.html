@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menu Tre Gobbi · Primavera 2026 (V2 Brand pieno)</title>
+<style>
+  :root {
+    --brand-red: #E8402B;
+    --brand-green: #2EB872;
+    --brand-blue: #2E7BE8;
+    --brand-ink: #111111;
+    --brand-cream: #F4F1EC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--brand-cream);
+    color: var(--brand-ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* HERO con immagine di copertina */
+  .hero {
+    position: relative;
+    height: 240px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #c97050 0%, #8a4530 100%);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect fill="%23a85d3f" width="100" height="100"/><circle cx="20" cy="30" r="2" fill="%23c97050" opacity="0.3"/><circle cx="80" cy="60" r="3" fill="%23c97050" opacity="0.3"/><circle cx="50" cy="80" r="2" fill="%23c97050" opacity="0.3"/></svg>');
+    opacity: 0.7;
+  }
+  .hero-overlay {
+    position: relative;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 0 24px 24px;
+    color: white;
+    text-align: center;
+  }
+  .hero-stagione {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.24em;
+    margin-bottom: 8px;
+    opacity: 0.9;
+  }
+  .hero-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 36px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .hero-sub {
+    font-size: 14px;
+    opacity: 0.85;
+  }
+  .gobbette-hero {
+    display: inline-flex;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .gobbette-hero span {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border-radius: 50% 50% 0 0;
+  }
+  .gobbette-hero span:nth-child(1) { background: var(--brand-red); }
+  .gobbette-hero span:nth-child(2) { background: var(--brand-green); }
+  .gobbette-hero span:nth-child(3) { background: var(--brand-blue); }
+
+  .wrap {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  /* Sezioni */
+  h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 40px 0 4px;
+    color: var(--brand-ink);
+  }
+  .sezione-sub {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--brand-red);
+    margin-bottom: 20px;
+    font-weight: 600;
+  }
+
+  /* Card piatto con foto */
+  .piatto {
+    background: white;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  .piatto-foto {
+    width: 100%;
+    height: 180px;
+    background: linear-gradient(135deg, #d4a76a 0%, #a87844 100%);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+  .piatto-foto.foto2 {
+    background: linear-gradient(135deg, #7da66a 0%, #4a7844 100%);
+  }
+  .piatto-foto.foto3 {
+    background: linear-gradient(135deg, #c4814f 0%, #8a4f30 100%);
+  }
+  .piatto-foto.foto4 {
+    background: linear-gradient(135deg, #b85a4a 0%, #7a3530 100%);
+  }
+  .piatto-body {
+    padding: 16px 18px;
+  }
+  .piatto-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  .nome {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 600;
+    font-size: 17px;
+    flex: 1;
+    line-height: 1.25;
+  }
+  .prezzo {
+    font-weight: 700;
+    font-size: 17px;
+    white-space: nowrap;
+    color: var(--brand-red);
+    font-variant-numeric: tabular-nums;
+  }
+  .desc {
+    font-size: 14px;
+    color: rgba(17,17,17,0.7);
+    margin-top: 4px;
+  }
+  .allergeni {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .allergene-tag {
+    font-size: 10px;
+    padding: 3px 8px;
+    background: var(--brand-cream);
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(17,17,17,0.65);
+  }
+
+  /* Degustazione card brand */
+  .degustazione {
+    background: white;
+    border-radius: 14px;
+    border: 2px solid var(--brand-blue);
+    padding: 20px 18px;
+    margin: 28px 0;
+  }
+  .degust-head {
+    display: inline-block;
+    background: var(--brand-blue);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .degust-nome {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+  .degust-step {
+    font-size: 14px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    color: rgba(17,17,17,0.8);
+    display: flex;
+    gap: 10px;
+  }
+  .degust-step:last-of-type { border-bottom: none; }
+  .degust-num {
+    font-weight: 700;
+    color: var(--brand-blue);
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .degust-prezzo {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--brand-blue);
+    font-weight: 700;
+    font-size: 18px;
+    text-align: right;
+    color: var(--brand-blue);
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 48px;
+    padding: 24px 20px;
+    background: var(--brand-ink);
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  footer strong {
+    color: white;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 15px;
+    display: block;
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-overlay">
+      <div class="gobbette-hero" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="hero-stagione">Carta della Stagione</div>
+      <h1 class="hero-title">Primavera 2026</h1>
+      <div class="hero-sub">Osteria Tre Gobbi · Bergamo</div>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <h2>Antipasti</h2>
+    <div class="sezione-sub">Per cominciare</div>
+
+    <div class="piatto">
+      <div class="piatto-foto foto1"></div>
+      <div class="piatto-body">
+        <div class="piatto-row">
+          <span class="nome">Tartare di manzo, capperi, senape antica</span>
+          <span class="prezzo">€ 18</span>
+        </div>
+        <div class="desc">Filetto bovino battuto a coltello, condito al momento</div>
+      </div>
+    </div>
+
+    <div class="piatto">
+      <div class="piatto-foto foto2"></div>
+      <div class="piatto-body">
+        <div class="piatto-row">
+          <span class="nome">Asparagi di Cantello, uovo morbido, parmigiano 36 mesi</span>
+          <span class="prezzo">€ 16</span>
+        </div>
+        <div class="desc">Asparagi locali appena scottati, tuorlo cremoso, scaglie</div>
+        <div class="allergeni">
+          <span class="allergene-tag">Uova</span>
+          <span class="allergene-tag">Latte</span>
+        </div>
+      </div>
+    </div>
+
+    <h2>Primi</h2>
+    <div class="sezione-sub">Pasta · Riso · Zuppe</div>
+
+    <div class="piatto">
+      <div class="piatto-foto foto3"></div>
+      <div class="piatto-body">
+        <div class="piatto-row">
+          <span class="nome">Risotto Carnaroli alle ortiche e Castelmagno</span>
+          <span class="prezzo">€ 17</span>
+        </div>
+        <div class="desc">Riserva del nostro Carnaroli, mantecatura al Castelmagno DOP</div>
+        <div class="allergeni">
+          <span class="allergene-tag">Latte</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="degustazione">
+      <span class="degust-head">Percorso Degustazione</span>
+      <h3 class="degust-nome">Primavera in 5 atti</h3>
+      <div class="degust-step"><span class="degust-num">1</span> Asparagi di Cantello</div>
+      <div class="degust-step"><span class="degust-num">2</span> Risotto alle ortiche</div>
+      <div class="degust-step"><span class="degust-num">3</span> Agnello del bergamasco</div>
+      <div class="degust-step"><span class="degust-num">4</span> Selezione formaggi locali</div>
+      <div class="degust-step"><span class="degust-num">5</span> Crostata di rabarbaro</div>
+      <div class="degust-prezzo">€ 65 / persona</div>
+    </div>
+
+    <h2>Secondi</h2>
+    <div class="sezione-sub">Carne · Pesce</div>
+
+    <div class="piatto">
+      <div class="piatto-foto foto4"></div>
+      <div class="piatto-body">
+        <div class="piatto-row">
+          <span class="nome">Agnello del bergamasco, patate alla brace, cipollotto</span>
+          <span class="prezzo">€ 26</span>
+        </div>
+        <div class="desc">Cosciotto cotto a bassa temperatura, finitura al carbone</div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <strong>Osteria Tre Gobbi</strong>
+    Bergamo Alta<br>
+    Carta soggetta a variazioni stagionali
+  </footer>
+</body>
+</html>

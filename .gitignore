@@ -127,3 +127,9 @@ run_frontend_vps.sh
 scripts_backup_*/
 # Claude Code worktrees
 .claude/
+
+# =====================
+#  MODULO GUARDIANO — runtime
+# =====================
+# Timestamp ultimo push (debounce anti-doppio-push, sessione 57 cont.)
+.last_push

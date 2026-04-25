@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Menu Tre Gobbi · Primavera 2026 (V1 Minimal)</title>
+<style>
+  :root {
+    --brand-red: #E8402B;
+    --brand-green: #2EB872;
+    --brand-blue: #2E7BE8;
+    --brand-ink: #111111;
+    --brand-cream: #F4F1EC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--brand-cream);
+    color: var(--brand-ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+  }
+  /* Header testuale, no foto */
+  .head {
+    text-align: center;
+    padding: 16px 0 28px;
+    border-bottom: 1px solid rgba(17,17,17,0.12);
+    margin-bottom: 32px;
+  }
+  .gobbette {
+    display: inline-flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .gobbette span {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 50% 50% 0 0;
+  }
+  .gobbette span:nth-child(1) { background: var(--brand-red); }
+  .gobbette span:nth-child(2) { background: var(--brand-green); }
+  .gobbette span:nth-child(3) { background: var(--brand-blue); }
+  h1 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: 0.02em;
+  }
+  .stagione {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(17,17,17,0.6);
+  }
+  /* Sezioni */
+  h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    text-align: center;
+    margin: 36px 0 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--brand-ink);
+  }
+  /* Piatti */
+  .piatto {
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed rgba(17,17,17,0.08);
+  }
+  .piatto:last-child { border-bottom: none; }
+  .piatto-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+  .nome {
+    font-weight: 600;
+    font-size: 15.5px;
+    flex: 1;
+    line-height: 1.3;
+  }
+  .prezzo {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    color: var(--brand-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .desc {
+    font-size: 13.5px;
+    color: rgba(17,17,17,0.7);
+    margin-top: 2px;
+  }
+  .allergeni {
+    margin-top: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(17,17,17,0.5);
+  }
+  /* Degustazioni */
+  .degustazione {
+    background: white;
+    border-left: 3px solid var(--brand-blue);
+    padding: 14px 16px;
+    margin: 28px 0;
+  }
+  .degust-head {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--brand-blue);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .degust-nome {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .degust-step {
+    font-size: 13.5px;
+    margin: 4px 0;
+    color: rgba(17,17,17,0.75);
+  }
+  .degust-prezzo {
+    margin-top: 10px;
+    font-weight: 600;
+    text-align: right;
+  }
+  /* Footer */
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(17,17,17,0.12);
+    text-align: center;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: rgba(17,17,17,0.5);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="head">
+      <div class="gobbette" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <h1>Osteria Tre Gobbi</h1>
+      <div class="stagione">Carta · Primavera 2026</div>
+    </header>
+
+    <h2>Antipasti</h2>
+    <div class="piatto">
+      <div class="piatto-row">
+        <span class="nome">Tartare di manzo, capperi, senape antica</span>
+        <span class="prezzo">€ 18</span>
+      </div>
+      <div class="desc">Filetto bovino battuto a coltello, condito al momento</div>
+    </div>
+    <div class="piatto">
+      <div class="piatto-row">
+        <span class="nome">Asparagi di Cantello, uovo morbido, parmigiano 36 mesi</span>
+        <span class="prezzo">€ 16</span>
+      </div>
+      <div class="desc">Asparagi locali appena scottati, tuorlo cremoso, scaglie</div>
+      <div class="allergeni">Uova · Latte</div>
+    </div>
+
+    <h2>Primi</h2>
+    <div class="piatto">
+      <div class="piatto-row">
+        <span class="nome">Risotto Carnaroli alle ortiche e Castelmagno</span>
+        <span class="prezzo">€ 17</span>
+      </div>
+      <div class="desc">Riserva del nostro Carnaroli, mantecatura al Castelmagno DOP</div>
+      <div class="allergeni">Latte</div>
+    </div>
+    <div class="piatto">
+      <div class="piatto-row">
+        <span class="nome">Casoncelli alla bergamasca, burro fuso e salvia</span>
+        <span class="prezzo">€ 15</span>
+      </div>
+      <div class="desc">Pasta tirata a mano, ripieno di carne e amaretti</div>
+      <div class="allergeni">Glutine · Uova · Latte</div>
+    </div>
+
+    <div class="degustazione">
+      <div class="degust-head">Percorso Degustazione</div>
+      <h3 class="degust-nome">Primavera in 5 atti</h3>
+      <div class="degust-step">1. Asparagi di Cantello</div>
+      <div class="degust-step">2. Risotto alle ortiche</div>
+      <div class="degust-step">3. Agnello del bergamasco</div>
+      <div class="degust-step">4. Selezione di formaggi locali</div>
+      <div class="degust-step">5. Crostata di rabarbaro</div>
+      <div class="degust-prezzo">€ 65 a persona</div>
+    </div>
+
+    <h2>Secondi</h2>
+    <div class="piatto">
+      <div class="piatto-row">
+        <span class="nome">Agnello del bergamasco, patate alla brace, cipollotto</span>
+        <span class="prezzo">€ 26</span>
+      </div>
+      <div class="desc">Cosciotto cotto a bassa temperatura, finitura al carbone</div>
+    </div>
+
+    <footer>
+      Osteria Tre Gobbi · Bergamo Alta<br>
+      Carta soggetta a variazioni stagionali
+    </footer>
+  </div>
+</body>
+</html>

@@ -8,7 +8,12 @@
 
 ## Aperti — Priorità alta
 
-### S52-1. Corruzione `vini_magazzino.sqlite3` — VETTORE IDENTIFICATO + FIX in produzione (in osservazione)
+_(S52-1 chiuso 2026-04-25 dopo 4 giorni stabili — vedi sezione Risolti.)_
+
+### S52-1bis. (CHIUSO — testo conservato per storia)
+> Voce conservata sotto a fini di documentazione storica. La corruzione di `vini_magazzino.sqlite3` non si è più ripresentata dal 2026-04-21 12:49 (data ultima recovery #5 e fix in produzione). Marco ha confermato 2026-04-25: nessuna nuova manifestazione in 4 giorni. Spostato in Risolti.
+
+### S52-1 (testo originale, conservato per riferimento storico). Corruzione `vini_magazzino.sqlite3` — VETTORE IDENTIFICATO + FIX in produzione (in osservazione)
 **Segnalato:** 2026-04-21 01:12 → riaffiorato 21/04 12:49 (recovery #5 da `.prev` locale) → **diagnosi chiusa 21/04 pomeriggio (sessione 53), fix pushato**
 **Modulo:** SQLite / persistenza / write pipeline vini magazzino
 **Gravità:** alta (backend fuori servizio ~50min stamattina, 530+ restart; recovery manuale richiesta ogni volta) — declassata a **media in osservazione** dopo fix
@@ -93,6 +98,15 @@ Il sistema di gestione storni ha qualcosa che non va. Marco non ha dettagliato u
 ---
 
 ## Risolti
+
+### S52-1. Corruzione `vini_magazzino.sqlite3` — CHIUSO ✅ 2026-04-25
+**Aperto:** 2026-04-21 (4ª manifestazione delle 00:53 senza push)
+**Chiuso:** 2026-04-25 (sessione 57 cont.) dopo 4 giorni di servizio stabile, confermato da Marco
+**Modulo:** SQLite / persistenza vini magazzino
+**Vettore radice identificato:** commit c31d70c (Vini v3.19 Fase 6 storico prezzi BE) — `init_magazzino_database()` scriveva su `sqlite_master` ad ogni boot + `upsert_vino_from_carta()` / `update_vino()` accorpavano UPSERT + INSERT log in una transazione lunga.
+**Fix applicato (sessione 53):** `SELECT 1 FROM sqlite_master` prima dei CREATE TABLE/INDEX; commit principale subito dopo l'UPSERT, log storico in transazione separata best-effort.
+**Verifica:** 4 giorni di servizio reale (incluso pranzo + cena weekend) senza nuove manifestazioni. Marco conferma stabilità.
+**Backup forensi VPS:** lista in `docs/inventario_pulizia.md`. Da archiviare in `/home/marco/trgb/forensics/` quando Marco dispone (cleanup batch suggerito S57 cont.).
 
 ### S51-1. Backend in crash loop — `malformed database schema` su `vini_magazzino.sqlite3` ✅ 2026-04-21
 **Segnalato:** 2026-04-20 (sessione 51, TRE incidenti nel giro di un'ora)

@@ -22,6 +22,8 @@ import useUpdateChecker from "./hooks/useUpdateChecker";
 // (sono pannelli interni della shell), quindi non servono lazy qui.
 const CartaBevande = lazy(() => import("./pages/vini/CartaBevande"));
 const CartaAnteprima = lazy(() => import("./pages/vini/CartaAnteprima"));
+// PUBBLICA: pagina cliente accessibile da QR — sessione 58 fase 2
+const CartaClienti = lazy(() => import("./pages/public/CartaClienti"));
 const ViniVendite = lazy(() => import("./pages/vini/ViniVendite"));
 const ViniImpostazioni = lazy(() => import("./pages/vini/ViniImpostazioni"));
 const MagazzinoVini = lazy(() => import("./pages/vini/MagazzinoVini"));
@@ -171,6 +173,25 @@ export default function App() {
   // Da reinvestigare prima di rimettere.
 
   const { updateAvailable, reload } = useUpdateChecker();
+
+  // Sessione 58 (2026-04-25) — Pagina pubblica /carta accessibile via QR sul
+  // tavolo, senza login. Gestita PRIMA del check token per non forzare il
+  // redirect al login. Usa BrowserRouter dedicato cosi' non monta Header,
+  // ToastProvider, useUpdateChecker (cose interne al gestionale).
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const isPublicCarta = path === "/carta" || path.startsWith("/carta?") || path.startsWith("/carta/");
+  if (isPublicCarta) {
+    return (
+      <BrowserRouter>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/carta" element={<CartaClienti />} />
+            <Route path="/carta/*" element={<CartaClienti />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    );
+  }
 
   if (!token) {
     return <Login setToken={setToken} setRole={setRole} />;

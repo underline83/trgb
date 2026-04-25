@@ -1,6 +1,6 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-25 (sessione 58 — Vini quick wins: BOTTIGLIA_APERTA + widget calici disponibili, ritmo include SCARICO, fix calice automatico, validazioni annata/grado)
+**Ultimo aggiornamento:** 2026-04-25 (sessione 57 cont. + 58 — sessioni parallele. S57 cont.: modulo guardiano L1+L2+L3, cleanup, PIN admin random, S52-1 chiuso. S58: Vini BOTTIGLIA_APERTA + carta cliente pubblica /carta beige/marrone)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
 
@@ -110,6 +110,157 @@ Risultato: aprendo `/vini/carta` su iPad o browser, la pagina ha la stessa estet
 2. Stesso URL su iPad: il viewport meta + max-width 210mm dovrebbero centrare il contenuto.
 3. Smartphone (`<600px`): media query aumenta padding e riduce font; deve restare leggibile.
 4. Logo: visibile in cima (path /static/img/logo_tregobbi.png e' gia' servito dal back).
+
+### Iterazione 3 — Carta cliente pubblica (Fase 2)
+
+Marco: pagina pubblica accessibile da QR sul tavolo, ottimizzata iPhone + iPad portrait/landscape, identita' osteria (palette beige/marrone, Cormorant Garamond), niente note degustative in v1 (saranno aggiunte da Marco in futuro generandole con AI e personalizzandole).
+
+Implementato:
+
+**Backend:**
+- Nuovo endpoint pubblico (no auth) `GET /vini/carta-cliente/data` in `app/routers/vini_router.py`. Ritorna JSON strutturato `{ data_aggiornamento, calici[], tipologie[{nome, nazioni[{nome, regioni[{nome, produttori[{nome, vini[]}]}]}]}] }`. I calici hanno il flag `in_mescita` (BOTTIGLIA_APERTA=1). Riusa `load_vini_ordinati()` e `load_vini_calici()` raggruppando flat → nested mantenendo l'ordinamento canonico (tipologia/nazione/regione configurati in vini_carta_settings).
+
+**Frontend:**
+- Nuova route pubblica `/carta` in `App.jsx`. Gestita PRIMA del check token con `BrowserRouter` dedicato — non monta Header/ToastProvider/useUpdateChecker per non esporre il chrome del gestionale al cliente.
+- Nuovo componente `frontend/src/pages/public/CartaClienti.jsx` (lazy import). CSS-in-JS inline col tag `<style>` in testa al componente — token osteria definiti localmente per non dipendere da carta_html.css (decoupling utile in futuro per il foglio stile cliente personalizzato).
+- Funzionalita' v1:
+  - Header con overline "Osteria" + "TRE GOBBI" + sottotitolo "Carta dei vini" + data aggiornamento.
+  - Search box live (filtra in tempo reale per descrizione, vitigno, regione, produttore, annata).
+  - Chip filtro tipologia: "Tutti", "🥂 Calici", + una chip per ogni tipologia presente. Solo una attiva alla volta.
+  - Sezione "Al calice" in cima quando presente, badge "in mescita" inline per i vini con BOTTIGLIA_APERTA=1.
+  - Sezioni bottiglie raggruppate per tipologia → nazione → regione → produttore, con tipografia e separatori coerenti col PDF (filetti decorativi nazione, dotted divider tra vini).
+  - Empty state con messaggio contestuale (no risultati per la ricerca / sezione vuota).
+  - Loading skeleton e errore di rete con messaggio amichevole.
+- Responsive:
+  - iPhone (<768px): max-width 580px, padding 18px, font normale.
+  - iPad portrait+ (≥768px): padding 28px, header 36px font, voci 16px (un poco piu' grandi).
+  - Desktop (≥1024px): max-width 680px centrata.
+- Non usa `apiFetch` (che fa redirect login su 401). Usa `fetch` nativo verso endpoint pubblico.
+
+### File toccati (Fase 2)
+- `app/routers/vini_router.py` — endpoint `/carta-cliente/data` (no auth).
+- `frontend/src/App.jsx` — lazy import CartaClienti + ramo pubblico per path `/carta` prima del check token.
+- `frontend/src/pages/public/CartaClienti.jsx` — nuovo componente.
+- `frontend/src/config/versions.jsx` — Vini 3.23 → 3.24.
+
+### Da verificare (Fase 2)
+1. `https://app.tregobbi.it/carta` accessibile senza login (no redirect).
+2. Su iPhone: legibilita', search, filtri tipologia funzionanti.
+3. Su iPad portrait: layout centrato max 580px, font leggermente piu' grandi.
+4. Su iPad landscape e desktop: max 680px centrata.
+5. Vino con BOTTIGLIA_APERTA=1 deve apparire nella sezione "Al calice" anche se QTA_TOTALE=0, con badge "in mescita".
+6. Cambia il prezzo di un vino dal gestionale → ricarica /carta → prezzo aggiornato.
+7. Filtro "🥂 Calici": nasconde la sezione bottiglie e mostra solo i calici.
+8. Search "barolo": filtra in tempo reale solo le voci che matchano (sezioni vuote scompaiono).
+
+---
+
+## SESSIONE 57 cont. (2026-04-25 sera) — MODULO GUARDIANO L1+L2+L3 + CLEANUP + S52-1 CHIUSO + PIN admin random
+
+> **Nota cronologica:** sessione parallela a S58 (Vini quick wins). Marco lavora con più finestre Claude in contemporanea. S58 ha implementato la pagina pubblica `/carta` per la carta vini cliente (palette osteria beige/marrone, Cormorant Garamond) — i 3 mockup per il menu PIATTI fatti qui erano in stile brand TRGB-02 (gestionale), andranno riallineati alla palette osteria di S58 quando si implementa la pagina pubblica `/m/{slug}` per il menu carta cliente.
+
+### Punto di partenza
+Dopo il push del modulo Menu Carta (S57), Marco ha perso la cache di Claude. Ricognizione completa del repo (40 domande tematiche per allineamento). Marco approva: implementare modulo guardiano L1+L2+L3, cleanup batch, PIN admin sicuro, mockup menu QR per scelta stile.
+
+### Cosa è stato fatto
+
+**Modulo guardiano (concept di Marco):**
+- **L1** Pre-push checks in `push.sh`: debounce ≥30s con conferma soft `[y/N]`, probe HTTP `https://trgb.tregobbi.it/`, lettura accessi nginx ultimi 60s via SSH (best effort), conferma soft se servizio attivo. Stamp `.last_push` (gitignored). Risolve 1.12 e 1.14.a.
+- **L2** Registry pattern uniformi: `docs/architettura_pattern.md` con sezioni API/SQLite/Mattoni/Schede testa+tab/Palette/Auth/File system/Docs/Push. Da consultare a inizio sessione di sviluppo.
+- **L3** Inventario pulizia: `docs/inventario_pulizia.md` con lista viva di codice morto, file orfani, backup forensi, TODO WAL coverage, decisioni pendenti.
+
+**File "controllo design" (richiesto da Marco):**
+- `docs/controllo_design.md` con 6 voci iniziali: pattern testa+tab da estendere a ClientiScheda/ControlloGestioneUscite, dark mode, tool config stampe M.B (8.14), Home per ruolo widget (8.10), PWA→app ufficiale priorità alta (1.1), WAL mode esteso a tutti i DB (1.11.2).
+
+**Cleanup batch:**
+- `app/services/auth_service.py`: PIN admin di default da "0000" hardcoded a random 6 cifre (`secrets.randbelow`) stampato in console al primo boot se `users.json` manca. Marco lo legge dal log e lo cambia subito.
+- Voce roadmap 1.15 chiusa dopo verifica grep: import morti `vini_db` già rimossi nelle sessioni 52-53 (commenti `# Nota 2026-04-21 (sessione 52): rimosso import fantasma` lo confermano).
+- Identificati come codice morto: `app/data/dipendenti.db` (0 byte), `.claude/worktrees/livelli-cucina/`, `app/routers/ingredients_router.py`, `app/routers/settings_router.py`. **Workspace Cowork ha mount FUSE read-only sui rm**: Marco li elimina a mano dal terminale Mac (comandi sotto).
+- `vini.sqlite3` verificato con grep cross-repo: NON è abbandonato, ancora usato da `core/database.py`, `alert_engine.py`, `dashboard_router.py`, `backup_router.py`. Resta in produzione.
+- `run_server.py` (root): script bash legacy con path `/Volumes/Underline/trgb_web` non più valido. Tracciato in `inventario_pulizia.md` per decisione futura.
+- `.gitignore`: aggiunto `.last_push` (runtime modulo guardiano).
+
+**S52-1 (corruzione vini_magazzino) chiuso:**
+- 4 giorni di servizio stabile post-fix sessione 53. Marco conferma: nessuna nuova manifestazione. Spostato in Risolti in `docs/problemi.md`. Roadmap 1.13 (pulizia backup forensi) sbloccato — comando in `inventario_pulizia.md`.
+
+**Mockup pagina QR menu cliente (per piatti, NON per vini — quello l'ha fatto S58):**
+- 3 varianti HTML in `docs/mockups/`:
+  - `menu_qr_v1_minimal.html` — testo elegante, no foto, gobbette mini header
+  - `menu_qr_v2_brand_pieno.html` — hero immagine cover, foto card, badge allergeni
+  - `menu_qr_v3_ibrido.html` — testo + foto miniature tonde
+- **ATTENZIONE**: questi mockup sono in palette brand TRGB-02 (gestionale). S58 ha stabilito che la palette per il cliente è "osteria" (beige/marrone, Cormorant Garamond). Quando si implementa la pagina pubblica `/m/{slug}` per il menu carta piatti, allineare a S58 in `frontend/src/pages/public/CartaClienti.jsx`.
+
+### Decisioni di Marco raccolte (S57 cont.)
+- **Foto piatti menu carta**: cartella locale `app/data/menu_carta/foto/` (aggiunta a §8 architettura_pattern). UI upload da fare quando popoli foto vere.
+- **Generatore MEP**: resta manuale (bottone "⚙ Genera MEP cucina"), no auto-rigenerazione su modifica piatto.
+- **5 partite fisse della 097**: decisione parcheggiata, valuteremo.
+- **PWA Fase 0 (1.1)**: priorità ALTA confermata da Marco. Tracciato in roadmap + controllo_design §5. Importante per "PWA verso app ufficiale".
+- **WAL mode 1.11.2**: applicare a tutti i DB in batch (modulo guardiano L3 lo traccia con tabella coverage). Marco: "uniformiamo, modulo guardiano aiuta a tenere logica comune".
+- **PIN sicurezza users.json**: delegato a Claude → random 6 cifre fatto.
+- **Domande in coda** (mattoni M.D/G/H, prenotazioni 2.x, preventivi 10.3, CG v2.x): rifare quando il contesto le richiama.
+
+### Roadmap punti chiusi (S57 cont.)
+- ✅ 1.12 push.sh debounce
+- ✅ 1.14.a soft-check servizio
+- ✅ 1.15 import morti vini_db (era già fatto, voce obsoleta)
+- ✅ 1.16 modulo guardiano L2 architettura_pattern.md (nuovo)
+- ✅ 1.17 modulo guardiano L3 inventario_pulizia.md (nuovo)
+- ✅ 1.20 PIN admin random (nuovo)
+- ✅ S52-1 (problemi.md) chiuso
+
+### Roadmap punti nuovi (S57 cont.)
+- 1.18 Cleanup file morti (`run_server.py`, `update_vps.sh` orfano) — DA FARE, Marco decide
+- 1.19 Migrazioni DB unificate (anche fuori foodcost.db) — DA FARE in sessione tecnica
+
+### File modificati
+- `app/services/auth_service.py` (PIN random + secrets import)
+- `push.sh` (modulo guardiano L1)
+- `.gitignore` (aggiunto .last_push)
+- `docs/sessione.md` (questa entry)
+- `docs/problemi.md` (S52-1 chiuso, spostato in Risolti)
+- `docs/roadmap.md` (1.15/1.12/1.14.a chiusi, 1.16-1.20 nuovi, 1.1 priorità alta, 1.13 sbloccato)
+- `docs/changelog.md` (entry S57 cont.)
+
+### File nuovi
+- `docs/architettura_pattern.md`
+- `docs/inventario_pulizia.md`
+- `docs/controllo_design.md`
+- `docs/mockups/menu_qr_v1_minimal.html`
+- `docs/mockups/menu_qr_v2_brand_pieno.html`
+- `docs/mockups/menu_qr_v3_ibrido.html`
+
+### Operazioni che Marco DEVE fare A MANO dal terminale Mac (PRIMA del push)
+Il workspace Cowork ha mount FUSE read-only sui `rm`/`rmdir`:
+
+```bash
+cd /Users/underline83/trgb
+
+# 1. File DB orfano (0 byte)
+rm app/data/dipendenti.db
+
+# 2. Worktree git abbandonato (.claude/worktrees/livelli-cucina, ~500MB)
+rm -rf .claude/worktrees/livelli-cucina
+git worktree prune --verbose
+git worktree list   # verifica resti solo /Users/underline83/trgb [main]
+
+# 3. Router morti (non importati da main.py)
+rm app/routers/ingredients_router.py
+rm app/routers/settings_router.py
+```
+
+### Commit suggerito
+```
+./push.sh "S57 cont.: modulo guardiano L1+L2+L3 + PIN admin random + cleanup codice morto + 3 mockup QR menu + S52-1 chiuso"
+```
+
+### Cose lasciate aperte (deliberatamente)
+- **Scelta mockup QR menu piatti**: Marco vede i 3 e decide quale (allineato alla palette osteria di S58).
+- **5 partite fisse MEP**: Marco valuterà.
+- **Foto piatti menu carta**: cartella locale stabilita, UI upload da fare.
+- **Modulo guardiano L4** (`/system/maintenance` endpoint + banner FE): da sessione dedicata.
+- **WAL mode 1.11.2** sui restanti 6 DB: in batch quando facciamo cleanup tecnico.
+- **Backup forensi VPS**: comando in `inventario_pulizia.md`, Marco esegue quando vuole.
+- **Domande in coda**: mattoni M.D/G/H, prenotazioni 2.x, preventivi 10.3, CG v2.1+.
 
 ---
 

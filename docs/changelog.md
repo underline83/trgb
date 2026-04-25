@@ -42,6 +42,66 @@ Risultato: la pagina HTML cliente `/vini/carta` ora ha la stessa estetica del PD
 
 Prossima fase (rimandata): pagina React dinamica con search, filtri, interazione, mantenendo l'identita' osteria.
 
+### Iterazione 3 — Carta cliente pubblica (Fase 2)
+
+- **Backend**: nuovo endpoint pubblico (no auth) `GET /vini/carta-cliente/data` in `app/routers/vini_router.py`. Ritorna JSON strutturato per nazione/regione/produttore. Calici inclusi con flag `in_mescita` (BOTTIGLIA_APERTA=1).
+- **Frontend**: nuova route pubblica `/carta` in `App.jsx` (gestita PRIMA del check token con BrowserRouter dedicato, niente Header/Toast del gestionale). Nuovo componente `frontend/src/pages/public/CartaClienti.jsx` (lazy).
+- **Funzionalita' v1**: header logo + nome ristorante + data, search live, chip filtro tipologia (Tutti / 🥂 Calici / Rossi / Bianchi / ecc.), sezione "Al calice" in cima con badge "in mescita", sezioni bottiglie raggruppate, empty state contestuali, loading e error UX.
+- **Responsive**: iPhone (<768px) max-width 580px, iPad portrait+ (≥768px) padding 28px font 16px, desktop (≥1024px) max-width 680px centrata.
+- **Identita' osteria**: Cormorant Garamond, palette beige/marrone/terracotta, separatori dotted, filetti decorativi nazione. CSS-in-JS inline nel componente per decoupling dal CSS PDF (utile in futuro quando il cliente fornira' un foglio stile dedicato).
+- Versione modulo Vini: 3.23 → 3.24.
+
+---
+
+## 2026-04-25 (sessione 57 cont.) — Modulo Guardiano L1+L2+L3 + cleanup + S52-1 chiuso
+
+> Sessione parallela a S58. S58 ha lavorato sul modulo Vini, S57 cont. su infrastruttura, cleanup e modulo guardiano. La pagina pubblica `/carta` (vini) introdotta da S58 stabilisce per il cliente la palette osteria (beige/marrone, Cormorant Garamond) — diversa dal brand TRGB-02 del gestionale; i mockup menu QR fatti in S57 cont. sono in palette gestionale e andranno riallineati alla palette osteria di S58 quando si implementa `/m/{slug}` per il menu carta piatti cliente.
+
+### Aggiunto (modulo guardiano)
+- **L1** Pre-push checks in `push.sh`: debounce ≥30s con conferma soft `[y/N]` (env `PUSH_DEBOUNCE_SECONDS`), probe HTTP `https://trgb.tregobbi.it/`, lettura accessi nginx ultimi 60s via SSH (best effort, non bloccante). Stamp `.last_push` (gitignored).
+- **L2** `docs/architettura_pattern.md` — registry pattern uniformi (API trailing slash, WAL SQLite, niente DDL su sqlite_master a regime, no transazioni lunghe, mattoni M.A-M.I, schede testa+tab, palette TRGB-02, regola campi escluso, auth, file system, docs, push).
+- **L3** `docs/inventario_pulizia.md` — lista viva di codice morto, file orfani, backup forensi, TODO WAL coverage, decisioni pendenti.
+
+### Aggiunto (controllo design)
+- `docs/controllo_design.md` con 6 voci iniziali: pattern testa+tab pendente (ClientiScheda, ControlloGestioneUscite), dark mode, tool config stampe M.B (8.14), Home widget per ruolo (8.10), PWA→app ufficiale priorità alta (1.1), WAL mode esteso a tutti i DB (1.11.2).
+
+### Aggiunto (mockup QR menu piatti)
+- 3 varianti HTML in `docs/mockups/`: `menu_qr_v1_minimal.html`, `menu_qr_v2_brand_pieno.html`, `menu_qr_v3_ibrido.html`. **NB**: in palette brand TRGB-02 (gestionale). Da riallineare alla palette osteria di S58 quando si implementa la pagina pubblica `/m/{slug}`.
+
+### Cambiato
+- `app/services/auth_service.py`: PIN admin di default da "0000" hardcoded a random 6 cifre (`secrets.randbelow`) stampato in console al primo boot se `users.json` manca.
+- `.gitignore`: aggiunto `.last_push` (runtime modulo guardiano).
+
+### Risolto
+- **S52-1** corruzione `vini_magazzino.sqlite3` CHIUSO dopo 4 giorni di servizio stabile post-fix sessione 53. Spostato in Risolti in `docs/problemi.md`.
+- Roadmap **1.15** import morti `vini_db`: voce obsoleta — già rimossi nelle sessioni 52-53. Chiusa dopo verifica grep.
+- Roadmap **1.12** push.sh debounce: ✅ implementato.
+- Roadmap **1.14.a** soft-check servizio attivo: ✅ implementato.
+- Roadmap **1.16/1.17** modulo guardiano L2/L3 docs: ✅ creati.
+- Roadmap **1.20** PIN admin random: ✅ fatto.
+
+### Roadmap aggiornata
+- **1.1 PWA Fase 0** alzata a PRIORITÀ ALTA per richiesta esplicita di Marco ("la parte PWA verso app ufficiale è importante").
+- **1.13** pulizia backup forensi: sbloccato (S52-1 chiuso). Comando in `docs/inventario_pulizia.md`.
+- **1.18** cleanup `run_server.py` + `update_vps.sh` orfano: nuovo punto, decisione pendente.
+- **1.19** migrazioni DB unificate (anche fuori foodcost.db): nuovo punto, sessione tecnica.
+
+### Da fare a mano da Marco (workspace Cowork ha mount FUSE read-only sui rm)
+Prima del push, dal terminale Mac:
+```bash
+cd /Users/underline83/trgb
+rm app/data/dipendenti.db
+rm -rf .claude/worktrees/livelli-cucina
+git worktree prune --verbose
+rm app/routers/ingredients_router.py
+rm app/routers/settings_router.py
+```
+
+### Commit suggerito
+```
+./push.sh "S57 cont.: modulo guardiano L1+L2+L3 + PIN admin random + cleanup codice morto + 3 mockup QR menu + S52-1 chiuso"
+```
+
 ---
 
 ## 2026-04-25 (sessione 56) — Fatture & Fornitori: redesign testa+tab + breadcrumb anti-matrioska

@@ -14,9 +14,9 @@
 
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
-| 1.1 | PWA Fase 0: riscrivere sw.js network-first | S | DA FARE | Asset gia' pronti, serve solo SW + registrazione |
+| 1.1 | PWA Fase 0: riscrivere sw.js network-first | S | **DA FARE — PRIORITÀ ALTA** | Marco S57 cont. (2026-04-25): alzare priorità ("la parte pwa verso app ufficiale è importante"). Asset già pronti, serve solo SW + registrazione. Tracciato anche in `docs/controllo_design.md` §5 |
 | 1.2 | Test PWA su iPad reale | S | BLOCCATO | Bloccato da 1.1 |
-| 1.3 | Fase 1 Capacitor wrapper nativo | L | BLOCCATO | Bloccato da Apple Developer $99/anno |
+| 1.3 | Fase 1 Capacitor wrapper nativo | L | DA VALUTARE | Marco S57 cont.: alzata priorità. Costo Apple Developer $99/anno. Decidere dopo che 1.1+1.2 sono in produzione |
 | 1.4 | Migrazioni DB per dipendenti.sqlite3 | S | DA FARE | Pulizia tecnica |
 | 1.5 | Riorganizzazione foodcost.db in DB separati | L | FUTURO | Solo se diventa collo di bottiglia |
 | 1.6 | Snapshot Aruba settimanale | S | DA FARE | Da configurare dal pannello |
@@ -25,14 +25,19 @@
 | 1.9 | Health check endpoint + uptime monitor | S | DA FARE | /health + UptimeRobot/Betterstack gratis |
 | 1.10 | Aggiornamento automatico frontend (banner nuova versione) | S | DA FARE | Polling BUILD_VERSION ogni 5 min |
 | 1.11 | WAL mode in init_*_database() per `vini_magazzino`, `foodcost`, `notifiche` + fix `.gitignore` `-wal`/`-shm` | S | ⚠️ PARZIALE 2026-04-21 | **Causa radice iniziale trovata MA insufficiente.** Mancavano `app/data/*.sqlite3-wal` e `*.sqlite3-shm` nel `.gitignore` → `git clean -fd` del post-receive VPS cancellava WAL → corruzione al restart. Fix applicato. **Tuttavia alle 00:53 4ª corruzione PRIMA del push** → esiste secondo vettore ancora ignoto (S52-1). Il fix resta necessario ma non sufficiente. |
-| 1.11.2 | Coprire con WAL gli altri DB SQLite | S | DA FARE | `bevande.sqlite3`, `clienti.sqlite3`, `tasks.sqlite3`, `settings.sqlite3`, `dipendenti.sqlite3`, `admin_finance.sqlite3`, `core/database.py`. Stessi 3 PRAGMA in ogni `get_*_connection()`. Low-risk, pattern identico al fix 1.11. |
-| 1.12 | push.sh: debounce anti-doppio-push | S | DA FARE | **Priorità media** (dopo fix 1.11 il rischio è molto più basso). Sessione 51: 3 push consecutivi hanno corrotto il DB 3 volte. Con 1.11 + gitignore fix il problema è risolto, ma un debounce < 30s previene comunque SIGTERM ravvicinati durante startup. Fix: in `push.sh` timestamp in `.last_push` e blocco se troppo recente. |
-| 1.13 | Pulizia backup forensi vini_magazzino | S | BLOCCATO | Sessione 51: in `/home/marco/trgb/trgb/app/data/` restano `CORROTTO-20260420-224312`, `CORROTTO-2.20260420-230727`, `CORROTTO-3-*`, `FORENSE-2251`, `BACKUP-20260420-223719`, `CORROTTO-4-*`. **Posticipato** finché S52-1 non è chiuso — i backup servono come forensica. |
-| 1.14 | Metodo anti-conflitto push ↔ uso attivo | M | DA FARE | Dopo 4ª corruzione (S52-1): prevenire SIGTERM a backend mentre utenti stanno scrivendo. 5 opzioni valutate in `docs/deploy.md` sezione 6. Implementazione incrementale nei 3 sotto-punti sotto. |
-| 1.14.a | push.sh: soft-check servizio attivo + conferma | XS | DA FARE | In `push.sh` aggiungere probe HTTP su `https://trgb.tregobbi.it/` + lettura log accessi ultimi 60s dal VPS → se c'è attività, chiedere `CONTINUE? [y/N]`. Zero rischio, 10 min di lavoro. |
-| 1.14.b | Endpoint `/system/maintenance` + banner FE | M | DA FARE | Backend espone `GET/POST /system/maintenance/status` (auth admin). FE polla ogni 30s, se `active=true` mostra modale di sola lettura. `push.sh` lo attiva prima del push, lo disattiva dopo startup confermato. Copertura completa. |
-| 1.14.c | Quiet-mode WebSocket per form FE | M | FUTURO | WS server-push `maintenance-imminent` → form salvano bozza in stato locale + mostrano "gestionale in aggiornamento, riprova tra 10s". Fattibile dopo 1.14.b. |
-| 1.15 | Pulire import morti `from app.models import vini_db` | XS | DA FARE | 3 occorrenze in `dashboard_router.py:739, 806` e `alert_engine.py:404`. Modulo `vini_db` non esiste → import fallisce silenziosamente in try/except, genera rumore nei log. Sostituire con `from app.models import vini_magazzino_db as vini_db` oppure rimuovere il blocco se era fallback codice morto. |
+| 1.11.2 | Coprire con WAL gli altri DB SQLite | S | DA FARE | `bevande.sqlite3`, `clienti.sqlite3`, `tasks.sqlite3`, `settings.sqlite3`, `dipendenti.sqlite3`, `admin_finance.sqlite3`. Tracciato in `docs/inventario_pulizia.md` con tabella di coverage e in `docs/controllo_design.md` §6. Marco S57 cont.: applichiamo a tutto in batch quando si fa cleanup tecnico |
+| 1.12 | push.sh: debounce anti-doppio-push | S | ✅ FATTO 2026-04-25 (S57 cont.) | Modulo guardiano L1 implementato in push.sh: timestamp `.last_push`, debounce ≥30s (configurabile), conferma soft `[y/N]` se sotto soglia |
+| 1.13 | Pulizia backup forensi vini_magazzino | S | DA FARE | S52-1 chiuso 2026-04-25: ora si possono archiviare. Comando in `docs/inventario_pulizia.md`. Marco esegue da terminale Mac quando vuole |
+| 1.14 | Metodo anti-conflitto push ↔ uso attivo | M | ⚠️ PARZIALE | Modulo guardiano L1 (1.14.a) ✅ fatto. L2-L3 documentazione ✅ fatti. L4 endpoint maintenance (1.14.b) DA FARE in sessione dedicata |
+| 1.14.a | push.sh: soft-check servizio attivo + conferma | XS | ✅ FATTO 2026-04-25 (S57 cont.) | In push.sh: probe HTTP `https://trgb.tregobbi.it/` + lettura accessi nginx ultimi 60s via SSH → se attività, conferma `[y/N]` |
+| 1.14.b | Endpoint `/system/maintenance` + banner FE | M | DA FARE | Da sessione dedicata. Backend espone `GET/POST /system/maintenance/status` (auth admin). FE polla ogni 30s, se `active=true` mostra modale di sola lettura. `push.sh` lo attiva prima del push, lo disattiva dopo startup confermato |
+| 1.14.c | Quiet-mode WebSocket per form FE | M | FUTURO | WS server-push `maintenance-imminent` → form salvano bozza in stato locale + mostrano "gestionale in aggiornamento, riprova tra 10s". Fattibile dopo 1.14.b |
+| 1.15 | Pulire import morti `from app.models import vini_db` | XS | ✅ FATTO 2026-04-25 (S57 cont.) | Già rimossi nelle sessioni 52-53 (commenti `# Nota 2026-04-21 (sessione 52): rimosso import fantasma` in dashboard_router.py:738 e alert_engine.py:403). Voce roadmap era obsoleta — chiusa dopo verifica grep |
+| 1.16 | Modulo guardiano L2 (architettura_pattern.md) | XS | ✅ FATTO 2026-04-25 (S57 cont.) | Registry pattern uniformi creato in `docs/architettura_pattern.md`. Da consultare a inizio di ogni sessione di sviluppo |
+| 1.17 | Modulo guardiano L3 (inventario_pulizia.md) | XS | ✅ FATTO 2026-04-25 (S57 cont.) | Lista viva codice morto/orfani creata in `docs/inventario_pulizia.md`. Aggiornata a tornata con cleanup batch |
+| 1.18 | Cleanup file morti (`run_server.py`, `update_vps.sh` orfano) | XS | DA FARE | Tracciato in `docs/inventario_pulizia.md`. Marco decide se eliminare/aggiornare |
+| 1.19 | Migrazioni DB unificate (anche fuori foodcost.db) | M | DA FARE | Estendere migration_runner ai 9 DB non-foodcost. Tracciato in `docs/inventario_pulizia.md`. Marco S57 cont.: "uniformiamo, modulo guardiano aiuta a tenere logica comune" |
+| 1.20 | PIN admin di default → random 6 cifre | XS | ✅ FATTO 2026-04-25 (S57 cont.) | `app/services/auth_service.py`: invece di "0000" hardcoded, genera PIN random 6 cifre con `secrets.randbelow` e lo stampa in console al primo boot se `users.json` manca |
 
 ---
 

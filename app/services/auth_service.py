@@ -6,6 +6,7 @@ Per cambiare password tramite CLI: python scripts/gen_passwords.py
 """
 
 import json
+import secrets
 from pathlib import Path
 from datetime import timedelta
 from fastapi import HTTPException, status, Depends
@@ -23,16 +24,25 @@ USERS_FILE = Path(__file__).resolve().parent.parent / "data" / "users.json"
 # ---------------------------------------------------------------------------
 def _load_users() -> dict:
     """Legge users.json e restituisce un dict {username: {password_hash, role, display_name}}.
-    Se il file non esiste, crea un utente admin di default (PIN: 0000)."""
+    Se il file non esiste, crea un utente admin con PIN random a 6 cifre stampato a console.
+    Modifica sicurezza 2026-04-25 (sessione 57 cont.): no piu' PIN '0000' di default per evitare
+    rischio admin con PIN noto se il file viene perso. Marco legge il PIN dal log e lo cambia subito."""
     if not USERS_FILE.exists():
-        default_hash = security.get_password_hash("0000")
+        # PIN random a 6 cifre, generato con secrets (cryptographically strong)
+        random_pin = f"{secrets.randbelow(1_000_000):06d}"
+        default_hash = security.get_password_hash(random_pin)
         default_users = [
             {"username": "admin", "display_name": "Admin", "password_hash": default_hash, "role": "superadmin"}
         ]
         USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(USERS_FILE, "w", encoding="utf-8") as f:
             json.dump(default_users, f, indent=2, ensure_ascii=False)
-        print("⚠️  users.json non trovato — creato utente admin di default (PIN: 0000). Cambialo subito!")
+        print("=" * 70)
+        print("⚠️  users.json non trovato — creato utente admin di emergenza")
+        print(f"⚠️  Username: admin")
+        print(f"⚠️  PIN temporaneo: {random_pin}")
+        print(f"⚠️  CAMBIALO SUBITO dopo il primo login (Cambio PIN)")
+        print("=" * 70)
         data = default_users
     else:
         with open(USERS_FILE, "r", encoding="utf-8") as f:
