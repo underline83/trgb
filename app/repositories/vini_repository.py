@@ -207,14 +207,18 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
 # ---------------------------------------------------------
 def load_vini_calici() -> List[Dict[str, Any]]:
     """
-    Restituisce i vini destinati alla sezione CALICI della carta,
-    filtrati per VENDITA_CALICE='SI' (non richiede CARTA='SI').
-    Un vino solo-calice (CARTA='NO') compare qui ma non nelle bottiglie.
-    Usa PREZZO_CALICE al posto di PREZZO_CARTA.
+    Restituisce i vini destinati alla sezione CALICI della carta.
 
-    Sessione 58 (2026-04-25): include anche i vini con BOTTIGLIA_APERTA=1
-    anche se QTA_TOTALE=0 (bottiglia in mescita dietro al banco — i calici
-    residui sono ancora vendibili dalla carta).
+    Logica di inclusione (sessione 58, 2026-04-25):
+    - vini flaggati `VENDITA_CALICE='SI'` in anagrafica → standard;
+    - vini con `BOTTIGLIA_APERTA=1` (bottiglia in mescita) → inclusi anche se
+      `VENDITA_CALICE='NO'`. Caso d'uso: il sommelier apre estemporaneamente
+      una bottiglia da carta normale per servirla al calice; il vino appare
+      in carta calici finche' il flag e' attivo.
+
+    Il filtro giacenza permette di restare in carta anche con QTA_TOTALE=0
+    quando la bottiglia e' in mescita (calici residui ancora vendibili).
+    Usa PREZZO_CALICE; se mancante, fallback `PREZZO_CARTA / 5` arrotondato.
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -234,12 +238,13 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             PREZZO_CALICE,
             PREZZO_CARTA,
             QTA_TOTALE,
-            BOTTIGLIA_APERTA
+            BOTTIGLIA_APERTA,
+            VENDITA_CALICE
         FROM vini_magazzino
         WHERE
             TIPOLOGIA IS NOT NULL
             AND TIPOLOGIA <> 'ERRORE'
-            AND VENDITA_CALICE = 'SI'
+            AND (VENDITA_CALICE = 'SI' OR BOTTIGLIA_APERTA = 1)
         """
     ).fetchall()
     conn.close()
