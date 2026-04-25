@@ -9,6 +9,7 @@ import useComunicazioni from "../hooks/useComunicazioni";
 import useHomeActions from "../hooks/useHomeActions";
 import TrgbLoader from "../components/TrgbLoader";
 import SelezioniCard from "../components/widgets/SelezioniCard";
+import CaliciDisponibiliCard from "../components/widgets/CaliciDisponibiliCard";
 import { Btn } from "../components/ui";
 
 /* ── Saluto contestuale ── */
@@ -200,9 +201,14 @@ export default function DashboardSala() {
             </div>
           </div>
 
-          {/* ═══ COL 2: Selezioni del Giorno + Bacheca ═══ */}
+          {/* ═══ COL 2: Selezioni del Giorno + Calici + Bacheca ═══ */}
           <div className="flex flex-col gap-3.5 min-h-0">
           <SelezioniCard data={widgets?.selezioni} />
+          <CaliciDisponibiliCard
+            title="🥂 Calici al banco"
+            compact={true}
+            onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
+          />
           <div className="bg-white rounded-[14px] shadow-[0_2px_10px_rgba(0,0,0,.06)] flex flex-col overflow-hidden flex-1 min-h-[180px] lg:min-h-0">
             <div className="flex items-center justify-between px-4 pt-4 pb-2.5 border-b border-[#f0ede8]">
               <span className="text-[12px] font-bold uppercase tracking-[1px] text-[#a8a49e]">

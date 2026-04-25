@@ -3,6 +3,38 @@
 
 ---
 
+## 2026-04-25 (sessione 58) — Vini: bottiglia in mescita, ritmo+SCARICO, fix calice, validazioni
+
+### Background
+Audit logica consumo vini ha fatto emergere 4 problemi (vedi `docs/sessione.md` §58).
+
+### Backend
+- **Nuova colonna `BOTTIGLIA_APERTA`** (INTEGER 0/1, default 0) su `vini_magazzino`. Migrazione `app/migrations/101_vini_bottiglia_aperta.py` + auto-migrazione idempotente in `init_magazzino_database()`.
+- **Schemi Pydantic** `VinoMagazzinoBase` + `VinoMagazzinoUpdate`: nuovo campo `BOTTIGLIA_APERTA: Optional[int]`.
+- **`load_vini_calici()`**: filtro esteso a `qta>=soglia OR negative-mode OR BOTTIGLIA_APERTA=1`. Risolve la sparizione dei vini al calice quando la bottiglia in mescita ha portato la giacenza a 0.
+- **Nuovo endpoint** `GET /vini/magazzino/calici-disponibili/` — lista compatta vini con `BOTTIGLIA_APERTA=1`.
+- **Query stats `get_vino_stats()`** — ora `tipo IN ('VENDITA','SCARICO')` invece di solo VENDITA. Razionale: bottiglia non c'e' piu' = venduta ai fini del ritmo. RETTIFICA esclusa. Nuovi campi response: `vendite_calici` (note `[CALICI]`) e `scarichi`.
+
+### Frontend
+- **Nuovo widget `CaliciDisponibiliCard.jsx`** (riutilizzabile). Lista vini con bottiglia aperta + toggle off rapido (✕) + click su riga apre la scheda vino. Modalita' compact per home/dashboard.
+- **Toggle "Bottiglia in mescita"** in scheda vino tab Giacenze, visibile solo se `VENDITA_CALICE='SI'`. Banner contestuale.
+- **Integrazione widget in:**
+  - `ViniVendite.jsx` (header sopra il form di registrazione vendita)
+  - `DashboardSala.jsx` (col 2, sotto SelezioniCard, in modalita' compact)
+- **Tab Statistiche scheda vino** — riga "di cui mescita N · scaricate M" sotto il count vendite.
+- **Fix auto-calcolo prezzo calice** — `autoCalcPrezzo()` ora ricalcola anche `PREZZO_CALICE` quando `PREZZO_CALICE_MANUALE=0`. Bug: prima il calice si aggiornava solo se l'utente digitava il prezzo carta a mano.
+- **Validazione annata** — input `type="number" min=1900 max=anno_corrente+2`, hint "solo anno a 4 cifre", hard check con regex `^\d{4}$` in `saveEdit()`.
+- **Validazione grado alcolico** — input `min=0 max=25 step=0.1`, hard check 0-25 in `saveEdit()`.
+- **Componente `Input`** esteso con prop `min, max, placeholder, hint`.
+
+### File toccati
+- `app/models/vini_magazzino_db.py`, `app/repositories/vini_repository.py`, `app/routers/vini_magazzino_router.py`, `app/migrations/101_vini_bottiglia_aperta.py`.
+- `frontend/src/components/widgets/CaliciDisponibiliCard.jsx` (nuovo), `frontend/src/pages/vini/SchedaVino.jsx`, `frontend/src/pages/vini/ViniVendite.jsx`, `frontend/src/pages/DashboardSala.jsx`, `frontend/src/config/versions.jsx`.
+
+### Versione modulo Vini: 3.22 → 3.23.
+
+---
+
 ## 2026-04-25 (sessione 56) — Fatture & Fornitori: redesign testa+tab + breadcrumb anti-matrioska
 
 ### Problema risolto

@@ -211,6 +211,10 @@ def load_vini_calici() -> List[Dict[str, Any]]:
     filtrati per VENDITA_CALICE='SI' (non richiede CARTA='SI').
     Un vino solo-calice (CARTA='NO') compare qui ma non nelle bottiglie.
     Usa PREZZO_CALICE al posto di PREZZO_CARTA.
+
+    Sessione 58 (2026-04-25): include anche i vini con BOTTIGLIA_APERTA=1
+    anche se QTA_TOTALE=0 (bottiglia in mescita dietro al banco — i calici
+    residui sono ancora vendibili dalla carta).
     """
     conn = get_magazzino_connection()
     cur = conn.cursor()
@@ -229,7 +233,8 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             ANNATA,
             PREZZO_CALICE,
             PREZZO_CARTA,
-            QTA_TOTALE
+            QTA_TOTALE,
+            BOTTIGLIA_APERTA
         FROM vini_magazzino
         WHERE
             TIPOLOGIA IS NOT NULL
@@ -242,6 +247,7 @@ def load_vini_calici() -> List[Dict[str, Any]]:
     filtered = []
     for r in rows:
         qta = r["QTA_TOTALE"] or 0
+        bottiglia_aperta = bool(r["BOTTIGLIA_APERTA"] or 0)
         # Prezzo calice: usa PREZZO_CALICE se esiste, altrimenti auto-calc da PREZZO_CARTA / 5
         prezzo_calice = r["PREZZO_CALICE"]
         if prezzo_calice is None or prezzo_calice == 0:
@@ -249,7 +255,14 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             if prezzo_carta and prezzo_carta > 0:
                 prezzo_calice = round(prezzo_carta / 5, 2)
 
-        if not (qta >= min_qta_stampa or (mostra_negativi and qta < 0)):
+        # Filtro giacenza: passa se qta sufficiente, oppure negative-mode, oppure
+        # se la bottiglia e' aperta in mescita (anche con qta=0).
+        passa_giacenza = (
+            qta >= min_qta_stampa
+            or (mostra_negativi and qta < 0)
+            or bottiglia_aperta
+        )
+        if not passa_giacenza:
             continue
         if not mostra_senza_prezzo:
             if prezzo_calice is None or prezzo_calice == 0:

@@ -88,6 +88,11 @@ class VinoMagazzinoBase(BaseModel):
         0,
         description="Flag forza prezzo (0=no, 1=prezzo fissato manualmente, ignora markup)",
     )
+    BOTTIGLIA_APERTA: Optional[int] = Field(
+        0,
+        description="Flag bottiglia aperta in mescita (0=no, 1=si). Sessione 58. "
+                    "Quando 1, il vino appare nella carta calici anche con QTA_TOTALE=0.",
+    )
 
     STATO_VENDITA: Optional[str] = Field(
         None,
@@ -155,6 +160,7 @@ class VinoMagazzinoUpdate(BaseModel):
     VENDITA_CALICE: Optional[str] = None
     DISCONTINUATO: Optional[str] = None
     FORZA_PREZZO: Optional[int] = None
+    BOTTIGLIA_APERTA: Optional[int] = None
 
     STATO_VENDITA: Optional[str] = None
     STATO_RIORDINO: Optional[str] = None
@@ -524,6 +530,30 @@ def autocomplete_vini(
     current_user: Any = Depends(get_current_user),
 ):
     rows = db.search_vini_autocomplete(q, limit=limit, solo_disponibili=solo_disponibili)
+    return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------
+# ENDPOINT: CALICI DISPONIBILI (sessione 58 — 2026-04-25)
+# Lista compatta dei vini con BOTTIGLIA_APERTA=1, per il widget rapido in
+# Vendite e in Home Sala/Sommelier (toggle on/off al volo).
+# ---------------------------------------------------------
+@router.get("/calici-disponibili/", summary="Vini con bottiglia aperta in mescita")
+def list_calici_disponibili(current_user: Any = Depends(get_current_user)):
+    conn = db.get_magazzino_connection()
+    cur = conn.cursor()
+    rows = cur.execute(
+        """
+        SELECT id, DESCRIZIONE, ANNATA, TIPOLOGIA, PRODUTTORE, REGIONE,
+               PREZZO_CALICE, PREZZO_CARTA, QTA_TOTALE, BOTTIGLIA_APERTA,
+               VENDITA_CALICE
+        FROM vini_magazzino
+        WHERE BOTTIGLIA_APERTA = 1
+          AND (TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE')
+        ORDER BY TIPOLOGIA, DESCRIZIONE;
+        """
+    ).fetchall()
+    conn.close()
     return [dict(r) for r in rows]
 
 

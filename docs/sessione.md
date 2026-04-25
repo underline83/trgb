@@ -1,8 +1,83 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-25 (sessione 57 — Modulo Menu Carta: design + 4 migrazioni + router + 2 pagine FE + import 5 template MEP nel modulo Cucina HACCP + generatore MEP dinamico + export PDF brand)
+**Ultimo aggiornamento:** 2026-04-25 (sessione 58 — Vini quick wins: BOTTIGLIA_APERTA + widget calici disponibili, ritmo include SCARICO, fix calice automatico, validazioni annata/grado)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
+
+### Background
+Audit logica consumo vini ha rivelato 4 problemi:
+1. Vino con `VENDITA_CALICE='SI'` e ultima bottiglia "consumata" sparisce dalla carta calici, anche se ci sono ancora calici da vendere nella bottiglia aperta.
+2. SCARICO non entrava nel ritmo di vendita: vendite registrate erroneamente come scarichi venivano perse dal KPI bt/mese.
+3. Auto-calcolo PREZZO_CALICE non funzionava quando PREZZO_CARTA era valorizzato dal calcolo automatico (onBlur EURO_LISTINO).
+4. Annata e grado alcolico senza validazione: si poteva inserire qualsiasi cosa.
+
+### Soluzioni adottate (decise con Marco)
+
+**1. BOTTIGLIA_APERTA (anti-fuga dalla carta calici)**
+- Nuova colonna `BOTTIGLIA_APERTA INTEGER DEFAULT 0` su `vini_magazzino` (DB separato `vini_magazzino.sqlite3`).
+- Migrazione esplicita `app/migrations/101_vini_bottiglia_aperta.py` + auto-migrazione idempotente in `init_magazzino_database()` (CREATE TABLE per nuove installazioni + ALTER TABLE per quelle esistenti).
+- Schemi Pydantic `VinoMagazzinoBase` + `VinoMagazzinoUpdate` aggiornati.
+- `load_vini_calici()` in `app/repositories/vini_repository.py` ora include `BOTTIGLIA_APERTA = 1` nel filtro: passa se qta>=soglia OR negative-mode OR bottiglia aperta.
+- Toggle UI in scheda vino tab Giacenze, visibile solo se `VENDITA_CALICE='SI'`. Banner contestuale con istruzioni.
+- Nuovo endpoint `GET /vini/magazzino/calici-disponibili/` che ritorna i vini con flag attivo.
+- Nuovo widget riutilizzabile `frontend/src/components/widgets/CaliciDisponibiliCard.jsx` con lista compatta + toggle off rapido (✕ inline). Click su una riga apre la scheda vino. Integrato in:
+  - `ViniVendite.jsx` (header sopra il form di registrazione vendita)
+  - `DashboardSala.jsx` (col 2, sotto SelezioniCard, modalita' compact)
+
+**2. Ritmo include VENDITA + SCARICO**
+- `app/models/vini_magazzino_db.py` — query in `get_vino_stats()` cambiata da `tipo = 'VENDITA'` a `tipo IN ('VENDITA','SCARICO')`. Razionale (deciso con Marco): se la bottiglia non c'e' piu', conta come venduta ai fini del ritmo. RETTIFICA esclusa (e' valore assoluto, non delta).
+- Nuovi campi nella response stats: `vendite_calici` (di cui mescita, conteggia VENDITA con nota `[CALICI]`) e `scarichi` (di cui scaricate non vendute).
+- Frontend tab Statistiche del vino: nuova riga "di cui mescita N · scaricate M" sotto il count vendite.
+
+**3. Fix auto-calcolo PREZZO_CALICE**
+- `autoCalcPrezzo()` in SchedaVino: dopo aver settato `PREZZO_CARTA = data.prezzo_carta`, ora ricalcola anche `PREZZO_CALICE = round((carta/5) * 2) / 2` se `PREZZO_CALICE_MANUALE = 0`. Prima del fix il calice si aggiornava solo se l'utente digitava il prezzo carta a mano (perche' il setEditData programmatico non triggera l'onChange dell'input).
+
+**4. Validazioni annata + grado**
+- Componente `Input` esteso con prop `min, max, placeholder, hint`.
+- Annata: `type="number" min={1900} max={anno_corrente+2}` + hint "solo anno a 4 cifre".
+- Grado alcolico: `type="number" min={0} max={25} step={0.1}`.
+- Hard validation in `saveEdit()` prima del PATCH: regex `^\d{4}$` su annata + range 0-25 su grado, blocco con messaggio user-friendly.
+
+### File toccati
+**Backend:**
+- `app/models/vini_magazzino_db.py` — colonna BOTTIGLIA_APERTA in CREATE TABLE + ALTER nella migration leggera; query `get_vino_stats()` con SCARICO e nuovi campi vendite_calici/scarichi.
+- `app/repositories/vini_repository.py` — `load_vini_calici()` filtro esteso.
+- `app/routers/vini_magazzino_router.py` — schemi Pydantic + endpoint `GET /calici-disponibili/`.
+- `app/migrations/101_vini_bottiglia_aperta.py` — nuova migrazione esplicita.
+
+**Frontend:**
+- `frontend/src/components/widgets/CaliciDisponibiliCard.jsx` — nuovo componente riutilizzabile.
+- `frontend/src/pages/vini/SchedaVino.jsx` — toggle bottiglia in tab Giacenze + statistiche di cui mescita/scaricate + fix calice + validazioni annata/grado + Input esteso.
+- `frontend/src/pages/vini/ViniVendite.jsx` — integrazione widget.
+- `frontend/src/pages/DashboardSala.jsx` — integrazione widget.
+- `frontend/src/config/versions.jsx` — Vini 3.22 → 3.23.
+
+### Verifica
+- `python3 -m py_compile` su backend OK.
+- `esbuild` su tutti i frontend OK.
+
+### Da verificare dopo push
+1. La migrazione 101 deve girare al boot del VPS — controllare i log per `[101] BOTTIGLIA_APERTA pronta`.
+2. Aprire un vino con `VENDITA_CALICE='SI'` in scheda vino tab Giacenze: deve apparire il toggle "Bottiglia in mescita".
+3. Accenderlo, portare la giacenza a 0 (con uno SCARICO), controllare la carta calici: il vino deve restare visibile.
+4. Spegnere il toggle: con giacenza 0, sparisce dalla carta calici come prima.
+5. ViniVendite: comparire la card "🥂 Calici disponibili" sopra il form. Click su una riga apre la scheda vino.
+6. DashboardSala (login come sala/sommelier): col 2 mostra "🥂 Calici al banco" sotto SelezioniCard.
+7. Annata: provare a inserire "23" o "20XX" — deve dare errore al salva.
+8. Grado: provare a inserire 50 — deve dare errore al salva.
+9. Listino: cambiare valore, onBlur deve aggiornare prezzo carta E prezzo calice (se non manuale).
+10. Tab Statistiche di un vino con calici registrati: deve mostrare "di cui mescita N · scaricate M" sotto il count vendite.
+
+### Cose discusse ma rimandate (sessione/i futura/e)
+Dopo il pushed, Marco ha messo in fila altre richieste su Gestione Vini che richiedono interventi piu' grossi e vanno pianificate a parte:
+- **Più distributori/rappresentanti/listini per vino** (strutturale): tabella `vino_distributori` con record per coppia.
+- **Famiglia vino che raggruppa annate** (strutturale): tabella `vini_famiglie` + foreign key, statistiche cross-annata.
+- **Anagrafiche normalizzate** (medio-grosso): produttori, distributori, denominazioni in tabelle dedicate con autocomplete + dedup.
+- **Vitigni con percentuali** (medio): tabella vitigni + join vino_vitigni con percentuale, somma=100%.
 
 ---
 

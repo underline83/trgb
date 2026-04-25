@@ -94,12 +94,14 @@ function Field({ label, value }) {
   );
 }
 
-function Input({ label, name, value, onChange, onBlur, type = "text", step }) {
+function Input({ label, name, value, onChange, onBlur, type = "text", step, min, max, placeholder, hint }) {
   return (
     <div>
       <label className="block text-[11px] font-semibold text-neutral-600 uppercase tracking-wide mb-0.5">{label}</label>
-      <input type={type} step={step} name={name} value={value ?? ""} onChange={onChange} onBlur={onBlur}
+      <input type={type} step={step} min={min} max={max} placeholder={placeholder}
+        name={name} value={value ?? ""} onChange={onChange} onBlur={onBlur}
         className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300" />
+      {hint && <div className="text-[10px] text-neutral-400 mt-0.5">{hint}</div>}
     </div>
   );
 }
@@ -429,6 +431,29 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     setActiveTab(newTab);
   };
 
+  // Sessione 58 (2026-04-25): toggle "bottiglia in mescita".
+  // Aggiorna solo il flag BOTTIGLIA_APERTA via PATCH; il vino resta visibile
+  // nella carta calici anche con QTA_TOTALE=0 finche' il flag e' 1.
+  const [bottigliaSaving, setBottigliaSaving] = useState(false);
+  const toggleBottigliaAperta = async () => {
+    if (!vino) return;
+    const next = vino.BOTTIGLIA_APERTA ? 0 : 1;
+    setBottigliaSaving(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/vini/magazzino/${vinoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ BOTTIGLIA_APERTA: next }),
+      });
+      if (!r.ok) throw new Error(`Errore ${r.status}`);
+      notifyUpdate(await r.json());
+    } catch (e) {
+      alert(e.message || "Errore");
+    } finally {
+      setBottigliaSaving(false);
+    }
+  };
+
   const handleDuplica = async () => {
     if (!window.confirm("Vuoi duplicare questo vino? Verrà creata una copia con giacenze a zero.")) return;
     setDuplicating(true);
@@ -482,7 +507,11 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
     setEditMode(true); setSaveMsg("");
   };
 
-  // Auto-calcolo PREZZO_CARTA quando EURO_LISTINO cambia (onBlur)
+  // Auto-calcolo PREZZO_CARTA quando EURO_LISTINO cambia (onBlur).
+  // Sessione 58 fix: ricalcola in cascata anche PREZZO_CALICE quando non e'
+  // stato impostato manualmente (PREZZO_CALICE_MANUALE=0). Prima del fix il
+  // calice si aggiornava solo se l'utente digitava il prezzo carta a mano,
+  // perche' il setEditData programmatico non triggera l'onChange dell'input.
   const [prezzoAutoCalc, setPrezzoAutoCalc] = useState(false);
   const autoCalcPrezzo = async (euroListino) => {
     const val = parseFloat(euroListino);
@@ -495,7 +524,15 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
       });
       if (r.ok) {
         const data = await r.json();
-        setEditData(p => ({ ...p, PREZZO_CARTA: data.prezzo_carta }));
+        setEditData(p => {
+          const upd = { ...p, PREZZO_CARTA: data.prezzo_carta };
+          // Ricalcola calice solo se non e' stato fissato manualmente.
+          if (!p.PREZZO_CALICE_MANUALE) {
+            const pf = parseFloat(data.prezzo_carta);
+            upd.PREZZO_CALICE = pf > 0 ? (Math.round((pf / 5) * 2) / 2).toFixed(1) : "";
+          }
+          return upd;
+        });
         setPrezzoAutoCalc(true);
         setTimeout(() => setPrezzoAutoCalc(false), 2000);
       }
@@ -503,6 +540,23 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
   };
 
   const saveEdit = async () => {
+    // Sessione 58: validazioni hard prima del PATCH (annata 4 cifre, grado 0-25%).
+    // L'attributo HTML min/max sull'input e' solo indicativo, non blocca submit.
+    if (editData.ANNATA != null && editData.ANNATA !== "") {
+      const a = String(editData.ANNATA).trim();
+      const annoMax = new Date().getFullYear() + 2;
+      if (!/^\d{4}$/.test(a) || Number(a) < 1900 || Number(a) > annoMax) {
+        setSaveMsg(`❌ Annata non valida: deve essere un anno a 4 cifre tra 1900 e ${annoMax}.`);
+        return;
+      }
+    }
+    if (editData.GRADO_ALCOLICO != null && editData.GRADO_ALCOLICO !== "") {
+      const g = parseFloat(editData.GRADO_ALCOLICO);
+      if (!Number.isFinite(g) || g < 0 || g > 25) {
+        setSaveMsg("❌ Grado alcolico non valido: deve essere tra 0 e 25%.");
+        return;
+      }
+    }
     setSaving(true); setSaveMsg("");
     try {
       const payload = { ...editData };
@@ -792,10 +846,15 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                       <SelectTabellato label="Regione" name="REGIONE" value={editData.REGIONE} valori={tabellaOpts.regioni} placeholder="— nessuna —" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <Input label="Annata" name="ANNATA" value={editData.ANNATA} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
+                      <Input label="Annata (AAAA)" name="ANNATA" value={editData.ANNATA}
+                        onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))}
+                        type="number" step="1" min={1900} max={new Date().getFullYear() + 2}
+                        placeholder="es. 2019" hint="solo anno a 4 cifre" />
                       <SelectTabellato label="Formato" name="FORMATO" value={editData.FORMATO} valori={tabellaOpts.formati} valueKey="formato" onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
                       <Input label="Vitigni" name="VITIGNI" value={editData.VITIGNI} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
-                      <Input label="Grado alcolico" name="GRADO_ALCOLICO" value={editData.GRADO_ALCOLICO} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} type="number" step="0.1" />
+                      <Input label="Grado alcolico (%)" name="GRADO_ALCOLICO" value={editData.GRADO_ALCOLICO}
+                        onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))}
+                        type="number" step="0.1" min={0} max={25} placeholder="es. 14.5" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input label="Produttore" name="PRODUTTORE" value={editData.PRODUTTORE} onChange={e => setEditData(p => ({...p, [e.target.name]: e.target.value}))} />
@@ -860,6 +919,34 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                 </>}
               </SectionHeader>
               <div className="p-5">
+                {/* Toggle "Bottiglia in mescita" — visibile solo se vendita al calice abilitata.
+                    Quando ON, il vino resta in carta calici anche con QTA_TOTALE=0. */}
+                {vino.VENDITA_CALICE === "SI" && (
+                  <div className={`mb-4 p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                    vino.BOTTIGLIA_APERTA
+                      ? "bg-amber-50 border-amber-300"
+                      : "bg-neutral-50 border-neutral-200"
+                  }`}>
+                    <div className="min-w-0">
+                      <div className={`text-sm font-semibold ${vino.BOTTIGLIA_APERTA ? "text-amber-900" : "text-neutral-700"}`}>
+                        🍷 Bottiglia in mescita {vino.BOTTIGLIA_APERTA ? "— ATTIVA" : "— spenta"}
+                      </div>
+                      <div className="text-[11px] text-neutral-600 mt-0.5">
+                        {vino.BOTTIGLIA_APERTA
+                          ? "Il vino resta nella carta calici anche con giacenza 0. Spegni quando i calici finiscono."
+                          : "Quando apri una bottiglia per la mescita, accendi il flag così il vino resta in carta anche se la giacenza va a zero."}
+                      </div>
+                    </div>
+                    <button type="button" onClick={toggleBottigliaAperta} disabled={bottigliaSaving}
+                      className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                        vino.BOTTIGLIA_APERTA ? "bg-amber-500" : "bg-neutral-300"
+                      }`}>
+                      <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                        vino.BOTTIGLIA_APERTA ? "translate-x-6" : ""
+                      }`} />
+                    </button>
+                  </div>
+                )}
                 {!giacenzeEdit ? (
                   <div className="divide-y divide-neutral-100">
                     {[
@@ -1257,7 +1344,17 @@ const SchedaVino = forwardRef(function SchedaVino({ vinoId, onClose, onVinoUpdat
                         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
                           <div className="text-[11px] text-neutral-500 uppercase tracking-wide">Vendite totali</div>
                           <div className="text-xl font-bold text-neutral-800 mt-0.5">{vinoStats.vendite_totali}</div>
-                          <div className="text-[11px] text-neutral-400">bottiglie</div>
+                          <div className="text-[11px] text-neutral-400">
+                            bottiglie
+                            {/* Sessione 58: dettaglio mescita + scarichi se presenti */}
+                            {(vinoStats.vendite_calici > 0 || vinoStats.scarichi > 0) && (
+                              <span className="block mt-0.5 text-[10px] text-neutral-500">
+                                {vinoStats.vendite_calici > 0 && <>di cui mescita {vinoStats.vendite_calici}</>}
+                                {vinoStats.vendite_calici > 0 && vinoStats.scarichi > 0 && " · "}
+                                {vinoStats.scarichi > 0 && <>scaricate {vinoStats.scarichi}</>}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className={`rounded-lg border p-3 ${ritmoBadgeCls}`}>
                           <div className="text-[11px] uppercase tracking-wide opacity-80">Ritmo vendita</div>

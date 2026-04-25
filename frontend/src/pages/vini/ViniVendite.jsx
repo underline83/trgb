@@ -8,6 +8,7 @@ import { API_BASE, apiFetch } from "../../config/api";
 import Tooltip from "../../components/Tooltip";
 import ViniNav from "./ViniNav";
 import { Btn } from "../../components/ui";
+import CaliciDisponibiliCard from "../../components/widgets/CaliciDisponibiliCard";
 
 // ─────────────────────────────────────────────────────────────
 // COSTANTI
@@ -371,6 +372,11 @@ export default function ViniVendite() {
             </div>
           </div>
         )}
+
+        {/* ── CALICI DISPONIBILI (sessione 58) ────────────── */}
+        <CaliciDisponibiliCard
+          onClick={(v) => navigate(`/vini/magazzino/${v.id}`)}
+        />
 
         {/* ── REGISTRAZIONE VENDITA ───────────────────────── */}
         <div className="bg-white rounded-3xl shadow-xl p-6 border border-neutral-200">

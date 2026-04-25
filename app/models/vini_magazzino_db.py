@@ -150,6 +150,10 @@ def init_magazzino_database() -> None:
             BIOLOGICO       TEXT CHECK (BIOLOGICO IN ('SI','NO') OR BIOLOGICO IS NULL) DEFAULT 'NO',
             VENDITA_CALICE  TEXT CHECK (VENDITA_CALICE IN ('SI','NO') OR VENDITA_CALICE IS NULL) DEFAULT 'NO',
 
+            -- Mescita: 1 se la bottiglia e' aperta in mescita (anche con QTA_TOTALE=0
+            -- il vino deve apparire nella carta calici). Sessione 58 (2026-04-25).
+            BOTTIGLIA_APERTA INTEGER DEFAULT 0,
+
             -- Stato vendite / conservazione / riordino
             STATO_VENDITA   TEXT,
             NOTE_STATO      TEXT,
@@ -254,6 +258,8 @@ def init_magazzino_database() -> None:
         cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_rappresentante ON vini_magazzino (RAPPRESENTANTE);")
     if "FORZA_PREZZO" not in cols:
         cur.execute("ALTER TABLE vini_magazzino ADD COLUMN FORZA_PREZZO INTEGER DEFAULT 0;")
+    if "BOTTIGLIA_APERTA" not in cols:
+        cur.execute("ALTER TABLE vini_magazzino ADD COLUMN BOTTIGLIA_APERTA INTEGER DEFAULT 0;")
     # Indice su DISTRIBUTORE (se non esiste)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vm_distributore ON vini_magazzino (DISTRIBUTORE);")
 
@@ -1047,13 +1053,22 @@ def get_vino_stats(vino_id: int) -> Dict[str, Any]:
     conn = get_magazzino_connection()
     cur = conn.cursor()
 
+    # Sessione 58 (2026-04-25): il ritmo di vendita ora include sia VENDITA
+    # che SCARICO. Razionale (deciso con Marco): se la bottiglia "non c'e' piu'"
+    # e' considerata venduta ai fini del ritmo. Lo SCARICO copre anche i casi
+    # di vendita dimenticata (segnata dopo come scarico) o uso interno
+    # (rottura, omaggio). RETTIFICA resta esclusa perche' e' un valore assoluto:
+    # non sappiamo se la differenza e' dovuta a vendita o a perdita reale.
+    # Nel registro Movimenti i tipi restano distinti per il controllo a posteriori.
     r = cur.execute(
         """
         SELECT
             COALESCE(SUM(qta), 0) AS vendite_totali,
-            MAX(data_mov)          AS ultima_vendita
+            MAX(data_mov)          AS ultima_vendita,
+            COALESCE(SUM(CASE WHEN tipo = 'VENDITA' AND note LIKE '%[CALICI]%' THEN qta ELSE 0 END), 0) AS vendite_calici,
+            COALESCE(SUM(CASE WHEN tipo = 'SCARICO' THEN qta ELSE 0 END), 0) AS scarichi
         FROM vini_magazzino_movimenti
-        WHERE vino_id = ? AND tipo = 'VENDITA'
+        WHERE vino_id = ? AND tipo IN ('VENDITA','SCARICO')
           AND date(data_mov) >= ?
         """,
         (vino_id, DATA_INIZIO_STORICO),
@@ -1061,6 +1076,8 @@ def get_vino_stats(vino_id: int) -> Dict[str, Any]:
 
     vendite_totali = int((r["vendite_totali"] if r else 0) or 0)
     ultima_vendita = r["ultima_vendita"] if r else None
+    vendite_calici = int((r["vendite_calici"] if r else 0) or 0)
+    scarichi = int((r["scarichi"] if r else 0) or 0)
 
     # Serie mensile per mini-grafico. strftime('%Y-%m', data_mov) aggrega per mese.
     per_mese_rows = cur.execute(
@@ -1068,7 +1085,7 @@ def get_vino_stats(vino_id: int) -> Dict[str, Any]:
         SELECT strftime('%Y-%m', data_mov) AS mese,
                COALESCE(SUM(qta), 0)        AS qta
         FROM vini_magazzino_movimenti
-        WHERE vino_id = ? AND tipo = 'VENDITA'
+        WHERE vino_id = ? AND tipo IN ('VENDITA','SCARICO')
           AND date(data_mov) >= ?
         GROUP BY mese
         ORDER BY mese ASC;
@@ -1082,6 +1099,8 @@ def get_vino_stats(vino_id: int) -> Dict[str, Any]:
         "vino_id": vino_id,
         "vendite_totali": vendite_totali,
         "ultima_vendita": ultima_vendita,
+        "vendite_calici": vendite_calici,        # di cui mescita (note [CALICI])
+        "scarichi": scarichi,                    # di cui scaricate non vendute
         "ritmo_vendita": calcola_ritmo_vendita(vendite_totali),
         "vendite_per_mese": [{"mese": r["mese"], "qta": int(r["qta"])} for r in per_mese_rows],
         "data_inizio_storico": DATA_INIZIO_STORICO,
