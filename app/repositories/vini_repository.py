@@ -323,7 +323,9 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             "DESCRIZIONE": r["DESCRIZIONE"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["_PREZZO_CALICE_FINAL"],
+            "PREZZO_CALICE": r["_PREZZO_CALICE_FINAL"],  # alias esplicito per consumer
             "QTA": r["QTA_TOTALE"],
+            "BOTTIGLIA_APERTA": r["BOTTIGLIA_APERTA"] or 0,
         })
 
     return out

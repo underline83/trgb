@@ -64,25 +64,17 @@ const STYLE = `
   padding-left: 18px;
   padding-right: 18px;
 }
-.cc-header-overline {
-  font-size: 11px;
-  color: #8a7a65;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.cc-header-title {
-  font-size: 30px;
-  font-weight: 700;
-  color: #2b2118;
-  letter-spacing: 0.04em;
-  line-height: 1.1;
+.cc-header-logo {
+  display: block;
+  margin: 0 auto 14px;
+  width: 200px;
+  max-width: 70%;
+  height: auto;
 }
 .cc-header-subtitle {
-  font-size: 12px;
+  font-size: 13px;
   color: #5a4634;
-  letter-spacing: 0.16em;
-  margin-top: 6px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 .cc-header-date {
@@ -306,8 +298,8 @@ const STYLE = `
 @media (min-width: 768px) {
   .cc-shell { padding: 0 28px 80px; }
   .cc-header { padding: 36px 0 24px; margin-left: -28px; margin-right: -28px; padding-left: 28px; padding-right: 28px; }
-  .cc-header-title { font-size: 36px; }
-  .cc-header-subtitle { font-size: 13px; }
+  .cc-header-logo { width: 260px; max-width: 60%; }
+  .cc-header-subtitle { font-size: 14px; letter-spacing: 0.24em; }
   .cc-section-title { font-size: 26px; }
   .cc-tipologia { font-size: 21px; }
   .cc-nazione-label { font-size: 15px; }
@@ -460,8 +452,11 @@ export default function CartaClienti() {
 
           {/* HEADER */}
           <header className="cc-header">
-            <div className="cc-header-overline">Osteria</div>
-            <div className="cc-header-title">TRE GOBBI</div>
+            <img
+              className="cc-header-logo"
+              src={`${API_BASE}/static/img/logo_tregobbi.png`}
+              alt="Osteria Tre Gobbi"
+            />
             <div className="cc-header-subtitle">Carta dei vini</div>
             <div className="cc-header-date">Aggiornata al {data.data_aggiornamento}</div>
           </header>

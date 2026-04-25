@@ -160,12 +160,14 @@ def get_carta_cliente_data():
     }
     """
     # ---- CALICI ----
+    # Nota: load_vini_calici() ritorna un dict con campo PREZZO che e' gia'
+    # il prezzo al calice (con fallback PREZZO_CARTA/5 se PREZZO_CALICE manca).
     calici_rows = list(load_vini_calici())
     calici = []
     for r in calici_rows:
-        prezzo = r.get("_PREZZO_CALICE_FINAL")
+        prezzo = r.get("PREZZO_CALICE")
         if prezzo is None:
-            prezzo = r.get("PREZZO_CALICE")
+            prezzo = r.get("PREZZO")  # nome storico del campo nell'output del repo
         calici.append({
             "id": r["id"],
             "descrizione": r.get("DESCRIZIONE"),
