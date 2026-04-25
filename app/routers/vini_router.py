@@ -67,19 +67,37 @@ LOGO_PATH = STATIC_DIR / "img" / "logo_tregobbi.png"
 # ------------------------------------------------------------
 @router.get("/carta", response_class=HTMLResponse)
 def genera_carta_vini_html():
+    """
+    Anteprima HTML della carta vini, allineata visivamente al PDF cliente
+    (carta_pdf.css). Sessione 58 (2026-04-25): aggiunto frontespizio coerente
+    col PDF (logo + titolo + sottotitolo + data) al posto dell'h1 unico.
+    """
     rows = list(load_vini_ordinati())
     calici_rows = list(load_vini_calici())
     calici_html = build_calici_section_htmlsafe(calici_rows)
     body = build_carta_body_html_htmlsafe(rows)
+    data_oggi = datetime.now().strftime("%d/%m/%Y")
+
+    # Frontespizio inline (analogo a .front-page del PDF)
+    frontespizio = f"""
+    <div class="front-page">
+        <img src="/static/img/logo_tregobbi.png" class="front-logo" alt="Osteria Tre Gobbi">
+        <div class="front-title">CARTA VINI</div>
+        <div class="front-subtitle">Osteria Tre Gobbi</div>
+        <div class="front-date">Aggiornata al {data_oggi}</div>
+    </div>
+    """
 
     html = f"""
     <html>
     <head>
         <meta charset='utf-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1'>
+        <title>Carta Vini · Osteria Tre Gobbi</title>
         <link rel='stylesheet' href='/static/css/carta_html.css'>
     </head>
     <body>
-        <h1 class='title'>OSTERIA TRE GOBBI — CARTA DEI VINI</h1>
+        {frontespizio}
         {calici_html}
         {body}
     </body>

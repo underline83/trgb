@@ -33,6 +33,15 @@ Audit logica consumo vini ha fatto emergere 4 problemi (vedi `docs/sessione.md` 
 
 ### Versione modulo Vini: 3.22 → 3.23.
 
+### Iterazione 2 — Carta vini HTML allineata al PDF (Fase 1)
+
+- **`static/css/carta_html.css`** riscritto. Conversione canonica pt → px (1pt ≈ 1.333px). Sfondo bianco come PDF (era beige), font-size matchati 1:1 col PDF (body 16px = 12pt, tipologia 21px = 16pt, calici title 29px = 22pt, ecc.). Aggiunte classi frontespizio (`.front-page`, `.front-logo`, `.front-title`, `.front-subtitle`, `.front-date`). Tutte le classi `.bev-*` riallineate ai pt esatti. Wrap body in max-width 210mm (A4) + media query mobile.
+- **`app/routers/vini_router.py`** endpoint `/carta`: sostituito `<h1 class="title">` con frontespizio inline (logo + titolo + data) coerente col PDF. Aggiunti meta viewport + title HTML.
+
+Risultato: la pagina HTML cliente `/vini/carta` ora ha la stessa estetica del PDF cliente, ma e' live (regenerata a ogni GET dal DB — niente PDF da rigenerare quando cambiano prezzi/giacenze).
+
+Prossima fase (rimandata): pagina React dinamica con search, filtri, interazione, mantenendo l'identita' osteria.
+
 ---
 
 ## 2026-04-25 (sessione 56) — Fatture & Fornitori: redesign testa+tab + breadcrumb anti-matrioska

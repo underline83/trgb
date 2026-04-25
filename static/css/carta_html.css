@@ -1,47 +1,108 @@
 /* ============================================================
-   CARTA VINI — CSS HTML (Anteprima browser) — v3.1
-   Allineato a carta_pdf.css per coerenza visiva
+   CARTA VINI — CSS HTML (Anteprima browser) — v3.2
+   Allineato a carta_pdf.css per coerenza visiva (sessione 58 — 2026-04-25).
+   Conversione canonica pt → px: 1pt ≈ 1.333px (96 dpi).
+   Differenze deliberate vs PDF:
+   - niente @page / page-break (l'HTML scorre continuo)
+   - niente @font-face locali (il browser carica Cormorant da Google Fonts)
+   - frontespizio inline al posto della pagina dedicata del PDF
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&display=swap');
 
-body {
-    font-family: "Cormorant Garamond", "Times New Roman", serif;
-    background: #fdf8f0;
-    color: #2b2118;
-    padding: 38px;
-    font-size: 15px;
+html, body {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     font-kerning: normal;
 }
 
-/* Titolo */
+body {
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
+    background: #ffffff;       /* bianco come PDF (era #fdf8f0 beige) */
+    color: #2b2118;
+    padding: 28mm 22mm;        /* margini equivalenti a quelli A4 del PDF */
+    font-size: 16px;           /* 12pt */
+    max-width: 210mm;          /* larghezza A4 */
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   FRONTESPIZIO (al posto della .title singola)
+   ============================================================ */
+.front-page {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #c5a97a;
+}
+.front-logo {
+    display: block;
+    margin: 0 auto 32px;
+    width: 90%;
+    max-width: 380px;
+}
+.front-title {
+    font-size: 37px;           /* 28pt PDF */
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+}
+.front-subtitle {
+    font-size: 24px;           /* 18pt PDF */
+    margin-bottom: 4px;
+    color: #5a4634;
+}
+.front-date {
+    font-size: 19px;           /* 14pt PDF */
+    opacity: 0.7;
+    margin-top: 10px;
+    color: #5a4634;
+}
+.front-version {
+    font-family: "Courier New", monospace;
+    font-size: 13px;           /* 10pt PDF */
+    color: #8a7a65;
+    margin-top: 20px;
+    letter-spacing: 1px;
+}
+
+/* Fallback per la vecchia .title (compatibilita': se il backend
+   ritorna ancora <h1 class="title">, la stiliamo come front-title) */
 .title {
     text-align: center;
-    letter-spacing: 0.12em;
-    font-size: 22px;
+    font-size: 37px;
     font-weight: 700;
-    margin-bottom: 34px;
+    margin: 0 auto 40px;
+    letter-spacing: 0.04em;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #c5a97a;
 }
+
+/* ============================================================
+   CORPO CARTA — sezione vini per tipologia
+   ============================================================ */
 
 /* Tipologia */
 .tipologia {
-    font-size: 22px;
-    text-transform: uppercase;
+    font-size: 21px;           /* 16pt PDF */
     text-align: center;
     font-weight: 700;
+    text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-top: 46px;
-    margin-bottom: 14px;
+    margin-top: 32px;
+    margin-bottom: 13px;
     border-bottom: 1px solid #b89b6d;
-    padding-bottom: 8px;
+    padding-bottom: 5px;
+}
+.tipologia:first-of-type {
+    margin-top: 0;
 }
 
-/* Nazione — filetti decorativi ai lati (come PDF) */
+/* Nazione — filetti decorativi ai lati */
 .nazione {
     text-align: center;
-    margin: 22px 0 8px;
+    margin: 27px 0 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -54,99 +115,102 @@ body {
     border-top: 1px solid #c5a97a;
 }
 .naz-label {
-    font-size: 17px;
+    font-size: 17px;           /* 13pt PDF */
     font-weight: 600;
     color: #5a4634;
-    letter-spacing: 2px;
+    letter-spacing: 0.16em;
     padding: 0 10px;
 }
 
 /* Regione */
 .regione {
-    font-size: 17px;
+    font-size: 17px;           /* 13pt PDF */
     text-align: center;
-    margin-top: 18px;
-    margin-bottom: 8px;
+    margin-top: 17px;
+    margin-bottom: 9px;
     font-weight: 700;
     color: #3b2814;
 }
 
 /* Produttore */
 .produttore {
-    font-size: 15px;
+    font-size: 16px;           /* 12pt PDF */
     font-weight: 700;
     color: #2b2118;
-    margin-top: 12px;
-    margin-bottom: 4px;
-    padding-left: 14px;
+    margin-top: 11px;
+    margin-bottom: 3px;
+    padding-left: 13px;
 }
 
 /* Spazio prima del produttore */
 .spacer {
-    height: 6px;
+    height: 5px;
 }
 
 /* Tabelle vini */
 table.vini {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
 }
 
 table.vini td {
     padding: 2px 0;
     vertical-align: top;
-    font-size: 14px;
+    font-size: 15px;           /* 11pt PDF */
 }
 
-/* Colonne */
+/* Colonne (proporzioni identiche al PDF) */
 td.vino   { width: 65%; padding-right: 8px; }
 td.annata { width: 10%; text-align: right; padding-right: 8px; }
 td.prezzo { width: 10%; text-align: right; }
 
-/* Sezione Calici */
+/* ============================================================
+   SEZIONE CALICI (in cima alla carta)
+   ============================================================ */
 .calici-section {
-    margin-bottom: 40px;
-    border-bottom: 2px solid #c4a77d;
-    padding-bottom: 20px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid #c4a77d;
+    padding-bottom: 24px;
 }
 .calici-title {
-    font-size: 24px;
+    font-family: "Cormorant Garamond", "Garamond", serif;
+    font-size: 29px;           /* 22pt PDF */
     font-weight: 600;
     text-align: center;
-    letter-spacing: 5px;
+    letter-spacing: 0.4em;
     text-transform: uppercase;
-    margin: 20px 0 16px 0;
+    margin: 27px 0 21px 0;
     color: #5b2c1a;
     border-bottom: 1px solid #c4a77d;
-    padding-bottom: 8px;
+    padding-bottom: 11px;
 }
 
 /* ============================================================
    CARTA BEVANDE — blocchi master (sezione, intro, 3 layout)
-   Aggiunti in Fase 3 del modulo Carta Bevande.
+   Allineati ai pt del PDF.
    ============================================================ */
 
 .bev-section {
-    margin: 48px 0;
+    margin-top: 21px;
 }
 .bev-section-title {
-    font-size: 24px;
+    font-size: 24px;           /* 18pt PDF */
     text-align: center;
-    letter-spacing: 6px;
+    letter-spacing: 0.32em;
     text-transform: uppercase;
     font-weight: 700;
     color: #5b2c1a;
     border-bottom: 1px solid #c4a77d;
-    padding-bottom: 10px;
-    margin: 10px 0 20px;
+    padding-bottom: 8px;
+    margin: 8px 0 19px;
 }
 .bev-intro {
-    font-size: 14px;
+    font-size: 15px;           /* 11pt PDF */
     color: #5a4634;
     font-style: italic;
-    max-width: 760px;
-    margin: 0 auto 18px;
+    max-width: 150mm;
+    margin: 0 auto 13px;
     text-align: center;
 }
 .bev-empty {
@@ -154,51 +218,54 @@ td.prezzo { width: 10%; text-align: right; }
     color: #8a7a65;
 }
 .bev-note-staff {
-    font-size: 12px;
+    font-size: 12px;           /* 9pt PDF */
     color: #a04000;
     font-style: italic;
     background: #fff8ec;
     border-left: 3px solid #a04000;
     padding: 4px 8px;
-    margin: 4px 0 8px;
+    margin: 3px 0 8px;
 }
 
-/* Pattern A — tabella 4 colonne */
+/* ────────────── Pattern A — tabella 4 colonne ────────────── */
+.bev-4col {
+    margin-top: 8px;
+}
 .bev-4col-group {
-    font-size: 17px;
+    font-size: 17px;           /* 13pt PDF */
     text-transform: uppercase;
     font-weight: 700;
     color: #3b2814;
-    letter-spacing: 2px;
-    margin: 20px 0 8px;
+    letter-spacing: 0.16em;
+    margin: 19px 0 5px;
     text-align: center;
 }
 .bev-4col-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 10px;
+    margin-bottom: 11px;
 }
 .bev-4col-table td {
-    padding: 3px 6px;
+    padding: 3px 5px;
     vertical-align: top;
-    font-size: 14px;
+    font-size: 14px;           /* 10.5pt PDF */
 }
 .bev-4col-table td.b4-ctx    { width: 22%; color: #5a4634; font-style: italic; }
 .bev-4col-table td.b4-prod   { width: 25%; font-weight: 600; }
 .bev-4col-table td.b4-nome   { width: 43%; }
 .bev-4col-table td.b4-prezzo { width: 10%; text-align: right; font-weight: 700; }
 .bev-4col-table tr.b4-desc-row td {
-    font-size: 12px;
+    font-size: 13px;           /* 9.5pt PDF */
     color: #7a6b5a;
     padding-top: 0;
-    padding-bottom: 8px;
+    padding-bottom: 5px;
     padding-left: 24px;
     font-style: italic;
 }
 
-/* Pattern B — scheda estesa */
+/* ────────────── Pattern B — scheda estesa ────────────── */
 .bev-scheda-item {
-    padding: 10px 0;
+    padding: 8px 0;
     border-bottom: 1px dotted #d8c8a8;
 }
 .bev-scheda-item:last-child {
@@ -208,10 +275,10 @@ td.prezzo { width: 10%; text-align: right; }
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 12px;
+    gap: 11px;
 }
 .bev-scheda-nome {
-    font-size: 17px;
+    font-size: 17px;           /* 13pt PDF */
     font-weight: 700;
     color: #2b2118;
 }
@@ -221,19 +288,19 @@ td.prezzo { width: 10%; text-align: right; }
     white-space: nowrap;
 }
 .bev-scheda-meta {
-    font-size: 13px;
+    font-size: 13px;           /* 10pt PDF */
     color: #5a4634;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 .bev-scheda-desc {
-    font-size: 14px;
+    font-size: 15px;           /* 11pt PDF */
     color: #2b2118;
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
-/* Pattern C — nome + badge + desc */
+/* ────────────── Pattern C — nome + badge + desc ────────────── */
 .bev-badge-item {
-    padding: 10px 0;
+    padding: 8px 0;
     border-bottom: 1px dotted #d8c8a8;
 }
 .bev-badge-item:last-child {
@@ -242,11 +309,11 @@ td.prezzo { width: 10%; text-align: right; }
 .bev-badge-head {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
     flex-wrap: wrap;
 }
 .bev-badge-nome {
-    font-size: 16px;
+    font-size: 16px;           /* 12pt PDF */
     font-weight: 700;
     color: #2b2118;
 }
@@ -258,11 +325,11 @@ td.prezzo { width: 10%; text-align: right; }
 }
 .bev-badge {
     display: inline-block;
-    padding: 2px 10px;
+    padding: 1px 11px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 12px;           /* 8.5pt PDF */
     font-weight: 600;
-    letter-spacing: 1px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 .bev-badge-neutral {
@@ -270,18 +337,18 @@ td.prezzo { width: 10%; text-align: right; }
     color: #5a4634;
 }
 .bev-badge-meta {
-    font-size: 12px;
+    font-size: 13px;           /* 9.5pt PDF */
     color: #7a6b5a;
-    margin-top: 4px;
+    margin-top: 3px;
     font-style: italic;
 }
 .bev-badge-desc {
-    font-size: 14px;
+    font-size: 14px;           /* 10.5pt PDF */
     color: #2b2118;
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
-/* Version badge (footer preview) */
+/* ────────────── Footer versione (solo HTML preview) ────────────── */
 .bev-version-footer {
     text-align: center;
     color: #8a7a65;
@@ -290,4 +357,20 @@ td.prezzo { width: 10%; text-align: right; }
     padding-top: 12px;
     border-top: 1px solid #e4d8c0;
     font-family: "Courier New", monospace;
+}
+
+/* ============================================================
+   ADATTAMENTO MOBILE / TABLET (solo HTML — il PDF e' fisso A4)
+   ============================================================ */
+@media (max-width: 600px) {
+    body {
+        padding: 18px 16px;
+        font-size: 15px;
+    }
+    .front-title { font-size: 28px; }
+    .front-subtitle { font-size: 19px; }
+    .tipologia { font-size: 19px; }
+    .calici-title { font-size: 22px; letter-spacing: 0.25em; }
+    .bev-section-title { font-size: 19px; letter-spacing: 0.2em; }
+    table.vini td { font-size: 14px; }
 }

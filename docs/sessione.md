@@ -79,6 +79,38 @@ Dopo il pushed, Marco ha messo in fila altre richieste su Gestione Vini che rich
 - **Anagrafiche normalizzate** (medio-grosso): produttori, distributori, denominazioni in tabelle dedicate con autocomplete + dedup.
 - **Vitigni con percentuali** (medio): tabella vitigni + join vino_vitigni con percentuale, somma=100%.
 
+### Iterazione 2 — Allineamento CSS HTML al PDF (Fase 1 carta vini)
+
+Marco: la pagina HTML `/vini/carta` era stata abbandonata. Estetica disallineata dal PDF cliente che gira su iPad. Vuole 2 fasi:
+- **Fase 1**: allineare l'HTML al CSS PDF esistente (stessa identita' osteria, niente brand TRGB-02 — quello e' del software, non del cliente).
+- **Fase 2** (futura): pagina dinamica moderna React con search/filtri/interazione (i mockup A+B+C mostrati restano base ispirazionale).
+
+Fase 1 implementata (questa iterazione):
+
+**`static/css/carta_html.css` riscritto da zero (294 righe → 280 con commenti)**:
+- Conversione canonica pt → px (1pt ≈ 1.333px) per matchare il PDF dimensione per dimensione.
+- Sfondo `#fdf8f0` (beige) → `#ffffff` (bianco come PDF).
+- Body 15px → 16px (= 12pt PDF).
+- Tipologia 22px → 21px (= 16pt PDF), con `text-transform: uppercase` e tracking 0.08em.
+- Calici title 24px → 29px (= 22pt PDF).
+- Aggiunte classi frontespizio: `.front-page`, `.front-logo`, `.front-title`, `.front-subtitle`, `.front-date`, `.front-version` (analoghe alla pagina di apertura del PDF).
+- Tutte le classi Pattern A / B / C dei `bev-*` (carta bevande) riallineate ai pt esatti del PDF (10pt → 13px, 11pt → 15px, 13pt → 17px, ecc.).
+- Body wrappato in max-width 210mm (A4) + padding 28mm × 22mm per simulare la pagina A4 sul browser.
+- Aggiunto blocco `@media (max-width: 600px)` per mobile (consultazione iPad portrait / smartphone).
+
+**`app/routers/vini_router.py` endpoint `/carta`**:
+- Sostituito `<h1 class="title">OSTERIA TRE GOBBI — CARTA DEI VINI</h1>` con un `<div class="front-page">` che richiama il frontespizio del PDF (logo + titolo CARTA VINI + sottotitolo Osteria Tre Gobbi + data "Aggiornata al gg/mm/AAAA").
+- Aggiunti `<meta viewport>` per mobile e `<title>` HTML.
+- Logo path `/static/img/logo_tregobbi.png` (gia' presente, usato anche dal PDF).
+
+Risultato: aprendo `/vini/carta` su iPad o browser, la pagina ha la stessa estetica del PDF cliente — identico a livello visivo, solo che e' live (la query DB gira a ogni GET, niente bisogno di rigenerare PDF).
+
+### Da verificare (Fase 1)
+1. `/vini/carta` su browser desktop: deve apparire come il PDF (sfondo bianco, frontespizio con logo, sezioni tipografiche identiche).
+2. Stesso URL su iPad: il viewport meta + max-width 210mm dovrebbero centrare il contenuto.
+3. Smartphone (`<600px`): media query aumenta padding e riduce font; deve restare leggibile.
+4. Logo: visibile in cima (path /static/img/logo_tregobbi.png e' gia' servito dal back).
+
 ---
 
 ## SESSIONE 57 (2026-04-25) — MODULO MENU CARTA + import MEP cucina
