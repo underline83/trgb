@@ -22,7 +22,7 @@ export default function CartaVini() {
         <p className="text-neutral-600 text-sm">
           Le voci vini della carta sono <strong>dinamiche</strong>: arrivano direttamente dal magazzino Cantina.
           Per modificare prezzi, annate, descrizioni, vai alla Cantina e aggiorna la scheda del vino —
-          l'anteprima a destra si rinfresca automaticamente.
+          le esportazioni PDF/Word in alto sono sempre live.
         </p>
       </div>
 
