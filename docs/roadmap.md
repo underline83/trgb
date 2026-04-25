@@ -1,5 +1,5 @@
 # TRGB Gestionale — Roadmap
-**Ultimo aggiornamento:** 2026-04-22 (sessione 54 — Flussi cassa contanti: filtro data + Flusso contanti + baselines + unificazione Pre-conti/Spese varie + Flusso spese)
+**Ultimo aggiornamento:** 2026-04-25 (sessione 58 — Vini quick wins + carta cliente pubblica `/carta` + vista sommelier `/vini/carta-staff` + ridisegno Centro Carta)
 **Legenda effort:** S = mezza sessione (~1h), M = 1 sessione (~2-3h), L = 2+ sessioni
 
 > Roadmap concordata tra Marco e Claude. Ogni punto ha un ID stabile (sezione.numero).
@@ -128,7 +128,7 @@
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
 | 7.1 | Flag DISCONTINUATO UI + filtro | S | DA FARE | Colonna DB gia' aggiunta, serve solo UI |
-| 7.2 | Carta Vini pagina web pubblica | M | DA FARE | tregobbi.it/carta-vini |
+| 7.2 | Carta Vini pagina web pubblica | M | ✅ FATTO 2026-04-25 (S58) | Pagina pubblica `/carta` (no auth) con identita' osteria (Cormorant Garamond + palette beige/marrone), indice iniziale raggruppato VINI/BEVANDE + drill-down per sezione, search globale e per sezione, badge "in mescita" per bottiglie aperte, prezzo bottiglia + calice. Include anche le 8 sezioni bevande con i 3 pattern di rendering (tabella distillati, scheda birre/aperitivi, badge tisane/te'). Ottimizzata iPhone + iPad portrait/landscape. Endpoint pubblico `GET /vini/carta-cliente/data`. |
 | 7.3 | PDF carta con TOC cliccabile | S | DA FARE | Usa **M.B** PDF brand |
 | 7.4 | iPratico test end-to-end completo | S | DA FARE | Import → verifica → export → reimport |
 | 7.5 | Import Excel con diff interattivo | M | DA FARE | Usa **M.H** import engine |
@@ -136,6 +136,17 @@
 | 7.7 | Storico prezzi fornitore (grafico) | S | DA FARE | Dati gia' in fe_righe |
 | 7.8 | Inventario rapido da iPad | M | DA FARE | Lista per locazione, +/- giacenza, conferma batch |
 | 7.9 | Potenziamento widget "Vini in carta senza giacenza" | M | DA FARE | Spec completa in `docs/modulo_vini_alert_widget.md`. 6 fasi approvate (Ordina inline, qta suggerita, ultima vendita, badge stato 3-click, filtro tipologia, raggruppa per distributore). Punto 7 (export lista WhatsApp) teorizzato e differito — dipende da anagrafica distributori con telefono + template configurabili + mattone M.B PDF |
+| 7.10 | Bottiglia in mescita (BOTTIGLIA_APERTA) | S | ✅ FATTO 2026-04-25 (S58) | Nuova colonna su `vini_magazzino`. Toggle in scheda vino tab Giacenze. Auto-on quando si registra vendita CALICI. Widget "🥂 Calici disponibili" in `ViniVendite` e `DashboardSala`. Endpoint `GET /vini/magazzino/calici-disponibili/`. Migrazione 101. |
+| 7.11 | Vista sommelier (`/vini/carta-staff`) | S | ✅ FATTO 2026-04-25 (S58) | Pagina staff loggata con identita' osteria + tabella densa: codice, vino, prezzi (bottiglia + calice), **locazioni con qta**, giacenza, badge status (in mescita/scarsa/in carta/esaurita). Filtri rapidi + search + auto-refresh 30s. Click apre scheda gestionale. Endpoint `GET /vini/magazzino/carta-staff/`. |
+| 7.12 | Centro Carta gestionale ridisegno | S | ✅ FATTO 2026-04-25 (S58) | `/vini/carta` rifondato: rimossi pulsanti ridondanti ("Aggiorna anteprima" / "Apri HTML" / 3 set duplicati di export). Header con 4 azioni globali sulla carta master vini+bevande: PDF cliente / PDF staff / Word / Vedi come cliente. CartaVini diventa pannello informativo. CartaAnteprima diventa redirect. (Iter 6 aveva split-pane con anteprima inline, iter 7 l'ha rimossa per scelta UX di Marco.) |
+| 7.13 | Ritmo vendite include SCARICO | XS | ✅ FATTO 2026-04-25 (S58) | Query `get_vino_stats()` cambia da `tipo='VENDITA'` a `tipo IN ('VENDITA','SCARICO')`. Razionale: bottiglia non c'e' piu' = venduta ai fini del ritmo. Statistiche scheda vino mostrano "di cui mescita N · scaricate M". |
+| 7.14 | Validazioni annata + grado alcolico | XS | ✅ FATTO 2026-04-25 (S58) | Annata: type=number, regex `^\d{4}$`, range 1900-(anno+2). Grado: range 0-25%. Hard validation in `saveEdit()`. |
+| 7.15 | Fix auto-calcolo prezzo calice | XS | ✅ FATTO 2026-04-25 (S58) | `autoCalcPrezzo()` ora ricalcola anche `PREZZO_CALICE` quando `PREZZO_CALICE_MANUALE=0`. Bug: prima il calice si aggiornava solo se prezzo carta digitato a mano. |
+| 7.16 | Note degustative cliente per vino | M | DA FARE | Marco S58: vuole farle generare a Claude (AI) e poi personalizzarle. Richiede campo `NOTE_DEGUSTAZIONE TEXT` su `vini_magazzino` + editor in scheda vino + rendering nella carta cliente al click sulla voce. |
+| 7.17 | Più distributori/rappresentanti/listini per vino | L | DA FARE | Strutturale. Tabella `vino_distributori` con record per coppia. Marco S58 lo ha listato come prossimo step grosso. |
+| 7.18 | Famiglia vino che raggruppa annate | M-L | DA FARE | Tabella `vini_famiglie` + foreign key. Statistiche cross-annata (andamento vendite, andamento prezzi). |
+| 7.19 | Anagrafiche normalizzate (produttori, distributori, denominazioni) | M | DA FARE | Tabelle dedicate con autocomplete + dedup automatico su nome esistente. |
+| 7.20 | Vitigni con percentuali | M | DA FARE | Tabella `vini_vitigni_anagrafica` + join `vino_vitigni` con percentuale (somma=100%). |
 
 ---
 

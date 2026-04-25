@@ -80,6 +80,13 @@ Marco: pagina con 3 set di pulsanti confusi ("Anteprima" / "Aggiorna anteprima" 
 - **CartaAnteprima** (`v2.0`): vista a tutta pagina dello stesso iframe master. Bottoni: ← Centro Carta · Ricarica · PDF cliente · PDF staff · Word.
 - Versione modulo Vini: 3.25 → 3.27.
 
+### Iterazione 7 — Anteprima rimossa dal Centro Carta
+
+- **`CartaBevande` (v3.1-no-preview)**: rimossa anteprima inline. Layout torna a sidebar + editor. Header con 4 azioni: PDF cliente / PDF staff / Word / Vedi come cliente.
+- **`CartaAnteprima` (v3.0-removed)**: trasformata in redirect a `/vini/carta`. File mantenuto in attesa di rimozione fisica da terminale Mac (sandbox non permette `rm`).
+- **`CartaVini`**: testo informativo aggiornato (rimosso riferimento all'anteprima).
+- Versione modulo Vini: 3.27 → 3.28.
+
 ---
 
 ## 2026-04-25 (sessione 57 cont.) — Modulo Guardiano L1+L2+L3 + cleanup + S52-1 chiuso

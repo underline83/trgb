@@ -261,6 +261,30 @@ Marco: i 3 pulsanti "Anteprima / Aggiorna anteprima / Apri HTML" creavano confus
 8. CartaAnteprima: bottone "← Centro Carta" torna alla shell. Reload + 3 pulsanti export.
 9. iPad portrait: stack verticale (sidebar in cima, editor sotto, iframe in fondo). Da `xl:` torna lo split a 3 colonne.
 
+### Iterazione 7 — Anteprima rimossa dal Centro Carta
+
+Marco: "non mi piace quella vista dell'anteprima, toglila del tutto".
+
+- **`CartaBevande` (v3.1-no-preview)**: layout torna a 2 colonne (sidebar + editor). Tolto iframe live e tutto lo state di refresh (`previewKey`, `triggerPreviewRefresh`). Header con 4 azioni globali (rimossa "Espandi anteprima" perche' non c'e' piu' anteprima da espandere): **PDF cliente** · **PDF staff** · **Word** · **↗ Vedi come cliente**.
+- **`CartaAnteprima` (v3.0-removed)**: pagina trasformata in un semplice `<Navigate to="/vini/carta" replace />` per non rompere eventuali deep-link. File mantenuto perche' la sandbox non permette `rm`; Marco potra' eliminarlo dal terminale Mac quando vuole, insieme alla route corrispondente in `App.jsx` (riga 211 + lazy import riga 24).
+- **`CartaVini`**: aggiornato il testo informativo (rimosso riferimento all'anteprima a destra che si rinfresca).
+- **`CartaSezioneEditor`**: prop `onSaved` resta ma diventa orphan (nessuno la passa piu'). Innocua, non rimossa per evitare di toccare il file da 575 righe.
+- Versione modulo Vini: 3.27 → 3.28.
+
+### File toccati (Iter 7)
+- `frontend/src/pages/vini/CartaBevande.jsx` — semplificazione layout.
+- `frontend/src/pages/vini/CartaAnteprima.jsx` — diventa redirect.
+- `frontend/src/pages/vini/CartaVini.jsx` — testo aggiornato.
+- `frontend/src/config/versions.jsx` — Vini 3.27 → 3.28.
+
+### Pulizia opzionale (quando Marco ha tempo da terminale Mac)
+```
+rm frontend/src/pages/vini/CartaAnteprima.jsx
+# poi togliere da frontend/src/App.jsx le righe:
+#   - lazy import CartaAnteprima (~riga 24)
+#   - <Route path="/vini/carta/anteprima" .../> (~riga 211)
+```
+
 ---
 
 ## SESSIONE 57 cont. (2026-04-25 sera) — MODULO GUARDIANO L1+L2+L3 + CLEANUP + S52-1 CHIUSO + PIN admin random

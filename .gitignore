@@ -135,3 +135,5 @@ scripts_backup_*/
 .last_push
 # Stato condiviso fra skill /guardiano e push.sh (audit + post-push)
 .guardiano_state.json
+# Pacchetto skill generato da scripts/package_skill.py (artefatto build, rigenerabile)
+/guardiano.skill
