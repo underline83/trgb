@@ -1358,6 +1358,18 @@ def registra_movimento(
             (vino_id, data_mov, tipo, abs(delta), loc, note, origine, utente, created_at),
         )
 
+    # Sessione 58 (2026-04-25): auto-on di BOTTIGLIA_APERTA quando si registra
+    # una VENDITA con tag [CALICI] nelle note. Significato: la bottiglia e'
+    # ora in mescita dietro al banco e deve continuare ad apparire nella carta
+    # calici / nel widget "Calici disponibili" anche se QTA_TOTALE va a zero.
+    # Il sommelier spegne il flag manualmente (✕ nel widget o toggle in scheda)
+    # quando i calici finiscono o quando chiude la bottiglia.
+    if tipo == "VENDITA" and note and "[CALICI]" in note:
+        cur.execute(
+            "UPDATE vini_magazzino SET BOTTIGLIA_APERTA = 1, UPDATED_AT = ? WHERE id = ?;",
+            (created_at, vino_id),
+        )
+
     conn.commit()
     conn.close()
 

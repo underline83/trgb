@@ -69,7 +69,9 @@ export default function CaliciDisponibiliCard({
         <div className="px-4 py-6 text-center text-xs text-neutral-400">Caricamento…</div>
       ) : vini.length === 0 ? (
         <div className="px-4 py-6 text-center text-xs text-neutral-500">
-          Nessuna bottiglia in mescita. Aprine una dalla scheda vino per iniziare.
+          Nessuna bottiglia in mescita.<br />
+          Si attiva automaticamente registrando una vendita "calici" da Vendite,
+          oppure manualmente dal toggle nella scheda vino (tab Giacenze).
         </div>
       ) : (
         <ul className="divide-y divide-neutral-100">
