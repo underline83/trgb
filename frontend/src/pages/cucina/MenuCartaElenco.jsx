@@ -1,5 +1,5 @@
 // frontend/src/pages/cucina/MenuCartaElenco.jsx
-// @version: v1.0-menu-carta-elenco (sessione 57 — 2026-04-25)
+// @version: v1.1-mattoni — RicetteNav + palette orange + Btn M.I (Modulo A, 2026-04-26)
 //
 // Lista delle edizioni del menu carta. Una sola "in carta" alla volta,
 // le altre in "bozza" o "archiviata". Da qui si pubblica, si clona, si
@@ -10,6 +10,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import RicetteNav from "../ricette/RicetteNav";
+import { Btn, EmptyState } from "../../components/ui";
 
 const STATO_BADGE = {
   in_carta:    { label: "IN CARTA",   classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -48,23 +50,21 @@ export default function MenuCartaElenco() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      <RicetteNav current="menu-carta" />
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Header pagina */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-brand-ink" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h1 className="text-2xl md:text-3xl font-bold text-orange-900 font-playfair">
               Menu Carta
             </h1>
             <p className="text-sm text-neutral-600 mt-1">
               Edizioni stagionali della carta dell'osteria
             </p>
           </div>
-          <button
-            onClick={() => setShowNew(true)}
-            className="px-4 py-2 rounded-lg bg-brand-blue text-white font-medium hover:opacity-90 transition shadow-sm"
-          >
+          <Btn variant="primary" size="md" onClick={() => setShowNew(true)}>
             + Nuova edizione
-          </button>
+          </Btn>
         </div>
 
         {error && (
@@ -76,13 +76,16 @@ export default function MenuCartaElenco() {
         {loading && <p className="text-sm text-neutral-500">Caricamento…</p>}
 
         {!loading && editions.length === 0 && (
-          <div className="bg-white rounded-2xl border border-neutral-200 p-8 text-center">
-            <div className="text-4xl mb-2">📋</div>
-            <p className="text-neutral-700 font-medium">Nessuna edizione ancora.</p>
-            <p className="text-sm text-neutral-500 mt-1">
-              Crea la prima edizione del menu carta per iniziare.
-            </p>
-          </div>
+          <EmptyState
+            icon="📋"
+            title="Nessuna edizione ancora"
+            description="Crea la prima edizione del menu carta per iniziare."
+            action={
+              <Btn variant="primary" size="md" onClick={() => setShowNew(true)}>
+                + Nuova edizione
+              </Btn>
+            }
+          />
         )}
 
         {/* IN CARTA */}
@@ -197,31 +200,16 @@ function EditionCard({ edition, onOpen, onClone, onReload }) {
         </div>
 
         <div className="flex flex-wrap gap-2 mt-3">
-          <button onClick={onOpen}
-            className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-sm font-medium hover:opacity-90">
-            Apri
-          </button>
-          <button onClick={onClone}
-            className="px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-800 text-sm font-medium border border-neutral-200 hover:bg-neutral-200">
-            Clona →
-          </button>
+          <Btn variant="primary" size="sm" onClick={onOpen}>Apri</Btn>
+          <Btn variant="secondary" size="sm" onClick={onClone}>Clona →</Btn>
           {edition.stato === "bozza" && (
             <>
-              <button onClick={handlePublish}
-                className="px-3 py-1.5 rounded-lg bg-brand-green text-white text-sm font-medium hover:opacity-90">
-                Pubblica
-              </button>
-              <button onClick={handleDelete}
-                className="px-3 py-1.5 rounded-lg bg-red-50 text-brand-red text-sm font-medium border border-red-200 hover:bg-red-100">
-                Elimina
-              </button>
+              <Btn variant="success" size="sm" onClick={handlePublish}>Pubblica</Btn>
+              <Btn variant="chip" tone="red" size="sm" onClick={handleDelete}>Elimina</Btn>
             </>
           )}
           {edition.stato === "in_carta" && (
-            <button onClick={handleArchive}
-              className="px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 text-sm font-medium border border-neutral-200 hover:bg-neutral-200">
-              Archivia
-            </button>
+            <Btn variant="secondary" size="sm" onClick={handleArchive}>Archivia</Btn>
           )}
         </div>
       </div>
@@ -270,11 +258,10 @@ function NewEditionModal({ onClose, onCreated }) {
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4 border-t border-neutral-200 mt-4">
-        <button onClick={onClose} className="px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 text-sm">Annulla</button>
-        <button onClick={handleSubmit} disabled={busy}
-          className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-sm font-medium disabled:opacity-50">
+        <Btn variant="secondary" size="sm" onClick={onClose}>Annulla</Btn>
+        <Btn variant="primary" size="sm" onClick={handleSubmit} loading={busy}>
           {busy ? "Creazione…" : "Crea bozza"}
-        </button>
+        </Btn>
       </div>
     </ModalShell>
   );
@@ -315,11 +302,10 @@ function CloneEditionModal({ source, onClose, onCloned }) {
         <Field label="Slug *" value={form.slug} onChange={v => setForm(p => ({ ...p, slug: slugify(v) }))} />
       </div>
       <div className="flex justify-end gap-2 pt-4 border-t border-neutral-200 mt-4">
-        <button onClick={onClose} className="px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 text-sm">Annulla</button>
-        <button onClick={handleSubmit} disabled={busy}
-          className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-sm font-medium disabled:opacity-50">
+        <Btn variant="secondary" size="sm" onClick={onClose}>Annulla</Btn>
+        <Btn variant="primary" size="sm" onClick={handleSubmit} loading={busy}>
           {busy ? "Clonazione…" : "Clona"}
-        </button>
+        </Btn>
       </div>
     </ModalShell>
   );

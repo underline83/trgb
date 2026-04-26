@@ -1,5 +1,5 @@
 // frontend/src/pages/cucina/MenuCartaDettaglio.jsx
-// @version: v1.0-menu-carta-dettaglio (sessione 57 — 2026-04-25)
+// @version: v1.1-mattoni — RicetteNav + palette orange + Btn M.I (Modulo A, 2026-04-26)
 //
 // Dettaglio di un'edizione: testa fissa colorata + tab.
 // Tab: Sezioni (lista piatti raggruppata) | Degustazioni | Anteprima | Anagrafica
@@ -9,6 +9,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
+import RicetteNav from "../ricette/RicetteNav";
+import { Btn } from "../../components/ui";
 
 const SEZIONI_ORDER = [
   { key: "antipasti",          label: "Antipasti" },
@@ -64,12 +66,13 @@ export default function MenuCartaDettaglio() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
+      <RicetteNav current="menu-carta" />
       <div className="max-w-6xl mx-auto">
 
         {/* ═══ TESTA FISSA ═══ */}
-        <div className="bg-gradient-to-b from-white to-brand-cream border-b-2 border-brand-blue/20 px-4 md:px-6 py-4 md:py-5 sticky top-0 z-10">
+        <div className="bg-gradient-to-b from-white to-brand-cream border-b-2 border-orange-200 px-4 md:px-6 py-4 md:py-5 sticky top-0 z-10">
           <div className="flex items-center gap-2 mb-2 text-xs">
-            <Link to="/menu-carta" className="text-brand-blue hover:underline">← Tutte le edizioni</Link>
+            <Link to="/menu-carta" className="text-orange-700 hover:text-orange-900 hover:underline">← Tutte le edizioni</Link>
           </div>
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="min-w-0 flex-1">
@@ -81,7 +84,7 @@ export default function MenuCartaDettaglio() {
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-3xl font-bold text-brand-ink leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <h1 className="text-xl md:text-3xl font-bold text-orange-900 leading-tight font-playfair">
                 {edition.nome}
               </h1>
               {(edition.data_inizio || edition.data_fine) && (
@@ -91,11 +94,19 @@ export default function MenuCartaDettaglio() {
               )}
             </div>
             <div className="flex flex-col gap-1.5 flex-shrink-0">
-              <a href={`${API_BASE}/menu-carta/editions/${edition.id}/pdf`} target="_blank" rel="noopener noreferrer"
-                 className="px-3 py-1.5 rounded-lg bg-brand-ink text-white text-xs font-medium hover:opacity-90 whitespace-nowrap">
+              <Btn
+                as="a"
+                href={`${API_BASE}/menu-carta/editions/${edition.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="dark"
+                size="sm"
+              >
                 ⬇ PDF stampabile
-              </a>
-              <button
+              </Btn>
+              <Btn
+                variant="primary"
+                size="sm"
                 onClick={async () => {
                   if (!confirm("Genera/rigenera i template MEP per il modulo Cucina HACCP a partire da questa edizione?\n\nI template saranno creati con attivo=0. Dovrai attivarli manualmente da Impostazioni Cucina.")) return;
                   const r = await apiFetch(`${API_BASE}/menu-carta/editions/${edition.id}/generate-mep`, { method: "POST" });
@@ -106,9 +117,9 @@ export default function MenuCartaDettaglio() {
                     alert("Errore: " + r.status);
                   }
                 }}
-                className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-xs font-medium hover:opacity-90 whitespace-nowrap">
+              >
                 ⚙ Genera MEP cucina
-              </button>
+              </Btn>
             </div>
           </div>
 
@@ -128,7 +139,7 @@ export default function MenuCartaDettaglio() {
                 <button key={t.key} onClick={() => setActiveTab(t.key)}
                   className={`px-3 md:px-4 py-2 text-xs md:text-sm font-medium whitespace-nowrap transition ${
                     active
-                      ? "text-brand-ink border-b-2 border-brand-blue -mb-px"
+                      ? "text-orange-900 border-b-2 border-orange-500 -mb-px"
                       : "text-neutral-500 hover:text-neutral-800"
                   }`}>
                   {t.label}
@@ -185,7 +196,7 @@ function SezioniTab({ sezioni, onEdit, editionId, onReload }) {
         if (items.length === 0) return null;
         return (
           <div key={s.key}>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-brand-blue mb-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-orange-700 mb-2">
               {s.label} <span className="text-neutral-400 font-normal">({items.length})</span>
             </h2>
             <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden divide-y divide-neutral-100">
@@ -399,10 +410,9 @@ function AnagraficaTab({ edition, onSaved }) {
       <Field2 label="Note" textarea value={form.note} onChange={v => setForm(p => ({ ...p, note: v }))} />
       <p className="text-xs text-neutral-500">Slug: <code>{edition.slug}</code> (non modificabile)</p>
       <div className="flex justify-end pt-2">
-        <button onClick={handleSave} disabled={busy}
-          className="px-4 py-2 rounded-lg bg-brand-blue text-white text-sm font-medium disabled:opacity-50">
+        <Btn variant="primary" size="md" onClick={handleSave} loading={busy}>
           {busy ? "Salvo…" : "Salva modifiche"}
-        </button>
+        </Btn>
       </div>
     </div>
   );
@@ -550,16 +560,14 @@ function PublicationModal({ pub, onClose, onSaved }) {
 
         </div>
         <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-neutral-200 sticky bottom-0 bg-white">
-          <button onClick={handleDelete} disabled={busy}
-            className="px-3 py-1.5 rounded-lg bg-red-50 text-brand-red text-sm border border-red-200">
+          <Btn variant="chip" tone="red" size="sm" onClick={handleDelete} loading={busy}>
             Rimuovi dal menu
-          </button>
+          </Btn>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 text-sm">Annulla</button>
-            <button onClick={handleSave} disabled={busy}
-              className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-sm font-medium disabled:opacity-50">
+            <Btn variant="secondary" size="sm" onClick={onClose}>Annulla</Btn>
+            <Btn variant="primary" size="sm" onClick={handleSave} loading={busy}>
               {busy ? "Salvo…" : "Salva"}
-            </button>
+            </Btn>
           </div>
         </div>
       </div>

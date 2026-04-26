@@ -20,6 +20,12 @@ const MODULE_VERSIONS = {
     status: "alpha",
     color: "orange",
   },
+  menuCarta: {
+    version: "1.0",
+    label: "Menu Carta",
+    status: "beta",
+    color: "blue",
+  },
   corrispettivi: {
     version: "4.5",
     label: "Gestione Vendite",
