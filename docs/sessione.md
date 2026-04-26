@@ -1,8 +1,78 @@
 # TRGB — Briefing sessione
 
-**Ultimo aggiornamento:** 2026-04-25 (sessione 57 cont. + 58 — sessioni parallele. S57 cont.: modulo guardiano L1+L2+L3, cleanup, PIN admin random, S52-1 chiuso. S58: Vini BOTTIGLIA_APERTA + carta cliente pubblica /carta beige/marrone)
+**Ultimo aggiornamento:** 2026-04-26 (sessione 58 cont. — modulo Pranzo del Giorno: catalogo piatti riusabili, editor menu giornaliero, archivio, PDF brand cliente Osteria Tre Gobbi)
 **Documenti collegati:** [`docs/roadmap.md`](./roadmap.md) · [`docs/problemi.md`](./problemi.md) · [`docs/changelog.md`](./changelog.md) · [`docs/architettura_mattoni.md`](./architettura_mattoni.md) · [`docs/home_per_ruolo.md`](./home_per_ruolo.md) · [`docs/mattone_calendar.md`](./mattone_calendar.md) · [`docs/menu_carta.md`](./menu_carta.md) · [`docs/deploy.md`](./deploy.md)
 **Storico mini-sessioni dettagliato:** [`docs/sessione_archivio_39.md`](./sessione_archivio_39.md)
+
+---
+
+## SESSIONE 58 cont. (2026-04-26) — MODULO PRANZO DEL GIORNO
+
+### Background
+Marco oggi gestisce il menu del pranzo di lavoro a mano in Word (file storico
+`2025-new-tregobbi-pranzo`). Vuole portare la gestione nel gestionale per:
+1. Comporre il menu del giorno con piatti riusabili dal catalogo
+2. Generare un PDF stampabile con brand cliente "Osteria Tre Gobbi"
+3. Tenere un archivio storico dei menu pubblicati
+
+### Decisioni prese (con Marco)
+- **Approccio piatti**: ibrido — catalogo riusabile + righe ad-hoc ammesse.
+- **Posizione modulo**: sub-voce di Gestione Cucina (route `/pranzo`, sub `pranzo`
+  in `modules.json`). Niente modulo top-level.
+- **Output**: PDF brand cliente Osteria Tre Gobbi (font Cormorant Garamond, sfondo
+  bianco, logo `static/img/logo_tregobbi.png`) — coerente con carta vini cliente,
+  NON brand TRGB-02 software.
+- **Categorie**: piatti categorizzati nel DB (antipasto/primo/secondo/contorno/
+  dolce/altro). PDF stampa lista flat ordinata per categoria, senza titoli sezione.
+
+### Schema DB (mig 102, foodcost.db)
+- `pranzo_piatti` — catalogo riusabile (id, nome, categoria, attivo, recipe_id NULL FK)
+- `pranzo_menu` — menu del giorno con UNIQUE su `data`, prezzi 1/2/3, footer, stato bozza|pubblicato|archiviato
+- `pranzo_menu_righe` — righe M:N con snapshot nome+categoria (piatto_id NULL se ad-hoc)
+- `pranzo_settings` — riga unica id=1 con default titolo/sottotitolo/prezzi/footer
+- Seed: 6 piatti dal Word di Marco (bresaola, scorzonera, fusilli cinghiale, plin,
+  anatra, filetto). Prezzi default 15/25/35.
+
+### File toccati
+**Backend:**
+- `app/migrations/102_pranzo_init.py` — schema + seed
+- `app/repositories/pranzo_repository.py` — CRUD piatti, settings, upsert menu per data, archivio
+- `app/routers/pranzo_router.py` — endpoint `/pranzo/piatti/`, `/pranzo/menu/`, `/pranzo/menu/{data}/`, `/pranzo/menu/{data}/pdf/`, `/pranzo/settings/`
+- `app/services/pranzo_pdf_service.py` — generatore PDF brand cliente con WeasyPrint
+- `static/css/menu_pranzo_pdf.css` — stile A4 Cormorant Garamond
+- `main.py` — registrazione `pranzo_router.router`
+- `app/data/modules.json` — sub `pranzo` aggiunto a `ricette`
+
+**Frontend:**
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` — pagina con 4 tab (Oggi/Archivio/Catalogo/Impostazioni)
+- `frontend/src/App.jsx` — route `/pranzo` con `ProtectedRoute module="ricette" sub="pranzo"`
+- `frontend/src/config/modulesMenu.js` — voce "Menu Pranzo" sotto Gestione Cucina
+- `frontend/src/config/versions.jsx` — `pranzo: 1.0 alpha`, `ricette: 3.5 → 3.6`
+
+### Verifica fatta
+- `python3 -m py_compile` backend OK
+- `esbuild` frontend OK
+- Dry-run mig 102 su copia foodcost.db: 4 tabelle create, 6 piatti seed, settings popolate
+- Test repository end-to-end: list piatti, get_settings, upsert_menu (4 righe), get_menu_by_data, list_menu, build HTML PDF (no WeasyPrint locale, ma string-builder OK)
+
+### Da verificare dopo push
+1. Migrazione 102 deve girare al boot del VPS — controllare log per `[102] modulo Pranzo: 4 tabelle pronte`.
+2. Sub-voce "Menu Pranzo" appare nel dropdown Header sotto Gestione Cucina.
+3. `/pranzo` carica con 4 tab funzionanti.
+4. Tab Oggi: data picker, scelta piatti dal catalogo (chip cliccabili), aggiunta riga ad-hoc, riordino con frecce, salva crea il menu.
+5. Tab Archivio: elenco menu storici, click 📄 PDF apre il PDF in nuova tab, click ✏️ apre il menu in tab Oggi.
+6. PDF: layout A4, logo Tre Gobbi, titolo, lista piatti centrata in maiuscolo, box Menù Business con 3 prezzi, footer.
+7. Tab Catalogo: CRUD piatti, raggruppamento per categoria.
+8. Tab Impostazioni: salvataggio default titolo/prezzi/footer.
+
+### Note
+- Nessun mattone nuovo introdotto. Il PDF cliente non passa per M.B (brand TRGB
+  software): replica il pattern già usato dalla carta vini cliente con CSS
+  dedicato. Razionale: il brand cliente vive separato dal brand software (vedi
+  CLAUDE.md, sessione 28 palette TRGB-02).
+- Il `recipe_id` su `pranzo_piatti` e' opzionale: oggi non collegato a nulla, ma
+  prepara il terreno per legare i piatti alle ricette del food cost se in futuro
+  Marco vorra' calcolare il margine del pranzo di lavoro.
 
 ---
 

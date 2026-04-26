@@ -1,0 +1,195 @@
+/* ============================================================
+   MENU PRANZO — CSS PDF (WeasyPrint) — v1.0 (sessione 58, 2026-04-26)
+   Brand cliente Osteria Tre Gobbi — coerente con carta_pdf.css
+   (font Cormorant Garamond, sfondo bianco, niente brand TRGB-02 software).
+   ============================================================ */
+
+/* Font cross-platform: Mac/Win via static/fonts, Linux via /usr/local/share/fonts/tre_gobbi */
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-Regular.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-Medium.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Medium.ttf") format("truetype");
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-SemiBold.ttf") format("truetype"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-SemiBold.ttf") format("truetype");
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Cormorant Garamond";
+    src:
+        url("../fonts/CormorantGaramond-Bold.woff2") format("woff2"),
+        url("file:///usr/local/share/fonts/tre_gobbi/CormorantGaramond-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+/* ============================================================
+   PAGINA E TIPOGRAFIA BASE
+   ============================================================ */
+@page {
+    size: A4;
+    margin: 18mm 22mm;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: "Cormorant Garamond", "Times New Roman", serif;
+    color: #111;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   HEADER (logo + data)
+   ============================================================ */
+.menu-header {
+    text-align: center;
+    margin-bottom: 8mm;
+}
+
+.menu-header .logo {
+    width: 28mm;
+    height: auto;
+    margin: 0 auto 3mm;
+    display: block;
+}
+
+.menu-header .data {
+    font-size: 11pt;
+    color: #555;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 1mm;
+}
+
+/* ============================================================
+   TITOLO + SOTTOTITOLO
+   ============================================================ */
+.menu-titolo {
+    text-align: center;
+    font-size: 22pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 6mm 0 3mm;
+    line-height: 1.15;
+}
+
+.menu-sottotitolo {
+    text-align: center;
+    font-size: 12pt;
+    font-style: italic;
+    color: #444;
+    margin: 0 0 8mm;
+    line-height: 1.3;
+}
+
+/* ============================================================
+   DIVISORE DECORATIVO
+   ============================================================ */
+.menu-divider {
+    text-align: center;
+    margin: 6mm 0;
+    color: #888;
+    font-size: 14pt;
+    letter-spacing: 0.5em;
+}
+
+.menu-divider::before { content: "* * *"; }
+
+/* ============================================================
+   LISTA PIATTI — flat, ordinata per categoria
+   ============================================================ */
+.menu-piatti {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: center;
+}
+
+.menu-piatti li {
+    font-size: 14pt;
+    line-height: 1.45;
+    padding: 2.5mm 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 500;
+}
+
+.menu-piatti li.piatto-vuoto {
+    color: #999;
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ============================================================
+   BOX MENÙ BUSINESS
+   ============================================================ */
+.menu-business {
+    margin: 8mm auto 0;
+    padding: 6mm 8mm;
+    border-top: 1px solid #c8c0b0;
+    border-bottom: 1px solid #c8c0b0;
+    max-width: 130mm;
+    text-align: center;
+}
+
+.menu-business .business-titolo {
+    font-size: 18pt;
+    font-weight: 700;
+    font-style: italic;
+    margin-bottom: 4mm;
+    letter-spacing: 0.04em;
+}
+
+.menu-business .business-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13pt;
+    line-height: 1.6;
+    padding: 0.5mm 4mm;
+}
+
+.menu-business .business-row .lbl {
+    text-align: left;
+}
+
+.menu-business .business-row .prz {
+    text-align: right;
+    font-weight: 600;
+}
+
+/* ============================================================
+   FOOTER NOTE
+   ============================================================ */
+.menu-footer {
+    margin-top: 8mm;
+    text-align: center;
+    font-size: 10pt;
+    color: #666;
+    line-height: 1.5;
+    font-style: italic;
+    white-space: pre-line;
+}

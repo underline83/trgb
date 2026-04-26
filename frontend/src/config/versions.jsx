@@ -9,10 +9,16 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   ricette: {
-    version: "3.5",
+    version: "3.6",
     label: "Ricette & Food Cost",
     status: "beta",
     color: "blue",
+  },
+  pranzo: {
+    version: "1.0",
+    label: "Menu Pranzo del Giorno",
+    status: "alpha",
+    color: "orange",
   },
   corrispettivi: {
     version: "4.5",

@@ -31,6 +31,7 @@ from app.routers import foodcost_ingredients_router
 from app.routers import foodcost_recipes_router
 from app.routers import foodcost_matching_router
 from app.routers import menu_carta_router
+from app.routers import pranzo_router
 
 # AMMINISTRAZIONE (corrispettivi & analisi) — modulo unico
 from app.routers.admin_finance import router as admin_finance_router
@@ -239,6 +240,9 @@ app.include_router(
     prefix="/menu-carta",
     tags=["menu-carta-public"],
 )
+
+# PRANZO DEL GIORNO (sessione 58, mig 102) — sub-modulo Cucina
+app.include_router(pranzo_router.router)
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
 app.include_router(admin_finance_router)

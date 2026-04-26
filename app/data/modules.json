@@ -39,6 +39,7 @@
       { "key": "ingredienti", "label": "Ingredienti",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "matching",    "label": "Matching",     "roles": ["superadmin", "admin"] },
       { "key": "dashboard",   "label": "Dashboard",    "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
+      { "key": "pranzo",      "label": "Menu Pranzo",  "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"] },
       { "key": "settings",    "label": "Impostazioni", "roles": ["superadmin", "admin"] }
     ]
   },

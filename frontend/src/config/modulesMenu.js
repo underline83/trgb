@@ -55,6 +55,7 @@ const MODULES_MENU = {
       { label: "Selezioni · Salumi",    go: "/selezioni/salumi" },
       { label: "Selezioni · Formaggi",  go: "/selezioni/formaggi" },
       { label: "Menu Carta",    go: "/menu-carta" },
+      { label: "Menu Pranzo",   go: "/pranzo" },
       { label: "Impostazioni",  go: "/ricette/settings",   check: "admin" },
     ],
   },
