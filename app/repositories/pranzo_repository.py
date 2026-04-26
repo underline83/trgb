@@ -66,11 +66,76 @@ def categoria_da_recipe(name: Optional[str]) -> str:
 
 
 # ─────────────────────────────────────────────────────────────
+# Schema bootstrap (idempotente) — fallback se la mig 102 non e' ancora girata
+# ─────────────────────────────────────────────────────────────
+_SCHEMA_READY = False
+
+
+def _ensure_schema(conn) -> None:
+    """
+    CREATE TABLE IF NOT EXISTS per le 3 tabelle del modulo Pranzo.
+    Pattern preso da `vini_magazzino_db.init_magazzino_database`. Cosi'
+    anche se la mig 102 non e' ancora stata applicata al DB di prod
+    (es. push appena fatto e backend non riavviato col runner migrations),
+    le tabelle si creano al primo accesso e l'endpoint non da' 500.
+
+    Idempotente. Eseguito una sola volta per processo (cache `_SCHEMA_READY`).
+    """
+    global _SCHEMA_READY
+    if _SCHEMA_READY:
+        return
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pranzo_menu (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            settimana_inizio    TEXT NOT NULL UNIQUE,
+            created_by          TEXT,
+            created_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_settimana ON pranzo_menu(settimana_inizio DESC)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pranzo_menu_righe (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            menu_id         INTEGER NOT NULL,
+            recipe_id       INTEGER,
+            nome            TEXT NOT NULL,
+            categoria       TEXT NOT NULL DEFAULT 'altro',
+            ordine          INTEGER NOT NULL DEFAULT 0,
+            note            TEXT,
+            FOREIGN KEY (menu_id)   REFERENCES pranzo_menu(id) ON DELETE CASCADE,
+            FOREIGN KEY (recipe_id) REFERENCES recipes(id)    ON DELETE SET NULL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_menu ON pranzo_menu_righe(menu_id, ordine)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_recipe ON pranzo_menu_righe(recipe_id)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pranzo_settings (
+            id                   INTEGER PRIMARY KEY CHECK (id = 1),
+            titolo_default       TEXT NOT NULL DEFAULT 'OGGI A PRANZO: LA CUCINA DEL MERCATO',
+            sottotitolo_default  TEXT NOT NULL DEFAULT 'Piatti in base agli acquisti del giorno, soggetti a disponibilità.',
+            titolo_business      TEXT NOT NULL DEFAULT 'Menù Business',
+            prezzo_1_default     REAL NOT NULL DEFAULT 15.0,
+            prezzo_2_default     REAL NOT NULL DEFAULT 25.0,
+            prezzo_3_default     REAL NOT NULL DEFAULT 35.0,
+            footer_default       TEXT NOT NULL DEFAULT '*acqua, coperto e servizio inclusi
+**da Lunedì a Venerdì',
+            updated_at           TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    cur.execute("INSERT OR IGNORE INTO pranzo_settings (id) VALUES (1)")
+    conn.commit()
+    _SCHEMA_READY = True
+
+
+# ─────────────────────────────────────────────────────────────
 # SETTINGS (riga unica id=1)
 # ─────────────────────────────────────────────────────────────
 def get_settings() -> Dict[str, Any]:
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         row = conn.execute("SELECT * FROM pranzo_settings WHERE id = 1").fetchone()
         if not row:
             conn.execute("INSERT OR IGNORE INTO pranzo_settings (id) VALUES (1)")
@@ -92,6 +157,7 @@ def update_settings(**fields) -> Dict[str, Any]:
         return get_settings()
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         sets = ", ".join(f"{k} = ?" for k in set_fields)
         params = list(set_fields.values()) + [_now()]
         conn.execute(f"UPDATE pranzo_settings SET {sets}, updated_at = ? WHERE id = 1", params)
@@ -161,6 +227,7 @@ def get_menu_by_settimana(settimana_inizio: str) -> Optional[Dict[str, Any]]:
     monday = lunedi_di(settimana_inizio)
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         row = conn.execute("SELECT * FROM pranzo_menu WHERE settimana_inizio = ?", (monday,)).fetchone()
         if not row:
             return None
@@ -186,6 +253,7 @@ def list_menu(data_da: Optional[str] = None, data_a: Optional[str] = None, limit
     """
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         sql = """SELECT m.*, COUNT(r.id) AS n_piatti
                    FROM pranzo_menu m
                    LEFT JOIN pranzo_menu_righe r ON r.menu_id = m.id
@@ -223,6 +291,7 @@ def list_programmazione(n_settimane: int = 8, fino_a: Optional[str] = None) -> L
 
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         menus = conn.execute(
             """SELECT * FROM pranzo_menu
                 WHERE settimana_inizio BETWEEN ? AND ?
@@ -260,6 +329,7 @@ def upsert_menu(
     monday = lunedi_di(settimana_inizio)
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         existing = conn.execute("SELECT id FROM pranzo_menu WHERE settimana_inizio = ?", (monday,)).fetchone()
         if existing:
             menu_id = existing["id"]
@@ -307,6 +377,7 @@ def delete_menu(settimana_inizio: str) -> bool:
     monday = lunedi_di(settimana_inizio)
     conn = get_foodcost_connection()
     try:
+        _ensure_schema(conn)
         cur = conn.execute("DELETE FROM pranzo_menu WHERE settimana_inizio = ?", (monday,))
         conn.commit()
         return cur.rowcount > 0

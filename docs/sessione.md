@@ -290,6 +290,22 @@ Nel form ricetta il select ingredienti era un dropdown con TUTTI gli ingredienti
 - `RicetteModifica.jsx` ha lo stesso layout vecchio (non riorganizzato + select grande). Da portare a v3.1 quando lo si tocca.
 - `IngredientPicker` potrebbe essere estratto in `frontend/src/components/IngredientPicker.jsx` se lo riusi altrove.
 
+### Iterazione 7 — HOTFIX Load failed su /pranzo (mig 102 non girata sul VPS)
+
+Marco ha fatto push dopo l'iter 5. Su `/pranzo` la pagina ha mostrato "Errore: Load failed" sul caricamento del menu della settimana, mentre il pool ricette caricava correttamente. Diagnosi: la mig 102 non era ancora stata eseguita sul DB di prod (foodcost.db sul VPS), quindi le tabelle `pranzo_menu`, `pranzo_menu_righe`, `pranzo_settings` non esistevano. Il pool ricette funzionava perché legge `recipes` (gia' esistente). La SELECT su `pranzo_menu` falliva con SQLite OperationalError → 500 → su Safari "Load failed" (network-level error percepito dal fetch).
+
+**Fix robustness in `app/repositories/pranzo_repository.py`** (pattern preso da `vini_magazzino_db.init_magazzino_database`):
+- Aggiunta funzione `_ensure_schema(conn)`: CREATE TABLE IF NOT EXISTS per le 3 tabelle + INSERT OR IGNORE settings id=1. Idempotente, gated da `_SCHEMA_READY` cache di processo (1 volta per worker FastAPI).
+- Chiamata in tutti i metodi che leggono/scrivono `pranzo_*`: `get_settings`, `update_settings`, `get_menu_by_settimana`, `list_menu`, `list_programmazione`, `upsert_menu`, `delete_menu`. NON in `list_piatti_disponibili` (legge solo `recipes`).
+- Cosi' il modulo Pranzo funziona anche se la mig 102 non e' ancora stata applicata: le tabelle vengono create al primo accesso. La mig esplicita resta per la traccia in `schema_migrations`.
+
+### Verifica iterazione 7
+- py_compile OK su tutti i moduli pranzo.
+- Test ricreato lo scenario di prod: `foodcost.db` con TUTTE le tabelle `pranzo_*` droppate. Chiamate `get_settings`, `list_menu`, `get_menu_by_settimana`, `upsert_menu`, `list_piatti_disponibili` → tutte ritornano risposte valide, le 3 tabelle pranzo si materializzano al primo accesso.
+
+### File toccati (iterazione 7)
+- `app/repositories/pranzo_repository.py` — `_ensure_schema(conn)` + chiamate in 7 metodi
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
