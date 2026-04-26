@@ -15,7 +15,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   pranzo: {
-    version: "1.2",
+    version: "1.3",
     label: "Menu Pranzo del Giorno",
     status: "alpha",
     color: "orange",

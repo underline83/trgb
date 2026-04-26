@@ -266,18 +266,40 @@ def get_menu_endpoint(settimana: str):
 
 @router.post("/menu/")
 def upsert_menu_endpoint(payload: MenuIn, user=Depends(get_current_user)):
-    _check_admin(user)
-    _validate_data(payload.settimana)
-    for r in payload.righe:
-        if r.categoria not in CATEGORIE_VALIDE:
-            raise HTTPException(status_code=400, detail=f"categoria riga non valida: {r.categoria}")
+    """
+    Iter v2.1 (Modulo B+ diagnosi D2): logging dettagliato + try/except esterno
+    per evitare 502 silenziosi su eccezioni in upsert_menu (deadlock SQLite,
+    schema drift residuo, ecc).
+    """
+    import logging, time
+    logger = logging.getLogger("pranzo")
+    t0 = time.time()
+    user_label = (user or {}).get("username") or (user or {}).get("email") or "?"
+    logger.info(f"[pranzo.upsert] START user={user_label} settimana={payload.settimana} n_righe={len(payload.righe)}")
 
-    menu = repo.upsert_menu(
-        settimana_inizio=payload.settimana,
-        righe=[r.dict() for r in payload.righe],
-        created_by=(user or {}).get("username") or (user or {}).get("email"),
-    )
-    return menu
+    try:
+        _check_admin(user)
+        _validate_data(payload.settimana)
+        for r in payload.righe:
+            if r.categoria not in CATEGORIE_VALIDE:
+                logger.warning(f"[pranzo.upsert] categoria invalida: {r.categoria}")
+                raise HTTPException(status_code=400, detail=f"categoria riga non valida: {r.categoria}")
+
+        menu = repo.upsert_menu(
+            settimana_inizio=payload.settimana,
+            righe=[r.dict() for r in payload.righe],
+            created_by=user_label,
+        )
+        dt_ms = int((time.time() - t0) * 1000)
+        logger.info(f"[pranzo.upsert] OK dt_ms={dt_ms} menu_id={menu.get('id') if menu else '?'} n_righe_saved={len(menu.get('righe', [])) if menu else 0}")
+        return menu
+    except HTTPException:
+        raise
+    except Exception as e:
+        dt_ms = int((time.time() - t0) * 1000)
+        logger.error(f"[pranzo.upsert] FAIL dt_ms={dt_ms} {type(e).__name__}: {e}", exc_info=True)
+        # Ritorniamo 500 esplicito invece di lasciare propagare verso 502 nginx
+        raise HTTPException(status_code=500, detail=f"Errore salvataggio menu: {type(e).__name__}: {e}")
 
 
 @router.delete("/menu/{settimana}/")

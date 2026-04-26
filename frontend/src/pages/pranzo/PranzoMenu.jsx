@@ -1,5 +1,5 @@
 // FILE: frontend/src/pages/pranzo/PranzoMenu.jsx
-// @version: v3.2 — Resilienza UX: retry rete + banner con X + Riprova (Modulo B+, 2026-04-26)
+// @version: v3.3 — Diagnostica in pagina + AbortController 20s timeout (Modulo B++, 2026-04-26)
 //
 // v3.2 cambiamenti vs v3.1:
 //   - apiFetchSafe(): wrapper di apiFetch che retrya 1 volta dopo 1.5s su
@@ -243,6 +243,8 @@ export default function PranzoMenu() {
   const [msg, setMsg] = useState(null);
   // v3.2: callback dell'ultima azione fallita per esporre bottone "Riprova" nel banner
   const [retryFn, setRetryFn] = useState(null);
+  // v3.3: dettaglio diagnostico ultimo errore (mostrato in box espandibile nel banner)
+  const [errorDetail, setErrorDetail] = useState(null);
 
   // Helper centralizzato: gestisce errore + memorizza retry + messaggio parlante
   const handleActionError = (e, actionLabel, retryCallback) => {
@@ -398,7 +400,11 @@ export default function PranzoMenu() {
 
   // ── Azioni ──────────────────────────────────────────────────
   const salva = async () => {
-    setSaving(true); setMsg(null); setRetryFn(null);
+    setSaving(true); setMsg(null); setRetryFn(null); setErrorDetail(null);
+    const t0 = performance.now();
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 20000); // 20s timeout
+    let payloadForDebug = null;
     try {
       const payload = {
         settimana,
@@ -410,18 +416,53 @@ export default function PranzoMenu() {
           note: r.note || null,
         })),
       };
+      payloadForDebug = payload;
       const res = await apiFetchSafe(`${API_BASE}/pranzo/menu/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: ctrl.signal,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      const dt = (performance.now() - t0).toFixed(0);
+      if (!res.ok) {
+        const body = await res.text();
+        setErrorDetail({
+          step: "POST /pranzo/menu/",
+          status: res.status,
+          dt_ms: dt,
+          response_body: body.slice(0, 500),
+          n_righe: payload.righe.length,
+        });
+        throw new Error(`HTTP ${res.status}: ${body}`);
+      }
       const m = await res.json();
       setMenu(m);
-      setMsg({ tipo: "ok", text: "Settimana salvata." });
+      setMsg({ tipo: "ok", text: `Settimana salvata in ${dt}ms.` });
     } catch (e) {
-      handleActionError(e, "Salvataggio", salva);
+      const dt = (performance.now() - t0).toFixed(0);
+      const isAbort = e.name === "AbortError";
+      const isNetwork = e instanceof TypeError;
+      setErrorDetail({
+        step: "POST /pranzo/menu/",
+        dt_ms: dt,
+        error_name: e.name,
+        error_message: e.message,
+        is_abort: isAbort,
+        is_network: isNetwork,
+        n_righe: payloadForDebug?.righe?.length ?? "?",
+        prima_riga: payloadForDebug?.righe?.[0] ?? null,
+      });
+      if (isAbort) {
+        setMsg({
+          tipo: "err",
+          text: `Salvataggio in timeout dopo 20s. Il backend non ha risposto. Apri /pranzo/health per verificare.`,
+        });
+        setRetryFn(() => salva);
+      } else {
+        handleActionError(e, "Salvataggio", salva);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setSaving(false);
     }
   };
@@ -579,28 +620,52 @@ export default function PranzoMenu() {
             </div>
           </div>
 
-          {/* MESSAGES — v3.2: con X di chiusura e bottone Riprova se errore retryabile */}
+          {/* MESSAGES — v3.3: banner + box diagnostico espandibile sotto */}
           {msg && (
-            <div className={"text-sm rounded-lg px-3 py-2 mb-3 border flex items-start justify-between gap-3 " +
-              (msg.tipo === "ok" ? "text-green-700 bg-green-50 border-green-200"
-                                  : "text-red-700 bg-red-50 border-red-200")}>
-              <span className="flex-1 leading-snug">{msg.text}</span>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {msg.tipo === "err" && retryFn && (
+            <div className="mb-3">
+              <div className={"text-sm rounded-lg px-3 py-2 border flex items-start justify-between gap-3 " +
+                (msg.tipo === "ok" ? "text-green-700 bg-green-50 border-green-200"
+                                    : "text-red-700 bg-red-50 border-red-200")}>
+                <span className="flex-1 leading-snug">{msg.text}</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {msg.tipo === "err" && retryFn && (
+                    <button
+                      onClick={() => { const fn = retryFn; setRetryFn(null); setMsg(null); fn(); }}
+                      className="text-xs font-semibold underline hover:text-red-900"
+                    >
+                      Riprova
+                    </button>
+                  )}
                   <button
-                    onClick={() => { const fn = retryFn; setRetryFn(null); setMsg(null); fn(); }}
-                    className="text-xs font-semibold underline hover:text-red-900"
-                  >
-                    Riprova
-                  </button>
-                )}
-                <button
-                  onClick={() => { setMsg(null); setRetryFn(null); }}
-                  className="text-lg leading-none hover:opacity-70"
-                  aria-label="Chiudi messaggio"
-                  title="Chiudi"
-                >×</button>
+                    onClick={() => { setMsg(null); setRetryFn(null); setErrorDetail(null); }}
+                    className="text-lg leading-none hover:opacity-70"
+                    aria-label="Chiudi messaggio"
+                    title="Chiudi"
+                  >×</button>
+                </div>
               </div>
+              {msg.tipo === "err" && errorDetail && (
+                <details className="mt-1 text-xs text-neutral-600">
+                  <summary className="cursor-pointer hover:text-neutral-800 select-none">
+                    🔍 Dettagli tecnici (per Claude)
+                  </summary>
+                  <div className="mt-1 bg-neutral-50 border border-neutral-200 rounded p-2 font-mono text-[10px] overflow-auto max-h-64">
+                    <pre className="whitespace-pre-wrap break-words">
+{JSON.stringify(errorDetail, null, 2)}
+                    </pre>
+                    <button
+                      onClick={() => {
+                        const text = JSON.stringify(errorDetail, null, 2);
+                        navigator.clipboard?.writeText(text);
+                        setMsg({ tipo: "ok", text: "Diagnostica copiata negli appunti." });
+                      }}
+                      className="mt-2 px-2 py-1 bg-white border border-neutral-300 rounded text-xs hover:bg-neutral-100"
+                    >
+                      📋 Copia diagnostica
+                    </button>
+                  </div>
+                </details>
+              )}
             </div>
           )}
 
