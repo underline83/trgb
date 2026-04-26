@@ -104,6 +104,41 @@ def get_xxx_connection():
 
 ---
 
+## TODO Cleanup orfani modulo Pranzo (Modulo B audit cucina, 2026-04-26)
+
+Mig 102 v1.0 girata sul VPS il 2026-04-26 17:38 ha lasciato orfani che la riscrittura v2.0 (stesso file, stessa data) non rimuove perché la migration non viene rieseguita. Il `pranzo_repository._ensure_schema()` (iter 11) ha aggiunto `recipe_id` come soft-migration, ma:
+
+| Orfano | Tipo | Stato | Note |
+|---|---|---|---|
+| `pranzo_menu_righe.piatto_id` | colonna | ⏳ orfana | sostituita da `recipe_id`, mai usata dal codice attuale |
+| `pranzo_piatti` (6 righe seed) | tabella | ⏳ orfana | catalogo separato dismesso, ricette pescate da `recipes` con service_type "Pranzo di lavoro" |
+
+**Migration 103 proposta** (deferita, low-priority — backend funziona):
+
+```python
+# 103_pranzo_drop_orfani_v1.py
+def upgrade(conn):
+    cur = conn.cursor()
+    cur.execute("PRAGMA foreign_keys = OFF")
+    # SQLite >= 3.35 supporta DROP COLUMN
+    try:
+        cur.execute("ALTER TABLE pranzo_menu_righe DROP COLUMN piatto_id")
+        print("  [103] dropped pranzo_menu_righe.piatto_id")
+    except Exception as e:
+        print(f"  [103] WARN drop col piatto_id: {e}")
+    try:
+        cur.execute("DROP TABLE IF EXISTS pranzo_piatti")
+        print("  [103] dropped pranzo_piatti")
+    except Exception as e:
+        print(f"  [103] WARN drop pranzo_piatti: {e}")
+    cur.execute("PRAGMA foreign_keys = ON")
+    conn.commit()
+```
+
+**Effort**: XS. **Rischio**: basso ma non zero (DDL su DB con dati di test). **Quando**: nel prossimo cleanup batch tecnico, oppure quando si aggiunge un'altra mig al modulo Pranzo (si fa al volo).
+
+---
+
 ## TODO Bozze auto preventivi senza TTL
 
 `is_bozza_auto=1` in `clienti_preventivi`: si crea quando l'utente compone preventivo su `/nuovo` senza salvare. Mai pulite → sporcizia DB.

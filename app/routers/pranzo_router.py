@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# @version: v2.0-pranzo-settimanale
+# @version: v2.1-pranzo-settimanale-oggi (Modulo B, 2026-04-26)
 # -*- coding: utf-8 -*-
 """
 Router Pranzo settimanale — sessione 58 cont. (2026-04-26)
@@ -19,7 +19,8 @@ Endpoint:
 
   ── MENU SETTIMANALE ──
   GET    /pranzo/menu/                       archivio (filtri ?data_da=&data_a=)
-  GET    /pranzo/menu/corrente/              shortcut settimana corrente
+  GET    /pranzo/menu/corrente/              shortcut settimana corrente (solo menu)
+  GET    /pranzo/menu/oggi/                  shortcut menu di oggi + settings (rich payload)
   GET    /pranzo/menu/{settimana}/           settimana per lunedi YYYY-MM-DD (con righe)
   POST   /pranzo/menu/                       upsert
   DELETE /pranzo/menu/{settimana}/           elimina menu della settimana
@@ -168,6 +169,50 @@ def get_menu_settimana_corrente():
     monday = (oggi - timedelta(days=oggi.weekday())).isoformat()
     menu = repo.get_menu_by_settimana(monday)
     return {"settimana_inizio": monday, "menu": menu}
+
+
+@router.get("/menu/oggi/")
+def get_menu_oggi():
+    """
+    Shortcut "rich" per consumer che vogliono mostrare il menu del giorno
+    senza dover fare 2 chiamate (menu + settings).
+
+    Il modulo Pranzo e' settimanale: "menu di oggi" = menu della settimana
+    corrente. Il payload include:
+      - oggi:             data odierna ISO YYYY-MM-DD
+      - settimana_inizio: lunedi della settimana corrente
+      - giorno_settimana: 0=lunedi ... 6=domenica (per UI)
+      - menu:             menu salvato per la settimana (null se non c'e')
+      - settings:         titolo/sottotitolo/prezzi/footer di default
+
+    Use case: widget Home "Pranzo di oggi" per chef/sala, app sala iPad,
+    futura carta cliente pubblica /carta/menu (Modulo G).
+    Iter 11: try/except per evitare 502 anche su errori DB inaspettati.
+    """
+    import logging
+    logger = logging.getLogger("pranzo")
+    try:
+        oggi = date_cls.today()
+        monday = (oggi - timedelta(days=oggi.weekday())).isoformat()
+        menu = repo.get_menu_by_settimana(monday)
+        settings = repo.get_settings()
+        return {
+            "oggi": oggi.isoformat(),
+            "settimana_inizio": monday,
+            "giorno_settimana": oggi.weekday(),
+            "menu": menu,
+            "settings": settings,
+        }
+    except Exception as e:
+        logger.error(f"[pranzo] menu/oggi FAIL: {type(e).__name__}: {e}")
+        return {
+            "oggi": date_cls.today().isoformat(),
+            "settimana_inizio": None,
+            "giorno_settimana": date_cls.today().weekday(),
+            "menu": None,
+            "settings": None,
+            "error": str(e),
+        }
 
 
 @router.get("/menu/by-week/")
