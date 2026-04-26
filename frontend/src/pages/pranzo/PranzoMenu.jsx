@@ -237,27 +237,43 @@ export default function PranzoMenu() {
     setLoading(true); setMsg(null);
     try {
       const res = await apiFetch(`${API_BASE}/pranzo/menu/${mondayIso}/`);
-      if (res.status === 404) {
+      if (res.ok) {
+        const data = await res.json();
+        // Backend nuovo: {settimana_inizio, menu: {…} | null}
+        // Backend vecchio (compat): direttamente {id, settimana_inizio, righe}
+        const m = data && Object.prototype.hasOwnProperty.call(data, "menu")
+          ? data.menu
+          : data;
+        if (!m) {
+          setMenu(null);
+          setRighe([]);
+        } else {
+          setMenu(m);
+          setRighe((m.righe || []).map((r, i) => ({
+            recipe_id: r.recipe_id || null,
+            nome: r.nome,
+            categoria: r.categoria || "altro",
+            ordine: r.ordine ?? i,
+            note: r.note || "",
+          })));
+        }
+      } else if (res.status === 404) {
+        // Compat backend vecchio: 404 = nessun menu
         setMenu(null);
         setRighe([]);
-      } else if (res.ok) {
-        const m = await res.json();
-        setMenu(m);
-        setRighe((m.righe || []).map((r, i) => ({
-          recipe_id: r.recipe_id || null,
-          nome: r.nome,
-          categoria: r.categoria || "altro",
-          ordine: r.ordine ?? i,
-          note: r.note || "",
-        })));
       } else {
         const txt = await res.text().catch(() => "");
         setMenu(null); setRighe([]);
         setMsg({ tipo: "err", text: `Errore caricamento menu (${res.status}): ${txt.slice(0, 120)}` });
       }
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[pranzo] loadMenu fail", e);
       setMenu(null); setRighe([]);
-      setMsg({ tipo: "err", text: `Errore rete: ${e.message}` });
+      setMsg({
+        tipo: "err",
+        text: `Errore rete: ${e.message}. Prova a ricaricare con Ctrl+Shift+R; se persiste apri /pranzo/health per diagnosticare il backend.`,
+      });
     } finally {
       setLoading(false);
     }

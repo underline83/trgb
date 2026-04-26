@@ -45,6 +45,39 @@ from app.services.auth_service import get_current_user
 
 router = APIRouter(prefix="/pranzo", tags=["pranzo"], dependencies=[Depends(get_current_user)])
 
+# Endpoint pubblico (no auth) per health-check / debug
+public_router = APIRouter(prefix="/pranzo", tags=["pranzo-public"])
+
+
+@public_router.get("/health")
+def pranzo_health():
+    """
+    Endpoint diagnostico: ritorna 200 OK con info su tabelle pranzo_*.
+    Marco puo' aprirlo in browser per verificare se il backend pranzo risponde
+    senza autenticazione. Esempio: https://app.tregobbi.it/pranzo/health
+    """
+    try:
+        from app.models.foodcost_db import get_foodcost_connection
+        conn = get_foodcost_connection()
+        try:
+            tables = [
+                r[0] for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'pranzo_%'"
+                ).fetchall()
+            ]
+            n_settings = conn.execute("SELECT COUNT(*) FROM pranzo_settings").fetchone()[0] if "pranzo_settings" in tables else 0
+            n_menu = conn.execute("SELECT COUNT(*) FROM pranzo_menu").fetchone()[0] if "pranzo_menu" in tables else 0
+        finally:
+            conn.close()
+        return {
+            "ok": True,
+            "tables": tables,
+            "n_settings": n_settings,
+            "n_menu": n_menu,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 
 CATEGORIE_VALIDE = {"antipasto", "primo", "secondo", "contorno", "dolce", "altro"}
 
@@ -127,12 +160,16 @@ def get_menu_settimana_corrente():
 
 @router.get("/menu/{settimana}/")
 def get_menu_endpoint(settimana: str):
+    """
+    Ritorna il menu della settimana per il lunedi indicato (o normalizzato
+    al lunedi della stessa settimana ISO). Ritorna SEMPRE 200 con shape
+    `{settimana_inizio, menu}`, dove `menu` puo' essere null se la settimana
+    non ha ancora un menu. Niente 404 → meno superfici di errore lato frontend.
+    """
     _validate_data(settimana)
     monday = repo.lunedi_di(settimana)
     menu = repo.get_menu_by_settimana(monday)
-    if not menu:
-        raise HTTPException(status_code=404, detail=f"Nessun menu per la settimana del {monday}")
-    return menu
+    return {"settimana_inizio": monday, "menu": menu}
 
 
 @router.post("/menu/")

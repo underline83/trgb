@@ -242,7 +242,16 @@ app.include_router(
 )
 
 # PRANZO DEL GIORNO (sessione 58, mig 102) — sub-modulo Cucina
+# Init schema 1 volta al boot (pattern Vini magazzino) per evitare CREATE TABLE
+# concorrenti su prima request (riduce rischio di lock SQLite).
+try:
+    from app.repositories.pranzo_repository import init_pranzo_db
+    init_pranzo_db()
+    print("[init] pranzo_db OK")
+except Exception as _e:
+    print(f"[init] pranzo_db WARN: {_e}")
 app.include_router(pranzo_router.router)
+app.include_router(pranzo_router.public_router)
 
 # AMMINISTRAZIONE (corrispettivi, chiusure, stats, confronti, calendario)
 app.include_router(admin_finance_router)

@@ -334,6 +334,42 @@ Il pattern v3.0 usava `registerActions(node)` per pubblicare le azioni del tab d
 2. Se Load failed persiste: il fix iter 7 (`_ensure_schema`) crea le tabelle al volo, quindi il problema non dovrebbe ripresentarsi. Se ricapita, controllare console browser per stack trace 500.
 3. Le azioni Ordina / Riga ad-hoc / Copia prec. / PDF / Elimina / Salva sono ora in alto a destra dentro la card "Piatti della settimana", non piu' nella toolbar globale.
 
+### Iterazione 9 — Hardening Load failed: init al boot + endpoint diagnostico + tolleranza GET menu
+
+Sintomo dopo iter 8: la pagina non crasha piu' (fix re-render OK), ma "Errore rete: Load failed" persiste sulla GET di `/pranzo/menu/{settimana}/`. Il pool ricette carica correttamente (3 di 3) → la rete e l'autenticazione funzionano. Quindi il problema sta in quello specifico endpoint.
+
+**Diagnosi possibili**:
+- Backend non aveva ancora il fix iter 7 (`_ensure_schema`) deployato → 500 → su Safari "Failed to fetch" (su 5xx con body strano puo' essere percepito come network error)
+- Lock SQLite causato dal CREATE TABLE in race con altre query alla prima request
+- 404 dell'endpoint che genera un body strano
+
+**Mosse iterazione 9**:
+
+1. **Init al boot** (`main.py`): chiamato `init_pranzo_db()` 1 volta al boot del backend, pattern identico a `init_magazzino_database` del modulo Vini. Cosi' le 3 tabelle pranzo esistono GIA' quando arriva la prima request, niente CREATE TABLE in race condition. La `_ensure_schema(conn)` resta nei singoli metodi del repo come safety net (gated da `_SCHEMA_READY`, gira 1 volta per processo).
+
+2. **Endpoint diagnostico** `GET /pranzo/health` (no auth, public_router): ritorna `{ok, tables, n_settings, n_menu}`. Marco puo' aprirlo da browser per vedere se il backend pranzo risponde e se le tabelle ci sono. Esempio: `https://app.tregobbi.it/pranzo/health`.
+
+3. **GET /menu/{settimana}/ tollerante**: niente piu' 404 quando la settimana e' vuota. Ritorna SEMPRE 200 con shape `{settimana_inizio, menu: null}`. Riduce le superfici di errore: il frontend non deve gestire un branch 404 separato.
+
+4. **Frontend `loadMenu` aggiornato**: legge il nuovo shape `{settimana_inizio, menu}` e tiene compatibilita' col vecchio shape (caso "il backend non e' ancora stato deployato"). Aggiunto `console.error` nel catch e messaggio piu' utile: "Prova Ctrl+Shift+R; se persiste apri /pranzo/health".
+
+### File toccati (iterazione 9)
+- `main.py` — `init_pranzo_db()` al boot + include `pranzo_router.public_router`
+- `app/repositories/pranzo_repository.py` — `init_pranzo_db()` esposto
+- `app/routers/pranzo_router.py` — `public_router` con `/health` + GET menu sempre 200
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` — `loadMenu` legge shape `{menu}` con compat backend vecchio + log dettagliato
+
+### Verifica iterazione 9
+- py_compile OK su tutto.
+- esbuild OK (PranzoMenu 26.7kb).
+- Test boot init + nuovo shape: `init_pranzo_db()` setta `_SCHEMA_READY=True`, `get_menu_by_settimana('2026-04-20')` ritorna `None` su settimana vuota, `upsert_menu` funziona.
+
+### Da verificare dopo push (iterazione 9)
+1. **Test diagnostico**: aprire `https://app.tregobbi.it/pranzo/health` da browser. Atteso: JSON tipo `{"ok": true, "tables": ["pranzo_menu","pranzo_menu_righe","pranzo_settings"], "n_settings": 1, "n_menu": N}`. Se ritorna `{"ok": false, "error": "..."}` Marco mi manda lo screenshot dell'errore.
+2. `/pranzo`: non deve piu' apparire "Errore rete: Load failed" sulla settimana vuota (ora ritorna 200 con menu null).
+3. Console browser su `/pranzo` (Inspector → Console): se ci sono ancora errori, devono apparire log `[pranzo] loadMenu fail` con stack utile.
+4. Log VPS al primo boot dopo push: deve apparire `[init] pranzo_db OK`. Se appare `[init] pranzo_db WARN: ...`, l'init al boot ha fallito ma il backend continua (le request fanno fallback a `_ensure_schema` al primo touch).
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni

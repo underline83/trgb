@@ -129,6 +129,21 @@ def _ensure_schema(conn) -> None:
     _SCHEMA_READY = True
 
 
+def init_pranzo_db() -> None:
+    """
+    Init esplicito da chiamare 1 volta al boot del backend (main.py).
+    Riduce la probabilita' di lock SQLite causati da CREATE TABLE in
+    contemporanea su request concorrenti.
+
+    Idempotente: usa la stessa _ensure_schema gated da `_SCHEMA_READY`.
+    """
+    conn = get_foodcost_connection()
+    try:
+        _ensure_schema(conn)
+    finally:
+        conn.close()
+
+
 # ─────────────────────────────────────────────────────────────
 # SETTINGS (riga unica id=1)
 # ─────────────────────────────────────────────────────────────
