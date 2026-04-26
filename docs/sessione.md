@@ -400,6 +400,48 @@ Sintomo dopo iter 9: "Errore rete: Load failed" persiste sull'endpoint `GET /pra
 2. Se il fix funziona: la causa era proprio il path-param. Da capire il perche' (proxy nginx? regex routing?).
 3. Console browser: se compaiono `[pranzo] by-week non OK NNN` o `[pranzo] by-week fail`, mandarmi il dettaglio.
 
+### Iterazione 11 — TROVATO il vero bug: schema vecchio sul VPS → 502 Bad Gateway
+
+Diagnostica chiave: Marco apre `https://trgb.tregobbi.it/pranzo/health` e funziona (`tables: pranzo_piatti, pranzo_menu, pranzo_menu_righe, pranzo_settings`). MA in un'altra tab vede "502 Bad Gateway" → il backend crashava su una specifica request, non era proxy/CORS/path-param.
+
+**Causa root**: la mig 102 v1 (con catalogo `pranzo_piatti`) era stata applicata sul VPS in passato. Quando ho riscritto la mig 102 v2 (settimanale, no catalogo) in iter 5, le tabelle restavano sul VPS con SCHEMA VECCHIO:
+- `pranzo_menu` aveva `data UNIQUE`, NON `settimana_inizio`
+- `pranzo_menu_righe` aveva `piatto_id`, NON `recipe_id`
+- `pranzo_settings` mancava di varie colonne
+
+`_ensure_schema(conn)` usava `CREATE TABLE IF NOT EXISTS`: trovava le tabelle esistenti, NON le ricreava. Poi tentava `CREATE INDEX ... ON pranzo_menu(settimana_inizio DESC)` → SQLite OperationalError "no such column" → eccezione → backend ritorna 500/timeout → nginx lo scarta come 502.
+
+Il pool funzionava (`/piatti-disponibili/` legge solo `recipes`, non chiama `_ensure_schema`). La `health` funzionava (legge solo `sqlite_master`). Quindi sembrava un mistery, ma in realtà ogni endpoint che toccava le tabelle pranzo_* crashava.
+
+**Marco ha cliccato "Crea menu" e funzionava** perché `_SCHEMA_READY` era già `True` (cache di processo) — `_ensure_schema` saltava — la POST faceva direttamente l'INSERT che, fortuitamente, le colonne richieste **erano gia' aggiunte** da qualche tentativo precedente di `_ensure_schema` (parziale prima del crash). O qualche worker era riuscito a portare il DB in stato compatibile. Comunque ora il fix copre tutti i casi.
+
+**Fix iter 11 — soft migration in `_ensure_schema`**:
+- Helper `_cols(cur, table)` → set delle colonne via `PRAGMA table_info`
+- Per ogni tabella, dopo `CREATE TABLE IF NOT EXISTS`, ispeziona le colonne reali e fa `ALTER TABLE ADD COLUMN` per quelle mancanti.
+- `pranzo_menu`: aggiunge `settimana_inizio` (con backfill da `data` se presente), `created_by`, `created_at`, `updated_at`. Indice su settimana_inizio creato DOPO l'ALTER.
+- `pranzo_menu_righe`: aggiunge `recipe_id`, `categoria`, `ordine`, `note`, `nome` (le righe vecchie con `piatto_id` restano leggibili — la colonna piatto_id non interferisce).
+- `pranzo_settings`: aggiunge tutte le 8 colonne mancanti con default coerenti.
+
+**Bonus iter 11**:
+- Endpoint diagnostico `GET /pranzo/smoke/{settimana}/` (no DB, no auth) per isolare proxy vs codice DB.
+- Endpoint `GET /menu/by-week/` ora ha try/except con log e ritorna 200 con `{error: "..."}` invece di 500/502 in caso di problema.
+- Stesso fix per `GET /menu/{settimana}/`.
+- Query `get_menu_by_settimana` semplificata: rimosso il LEFT JOIN su `recipes` (non serviva, i campi `recipe_menu_name`/`recipe_name` non sono mai usati dal frontend).
+
+### File toccati (iterazione 11)
+- `app/repositories/pranzo_repository.py` — soft migration completa, query semplificata
+- `app/routers/pranzo_router.py` — endpoint smoke + try/except con log su menu
+
+### Verifica iterazione 11
+- py_compile OK.
+- Test scenario C (schema vecchio della mig 102 v1): soft migration aggiunge tutte le colonne mancanti, get/upsert/list funzionano. Le righe vecchie con `piatto_id` restano leggibili come `nome=NULL, categoria='altro'` (snapshot manca, ma non crasha).
+
+### Da verificare dopo push (iterazione 11)
+1. Log VPS al boot: serie di righe `[pranzo] aggiunta colonna ...` se schema vecchio. Una volta sole le 3 tabelle sono allineate, il backend sopravvive a ogni request.
+2. `/pranzo/menu/2026-04-20/` o `/pranzo/menu/by-week/?settimana=2026-04-20` rispondono con 200 + JSON. Niente 502.
+3. La pagina `/pranzo` carica senza banner errore, mostra il menu W17 salvato con 6 piatti.
+4. Test: aprire `https://trgb.tregobbi.it/pranzo/smoke/2026-04-20/` (no auth) → deve rispondere `{"ok": true, "settimana_ricevuta": "2026-04-20", "endpoint": "smoke"}`.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni

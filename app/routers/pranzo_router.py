@@ -49,6 +49,18 @@ router = APIRouter(prefix="/pranzo", tags=["pranzo"], dependencies=[Depends(get_
 public_router = APIRouter(prefix="/pranzo", tags=["pranzo-public"])
 
 
+@public_router.get("/smoke/{settimana}/")
+def pranzo_smoke(settimana: str):
+    """
+    Endpoint diagnostico iter 11: NON tocca il DB.
+    Aiuta a isolare se il 502 sul GET menu e' un problema di:
+    - routing/proxy (anche smoke fallisce con 502)
+    - codice DB (smoke OK ma menu fallisce)
+    - timeout backend (smoke immediato OK, menu timeout)
+    """
+    return {"ok": True, "settimana_ricevuta": settimana, "endpoint": "smoke"}
+
+
 @public_router.get("/health")
 def pranzo_health():
     """
@@ -163,14 +175,24 @@ def get_menu_by_week(settimana: str = Query(..., description="YYYY-MM-DD")):
     """
     Variante con query string del lookup menu per settimana. Aggiunto in
     iter 10 perche' la versione path-param `/menu/{settimana}/` falliva
-    con TypeError 'Failed to fetch' su Safari (causa probabile: routing /
-    proxy che non gradisce il path parameter con trattini in posizione
-    finale). Stesso shape di risposta: `{settimana_inizio, menu}`.
+    con 502 Bad Gateway (worker che non rispondeva). Stesso shape di
+    risposta: `{settimana_inizio, menu}`.
     """
-    _validate_data(settimana)
-    monday = repo.lunedi_di(settimana)
-    menu = repo.get_menu_by_settimana(monday)
-    return {"settimana_inizio": monday, "menu": menu}
+    import logging
+    logger = logging.getLogger("pranzo")
+    try:
+        _validate_data(settimana)
+        monday = repo.lunedi_di(settimana)
+        logger.info(f"[pranzo] by-week settimana={settimana} → monday={monday}")
+        menu = repo.get_menu_by_settimana(monday)
+        logger.info(f"[pranzo] by-week ok, menu={'present' if menu else 'null'}")
+        return {"settimana_inizio": monday, "menu": menu}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[pranzo] by-week FAIL settimana={settimana}: {type(e).__name__}: {e}")
+        # Risposta 200 anche su errore: il frontend deve poter continuare
+        return {"settimana_inizio": None, "menu": None, "error": str(e)}
 
 
 @router.get("/menu/{settimana}/")
@@ -180,11 +202,21 @@ def get_menu_endpoint(settimana: str):
     al lunedi della stessa settimana ISO). Ritorna SEMPRE 200 con shape
     `{settimana_inizio, menu}`, dove `menu` puo' essere null se la settimana
     non ha ancora un menu. Niente 404 → meno superfici di errore lato frontend.
+    Iter 11: try/except per evitare 502 anche su errori DB inaspettati.
     """
-    _validate_data(settimana)
-    monday = repo.lunedi_di(settimana)
-    menu = repo.get_menu_by_settimana(monday)
-    return {"settimana_inizio": monday, "menu": menu}
+    import logging
+    logger = logging.getLogger("pranzo")
+    try:
+        _validate_data(settimana)
+        monday = repo.lunedi_di(settimana)
+        logger.info(f"[pranzo] menu/{{settimana}} = {settimana} → monday={monday}")
+        menu = repo.get_menu_by_settimana(monday)
+        return {"settimana_inizio": monday, "menu": menu}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[pranzo] menu/{{settimana}} FAIL settimana={settimana}: {type(e).__name__}: {e}")
+        return {"settimana_inizio": None, "menu": None, "error": str(e)}
 
 
 @router.post("/menu/")

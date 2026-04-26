@@ -71,20 +71,35 @@ def categoria_da_recipe(name: Optional[str]) -> str:
 _SCHEMA_READY = False
 
 
+def _cols(cur, table: str) -> set:
+    """Helper: ritorna set delle colonne di una tabella (vuoto se non esiste)."""
+    try:
+        return {r[1] for r in cur.execute(f"PRAGMA table_info({table})").fetchall()}
+    except Exception:
+        return set()
+
+
 def _ensure_schema(conn) -> None:
     """
-    CREATE TABLE IF NOT EXISTS per le 3 tabelle del modulo Pranzo.
-    Pattern preso da `vini_magazzino_db.init_magazzino_database`. Cosi'
-    anche se la mig 102 non e' ancora stata applicata al DB di prod
-    (es. push appena fatto e backend non riavviato col runner migrations),
-    le tabelle si creano al primo accesso e l'endpoint non da' 500.
+    Schema bootstrap idempotente per le tabelle del modulo Pranzo.
 
-    Idempotente. Eseguito una sola volta per processo (cache `_SCHEMA_READY`).
+    Iter 11: SOFT MIGRATION robusta — gestisce 3 scenari:
+      A) DB pulito → CREATE TABLE crea schema nuovo
+      B) DB con schema NUOVO (settimanale, recipe_id) → no-op
+      C) DB con schema VECCHIO (mig 102 v1: catalogo + 'data' invece di
+         'settimana_inizio', 'piatto_id' invece di 'recipe_id') → ALTER TABLE
+         ADD COLUMN per riallineare. La causa del 502 sul VPS era questa:
+         `pranzo_menu` esisteva con schema vecchio, CREATE INDEX su colonna
+         inesistente → OperationalError → 502.
+
+    Eseguito 1 volta per processo (cache `_SCHEMA_READY`).
     """
     global _SCHEMA_READY
     if _SCHEMA_READY:
         return
     cur = conn.cursor()
+
+    # ── pranzo_menu ───────────────────────────────────────────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pranzo_menu (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +109,32 @@ def _ensure_schema(conn) -> None:
             updated_at          TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         )
     """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_settimana ON pranzo_menu(settimana_inizio DESC)")
+    cols_pm = _cols(cur, "pranzo_menu")
+    if "settimana_inizio" not in cols_pm:
+        # Schema vecchio (mig 102 v1: aveva 'data' come chiave settimanale).
+        cur.execute("ALTER TABLE pranzo_menu ADD COLUMN settimana_inizio TEXT")
+        if "data" in cols_pm:
+            cur.execute("UPDATE pranzo_menu SET settimana_inizio = data WHERE settimana_inizio IS NULL")
+            print("  [pranzo] migrato pranzo_menu.data → settimana_inizio")
+        else:
+            print("  [pranzo] WARN: pranzo_menu schema strano, settimana_inizio aggiunta vuota")
+    # Altre colonne richieste dallo schema attuale
+    if "created_by" not in cols_pm:
+        try: cur.execute("ALTER TABLE pranzo_menu ADD COLUMN created_by TEXT")
+        except Exception: pass
+    if "created_at" not in cols_pm:
+        try: cur.execute("ALTER TABLE pranzo_menu ADD COLUMN created_at TEXT")
+        except Exception: pass
+    if "updated_at" not in cols_pm:
+        try: cur.execute("ALTER TABLE pranzo_menu ADD COLUMN updated_at TEXT")
+        except Exception: pass
+    # Indice creato DOPO ALTER (ora la colonna esiste sicuro)
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_settimana ON pranzo_menu(settimana_inizio DESC)")
+    except Exception as e:
+        print(f"  [pranzo] WARN skip idx settimana: {e}")
+
+    # ── pranzo_menu_righe ─────────────────────────────────────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pranzo_menu_righe (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,8 +148,29 @@ def _ensure_schema(conn) -> None:
             FOREIGN KEY (recipe_id) REFERENCES recipes(id)    ON DELETE SET NULL
         )
     """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_menu ON pranzo_menu_righe(menu_id, ordine)")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_recipe ON pranzo_menu_righe(recipe_id)")
+    cols_pmr = _cols(cur, "pranzo_menu_righe")
+    # Aggiungo TUTTE le colonne mancanti dello schema atteso.
+    expected_cols_pmr = {
+        "recipe_id":  "ALTER TABLE pranzo_menu_righe ADD COLUMN recipe_id INTEGER",
+        "categoria":  "ALTER TABLE pranzo_menu_righe ADD COLUMN categoria TEXT NOT NULL DEFAULT 'altro'",
+        "ordine":     "ALTER TABLE pranzo_menu_righe ADD COLUMN ordine INTEGER NOT NULL DEFAULT 0",
+        "note":       "ALTER TABLE pranzo_menu_righe ADD COLUMN note TEXT",
+        "nome":       "ALTER TABLE pranzo_menu_righe ADD COLUMN nome TEXT",
+    }
+    for col, alter in expected_cols_pmr.items():
+        if col not in cols_pmr:
+            try:
+                cur.execute(alter)
+                print(f"  [pranzo] aggiunta colonna pranzo_menu_righe.{col}")
+            except Exception as e:
+                print(f"  [pranzo] WARN ALTER {col}: {e}")
+    try:
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_menu ON pranzo_menu_righe(menu_id, ordine)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pranzo_menu_righe_recipe ON pranzo_menu_righe(recipe_id)")
+    except Exception as e:
+        print(f"  [pranzo] WARN skip idx righe: {e}")
+
+    # ── pranzo_settings ───────────────────────────────────────
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pranzo_settings (
             id                   INTEGER PRIMARY KEY CHECK (id = 1),
@@ -125,6 +186,29 @@ def _ensure_schema(conn) -> None:
         )
     """)
     cur.execute("INSERT OR IGNORE INTO pranzo_settings (id) VALUES (1)")
+
+    # Soft-migration colonne settings (se schema vecchio aveva meno campi)
+    cols_ps = _cols(cur, "pranzo_settings")
+    expected_settings = {
+        "titolo_default":      ("TEXT", "OGGI A PRANZO: LA CUCINA DEL MERCATO"),
+        "sottotitolo_default": ("TEXT", "Piatti in base agli acquisti del giorno, soggetti a disponibilità."),
+        "titolo_business":     ("TEXT", "Menù Business"),
+        "prezzo_1_default":    ("REAL", "15.0"),
+        "prezzo_2_default":    ("REAL", "25.0"),
+        "prezzo_3_default":    ("REAL", "35.0"),
+        "footer_default":      ("TEXT", "*acqua, coperto e servizio inclusi"),
+        "updated_at":          ("TEXT", None),
+    }
+    for col, (tipo, default) in expected_settings.items():
+        if col not in cols_ps:
+            try:
+                cur.execute(f"ALTER TABLE pranzo_settings ADD COLUMN {col} {tipo}")
+                if default is not None:
+                    cur.execute(f"UPDATE pranzo_settings SET {col} = ? WHERE id = 1 AND {col} IS NULL", (default,))
+                print(f"  [pranzo] aggiunta colonna pranzo_settings.{col}")
+            except Exception as e:
+                print(f"  [pranzo] WARN ALTER settings.{col}: {e}")
+
     conn.commit()
     _SCHEMA_READY = True
 
@@ -247,12 +331,14 @@ def get_menu_by_settimana(settimana_inizio: str) -> Optional[Dict[str, Any]]:
         if not row:
             return None
         menu = _row_to_dict(row)
+        # Iter 11: query semplificata, niente LEFT JOIN su recipes
+        # (i campi recipe_menu_name/recipe_name non sono usati dal frontend
+        # e il JOIN era una potenziale fonte di hang/timeout su DB con molti rec).
         righe = conn.execute(
-            """SELECT r.*, rec.menu_name AS recipe_menu_name, rec.name AS recipe_name
-                 FROM pranzo_menu_righe r
-                 LEFT JOIN recipes rec ON rec.id = r.recipe_id
-                WHERE r.menu_id = ?
-                ORDER BY r.ordine, r.id""",
+            """SELECT id, menu_id, recipe_id, nome, categoria, ordine, note
+                 FROM pranzo_menu_righe
+                WHERE menu_id = ?
+                ORDER BY ordine, id""",
             (menu["id"],),
         ).fetchall()
         menu["righe"] = [_row_to_dict(x) for x in righe]
