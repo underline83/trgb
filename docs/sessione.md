@@ -205,6 +205,47 @@ Soluzione: il backend (`POST /foodcost/ricette`) gia' accetta lista items vuota 
 ### File toccati (iterazione 4)
 - `frontend/src/pages/ricette/RicetteNuova.jsx` v3.0 — riscritta
 
+### Iterazione 5 — Allineamento PranzoMenu al design Gestione Turni + filtro pool scalabile
+
+Marco: "il design della settimana copialo dai turni" + "il filtro per selezionare i piatti devi farlo diverso, diventeranno tanti" + "programmazione ok (guarda sempre design da gestione turni)".
+
+**Pattern UI replicato da `frontend/src/pages/dipendenti/FoglioSettimana.jsx` e `PerDipendente.jsx`**:
+- Toolbar 3-sezioni: LEFT navigazione settimana ◀ [range · W##] ▶ Oggi · CENTER segmented control "Settimana | Programmazione" · RIGHT azioni dinamiche pubblicate dal componente attivo
+- ISO week format `YYYY-Www` come label informativa accanto al range (es. "27 apr – 1 mag 2026 · W18"). Backend continua a salvare `settimana_inizio` come lunedi YYYY-MM-DD: l'ISO week vive solo come display
+- Card bianca contenuto su `bg-brand-cream`, max-width 1600px (come turni)
+- Touch target 44pt (`min-h-[44px]`) come da pattern turni
+- "Copia da settimana precedente" come azione rapida nel compositore (analogo a "Copia settimana" dei turni)
+
+**Layout compositore (replica del 1fr + 360px panel di FoglioSettimana)**:
+- Colonna principale: lista righe del menu con sort/move/categoria/elimina
+- Side panel (laterale su desktop, sotto su mobile): pool ricette con search
+
+**Pool piatti — filtro scalabile (rimpiazza le chip flat)**:
+- Search input testuale (filtra su `nome` e `menu_description`) con icona ⌕ e bottone di clear
+- Select categoria singolo (Tutti / Antipasto / Primo / Secondo / ...)
+- Lista raggruppata per categoria con header "ANTIPASTO · 3", scrollabile (max-h 320px)
+- Ogni riga: nome del piatto + label "+ aggiungi" a destra, hover orange-50
+- Counter "X di Y" mostra quanti piatti matchano il filtro corrente
+- Pensato per scalare a 50-100 ricette pranzo: il search dimensiona la lista, niente saturation di chip
+
+**TabProgrammazione**: identica concettualmente alla griglia colonne di PerDipendente. Ogni colonna = una settimana, con label range + contatore piatti + ISO week (W##), raggruppata per categoria. Selettore N nella toolbar (4/6/8/12/16/26/52). Click PDF/elimina inline.
+
+**Pattern "azioni dinamiche"**: i tab pubblicano le proprie azioni nella RIGHT della toolbar comune via `registerActions(node)`. Cosi' la toolbar resta una sola, ma le azioni cambiano per tab (Compositore: PDF · Copia prec. · Elimina · Salva. Programmazione: select N settimane · Aggiorna).
+
+### File toccati (iterazione 5)
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` v3.0 — riscritta full
+
+### Verifica iterazione 5
+- esbuild OK (PranzoMenu 26.9kb dal precedente 22.8kb — atteso, aumenta per toolbar/filtri scalabili).
+- Pattern verificato vs FoglioSettimana riga 469-484 (LEFT nav settimana) e righe 486-507 (segmented control) — replicato classe-per-classe.
+
+### Da verificare dopo push (iterazione 5)
+1. `/pranzo`: la toolbar e' identica nello spirito a `/dipendenti/turni` (◀ range · W## ▶ Oggi · segmented control · azioni a destra).
+2. Click sulla settimana che già ha un menu: le righe si caricano. Click "📄 PDF" apre il PDF.
+3. Click "📋 Copia prec.": carica le righe della settimana precedente nello stato corrente. Bisogna salvare per persistere.
+4. Pool: digitare "ravioli" filtra a chi ha ravioli nel nome. Cambiare categoria a "Primo" mostra solo i primi.
+5. Programmazione: settimane in colonne side-by-side (scroll orizzontale se molte). Cambiare il selettore a 4/12/26 settimane.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
