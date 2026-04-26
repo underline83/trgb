@@ -306,6 +306,34 @@ Marco ha fatto push dopo l'iter 5. Su `/pranzo` la pagina ha mostrato "Errore: L
 ### File toccati (iterazione 7)
 - `app/repositories/pranzo_repository.py` — `_ensure_schema(conn)` + chiamate in 7 metodi
 
+### Iterazione 8 — HOTFIX freeze pagina /pranzo (re-render cascata su register-callback)
+
+Marco: "Lo da ancora, e quando sei sulla pagina pranzo sembra crashare tutto.. qualsiasi cosa clicco fuori non risponde". Sintomo: l'errore "Load failed" persiste E la pagina blocca i click anche fuori (header, link al resto del modulo). Diagnosi:
+
+Il pattern v3.0 usava `registerActions(node)` per pubblicare le azioni del tab dentro la toolbar globale. Il child `TabCompositore` faceva `registerActions(<JSX>)` in un `useEffect`. Ogni volta che le dipendenze cambiavano, il child generava una nuova istanza JSX (nuovo riferimento), chiamava `setActionsState(newNode)` nel parent, il parent re-renderizzava, e il ciclo poteva ri-aprirsi se le useCallback non erano perfettamente stabili. Risultato: re-render in cascata che congela il main thread (fino al blocco completo della tab del browser).
+
+**Fix v3.1 — riscrittura senza child component callback-based**:
+- TabCompositore e TabProgrammazione **eliminati** come componenti separati. Tutta la logica vive nel root `PranzoMenu`.
+- Niente `registerActions` / `setActionsState`. Le azioni del compositore (Ordina, Riga ad-hoc, Copia prec., PDF, Elimina, Salva) vivono in una sub-toolbar **dentro la card del compositore**, in alto a destra. Le azioni della programmazione (selettore N, Aggiorna) vivono nella card programmazione.
+- Toolbar principale resta fissa: LEFT nav settimana, CENTER segmented control, RIGHT shortcut globali (Gestisci ricette, Impostazioni). Niente JSX dinamico passato child→parent.
+- Effetti puliti: `useEffect(loadMenu)` triggera solo se `tab === "compositore"`; `useEffect(loadProgrammazione)` solo se `tab === "programmazione"`. Niente cross-trigger.
+- `PoolPiatti` resta componente separato: il suo state e' **interamente locale** (q, cat), comunica col parent solo via `onPick` callback. Niente feedback al parent. Sicuro.
+
+**Errori HTTP gestiti meglio**: il blocco `else` di loadMenu ora setta `setMenu(null); setRighe([])` insieme al messaggio. Cosi' anche se un 500 capita, la UI resta coerente e non blocca su uno state ibrido.
+
+### File toccati (iterazione 8)
+- `frontend/src/pages/pranzo/PranzoMenu.jsx` v3.1 — riscritta senza pattern register-callback
+
+### Verifica iterazione 8
+- esbuild OK (PranzoMenu 26.3kb dal 26.9, leggermente piu' magro).
+- Confermato `grep registerActions` in PranzoMenu.jsx → 0 hit.
+- Logica preservata: pool ricette con search/filtro, programmazione N settimane, design turni-style, copia da settimana precedente.
+
+### Da verificare dopo push (iterazione 8)
+1. `/pranzo`: la pagina non blocca i click. Cliccare il logo TRGB in alto, la nav-bar (Ricette/Ingredienti/etc) deve rispondere.
+2. Se Load failed persiste: il fix iter 7 (`_ensure_schema`) crea le tabelle al volo, quindi il problema non dovrebbe ripresentarsi. Se ricapita, controllare console browser per stack trace 500.
+3. Le azioni Ordina / Riga ad-hoc / Copia prec. / PDF / Elimina / Salva sono ora in alto a destra dentro la card "Piatti della settimana", non piu' nella toolbar globale.
+
 ---
 
 ## SESSIONE 58 (2026-04-25) — VINI QUICK WINS: bottiglia in mescita, ritmo+scarico, fix calice, validazioni
