@@ -95,8 +95,22 @@ Banner rosso "Load failed" rimane visibile sulla pagina `/pranzo` dopo che il cl
 - Messaggio errore parlante ("Salvataggio fallito (rete). Il backend potrebbe essere in restart.") invece del generico "Load failed"
 - Esteso a salva, elimina, copiaSettimanaPrecedente, apriPdf, eliminaSettimana (tab Programmazione)
 
+**Causa radice trovata (2026-04-27, diagnostica in pagina v3.3):**
+`IntegrityError: NOT NULL constraint failed: pranzo_menu.data`. La tabella `pranzo_menu` sul VPS ha schema misto v1.0+v2.0:
+- 5 colonne v1.0 residue: `data` (NOT NULL UNIQUE, ex chiave settimana), `titolo`, `sottotitolo`, `prezzo_*` (DEFAULT), `footer_note`, `stato` (DEFAULT 'bozza')
+- 1 colonna v2.0 aggiunta da `_ensure_schema`: `settimana_inizio` (nullable)
+
+`data` non si può droppare per UNIQUE constraint (richiederebbe recreate-table — rischio non zero su DB con 1 menu in produzione).
+
+**Fix applicato (Iter 12, repository pranzo v2.1):**
+`upsert_menu` ora detecta a runtime via PRAGMA table_info le colonne NOT NULL senza default residue (v1.0) e le include nell'INSERT con valori coerenti:
+- `data` → valore = `monday` (coerente con UNIQUE su settimana_inizio)
+- altre eventuali → stringa vuota
+
+Stesso pattern applicato a `pranzo_menu_righe` (preventivo, oggi non ne ha).
+
 **In osservazione:**
-Prossimo push del modulo Pranzo, riprovare a fare salva/copia subito dopo il restart e verificare che il retry automatico vada a buon fine. Se dopo 2 tentativi ancora fail → log backend per capire se è deadlock SQLite o worker bloccato.
+Marco riprova a salvare la settimana W17 dopo questo push. Se OK → D2 chiuso. Se ancora errore → diagnostica box mostrerà nuovo IntegrityError con altra colonna.
 
 **Follow-up potenziale (se ricapita):**
 - Aumentare worker uvicorn da 1 a 2-4 → restart hanno meno gap totale

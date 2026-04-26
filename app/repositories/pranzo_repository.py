@@ -426,11 +426,35 @@ def upsert_menu(
     `righe` = [{recipe_id?: int, nome: str, categoria: str, ordine?: int, note?: str}, ...]
     Se `recipe_id` viene passato, valida (esiste in recipes) e usa il nome dalla
     ricetta come snapshot se `nome` e' vuoto.
+
+    Iter 12 (D2 fix, 2026-04-27): gestione colonne legacy v1.0 della tabella
+    pranzo_menu. Sul VPS la mig 102 v1.0 ha lasciato 'data' (TEXT NOT NULL UNIQUE)
+    che non puo' essere droppata per UNIQUE constraint. Detect runtime + include
+    nell'INSERT con valore = monday. Stesso pattern per altre eventuali colonne
+    NOT NULL legacy senza default.
     """
     monday = lunedi_di(settimana_inizio)
     conn = get_foodcost_connection()
     try:
         _ensure_schema(conn)
+        # Detect colonne legacy NOT NULL senza default (residuo schema v1.0)
+        # PRAGMA table_info ritorna: (cid, name, type, notnull, dflt_value, pk)
+        legacy_cols = {}
+        for row in conn.execute("PRAGMA table_info(pranzo_menu)").fetchall():
+            name = row[1]
+            notnull = bool(row[3])
+            dflt = row[4]
+            # Solo colonne NOT NULL senza default (le altre prendono il loro default)
+            if notnull and dflt is None and name not in (
+                "id", "settimana_inizio", "created_by", "created_at", "updated_at",
+            ):
+                legacy_cols[name] = monday  # default fallback: usa monday come valore
+        # Caso noto: 'data' (chiave settimana v1.0) vuole monday → coerente con UNIQUE su data
+        # Casi imprevisti (titolo NOT NULL, ecc.): mettiamo string vuota
+        for k in list(legacy_cols.keys()):
+            if k != "data":
+                legacy_cols[k] = ""
+
         existing = conn.execute("SELECT id FROM pranzo_menu WHERE settimana_inizio = ?", (monday,)).fetchone()
         if existing:
             menu_id = existing["id"]
@@ -440,12 +464,28 @@ def upsert_menu(
             )
             conn.execute("DELETE FROM pranzo_menu_righe WHERE menu_id = ?", (menu_id,))
         else:
-            cur = conn.execute(
-                """INSERT INTO pranzo_menu (settimana_inizio, created_by, created_at, updated_at)
-                   VALUES (?, ?, ?, ?)""",
-                (monday, created_by, _now(), _now()),
-            )
+            # INSERT dinamico: include settimana_inizio + audit + colonne legacy NOT NULL
+            base_cols = ["settimana_inizio", "created_by", "created_at", "updated_at"]
+            base_vals = [monday, created_by, _now(), _now()]
+            extra_cols = list(legacy_cols.keys())
+            extra_vals = [legacy_cols[c] for c in extra_cols]
+            all_cols = base_cols + extra_cols
+            all_vals = base_vals + extra_vals
+            placeholders = ", ".join(["?"] * len(all_vals))
+            sql = f"INSERT INTO pranzo_menu ({', '.join(all_cols)}) VALUES ({placeholders})"
+            cur = conn.execute(sql, all_vals)
             menu_id = cur.lastrowid
+
+        # Stesso pattern per pranzo_menu_righe: detect colonne legacy NOT NULL
+        legacy_cols_pmr = {}
+        for row in conn.execute("PRAGMA table_info(pranzo_menu_righe)").fetchall():
+            name = row[1]
+            notnull = bool(row[3])
+            dflt = row[4]
+            if notnull and dflt is None and name not in (
+                "id", "menu_id", "recipe_id", "nome", "categoria", "ordine", "note",
+            ):
+                legacy_cols_pmr[name] = ""  # fallback: vuoto
 
         for idx, r in enumerate(righe):
             categoria = (r.get("categoria") or "altro").strip().lower()
@@ -462,11 +502,15 @@ def upsert_menu(
                 nome = (rec["nome"] if rec else "") or ""
             if not nome:
                 continue
-            conn.execute(
-                """INSERT INTO pranzo_menu_righe (menu_id, recipe_id, nome, categoria, ordine, note)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (menu_id, recipe_id, nome, categoria, r.get("ordine", idx), r.get("note")),
-            )
+            base_cols = ["menu_id", "recipe_id", "nome", "categoria", "ordine", "note"]
+            base_vals = [menu_id, recipe_id, nome, categoria, r.get("ordine", idx), r.get("note")]
+            extra_cols = list(legacy_cols_pmr.keys())
+            extra_vals = [legacy_cols_pmr[c] for c in extra_cols]
+            all_cols = base_cols + extra_cols
+            all_vals = base_vals + extra_vals
+            placeholders = ", ".join(["?"] * len(all_vals))
+            sql = f"INSERT INTO pranzo_menu_righe ({', '.join(all_cols)}) VALUES ({placeholders})"
+            conn.execute(sql, all_vals)
         conn.commit()
     finally:
         conn.close()
